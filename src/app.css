@@ -1,0 +1,112 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+@font-face {
+	font-family: 'm6x';
+	src: url('/m6x11plus.ttf') format('truetype');
+}
+
+.fine-border {
+  border: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+#top {
+  opacity: 1;
+  animation: all 0.5s;
+}
+
+.bg-basic {
+	background-color: var(--fallback-b1,oklch(var(--b1)/1));
+}
+
+.toggle-up {
+  /* height: var(--navbar-height) !important; */
+  /* overflow: hidden; */
+  opacity: 0 !important;
+  transition: all 0.5s;
+  /* padding-top: --navbar !important; */
+}
+
+.blur-in {
+  /* filter: blur(24px); */
+  backdrop-filter: blur(24px);
+  transition: all 0.5s;
+}
+
+.blur-out {
+  filter: blur(0);
+  transition: all 0.5s;
+}
+
+.toggle-down {
+  height: auto;
+  overflow: hidden;
+  opacity: 1;
+  transition: all 0.5s;
+}
+
+.container-height {
+  height: calc(var(--vc, 1vh) * 100);
+  overflow-x: hidden;
+  overflow-y: scroll;
+  padding-bottom: var(--footer-height);
+  padding-top: calc(var(--container-top));
+  /* margin-top: var(--navbar-height); */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+	display: none;
+}
+
+/* For IE, Edge and Firefox */
+.scrollbar-hide {
+	-ms-overflow-style: none; /* IE and Edge */
+	scrollbar-width: none; /* Firefox */
+}
+
+
+
+.qr-reader-box * button {
+	--tw-border-opacity: 1;
+	border-color: oklch(var(--su) / var(--tw-border-opacity));
+	--tw-bg-opacity: 1;
+	background-color: oklch(var(--su) / var(--tw-bg-opacity));
+	--tw-text-opacity: 1;
+	color: oklch(var(--suc, var(--nc)) / var(--tw-text-opacity));
+	display: inline-flex;
+	flex-shrink: 0;
+	cursor: pointer;
+	user-select: none;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: center;
+	border-color: transparent;
+	border-color: oklch(var(--n) / var(--tw-border-opacity));
+	text-align: center;
+	transition-property: color, background-color, border-color, text-decoration-color, fill, stroke,
+		opacity, box-shadow, transform, filter, backdrop-filter;
+	transition-duration: 200ms;
+	transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+	border-radius: var(--rounded-btn, 0.5rem);
+	height: 3rem /* 48px */;
+	padding-left: 1rem /* 16px */;
+	padding-right: 1rem /* 16px */;
+	font-size: 0.875rem /* 14px */;
+	line-height: 1.25rem /* 20px */;
+	line-height: 1em;
+	min-height: 3rem /* 48px */;
+	font-weight: 600;
+	text-transform: uppercase;
+	text-transform: var(--btn-text-case, uppercase);
+	text-decoration-line: none;
+	text-decoration-line: none;
+	border-width: var(--border-btn, 1px);
+	animation: button-pop var(--animation-btn, 0.25s) ease-out;
+	--tw-border-opacity: 1;
+	--tw-bg-opacity: 1;
+	background-color: oklch(var(--n) / var(--tw-bg-opacity));
+	--tw-text-opacity: 1;
+	color: oklch(var(--nc) / var(--tw-text-opacity));
+}

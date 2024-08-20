@@ -1,0 +1,125 @@
+<script lang="ts">
+	import { browser } from '$app/environment';
+	import { sendMessage } from 'src/actions/chat';
+	import { send } from 'src/actions/wallet';
+	import { db } from 'src/stores/db';
+	import { mintInfos } from 'src/stores/mints';
+	import { wallets } from 'src/stores/wallet';
+	import { onMount } from 'svelte';
+
+	// export let active: string;
+	export let toPub: string;
+	let memo: string = '';
+	let getMeltQuote: () => Promise<void>;
+	let amount: number | undefined = undefined;
+	// let invoice: string;
+	// let fees: 0;
+	let processing = '';
+
+	$: {
+		if (!/^[0-9]*$/.test(amount)) {
+			amount = '';
+		}
+	}
+
+	onMount(() => {
+		if (browser) {
+			if (
+				/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+			) {
+				return;
+			}
+			document.getElementById('send-amt')?.focus();
+		}
+	});
+
+	const sendEcash = async () => {
+		try {
+			processing = 'Creating Token';
+			const res = await send($wallets, amount as number, memo);
+			processing = 'Sending Token';
+			await sendMessage(toPub, res.encodedToken, [['amount', res.amount]])
+				.then(() => {
+					console.info(
+						'return change',
+						res.returnChanges.reduce((a, b) => a + b.amount, 0)
+					);
+					// add the change to the proofs table
+					$db.proofs.bulkAdd(res.returnChanges);
+				})
+				.catch((e) => {
+					// keep the sent proofs for yourself as renewed proofs
+					$db.proofs.bulkAdd(res.sends);
+					// add the returnchange to the proofs table
+					$db.proofs.bulkAdd(res.returnChanges);
+
+					console.error(e);
+				});
+
+			processing = 'Token Sent';
+			setTimeout(() => {
+				processing = '';
+			}, 2000);
+		} catch (e) {
+			processing = '';
+			console.error(e);
+		}
+	};
+</script>
+
+<div class="flex flex-col">
+	<div class="flex flex-col"></div>
+	{#if !processing}
+		<div class="flex flex-col w-full items-center gap-3">
+			<!-- <div class="z-10">
+				<MintSelector bind:mint />
+			</div> -->
+
+			<div class="h-52 flex flex-col items-center">
+				<input
+					autofocus
+					id="send-amt"
+					placeholder="0"
+					type="text"
+					inputmode="decimal"
+					bind:value={amount}
+					class="mt-10 text-7xl focus:outline-none text-center max-w-xs"
+					on:keydown={(e) => {
+						if (e.key === 'Enter') {
+							sendEcash();
+						}
+					}}
+				/>
+				<p />
+				<p class="font-bold text-xl">Sats</p>
+			</div>
+		</div>
+
+		<div class="px-4 fixed bottom-8 w-full">
+			<button
+				class=" btn w-full btn-primary"
+				disabled={!amount || !Number(amount) || amount > $mintInfos.totalAmountAvailable}
+				on:click={() => sendEcash()}
+			>
+				{#if Number(amount) > $mintInfos.totalAmountAvailable}
+					Not enough funds
+				{:else}
+					Send
+				{/if}
+			</button>
+		</div>
+		<!-- <Sending
+			bind:send
+			bind:active
+			bind:mint
+			bind:amount
+			bind:selectedTokens
+			bind:isCoinSelection
+			bind:encodedToken
+			bind:processing
+		/> -->
+	{/if}
+	<!-- {:else if activeS === 'send-scan'}
+		<ScanLn bind:invoice bind:activeS />
+	{/if} -->
+</div>
