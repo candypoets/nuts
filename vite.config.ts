@@ -12,7 +12,7 @@ export default defineConfig({
 	server: {
 		fs: {
 			// Allow serving files from hoisted root node_modules
-			allow: ['eth-sdk', '../..']
+			allow: ['../..']
 		}
 	},
 	plugins: [
@@ -56,8 +56,7 @@ export default defineConfig({
 	],
 	resolve: {
 		alias: {
-			src: ['/src'],
-			'eth-sdk': ['/eth-sdk']
+			src: ['/src']
 			// ["ethers/lib/utils"]: ["ethers/lib/utils.js"]
 		}
 	}
