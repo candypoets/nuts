@@ -17,7 +17,7 @@
 >
 	<div class="flex justify-between items-start">
 		<h1 class="text-2xl mb-4 font-semibold">Home</h1>
-		<div class="flex gap-4 p-2 items-center">
+		<div class="flex gap-4 items-center">
 			<div on:click={() => console.log('ohoh')}><Icon icon="ph:eye" class="text-2xl" /></div>
 			<div on:click={() => (profileOpen = true)} class="cursor-pointer">
 				<img src={$profile?.picture || '/ns-naked.svg'} class="w-8 h-8 border rounded-full" />
