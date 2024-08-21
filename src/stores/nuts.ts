@@ -3,7 +3,7 @@
 import { derived, get } from 'svelte/store';
 import * as nostrTools from 'nostr-tools';
 import { nostrPrivKey, nostrPubKey, pool, profile } from './nostr';
-import { db, invoices, pendingProofs, proofs, type Invoice } from './db';
+import { db, invoices, pendingProofs, history, proofs, type Invoice, spentProofs } from './db';
 import {
 	CashuMint,
 	CashuWallet,
@@ -194,41 +194,6 @@ if (browser) {
 		}
 	).subscribe((n) => n);
 
-	// try to get the cashu tokens saved on the user profile
-	// derived([nostrPubKey, db, profile, proofs], async ([$pubkey, $db, $profile, $proofs]) => {
-	// 	if (!$pubkey) return;
-	// 	if (!$profile.nuts) return;
-	// 	// do not attempt a resync if the local version has proofs already
-	// 	if ($proofs.length) return;
-	// 	const content = await getDecryptedContent($pubkey, $profile.nuts);
-	// 	const cashu = getDecodedToken(content);
-	// 	const validProofs: Proof[] = [];
-	// 	await Promise.all(
-	// 		cashu.token.map(async (t) => {
-	// 			// verify the token
-	// 			const cashuMint = new CashuMint(t.mint);
-	// 			const keys = await cashuMint.getKeys();
-	// 			const wallet = new CashuWallet(cashuMint, keys.keysets[0]);
-	// 			const { token: tokens, tokensWithErrors } = await wallet.receive(
-	// 				{ token: [t] },
-	// 				{ privkey: get(nostrPrivKey) }
-	// 			);
-	// 			console.log('heeeeeey');
-	// 			if (tokensWithErrors) return;
-
-	// 			console.log(validProofs);
-	// 			validProofs.push(...tokens.token.flatMap((t) => t.proofs));
-	// 			await Promise.all(
-	// 				t.proofs.map(async (p) => {
-	// 					await $db.keysets.put({ id: p.id, mint: t.mint });
-	// 				})
-	// 			);
-	// 		})
-	// 	);
-	// 	// const proofs = cashu.token.reduce((acc, cur) => [...acc, ...cur.proofs], [] as Proof[]);
-	// 	$db.proofs.bulkAdd(validProofs);
-	// }).subscribe((n) => n);
-
 	// keep the user proofs in sync with the nostr profile
 	derived([nostrPubKey, proofs], async ([$pubkey, $proofs]) => {
 		if (!$pubkey) return;
@@ -239,4 +204,40 @@ if (browser) {
 		// save the nuts to the profile
 		await saveNuts($proofs, $pubkey);
 	}).subscribe((n) => n);
+}
+
+// try to get the cashu tokens saved on the user profile
+export async function getNuts(): Promise<boolean> {
+	if (!get(nostrPubKey)) return false;
+	if (!get(profile).name) return false;
+	// only attempt if the account is new
+	if (get(proofs).length || get(spentProofs).length) return false;
+
+	const content = await getDecryptedContent(get(nostrPubKey), get(profile).nuts || '');
+	const cashu = getDecodedToken(content);
+	// const validProofs: Proof[] = [];
+	// await Promise.all(
+	// 	cashu.token.map(async (t) => {
+	// 		// verify the token
+	// 		const cashuMint = new CashuMint(t.mint);
+	// 		const keys = await cashuMint.getKeys();
+	// 		const wallet = new CashuWallet(cashuMint, keys.keysets[0]);
+	// 		const { token: tokens, tokensWithErrors } = await wallet.receive(
+	// 			{ token: [t] },
+	// 			{ privkey: get(nostrPrivKey) }
+	// 		);
+	// 		if (tokensWithErrors) return;
+
+	// 		// console.log(validProofs);
+	// 		validProofs.push(...tokens.token.flatMap((t) => t.proofs));
+	// 		await Promise.all(
+	// 			t.proofs.map(async (p) => {
+	// 				await get(db).keysets.put({ id: p.id, mint: t.mint });
+	// 			})
+	// 		);
+	// 	})
+	// );
+	// const proofs = cashu.token.reduce((acc, cur) => [...acc, ...cur.proofs], [] as Proof[]);
+	get(db).proofs.bulkAdd(cashu.token.flatMap((t) => t.proofs));
+	return true;
 }

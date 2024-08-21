@@ -13,10 +13,12 @@
 	import MobileNav from '../comp/MobileNav.svelte';
 	import StorageManager from '../comp/plugin/StorageManager.svelte';
 	import Toasts from '../comp/Toasts.svelte';
-	import { nostrPubKey } from '../stores/nostr';
+	import { nostrPubKey, profile } from '../stores/nostr';
 	import Login from './login.svelte';
 	import { goto } from '$app/navigation';
 	import { pwaInfo } from 'virtual:pwa-info';
+	import { set } from 'node_modules/vaul-svelte/dist/internal/helpers';
+	import { getNuts } from 'src/stores/nuts';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
 	// Watch for route changes
@@ -33,6 +35,17 @@
 			addMint('https://mint.minibits.cash/Bitcoin');
 			addMint('https://mint.lnserver.com/');
 		});
+
+		while (!$nostrPubKey) {
+			let isSaved = false;
+			setTimeout(async () => {
+				// console.log('Waiting for profile');
+				isSaved = await getNuts();
+			}, 10000);
+			if (isSaved) {
+				break;
+			}
+		}
 
 		// $: console.log(c);
 		// You can add your custom logic here

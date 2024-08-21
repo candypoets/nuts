@@ -64,6 +64,16 @@ export const pendingProofs = derived(
 	[] as Proof[]
 );
 
+export const spentProofs = derived(
+	[db],
+	([$db], set) => {
+		liveQuery(() => $db.spentProofs.toArray()).subscribe((proofs) => {
+			set(proofs);
+		});
+	},
+	[] as Proof[]
+);
+
 export const invoices = derived(
 	[db],
 	([$db], set) => {

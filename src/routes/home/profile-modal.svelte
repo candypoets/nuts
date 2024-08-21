@@ -162,7 +162,7 @@
 				<Drawer.Portal>
 					<Drawer.Overlay class="absolute inset-0 bg-black/40" />
 					<Drawer.Content
-						class="pb-8 pt-3 bg-white absolute top-4 left-0 right-0"
+						class="pb-8 pt-3 bg-basic absolute top-4 left-0 right-0"
 						style="height: 95vh;"
 					>
 						<div class="px-4">
