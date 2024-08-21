@@ -3,6 +3,7 @@
 </script> -->
 
 <script lang="ts">
+	import '../app.css';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { addMint } from 'src/actions/mint';
@@ -12,7 +13,6 @@
 	import { getNuts } from 'src/stores/nuts';
 	import { onMount } from 'svelte';
 	import { pwaInfo } from 'virtual:pwa-info';
-	import '../app.css';
 	import MobileNav from '../comp/MobileNav.svelte';
 	import StorageManager from '../comp/plugin/StorageManager.svelte';
 	import Toasts from '../comp/Toasts.svelte';
