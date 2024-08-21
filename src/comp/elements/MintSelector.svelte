@@ -59,8 +59,6 @@
 		class="z-10 dropdown-content menu py-2 shadow bg-base-100 rounded-box md:w-72 max-h-56 overflow-scroll flex-row scrollbar-hide w-full"
 	>
 		{#each $mints as m}
-			<!-- svelte-ignore a11y-missing-attribute -->
-			<!-- svelte-ignore a11y-click-events-have-key-events -->
 			<li on:click={() => ($mint = m)} class="rounded-xl w-full">
 				<div class="flex gap-1 items-center w-full">
 					{#if m.mintURL === $mint?.mintURL}
@@ -86,9 +84,6 @@
 								{formatAmount(amount, 'sat')}
 							{/await}
 						</p>
-						<!-- <div>
-							<TokenIcon />
-						</div> -->
 					</div>
 				</div>
 			</li>

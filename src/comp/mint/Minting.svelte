@@ -1,32 +1,25 @@
 <script lang="ts">
-	import { CashuMint, CashuWallet, type AmountPreference } from '@cashu/cashu-ts';
-	import type { Mint } from '../../model/mint';
-	import LoadingCenter from '../LoadingCenter.svelte';
-	import { QRCodeImage } from 'svelte-qrcode-image';
-	import { decode } from '@gandlaf21/bolt11-decode';
 	import { browser } from '$app/environment';
-	import { toast } from '../../stores/toasts';
-	import { mintRequests } from '../../stores/mintReqs';
-	import { onMount } from 'svelte';
-	import { mint, mints } from '../../stores/mints';
-	import MintSelector from '../elements/MintSelector.svelte';
-	import * as walletActions from '../../actions/walletActions';
-	import CustomSplits from '../elements/CustomSplits.svelte';
-	import { formatAmount } from '../util/walletUtils';
-	import { unit } from '../../stores/settings';
+	import { CashuMint, type AmountPreference } from '@cashu/cashu-ts';
+	import { decode } from '@gandlaf21/bolt11-decode';
 	import { db } from 'src/stores/db';
+	import { onMount } from 'svelte';
+	import { QRCodeImage } from 'svelte-qrcode-image';
+	import { mintRequests } from '../../stores/mintReqs';
+	import { mint } from '../../stores/mints';
+	import { unit } from '../../stores/settings';
+	import { toast } from '../../stores/toasts';
+	import MintSelector from '../elements/MintSelector.svelte';
+	import LoadingCenter from '../LoadingCenter.svelte';
+	import { formatAmount } from '../util/walletUtils';
 
 	export let active;
 	export let doMint = false;
 	export let isMinting: boolean;
 	let amount: number | undefined = 200;
 	let qrCode: string | undefined;
-	let mintingHash: string | undefined;
 	let isLoading: boolean = false;
 	let isPolling: boolean = false;
-	let isComplete: boolean = false;
-	let preference: AmountPreference[];
-	let useAmountPreference = false;
 	let memo = '';
 
 	$: {
@@ -39,11 +32,6 @@
 		} else {
 			isMinting = false;
 		}
-	}
-
-	$: {
-		$mint;
-		checkForMintInProgress();
 	}
 
 	// todo clean up the states
@@ -59,7 +47,6 @@
 	};
 
 	onMount(() => {
-		checkForMintInProgress();
 		if (browser) {
 			if (
 				/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
@@ -69,23 +56,6 @@
 			document.getElementById('mint-req-amt')?.focus();
 		}
 	});
-
-	const checkForMintInProgress = () => {
-		if (!mint) {
-			return;
-		}
-		if ($mintRequests.map((mR) => mR.mintUrl).includes($mint?.mintURL)) {
-			const mintReq = $mintRequests.find((mR) => mR.mintUrl === $mint?.mintURL);
-			mintingHash = mintReq?.paymentHash;
-			qrCode = mintReq?.invoice;
-			if (qrCode) {
-				amount = decode(qrCode).sections[2].value / 1000;
-			}
-		} else {
-			qrCode = undefined;
-			amount = undefined;
-		}
-	};
 
 	const mintRequest = async () => {
 		try {
@@ -101,11 +71,11 @@
 				toast('warning', 'amount must be a number greater than 0', 'Could not create invoice');
 				return;
 			}
-			isComplete = false;
+			// isComplete = false;
 			isLoading = true;
 			const cashuMint = new CashuMint($mint?.mintURL);
 			const mintQuote = await cashuMint.mintQuote({ amount: amount ?? 0, unit: 'sat' });
-			mintingHash = mintQuote.quote;
+			// mintingHash = mintQuote.quote;
 			qrCode = mintQuote.request;
 
 			$db.invoices.add({
@@ -114,15 +84,6 @@
 				mint: $mint?.mintURL
 			});
 
-			// mintRequests.update((state) => [
-			// 	{
-			// 		invoice: qrCode ?? '',
-			// 		mintUrl: $mint?.mintURL,
-			// 		isCompleted: false,
-			// 		paymentHash: mintingHash ?? ''
-			// 	},
-			// 	...state
-			// ]);
 			doMint = true;
 			// mintTokens();
 		} catch (error) {
@@ -132,51 +93,11 @@
 		}
 	};
 
-	// const mintTokens = async () => {
-	// 	try {
-	// 		if (!amount) {
-	// 			toast('warning', 'No amount provided', 'Could not create invoice');
-	// 			return;
-	// 		}
-	// 		if (mintingHash) {
-	// 			isPolling = true;
-	// 			let mintPreference = undefined;
-	// 			if (useAmountPreference) {
-	// 				mintPreference = preference;
-	// 			}
-	// 			const { proofs } = await walletActions.mint($mint, amount, mintingHash, mintPreference);
-	// 			if (proofs.length) {
-	// 				toast('success', `${formatAmount(amount, $unit)} ecash minted.`, 'Minted!');
-	// 				isComplete = true;
-	// 			}
-	// 		} else {
-	// 			toast('error', 'No minting quote was provided.', 'Could not mint Tokens');
-	// 		}
-	// 	} catch (e) {
-	// 		console.error(e);
-	// 	} finally {
-	// 		isPolling = false;
-	// 		if (!isComplete) {
-	// 			if (doMint) {
-	// 				setTimeout(mintTokens, 5000);
-	// 			}
-	// 		} else {
-	// 			abortMint();
-	// 			resetState();
-	// 			active = 'base';
-	// 		}
-	// 	}
-	// };
-
-	const abortMint = () => {
-		mintRequests.update((state) => state.filter((mR) => !(mR.mintUrl === $mint?.mintURL)));
-	};
-
 	const resetState = () => {
 		amount = undefined;
 		qrCode = undefined;
-		mintingHash = undefined;
-		isComplete = false;
+		// mintingHash = undefined;
+		// isComplete = false;
 		doMint = false;
 		memo = '';
 	};
@@ -244,7 +165,7 @@
 				<button
 					class="btn btn-outline btn-error"
 					on:click={() => {
-						abortMint();
+						// abortMint();
 						resetState();
 					}}>delete invoice</button
 				>
@@ -252,6 +173,8 @@
 		</div>
 	{:else}
 		<div class="pt-8">
+			<!-- have an invisible focusable element that focus first -->
+			<a autofocus tabindex={-1} />
 			<MintSelector />
 			<div class="">
 				<div class="flex items-end gap-4 m-auto w-1/2 h-44">

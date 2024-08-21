@@ -191,9 +191,9 @@
 			<Drawer.NestedRoot bind:open={subopen}>
 				<!-- <Drawer.Trigger /> -->
 				<Drawer.Portal>
-					<Drawer.Overlay class="fixed inset-0 bg-black/40" />
+					<Drawer.Overlay class="absolute inset-0 bg-black/40" />
 					<Drawer.Content
-						class="pb-8 pt-3 bg-white fixed bottom-0 left-0 right-0"
+						class="pb-8 pt-3 bg-white absolute top-4 left-0 right-0"
 						style="height: 95vh;"
 					>
 						<div class="px-4 flex justify-between">
@@ -225,13 +225,13 @@
 										-->
 										<div class="w-16">
 											<img
-												src={selectedContact.picture || '/ns-naked.svg'}
-												alt={selectedContact.name}
+												src={selectedContact?.picture || '/ns-naked.svg'}
+												alt={selectedContact?.name}
 												class="border w-8 h-8 rounded-full space-x-4 mx-auto"
 											/>
 										</div>
 										<div class="text-xs">
-											<strong>{selectedContact.name}</strong>
+											<strong>{selectedContact?.name}</strong>
 										</div>
 									</div>
 								</div>
@@ -239,7 +239,7 @@
 							{#if paymentType === 'Tapcash'}
 								<Tapcash />
 							{:else if paymentType === 'Zap'}
-								<Ecash toPub={selectedContact.pubkey} />
+								<Ecash toPub={selectedContact?.pubkey} />
 							{:else if paymentType === 'Invoice'}
 								<Send bind:active />
 							{/if}
