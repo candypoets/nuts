@@ -83,6 +83,7 @@
 					<h2 class="text-4xl"><HistoryIcon type={item.type} /></h2>
 					<h2 class="text-2xl my-4"><HistoryLabel {item} /></h2>
 				</div>
+				<br />
 				<p class="text-2xl" class:text-primary={item.amount > 0}>
 					{formatAmount(item.amount, $unit)}
 				</p>
