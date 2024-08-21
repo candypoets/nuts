@@ -35,16 +35,16 @@
 			addMint('https://mint.lnserver.com/');
 		});
 
-		while (!$nostrPubKey) {
-			let isSaved = false;
-			setTimeout(async () => {
-				// console.log('Waiting for profile');
-				isSaved = await getNuts();
-			}, 10000);
-			if (isSaved) {
-				break;
-			}
-		}
+		// while (!$nostrPubKey) {
+		// 	let isSaved = false;
+		// 	setTimeout(async () => {
+		// 		// console.log('Waiting for profile');
+		// 		isSaved = await getNuts();
+		// 	}, 10000);
+		// 	if (isSaved) {
+		// 		break;
+		// 	}
+		// }
 
 		// $: console.log(c);
 		// You can add your custom logic here
