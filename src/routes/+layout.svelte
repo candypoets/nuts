@@ -21,7 +21,9 @@
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
 	// Watch for route changes
 	onMount(() => {
-		goto('/home');
+		if ($page.route.id === '/') {
+			goto('/home');
+		}
 		// console.log('Route changed to:', $page.route.id);
 		page.subscribe((p) => {
 			// console.log('Route changed to:', $page.route.id);
