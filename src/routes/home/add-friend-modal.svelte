@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
 	import type { Contact } from 'src/model/contact';
+	import { db } from 'src/stores/db';
 	import { nostrPubKey, pool, signAndSend } from 'src/stores/nostr';
 	import { Drawer } from 'vaul-svelte';
 
@@ -84,6 +85,7 @@
 								class="btn btn-circle"
 								on:click={() => {
 									console.log('add friend');
+									$db.contacts.add({ ...user, pubkey, createdAt: Math.floor(Date.now() / 1000) });
 									signAndSend({
 										kind: 3,
 										pubkey: $nostrPubKey,

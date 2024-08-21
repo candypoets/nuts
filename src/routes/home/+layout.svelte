@@ -20,7 +20,7 @@
 		<div class="flex gap-4 p-2 items-center">
 			<div on:click={() => console.log('ohoh')}><Icon icon="ph:eye" class="text-2xl" /></div>
 			<div on:click={() => (profileOpen = true)} class="cursor-pointer">
-				<img src={$profile?.picture || '/ns-naked.svg'} class="w-6 h-6 border-2 rounded-full" />
+				<img src={$profile?.picture || '/ns-naked.svg'} class="w-8 h-8 border rounded-full" />
 			</div>
 		</div>
 	</div>
@@ -28,7 +28,7 @@
 		<div class="flex w-full justify-between">
 			<div class="text-lg font-semibold">{$profile.name || 'Main Account'}</div>
 			<!-- <div>Main Account</div> -->
-			<img src={$profile.picture || '/ns-naked.svg'} class="w-6 h-6" />
+			<!-- <img src={$profile.picture || '/ns-naked.svg'} class="w-6 h-6" /> -->
 		</div>
 		<br />
 		<strong class="text-3xl">

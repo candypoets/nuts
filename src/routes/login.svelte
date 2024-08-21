@@ -1,10 +1,9 @@
 <script lang="ts">
-	import { signP2PKsecret } from '@gandlaf21/cashu-crypto/modules/client/NUT11';
 	import Icon from '@iconify/svelte';
-	import { nip19, type UnsignedEvent } from 'nostr-tools';
-	import { schnorr, secp256k1 } from '@noble/curves/secp256k1';
-	import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
+	import { schnorr } from '@noble/curves/secp256k1';
+	import { bytesToHex } from '@noble/hashes/utils';
 	import type { NostrEvent } from '@nostrify/nostrify';
+	import { type UnsignedEvent } from 'nostr-tools';
 	import { decodePrivKey, nostrPrivKey, nostrPubKey, pool, signer } from 'src/stores/nostr';
 
 	let privateKey = '';
@@ -22,15 +21,16 @@
 
 		const pk = decodePrivKey(privateKey);
 
-		console.log(pk);
 		const pubkey = bytesToHex(schnorr.getPublicKey(pk));
+		const privkey = bytesToHex(pk);
 
+		console.log(pk, pubkey);
 		loading = true;
-		const isAuth = await pool.query([{ authors: [pubkey], kinds: [0] }]);
+		const isAuth = await pool.query([{ authors: [pubkey], kinds: [0], limit: 1 }]);
 
 		loading = false;
 		$nostrPubKey = pubkey;
-		$nostrPrivKey = privateKey;
+		$nostrPrivKey = privkey;
 
 		console.log(isAuth);
 	}

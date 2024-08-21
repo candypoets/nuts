@@ -37,10 +37,10 @@ if (browser) {
 					if (follow[0] === 'CLOSED') break;
 					if (follow[0] !== 'EVENT') continue;
 					const event = follow[2];
-					console.log(event);
+					// console.log(event);
 					const contact = JSON.parse(event.content);
 
-					console.log(contact, event.created_at);
+					// console.log(contact, event.created_at);
 
 					// add the contact to the db
 					await $db.contacts.put({

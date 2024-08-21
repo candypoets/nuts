@@ -42,6 +42,7 @@ if (browser) {
 
 			const incoming = event.tags.find((t) => t[0] === 'p' && t[1] === $pubkey);
 			if (incoming) {
+				console.log(event.content);
 				const decodedMessage = window.nostr
 					? await window.nostr.nip04.decrypt(event.pubkey, event.content)
 					: await nostrTools.nip04.decrypt($privkey, event.pubkey, event.content);
@@ -51,17 +52,17 @@ if (browser) {
 					token = getDecodedToken(decodedMessage);
 				} catch (e) {
 					console.error(e, 'could not decode nip-04 message as token. Ignoring this message');
-					return;
+					continue;
 				}
 
 				if (!token?.token) {
 					//if the event is not in a cashu token format, ignore it
-					return;
+					continue;
 				}
 
 				if (!isValidToken(token.token)) {
 					// ignore messages that are not tokens
-					return;
+					continue;
 				}
 				// store the mint in the db
 				await Promise.all(

@@ -95,6 +95,7 @@ nostrPrivKey.subscribe((value) => {
 				if (message[0] === 'CLOSED') break;
 				if (message[0] !== 'EVENT') continue;
 				const event = message[2];
+				console.log(JSON.parse(event.content));
 				profile.set(JSON.parse(event.content));
 			}
 		})();
@@ -164,7 +165,13 @@ export const pool = new NPool({
 		]);
 	},
 	async eventRouter(event) {
-		return ['wss://relay.damus.io', 'wss://nostr.einundzwanzig.space/', 'wss://relay.primal.net'];
+		return [
+			'wss://relay.damus.io',
+			'wss://nostr.einundzwanzig.space/',
+			'wss://relay.primal.net',
+			'wss://relay.nuts.cash'
+			// 'ws://umbrel:4848'
+		];
 	}
 });
 
