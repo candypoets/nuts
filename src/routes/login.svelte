@@ -3,7 +3,7 @@
 	import { schnorr } from '@noble/curves/secp256k1';
 	import { bytesToHex } from '@noble/hashes/utils';
 	import type { NostrEvent } from '@nostrify/nostrify';
-	import { type UnsignedEvent } from 'nostr-tools';
+	import { kinds, type UnsignedEvent } from 'nostr-tools';
 	import { decodePrivKey, nostrPrivKey, nostrPubKey, pool, signer } from 'src/stores/nostr';
 
 	let privateKey = '';
@@ -26,13 +26,18 @@
 
 		console.log(pk, pubkey);
 		loading = true;
-		const isAuth = await pool.query([{ authors: [pubkey], kinds: [0], limit: 1 }]);
+		const messages = pool.req([{ kinds: [kinds.Metadata], authors: [pubkey], limit: 1 }]);
 
-		loading = false;
-		$nostrPubKey = pubkey;
-		$nostrPrivKey = privkey;
+		for await (const message of messages) {
+			if (message[0] === 'CLOSED') break;
+			if (message[0] !== 'EVENT') continue;
+			loading = false;
+			$nostrPubKey = pubkey;
+			$nostrPrivKey = privkey;
+			break;
+		}
 
-		console.log(isAuth);
+		// console.log(isAuth);
 	}
 
 	async function handleSignup() {
