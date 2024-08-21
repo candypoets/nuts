@@ -47,7 +47,7 @@
 		<div class="flex flex-col w-full h-full justify-start">
 			<div class="w-full">
 				{#each Object.entries(map) as [date, items]}
-					<strong class="text-xs px-4 pt-4">{date}</strong>
+					<strong class="text-sm px-4 pt-4">{date}</strong>
 					<div class="mx-4 mt-2 rounded-lg border mb-4">
 						<table class="table table-compact w-full">
 							<tbody class="max-h-1 overflow-y-scroll scrollbar-hide">

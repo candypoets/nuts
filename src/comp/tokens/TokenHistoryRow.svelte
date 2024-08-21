@@ -53,7 +53,7 @@
 	}
 </script>
 
-<tr on:click={() => (open = true)} class="cursor-pointer last:border-none">
+<tr on:click={() => (open = true)} class="cursor-pointer last:border-none h-14">
 	<td class="w-8"><HistoryIcon type={item.type} /> </td>
 	<td><HistoryLabel {item} /></td>
 	<td class="text-right">
@@ -68,9 +68,9 @@
 <Drawer.Root bind:open>
 	<!-- <Drawer.Trigger /> -->
 	<Drawer.Portal>
-		<Drawer.Overlay class="fixed inset-0 bg-black/40 z-10" />
+		<Drawer.Overlay class="absolute inset-0 bg-black/40 z-10" />
 		<Drawer.Content
-			class="rounded-t-3xl pb-8 pt-3 bg-white fixed bottom-0 left-0 right-0 z-10"
+			class="rounded-t-3xl pb-8 pt-3 bg-white absolute top-4 left-0 right-0 z-10"
 			style="height: 95vh;"
 		>
 			<div class="px-4">
@@ -79,8 +79,10 @@
 				</div>
 			</div>
 			<div class="p-4">
-				<h2 class="text-4xl"><HistoryIcon type={item.type} /></h2>
-				<h2 class="text-2xl my-4"><HistoryLabel {item} /></h2>
+				<div class="flex gap-2 items-center">
+					<h2 class="text-4xl"><HistoryIcon type={item.type} /></h2>
+					<h2 class="text-2xl my-4"><HistoryLabel {item} /></h2>
+				</div>
 				<p class="text-2xl" class:text-primary={item.amount > 0}>
 					{formatAmount(item.amount, $unit)}
 				</p>

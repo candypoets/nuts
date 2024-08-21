@@ -6,15 +6,27 @@
 </script>
 
 {#if type === HistoryItemType.SEND}
-	<Icon icon="fluent:send-20-filled" />
+	<div class="rounded-full border p-2 flex items-center justify-center">
+		<Icon icon="fluent:send-20-filled" />
+	</div>
 {:else if type === HistoryItemType.RECEIVE}
-	<Icon icon="bitcoin-icons:receive-filled" />
+	<div class="rounded-full border p-2 flex items-center justify-center">
+		<Icon icon="bitcoin-icons:receive-filled" />
+	</div>
 {:else if type === HistoryItemType.RECEIVE_OFFLINE}
-	<Icon icon="mdi:cellphone-nfc" />
+	<div class="rounded-full border p-2 flex items-center justify-center">
+		<Icon icon="mdi:cellphone-nfc" />
+	</div>
 {:else if type === HistoryItemType.MELT}
-	<Icon icon="ph:lightning-bold" class="text-warning" />
+	<div class="rounded-full border p-2 flex items-center justify-center">
+		<Icon icon="ph:lightning-bold" class="text-warning" />
+	</div>
 {:else if type === HistoryItemType.RECEIVE_NOSTR}
-	<Icon icon="game-icons:bird-mask" />
+	<div class="rounded-full border p-2 flex items-center justify-center">
+		<Icon icon="game-icons:bird-mask" />
+	</div>
 {:else}
-	<Icon icon="gala:add" />
+	<div class="rounded-full border p-2 flex items-center justify-center">
+		<Icon icon="gala:add" />
+	</div>
 {/if}

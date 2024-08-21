@@ -95,7 +95,7 @@
 			</div>
 		</div>
 
-		<div class="px-4 fixed bottom-8 w-full">
+		<div class="px-4 w-full mt-36">
 			<button
 				class=" btn w-full btn-primary"
 				disabled={!amount || !Number(amount) || amount > $mintInfos.totalAmountAvailable}

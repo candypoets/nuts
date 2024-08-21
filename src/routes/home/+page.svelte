@@ -87,11 +87,8 @@
 		</button>
 		<div class="text-sm mt-1 font-semibold">Add friend</div>
 	</div>
-
-	{#if getLockedTokens($token).length}
-		<ClaimOfflineTokens></ClaimOfflineTokens>
-	{/if}
 </div>
+<br />
 <Transactions />
 {#if $isEncrypted}
 	<WalletLock></WalletLock>
