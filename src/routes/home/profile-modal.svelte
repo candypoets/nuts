@@ -64,10 +64,10 @@
 	<Drawer.Portal>
 		<Drawer.Overlay class="fixed inset-0 bg-black/40 z-10" />
 		<Drawer.Content
-			class="pb-8 pt-3 bg-white fixed bottom-0 left-0 right-0 z-10"
+			class="pb-8 pt-3 bg-basic absolute top-0 left-0 right-0 z-10"
 			style="height: 100vh;"
 		>
-			<div class="fixed w-full bg-white">
+			<div class="fixed w-full bg-basic">
 				<div class="px-4 flex justify-between">
 					<div on:click={() => (open = false)}>
 						<Icon icon="mingcute:down-line" class="text-xl" />

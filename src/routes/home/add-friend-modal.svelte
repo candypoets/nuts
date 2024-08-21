@@ -41,7 +41,7 @@
 	<Drawer.Portal>
 		<Drawer.Overlay class="fixed inset-0 bg-black/40 z-10" />
 		<Drawer.Content
-			class="rounded-t-3xl pb-8 pt-3 bg-white fixed bottom-0 left-0 right-0 fine-border z-10"
+			class="rounded-t-3xl pb-8 pt-3 bg-basic fixed bottom-0 left-0 right-0 fine-border z-10"
 			style="height: 95vh;"
 		>
 			<div class="px-4">

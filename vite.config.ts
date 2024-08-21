@@ -27,10 +27,10 @@ export default defineConfig({
 				name: 'Nuts.cash',
 				short_name: 'nuts',
 				description: 'The Ecash social wallet',
-				theme_color: '#1b006ae6',
+				theme_color: '#fbf9fa',
 				start_url: '/',
 				display: 'fullscreen',
-				background_color: '#1b006ae6'
+				background_color: '#fbf9fa'
 			},
 			registerType: 'autoUpdate',
 			workbox: {

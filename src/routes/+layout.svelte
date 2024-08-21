@@ -16,7 +16,9 @@
 	import { nostrPubKey } from '../stores/nostr';
 	import Login from './login.svelte';
 	import { goto } from '$app/navigation';
+	import { pwaInfo } from 'virtual:pwa-info';
 
+	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
 	// Watch for route changes
 	onMount(() => {
 		goto('/home');
@@ -35,6 +37,10 @@
 
 	$: homepage = $page.route.id == '/';
 </script>
+
+<svelte:head>
+	{@html webManifestLink}
+</svelte:head>
 
 <StorageManager>
 	<!-- {#if $useNostr} -->

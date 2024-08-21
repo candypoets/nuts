@@ -267,7 +267,6 @@
 								mintRequest();
 							}
 						}}
-						autofocus
 						class="text-3xl max-w-xs outline-none font-bold w-full text-center"
 					/>
 				</div>
@@ -278,7 +277,7 @@
 
 			<div class="flex join justify-center">
 				<button
-					class="btn btn-warning flex gap-1 fixed bottom-4"
+					class="btn btn-warning flex gap-1 mt-60"
 					on:click={() => {
 						mintRequest();
 					}}

@@ -155,10 +155,16 @@ export const pool = new NPool({
 		return new NRelay1(url);
 	},
 	async reqRouter(filters) {
-		return new Map([['wss://relay.damus.io', filters]]);
+		return new Map([
+			['wss://relay.damus.io', filters],
+			['wss://nostr.einundzwanzig.space/', filters],
+			['wss://relay.primal.net', filters],
+			['wss://relay.nuts.cash', filters]
+			// ['ws://umbrel:4848', filters]
+		]);
 	},
 	async eventRouter(event) {
-		return ['wss://relay.damus.io'];
+		return ['wss://relay.damus.io', 'wss://nostr.einundzwanzig.space/', 'wss://relay.primal.net'];
 	}
 });
 
