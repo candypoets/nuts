@@ -3,22 +3,21 @@
 </script> -->
 
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { addMint } from 'src/actions/mint';
 	import { updateVc } from 'src/lib';
 	import 'src/stores/contacts';
 	import 'src/stores/nuts';
+	import { getNuts } from 'src/stores/nuts';
 	import { onMount } from 'svelte';
+	import { pwaInfo } from 'virtual:pwa-info';
 	import '../app.css';
 	import MobileNav from '../comp/MobileNav.svelte';
 	import StorageManager from '../comp/plugin/StorageManager.svelte';
 	import Toasts from '../comp/Toasts.svelte';
-	import { nostrPubKey, profile } from '../stores/nostr';
+	import { nostrPubKey } from '../stores/nostr';
 	import Login from './login.svelte';
-	import { goto } from '$app/navigation';
-	import { pwaInfo } from 'virtual:pwa-info';
-	import { set } from 'node_modules/vaul-svelte/dist/internal/helpers';
-	import { getNuts } from 'src/stores/nuts';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
 	// Watch for route changes
