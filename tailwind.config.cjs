@@ -5,7 +5,7 @@ module.exports = {
 			{
 				light: {
 					primary: '#158777',
-					'primary-content': '#e1f3ef',
+					'primary-content': '#d6e9e5',
 					secondary: '#D926AA',
 					'base-100': '#f9fafb',
 					neutral: '#2a323c',
@@ -63,7 +63,11 @@ module.exports = {
 	},
 	content: ['./src/**/*.{html,js,svelte,ts}'],
 	theme: {
-		extend: {}
+		extend: {
+			fontFamily: {
+				sans: ["Suisse Int'l", 'ui-sans-serif', 'system-ui']
+			}
+		}
 	},
 	plugins: [require('daisyui')]
 };

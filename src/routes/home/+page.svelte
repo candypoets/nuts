@@ -68,24 +68,24 @@
 	$: console.log($profile);
 </script>
 
-<div class="flex gap-4 mx-4 -mt-4">
+<div class="flex gap-2 mx-4 -mt-4">
 	<div class="text-center">
-		<button class="btn btn-primary btn-circle" on:click={() => (addOpen = true)}>
-			<Icon icon="carbon:add" class="w-6 h-6" />
+		<button class="btn w-14 h-14 btn-primary btn-circle" on:click={() => (addOpen = true)}>
+			<Icon icon="carbon:add" class="w-8 h-8" />
 		</button>
-		<div class="text-xs mt-1">Add Money</div>
+		<div class="text-sm mt-1 font-semibold">Add money</div>
 	</div>
 	<div class="text-center">
-		<button class="btn btn-primary btn-circle" on:click={() => (sendOpen = true)}>
-			<Icon icon="carbon:arrow-right" class="w-6 h-6" />
+		<button class="btn w-14 h-14 btn-primary btn-circle" on:click={() => (sendOpen = true)}>
+			<Icon icon="carbon:arrow-right" class="w-8 h-8" />
 		</button>
-		<div class="text-xs mt-1">Send Money</div>
+		<div class="text-sm mt-1 font-semibold">Send money</div>
 	</div>
 	<div class="text-center">
-		<button class="btn btn-circle btn-outline" on:click={() => (addFriend = true)}>
-			<Icon icon="carbon:user" class="w-6 h-6" />
+		<button class="btn w-14 h-14 btn-circle btn-outline" on:click={() => (addFriend = true)}>
+			<Icon icon="carbon:user" class="w-8 h-8" />
 		</button>
-		<div class="text-xs mt-1">Add friend</div>
+		<div class="text-sm mt-1 font-semibold">Add friend</div>
 	</div>
 
 	{#if getLockedTokens($token).length}

@@ -15,7 +15,7 @@
 	import { formatAmount } from 'src/comp/util/walletUtils';
 	import { unit } from 'src/stores/settings';
 	import ScanLn from 'src/comp/elements/ScanLN.svelte';
-	import { profile } from 'src/stores/nostr';
+	import { nostrPubKey, profile } from 'src/stores/nostr';
 
 	let active: string;
 	let search: string;
@@ -34,6 +34,7 @@
 	let isToken = false;
 	let isMinting = false;
 	let doMint = false;
+	let logout = false;
 	let activeR: string;
 
 	let activeMint = $mints[0];
@@ -99,7 +100,6 @@
 						class="flex items-center justify-around py-4 border-b last:border-none"
 						on:click={() => {
 							subopen = true;
-							paymentType = 'Tapcash';
 						}}
 					>
 						<Icon icon="mdi:bell-outline" class="w-16 h-6" />
@@ -112,6 +112,20 @@
 				</div>
 				<h3 class="font-bold">Profile</h3>
 				<div class="my-4 rounded-lg border">
+					<div
+						class="flex items-center justify-around py-4 border-b last:border-none"
+						on:click={() => {
+							subopen = true;
+							logout = true;
+						}}
+					>
+						<Icon icon="mdi:bell-outline" class="w-16 h-6" />
+						<div class="flex-grow">
+							<strong>Log out</strong>
+							<!-- <p class="text-xs">Notifications</p> -->
+						</div>
+						<Icon icon="carbon:arrow-right" class="w-16 h-6" />
+					</div>
 					<div
 						class="flex items-center justify-around py-2 border-b"
 						on:click={() => {
@@ -146,51 +160,33 @@
 			<Drawer.NestedRoot bind:open={subopen}>
 				<!-- <Drawer.Trigger /> -->
 				<Drawer.Portal>
-					<Drawer.Overlay class="fixed inset-0 bg-black/40" />
+					<Drawer.Overlay class="absolute inset-0 bg-black/40" />
 					<Drawer.Content
-						class="pb-8 pt-3 bg-white fixed bottom-0 left-0 right-0"
+						class="pb-8 pt-3 bg-white absolute top-4 left-0 right-0"
 						style="height: 95vh;"
 					>
-						<div class="px-4 flex justify-between">
+						<div class="px-4">
 							<div on:click={() => (subopen = false)}>
 								<Icon icon="mdi:close" class="w-6 h-6" />
 							</div>
-							<strong> Send Ecash </strong>
-							<div />
 						</div>
-						<div class="">
-							<div class="p-4">
-								<div class="flex gap-4 items-center">
-									<div class="w-1/2 text-center">
-										<strong class="text-xs">Main Account</strong>
-										<div class="flex gap-1 items-center justify-center">
-											<TokenIcon />
-											<p class="font-bold">
-												{formatAmount($totalAmountAvailable, $unit)}
-											</p>
-										</div>
-									</div>
-									<div class="flex justify-center">
-										<Icon icon="mdi:arrow-right" class="text-2xl border rounded-full" />
-									</div>
-									<!-- <div
-										class="flex items-center justify-center py-2 border-b last:border-none w-1/2"
-									>
-										<div class="w-16">
-											<img
-												src={selectedContact.picture || '/ns-naked.svg'}
-												alt={selectedContact.name}
-												class="border w-8 h-8 rounded-full space-x-4 mx-auto"
-											/>
-										</div>
-										<div class="text-xs">
-											<strong>{selectedContact.name}</strong>
-										</div>
-									</div> -->
+						{#if logout}
+							<div class="flex flex-col gap-4 justify-around px-6 h-80">
+								<div class="text-center font-semibold">
+									Make sure you saved your private key before logging out
 								</div>
+								<button
+									class="btn btn-primary"
+									on:click={() => {
+										window.localStorage.removeItem('nostr-pubkey');
+										$nostrPubKey = '';
+									}}
+								>
+									Log Out
+								</button>
 							</div>
-						</div></Drawer.Content
-					>
+						{/if}
+					</Drawer.Content>
 				</Drawer.Portal>
 			</Drawer.NestedRoot>
 		</Drawer.Content>

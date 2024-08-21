@@ -2,14 +2,35 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --vh: 100vh;
+  --vc: 1vh;
+  --container-top: 4rem;
+  /* --b2: transparent; */
+  /* --tw-border-opacity: 0.1; */
+}
 
 @font-face {
 	font-family: 'm6x';
 	src: url('/m6x11plus.ttf') format('truetype');
 }
 
+@font-face {
+	font-family: "Suisse Int'l";
+	src: url("/suisse/13ab13418f633c1b0516fed6e30bedbc.eot");
+	src: url("/suisse/13ab13418f633c1b0516fed6e30bedbc.eot?#iefix")format("embedded-opentype"),
+	url("/suisse/13ab13418f633c1b0516fed6e30bedbc.woff2")format("woff2"),
+	url("/suisse/13ab13418f633c1b0516fed6e30bedbc.woff")format("woff"),
+	url("/suisse/13ab13418f633c1b0516fed6e30bedbc.ttf")format("truetype"),
+	url("/suisse/13ab13418f633c1b0516fed6e30bedbc.svg#Suisse Int'l")format("svg");
+}
+
 .fine-border {
   border: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+.mobile-height {
+  height: calc(var(--vh, 1vh) * 100);
 }
 
 #top {

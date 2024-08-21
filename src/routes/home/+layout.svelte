@@ -16,7 +16,7 @@
 	id="top"
 >
 	<div class="flex justify-between items-start">
-		<h1 class="text-3xl mb-8">Home</h1>
+		<h1 class="text-2xl mb-4 font-semibold">Home</h1>
 		<div class="flex gap-4 p-2 items-center">
 			<div on:click={() => console.log('ohoh')}><Icon icon="ph:eye" class="text-2xl" /></div>
 			<div on:click={() => (profileOpen = true)} class="cursor-pointer">
@@ -24,14 +24,14 @@
 			</div>
 		</div>
 	</div>
-	<div class="p-4 bg-primary-content rounded-xl w-5/6">
+	<div class="p-4 bg-primary-content rounded-xl py-6 w-11/12">
 		<div class="flex w-full justify-between">
-			<div>{$profile.name || 'Main Account'}</div>
+			<div class="text-lg font-semibold">{$profile.name || 'Main Account'}</div>
 			<!-- <div>Main Account</div> -->
 			<img src={$profile.picture || '/ns-naked.svg'} class="w-6 h-6" />
 		</div>
 		<br />
-		<strong class="text-2xl">
+		<strong class="text-3xl">
 			{formatAmount($totalAmountAvailable, $unit, true)}
 		</strong>
 	</div>

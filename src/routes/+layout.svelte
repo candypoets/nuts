@@ -28,6 +28,7 @@
 		page.subscribe((p) => {
 			// console.log('Route changed to:', $page.route.id);
 			updateVc();
+			updateVh();
 			// You can add your custom logic here
 			addMint('https://mint.minibits.cash/Bitcoin');
 			addMint('https://mint.lnserver.com/');
@@ -38,6 +39,10 @@
 	});
 
 	$: homepage = $page.route.id == '/';
+
+	function updateVh() {
+		document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
+	}
 </script>
 
 <svelte:head>

@@ -64,7 +64,7 @@
 	}
 </script>
 
-<main class="flex items-center h-screen">
+<main class="flex items-center mobile-height">
 	{#if kind == 'login'}
 		<div class="h-1/2">
 			<h1 class="text-3xl text-center uppercase font-bold px-4">Login with your private key</h1>
