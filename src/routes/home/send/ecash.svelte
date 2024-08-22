@@ -10,7 +10,7 @@
 	// export let active: string;
 	export let toPub: string;
 	let memo: string = '';
-	let getMeltQuote: () => Promise<void>;
+
 	let amount: number | undefined = undefined;
 	// let invoice: string;
 	// let fees: 0;
@@ -67,8 +67,7 @@
 	};
 </script>
 
-<div class="flex flex-col">
-	<div class="flex flex-col"></div>
+<div class="">
 	{#if !processing}
 		<div class="flex flex-col w-full items-center gap-3">
 			<!-- <div class="z-10">
@@ -108,18 +107,5 @@
 				{/if}
 			</button>
 		</div>
-		<!-- <Sending
-			bind:send
-			bind:active
-			bind:mint
-			bind:amount
-			bind:selectedTokens
-			bind:isCoinSelection
-			bind:encodedToken
-			bind:processing
-		/> -->
 	{/if}
-	<!-- {:else if activeS === 'send-scan'}
-		<ScanLn bind:invoice bind:activeS />
-	{/if} -->
 </div>
