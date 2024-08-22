@@ -97,11 +97,11 @@ if (browser) {
 				// add an history entry in the db
 				if (event.pubkey !== $pubkey) {
 					// if the sender is not yourself, add to pendingProofs to be claimed later
-					$db.pendingProofs.bulkAdd(proofs);
+					await $db.pendingProofs.bulkAdd(proofs);
 				} else {
 					console.log('hey');
 					// just verify that the token is not spent yet
-					getNuts(token);
+					await getNuts(token);
 				}
 			} else {
 				console.log('outgoing message', event.tags);
@@ -162,9 +162,9 @@ if (browser) {
 			);
 
 			// add the proofs to the db
-			$db.proofs.bulkAdd(res.proofs);
+			await $db.proofs.bulkAdd(res.proofs);
 			// remove the proofs from the pendingProofs
-			$db.pendingProofs.bulkDelete(proofsByKeySet[key].map((p) => p.secret));
+			await $db.pendingProofs.bulkDelete(proofsByKeySet[key].map((p) => p.secret));
 
 			saveNuts(res.proofs, $pubkey);
 		}
@@ -236,6 +236,6 @@ export async function getNuts(cashu: Token) {
 		})
 	);
 	if (validProofs.length) {
-		get(db).proofs.bulkPut(validProofs);
+		await get(db).proofs.bulkPut(validProofs);
 	}
 }
