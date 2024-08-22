@@ -43,7 +43,16 @@
 
 <ProfileModal bind:open={profileOpen} />
 <div
-	id="reader"
-	class="!fixed mobile-height w-full top-0 left-0 bg-basic -z-10"
 	class:!z-10={$scanning}
-></div>
+	class:bg-black={$scanning}
+	class="-z-10 !fixed w-full top-0 left-0 mobile-height flex flex-col justify-around"
+>
+	<!-- header -->
+	<div></div>
+	<div id="reader" class="w-full"></div>
+	{#if $scanning}
+		<div class="w-full flex justify-center">
+			<button class="btn btn-primary btn-wide" on:click={() => ($scanning = false)}>Close</button>
+		</div>
+	{/if}
+</div>

@@ -18,10 +18,23 @@
 
 	const config = { fps: 10, qrbox: { width: 250, height: 250 } };
 
+	let html5QrCode: Html5Qrcode;
+
+	onMount(() => {
+		html5QrCode = new Html5Qrcode('reader');
+	});
+
+	$: {
+		$scanning;
+		if ($scanning) start();
+		else stop();
+	}
+
 	async function start() {
+		if (!html5QrCode) return;
 		console.log('start');
 		$scanning = true;
-		const html5QrCode = new Html5Qrcode('reader', true);
+
 		await html5QrCode.start(
 			{ facingMode: 'environment' },
 			config,
@@ -29,9 +42,16 @@
 			qrCodeErrorCallback
 		);
 	}
+
+	async function stop() {
+		if (!html5QrCode) return;
+		console.log('stop');
+		$scanning = false;
+		await html5QrCode.stop();
+	}
 </script>
 
-<div on:click={() => start()}>
+<div on:click={() => ($scanning = true)}>
 	<Icon icon="ic:baseline-qrcode" class="text-xl" />
 </div>
 <!-- <div
