@@ -14,6 +14,7 @@
 	import { profile } from 'src/stores/nostr';
 	import ProfileModal from './profile-modal.svelte';
 	import QrScanner from 'src/comp/QRScanner.svelte';
+	import { scanning } from 'src/stores';
 
 	let active = 'base';
 	let encodedToken = '';
@@ -86,8 +87,10 @@
 		<!-- <button class="btn w-14 h-14 btn-circle btn-outline" on:click={() => (addFriend = true)}>
 			<Icon icon="carbon:user" class="w-8 h-8" />
 		</button> -->
-		<QrScanner />
-		<div class="text-sm mt-1 font-semibold">Add friend</div>
+		<button class="btn w-14 h-14 btn-outline btn-circle" on:click={() => ($scanning = true)}>
+			<QrScanner />
+		</button>
+		<div class="text-sm mt-1 font-semibold">Scan</div>
 	</div>
 </div>
 <br />

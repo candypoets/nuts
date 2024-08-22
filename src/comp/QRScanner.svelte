@@ -9,6 +9,7 @@
 	let cameraId;
 
 	const qrCodeSuccessCallback: QrcodeSuccessCallback = (decodedText, decodedResult) => {
+		console.log('success', decodedText, decodedResult);
 		// console;log()
 		/* handle success */
 	};
@@ -51,9 +52,7 @@
 	}
 </script>
 
-<div on:click={() => ($scanning = true)}>
-	<Icon icon="ic:baseline-qrcode" class="text-xl" />
-</div>
+<Icon icon="carbon:camera" class="text-2xl" />
 <!-- <div
 	id="reader"
 	class="fixed mobile-height w-full top-0 left-0 bg-red-700 z-10"
