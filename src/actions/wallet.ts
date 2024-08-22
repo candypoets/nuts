@@ -9,7 +9,7 @@ import { db, proofs } from 'src/stores/db';
 import { nostrPubKey, profile, signAndSend, signer } from 'src/stores/nostr';
 import type { WalletInfo } from 'src/stores/wallet';
 import { get } from 'svelte/store';
-import { getEncryptedContent } from './chat';
+import { getEncryptedContent, sendMessage } from './chat';
 
 // send proofs from the most important mint to the least important
 export const send = async (
@@ -126,7 +126,7 @@ export const getMyPubKey = async (): Promise<string> => {
 };
 
 // save a cashu token representing the entire user balance
-// add it to the user profile under the nuts entry, encrypted
+// then send a private message to yourself with the encrypted tokens
 export const saveNuts = async (proofs: Proof[], toPubKey: string) => {
 	const toEncode: TokenEntry[] = [];
 	const proofsByKeySet = proofs.reduce(
@@ -145,21 +145,7 @@ export const saveNuts = async (proofs: Proof[], toPubKey: string) => {
 		}
 		toEncode.push({ proofs: proofsByKeySet[key], mint: m.mint });
 	}
-	const encryptedNuts = await getEncryptedContent(toPubKey, getEncodedToken({ token: toEncode }));
 	// do not update the profile if it has not been loaded yet
 	if (!get(profile).name) return;
-	let event: UnsignedEvent = {
-		kind: 0,
-		tags: [],
-		content: JSON.stringify({
-			name: get(profile).name,
-			about: get(profile).about,
-			picture: get(profile).picture,
-			nuts: encryptedNuts
-		}),
-		created_at: Math.floor(Date.now() / 1000),
-		pubkey: toPubKey
-	};
-
-	await signAndSend(event);
+	sendMessage(toPubKey, getEncodedToken({ token: toEncode }), [['nuts']]);
 };

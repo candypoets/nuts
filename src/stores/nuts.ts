@@ -9,7 +9,8 @@ import {
 	CashuWallet,
 	getDecodedToken,
 	getEncodedToken,
-	type Proof
+	type Proof,
+	type Token
 } from '@cashu/cashu-ts';
 import { getKeysForUnit, isValidToken } from 'src/comp/util/walletUtils';
 import { HistoryItemType } from 'src/model/historyItem';
@@ -26,8 +27,8 @@ if (browser) {
 		// console.info('fetching messages');
 		if (!$pubkey) return;
 		const messages = pool.req([
-			{ kinds: [nostrTools.kinds.EncryptedDirectMessage], limit: 10, '#p': [$pubkey] }, // incoming messages
-			{ kinds: [nostrTools.kinds.EncryptedDirectMessage], limit: 10, authors: [$pubkey] } // outgoing messages and topups
+			{ kinds: [nostrTools.kinds.EncryptedDirectMessage], limit: 100, '#p': [$pubkey] }, // incoming messages
+			{ kinds: [nostrTools.kinds.EncryptedDirectMessage], limit: 100, authors: [$pubkey] } // outgoing messages and topups
 		]);
 
 		for await (const message of messages) {
@@ -78,20 +79,30 @@ if (browser) {
 				// get all the proofs in the token
 				const proofs = token.token.reduce((acc, cur) => [...acc, ...cur.proofs], [] as Proof[]);
 				console.log('incoming message');
+				// if the nuts tag is present, do not add to history, it is a wallet save
+				const isSave = event.tags.some((t) => t[0] === 'nuts');
+				if (!isSave) {
+					$db.history.add({
+						date: event.created_at,
+						type: event.pubkey == $pubkey ? HistoryItemType.MINT : HistoryItemType.RECEIVE_NOSTR,
+						amount: proofs.reduce((acc, cur) => (acc += cur.amount), 0),
+						data: {
+							mint: token.token[0].mint,
+							keyset: ['0'], // @todo,
+							from: event.pubkey
+						}
+					});
+				}
 				// incoming messages
 				// add an history entry in the db
-				$db.history.add({
-					date: event.created_at,
-					type: event.pubkey == $pubkey ? HistoryItemType.MINT : HistoryItemType.RECEIVE_NOSTR,
-					amount: proofs.reduce((acc, cur) => (acc += cur.amount), 0),
-					data: {
-						mint: token.token[0].mint,
-						keyset: ['0'], // @todo,
-						from: event.pubkey
-					}
-				});
-				// add the proofs to the db awaiting claim
-				$db.pendingProofs.bulkAdd(proofs);
+				if (event.pubkey !== $pubkey) {
+					// if the sender is not yourself, add to pendingProofs to be claimed later
+					$db.pendingProofs.bulkAdd(proofs);
+				} else {
+					console.log('hey');
+					// just verify that the token is not spent yet
+					getNuts(token);
+				}
 			} else {
 				console.log('outgoing message', event.tags);
 				// outgoing messages
@@ -154,9 +165,12 @@ if (browser) {
 			$db.proofs.bulkAdd(res.proofs);
 			// remove the proofs from the pendingProofs
 			$db.pendingProofs.bulkDelete(proofsByKeySet[key].map((p) => p.secret));
+
+			saveNuts(res.proofs, $pubkey);
 		}
 	}).subscribe((n) => n);
 
+	// claim pending invoices
 	let timestampIndex = 0;
 	derived(
 		[nostrPubKey, nostrPrivKey, db, invoices, timestamp10],
@@ -179,7 +193,7 @@ if (browser) {
 						});
 						// will be claimed twice probably
 						// adding anyway in case the message is not sent
-						await $db.pendingProofs.bulkAdd(res.proofs);
+						await $db.proofs.bulkAdd(res.proofs);
 
 						await $db.invoices.delete(invoice.quote);
 						// send the token to the profile public address
@@ -194,51 +208,34 @@ if (browser) {
 			});
 		}
 	).subscribe((n) => n);
-
-	// keep the user proofs in sync with the nostr profile
-	derived([nostrPubKey, proofs], async ([$pubkey, $proofs]) => {
-		if (!$pubkey) return;
-		if (!$proofs.length) return;
-		console.info('------SAVING NUTS------');
-		// run a sanity check on the proofs
-
-		// save the nuts to the profile
-		await saveNuts($proofs, $pubkey);
-	}).subscribe((n) => n);
 }
 
-// try to get the cashu tokens saved on the user profile
-export async function getNuts(): Promise<boolean> {
-	if (!get(nostrPubKey)) return false;
-	if (!get(profile).name) return false;
-	// only attempt if the account is new
-	if (get(proofs).length || get(spentProofs).length) return false;
-
-	const content = await getDecryptedContent(get(nostrPubKey), get(profile).nuts || '');
-	const cashu = getDecodedToken(content);
-	// const validProofs: Proof[] = [];
-	// await Promise.all(
-	// 	cashu.token.map(async (t) => {
-	// 		// verify the token
-	// 		const cashuMint = new CashuMint(t.mint);
-	// 		const keys = await cashuMint.getKeys();
-	// 		const wallet = new CashuWallet(cashuMint, keys.keysets[0]);
-	// 		const { token: tokens, tokensWithErrors } = await wallet.receive(
-	// 			{ token: [t] },
-	// 			{ privkey: get(nostrPrivKey) }
-	// 		);
-	// 		if (tokensWithErrors) return;
-
-	// 		// console.log(validProofs);
-	// 		validProofs.push(...tokens.token.flatMap((t) => t.proofs));
-	// 		await Promise.all(
-	// 			t.proofs.map(async (p) => {
-	// 				await get(db).keysets.put({ id: p.id, mint: t.mint });
-	// 			})
-	// 		);
-	// 	})
-	// );
-	// const proofs = cashu.token.reduce((acc, cur) => [...acc, ...cur.proofs], [] as Proof[]);
-	get(db).proofs.bulkAdd(cashu.token.flatMap((t) => t.proofs));
-	return true;
+// try to get the cashu tokens saved in the user private chat
+export async function getNuts(cashu: Token) {
+	console.log('getNuts', cashu);
+	const validProofs: Proof[] = [];
+	await Promise.all(
+		cashu.token.map(async (t) => {
+			// verify the token
+			const cashuMint = new CashuMint(t.mint);
+			const keys = await cashuMint.getKeys();
+			const wallet = new CashuWallet(cashuMint, keys.keysets[0]);
+			// check if the proofs are already spent in the db
+			const unspend = t.proofs.filter((p) => !get(spentProofs).some((sp) => sp.secret == p.secret));
+			if (unspend.length) {
+				const spents = await wallet.checkProofsSpent(unspend);
+				console.log('spents', spents);
+				await get(db).spentProofs.bulkPut(spents);
+				validProofs.push(...t.proofs.filter((p) => !spents.some((s) => s.secret == p.secret)));
+			}
+			// await Promise.all(
+			// 	t.proofs.map(async (p) => {
+			// 		await get(db).keysets.put({ id: p.id, mint: t.mint });
+			// 	})
+			// );
+		})
+	);
+	if (validProofs.length) {
+		get(db).proofs.bulkPut(validProofs);
+	}
 }
