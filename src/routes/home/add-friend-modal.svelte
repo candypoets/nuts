@@ -37,7 +37,7 @@
 	}
 </script>
 
-<Drawer.Root bind:open shouldScaleBackground={true}>
+<Drawer.Root bind:open>
 	<!-- <Drawer.Trigger /> -->
 	<Drawer.Portal>
 		<Drawer.Overlay class="absolute inset-0 bg-black/40 z-10" />

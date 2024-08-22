@@ -3,6 +3,7 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { SvelteKitPWA as VitePWA } from '@vite-pwa/sveltekit';
 
 import { defineConfig } from 'vite';
+import mkcert from 'vite-plugin-mkcert';
 
 const generateSW = true;
 
@@ -10,6 +11,7 @@ export default defineConfig({
 	// WARN: this will not be necessary on your project
 	logLevel: 'info',
 	server: {
+		// https: mkcert,
 		fs: {
 			// Allow serving files from hoisted root node_modules
 			allow: ['../..']
@@ -17,6 +19,7 @@ export default defineConfig({
 	},
 	plugins: [
 		sveltekit(),
+		// mkcert(),
 		VitePWA({
 			devOptions: {
 				enabled: true,
@@ -30,7 +33,9 @@ export default defineConfig({
 				theme_color: '#fbf9fa',
 				start_url: '/',
 				display: 'fullscreen',
+				orientation: 'portrait',
 				background_color: '#fbf9fa'
+				// permissions: ['camera']
 			},
 			registerType: 'autoUpdate',
 			workbox: {

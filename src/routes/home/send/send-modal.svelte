@@ -1,23 +1,20 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import Minting from 'src/comp/mint/Minting.svelte';
-	import Send from 'src/comp/wallet/Send.svelte';
-	import { amountAvailable, mints, totalAmountAvailable } from 'src/stores/mints';
-	import { Drawer } from 'vaul-svelte';
-	import Tapcash from './tapcash.svelte';
-	import Ecash from './ecash.svelte';
-	import { db } from 'src/stores/db';
 	import { liveQuery } from 'dexie';
-	import { onMount } from 'svelte';
+	import TokenIcon from 'src/comp/tokens/TokenIcon.svelte';
+	import QRScanner from 'src/comp/QRScanner.svelte';
+	import { formatAmount } from 'src/comp/util/walletUtils';
+	import Send from 'src/comp/wallet/Send.svelte';
 	import { updateVc } from 'src/lib';
 	import type { Contact } from 'src/model/contact';
-	import MintSelector from 'src/comp/elements/MintSelector.svelte';
-	import ScanLN from 'src/comp/elements/ScanLN.svelte';
-	import TokenIcon from 'src/comp/tokens/TokenIcon.svelte';
-	import { formatAmount } from 'src/comp/util/walletUtils';
+	import { db } from 'src/stores/db';
+	import { mints, totalAmountAvailable } from 'src/stores/mints';
 	import { unit } from 'src/stores/settings';
+	import { onMount } from 'svelte';
+	import { Drawer } from 'vaul-svelte';
 	import AddFriendModal from '../add-friend-modal.svelte';
-	import ScanLn from 'src/comp/elements/ScanLN.svelte';
+	import Ecash from './ecash.svelte';
+	import Tapcash from './tapcash.svelte';
 
 	let active: string;
 	let search: string;
@@ -84,10 +81,16 @@
 						<Icon icon="mingcute:down-line" class="text-xl" />
 					</div>
 					<div class="flex space-x-8">
-						<div on:click={() => (scan = true)}>
+						<!-- <div on:click={() => (scan = true)}>
 							<Icon icon="ic:baseline-qrcode" class="text-xl" />
-						</div>
-						<div on:click={() => (addFriend = true)}>
+						</div> -->
+						<QRScanner />
+						<div
+							on:click={() => {
+								addFriend = true;
+								subopen = true;
+							}}
+						>
 							<Icon icon="mingcute:add-fill" class="text-xl" />
 						</div>
 					</div>

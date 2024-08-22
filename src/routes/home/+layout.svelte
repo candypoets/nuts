@@ -7,6 +7,7 @@
 	import Icon from '@iconify/svelte';
 	import { get } from 'svelte/store';
 	import ProfileModal from './profile-modal.svelte';
+	import { scanning } from 'src/stores';
 
 	let profileOpen: boolean = false;
 </script>
@@ -41,3 +42,8 @@
 </div>
 
 <ProfileModal bind:open={profileOpen} />
+<div
+	id="reader"
+	class="!fixed mobile-height w-full top-0 left-0 bg-basic -z-10"
+	class:!z-10={$scanning}
+></div>

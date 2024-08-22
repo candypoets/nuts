@@ -13,6 +13,7 @@
 	import AddFriendModal from './add-friend-modal.svelte';
 	import { profile } from 'src/stores/nostr';
 	import ProfileModal from './profile-modal.svelte';
+	import QrScanner from 'src/comp/QRScanner.svelte';
 
 	let active = 'base';
 	let encodedToken = '';
@@ -82,9 +83,10 @@
 		<div class="text-sm mt-1 font-semibold">Send money</div>
 	</div>
 	<div class="text-center">
-		<button class="btn w-14 h-14 btn-circle btn-outline" on:click={() => (addFriend = true)}>
+		<!-- <button class="btn w-14 h-14 btn-circle btn-outline" on:click={() => (addFriend = true)}>
 			<Icon icon="carbon:user" class="w-8 h-8" />
-		</button>
+		</button> -->
+		<QrScanner />
 		<div class="text-sm mt-1 font-semibold">Add friend</div>
 	</div>
 </div>
