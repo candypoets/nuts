@@ -1,12 +1,13 @@
 <script lang="ts">
 	import { getContact } from 'src/stores/contacts';
-	import { contacts } from 'src/stores/db';
+	import { contacts, db } from 'src/stores/db';
 	import { Drawer } from 'vaul-svelte';
 	import Ecash from './send/ecash.svelte';
 	import Icon from '@iconify/svelte';
 	import TokenIcon from 'src/comp/tokens/TokenIcon.svelte';
 	import { formatAmount } from 'src/comp/util/walletUtils';
 	import { totalAmountAvailable } from 'src/stores/mints';
+	import { nostrPubKey, signAndSend } from 'src/stores/nostr';
 
 	export let npub: string;
 
@@ -39,7 +40,21 @@
 					>
 					<button
 						class="btn btn-primary btn-outline btn-wide"
-						class:hidden={$contacts.some((c) => c.pubkey == npub)}>Add as friend</button
+						class:hidden={$contacts.some((c) => c.pubkey == npub)}
+						on:click={async () => {
+							$db.contacts.add({
+								...contact,
+								pubkey: npub,
+								createdAt: Math.floor(Date.now() / 1000)
+							});
+							await signAndSend({
+								kind: 3,
+								pubkey: $nostrPubKey,
+								created_at: Math.floor(Date.now() / 1000),
+								tags: [['p', npub]],
+								content: ''
+							});
+						}}>Add as friend</button
 					>
 					<button class="btn btn-primary btn-outline btn-wide">Chat</button>
 				</div>

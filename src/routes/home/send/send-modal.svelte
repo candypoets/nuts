@@ -59,7 +59,7 @@
 	// 		active = 'base';
 	// 	}
 	// };
-	let contacts = liveQuery(() => $db.contacts.orderBy('createdAt').reverse().limit(30).toArray());
+	$: contacts = liveQuery(() => $db.contacts.orderBy('createdAt').reverse().limit(100).toArray());
 
 	$: console.log('open', open, addFriend);
 
