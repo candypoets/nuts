@@ -166,7 +166,7 @@ if (browser) {
 			// remove the proofs from the pendingProofs
 			await $db.pendingProofs.bulkDelete(proofsByKeySet[key].map((p) => p.secret));
 
-			saveNuts(res.proofs, $pubkey);
+			await saveNuts(res.proofs, $pubkey);
 		}
 	}).subscribe((n) => n);
 

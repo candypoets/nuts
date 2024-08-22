@@ -1,9 +1,10 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
 	import { sendMessage } from 'src/actions/chat';
-	import { send } from 'src/actions/wallet';
+	import { saveNuts, send } from 'src/actions/wallet';
 	import { db } from 'src/stores/db';
 	import { mintInfos } from 'src/stores/mints';
+	import { nostrPubKey } from 'src/stores/nostr';
 	import { wallets } from 'src/stores/wallet';
 	import { onMount } from 'svelte';
 
@@ -39,20 +40,23 @@
 			const res = await send($wallets, amount as number, memo);
 			processing = 'Sending Token';
 			await sendMessage(toPub, res.encodedToken, [['amount', res.amount]])
-				.then(() => {
+				.then(async () => {
 					console.info(
 						'return change',
 						res.returnChanges.reduce((a, b) => a + b.amount, 0)
 					);
 					// add the change to the proofs table
-					$db.proofs.bulkAdd(res.returnChanges);
-				})
-				.catch((e) => {
-					// keep the sent proofs for yourself as renewed proofs
-					$db.proofs.bulkAdd(res.sends);
-					// add the returnchange to the proofs table
-					$db.proofs.bulkAdd(res.returnChanges);
+					await $db.proofs.bulkAdd(res.returnChanges);
 
+					await saveNuts(res.returnChanges, $nostrPubKey);
+				})
+				.catch(async (e) => {
+					// keep the sent proofs for yourself as renewed proofs
+					await $db.proofs.bulkAdd(res.sends);
+					// add the returnchange to the proofs table
+					await $db.proofs.bulkAdd(res.returnChanges);
+
+					await saveNuts([...res.returnChanges, ...res.sends], $nostrPubKey);
 					console.error(e);
 				});
 
