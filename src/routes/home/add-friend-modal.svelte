@@ -83,10 +83,10 @@
 						<div class="flex items-end">
 							<button
 								class="btn btn-circle"
-								on:click={() => {
+								on:click={async () => {
 									console.log('add friend');
 									$db.contacts.add({ ...user, pubkey, createdAt: Math.floor(Date.now() / 1000) });
-									signAndSend({
+									await signAndSend({
 										kind: 3,
 										pubkey: $nostrPubKey,
 										created_at: Math.floor(Date.now() / 1000),

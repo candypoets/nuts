@@ -2,7 +2,14 @@
 	import { onMount } from 'svelte';
 	import { Html5Qrcode, type QrcodeSuccessCallback, type QrcodeErrorCallback } from 'html5-qrcode';
 	import Icon from '@iconify/svelte';
-	import { scanning } from 'src/stores';
+	import {
+		accountModalOpen,
+		lightningInvoice,
+		meltModalOpen,
+		scannedPubkey,
+		scanning
+	} from 'src/stores';
+	import { isLightningInvoice, isNpub } from './util/walletUtils';
 
 	let videoElement;
 	// let qrScanner;
@@ -12,6 +19,19 @@
 		console.log('success', decodedText, decodedResult);
 		// console;log()
 		/* handle success */
+		if (isLightningInvoice(decodedText)) {
+			console.log('Lightning Invoice');
+			$scanning = false;
+			$meltModalOpen = true;
+			$lightningInvoice = decodedText;
+			// open the melt modal
+		} else if (isNpub(decodedText)) {
+			$scanning = false;
+			$accountModalOpen = true;
+			$scannedPubkey = decodedText;
+			// open the contact modal
+			// either send ecash or add as friend
+		}
 	};
 	const qrCodeErrorCallback: QrcodeErrorCallback = (decodedText, decodedResult) => {
 		/* handle success */

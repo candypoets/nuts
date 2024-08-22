@@ -195,3 +195,25 @@ const LNURLLookup = async (endpoint: string, amount: number) => {
 	const { pr } = (await (await fetch(cb)).json()) as { pr: string };
 	return { pr, maxSendable, minSendable };
 };
+
+/**
+ * Checks if a given string is a valid Lightning invoice.
+ * @param {string} invoice - The string to check.
+ * @returns {boolean} - True if the string is a valid Lightning invoice, false otherwise.
+ */
+export function isLightningInvoice(invoice: string): boolean {
+	// Regular expression to match Lightning invoice format
+	const lightningInvoiceRegex = /^(lnbc|lntb)[0-9a-zA-Z]+$/;
+	return lightningInvoiceRegex.test(invoice);
+}
+
+/**
+ * Checks if a given string is a valid Nostr public key (npub).
+ * @param {string} npub - The string to check.
+ * @returns {boolean} - True if the string is a valid Nostr public key, false otherwise.
+ */
+export function isNpub(npub: string): boolean {
+	// Regular expression to match Nostr public key format (Bech32 with npub prefix)
+	const npubRegex = /^npub[0-9a-zA-Z]+$/;
+	return npubRegex.test(npub);
+}

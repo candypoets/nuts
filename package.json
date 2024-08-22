@@ -62,6 +62,7 @@
 		"@gandlaf21/cashu-crypto": "^0.2.6",
 		"@nostrify/nostrify": "npm:@jsr/nostrify__nostrify@^0.30.0",
 		"dexie": "^4.0.8",
+		"lightning-invoice": "^0.2.1",
 		"nostr-relaypool": "^0.6.30",
 		"svelte-qrcode-image": "^1.0.0-rc.2",
 		"vaul-svelte": "^0.3.2",
