@@ -59,6 +59,7 @@ if (browser) {
 }
 
 export async function getContact(pubkey: string): Promise<Contact> {
+	console.log(pubkey);
 	const contact = new Promise<Contact>(async (resolve, reject) => {
 		try {
 			const follows = pool.req([
@@ -71,7 +72,7 @@ export async function getContact(pubkey: string): Promise<Contact> {
 				if (follow[0] === 'CLOSED') break;
 				if (follow[0] !== 'EVENT') continue;
 				const event = follow[2];
-				// console.log(event);
+				console.log(event);
 				resolve(JSON.parse(event.content));
 			}
 		} catch (e) {

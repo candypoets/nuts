@@ -93,3 +93,13 @@ export const history = derived(
 	},
 	[] as HistoryItem<HistoryData>[]
 );
+
+export const contacts = derived(
+	[db],
+	([$db], set) => {
+		liveQuery(() => $db.contacts.toArray()).subscribe((contacts) => {
+			set(contacts);
+		});
+	},
+	[] as Contact[]
+);

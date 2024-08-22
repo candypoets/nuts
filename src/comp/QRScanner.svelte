@@ -10,6 +10,7 @@
 		scanning
 	} from 'src/stores';
 	import { isLightningInvoice, isNpub } from './util/walletUtils';
+	import { nip19 } from 'nostr-tools';
 
 	let videoElement;
 	// let qrScanner;
@@ -28,7 +29,7 @@
 		} else if (isNpub(decodedText)) {
 			$scanning = false;
 			$accountModalOpen = true;
-			$scannedPubkey = decodedText;
+			$scannedPubkey = nip19.decode(decodedText).data as string;
 			// open the contact modal
 			// either send ecash or add as friend
 		}
