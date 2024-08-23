@@ -20,7 +20,7 @@
 	import AccountModal from './account-modal.svelte';
 	import MeltModal from './melt-modal.svelte';
 	import { checkProofsSpent } from 'src/actions/wallet';
-	import { proofs } from 'src/stores/db';
+	import { db, proofs } from 'src/stores/db';
 
 	let profileOpen: boolean = false;
 	let isRefresh = false;
@@ -46,7 +46,9 @@
 			<div
 				on:click={async () => {
 					isRefresh = true;
-					await checkProofsSpent($proofs);
+					const validProofs = await checkProofsSpent($proofs);
+					$db.proofs.clear();
+					$db.proofs.bulkAdd(validProofs);
 					isRefresh = false;
 				}}
 			>
