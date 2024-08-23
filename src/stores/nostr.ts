@@ -86,20 +86,6 @@ nostrPrivKey.subscribe((value) => {
 	}
 
 	signer.set(new NSecSigner(pk));
-	setTimeout(() => {
-		// get the contact info from the pubkey
-		const messages = pool.req([{ kinds: [kinds.Metadata], limit: 1, authors: [get(nostrPubKey)] }]);
-
-		(async () => {
-			for await (const message of messages) {
-				if (message[0] === 'CLOSED') break;
-				if (message[0] !== 'EVENT') continue;
-				const event = message[2];
-				console.log(JSON.parse(event.content));
-				profile.set(JSON.parse(event.content));
-			}
-		})();
-	}, 1000);
 });
 
 const initialValuePubKeySting: string = browser
@@ -112,6 +98,20 @@ nostrPubKey.subscribe((value) => {
 	if (browser) {
 		window.localStorage.setItem('nostr-pubkey', value);
 	}
+	setTimeout(() => {
+		// get the contact info from the pubkey
+		const messages = pool.req([{ kinds: [kinds.Metadata], limit: 1, authors: [value] }]);
+
+		(async () => {
+			for await (const message of messages) {
+				if (message[0] === 'CLOSED') break;
+				if (message[0] !== 'EVENT') continue;
+				const event = message[2];
+				console.log(JSON.parse(event.content));
+				profile.set(JSON.parse(event.content));
+			}
+		})();
+	}, 1000);
 });
 
 const initialValueStingNostrMessages: string = browser

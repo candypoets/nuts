@@ -130,8 +130,8 @@ if (browser) {
 
 	// when new pendingProofs are added, try to claim them
 	derived([nostrPubKey, nostrPrivKey, db, pendingProofs], async ([$pubkey, $privkey, $db, $pp]) => {
-		console.info('claiming proofs', $pp);
 		if (!$pp.length) return;
+		console.info('claiming proofs', $pp);
 		// organize proofs by mint
 		const proofsByKeySet = $pp.reduce(
 			(acc, cur) => {
@@ -161,9 +161,9 @@ if (browser) {
 				{ privkey: $privkey }
 			);
 
-			// add the proofs to the db
+			// // add the proofs to the db
 			await $db.proofs.bulkAdd(res.proofs);
-			// remove the proofs from the pendingProofs
+			// // remove the proofs from the pendingProofs
 			await $db.pendingProofs.bulkDelete(proofsByKeySet[key].map((p) => p.secret));
 
 			await saveNuts(res.proofs, $pubkey);
@@ -226,13 +226,8 @@ export async function getNuts(cashu: Token) {
 				const spents = await wallet.checkProofsSpent(unspend);
 				console.log('spents', spents);
 				await get(db).spentProofs.bulkPut(spents);
-				validProofs.push(...t.proofs.filter((p) => !spents.some((s) => s.secret == p.secret)));
+				validProofs.push(...unspend.filter((p) => !spents.some((s) => s.secret == p.secret)));
 			}
-			// await Promise.all(
-			// 	t.proofs.map(async (p) => {
-			// 		await get(db).keysets.put({ id: p.id, mint: t.mint });
-			// 	})
-			// );
 		})
 	);
 	if (validProofs.length) {

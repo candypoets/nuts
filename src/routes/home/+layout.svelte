@@ -19,6 +19,8 @@
 	import { nip19 } from 'nostr-tools';
 	import AccountModal from './account-modal.svelte';
 	import MeltModal from './melt-modal.svelte';
+	import { checkProofsSpent } from 'src/actions/wallet';
+	import { proofs } from 'src/stores/db';
 
 	let profileOpen: boolean = false;
 </script>
@@ -38,10 +40,11 @@
 		</div>
 	</div>
 	<div class="p-4 bg-primary-content rounded-xl py-6 w-11/12">
-		<div class="flex w-full justify-between">
+		<div class="flex w-full justify-between items-center">
 			<div class="text-lg font-semibold">{$profile.name || 'Main Account'}</div>
-			<!-- <div>Main Account</div> -->
-			<!-- <img src={$profile.picture || '/ns-naked.svg'} class="w-6 h-6" /> -->
+			<div on:click={() => checkProofsSpent($proofs)}>
+				<Icon icon="mdi:reload" class="text-2xl" />
+			</div>
 		</div>
 		<br />
 		<strong class="text-3xl">

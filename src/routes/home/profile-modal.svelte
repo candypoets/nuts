@@ -4,7 +4,7 @@
 	import Send from 'src/comp/wallet/Send.svelte';
 	import { amountAvailable, mints, totalAmountAvailable } from 'src/stores/mints';
 	import { Drawer } from 'vaul-svelte';
-	import { db } from 'src/stores/db';
+	import { db, proofs } from 'src/stores/db';
 	import { liveQuery } from 'dexie';
 	import { onMount } from 'svelte';
 	import { updateVc } from 'src/lib';
@@ -15,7 +15,7 @@
 	import { formatAmount } from 'src/comp/util/walletUtils';
 	import { unit } from 'src/stores/settings';
 	import ScanLn from 'src/comp/elements/ScanLN.svelte';
-	import { nostrPubKey, profile } from 'src/stores/nostr';
+	import { nostrPrivKey, nostrPubKey, profile } from 'src/stores/nostr';
 
 	let active: string;
 	let search: string;
@@ -177,8 +177,10 @@
 								</div>
 								<button
 									class="btn btn-primary"
-									on:click={() => {
+									on:click={async () => {
 										window.localStorage.removeItem('nostr-pubkey');
+										await $db.delete();
+										$nostrPrivKey = '';
 										$nostrPubKey = '';
 									}}
 								>

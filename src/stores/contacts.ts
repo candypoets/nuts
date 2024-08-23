@@ -1,8 +1,8 @@
 import type { Contact } from '../model/contact';
 import * as nostrTools from 'nostr-tools';
-import { derived, writable } from 'svelte/store';
+import { derived, get, writable } from 'svelte/store';
 import { nostrPrivKey, nostrPubKey, pool } from './nostr';
-import { db } from './db';
+import { contacts, db } from './db';
 import { browser } from '$app/environment';
 
 if (browser) {
@@ -60,6 +60,9 @@ if (browser) {
 
 export async function getContact(pubkey: string): Promise<Contact> {
 	console.log(pubkey);
+	// try to get the contact from the db
+	const local = get(contacts).find((c) => c.pubkey === pubkey);
+	if (local) return local;
 	const contact = new Promise<Contact>(async (resolve, reject) => {
 		try {
 			const follows = pool.req([

@@ -27,6 +27,7 @@ export type DB = Dexie & {
 };
 
 export const db: Readable<DB> = derived([nostrPubKey], ([pubkey], set) => {
+	if (!pubkey) return;
 	const dex = new Dexie(pubkey) as DB;
 	console.log('dex');
 	dex.version(1).stores({
@@ -47,6 +48,7 @@ export const db: Readable<DB> = derived([nostrPubKey], ([pubkey], set) => {
 export const proofs = derived(
 	[db],
 	([$db], set) => {
+		if (!$db) set([]);
 		liveQuery(() => $db.proofs.toArray()).subscribe((proofs) => {
 			set(proofs);
 		});
@@ -57,6 +59,7 @@ export const proofs = derived(
 export const pendingProofs = derived(
 	[db],
 	([$db], set) => {
+		if (!$db) set([]);
 		liveQuery(() => $db.pendingProofs.toArray()).subscribe((proofs) => {
 			set(proofs);
 		});
@@ -67,6 +70,7 @@ export const pendingProofs = derived(
 export const spentProofs = derived(
 	[db],
 	([$db], set) => {
+		if (!$db) set([]);
 		liveQuery(() => $db.spentProofs.toArray()).subscribe((proofs) => {
 			set(proofs);
 		});
@@ -77,6 +81,7 @@ export const spentProofs = derived(
 export const invoices = derived(
 	[db],
 	([$db], set) => {
+		if (!$db) set([]);
 		liveQuery(() => $db.invoices.toArray()).subscribe((invoices) => {
 			set(invoices);
 		});
@@ -87,6 +92,7 @@ export const invoices = derived(
 export const history = derived(
 	[db],
 	([$db], set) => {
+		if (!$db) set([]);
 		liveQuery(() => $db.history.toArray()).subscribe((history) => {
 			set(history.sort((a, b) => b.date - a.date));
 		});
@@ -97,6 +103,7 @@ export const history = derived(
 export const contacts = derived(
 	[db],
 	([$db], set) => {
+		if (!$db) set([]);
 		liveQuery(() => $db.contacts.toArray()).subscribe((contacts) => {
 			set(contacts);
 		});

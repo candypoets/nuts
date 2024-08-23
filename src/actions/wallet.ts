@@ -1,11 +1,14 @@
 import {
+	CashuMint,
+	CashuWallet,
 	getEncodedToken,
 	type AmountPreference,
 	type Proof,
+	type Token,
 	type TokenEntry
 } from '@cashu/cashu-ts';
 import type { NostrEvent, UnsignedEvent } from 'nostr-tools';
-import { db, proofs } from 'src/stores/db';
+import { db, proofs, spentProofs } from 'src/stores/db';
 import { nostrPubKey, profile, signAndSend, signer } from 'src/stores/nostr';
 import type { WalletInfo } from 'src/stores/wallet';
 import { get } from 'svelte/store';
@@ -149,3 +152,24 @@ export const saveNuts = async (proofs: Proof[], toPubKey: string) => {
 	if (!get(profile).name) return;
 	sendMessage(toPubKey, getEncodedToken({ token: toEncode }), [['nuts']]);
 };
+
+export async function checkProofsSpent(proofs: Proof[]): Promise<Proof[]> {
+	const validProofs: Proof[] = [];
+	await Promise.all(
+		proofs.map(async (p) => {
+			// get the mint for the proof
+			const t = await get(db).keysets.get({ id: p.id });
+			if (!t) return;
+			// verify the token
+			const cashuMint = new CashuMint(t.mint);
+			const keys = await cashuMint.getKeys();
+			const wallet = new CashuWallet(cashuMint, keys.keysets[0]);
+			// check if the proofs are already spent in the db
+			const spents = await wallet.checkProofsSpent([p]);
+			console.log(spents);
+			if (spents.length === 0) validProofs.push(p);
+		})
+	);
+	console.log(validProofs);
+	return validProofs;
+}

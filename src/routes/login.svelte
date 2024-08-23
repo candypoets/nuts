@@ -5,6 +5,7 @@
 	import type { NostrEvent } from '@nostrify/nostrify';
 	import { kinds, type UnsignedEvent } from 'nostr-tools';
 	import { decodePrivKey, nostrPrivKey, nostrPubKey, pool, signer } from 'src/stores/nostr';
+	import { onMount } from 'svelte';
 
 	let privateKey = '';
 	let name = '';
@@ -67,6 +68,13 @@
 
 		pool.event(event as NostrEvent);
 	}
+
+	onMount(async () => {
+		if (window.nostr) {
+			console.log(window.nostr);
+			$nostrPubKey = await window.nostr.getPublicKey();
+		}
+	});
 </script>
 
 <main class="flex items-center mobile-height">
