@@ -217,3 +217,9 @@ export function isNpub(npub: string): boolean {
 	const npubRegex = /^npub[0-9a-zA-Z]+$/;
 	return npubRegex.test(npub);
 }
+
+export function isNostr(content: string): boolean {
+	// Regular expression to match Nostr public key format (Bech32 with npub prefix)
+	const npubRegex = /^nostr:npub[0-9a-zA-Z]+$/;
+	return npubRegex.test(content);
+}

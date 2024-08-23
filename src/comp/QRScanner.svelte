@@ -9,8 +9,9 @@
 		scannedPubkey,
 		scanning
 	} from 'src/stores';
-	import { isLightningInvoice, isNpub } from './util/walletUtils';
+	import { isLightningInvoice, isNostr, isNpub } from './util/walletUtils';
 	import { nip19 } from 'nostr-tools';
+	import { decode } from 'nostr-tools/nip19';
 
 	let videoElement;
 	// let qrScanner;
@@ -27,11 +28,17 @@
 			$lightningInvoice = decodedText;
 			// open the melt modal
 		} else if (isNpub(decodedText)) {
+			console.log(decodedText);
 			$scanning = false;
 			$accountModalOpen = true;
 			$scannedPubkey = nip19.decode(decodedText).data as string;
 			// open the contact modal
 			// either send ecash or add as friend
+		} else if (isNostr(decodedText)) {
+			console.log(decodedText, decodedText.slice(6));
+			$scanning = false;
+			$accountModalOpen = true;
+			$scannedPubkey = nip19.decode(decodedText.slice(6)).data as string;
 		}
 	};
 	const qrCodeErrorCallback: QrcodeErrorCallback = (decodedText, decodedResult) => {
