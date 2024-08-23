@@ -153,6 +153,7 @@ const createNewNostrKeys = (privateKey?: string) => {
 
 export const pool = new NPool({
 	open(url) {
+		if (!browser) return;
 		return new NRelay1(url);
 	},
 	async reqRouter(filters) {
