@@ -20,7 +20,7 @@ import { timestamp10 } from './time';
 import { getDecryptedContent, sendMessage } from 'src/actions/chat';
 import { browser } from '$app/environment';
 import type { UnsignedEvent } from 'nostr-tools';
-import { saveNuts } from 'src/actions/wallet';
+import { checkProofsSpent, saveNuts } from 'src/actions/wallet';
 
 if (browser) {
 	derived([nostrPubKey, nostrPrivKey, db], async ([$pubkey, $privkey, $db]) => {
@@ -168,6 +168,14 @@ if (browser) {
 
 			await saveNuts(res.proofs, $pubkey);
 		}
+	}).subscribe((n) => n);
+
+	derived([nostrPubKey, db, history], async ([$pubkey, $db, $history]) => {
+		if (!$pubkey) return;
+		const validProofs = await checkProofsSpent(get(proofs));
+		// for fresh invoices, try to claim them on every timestamp
+		await get(db).proofs.clear();
+		await get(db).proofs.bulkAdd(validProofs);
 	}).subscribe((n) => n);
 
 	// claim pending invoices

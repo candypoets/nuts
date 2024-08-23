@@ -155,19 +155,32 @@ export const saveNuts = async (proofs: Proof[], toPubKey: string) => {
 
 export async function checkProofsSpent(proofs: Proof[]): Promise<Proof[]> {
 	const validProofs: Proof[] = [];
+	const proofsByKeySet = proofs.reduce(
+		(acc, cur) => {
+			if (!acc[cur.id]) acc[cur.id] = [];
+			acc[cur.id].push(cur);
+			return acc;
+		},
+		{} as Record<string, Proof[]>
+	);
 	await Promise.all(
-		proofs.map(async (p) => {
+		Object.keys(proofsByKeySet).map(async (key) => {
 			// get the mint for the proof
-			const t = await get(db).keysets.get({ id: p.id });
+			const t = await get(db).keysets.get({ id: key });
+			const proofs = proofsByKeySet[key];
 			if (!t) return;
 			// verify the token
 			const cashuMint = new CashuMint(t.mint);
 			const keys = await cashuMint.getKeys();
 			const wallet = new CashuWallet(cashuMint, keys.keysets[0]);
 			// check if the proofs are already spent in the db
-			const spents = await wallet.checkProofsSpent([p]);
-			console.log(spents);
-			if (spents.length === 0) validProofs.push(p);
+			const unspend = proofs.filter((p) => !get(spentProofs).some((sp) => sp.secret == p.secret));
+			if (unspend.length) {
+				const spents = await wallet.checkProofsSpent(unspend);
+				console.log('spents', spents);
+				await get(db).spentProofs.bulkPut(spents);
+				validProofs.push(...unspend.filter((p) => !spents.some((s) => s.secret == p.secret)));
+			}
 		})
 	);
 	console.log(validProofs);

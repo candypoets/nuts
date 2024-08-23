@@ -47,8 +47,8 @@
 				on:click={async () => {
 					isRefresh = true;
 					const validProofs = await checkProofsSpent($proofs);
-					$db.proofs.clear();
-					$db.proofs.bulkAdd(validProofs);
+					await $db.proofs.clear();
+					await $db.proofs.bulkAdd(validProofs);
 					isRefresh = false;
 				}}
 			>
