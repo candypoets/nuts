@@ -13,35 +13,7 @@ const minibits = new CashuMint('https://mint.minibits.cash/Bitcoin');
 
 const lnserver = new CashuMint('https://mint.lnserver.com/');
 
-const initialMint: Array<Mint> = [
-	// {
-	// 	mintURL: 'https://mint.minibits.cash/Bitcoin',
-	// 	info: minibits.getInfo(),
-	// 	keys: [],
-	// 	keysets: []
-	// },
-	// {
-	// 	mintURL: 'https://mint.lnserver.com/',
-	// 	info: null,
-	// 	keys: [],
-	// 	keysets: []
-	// }
-];
-
-const initialValueSting: string = browser
-	? window.localStorage.getItem('mints') ?? JSON.stringify(initialMint)
-	: JSON.stringify(initialMint);
-
-const initialValue: Array<Mint> = JSON.parse(initialValueSting);
-
-const mints = writable<Array<Mint>>(initialValue);
-
-mints.subscribe(async (value) => {
-	if (browser) {
-		const stringValue = JSON.stringify(value);
-		window.localStorage.setItem('mints', stringValue);
-	}
-});
+const mints = writable<Array<Mint>>([]);
 
 export const mint = writable<Mint>();
 
