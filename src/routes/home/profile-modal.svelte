@@ -182,6 +182,7 @@
 										await $db.delete();
 										$nostrPrivKey = '';
 										$nostrPubKey = '';
+										eventMap = {};
 									}}
 								>
 									Log Out

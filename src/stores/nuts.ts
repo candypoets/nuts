@@ -22,31 +22,54 @@ import { browser } from '$app/environment';
 import type { UnsignedEvent } from 'nostr-tools';
 import { checkProofsSpent, saveNuts } from 'src/actions/wallet';
 
+export const eventMap: { [key: string]: boolean } = {};
 if (browser) {
+	let into = 0;
+	let out = 0;
+	let totalMessage = 0;
+	let topups = 0;
 	derived([nostrPubKey, nostrPrivKey, db], async ([$pubkey, $privkey, $db]) => {
 		// console.info('fetching messages');
-		if (!$pubkey) return;
+		if (!$pubkey || (!$privkey && !window.nostr)) return;
 		const messages = pool.req([
-			{ kinds: [nostrTools.kinds.EncryptedDirectMessage], limit: 100, '#p': [$pubkey] }, // incoming messages
-			{ kinds: [nostrTools.kinds.EncryptedDirectMessage], limit: 100, authors: [$pubkey] } // outgoing messages and topups
+			{
+				kinds: [nostrTools.kinds.EncryptedDirectMessage],
+				'#p': [$pubkey]
+				// since: Math.round(Date.now() / 1000)
+			}, // incoming messages
+			{
+				kinds: [nostrTools.kinds.EncryptedDirectMessage],
+				authors: [$pubkey]
+				// since: Math.round(Date.now() / 1000)
+			} // outgoing messages and topups
 		]);
 
 		for await (const message of messages) {
 			if (message[0] === 'CLOSED') break;
 			if (message[0] !== 'EVENT') continue;
+			console.log('message', totalMessage++);
 			const event = message[2];
 			const exist = await $db.messages.where('event.id').equals(event.id).count();
 			if (exist > 0) continue;
-			if (!nostrTools.validateEvent(event)) continue;
-			// push the message to the db, will be listed in the chat
+			// push the message to the db, it will be listed in the chat
 			await $db.messages.add({ event });
+			console.log('eventMap', eventMap);
+			// if the event content is in the map, it has been processed already
+			if (eventMap[event.content]) continue;
+			eventMap[event.content] = true;
+			if (!nostrTools.validateEvent(event)) continue;
 
 			const incoming = event.tags.find((t) => t[0] === 'p' && t[1] === $pubkey);
 			if (incoming) {
-				console.log(event.content);
-				const decodedMessage = window.nostr
-					? await window.nostr.nip04.decrypt(event.pubkey, event.content)
-					: await nostrTools.nip04.decrypt($privkey, event.pubkey, event.content);
+				let decodedMessage: string;
+				try {
+					decodedMessage = window.nostr
+						? await window.nostr.nip04.decrypt(event.pubkey, event.content)
+						: await nostrTools.nip04.decrypt($privkey, event.pubkey, event.content);
+				} catch (e) {
+					console.error(e, 'could not decrypt nip-04 message. Ignoring this message');
+					continue;
+				}
 
 				let token;
 				try {
@@ -78,7 +101,6 @@ if (browser) {
 
 				// get all the proofs in the token
 				const proofs = token.token.reduce((acc, cur) => [...acc, ...cur.proofs], [] as Proof[]);
-				console.log('incoming message');
 				// if the nuts tag is present, do not add to history, it is a wallet save
 				const isSave = event.tags.some((t) => t[0] === 'nuts');
 				if (!isSave) {
@@ -96,15 +118,20 @@ if (browser) {
 				// incoming messages
 				// add an history entry in the db
 				if (event.pubkey !== $pubkey) {
+					console.log('--------incoming message', into++);
 					// if the sender is not yourself, add to pendingProofs to be claimed later
 					await $db.pendingProofs.bulkAdd(proofs);
 				} else {
 					console.log('hey');
 					// just verify that the token is not spent yet
-					await getNuts(token);
+					try {
+						getNuts(token);
+					} catch (e) {
+						console.error(e);
+					}
 				}
 			} else {
-				console.log('outgoing message', event.tags);
+				console.log('-----------outgoing message', out++);
 				// outgoing messages
 				$db.history.add({
 					date: event.created_at,
@@ -156,26 +183,28 @@ if (browser) {
 			// if (!validateMintKeys(keys)) {
 			// 	return;
 			// }
-			const res = await wallet.receiveTokenEntry(
-				{ proofs: proofsByKeySet[key], mint: m.mint },
-				{ privkey: $privkey }
-			);
+			try {
+				const res = await wallet.receiveTokenEntry(
+					{ proofs: proofsByKeySet[key], mint: m.mint },
+					{ privkey: $privkey }
+				);
 
-			// // add the proofs to the db
-			await $db.proofs.bulkAdd(res.proofs);
-			// // remove the proofs from the pendingProofs
-			await $db.pendingProofs.bulkDelete(proofsByKeySet[key].map((p) => p.secret));
+				// // add the proofs to the db
+				await $db.proofs.bulkAdd(res.proofs);
+				// // remove the proofs from the pendingProofs
+				await $db.pendingProofs.bulkDelete(proofsByKeySet[key].map((p) => p.secret));
 
-			await saveNuts(res.proofs, $pubkey);
+				await saveNuts(res.proofs, $pubkey);
+			} catch (e) {
+				console.error(e);
+			}
 		}
 	}).subscribe((n) => n);
 
 	derived([nostrPubKey, db, history], async ([$pubkey, $db, $history]) => {
 		if (!$pubkey) return;
-		const validProofs = await checkProofsSpent(get(proofs));
+		await checkProofsSpent(get(proofs));
 		// for fresh invoices, try to claim them on every timestamp
-		await get(db).proofs.clear();
-		await get(db).proofs.bulkAdd(validProofs);
 	}).subscribe((n) => n);
 
 	// claim pending invoices

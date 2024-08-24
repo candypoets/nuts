@@ -5,7 +5,7 @@
 	import Icon from '@iconify/svelte';
 	import { history } from 'src/stores/db';
 
-	$: page = 20;
+	$: page = 40;
 	$: historySub = $history.slice(0, page);
 
 	const loadMore = () => {
