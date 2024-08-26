@@ -2,18 +2,46 @@ import { browser } from '$app/environment';
 import { CashuMint, type Proof } from '@cashu/cashu-ts';
 import type { Mint } from '../../src/model/mint';
 
-import { derived, get, writable, type Readable } from 'svelte/store';
-import { addMint } from 'src/actions/mint';
 import { getAmountForTokenSet } from 'src/comp/util/walletUtils';
+import { derived, get, writable, type Readable } from 'svelte/store';
 import { db, proofs } from './db';
-import { liveQuery } from 'dexie';
 import { nostrPubKey } from './nostr';
+import { timestamp60 } from './time';
 
-const minibits = new CashuMint('https://mint.minibits.cash/Bitcoin');
+const defaultMints = writable<Array<string>>([
+	'https://mint.minibits.cash/Bitcoin',
+	'https://mint.lnserver.com/'
+]);
 
-const lnserver = new CashuMint('https://mint.lnserver.com/');
+const mints = derived(
+	[defaultMints, db, timestamp60],
+	([$defaultMints, $db, $timestamp60], set) => {
+		// make sure there is no duplicate in defaultMints
+		const map = ($defaultMints || []).reduce(
+			(acc, cur) => {
+				return { ...acc, [cur]: true };
+			},
+			{} as Record<string, boolean>
+		);
 
-const mints = writable<Array<Mint>>([]);
+		Promise.all(
+			Object.keys(map).map(async (m) => {
+				console.log(m);
+				const mint = new CashuMint(m);
+				const keysets = await mint.getKeySets();
+				const keys = await mint.getKeys();
+
+				await $db.keysets.put({ id: keys.keysets[0].id, mint: m });
+				return {
+					mintURL: m,
+					keysets: keysets.keysets,
+					keys: keys.keysets
+				};
+			})
+		).then((res) => set(res));
+	},
+	[] as Array<Mint>
+);
 
 export const mint = writable<Mint>();
 

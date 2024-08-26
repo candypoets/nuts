@@ -31,8 +31,6 @@
 			updateVc();
 			updateVh();
 			// You can add your custom logic here
-			addMint('https://mint.minibits.cash/Bitcoin');
-			addMint('https://mint.lnserver.com/');
 		});
 
 		// while (!$nostrPubKey) {

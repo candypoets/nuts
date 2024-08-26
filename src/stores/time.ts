@@ -6,3 +6,9 @@ export const timestamp10: Readable<number> = derived([], (_, set) => {
 		set(Math.floor(Date.now() / 1000));
 	}, 10000);
 });
+
+export const timestamp60: Readable<number> = derived([], (_, set) => {
+	setInterval(() => {
+		set(Math.floor(Date.now() / 1000));
+	}, 60000);
+});

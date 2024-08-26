@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
-	import { sendMessage } from 'src/actions/chat';
+	import { getEncryptedContent, sendMessage } from 'src/actions/chat';
 	import { saveNuts, send } from 'src/actions/wallet';
 	import { db } from 'src/stores/db';
 	import { mintInfos } from 'src/stores/mints';
@@ -39,16 +39,18 @@
 			processing = 'Creating Token';
 			const res = await send($wallets, amount as number, memo);
 			processing = 'Sending Token';
-			await sendMessage(toPub, res.encodedToken, [['amount', res.amount]])
+			await sendMessage(toPub, res.encodedToken)
 				.then(async () => {
 					console.info(
 						'return change',
 						res.returnChanges.reduce((a, b) => a + b.amount, 0)
 					);
 					// add the change to the proofs table
-					await $db.proofs.bulkAdd(res.returnChanges);
-
-					await saveNuts(res.returnChanges, $nostrPubKey);
+					if (res.returnChanges.length) {
+						await $db.proofs.bulkPut(res.returnChanges);
+						await $db.spentProofs.bulkPut(res.sends);
+						await saveNuts(res.returnChanges, $nostrPubKey);
+					}
 				})
 				.catch(async (e) => {
 					// keep the sent proofs for yourself as renewed proofs

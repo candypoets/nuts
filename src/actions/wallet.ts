@@ -12,7 +12,7 @@ import { db, proofs, spentProofs } from 'src/stores/db';
 import { nostrPubKey, profile, signAndSend, signer } from 'src/stores/nostr';
 import type { WalletInfo } from 'src/stores/wallet';
 import { get } from 'svelte/store';
-import { getEncryptedContent, sendMessage } from './chat';
+import { getDecryptedContent, getEncryptedContent, sendMessage } from './chat';
 
 // send proofs from the most important mint to the least important
 export const send = async (
@@ -24,6 +24,7 @@ export const send = async (
 	preference?: AmountPreference[]
 ): Promise<{
 	sends: Proof[];
+	spents: Proof[];
 	returnChanges: Proof[];
 	encodedToken: string;
 	amount: string; // encrypted amount sent
@@ -71,6 +72,7 @@ export const send = async (
 
 	return {
 		sends,
+		spents,
 		returnChanges,
 		encodedToken: getEncodedToken({ token: toEncode, memo }),
 		amount: await getEncryptedContent(get(nostrPubKey), amount.toString())
@@ -131,6 +133,7 @@ export const getMyPubKey = async (): Promise<string> => {
 // save a cashu token representing the entire user balance
 // then send a private message to yourself with the encrypted tokens
 export const saveNuts = async (proofs: Proof[], toPubKey: string) => {
+	if (!proofs.length) return;
 	const toEncode: TokenEntry[] = [];
 	const proofsByKeySet = proofs.reduce(
 		(acc, cur) => {
@@ -182,4 +185,12 @@ export async function checkProofsSpent(proofs: Proof[]) {
 			// validProofs.push(...proofs.filter((p) => !spents.some((s) => s.secret == p.secret)));
 		})
 	);
+}
+
+export async function retrieveSpentProofs(event: NostrEvent, pubkey: string): Promise<Proof[]> {
+	const content = event.tags.find((t) => t[0] == 's')?.[1];
+	if (!content) return [];
+	const decrypted = await getDecryptedContent(pubkey, content);
+	const spentProofs = JSON.parse(decrypted);
+	return spentProofs;
 }

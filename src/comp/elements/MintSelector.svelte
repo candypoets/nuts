@@ -1,10 +1,6 @@
 <script lang="ts">
-	import type { Mint } from '../../model/mint';
-	import { amountAvailable, getAmountAvailable, mint, mints } from '../../stores/mints';
-	import { unit } from '../../stores/settings';
-	import { token } from '../../stores/tokens';
-	import TokenIcon from '../tokens/TokenIcon.svelte';
-	import { formatAmount, getAmountForTokenSet, getTokensForMint } from '../util/walletUtils';
+	import { getAmountAvailable, mint, mints } from '../../stores/mints';
+	import { formatAmount } from '../util/walletUtils';
 
 	const formatMintText = (url: string) => {
 		if (url.length <= 20) {

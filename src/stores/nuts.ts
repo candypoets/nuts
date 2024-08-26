@@ -16,11 +16,12 @@ import { getKeysForUnit, isValidToken } from 'src/comp/util/walletUtils';
 import { HistoryItemType } from 'src/model/historyItem';
 import { decode } from '@gandlaf21/bolt11-decode';
 import { liveQuery } from 'dexie';
-import { timestamp10 } from './time';
+import { timestamp10, timestamp60 } from './time';
 import { getDecryptedContent, sendMessage } from 'src/actions/chat';
 import { browser } from '$app/environment';
-import type { UnsignedEvent } from 'nostr-tools';
-import { checkProofsSpent, saveNuts } from 'src/actions/wallet';
+import type { NostrEvent, UnsignedEvent } from 'nostr-tools';
+import { checkProofsSpent, retrieveSpentProofs, saveNuts } from 'src/actions/wallet';
+import { mints } from './mints';
 
 export const eventMap: { [key: string]: boolean } = {};
 if (browser) {
@@ -31,6 +32,7 @@ if (browser) {
 	derived([nostrPubKey, nostrPrivKey, db], async ([$pubkey, $privkey, $db]) => {
 		// console.info('fetching messages');
 		if (!$pubkey || (!$privkey && !window.nostr)) return;
+		// if (!get(mints).length) return;
 		const messages = pool.req([
 			{
 				kinds: [nostrTools.kinds.EncryptedDirectMessage],
@@ -59,48 +61,24 @@ if (browser) {
 			eventMap[event.content] = true;
 			if (!nostrTools.validateEvent(event)) continue;
 
-			const incoming = event.tags.find((t) => t[0] === 'p' && t[1] === $pubkey);
+			const incoming = event.tags.some((t) => t[0] === 'p' && t[1] === $pubkey);
+			const token = await decodeEventContent(event, incoming);
+			if (!token) continue;
+			console.log('-----------Token OK------------');
+			// store the mint in the db
+			await Promise.all(
+				token.token.map(async (t) => {
+					await Promise.all(
+						t.proofs.map(async (p) => {
+							await $db.keysets.put({ id: p.id, mint: t.mint });
+						})
+					);
+				})
+			);
+
+			// get all the proofs in the token
+			const proofs = token.token.reduce((acc, cur) => [...acc, ...cur.proofs], [] as Proof[]);
 			if (incoming) {
-				let decodedMessage: string;
-				try {
-					decodedMessage = window.nostr
-						? await window.nostr.nip04.decrypt(event.pubkey, event.content)
-						: await nostrTools.nip04.decrypt($privkey, event.pubkey, event.content);
-				} catch (e) {
-					console.error(e, 'could not decrypt nip-04 message. Ignoring this message');
-					continue;
-				}
-
-				let token;
-				try {
-					token = getDecodedToken(decodedMessage);
-				} catch (e) {
-					console.error(e, 'could not decode nip-04 message as token. Ignoring this message');
-					continue;
-				}
-
-				if (!token?.token) {
-					//if the event is not in a cashu token format, ignore it
-					continue;
-				}
-
-				if (!isValidToken(token.token)) {
-					// ignore messages that are not tokens
-					continue;
-				}
-				// store the mint in the db
-				await Promise.all(
-					token.token.map(async (t) => {
-						await Promise.all(
-							t.proofs.map(async (p) => {
-								await $db.keysets.put({ id: p.id, mint: t.mint });
-							})
-						);
-					})
-				);
-
-				// get all the proofs in the token
-				const proofs = token.token.reduce((acc, cur) => [...acc, ...cur.proofs], [] as Proof[]);
 				// if the nuts tag is present, do not add to history, it is a wallet save
 				const isSave = event.tags.some((t) => t[0] === 'nuts');
 				if (!isSave) {
@@ -123,7 +101,6 @@ if (browser) {
 					await $db.pendingProofs.bulkAdd(proofs);
 				} else {
 					console.log('hey');
-					// just verify that the token is not spent yet
 					try {
 						getNuts(token);
 					} catch (e) {
@@ -132,19 +109,16 @@ if (browser) {
 				}
 			} else {
 				console.log('-----------outgoing message', out++);
+				const proofs = token.token.flatMap((t) => t.proofs);
+				// remove them from the proofs table
+				await $db.proofs.bulkDelete(proofs.map((p) => p.secret));
+				// add them to the spentProofs table
+				await $db.spentProofs.bulkPut(proofs);
 				// outgoing messages
 				$db.history.add({
 					date: event.created_at,
 					type: HistoryItemType.SEND,
-					amount: !!event.tags.find((t) => t[0] === 'amount')?.[1]
-						? -Number(
-								await getDecryptedContent(
-									event.pubkey,
-									event.tags.find((t) => t[0] === 'amount')?.[1]
-								)
-							)
-						: 0,
-					// amount: 0,
+					amount: -proofs.reduce((acc, cur) => (acc += cur.amount), 0),
 					data: {
 						mint: '',
 						keyset: ['0'], // @todo
@@ -194,17 +168,13 @@ if (browser) {
 				// // remove the proofs from the pendingProofs
 				await $db.pendingProofs.bulkDelete(proofsByKeySet[key].map((p) => p.secret));
 
-				await saveNuts(res.proofs, $pubkey);
+				if (res.proofs.length) {
+					await saveNuts(res.proofs, $pubkey);
+				}
 			} catch (e) {
 				console.error(e);
 			}
 		}
-	}).subscribe((n) => n);
-
-	derived([nostrPubKey, db, history], async ([$pubkey, $db, $history]) => {
-		if (!$pubkey) return;
-		await checkProofsSpent(get(proofs));
-		// for fresh invoices, try to claim them on every timestamp
 	}).subscribe((n) => n);
 
 	// claim pending invoices
@@ -245,29 +215,57 @@ if (browser) {
 			});
 		}
 	).subscribe((n) => n);
+
+	let lastCheck = '';
+	// every 60 seconds, check if the proofs are spent
+	derived([proofs, timestamp10], async ([$proofs, $time]) => {
+		if (!$proofs.length || lastCheck === JSON.stringify($proofs)) return;
+		lastCheck = JSON.stringify($proofs);
+		await checkProofsSpent($proofs);
+	}).subscribe((n) => n);
 }
 
 // try to get the cashu tokens saved in the user private chat
 export async function getNuts(cashu: Token) {
-	console.log('getNuts', cashu);
-	const validProofs: Proof[] = [];
-	await Promise.all(
-		cashu.token.map(async (t) => {
-			// verify the token
-			const cashuMint = new CashuMint(t.mint);
-			const keys = await cashuMint.getKeys();
-			const wallet = new CashuWallet(cashuMint, keys.keysets[0]);
-			// check if the proofs are already spent in the db
-			const unspend = t.proofs.filter((p) => !get(spentProofs).some((sp) => sp.secret == p.secret));
-			if (unspend.length) {
-				const spents = await wallet.checkProofsSpent(unspend);
-				console.log('spents', spents);
-				await get(db).spentProofs.bulkPut(spents);
-				validProofs.push(...unspend.filter((p) => !spents.some((s) => s.secret == p.secret)));
-			}
-		})
-	);
-	if (validProofs.length) {
-		await get(db).proofs.bulkPut(validProofs);
+	cashu.token.map(async (t) => {
+		await get(db).proofs.bulkPut(t.proofs);
+	});
+}
+
+export async function decodeEventContent(
+	event: NostrEvent,
+	incoming: boolean
+): Promise<Token | undefined> {
+	let decodedMessage: string;
+	const pubkey = incoming ? event.pubkey : event.tags.find((t) => t[0] == 'p')?.[1];
+	console.log('pubkey', pubkey);
+	if (!pubkey) return;
+	try {
+		decodedMessage = window.nostr
+			? await window.nostr.nip04.decrypt(pubkey, event.content)
+			: await nostrTools.nip04.decrypt(get(nostrPrivKey), pubkey, event.content);
+	} catch (e) {
+		console.error(e, 'could not decrypt nip-04 message. Ignoring this message');
+		// continue;
+		return;
 	}
+
+	let token;
+	try {
+		token = getDecodedToken(decodedMessage);
+	} catch (e) {
+		console.error(e, 'could not decode nip-04 message as token. Ignoring this message');
+		return;
+	}
+
+	if (!token?.token) {
+		//if the event is not in a cashu token format, ignore it
+		return;
+	}
+
+	if (!isValidToken(token.token)) {
+		// ignore messages that are not tokens
+		return;
+	}
+	return token;
 }
