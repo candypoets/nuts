@@ -55,7 +55,7 @@ if (browser) {
 			if (exist > 0) continue;
 			// push the message to the db, it will be listed in the chat
 			await $db.messages.add({ event });
-			console.log('eventMap', eventMap);
+
 			// if the event content is in the map, it has been processed already
 			if (eventMap[event.content]) continue;
 			eventMap[event.content] = true;
@@ -64,7 +64,7 @@ if (browser) {
 			const incoming = event.tags.some((t) => t[0] === 'p' && t[1] === $pubkey);
 			const token = await decodeEventContent(event, incoming);
 			if (!token) continue;
-			console.log('-----------Token OK------------');
+
 			// store the mint in the db
 			await Promise.all(
 				token.token.map(async (t) => {
