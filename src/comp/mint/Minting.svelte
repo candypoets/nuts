@@ -14,8 +14,8 @@
 	import { formatAmount } from '../util/walletUtils';
 
 	export let active;
-	export let doMint = false;
 	export let isMinting: boolean;
+	export let doMint = false;
 	let amount: number | undefined = 200;
 	let qrCode: string | undefined;
 	let isLoading: boolean = false;
@@ -83,7 +83,6 @@
 				date: Math.round(Date.now() / 1000),
 				mint: $mint?.mintURL
 			});
-
 			doMint = true;
 			// mintTokens();
 		} catch (error) {
@@ -96,9 +95,7 @@
 	const resetState = () => {
 		amount = undefined;
 		qrCode = undefined;
-		// mintingHash = undefined;
-		// isComplete = false;
-		doMint = false;
+
 		memo = '';
 	};
 </script>

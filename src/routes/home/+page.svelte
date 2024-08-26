@@ -1,20 +1,16 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import ClaimOfflineTokens from 'src/comp/elements/ClaimOfflineTokens.svelte';
-	import WalletLock from 'src/comp/elements/WalletLock.svelte';
-	import { formatAmount, getAmountForTokenSet, getLockedTokens } from 'src/comp/util/walletUtils';
-	import { onMount } from 'svelte';
-	import { mints, totalAmountAvailable } from '../../stores/mints';
-	import { isEncrypted, unit } from '../../stores/settings';
-	import { token } from '../../stores/tokens';
-	import AddModal from './add-modal.svelte';
-	import Transactions from './transactions.svelte';
-	import SendModal from './send/send-modal.svelte';
-	import AddFriendModal from './add-friend-modal.svelte';
-	import { profile } from 'src/stores/nostr';
-	import ProfileModal from './profile-modal.svelte';
 	import QrScanner from 'src/comp/QRScanner.svelte';
+	import WalletLock from 'src/comp/elements/WalletLock.svelte';
 	import { scanning } from 'src/stores';
+	import { profile } from 'src/stores/nostr';
+	import { onMount } from 'svelte';
+	import { mints } from '../../stores/mints';
+	import { isEncrypted } from '../../stores/settings';
+	import AddFriendModal from './add-friend-modal.svelte';
+	import AddModal from './add-modal.svelte';
+	import SendModal from './send/send-modal.svelte';
+	import Transactions from './transactions.svelte';
 
 	let active = 'base';
 	let encodedToken = '';

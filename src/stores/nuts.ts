@@ -1,9 +1,6 @@
 /// this store query nostr for private messages containing nuts
 
-import { derived, get } from 'svelte/store';
-import * as nostrTools from 'nostr-tools';
-import { nostrPrivKey, nostrPubKey, pool, profile } from './nostr';
-import { db, invoices, pendingProofs, history, proofs, type Invoice, spentProofs } from './db';
+import { browser } from '$app/environment';
 import {
 	CashuMint,
 	CashuWallet,
@@ -12,16 +9,17 @@ import {
 	type Proof,
 	type Token
 } from '@cashu/cashu-ts';
+import { decode } from '@gandlaf21/bolt11-decode';
+import type { NostrEvent } from 'nostr-tools';
+import * as nostrTools from 'nostr-tools';
+import { sendMessage } from 'src/actions/chat';
+import { checkProofsSpent, saveNuts } from 'src/actions/wallet';
 import { getKeysForUnit, isValidToken } from 'src/comp/util/walletUtils';
 import { HistoryItemType } from 'src/model/historyItem';
-import { decode } from '@gandlaf21/bolt11-decode';
-import { liveQuery } from 'dexie';
-import { timestamp10, timestamp60 } from './time';
-import { getDecryptedContent, sendMessage } from 'src/actions/chat';
-import { browser } from '$app/environment';
-import type { NostrEvent, UnsignedEvent } from 'nostr-tools';
-import { checkProofsSpent, retrieveSpentProofs, saveNuts } from 'src/actions/wallet';
-import { mints } from './mints';
+import { derived, get } from 'svelte/store';
+import { db, invoices, pendingProofs, proofs, type Invoice } from './db';
+import { nostrPrivKey, nostrPubKey, pool } from './nostr';
+import { timestamp10 } from './time';
 
 export const eventMap: { [key: string]: boolean } = {};
 if (browser) {

@@ -11,11 +11,6 @@
 
 	export let subopen: boolean = false;
 
-	let isToken = false;
-	let isMinting = false;
-	let doMint = false;
-	let activeR: string;
-
 	let activeMint = $mints[0];
 
 	// const navigate = () => {
