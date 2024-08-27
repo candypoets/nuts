@@ -1,11 +1,9 @@
 <script lang="ts">
 	import { formatAmount } from 'src/comp/util/walletUtils';
-	import { totalAmountAvailable } from 'src/stores/mints';
 	import { QRCodeImage } from 'svelte-qrcode-image';
 
 	import { nostrPubKey, profile } from 'src/stores/nostr';
 	import Icon from '@iconify/svelte';
-	import { get } from 'svelte/store';
 	import ProfileModal from 'src/routes/_profile/index.svelte';
 	import {
 		accountModalOpen,
@@ -65,7 +63,9 @@
 </div>
 
 <ProfileModal bind:open={profileOpen} />
+
 <MeltModal bind:open={$meltModalOpen} invoice={$lightningInvoice} />
+
 <AccountModal bind:open={$accountModalOpen} npub={$scannedPubkey} />
 
 <!-- Scanner -->

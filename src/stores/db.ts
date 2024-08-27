@@ -12,7 +12,7 @@ export type Invoice = RequestMintResponse & { date: number; mint: string };
 export type Setting = {
 	key: string;
 	visible: boolean;
-	unit: 'sat' | 'btc' | 'usd';
+	unit: 'sat' | 'btc' | 'usd' | 'eur';
 };
 
 export type DB = Dexie & {

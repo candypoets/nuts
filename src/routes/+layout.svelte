@@ -1,7 +1,3 @@
-<!-- <script context="module">
-	export { load } from './+layout'; // Adjust the path if necessary
-</script> -->
-
 <script lang="ts">
 	import '../app.css';
 	import { goto } from '$app/navigation';
@@ -44,9 +40,6 @@
 	{@html webManifestLink}
 </svelte:head>
 
-<!-- {#if $useNostr} -->
-<!-- <NostrSocket /> -->
-<!-- {/if} -->
 {#if $nostrPubKey}
 	<slot />
 	<MobileNav />

@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { formatAmount } from 'src/comp/util/walletUtils';
 	import { totalAmountAvailable } from 'src/stores/mints';
-	import { unit } from '../../stores/settings';
 
 	import Icon from '@iconify/svelte';
 	import { profile } from 'src/stores/nostr';

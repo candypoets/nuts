@@ -90,7 +90,9 @@
 	<div class="flex-grow w-1/4" />
 </div>
 <br />
+
 <Transactions />
+
 <AddModal bind:open={addOpen} />
 
 <SendModal bind:open={sendOpen} />
