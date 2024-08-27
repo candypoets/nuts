@@ -12,11 +12,14 @@
 	import MintSelector from '../elements/MintSelector.svelte';
 	import LoadingCenter from '../LoadingCenter.svelte';
 	import { formatAmount } from '../util/walletUtils';
+	import { liveQuery } from 'dexie';
+	import Icon from '@iconify/svelte';
 
 	export let active;
 	export let isMinting: boolean;
 	export let doMint = false;
 	let amount: number | undefined = 200;
+	let mintingHash = '';
 	let qrCode: string | undefined;
 	let isLoading: boolean = false;
 	let isPolling: boolean = false;
@@ -75,7 +78,7 @@
 			isLoading = true;
 			const cashuMint = new CashuMint($mint?.mintURL);
 			const mintQuote = await cashuMint.mintQuote({ amount: amount ?? 0, unit: 'sat' });
-			// mintingHash = mintQuote.quote;
+			mintingHash = mintQuote.quote;
 			qrCode = mintQuote.request;
 
 			$db.invoices.add({
@@ -98,6 +101,10 @@
 
 		memo = '';
 	};
+	$: exist = liveQuery(() => $db.invoices.get(mintingHash));
+
+	$: isPaid = mintingHash && !$exist;
+	$: console.log(isPaid, $exist);
 </script>
 
 <div class="flex justify-center">
@@ -116,7 +123,7 @@
 					</p>
 					<p class="text-2xl font-bold">sats</p>
 				</div>
-				<div class="flex items-center gap-1">
+				<!-- <div class="flex items-center justify-center gap-1">
 					<p class="font-bold">at</p>
 					<div class="flex gap-1">
 						<p class="font-bold">Custodian</p>
@@ -124,18 +131,26 @@
 							{$mint?.mintURL}
 						</p>
 					</div>
-				</div>
+				</div> -->
 			</div>
-			<div class="w-full flex items-center justify-center">
+			<div class="w-full flex items-center justify-center mt-24">
 				<div class="flex items-center justify-center flex-col">
-					<div class="border-warning border rounded-md p-2">
-						<a class="cursor-pointer" href="lightning:{qrCode}">
-							<QRCodeImage text={qrCode} displayHeight={275} displayWidth={275} margin={1} />
-						</a>
+					<div class="border-warning border rounded-md p-2" class:!border-success={isPaid}>
+						{#if isPaid}
+							<Icon
+								icon="streamline:ok-hand"
+								style="width: 275px; height: 275px;"
+								class="text-success"
+							/>
+						{:else}
+							<a class="cursor-pointer" href="lightning:{qrCode}">
+								<QRCodeImage text={qrCode} displayHeight={275} displayWidth={275} margin={1} />
+							</a>
+						{/if}
 					</div>
 				</div>
 			</div>
-			<div class="flex pt-4 w-full px-2">
+			<div class="flex pt-4 w-full px-2 mt-12">
 				<input
 					type="text"
 					class="input input-warning w-full"
@@ -144,7 +159,7 @@
 					value={qrCode}
 				/>
 			</div>
-			<div class="flex gap-1 justify-center pt-3">
+			<div class=" pt-3 px-2">
 				<input
 					type="text"
 					class="bg-base-200 rounded-lg p-1 px-3 focus:outline-none w-80"
@@ -157,7 +172,7 @@
 					<div class="btn btn-disabled btn-xs loading btn-square" />
 				{/if}
 			</div>
-			<div class="flex gap-2">
+			<!-- <div class="flex gap-2">
 				<button class="btn btn-outline" on:click={resetState}>Cancel</button>
 				<button
 					class="btn btn-outline btn-error"
@@ -166,7 +181,7 @@
 						resetState();
 					}}>delete invoice</button
 				>
-			</div>
+			</div> -->
 		</div>
 	{:else}
 		<div class="pt-8">

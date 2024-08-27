@@ -67,19 +67,19 @@
 </script>
 
 <div class="flex gap-2 mx-4 -mt-4">
-	<div class="text-center">
+	<div class="text-center flex-grow">
 		<button class="btn w-14 h-14 btn-primary btn-circle" on:click={() => (addOpen = true)}>
 			<Icon icon="carbon:add" class="w-8 h-8" />
 		</button>
 		<div class="text-sm mt-1 font-semibold">Add money</div>
 	</div>
-	<div class="text-center">
+	<div class="text-center flex-grow">
 		<button class="btn w-14 h-14 btn-primary btn-circle" on:click={() => (sendOpen = true)}>
 			<Icon icon="carbon:arrow-right" class="w-8 h-8" />
 		</button>
 		<div class="text-sm mt-1 font-semibold">Send money</div>
 	</div>
-	<div class="text-center">
+	<div class="text-center flex-grow">
 		<!-- <button class="btn w-14 h-14 btn-circle btn-outline" on:click={() => (addFriend = true)}>
 			<Icon icon="carbon:user" class="w-8 h-8" />
 		</button> -->
@@ -88,6 +88,7 @@
 		</button>
 		<div class="text-sm mt-1 font-semibold">Scan</div>
 	</div>
+	<div class="flex-grow w-1/4" />
 </div>
 <br />
 <Transactions />
