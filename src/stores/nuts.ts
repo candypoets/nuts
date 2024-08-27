@@ -18,8 +18,9 @@ import { getKeysForUnit, isValidToken } from 'src/comp/util/walletUtils';
 import { HistoryItemType } from 'src/model/historyItem';
 import { derived, get } from 'svelte/store';
 import { db, invoices, pendingProofs, proofs, type Invoice } from './db';
-import { nostrPrivKey, nostrPubKey, pool } from './nostr';
+import { nostrPrivKey, nostrPubKey } from './nostr';
 import { timestamp10 } from './time';
+import { pool } from './relays';
 
 export const eventMap: { [key: string]: boolean } = {};
 if (browser) {
@@ -30,8 +31,9 @@ if (browser) {
 	derived([nostrPubKey, nostrPrivKey, db], async ([$pubkey, $privkey, $db]) => {
 		// console.info('fetching messages');
 		if (!$pubkey || (!$privkey && !window.nostr)) return;
+		if (!get(pool)) return;
 		// if (!get(mints).length) return;
-		const messages = pool.req([
+		const messages = get(pool).req([
 			{
 				kinds: [nostrTools.kinds.EncryptedDirectMessage],
 				'#p': [$pubkey]

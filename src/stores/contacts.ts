@@ -1,9 +1,10 @@
 import type { Contact } from '../model/contact';
 import * as nostrTools from 'nostr-tools';
 import { derived, get, writable } from 'svelte/store';
-import { nostrPrivKey, nostrPubKey, pool } from './nostr';
+import { nostrPrivKey, nostrPubKey } from './nostr';
 import { contacts, db } from './db';
 import { browser } from '$app/environment';
+import { pool } from './relays';
 
 if (browser) {
 	derived([nostrPubKey, nostrPrivKey, db], async ([$pubkey, $privkey, $db]) => {
@@ -13,7 +14,7 @@ if (browser) {
 			// find the last added contact
 			const last = await $db.contacts.orderBy('createdAt').last();
 
-			const messages = pool.req([
+			const messages = get(pool).req([
 				{
 					kinds: [nostrTools.kinds.Contacts],
 					limit: 30,
@@ -26,7 +27,7 @@ if (browser) {
 				if (message[0] === 'CLOSED') break;
 				if (message[0] !== 'EVENT') continue;
 				const event = message[2];
-				const follows = pool.req([
+				const follows = get(pool).req([
 					{
 						kinds: [0],
 						authors: event.tags.filter((t) => t[0] == 'p').map((t) => t[1]),
@@ -65,7 +66,7 @@ export async function getContact(pubkey: string): Promise<Contact> {
 	if (local) return local;
 	const contact = new Promise<Contact>(async (resolve, reject) => {
 		try {
-			const follows = pool.req([
+			const follows = get(pool).req([
 				{
 					kinds: [0],
 					authors: [pubkey]

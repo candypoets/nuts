@@ -24,6 +24,8 @@ export type DB = Dexie & {
 	messages: EntityTable<NostrMessage & { id: string }, 'id'>;
 	keysets: EntityTable<{ id: string; mint: string }, 'id'>;
 	invoices: EntityTable<Invoice, 'quote'>;
+	relays: EntityTable<{ url: string }, 'url'>;
+	mints: EntityTable<{ url: string }, 'url'>;
 	settings: Dexie.Table<Setting, string, 'key'>;
 };
 
@@ -41,6 +43,8 @@ export const db: Readable<DB> = derived([nostrPubKey], ([pubkey], set) => {
 			'++id,event.id,event.kind,event.tags,event.content,event.created_at,event.pubkey,event.sig,token.proofs,token.mint,token.memo,isAccepted',
 		keysets: 'id,mint',
 		invoices: 'quote,request,date,mint',
+		relays: 'url',
+		mints: 'url',
 		settings: 'key,visible,unit'
 	});
 	set(dex);
@@ -110,6 +114,41 @@ export const contacts = derived(
 		});
 	},
 	[] as Contact[]
+);
+
+export const dbMints = derived(
+	[db],
+	([$db], set) => {
+		if (!$db) set([]);
+		liveQuery(() => $db.mints.toArray()).subscribe((mints) => {
+			// you need at least one mint
+			if (mints.length) {
+				set(mints);
+			}
+		});
+	},
+	[{ url: 'https://mint.minibits.cash/Bitcoin' }, { url: 'https://mint.lnserver.com/' }] as {
+		url: string;
+	}[]
+);
+
+export const dbRelays = derived(
+	[db],
+	([$db], set) => {
+		if (!$db) set([]);
+		liveQuery(() => $db.relays.toArray()).subscribe((relays) => {
+			// you need at least one relay
+			if (relays.length) {
+				set(relays);
+			}
+		});
+	},
+	[
+		{ url: 'wss://relay.damus.io' },
+		{ url: 'wss://nostr.einundzwanzig.space/' },
+		{ url: 'wss://relay.primal.net' },
+		{ url: 'wss://relay.nuts.cash' }
+	] as { url: string }[]
 );
 
 export const settings = derived(

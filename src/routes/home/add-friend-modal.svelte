@@ -1,8 +1,10 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
+	import { signAndSend } from 'src/actions/relay';
 	import type { Contact } from 'src/model/contact';
 	import { db } from 'src/stores/db';
-	import { nostrPubKey, pool, signAndSend } from 'src/stores/nostr';
+	import { nostrPubKey } from 'src/stores/nostr';
+	import { pool } from 'src/stores/relays';
 	import { Drawer } from 'vaul-svelte';
 
 	export let open: boolean = false;
@@ -25,7 +27,7 @@
 		}, 10000);
 
 		try {
-			const isAuth = await pool.query([{ authors: [pubkey], kinds: [0] }], { signal });
+			const isAuth = await $pool.query([{ authors: [pubkey], kinds: [0] }], { signal });
 			console.log(isAuth);
 			user = JSON.parse(isAuth[0].content);
 		} catch (error) {

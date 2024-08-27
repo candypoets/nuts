@@ -4,8 +4,10 @@
 	import { bytesToHex } from '@noble/hashes/utils';
 	import type { NostrEvent } from '@nostrify/nostrify';
 	import { kinds, type UnsignedEvent } from 'nostr-tools';
-	import { decodePrivKey, nostrPrivKey, nostrPubKey, pool, signer } from 'src/stores/nostr';
+	import { decodePrivKey, nostrPrivKey, nostrPubKey, signer } from 'src/stores/nostr';
+	import { pool } from 'src/stores/relays';
 	import { onMount } from 'svelte';
+	import { get } from 'svelte/store';
 
 	let privateKey = '';
 	let name = '';
@@ -27,7 +29,7 @@
 
 		console.log(pk, pubkey);
 		loading = true;
-		const messages = pool.req([{ kinds: [kinds.Metadata], authors: [pubkey], limit: 1 }]);
+		const messages = get(pool).req([{ kinds: [kinds.Metadata], authors: [pubkey], limit: 1 }]);
 
 		for await (const message of messages) {
 			if (message[0] === 'CLOSED') break;
@@ -66,7 +68,7 @@
 		}
 		console.log(event);
 
-		pool.event(event as NostrEvent);
+		get(pool).event(event as NostrEvent);
 	}
 
 	onMount(async () => {

@@ -9,6 +9,7 @@ import type { NostrEvent, UnsignedEvent } from 'nostr-tools';
 import { kinds, nip19 } from 'nostr-tools';
 import { get, writable } from 'svelte/store';
 import type { NostrRelay } from '../model/relay';
+import { pool } from './relays';
 // import { db, proofs } from './db';
 // import { getDecryptedContent } from 'src/actions/chat';
 // import { getDecodedToken, type Proof } from '@cashu/cashu-ts';
@@ -100,7 +101,7 @@ nostrPubKey.subscribe((value) => {
 	}
 	setTimeout(() => {
 		// get the contact info from the pubkey
-		const messages = pool.req([{ kinds: [kinds.Metadata], limit: 1, authors: [value] }]);
+		const messages = get(pool).req([{ kinds: [kinds.Metadata], limit: 1, authors: [value] }]);
 
 		(async () => {
 			for await (const message of messages) {
@@ -149,41 +150,6 @@ const createNewNostrKeys = (privateKey?: string) => {
 	const priv = privateKey ? hexToBytes(privateKey) : schnorr.utils.randomPrivateKey();
 	nostrPrivKey.set(bytesToHex(priv));
 	nostrPubKey.set(bytesToHex(schnorr.getPublicKey(priv)));
-};
-
-export const pool = new NPool({
-	open(url) {
-		if (!browser) return;
-		return new NRelay1(url);
-	},
-	async reqRouter(filters) {
-		return new Map([
-			['wss://relay.damus.io', filters],
-			['wss://nostr.einundzwanzig.space/', filters],
-			['wss://relay.primal.net', filters],
-			['wss://relay.nuts.cash', filters]
-			// ['ws://umbrel:4848', filters]
-		]);
-	},
-	async eventRouter(event) {
-		return [
-			'wss://relay.damus.io',
-			'wss://nostr.einundzwanzig.space/',
-			'wss://relay.primal.net',
-			'wss://relay.nuts.cash'
-			// 'ws://umbrel:4848'
-		];
-	}
-});
-
-export const signAndSend = async (event: UnsignedEvent) => {
-	if (window.nostr) {
-		event = await window.nostr.signEvent(event);
-	} else {
-		event = await get(signer).signEvent(event);
-	}
-
-	pool.event(event as NostrEvent);
 };
 
 export {

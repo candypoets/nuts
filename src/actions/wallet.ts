@@ -9,7 +9,7 @@ import {
 } from '@cashu/cashu-ts';
 import type { NostrEvent, UnsignedEvent } from 'nostr-tools';
 import { db, proofs, spentProofs } from 'src/stores/db';
-import { nostrPubKey, profile, signAndSend, signer } from 'src/stores/nostr';
+import { nostrPubKey, profile, signer } from 'src/stores/nostr';
 import type { WalletInfo } from 'src/stores/wallet';
 import { get } from 'svelte/store';
 import { getDecryptedContent, getEncryptedContent, sendMessage } from './chat';

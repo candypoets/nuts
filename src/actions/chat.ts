@@ -1,9 +1,10 @@
 import { kinds, nip04 } from 'nostr-tools';
 import type { Event, UnsignedEvent } from 'nostr-tools';
-import { nostrPrivKey, pool } from 'src/stores/nostr';
+import { nostrPrivKey } from 'src/stores/nostr';
 import { get } from 'svelte/store';
 import { getMyPubKey, signEvent } from './wallet';
 import { getConvertedPubKey } from 'src/stores/wallet';
+import { pool } from 'src/stores/relays';
 
 export const getEncryptedContent = async (toPub: string, message: string): Promise<string> => {
 	return window.nostr
@@ -29,5 +30,5 @@ export const sendMessage = async (toPub: string, message: string, tags?: string[
 
 	const signedEvent = await signEvent(event);
 
-	await pool.event(signedEvent);
+	await get(pool).event(signedEvent);
 };
