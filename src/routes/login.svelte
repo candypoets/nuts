@@ -77,14 +77,14 @@
 	});
 </script>
 
-<main class="flex items-center mobile-height">
+<main class="w-full flex place-content-center mobile-height">
 	{#if kind == 'login'}
-		<div class="h-1/2">
-			<h1 class="text-3xl text-center uppercase font-bold px-4">Login with your private key</h1>
-			<h2 class="text-center mt-8 px-4">
-				To give <strong>nuts.cash</strong> full access to your nostr identity, enter your private key
-				below
-			</h2>
+		<div class="h-1/2 w-full md:w-1/2 xl:w-1/3 py-48">
+			<h1 class="text-3xl text-center font-bold px-4 text-slate-700">Login with your private key</h1>
+			<p class="text-center mt-2 px-4 text-slate-400">
+				To give <strong>nuts.cash</strong> full access to your Nostr identity, enter your Nostr private key
+				below.
+			</p>
 
 			<form class="px-8 mt-8" on:submit|preventDefault={handleLogin}>
 				<div class="join w-full">
@@ -102,13 +102,12 @@
 					</button>
 				</div>
 			</form>
-			<p class="mx-8 text-xs text-center mt-8 p-4 rounded-lg bg-slate-100">
+			<p class="mx-8 text-xs text-center mt-8 p-4 rounded-lg bg-slate-100 text-slate-500">
 				Note that sharing your private key directly is not recommended, instead you should use a
 				compatible browser extension to securely store your key.
 			</p>
-			<p class="mx-8 text-xs text-center mt-8 p-4">
-				Don't have a nostr account?<button class="btn btn-link" on:click={() => (kind = 'signup')}
-					>Signup</button
+			<p class="text-xs text-center mt-2 text-gray-500">
+				Don't have a nostr account?<button class="btn btn-link" on:click={() => (kind = 'signup')}>Signup</button
 				>
 			</p>
 		</div>
