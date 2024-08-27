@@ -28,23 +28,9 @@
 	let dismiss = false;
 </script>
 
-{#if !$history.length && !$pendingTokens.length && !dismiss}
-	<div class="bg-info p-4 m-4 rounded-lg">
-		<strong>Low balance in your account</strong>
-		<div class="text-xs">
-			<p>
-				Before using <strong>nuts.cash</strong>, please make sure you understand the
-				<a class="link" href="https://nutstash.app/#faq" target="_blank"> risks. </a>
-			</p>
-		</div>
-		<div class="text-right gap-4">
-			<button class="btn btn-sm btn-ghost" on:click={() => (dismiss = true)}> Dismiss </button>
-			<button class="btn btn-sm" on:click={() => (open = true)}> Add Money </button>
-		</div>
-	</div>
-{:else}
-	<div class="w-full">
-		<div class="flex flex-col w-full h-full justify-start">
+<div class="center-content">
+	<div class="w-full md:w-1/2 lg:w-1/3 place-content-center">
+		<div class="flex flex-col h-full">
 			<div class="w-full">
 				{#each Object.entries(map) as [date, items]}
 					<strong class="text-sm px-4 pt-4">{date}</strong>
@@ -61,17 +47,12 @@
 				{/each}
 			</div>
 		</div>
-		<!-- {#if activeTab === 'tokens'}
-			<div class="flex flex-col w-full h-full justify-start">
-				<AvailableTokensTable />
-			</div>
-		{/if} -->
-		<!-- {#if $useNostr}
-			{#if activeTab === 'inbox'}
-				<div class="flex flex-col w-full h-full justify-start">
-					<InboxTable />
-				</div>
-			{/if}
-		{/if} -->
 	</div>
-{/if}
+</div>
+
+<style>
+	.center-content {
+		display: flex;
+		justify-content: center;
+	}
+</style>

@@ -27,11 +27,11 @@
 </script>
 
 <div
-	class="px-4 lg:px-0 lg:w-1/2 w-full m-auto p-2 lg:mt-40 lg:relative fixed bg-basic z-10"
+	class=" w-full md:w-1/2 lg:w-1/3 place-content-center m-auto p-2 lg:pt-12 bg-basic z-10"
 	id="top"
 >
-	<div class="flex justify-between items-start">
-		<h1 class="text-2xl mb-4 font-semibold">Home</h1>
+	<div class="flex w-full justify-between items-start">
+		<h1 class="text-2xl mb-4 font-semibold">Cash Home</h1>
 		<div class="flex gap-2 items-center">
 			<div on:click={() => console.log('ohoh')}><Icon icon="ph:eye" class="text-2xl" /></div>
 			<div on:click={() => ($showQR = true)}><Icon icon="ph:qr-code" class="text-2xl" /></div>
@@ -39,8 +39,13 @@
 				<img src={$profile?.picture || '/ns-naked.svg'} class="w-8 h-8 border rounded-full" />
 			</div>
 		</div>
+		<style>
+			.bg-green-500 {
+				background-color: transparent !important;
+			}
+		</style>
 	</div>
-	<div class="p-4 bg-primary-content rounded-xl py-6 w-11/12">
+	<div class="w-full p-4 bg-primary-content rounded-xl py-6">
 		<div class="flex w-full justify-between items-center">
 			<div class="text-lg font-semibold">{$profile.name || 'Main Account'}</div>
 			<div
@@ -54,7 +59,7 @@
 				<Icon icon="mdi:reload" class={'text-2xl ' + (isRefresh ? 'animate-spin' : '')} />
 			</div>
 		</div>
-		<br />
+
 		<strong class="text-3xl">
 			{formatAmount($totalAmountAvailable, $unit, true)}
 		</strong>
@@ -74,6 +79,10 @@
 	class:bg-black={$scanning}
 	class="-z-10 !fixed w-full top-0 left-0 mobile-height flex flex-col justify-around"
 >
+	<div
+		class="absolute inset-0 bg-green-500 opacity-50"
+		style="background-image: url('/path/to/texture.png'); background-size: cover;"
+	></div>
 	<div class="absolute left-4 top-4 cursor-pointer" on:click={() => ($scanning = false)}>
 		<Icon icon="carbon:close" class="text-5xl" />
 	</div>

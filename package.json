@@ -60,6 +60,8 @@
 		"@gandlaf21/bc-ur": "^1.1.12",
 		"@gandlaf21/bolt11-decode": "^3.1.1",
 		"@gandlaf21/cashu-crypto": "^0.2.6",
+		"@noble/curves": "^1.5.0",
+		"@noble/hashes": "^1.4.0",
 		"@nostrify/nostrify": "npm:@jsr/nostrify__nostrify@^0.30.0",
 		"dexie": "^4.0.8",
 		"lightning-invoice": "^0.2.1",
@@ -68,5 +70,6 @@
 		"vaul-svelte": "^0.3.2",
 		"vite-plugin-mkcert": "^1.17.6",
 		"ws": "^8.16.0"
-	}
+	},
+	"packageManager": "pnpm@9.2.0+sha512.98a80fd11c2e7096747762304106432b3ddc67dcf54b5a8c01c93f68a2cd5e05e6821849522a06fb76284d41a2660d5e334f2ee3bbf29183bf2e739b1dafa771"
 }
