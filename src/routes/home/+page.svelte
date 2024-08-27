@@ -1,12 +1,11 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
 	import QrScanner from 'src/comp/QRScanner.svelte';
-	import WalletLock from 'src/comp/elements/WalletLock.svelte';
 	import { scanning } from 'src/stores';
 	import { profile } from 'src/stores/nostr';
 	import { onMount } from 'svelte';
 	import { mints } from '../../stores/mints';
-	import { isEncrypted } from '../../stores/settings';
+
 	import AddFriendModal from './add-friend-modal.svelte';
 	import AddModal from './add-modal.svelte';
 	import SendModal from './send/send-modal.svelte';
@@ -92,9 +91,6 @@
 </div>
 <br />
 <Transactions />
-{#if $isEncrypted}
-	<WalletLock></WalletLock>
-{/if}
 <AddModal bind:open={addOpen} />
 
 <SendModal bind:open={sendOpen} />

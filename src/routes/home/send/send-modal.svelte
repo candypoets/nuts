@@ -7,9 +7,9 @@
 	import Send from 'src/comp/wallet/Send.svelte';
 	import { updateVc } from 'src/lib';
 	import type { Contact } from 'src/model/contact';
-	import { db } from 'src/stores/db';
+	import { db, settings } from 'src/stores/db';
 	import { mints, totalAmountAvailable } from 'src/stores/mints';
-	import { unit } from 'src/stores/settings';
+
 	import { onMount } from 'svelte';
 	import { Drawer } from 'vaul-svelte';
 	import AddFriendModal from '../add-friend-modal.svelte';
@@ -215,7 +215,7 @@
 										<div class="flex gap-1 items-center justify-center">
 											<TokenIcon />
 											<p class="font-bold">
-												{formatAmount($totalAmountAvailable, $unit)}
+												{formatAmount($totalAmountAvailable, $settings.unit)}
 											</p>
 										</div>
 									</div>

@@ -1,21 +1,10 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import Minting from 'src/comp/mint/Minting.svelte';
-	import Send from 'src/comp/wallet/Send.svelte';
-	import { amountAvailable, mints, totalAmountAvailable } from 'src/stores/mints';
+	import { profile } from 'src/stores/nostr';
 	import { Drawer } from 'vaul-svelte';
-	import { db, proofs } from 'src/stores/db';
-	import { liveQuery } from 'dexie';
-	import { onMount } from 'svelte';
-	import { updateVc } from 'src/lib';
-	import type { Contact } from 'src/model/contact';
-	import MintSelector from 'src/comp/elements/MintSelector.svelte';
-	import ScanLN from 'src/comp/elements/ScanLN.svelte';
-	import TokenIcon from 'src/comp/tokens/TokenIcon.svelte';
-	import { formatAmount } from 'src/comp/util/walletUtils';
-	import { unit } from 'src/stores/settings';
-	import ScanLn from 'src/comp/elements/ScanLN.svelte';
-	import { nostrPrivKey, nostrPubKey, profile } from 'src/stores/nostr';
+	import Keys from './keys.svelte';
+	import Logout from './logout.svelte';
+	import Relays from './relays.svelte';
 
 	let active: string;
 	let search: string;
@@ -23,40 +12,9 @@
 
 	export let open: boolean = false;
 
-	let addFriend = false;
-	let scan = false;
-	let scannedNpub: string;
-
 	export let subopen: boolean = false;
 
-	let mint = $mints[0];
-
-	let isToken = false;
-	let isMinting = false;
-	let doMint = false;
-	let logout = false;
-	let activeR: string;
-
-	let activeMint = $mints[0];
-
-	let paymentType: 'Tapcash' | 'Zap' | 'Invoice' = 'Tapcash';
-
-	let selectedContact: Contact;
-
-	// const navigate = () => {
-	// 	isMinting = false;
-	// 	isToken = false;
-	// 	if (activeR === 'scan-receive' || doMint) {
-	// 		activeR = 'receive';
-	// 		doMint = false;
-	// 	} else {
-	// 		active = 'base';
-	// 	}
-	// };
-	let contacts = liveQuery(() => $db.contacts.orderBy('createdAt').reverse().limit(30).toArray());
-	$: console.log('open', open, addFriend);
-
-	onMount(updateVc);
+	let route: 'logout' | 'keys' | 'relays' | 'mints' | 'keys' = 'logout';
 </script>
 
 <!-- <ScanLN bind:invoice={scannedNpub} /> -->
@@ -100,6 +58,21 @@
 						class="flex items-center justify-around py-4 border-b last:border-none"
 						on:click={() => {
 							subopen = true;
+							route = 'logout';
+						}}
+					>
+						<Icon icon="mdi:logout" class="w-16 h-6" />
+						<div class="flex-grow">
+							<strong>Log out</strong>
+							<!-- <p class="text-xs">Notifications</p> -->
+						</div>
+						<Icon icon="carbon:arrow-right" class="w-16 h-6" />
+					</div>
+					<div
+						class="flex items-center justify-around py-4 border-b last:border-none"
+						on:click={() => {
+							subopen = true;
+							route = 'keys';
 						}}
 					>
 						<Icon icon="mdi:bell-outline" class="w-16 h-6" />
@@ -116,12 +89,12 @@
 						class="flex items-center justify-around py-4 border-b last:border-none"
 						on:click={() => {
 							subopen = true;
-							logout = true;
+							route = 'keys';
 						}}
 					>
-						<Icon icon="mdi:bell-outline" class="w-16 h-6" />
+						<Icon icon="wpf:keysecurity" class="w-16 h-6" />
 						<div class="flex-grow">
-							<strong>Log out</strong>
+							<strong>Keys</strong>
 							<!-- <p class="text-xs">Notifications</p> -->
 						</div>
 						<Icon icon="carbon:arrow-right" class="w-16 h-6" />
@@ -130,7 +103,7 @@
 						class="flex items-center justify-around py-2 border-b"
 						on:click={() => {
 							subopen = true;
-							paymentType = 'Zap';
+							route = 'relays';
 						}}
 					>
 						<Icon icon="game-icons:bird-mask" class="w-16 h-6" />
@@ -144,7 +117,7 @@
 						class="flex items-center justify-around py-2"
 						on:click={() => {
 							subopen = true;
-							// paymentType = 'Invoice';
+							route = 'mints';
 						}}
 					>
 						<Icon icon="mdi:bank-outline" class="w-16 h-6" />
@@ -156,42 +129,13 @@
 					</div>
 				</div>
 			</div>
-
-			<Drawer.NestedRoot bind:open={subopen}>
-				<!-- <Drawer.Trigger /> -->
-				<Drawer.Portal>
-					<Drawer.Overlay class="absolute inset-0 bg-black/40" />
-					<Drawer.Content
-						class="pb-8 pt-3 bg-basic absolute top-4 left-0 right-0"
-						style="height: 95vh;"
-					>
-						<div class="px-4">
-							<div on:click={() => (subopen = false)}>
-								<Icon icon="mdi:close" class="w-6 h-6" />
-							</div>
-						</div>
-						{#if logout}
-							<div class="flex flex-col gap-4 justify-around px-6 h-80">
-								<div class="text-center font-semibold">
-									Make sure you saved your private key before logging out
-								</div>
-								<button
-									class="btn btn-primary"
-									on:click={async () => {
-										window.localStorage.removeItem('nostr-pubkey');
-										await $db.delete();
-										$nostrPrivKey = '';
-										$nostrPubKey = '';
-										eventMap = {};
-									}}
-								>
-									Log Out
-								</button>
-							</div>
-						{/if}
-					</Drawer.Content>
-				</Drawer.Portal>
-			</Drawer.NestedRoot>
+			{#if route == 'logout'}
+				<Logout bind:subopen />
+			{:else if route == 'keys'}
+				<Keys bind:subopen />
+			{:else if route == 'relays'}
+				<Relays bind:subopen />
+			{/if}
 		</Drawer.Content>
 	</Drawer.Portal>
 </Drawer.Root>

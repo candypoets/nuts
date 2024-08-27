@@ -5,7 +5,7 @@
 
 	import Icon from '@iconify/svelte';
 	import { profile } from 'src/stores/nostr';
-	import ProfileModal from '../home/profile-modal.svelte';
+	import ProfileModal from 'src/routes/_profile/index.svelte';
 
 	let profileOpen: boolean = false;
 </script>

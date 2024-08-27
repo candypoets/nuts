@@ -1,13 +1,12 @@
 <script lang="ts">
 	import { formatAmount } from 'src/comp/util/walletUtils';
 	import { totalAmountAvailable } from 'src/stores/mints';
-	import { isEncrypted, unit } from '../../stores/settings';
 	import { QRCodeImage } from 'svelte-qrcode-image';
 
 	import { nostrPubKey, profile } from 'src/stores/nostr';
 	import Icon from '@iconify/svelte';
 	import { get } from 'svelte/store';
-	import ProfileModal from './profile-modal.svelte';
+	import ProfileModal from 'src/routes/_profile/index.svelte';
 	import {
 		accountModalOpen,
 		lightningInvoice,
@@ -20,7 +19,8 @@
 	import AccountModal from './account-modal.svelte';
 	import MeltModal from './melt-modal.svelte';
 	import { checkProofsSpent } from 'src/actions/wallet';
-	import { db, proofs } from 'src/stores/db';
+	import { db, proofs, settings } from 'src/stores/db';
+	import { balance } from 'src/stores/wallet';
 
 	let profileOpen: boolean = false;
 	let isRefresh = false;
@@ -56,7 +56,7 @@
 		</div>
 		<br />
 		<strong class="text-3xl">
-			{formatAmount($totalAmountAvailable, $unit, true)}
+			{formatAmount($balance, $settings.unit, true)}
 		</strong>
 	</div>
 </div>

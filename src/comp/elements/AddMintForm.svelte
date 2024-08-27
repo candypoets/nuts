@@ -1,9 +1,4 @@
 <script lang="ts">
-	import { CashuMint } from '@cashu/cashu-ts';
-	import { mints } from '../../stores/mints';
-	import { toast } from '../../stores/toasts';
-	import { validateMintKeys } from '../util/walletUtils';
-	import type { Mint } from '../../model/mint';
 	import { addMint } from 'src/actions/mint';
 
 	let mintURL = '';

@@ -47,7 +47,7 @@ if (browser) {
 		for await (const message of messages) {
 			if (message[0] === 'CLOSED') break;
 			if (message[0] !== 'EVENT') continue;
-			console.log('message', totalMessage++);
+			// console.log('message', totalMessage++);
 			const event = message[2];
 			const exist = await $db.messages.where('event.id').equals(event.id).count();
 			if (exist > 0) continue;

@@ -1,19 +1,14 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
-	import { CashuMint, type AmountPreference } from '@cashu/cashu-ts';
-	import { decode } from '@gandlaf21/bolt11-decode';
+	import { CashuMint } from '@cashu/cashu-ts';
+	import Icon from '@iconify/svelte';
+	import { liveQuery } from 'dexie';
 	import { db } from 'src/stores/db';
 	import { onMount } from 'svelte';
 	import { QRCodeImage } from 'svelte-qrcode-image';
-	import { mintRequests } from '../../stores/mintReqs';
 	import { mint } from '../../stores/mints';
-	import { unit } from '../../stores/settings';
-	import { toast } from '../../stores/toasts';
 	import MintSelector from '../elements/MintSelector.svelte';
-	import LoadingCenter from '../LoadingCenter.svelte';
 	import { formatAmount } from '../util/walletUtils';
-	import { liveQuery } from 'dexie';
-	import Icon from '@iconify/svelte';
 
 	export let active;
 	export let isMinting: boolean;
@@ -45,7 +40,7 @@
 			// @ts-expect-error
 			input.select();
 			document.execCommand('copy');
-			toast('info', 'Invoice copied to clipboard.', 'Copied!');
+			// toast('info', 'Invoice copied to clipboard.', 'Copied!');
 		}
 	};
 
@@ -63,15 +58,15 @@
 	const mintRequest = async () => {
 		try {
 			if (!$mint?.mintURL) {
-				toast('warning', 'No mint selected', 'Could not create invoice');
+				// toast('warning', 'No mint selected', 'Could not create invoice');
 				return;
 			}
 			if (!amount) {
-				toast('warning', 'No amount provided', 'Could not create invoice');
+				// toast('warning', 'No amount provided', 'Could not create invoice');
 				return;
 			}
 			if (isNaN(amount) || amount <= 0) {
-				toast('warning', 'amount must be a number greater than 0', 'Could not create invoice');
+				// toast('warning', 'amount must be a number greater than 0', 'Could not create invoice');
 				return;
 			}
 			// isComplete = false;
@@ -112,14 +107,13 @@
 	{#if isLoading}
 		<div class=" h-full flex items-center justify-center gap-5 flex-col">
 			<p>Creating lightning invoice...</p>
-			<LoadingCenter />
 		</div>
 	{:else if doMint}
 		<div class="">
 			<div class="">
 				<div class="flex items-center justify-center gap-1 m-auto">
 					<p class="text-2xl">
-						{formatAmount(amount ?? 0, $unit, false)}
+						{formatAmount(amount ?? 0, 'sat', false)}
 					</p>
 					<p class="text-2xl font-bold">sats</p>
 				</div>

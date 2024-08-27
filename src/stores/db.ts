@@ -10,8 +10,9 @@ import type { NostrMessage } from 'src/model/nostrMessage';
 export type Invoice = RequestMintResponse & { date: number; mint: string };
 
 export type Setting = {
+	key: string;
 	visible: boolean;
-	units: 'sats' | 'btc' | 'usd';
+	unit: 'sat' | 'btc' | 'usd';
 };
 
 export type DB = Dexie & {
@@ -23,7 +24,7 @@ export type DB = Dexie & {
 	messages: EntityTable<NostrMessage & { id: string }, 'id'>;
 	keysets: EntityTable<{ id: string; mint: string }, 'id'>;
 	invoices: EntityTable<Invoice, 'quote'>;
-	settings: EntityTable<Setting, 'visible'>;
+	settings: Dexie.Table<Setting, string, 'key'>;
 };
 
 export const db: Readable<DB> = derived([nostrPubKey], ([pubkey], set) => {
@@ -39,9 +40,9 @@ export const db: Readable<DB> = derived([nostrPubKey], ([pubkey], set) => {
 		messages:
 			'++id,event.id,event.kind,event.tags,event.content,event.created_at,event.pubkey,event.sig,token.proofs,token.mint,token.memo,isAccepted',
 		keysets: 'id,mint',
-		invoices: 'quote,request,date,mint'
+		invoices: 'quote,request,date,mint',
+		settings: 'key,visible,unit'
 	});
-
 	set(dex);
 });
 
@@ -109,4 +110,17 @@ export const contacts = derived(
 		});
 	},
 	[] as Contact[]
+);
+
+export const settings = derived(
+	[db],
+	([$db], set) => {
+		if (!$db) return;
+		liveQuery(() => $db.settings.get('settings')).subscribe((settings) => {
+			if (settings) {
+				set(settings);
+			}
+		});
+	},
+	{ key: 'settings', visible: true, unit: 'sat' } as Setting
 );

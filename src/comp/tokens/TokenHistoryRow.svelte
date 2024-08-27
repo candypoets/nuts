@@ -6,12 +6,13 @@
 	import type { ReceiveNostrData } from '../../model/data/ReceiveNostrData';
 	import type { SendData } from '../../model/data/SendData';
 	import { HistoryItemType, type HistoryItem } from '../../model/historyItem';
-	import { unit } from '../../stores/settings';
+
 	import HistoryIcon from '../history/HistoryIcon.svelte';
 	import { formatAmount } from '../util/walletUtils';
 	import { Drawer } from 'vaul-svelte';
 	import Icon from '@iconify/svelte';
 	import HistoryLabel from '../history/HistoryLabel.svelte';
+	import { settings } from 'src/stores/db';
 
 	export let item: HistoryItem<any>;
 	// $: console.log(item);
@@ -58,9 +59,11 @@
 	<td><HistoryLabel {item} /></td>
 	<td class="text-right">
 		{#if item.amount > 0}
-			<span class="bg-primary-content p-1 rounded-md">{formatAmount(item.amount, $unit)}</span>
+			<span class="bg-primary-content p-1 rounded-md"
+				>{formatAmount(item.amount, $settings.unit)}</span
+			>
 		{:else}
-			{formatAmount(item.amount, $unit)}
+			{formatAmount(item.amount, $settings.unit)}
 		{/if}
 	</td>
 </tr>
@@ -85,7 +88,7 @@
 				</div>
 				<br />
 				<p class="text-2xl" class:text-primary={item.amount > 0}>
-					{formatAmount(item.amount, $unit)}
+					{formatAmount(item.amount, $settings.unit)}
 				</p>
 				<p class="text-xs mt-2">
 					{new Date(item.date * 1000).toLocaleString(undefined, {

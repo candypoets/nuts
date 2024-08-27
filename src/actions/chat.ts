@@ -3,7 +3,7 @@ import type { Event, UnsignedEvent } from 'nostr-tools';
 import { nostrPrivKey, pool } from 'src/stores/nostr';
 import { get } from 'svelte/store';
 import { getMyPubKey, signEvent } from './wallet';
-import { getConvertedPubKey } from './walletActions';
+import { getConvertedPubKey } from 'src/stores/wallet';
 
 export const getEncryptedContent = async (toPub: string, message: string): Promise<string> => {
 	return window.nostr

@@ -1,8 +1,8 @@
-import { derived, get } from 'svelte/store';
-import { nostrPrivKey, nostrPubKey, pool } from './nostr';
-import { db, proofs } from './db';
 import { CashuMint, CashuWallet, type Proof } from '@cashu/cashu-ts';
-import { key } from './key';
+import { derived, get } from 'svelte/store';
+import { db, proofs } from './db';
+import { nostrPubKey } from './nostr';
+import { nip05, nip19 } from 'nostr-tools';
 
 export type WalletInfo = {
 	amount: number;
@@ -39,3 +39,40 @@ export const wallets = derived(
 	},
 	[] as WalletInfo[]
 );
+
+export const balance = derived(
+	[proofs],
+	([$proofs], set) => {
+		set($proofs.reduce((acc, cur) => (acc += cur.amount), 0));
+	},
+	0
+);
+
+export const getMyPubKey = async (): Promise<string> => {
+	return window.nostr ? await window.nostr.getPublicKey() : await Promise.resolve(get(nostrPubKey));
+};
+
+export const getEncryptedContent = async (toPub: string, message: string): Promise<string> => {
+	return window.nostr
+		? await window.nostr.nip04.encrypt(await toPub, message)
+		: //@ts-ignore
+			await nostrTools.nip04.encrypt(get(nostrPrivKey), toPub, message);
+};
+
+export const getConvertedPubKey = async (key: string) => {
+	key = await resolveNip05(key);
+	let nostrPubKey = key.startsWith('npub') ? (nip19.decode(key).data as string) : key;
+	return nostrPubKey;
+};
+
+const resolveNip05 = async (nostrAddr: string) => {
+	if (!nostrAddr.includes('.')) {
+		return nostrAddr;
+	}
+	const profile = await nip05.queryProfile(nostrAddr);
+	if (profile?.pubkey) {
+		return profile?.pubkey;
+	} else {
+		throw new Error('could not fetch nip-05');
+	}
+};

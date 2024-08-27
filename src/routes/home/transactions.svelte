@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { formatDate } from 'src/lib';
-	import { pendingTokens } from '../../stores/pendingtokens';
 	import TokenHistoryRow from 'src/comp/tokens/TokenHistoryRow.svelte';
 	import Icon from '@iconify/svelte';
 	import { history } from 'src/stores/db';
@@ -28,7 +27,7 @@
 	let dismiss = false;
 </script>
 
-{#if !$history.length && !$pendingTokens.length && !dismiss}
+{#if !$history.length && !dismiss}
 	<div class="bg-info p-4 m-4 rounded-lg">
 		<strong>Low balance in your account</strong>
 		<div class="text-xs">
