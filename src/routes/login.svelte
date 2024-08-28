@@ -96,6 +96,10 @@
 				pub: pubKey,
 				npub: nip19.npubEncode(pubKey)
 			});
+		} else if (window.localStorage.getItem('nostr-privkey')) {
+			// backward compatibility
+			privateKey = window.localStorage.getItem('nostr-privkey');
+			handleLogin();
 		}
 	});
 </script>
