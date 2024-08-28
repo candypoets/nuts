@@ -70,7 +70,7 @@
 }
 
 .container-height {
-	/* height: calc(var(--vc, 1vh) * 100); */
+	height: calc(var(--vc, 1vh) * 100);
 	overflow-x: hidden;
 	overflow-y: scroll;
 	padding-bottom: var(--footer-height);

@@ -87,6 +87,7 @@
 						<div class="flex items-end">
 							<button
 								class="btn btn-circle"
+								class:btn-primary={$contacts.some((c) => c.pubkey == pubkey)}
 								on:click={async () => {
 									console.log('add friend');
 									await $db.contacts.add({
@@ -102,8 +103,14 @@
 										tags: $contacts.map((c) => ['p', c.pubkey]),
 										content: ''
 									});
-								}}><Icon icon="mingcute:user-follow-fill" /></button
+								}}
 							>
+								{#if $contacts.some((c) => c.pubkey == pubkey)}
+									<Icon icon="el:ok" />
+								{:else}
+									<Icon icon="mingcute:user-follow-fill" />
+								{/if}
+							</button>
 						</div>
 					</div>
 				{/if}

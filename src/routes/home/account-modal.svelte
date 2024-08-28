@@ -51,7 +51,7 @@
 								kind: 3,
 								pubkey: $key.pub,
 								created_at: Math.floor(Date.now() / 1000),
-								tags: [['p', npub]],
+								tags: $contacts.map((c) => ['p', c.pubkey]),
 								content: ''
 							});
 						}}>Add as friend</button
