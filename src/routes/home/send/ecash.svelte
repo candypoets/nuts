@@ -2,9 +2,8 @@
 	import { browser } from '$app/environment';
 	import { getEncryptedContent, sendMessage } from 'src/actions/chat';
 	import { saveNuts, send } from 'src/actions/wallet';
-	import { db } from 'src/stores/db';
+	import { db, key } from 'src/stores/db';
 	import { mintInfos } from 'src/stores/mints';
-	import { nostrPubKey } from 'src/stores/nostr';
 	import { wallets } from 'src/stores/wallet';
 	import { onMount } from 'svelte';
 
@@ -49,7 +48,7 @@
 					if (res.returnChanges.length) {
 						await $db.proofs.bulkPut(res.returnChanges);
 						await $db.spentProofs.bulkPut(res.sends);
-						await saveNuts(res.returnChanges, $nostrPubKey);
+						await saveNuts(res.returnChanges, $key.pub);
 					}
 				})
 				.catch(async (e) => {
@@ -58,7 +57,7 @@
 					// add the returnchange to the proofs table
 					await $db.proofs.bulkAdd(res.returnChanges);
 
-					await saveNuts([...res.returnChanges, ...res.sends], $nostrPubKey);
+					await saveNuts([...res.returnChanges, ...res.sends], $key.pub);
 					console.error(e);
 				});
 

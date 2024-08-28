@@ -2,8 +2,7 @@
 	import Icon from '@iconify/svelte';
 	import { signAndSend } from 'src/actions/relay';
 	import type { Contact } from 'src/model/contact';
-	import { db } from 'src/stores/db';
-	import { nostrPubKey } from 'src/stores/nostr';
+	import { contacts, db, key } from 'src/stores/db';
 	import { pool } from 'src/stores/relays';
 	import { Drawer } from 'vaul-svelte';
 
@@ -87,12 +86,17 @@
 								class="btn btn-circle"
 								on:click={async () => {
 									console.log('add friend');
-									$db.contacts.add({ ...user, pubkey, createdAt: Math.floor(Date.now() / 1000) });
+									await $db.contacts.add({
+										...user,
+										pubkey,
+										createdAt: Math.floor(Date.now() / 1000)
+									});
 									await signAndSend({
 										kind: 3,
-										pubkey: $nostrPubKey,
+										pubkey: $key?.pub,
 										created_at: Math.floor(Date.now() / 1000),
-										tags: [['p', pubkey]],
+										// tags: [['p', pubkey]],
+										tags: $contacts.map((c) => ['p', c.pubkey]),
 										content: ''
 									});
 								}}><Icon icon="mingcute:user-follow-fill" /></button

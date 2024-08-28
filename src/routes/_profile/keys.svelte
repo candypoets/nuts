@@ -1,8 +1,7 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import { db } from 'src/stores/db';
-	import { nostrPrivKey, nostrPubKey, profile } from 'src/stores/nostr';
-	import { eventMap } from 'src/stores/nuts';
+	import { key } from 'src/stores/db';
+	import { profile } from 'src/stores/profile';
 	export let subopen: boolean = false;
 	import { Drawer } from 'vaul-svelte';
 
@@ -36,10 +35,10 @@
 				<div class="w-1/5">
 					<img src={$profile.picture || '/ns-naked.svg'} class="w-10 h-10 border-2 rounded-full" />
 				</div>
-				<div class="text-wrap whitespace-normal break-words w-4/5 text-xs">{$nostrPubKey}</div>
+				<div class="text-wrap whitespace-normal break-words w-4/5 text-xs">{$key.pub}</div>
 			</div>
-			<button class="btn btn-primary w-full" on:click={() => copyToClipboard($nostrPubKey)}>
-				{#if copied != $nostrPubKey}
+			<button class="btn btn-primary w-full" on:click={() => copyToClipboard($key.pub)}>
+				{#if copied != $key.pub}
 					<Icon icon="clarity:paste-line" />Copy public key
 				{:else}
 					<Icon icon="clarity:check-line" />Copied
@@ -54,11 +53,11 @@
 					<Icon icon="mdi:key-variant" class="w-10 h-10 text-warning" />
 				</div>
 				<div class="text-wrap whitespace-normal break-words w-4/5 text-xs">
-					{'•'.repeat($nostrPrivKey.length)}
+					{'•'.repeat($key?.priv?.length || 0)}
 				</div>
 			</div>
-			<button class="btn btn-warning w-full" on:click={() => copyToClipboard($nostrPrivKey)}>
-				{#if copied != $nostrPrivKey}
+			<button class="btn btn-warning w-full" on:click={() => copyToClipboard($key.priv || '')}>
+				{#if copied != $key.priv}
 					<Icon icon="clarity:paste-line" />Copy private key
 				{:else}
 					<Icon icon="clarity:check-line" />Copied

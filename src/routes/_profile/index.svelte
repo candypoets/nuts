@@ -1,10 +1,10 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import { profile } from 'src/stores/nostr';
 	import { Drawer } from 'vaul-svelte';
 	import Keys from './keys.svelte';
 	import Logout from './logout.svelte';
 	import Relays from './relays.svelte';
+	import { profile } from 'src/stores/profile';
 
 	let active: string;
 	let search: string;

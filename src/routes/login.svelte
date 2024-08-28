@@ -3,9 +3,11 @@
 	import { schnorr } from '@noble/curves/secp256k1';
 	import { bytesToHex } from '@noble/hashes/utils';
 	import type { NostrEvent } from '@nostrify/nostrify';
-	import { kinds, type UnsignedEvent } from 'nostr-tools';
-	import { decodePrivKey, nostrPrivKey, nostrPubKey, signer } from 'src/stores/nostr';
+	import { kinds, nip19, type UnsignedEvent } from 'nostr-tools';
+	import { decodePrivKey } from 'src/actions/wallet';
+	import { keyDB } from 'src/stores/db';
 	import { pool } from 'src/stores/relays';
+	import { signer } from 'src/stores/signer';
 	import { onMount } from 'svelte';
 	import { get } from 'svelte/store';
 
@@ -22,12 +24,13 @@
 		// Handle login logic here
 		console.log('Logging in with private key:', privateKey);
 
+		// build a key object to store in the db
 		const pk = decodePrivKey(privateKey);
 
 		const pubkey = bytesToHex(schnorr.getPublicKey(pk));
 		const privkey = bytesToHex(pk);
 
-		console.log(pk, pubkey);
+		// console.log(pk, pubkey);
 		loading = true;
 		const messages = get(pool).req([{ kinds: [kinds.Metadata], authors: [pubkey], limit: 1 }]);
 
@@ -35,8 +38,13 @@
 			if (message[0] === 'CLOSED') break;
 			if (message[0] !== 'EVENT') continue;
 			loading = false;
-			$nostrPubKey = pubkey;
-			$nostrPrivKey = privkey;
+			console.log('hoy');
+			await keyDB.keys.put({
+				pub: pubkey,
+				priv: privkey,
+				npub: nip19.npubEncode(pubkey),
+				nsec: nip19.nsecEncode(pk)
+			});
 			break;
 		}
 
@@ -45,10 +53,18 @@
 
 	async function handleSignup() {
 		const priv = schnorr.utils.randomPrivateKey();
-		$nostrPrivKey = bytesToHex(priv);
-		$nostrPubKey = bytesToHex(schnorr.getPublicKey(priv));
+		const privkey = bytesToHex(priv);
+		const pubkey = bytesToHex(schnorr.getPublicKey(priv));
+
 		// Handle signup logic here
 		// console.log('Signing up with details:', userName, profilePicture, bio);
+
+		await keyDB.keys.put({
+			pub: pubkey,
+			priv: privkey,
+			npub: nip19.npubEncode(pubkey),
+			nsec: nip19.nsecEncode(priv)
+		});
 
 		let event: UnsignedEvent = {
 			kind: 0,
@@ -59,22 +75,27 @@
 				picture
 			}),
 			created_at: Math.floor(Date.now() / 1000),
-			pubkey: $nostrPubKey
+			pubkey: pubkey
 		};
+		// there should be no such thing as window.nostr for a signup, but ok
 		if (window.nostr) {
 			event = await window.nostr.signEvent(event);
 		} else {
-			event = await $signer.signEvent(event);
+			event = await get(signer)?.signEvent(event);
 		}
-		console.log(event);
 
 		get(pool).event(event as NostrEvent);
 	}
 
 	onMount(async () => {
 		if (window.nostr) {
-			console.log(window.nostr);
-			$nostrPubKey = await window.nostr.getPublicKey();
+			// console.log(window.nostr);
+			// $nostrPubKey = await window.nostr.getPublicKey();
+			const pubKey = await window.nostr.getPublicKey();
+			await keyDB.keys.put({
+				pub: pubKey,
+				npub: nip19.npubEncode(pubKey)
+			});
 		}
 	});
 </script>

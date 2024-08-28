@@ -1,34 +1,41 @@
 import { kinds, nip04 } from 'nostr-tools';
 import type { Event, UnsignedEvent } from 'nostr-tools';
-import { nostrPrivKey } from 'src/stores/nostr';
 import { get } from 'svelte/store';
-import { getMyPubKey, signEvent } from './wallet';
+import { signEvent } from './wallet';
 import { getConvertedPubKey } from 'src/stores/wallet';
 import { pool } from 'src/stores/relays';
+import { signer } from 'src/stores/signer';
+import { key } from 'src/stores/db';
 
-export const getEncryptedContent = async (toPub: string, message: string): Promise<string> => {
-	return window.nostr
-		? await window.nostr.nip04.encrypt(toPub, message)
-		: await nip04.encrypt(get(nostrPrivKey), toPub, message);
+export const getEncryptedContent = async (
+	toPub: string,
+	message: string
+): Promise<string | undefined> => {
+	return await get(signer)?.nip04.encrypt(toPub, message);
 };
 
-export const getDecryptedContent = async (fromPub: string, content: string): Promise<string> => {
-	return window.nostr
-		? await window.nostr.nip04.decrypt(fromPub, content)
-		: await nip04.decrypt(get(nostrPrivKey), fromPub, content);
+export const getDecryptedContent = async (
+	fromPub: string,
+	content: string
+): Promise<string | undefined> => {
+	return await get(signer)?.nip04.decrypt(fromPub, content);
 };
 
 // create a nostr event of type NIP04, sign it and publish it
 export const sendMessage = async (toPub: string, message: string, tags?: string[][]) => {
-	const event: UnsignedEvent = {
-		kind: kinds.EncryptedDirectMessage,
-		tags: [['p', await getConvertedPubKey(toPub)], ...(tags || [])],
-		content: await getEncryptedContent(toPub, message),
-		created_at: Math.floor(Date.now() / 1000),
-		pubkey: await getMyPubKey()
-	};
+	try {
+		const event: UnsignedEvent = {
+			kind: kinds.EncryptedDirectMessage,
+			tags: [['p', await getConvertedPubKey(toPub)], ...(tags || [])],
+			content: await getEncryptedContent(toPub, message),
+			created_at: Math.floor(Date.now() / 1000),
+			pubkey: get(key).pub
+		};
 
-	const signedEvent = await signEvent(event);
+		const signedEvent = await signEvent(event);
 
-	await get(pool).event(signedEvent);
+		await get(pool).event(signedEvent);
+	} catch (e) {
+		console.error('could not send event', e);
+	}
 };

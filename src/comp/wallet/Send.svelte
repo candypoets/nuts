@@ -4,8 +4,8 @@
 	import { settings } from 'src/stores/db';
 	import { onMount } from 'svelte';
 	import { mints } from '../../stores/mints';
-	import TokenIcon from '../tokens/TokenIcon.svelte';
-	import { formatAmount } from '../util/walletUtils';
+	import TokenIcon from 'src/comp/TokenIcon.svelte';
+	import { formatAmount } from 'src/actions/wallet';
 
 	export let active: string;
 	export let mint = $mints[0];

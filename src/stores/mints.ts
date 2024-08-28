@@ -2,10 +2,9 @@ import { browser } from '$app/environment';
 import { CashuMint, type Proof } from '@cashu/cashu-ts';
 import type { Mint } from '../../src/model/mint';
 
-import { getAmountForTokenSet } from 'src/comp/util/walletUtils';
+import { getAmountForTokenSet } from 'src/actions/wallet';
 import { derived, get, writable, type Readable } from 'svelte/store';
 import { db, dbMints, proofs } from './db';
-import { nostrPubKey } from './nostr';
 import { timestamp60 } from './time';
 
 export const mints = derived(
@@ -20,7 +19,7 @@ export const mints = derived(
 
 				await $db.keysets.put({ id: keys.keysets[0].id, mint: m.url });
 				return {
-					mintURL: m,
+					mintURL: m.url,
 					keysets: keysets.keysets,
 					keys: keys.keysets
 				};
@@ -53,9 +52,8 @@ export const getAmountAvailable = async (mint: Mint) => {
 };
 
 export const totalAmountAvailable = derived(
-	[mints, nostrPubKey, proofs],
-	([$mints, $pubkey, $proofs], set) => {
-		if (!$pubkey) set(0);
+	[mints, proofs],
+	([$mints, $proofs], set) => {
 		let total = 0;
 		console.log($mints);
 		Promise.all(

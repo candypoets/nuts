@@ -28,7 +28,7 @@
 // 	getKeysForUnit,
 // 	getKeysetsOfTokens,
 // 	getTokenSubset
-// } from '../comp/util/walletUtils';
+// } from '../comp/util/src/actions/wallet';
 // import { pendingTokens } from '../stores/pendingtokens';
 // import { browser } from '$app/environment';
 // import { iv, key, seedIv } from '../stores/key';

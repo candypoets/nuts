@@ -9,12 +9,15 @@
 	import { pwaInfo } from 'virtual:pwa-info';
 	import MobileNav from '../comp/MobileNav.svelte';
 
-	import { nostrPubKey } from '../stores/nostr';
 	import Login from './login.svelte';
+	import { signer } from 'src/stores/signer';
+	import { liveQuery } from 'dexie';
+	import { keyDB, keys } from 'src/stores/db';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
 	// Watch for route changes
 	onMount(() => {
+		console.log('mounted');
 		updateVc();
 		updateVh();
 		if ($page.route.id === '/') {
@@ -40,7 +43,7 @@
 	{@html webManifestLink}
 </svelte:head>
 
-{#if $nostrPubKey}
+{#if $signer}
 	<slot />
 	<MobileNav />
 {:else}

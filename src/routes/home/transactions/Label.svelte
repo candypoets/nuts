@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { HistoryData } from 'src/model/data/HistoryData';
-	import { HistoryItemType, type HistoryItem } from '../../model/historyItem';
+	import { HistoryItemType, type HistoryItem } from 'src/model/historyItem';
 	import { getContact } from 'src/stores/contacts';
 
 	export let item: HistoryItem<HistoryData>;

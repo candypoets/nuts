@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { getAmountAvailable, mint, mints } from '../../stores/mints';
-	import { formatAmount } from '../util/walletUtils';
+	import { getAmountAvailable, mint, mints } from 'src/stores/mints';
+	import { formatAmount } from 'src/actions/wallet';
 
 	const formatMintText = (url: string) => {
 		if (url.length <= 20) {

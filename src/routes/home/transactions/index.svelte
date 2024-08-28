@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { formatDate } from 'src/lib';
-	import TokenHistoryRow from 'src/comp/tokens/TokenHistoryRow.svelte';
-	import Icon from '@iconify/svelte';
+	import Row from './Row.svelte';
+
 	import { history } from 'src/stores/db';
 
 	$: page = 40;
@@ -51,7 +51,7 @@
 						<table class="table table-compact w-full">
 							<tbody class="max-h-1 overflow-y-scroll scrollbar-hide">
 								{#each items as item}
-									<TokenHistoryRow {item} />
+									<Row {item} />
 								{/each}
 								<!-- svelte-ignore a11y-click-events-have-key-events -->
 							</tbody>

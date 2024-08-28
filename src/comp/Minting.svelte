@@ -6,9 +6,9 @@
 	import { db } from 'src/stores/db';
 	import { onMount } from 'svelte';
 	import { QRCodeImage } from 'svelte-qrcode-image';
-	import { mint } from '../../stores/mints';
-	import MintSelector from '../elements/MintSelector.svelte';
-	import { formatAmount } from '../util/walletUtils';
+	import { mint } from 'src/stores/mints';
+	import MintSelector from 'src/comp/MintSelector.svelte';
+	import { formatAmount } from 'src/actions/wallet';
 
 	export let active;
 	export let isMinting: boolean;

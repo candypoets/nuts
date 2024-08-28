@@ -1,7 +1,6 @@
 import { CashuMint, CashuWallet, type Proof } from '@cashu/cashu-ts';
 import { derived, get } from 'svelte/store';
 import { db, proofs } from './db';
-import { nostrPubKey } from './nostr';
 import { nip05, nip19 } from 'nostr-tools';
 
 export type WalletInfo = {
@@ -13,8 +12,8 @@ export type WalletInfo = {
 };
 
 export const wallets = derived(
-	[nostrPubKey, db, proofs],
-	([pubkey, $db, $proofs], set) => {
+	[db, proofs],
+	([$db, $proofs], set) => {
 		$db.keysets.toArray().then(async (keysets) => {
 			const wallets = await Promise.all(
 				keysets.map(async (keyset) => {
@@ -47,10 +46,6 @@ export const balance = derived(
 	},
 	0
 );
-
-export const getMyPubKey = async (): Promise<string> => {
-	return window.nostr ? await window.nostr.getPublicKey() : await Promise.resolve(get(nostrPubKey));
-};
 
 export const getEncryptedContent = async (toPub: string, message: string): Promise<string> => {
 	return window.nostr

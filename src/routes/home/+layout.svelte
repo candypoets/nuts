@@ -1,8 +1,7 @@
 <script lang="ts">
-	import { formatAmount } from 'src/comp/util/walletUtils';
+	import { formatAmount } from 'src/actions/wallet';
 	import { QRCodeImage } from 'svelte-qrcode-image';
 
-	import { nostrPubKey, profile } from 'src/stores/nostr';
 	import Icon from '@iconify/svelte';
 	import ProfileModal from 'src/routes/_profile/index.svelte';
 	import {
@@ -17,8 +16,9 @@
 	import AccountModal from './account-modal.svelte';
 	import MeltModal from './melt-modal.svelte';
 	import { checkProofsSpent } from 'src/actions/wallet';
-	import { db, proofs, settings } from 'src/stores/db';
+	import { db, key, proofs, settings } from 'src/stores/db';
 	import { balance } from 'src/stores/wallet';
+	import { profile } from 'src/stores/profile';
 
 	let profileOpen: boolean = false;
 	let isRefresh = false;
@@ -72,6 +72,7 @@
 <div
 	class:!z-10={$scanning}
 	class:bg-black={$scanning}
+	class:w-0={!$scanning}
 	class="-z-10 !fixed w-full top-0 left-0 mobile-height flex flex-col justify-around"
 >
 	<div class="absolute left-4 top-4 cursor-pointer" on:click={() => ($scanning = false)}>
@@ -96,12 +97,7 @@
 		<div class="flex items-center justify-center flex-col">
 			<div class="border-primary border rounded-md p-2">
 				<a class="cursor-pointer">
-					<QRCodeImage
-						text={nip19.npubEncode($nostrPubKey)}
-						displayHeight={275}
-						displayWidth={275}
-						margin={1}
-					/>
+					<QRCodeImage text={$key.npub} displayHeight={275} displayWidth={275} margin={1} />
 				</a>
 			</div>
 		</div>

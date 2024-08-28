@@ -9,9 +9,8 @@
 		scannedPubkey,
 		scanning
 	} from 'src/stores';
-	import { isLightningInvoice, isNostr, isNpub } from './util/walletUtils';
+	import { isLightningInvoice, isNostr, isNpub } from 'src/actions/wallet';
 	import { nip19 } from 'nostr-tools';
-	import { decode } from 'nostr-tools/nip19';
 
 	let videoElement;
 	// let qrScanner;

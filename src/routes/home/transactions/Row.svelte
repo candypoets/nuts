@@ -1,17 +1,17 @@
 <script lang="ts">
 	import { getEncodedToken } from '@cashu/cashu-ts';
-	import type { MeltData } from '../../model/data/MeltData';
-	import type { MintData } from '../../model/data/MintData';
-	import type { ReceiveData } from '../../model/data/ReceiveData';
-	import type { ReceiveNostrData } from '../../model/data/ReceiveNostrData';
-	import type { SendData } from '../../model/data/SendData';
-	import { HistoryItemType, type HistoryItem } from '../../model/historyItem';
+	import type { MeltData } from 'src/model/data/MeltData';
+	import type { MintData } from 'src/model/data/MintData';
+	import type { ReceiveData } from 'src/model/data/ReceiveData';
+	import type { ReceiveNostrData } from 'src/model/data/ReceiveNostrData';
+	import type { SendData } from 'src/model/data/SendData';
+	import { HistoryItemType, type HistoryItem } from 'src/model/historyItem';
 
-	import HistoryIcon from '../history/HistoryIcon.svelte';
-	import { formatAmount } from '../util/walletUtils';
+	import HistoryIcon from './Icon.svelte';
+	import { formatAmount } from 'src/actions/wallet';
 	import { Drawer } from 'vaul-svelte';
 	import Icon from '@iconify/svelte';
-	import HistoryLabel from '../history/HistoryLabel.svelte';
+	import HistoryLabel from './Label.svelte';
 	import { settings } from 'src/stores/db';
 
 	export let item: HistoryItem<any>;
@@ -68,7 +68,7 @@
 	</td>
 </tr>
 
-<Drawer.Root bind:open>
+<Drawer.Root shouldScaleBackground={true} bind:open>
 	<!-- <Drawer.Trigger /> -->
 	<Drawer.Portal>
 		<Drawer.Overlay class="absolute inset-0 bg-black/40 z-10" />

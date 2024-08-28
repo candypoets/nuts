@@ -1,9 +1,9 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
 	import { liveQuery } from 'dexie';
-	import TokenIcon from 'src/comp/tokens/TokenIcon.svelte';
+	import TokenIcon from 'src/comp/TokenIcon.svelte';
 	import QRScanner from 'src/comp/QRScanner.svelte';
-	import { formatAmount } from 'src/comp/util/walletUtils';
+	import { formatAmount } from 'src/actions/wallet';
 	import Send from 'src/comp/wallet/Send.svelte';
 	import { updateVc } from 'src/lib';
 	import type { Contact } from 'src/model/contact';

@@ -1,26 +1,11 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import { db } from 'src/stores/db';
-	import { nostrPrivKey, nostrPubKey, profile } from 'src/stores/nostr';
+	import { db, dbRelays } from 'src/stores/db';
 	import { eventMap } from 'src/stores/nuts';
 	export let subopen: boolean = false;
 	import { Drawer } from 'vaul-svelte';
 
 	let newRelayUrl = '';
-
-	function addRelay() {
-		if (newRelayUrl) {
-			relays.update((rs) => [...rs, { url: newRelayUrl, enabled: true }]);
-			newRelayUrl = '';
-		}
-	}
-
-	function toggleRelay(index: number) {
-		relays.update((rs) => {
-			rs[index].enabled = !rs[index].enabled;
-			return rs;
-		});
-	}
 </script>
 
 <Drawer.NestedRoot>
@@ -33,13 +18,18 @@
 			<div class="space-y-4">
 				<div class="flex space-x-2">
 					<input type="text" bind:value={newRelayUrl} placeholder="Enter new relay URL" />
-					<button class="btn" on:click={addRelay}>Add</button>
+					<button class="btn" on:click={() => $db.relays.put({ url: newRelayUrl })}>Add</button>
 				</div>
 				<div class="space-y-2">
-					{#each $relays as relay, index}
+					{#each $dbRelays as relay, index}
 						<div class="flex justify-between items-center">
 							<span>{relay.url}</span>
-							<Switch checked={relay.enabled} on:change={() => toggleRelay(index)} />
+							<input
+								type="checkbox"
+								class="toggle"
+								checked={relay.enabled}
+								on:change={() => toggleRelay(index)}
+							/>
 						</div>
 					{/each}
 				</div>

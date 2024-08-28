@@ -1,8 +1,6 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import { db } from 'src/stores/db';
-	import { nostrPrivKey, nostrPubKey } from 'src/stores/nostr';
-	import { eventMap } from 'src/stores/nuts';
+	import { db, keyDB } from 'src/stores/db';
 	export let subopen: boolean = false;
 	import { Drawer } from 'vaul-svelte';
 </script>
@@ -24,11 +22,8 @@
 				<button
 					class="btn btn-primary"
 					on:click={async () => {
-						window.localStorage.removeItem('nostr-pubkey');
 						await $db.delete();
-						$nostrPrivKey = '';
-						$nostrPubKey = '';
-						// eventMap = {};
+						await keyDB.delete();
 					}}
 				>
 					Log Out

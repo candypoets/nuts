@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import Minting from 'src/comp/mint/Minting.svelte';
+	import Minting from 'src/comp/Minting.svelte';
 	import { mints } from 'src/stores/mints';
 	import { Drawer } from 'vaul-svelte';
 
@@ -27,7 +27,7 @@
 	$: console.log('open', open);
 </script>
 
-<Drawer.Root dismissible={!subopen} bind:open>
+<Drawer.Root shouldScaleBackground={true} dismissible={!subopen} bind:open>
 	<!-- <Drawer.Trigger /> -->
 	<Drawer.Portal>
 		<Drawer.Overlay class="absolute inset-0 bg-black/40 z-10" />
@@ -82,7 +82,7 @@
 					<Receiving bind:active bind:activeR bind:encodedToken bind:isToken />
 				{/if} -->
 			</div>
-			<Drawer.NestedRoot bind:open={subopen} shouldScaleBackground={true}>
+			<Drawer.NestedRoot bind:open={subopen}>
 				<!-- <Drawer.Trigger /> -->
 				<Drawer.Portal>
 					<!-- <Drawer.Overlay class=" inset-0 bg-black/40 z-10" /> -->

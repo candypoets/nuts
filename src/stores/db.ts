@@ -1,6 +1,5 @@
 import Dexie, { liveQuery, type EntityTable } from 'dexie';
-import { derived, type Readable } from 'svelte/store';
-import { nostrPubKey } from './nostr';
+import { derived, writable, type Readable, type Writable } from 'svelte/store';
 import type { Proof, RequestMintResponse } from '@cashu/cashu-ts';
 import type { HistoryItem } from 'src/model/historyItem';
 import type { HistoryData } from 'src/model/data/HistoryData';
@@ -13,6 +12,13 @@ export type Setting = {
 	key: string;
 	visible: boolean;
 	unit: 'sat' | 'btc' | 'usd' | 'eur';
+};
+
+export type Key = {
+	pub: string;
+	npub: string;
+	priv?: string;
+	nsec?: string;
 };
 
 export type DB = Dexie & {
@@ -29,9 +35,41 @@ export type DB = Dexie & {
 	settings: Dexie.Table<Setting, string, 'key'>;
 };
 
-export const db: Readable<DB> = derived([nostrPubKey], ([pubkey], set) => {
-	if (!pubkey) return;
-	const dex = new Dexie(pubkey) as DB;
+export type keyDB = Dexie & {
+	keys: EntityTable<Key, 'pub'>;
+};
+
+export const keyDB = new Dexie('key') as keyDB;
+
+keyDB.version(1).stores({
+	keys: 'pub,npub,priv,nsec'
+});
+
+export const activeAccount = writable(0);
+
+export const keys: Writable<Key[]> = writable([]);
+
+liveQuery(() => {
+	console.log('liveQuery');
+	keyDB.keys
+		.toArray()
+		.then((res) => {
+			console.log('ok', res);
+			keys.set(res);
+		})
+		.catch((e) => console.error(e));
+}).subscribe();
+
+export const key: Readable<Key | undefined> = derived(
+	[keys, activeAccount],
+	([$keys, $activeAccount], set) => {
+		set($keys[$activeAccount]);
+	}
+);
+
+export const db: Readable<DB> = derived([activeAccount, keys], ([$activeAccount, $keys], set) => {
+	if (!$keys[$activeAccount]?.pub) return;
+	const dex = new Dexie($keys[$activeAccount]?.pub) as DB;
 	console.log('dex');
 	dex.version(1).stores({
 		proofs: 'secret,id,amount,C',
@@ -45,6 +83,7 @@ export const db: Readable<DB> = derived([nostrPubKey], ([pubkey], set) => {
 		invoices: 'quote,request,date,mint',
 		relays: 'url',
 		mints: 'url',
+		keys: 'pub,npub,priv,nsec',
 		settings: 'key,visible,unit'
 	});
 	set(dex);
@@ -53,7 +92,7 @@ export const db: Readable<DB> = derived([nostrPubKey], ([pubkey], set) => {
 export const proofs = derived(
 	[db],
 	([$db], set) => {
-		if (!$db) set([]);
+		if (!$db) return;
 		liveQuery(() => $db.proofs.toArray()).subscribe((proofs) => {
 			set(proofs);
 		});
@@ -64,7 +103,7 @@ export const proofs = derived(
 export const pendingProofs = derived(
 	[db],
 	([$db], set) => {
-		if (!$db) set([]);
+		if (!$db) return;
 		liveQuery(() => $db.pendingProofs.toArray()).subscribe((proofs) => {
 			set(proofs);
 		});
@@ -75,7 +114,7 @@ export const pendingProofs = derived(
 export const spentProofs = derived(
 	[db],
 	([$db], set) => {
-		if (!$db) set([]);
+		if (!$db) return;
 		liveQuery(() => $db.spentProofs.toArray()).subscribe((proofs) => {
 			set(proofs);
 		});
@@ -86,7 +125,7 @@ export const spentProofs = derived(
 export const invoices = derived(
 	[db],
 	([$db], set) => {
-		if (!$db) set([]);
+		if (!$db) return;
 		liveQuery(() => $db.invoices.toArray()).subscribe((invoices) => {
 			set(invoices);
 		});
@@ -97,7 +136,7 @@ export const invoices = derived(
 export const history = derived(
 	[db],
 	([$db], set) => {
-		if (!$db) set([]);
+		if (!$db) return;
 		liveQuery(() => $db.history.toArray()).subscribe((history) => {
 			set(history.sort((a, b) => b.date - a.date));
 		});
@@ -108,7 +147,7 @@ export const history = derived(
 export const contacts = derived(
 	[db],
 	([$db], set) => {
-		if (!$db) set([]);
+		if (!$db) return;
 		liveQuery(() => $db.contacts.toArray()).subscribe((contacts) => {
 			set(contacts);
 		});
@@ -119,7 +158,7 @@ export const contacts = derived(
 export const dbMints = derived(
 	[db],
 	([$db], set) => {
-		if (!$db) set([]);
+		if (!$db) return;
 		liveQuery(() => $db.mints.toArray()).subscribe((mints) => {
 			// you need at least one mint
 			if (mints.length) {
@@ -135,7 +174,7 @@ export const dbMints = derived(
 export const dbRelays = derived(
 	[db],
 	([$db], set) => {
-		if (!$db) set([]);
+		if (!$db) return;
 		liveQuery(() => $db.relays.toArray()).subscribe((relays) => {
 			// you need at least one relay
 			if (relays.length) {

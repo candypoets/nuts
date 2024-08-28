@@ -2,14 +2,13 @@
 	import Icon from '@iconify/svelte';
 	import QrScanner from 'src/comp/QRScanner.svelte';
 	import { scanning } from 'src/stores';
-	import { profile } from 'src/stores/nostr';
 	import { onMount } from 'svelte';
 	import { mints } from '../../stores/mints';
 
 	import AddFriendModal from './add-friend-modal.svelte';
 	import AddModal from './add-modal.svelte';
 	import SendModal from './send/send-modal.svelte';
-	import Transactions from './transactions.svelte';
+	import Transactions from './transactions/index.svelte';
 
 	let active = 'base';
 	let encodedToken = '';
@@ -61,8 +60,6 @@
 		// 	}
 		// }
 	});
-
-	$: console.log($profile);
 </script>
 
 <div class="flex gap-2 mx-4 -mt-4">

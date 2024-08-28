@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import { HistoryItemType } from '../../model/historyItem';
+	import { HistoryItemType } from 'src/model/historyItem';
 
 	export let type: HistoryItemType;
 </script>
