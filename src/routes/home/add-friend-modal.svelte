@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
+	import { nip19 } from 'nostr-tools';
 	import { signAndSend } from 'src/actions/relay';
 	import type { Contact } from 'src/model/contact';
 	import { contacts, db, key } from 'src/stores/db';
@@ -24,7 +25,9 @@
 		setTimeout(() => {
 			abortController.abort();
 		}, 10000);
-
+		if (pubkey.startsWith('npub')) {
+			pubkey = nip19.decode(pubkey).data as string;
+		}
 		try {
 			const isAuth = await $pool.query([{ authors: [pubkey], kinds: [0] }], { signal });
 			console.log(isAuth);
