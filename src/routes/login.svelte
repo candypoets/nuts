@@ -47,8 +47,6 @@
 			});
 			break;
 		}
-
-		// console.log(isAuth);
 	}
 
 	async function handleSignup() {
