@@ -1,14 +1,18 @@
 <script lang="ts">
+	import TokenIcon from 'src/comp/TokenIcon.svelte';
 	import { browser } from '$app/environment';
-	import { getEncryptedContent, sendMessage } from 'src/actions/chat';
-	import { saveNuts, send } from 'src/actions/wallet';
-	import { db, key } from 'src/stores/db';
-	import { mintInfos } from 'src/stores/mints';
+	import { sendMessage } from 'src/actions/chat';
+	import { formatAmount, saveNuts, send } from 'src/actions/wallet';
+	import { db, key, settings } from 'src/stores/db';
+	import { mintInfos, totalAmountAvailable } from 'src/stores/mints';
 	import { wallets } from 'src/stores/wallet';
 	import { onMount } from 'svelte';
+	import Icon from '@iconify/svelte';
+	import type { Contact } from 'src/model/contact';
 
 	// export let active: string;
-	export let toPub: string;
+	export let selected: Contact;
+	export let subopen: boolean = false;
 	let memo: string = '';
 
 	let amount: number | undefined = undefined;
@@ -38,7 +42,7 @@
 			processing = 'Creating Token';
 			const res = await send($wallets, amount as number, memo);
 			processing = 'Sending Token';
-			await sendMessage(toPub, res.encodedToken)
+			await sendMessage(selected.pubkey, res.encodedToken)
 				.then(async () => {
 					console.info(
 						'return change',
@@ -48,7 +52,7 @@
 					if (res.returnChanges.length) {
 						await $db.proofs.bulkPut(res.returnChanges);
 						await $db.spentProofs.bulkPut(res.sends);
-						await saveNuts(res.returnChanges, $key.pub);
+						await saveNuts(res.returnChanges, $key?.pub);
 					}
 				})
 				.catch(async (e) => {
@@ -57,7 +61,7 @@
 					// add the returnchange to the proofs table
 					await $db.proofs.bulkAdd(res.returnChanges);
 
-					await saveNuts([...res.returnChanges, ...res.sends], $key.pub);
+					await saveNuts([...res.returnChanges, ...res.sends], $key?.pub);
 					console.error(e);
 				});
 
@@ -72,9 +76,48 @@
 	};
 </script>
 
+<div class="px-4 flex justify-between">
+	<div on:click={() => (subopen = false)}>
+		<Icon icon="mdi:close" class="w-6 h-6" />
+	</div>
+	<strong> Send Ecash </strong>
+	<div />
+</div>
+<div class="">
+	<div class="p-4">
+		<div class="flex gap-4 items-center">
+			<div class="w-1/2 text-center">
+				<strong class="text-xs">Main Account</strong>
+				<div class="flex gap-1 items-center justify-center">
+					<TokenIcon />
+					<p class="font-bold">
+						{formatAmount($totalAmountAvailable, $settings.unit)}
+					</p>
+				</div>
+			</div>
+			<div class="flex justify-center">
+				<Icon icon="mdi:arrow-right" class="text-2xl border rounded-full" />
+			</div>
+			<div class="flex items-center justify-center py-2 border-b last:border-none w-1/2">
+				<!-- <Icon icon="carbon:lightning" class="w-16 h-6" />
+										-->
+				<div class="w-16">
+					<img
+						src={selected?.picture || '/ns-naked.svg'}
+						alt={selected?.name}
+						class="border w-8 h-8 rounded-full space-x-4 mx-auto"
+					/>
+				</div>
+				<div class="text-xs">
+					<strong>{selected?.name}</strong>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
 <div class="">
 	{#if !processing}
-		<div class="flex flex-col w-full items-center gap-3">
+		<div class="w-full gap-3">
 			<!-- <div class="z-10">
 				<MintSelector bind:mint />
 			</div> -->
@@ -87,7 +130,7 @@
 					type="text"
 					inputmode="decimal"
 					bind:value={amount}
-					class="mt-10 text-7xl focus:outline-none text-center max-w-xs"
+					class="mt-10 text-7xl focus:outline-none text-center max-w-xs border rounded-xl"
 					on:keydown={(e) => {
 						if (e.key === 'Enter') {
 							sendEcash();

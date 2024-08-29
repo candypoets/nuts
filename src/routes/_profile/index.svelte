@@ -5,6 +5,7 @@
 	import Logout from './logout.svelte';
 	import Relays from './relays.svelte';
 	import { profile } from 'src/stores/profile';
+	import Mints from './mints.svelte';
 
 	let active: string;
 	let search: string;
@@ -102,6 +103,7 @@
 					<div
 						class="flex items-center justify-around py-2 border-b"
 						on:click={() => {
+							console.log('clicked');
 							subopen = true;
 							route = 'relays';
 						}}
@@ -135,6 +137,8 @@
 				<Keys bind:subopen />
 			{:else if route == 'relays'}
 				<Relays bind:subopen />
+			{:else if route == 'mints'}
+				<Mints bind:subopen />
 			{/if}
 		</Drawer.Content>
 	</Drawer.Portal>

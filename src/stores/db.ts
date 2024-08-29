@@ -8,6 +8,11 @@ import type { NostrMessage } from 'src/model/nostrMessage';
 
 export type Invoice = RequestMintResponse & { date: number; mint: string };
 
+export type Endpoint = {
+	url: string;
+	enabled: boolean;
+};
+
 export type Setting = {
 	key: string;
 	visible: boolean;
@@ -30,8 +35,8 @@ export type DB = Dexie & {
 	messages: EntityTable<NostrMessage & { id: string }, 'id'>;
 	keysets: EntityTable<{ id: string; mint: string }, 'id'>;
 	invoices: EntityTable<Invoice, 'quote'>;
-	relays: EntityTable<{ url: string }, 'url'>;
-	mints: EntityTable<{ url: string }, 'url'>;
+	relays: EntityTable<Endpoint, 'url'>;
+	mints: EntityTable<Endpoint, 'url'>;
 	settings: Dexie.Table<Setting, string, 'key'>;
 };
 
@@ -81,8 +86,8 @@ export const db: Readable<DB> = derived([activeAccount, keys], ([$activeAccount,
 			'++id,event.id,event.kind,event.tags,event.content,event.created_at,event.pubkey,event.sig,token.proofs,token.mint,token.memo,isAccepted',
 		keysets: 'id,mint',
 		invoices: 'quote,request,date,mint',
-		relays: 'url',
-		mints: 'url',
+		relays: 'url, enabled',
+		mints: 'url, enabled',
 		keys: 'pub,npub,priv,nsec',
 		settings: 'key,visible,unit'
 	});
@@ -159,6 +164,15 @@ export const dbMints = derived(
 	[db],
 	([$db], set) => {
 		if (!$db) return;
+		// iniialize the new db with the original set of mints servers
+		$db.mints.toArray().then((res) => {
+			if (!res.length) {
+				$db.mints.bulkAdd([
+					{ url: 'https://mint.minibits.cash/Bitcoin', enabled: true },
+					{ url: 'https://mint.lnserver.com/', enabled: true }
+				]);
+			}
+		});
 		liveQuery(() => $db.mints.toArray()).subscribe((mints) => {
 			// you need at least one mint
 			if (mints.length) {
@@ -166,15 +180,27 @@ export const dbMints = derived(
 			}
 		});
 	},
-	[{ url: 'https://mint.minibits.cash/Bitcoin' }, { url: 'https://mint.lnserver.com/' }] as {
-		url: string;
-	}[]
+	[
+		{ url: 'https://mint.minibits.cash/Bitcoin', enabled: true },
+		{ url: 'https://mint.lnserver.com/', enabled: true }
+	] as Endpoint[]
 );
 
 export const dbRelays = derived(
 	[db],
 	([$db], set) => {
 		if (!$db) return;
+		// iniialize the new db with the original set of relay servers
+		$db.relays.toArray().then((res) => {
+			if (!res.length) {
+				$db.relays.bulkAdd([
+					{ url: 'wss://relay.damus.io', enabled: true },
+					{ url: 'wss://nostr.einundzwanzig.space/', enabled: true },
+					{ url: 'wss://relay.primal.net', enabled: true },
+					{ url: 'wss://relay.nuts.cash', enabled: true }
+				]);
+			}
+		});
 		liveQuery(() => $db.relays.toArray()).subscribe((relays) => {
 			// you need at least one relay
 			if (relays.length) {
@@ -183,11 +209,11 @@ export const dbRelays = derived(
 		});
 	},
 	[
-		{ url: 'wss://relay.damus.io' },
-		{ url: 'wss://nostr.einundzwanzig.space/' },
-		{ url: 'wss://relay.primal.net' },
-		{ url: 'wss://relay.nuts.cash' }
-	] as { url: string }[]
+		{ url: 'wss://relay.damus.io', enabled: true },
+		{ url: 'wss://nostr.einundzwanzig.space/', enabled: true },
+		{ url: 'wss://relay.primal.net', enabled: true },
+		{ url: 'wss://relay.nuts.cash', enabled: true }
+	] as Endpoint[]
 );
 
 export const settings = derived(

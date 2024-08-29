@@ -79,7 +79,7 @@
 	}
 </script>
 
-<Icon icon="carbon:camera" class="text-2xl" />
+<Icon icon="teenyicons:scan-solid" class="text-2xl" />
 <!-- <div
 	id="reader"
 	class="fixed mobile-height w-full top-0 left-0 bg-red-700 z-10"

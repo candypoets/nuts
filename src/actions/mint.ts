@@ -1,4 +1,4 @@
-import { type MintActiveKeys } from '@cashu/cashu-ts';
+import { CashuMint, type MintActiveKeys } from '@cashu/cashu-ts';
 
 // export const addMint = async (mintURL: string) => {
 // 	console.log('Adding mint', mintURL);
@@ -57,6 +57,17 @@ export const validateMintKeys = (keys: MintActiveKeys): boolean => {
 		});
 		return isValid;
 	} catch (error) {
+		return false;
+	}
+};
+
+export const isMintUrlValid = async (mintURL: string): Promise<boolean> => {
+	try {
+		const mint = new CashuMint(mintURL);
+		await mint.getInfo();
+		return true;
+	} catch (error) {
+		console.error('Error validating mint URL:', error);
 		return false;
 	}
 };

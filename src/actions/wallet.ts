@@ -146,8 +146,8 @@ export const signEvent = async (event: Omit<NostrEvent, 'id' | 'sig'>) => {
 
 // save a cashu token representing the entire user balance
 // then send a private message to yourself with the encrypted tokens
-export const saveNuts = async (proofs: Proof[], toPubKey: string) => {
-	if (!proofs.length) return;
+export const saveNuts = async (proofs: Proof[], toPubKey?: string) => {
+	if (!proofs.length || !toPubKey) return;
 	const toEncode: TokenEntry[] = [];
 	const proofsByKeySet = proofs.reduce(
 		(acc, cur) => {
