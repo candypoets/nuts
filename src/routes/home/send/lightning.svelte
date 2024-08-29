@@ -9,6 +9,7 @@
 	import { amountAvailable, mint, mints } from 'src/stores/mints';
 	import Icon from '@iconify/svelte';
 	import { scanning } from 'src/stores';
+	import QrScanner from 'src/comp/QRScanner.svelte';
 
 	export let subopen: boolean = false;
 
@@ -80,9 +81,7 @@
 
 <div class="join w-full px-4 mt-20">
 	<input class="w-full join-item px-2" type="text" placeholder="Lightning invoice or address" />
-	<button class="btn btn-primary join-item" on:click={() => ($scanning = true)}
-		><Icon icon="teenyicons:scan-solid" /></button
-	>
+	<button class="btn btn-primary join-item"><QrScanner /></button>
 	<!-- <button class="btn join-item">Submit</button> -->
 </div>
 

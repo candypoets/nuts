@@ -65,7 +65,7 @@
 <div class="flex gap-2 mx-4 -mt-4">
 	<div class="text-center flex-grow">
 		<button class="btn w-14 h-14 btn-primary btn-circle" on:click={() => (addOpen = true)}>
-			<Icon icon="fluent:add-32-light" class="w-8 h-8" />
+			<Icon icon="teenyicons:add-outline" class="text-2xl" />
 		</button>
 		<div class="text-sm mt-1 font-semibold">Add money</div>
 	</div>
@@ -79,7 +79,7 @@
 		<!-- <button class="btn w-14 h-14 btn-circle btn-outline" on:click={() => (addFriend = true)}>
 			<Icon icon="carbon:user" class="w-8 h-8" />
 		</button> -->
-		<button class="btn w-14 h-14 btn-outline btn-circle" on:click={() => ($scanning = true)}>
+		<button class="btn w-14 h-14 btn-outline btn-circle">
 			<QrScanner />
 		</button>
 		<div class="text-sm mt-1 font-semibold">Scan</div>

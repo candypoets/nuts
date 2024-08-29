@@ -16,6 +16,7 @@
 	import Ecash from './ecash.svelte';
 	import Tapcash from './tapcash.svelte';
 	import Lightning from './lightning.svelte';
+	import AddModal from '../add-modal.svelte';
 
 	let active: string;
 	let search: string;
@@ -46,7 +47,7 @@
 
 	let activeMint = $mints[0];
 
-	let paymentType: 'Tapcash' | 'Zap' | 'Invoice' = 'Tapcash';
+	let paymentType: '' | 'Tapcash' | 'Zap' | 'Invoice' = '';
 
 	let selectedContact: Contact;
 
@@ -68,7 +69,7 @@
 </script>
 
 <!-- <ScanLN bind:invoice={scannedNpub} /> -->
-<Drawer.Root dismissible={!subopen} bind:open shouldScaleBackground={true}>
+<Drawer.Root dismissible={!subopen && !scan && !addFriend} bind:open shouldScaleBackground={true}>
 	<!-- <Drawer.Trigger /> -->
 	<Drawer.Portal>
 		<Drawer.Overlay class="absolute inset-0 bg-black/40 z-10" />
@@ -81,18 +82,21 @@
 					<div on:click={() => (open = false)}>
 						<Icon icon="mingcute:down-line" class="text-xl" />
 					</div>
-					<div class="flex space-x-8">
+					<div class="flex">
 						<!-- <div on:click={() => (scan = true)}>
 							<Icon icon="ic:baseline-qrcode" class="text-xl" />
 						</div> -->
+
 						<QRScanner />
 						<div
 							on:click={() => {
 								addFriend = true;
 								subopen = true;
+								paymentType = '';
 							}}
+							class="ml-4"
 						>
-							<Icon icon="mingcute:add-fill" class="text-xl" />
+							<Icon icon="teenyicons:add-outline" class="text-2xl" />
 						</div>
 					</div>
 				</div>
