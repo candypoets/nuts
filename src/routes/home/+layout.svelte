@@ -27,7 +27,7 @@
 </script>
 
 <div
-	class=" w-full md:w-1/2 lg:w-1/3 place-content-center m-auto p-2 lg:pt-12 bg-basic z-10"
+	class=" w-full md:w-1/2 lg:w-1/3 place-content-center m-auto px-4 py-2 lg:pt-12 bg-basic z-10"
 	id="top"
 >
 	<div class="flex w-full justify-between items-start">

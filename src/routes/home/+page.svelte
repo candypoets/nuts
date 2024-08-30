@@ -11,6 +11,14 @@
 	import AddModal from './add-modal.svelte';
 	import SendModal from './send/send-modal.svelte';
 	import Transactions from './transactions.svelte';
+	import DrawerSheet from './DrawerSheet.svelte';
+	import TestVaul from './TestVaul.svelte';
+
+	let isDrawerOpen = false;
+
+	function toggleDrawer() {
+		isDrawerOpen = !isDrawerOpen;
+	}
 
 	let active = 'base';
 	let encodedToken = '';
@@ -68,6 +76,14 @@
 
 <div class="flex gap-8 place-content-center mt-12">
 	<div class="text-center">
+		<TestVaul />
+		<button class="btn w-14 h-14 btn-primary btn-circle" on:click={toggleDrawer}>
+			<Icon icon="carbon:diamond-outline" class="w-8 h-8" />
+		</button>
+		<div class="text-sm mt-1 font-semibold">Drawer</div>
+		<DrawerSheet bind:isOpen={isDrawerOpen} />
+	</div>
+	<div class="text-center">
 		<button class="btn w-14 h-14 btn-primary btn-circle" on:click={() => (addOpen = true)}>
 			<Icon icon="carbon:add" class="w-8 h-8" />
 		</button>
@@ -89,6 +105,7 @@
 		<div class="text-sm mt-1 font-semibold">Scan</div>
 	</div>
 </div>
+
 <Transactions />
 {#if $isEncrypted}
 	<WalletLock></WalletLock>
