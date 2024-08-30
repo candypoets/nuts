@@ -3,7 +3,6 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { SvelteKitPWA as VitePWA } from '@vite-pwa/sveltekit';
 
 import { defineConfig } from 'vite';
-import mkcert from 'vite-plugin-mkcert';
 
 const generateSW = true;
 
@@ -25,16 +24,18 @@ export default defineConfig({
 				enabled: true,
 				navigateFallbackAllowlist: [/^index.html$/]
 			},
-			includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+			includeAssets: ['favicon.ico', 'touch-icon-180.png', 'ns-naked.svg'],
 			manifest: {
 				name: 'Nuts.cash',
-				short_name: 'nuts',
-				description: 'The Ecash social wallet',
+				short_name: 'Nuts',
+				description: 'The nostr cashu wallet',
 				theme_color: '#fbf9fa',
-				start_url: '/',
+				start_url: '/home',
 				display: 'fullscreen',
 				orientation: 'portrait',
-				background_color: '#fbf9fa'
+				background_color: '#fbf9fa',
+				lang: 'en',
+				categories: ['finance', 'utility']
 				// permissions: ['camera']
 			},
 			registerType: 'autoUpdate',
