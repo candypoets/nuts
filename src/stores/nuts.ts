@@ -58,8 +58,7 @@ if (browser) {
 			await $db.messages.add({ event });
 
 			// if the event content is in the map, it has been processed already
-			if (eventMap[event.content]) continue;
-			eventMap[event.content] = true;
+
 			if (!nostrTools.validateEvent(event)) continue;
 
 			const incoming = event.tags.some((t) => t[0] === 'p' && t[1] === $key.pub);
