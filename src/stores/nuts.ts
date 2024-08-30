@@ -18,7 +18,7 @@ import { getKeysForUnit, isValidToken } from 'src/actions/wallet';
 import { HistoryItemType } from 'src/model/historyItem';
 import { derived, get } from 'svelte/store';
 
-import { db, invoices, pendingProofs, proofs, type Invoice, key } from './db';
+import { db, invoices, pendingProofs, proofs, type Invoice, key, spentProofs } from './db';
 import { timestamp10 } from './time';
 import { pool } from './relays';
 import { signer } from './signer';
@@ -71,9 +71,13 @@ if (browser) {
 				token.token.map(async (t) => {
 					await Promise.all(
 						t.proofs.map(async (p) => {
-							const mint = new CashuMint(t.mint);
-							const keysets = await mint.getKeySets();
-							$db.keysets.bulkPut(keysets.keysets.map((ks) => ({ ...ks, mint: t.mint })));
+							// check if the keyset is already in the db
+							const keyset = await $db.keysets.get({ id: p.id });
+							if (!keyset) {
+								const mint = new CashuMint(t.mint);
+								const keysets = await mint.getKeySets();
+								$db.keysets.bulkPut(keysets.keysets.map((ks) => ({ ...ks, mint: t.mint })));
+							}
 						})
 					);
 				})
@@ -133,11 +137,12 @@ if (browser) {
 	}).subscribe((n) => n);
 
 	// when new pendingProofs are added, try to claim them
-	derived([key, db, pendingProofs], async ([$key, $db, $pp]) => {
-		if (!$pp.length) return;
-		console.info('claiming proofs', $pp);
+	derived([key, db, timestamp10], async ([$key, $db, $time]) => {
+		const pp = get(pendingProofs);
+		if (!pp.length) return;
+		console.info('claiming proofs', pp);
 		// organize proofs by mint
-		const proofsByKeySet = $pp.reduce(
+		const proofsByKeySet = pp.reduce(
 			(acc, cur) => {
 				if (!acc[cur.id]) acc[cur.id] = [];
 				acc[cur.id].push(cur);
@@ -218,20 +223,22 @@ if (browser) {
 
 	let lastCheck = '';
 	let lastCheckTimestamp = 0;
-	// every 60 seconds, check if the proofs are spent
-	derived([proofs, timestamp10], async ([$proofs, $time]) => {
-		if (!$proofs.length || lastCheck == JSON.stringify($proofs) || Date.now() / 1000 - $time < 10)
-			return;
-		await checkProofsSpent($proofs);
-		lastCheck = JSON.stringify($proofs);
-		lastCheckTimestamp = $time;
+	// every 10 seconds, check if the proofs are spent
+	derived([timestamp10], async ([$time]) => {
+		await checkProofsSpent(get(proofs));
+		// lastCheck = JSON.stringify($proofs);
+		// lastCheckTimestamp = $time;
 	}).subscribe((n) => n);
 }
 
 // try to get the cashu tokens saved in the user private chat
 export async function getNuts(cashu: Token) {
 	cashu.token.map(async (t) => {
-		await get(db).proofs.bulkPut(t.proofs);
+		const filtered = t.proofs.filter((p) => !get(spentProofs).some((sp) => sp.secret == p.secret));
+		// get(db).spentProofs.bulkget()
+		if (filtered.length) {
+			await get(db).proofs.bulkPut(filtered);
+		}
 	});
 }
 

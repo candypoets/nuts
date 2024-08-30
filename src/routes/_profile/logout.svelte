@@ -24,7 +24,7 @@
 					on:click={async () => {
 						$keys = [];
 						keyDB.keys.clear();
-						$db.delete();
+						await $db.delete();
 					}}
 				>
 					Log Out
