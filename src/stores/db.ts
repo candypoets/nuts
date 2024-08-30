@@ -40,11 +40,11 @@ export type DB = Dexie & {
 	settings: Dexie.Table<Setting, string, 'key'>;
 };
 
-export type keyDB = Dexie & {
+export type KeyDB = Dexie & {
 	keys: EntityTable<Key, 'pub'>;
 };
 
-export const keyDB = new Dexie('key') as keyDB;
+export const keyDB = new Dexie('key') as KeyDB;
 
 keyDB.version(1).stores({
 	keys: 'pub,npub,priv,nsec'

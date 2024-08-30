@@ -217,11 +217,14 @@ if (browser) {
 	}).subscribe((n) => n);
 
 	let lastCheck = '';
+	let lastCheckTimestamp = 0;
 	// every 60 seconds, check if the proofs are spent
 	derived([proofs, timestamp10], async ([$proofs, $time]) => {
-		if (!$proofs.length || lastCheck === JSON.stringify($proofs)) return;
-		lastCheck = JSON.stringify($proofs);
+		if (!$proofs.length || lastCheck == JSON.stringify($proofs) || Date.now() / 1000 - $time < 10)
+			return;
 		await checkProofsSpent($proofs);
+		lastCheck = JSON.stringify($proofs);
+		lastCheckTimestamp = $time;
 	}).subscribe((n) => n);
 }
 

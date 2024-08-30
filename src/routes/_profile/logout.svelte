@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import { db, keyDB } from 'src/stores/db';
+	import { db, keyDB, keys } from 'src/stores/db';
 	export let subopen: boolean = false;
 	import { Drawer } from 'vaul-svelte';
 </script>
@@ -22,8 +22,9 @@
 				<button
 					class="btn btn-primary"
 					on:click={async () => {
-						await $db.delete();
-						await keyDB.delete();
+						$keys = [];
+						keyDB.keys.clear();
+						$db.delete();
 					}}
 				>
 					Log Out

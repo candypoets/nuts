@@ -6,8 +6,8 @@ import { kinds } from 'nostr-tools';
 export const profile: Readable<{ name?: string; picture?: string; about?: string }> = derived(
 	[pool, key],
 	([$pool, $key], set) => {
-		if (!pool || !key) return;
-		const messages = $pool.req([{ kinds: [kinds.Metadata], limit: 1, authors: [$key.pub] }]);
+		if (!pool || !$key) return;
+		const messages = $pool.req([{ kinds: [kinds.Metadata], limit: 1, authors: [$key?.pub] }]);
 
 		(async () => {
 			for await (const message of messages) {
