@@ -83,6 +83,75 @@ export const send = async (
 	};
 };
 
+export const swap = async (
+	send: CashuWallet,
+	receive: CashuWallet,
+	proofs: Proof[],
+	amount: number
+): Promise<{
+	swapIn: Proof[];
+	swapOut: Proof[];
+}> => {
+	const swapIn: Proof[] = proofs;
+	// const sends: Proof[] = [];
+	const swapOut: Proof[] = [];
+
+	const { quote, request } = await receive.getMintQuote(amount);
+
+	const meltQuote = await send.getMeltQuote(request);
+
+	const fees = meltQuote.fee_reserve;
+
+	const melt = await send.meltTokens(meltQuote, proofs);
+	swapOut.push(...melt.change);
+	if (melt.isPaid) {
+		const res = await receive.mintTokens(amount, quote);
+		swapOut.push(...res.proofs);
+	}
+
+	return {
+		swapIn,
+		swapOut
+	};
+};
+
+export const getMeltQuote = async (wallets: WalletInfo[], amount: number) => {
+	let index = 0;
+	let amountAvailable = 0;
+	const swaps: { from: WalletInfo; to: WalletInfo; invoice: string }[] = [];
+	for (let wallet of wallets) {
+		if (amountAvailable > amount) break;
+		let nextWallet = wallets[index + 1];
+		if (!nextWallet) break;
+		const amountMinusFees = wallet.amount - wallet.fees;
+		if (amountMinusFees < amount) {
+			const mint = await nextWallet.wallet.getMintQuote(amountMinusFees);
+			const melt = await wallet.wallet.getMeltQuote(mint.request);
+
+			swaps.push({ from: wallet, to: nextWallet, invoice: mint.request });
+		}
+	}
+};
+
+export const melt = async (
+	wallets: WalletInfo[],
+	amount: number,
+	amountAvailable: number,
+	meltQuote: string
+) => {
+	// try to melt the invoice from the least important mint to the most important (in value)
+	let index = 0;
+	for (let wallet of wallets) {
+		// if the wallet does not have enough funds to melt, try a swap
+		if (wallet.amount < amount) {
+		}
+	}
+	// If we've gone through all wallets and still haven't paid the full amount
+	if (amount > 0) {
+		throw new Error('Insufficient funds to melt the requested amount');
+	}
+};
+
 // export const receive = async (proofs: Proof[], mint: string) => {
 // 	let amountLeft = amount;
 // 	const spents: Proof[] = [];
@@ -227,7 +296,7 @@ export function decodePrivKey(value: string): Uint8Array {
  */
 export function isLightningInvoice(invoice: string): boolean {
 	// Regular expression to match Lightning invoice format
-	const lightningInvoiceRegex = /^(lnbc|lntb)[0-9a-zA-Z]+$/;
+	const lightningInvoiceRegex = /^(lnbc|lntb|LNBC|LNTB)[0-9a-zA-Z]+$/;
 	return lightningInvoiceRegex.test(invoice);
 }
 

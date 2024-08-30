@@ -72,7 +72,7 @@ export async function getContact(pubkey: string): Promise<Contact> {
 				if (follow[0] !== 'EVENT') continue;
 				const event = follow[2];
 				// console.log(event);
-				resolve(JSON.parse(event.content));
+				resolve({ ...JSON.parse(event.content), pubkey: event.pubkey });
 			}
 		} catch (e) {
 			reject(e);

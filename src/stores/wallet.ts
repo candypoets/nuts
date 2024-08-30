@@ -5,6 +5,7 @@ import { nip05, nip19 } from 'nostr-tools';
 
 export type WalletInfo = {
 	amount: number;
+	fees: number;
 	mintURL: string;
 	proofs: Proof[];
 	unit: string;
@@ -19,11 +20,13 @@ export const wallets = derived(
 				keysets.map(async (keyset) => {
 					const proofs = $proofs.filter((proof) => proof.id === keyset.id);
 					const amount = proofs.reduce((acc, cur) => (acc += cur.amount), 0);
+					const fees = proofs.reduce((acc, cur) => (acc += keyset.input_fee_ppk || 0), 0);
 					const cashuMint: CashuMint = new CashuMint(keyset.mint);
 					const keys = await cashuMint.getKeys(keyset.id, keyset.mint);
 					const wallet = new CashuWallet(cashuMint, keys.keysets[0]);
 					return {
 						amount,
+						fees: Math.ceil(fees / 1000), // in case of mint or swap, how much fees are paid for all the proofs
 						mintURL: keyset.mint,
 						proofs,
 						unit: keys.keysets[0].unit,
@@ -37,6 +40,14 @@ export const wallets = derived(
 		});
 	},
 	[] as WalletInfo[]
+);
+
+export const balanceMinusFees = derived(
+	[wallets],
+	([$wallets], set) => {
+		set($wallets.reduce((acc, cur) => (acc += cur.amount - cur.fees), 0));
+	},
+	0
 );
 
 export const balance = derived(

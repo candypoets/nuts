@@ -71,7 +71,9 @@ if (browser) {
 				token.token.map(async (t) => {
 					await Promise.all(
 						t.proofs.map(async (p) => {
-							await $db.keysets.put({ id: p.id, mint: t.mint });
+							const mint = new CashuMint(t.mint);
+							const keysets = await mint.getKeySets();
+							$db.keysets.bulkPut(keysets.keysets.map((ks) => ({ ...ks, mint: t.mint })));
 						})
 					);
 				})

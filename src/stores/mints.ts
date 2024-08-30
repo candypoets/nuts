@@ -17,7 +17,9 @@ export const mints = derived(
 				const keysets = await mint.getKeySets();
 				const keys = await mint.getKeys();
 
-				await $db.keysets.put({ id: keys.keysets[0].id, mint: m.url });
+				await Promise.all(
+					keysets.keysets.map(async (ks) => await $db.keysets.put({ ...ks, mint: m.url }))
+				);
 				return {
 					mintURL: m.url,
 					keysets: keysets.keysets,

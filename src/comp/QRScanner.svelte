@@ -82,13 +82,7 @@
 <button on:click={() => (open = true)}>
 	<Icon icon="teenyicons:scan-solid" class="text-2xl" />
 </button>
-<!-- <div
-	id="reader"
-	class="fixed mobile-height w-full top-0 left-0 bg-red-700 z-10"
-	class:hidden={scanning == false}
-></div> -->
 <Drawer.Root bind:open>
-	<!-- <Drawer.Trigger /> -->
 	<Drawer.Portal>
 		<Drawer.Overlay class="absolute inset-0 bg-black/40 z-10" />
 		<Drawer.Content

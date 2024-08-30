@@ -66,49 +66,8 @@
 							class="pb-8 pt-3 bg-basic absolute top-4 left-0 right-0"
 							style="height: 95vh;"
 						>
-							<div class="px-4 flex justify-between">
-								<div on:click={() => (subopen = false)}>
-									<Icon icon="mdi:close" class="w-6 h-6" />
-								</div>
-								<strong> Send Ecash </strong>
-								<div />
-							</div>
-							<div class="">
-								<div class="p-4">
-									<div class="flex gap-4 items-center">
-										<div class="w-1/2 text-center">
-											<strong class="text-xs">Main Account</strong>
-											<div class="flex gap-1 items-center justify-center">
-												<TokenIcon />
-												<p class="font-bold">
-													{formatAmount($totalAmountAvailable, 'sats')}
-												</p>
-											</div>
-										</div>
-										<div class="flex justify-center">
-											<Icon icon="mdi:arrow-right" class="text-2xl border rounded-full" />
-										</div>
-										<div
-											class="flex items-center justify-center py-2 border-b last:border-none w-1/2"
-										>
-											<!-- <Icon icon="carbon:lightning" class="w-16 h-6" />
-                        -->
-											<div class="w-16">
-												<img
-													src={contact?.picture || '/ns-naked.svg'}
-													alt={contact?.name}
-													class="border w-8 h-8 rounded-full space-x-4 mx-auto"
-												/>
-											</div>
-											<div class="text-xs">
-												<strong>{contact?.name}</strong>
-											</div>
-										</div>
-									</div>
-								</div>
-								<Ecash toPub={npub} />
-							</div></Drawer.Content
-						>
+							<Ecash selected={contact} />
+						</Drawer.Content>
 					</Drawer.Portal>
 				</Drawer.NestedRoot>
 			{:catch}

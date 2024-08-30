@@ -1,6 +1,6 @@
 import Dexie, { liveQuery, type EntityTable } from 'dexie';
 import { derived, writable, type Readable, type Writable } from 'svelte/store';
-import type { Proof, RequestMintResponse } from '@cashu/cashu-ts';
+import type { MintKeyset, Proof, RequestMintResponse } from '@cashu/cashu-ts';
 import type { HistoryItem } from 'src/model/historyItem';
 import type { HistoryData } from 'src/model/data/HistoryData';
 import type { Contact } from 'src/model/contact';
@@ -33,7 +33,7 @@ export type DB = Dexie & {
 	history: EntityTable<HistoryItem<HistoryData>, 'date'>;
 	contacts: EntityTable<Contact, 'pubkey'>;
 	messages: EntityTable<NostrMessage & { id: string }, 'id'>;
-	keysets: EntityTable<{ id: string; mint: string }, 'id'>;
+	keysets: EntityTable<MintKeyset & { input_fee_ppk?: number; mint: string }, 'id'>;
 	invoices: EntityTable<Invoice, 'quote'>;
 	relays: EntityTable<Endpoint, 'url'>;
 	mints: EntityTable<Endpoint, 'url'>;
@@ -84,7 +84,7 @@ export const db: Readable<DB> = derived([activeAccount, keys], ([$activeAccount,
 		contacts: 'pubkey,name,picture,about,createdAt',
 		messages:
 			'++id,event.id,event.kind,event.tags,event.content,event.created_at,event.pubkey,event.sig,token.proofs,token.mint,token.memo,isAccepted',
-		keysets: 'id,mint',
+		keysets: 'id,unit,active,input_fee_ppk,mint',
 		invoices: 'quote,request,date,mint',
 		relays: 'url, enabled',
 		mints: 'url, enabled',
