@@ -1,7 +1,11 @@
 <script lang="ts">
+	import Icon from '@iconify/svelte';
+	import TokenHistoryRow from 'src/comp/tokens/TokenHistoryRow.svelte';
+	import { type HistoryData } from 'src/model/data/HistoryData';
+	import { type HistoryItem, HistoryItemType } from 'src/model/historyItem';
 	import { onMount } from 'svelte';
 	import { writable, type Writable } from 'svelte/store';
-	import screenshot from '/Users/abdoughariani/Nuts/nuts-cash/assets/screenshot_nuts.png';
+	// import screenshot from '/Users/abdoughariani/Nuts/nuts-cash/assets/screenshot_nuts.png';
 
 	let showMenu = false;
 	let scrollY: Writable<number> = writable(0);
@@ -21,6 +25,17 @@
 	function toggleMenu() {
 		showMenu = !showMenu;
 	}
+
+	let progress = 0;
+
+	let items: HistoryItem<HistoryData>[] = [
+		{
+			type: HistoryItemType.SEND,
+			date: Math.floor(Date.now() / 1000) - 86400,
+			amount: 50,
+			data: { to: 'Jack' }
+		}
+	];
 </script>
 
 <svelte:window bind:scrollY={$scrollY} />
@@ -33,7 +48,7 @@
 		class:shadow-md={$scrollY > 50}
 	>
 		<div class="container mx-auto px-4 py-4 flex justify-between items-center">
-			<p class="font-semibold">CashNuts</p>
+			<p class="font-semibold">Nuts.cash</p>
 			<button on:click={toggleMenu} class="md:hidden">
 				<svg
 					class="w-6 h-6"
@@ -50,11 +65,11 @@
 					></path>
 				</svg>
 			</button>
-			<nav class="hidden md:flex space-x-8 text-sm">
+			<!-- <nav class="hidden md:flex space-x-8 text-sm">
 				<a href="#mission" class="text-gray-600 hover:text-gray-900">Mission</a>
 				<a href="#features" class="text-gray-600 hover:text-gray-900">Features</a>
 				<a href="#download" class="text-gray-600 hover:text-gray-900">Download</a>
-			</nav>
+			</nav> -->
 			<div class="flex space-x-4">
 				<a
 					href="#"
@@ -106,7 +121,7 @@
 					<p></p>
 				</h1>
 				<p class="text-xl md:text-lg mb-8 max-w-xl text-gray-600">
-					Your Nostr wallet to send, receive and pay friends with Sats in total privacy.
+					Nuts.Cash is the simplest way to zap sats to your friends on the Nostr
 				</p>
 				<div class="flex space-x-4">
 					<a
@@ -117,8 +132,69 @@
 					</a>
 				</div>
 			</div>
-			<div class="w-full rounded-lg bg-blue-50">
-				<img class="w-full h-full object-cover" src={screenshot} alt="screen1" />
+
+			<div
+				class="border-4 border-black bg-base-300 py-4 px-2 lg:mt-36 overflow-visible lg:h-auto
+			lg:w-auto w-64 m-auto"
+				style="border-radius: 2.5rem; transform: skewX({-30 *
+					Math.max(0, 1 - 8 * progress)}deg) skewY({30 *
+					Math.max(0, 1 - 8 * progress)}deg) rotateX({-30 *
+					Math.max(0, 1 - 8 * progress)}deg) rotateY({30 * Math.max(0, 1 - 8 * progress)}deg)
+			translateX(-{100 * Math.max(0, 1 - 8 * progress)}px)"
+			>
+				<div class="bg-black rounded-full h-5 w-2/5 mx-auto" />
+
+				<div
+					class="w-full p-4 bg-primary-content rounded-xl py-6"
+					style="transform: translate({100 * Math.min(0, 8 * progress - 1) * 3}px, 0);"
+				>
+					<div class="flex w-full justify-between items-center">
+						<div class="text-lg font-semibold">Calle</div>
+						<div>
+							<Icon icon="mdi:reload" class="text-2xl " />
+						</div>
+					</div>
+
+					<strong class="text-2xl"> 5038 Sats </strong>
+				</div>
+
+				<div class="center-content">
+					<div class="w-full md:w-1/2 lg:w-1/3 place-content-center">
+						<div class="flex flex-col h-full">
+							<div class="w-full">
+								<strong class="text-sm px-4 pt-4">Today</strong>
+								<div class="mx-4 mt-2 rounded-lg border mb-4">
+									<table class="table table-compact w-full">
+										<tbody class="max-h-1 overflow-y-scroll scrollbar-hide">
+											{#each items as item}
+												<TokenHistoryRow {item} />
+											{/each}
+											<!-- svelte-ignore a11y-click-events-have-key-events -->
+										</tbody>
+									</table>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+				<div
+					class="join m-auto w-full mt-4"
+					style="transform: translate({100 * Math.min(0, 8 * progress - 1) * 3}px, 0);"
+				>
+					<button
+						class="btn btn-sm btn-outline fine-border join-item w-1/3 text-xs"
+						class:btn-active={progress > 0.6 && progress < 0.7}>Squared</button
+					>
+					<button
+						class="btn btn-sm btn-outline fine-border join-item w-1/3 text-xs"
+						class:btn-active={progress > 0.7 && progress < 0.8}>Cubed</button
+					>
+					<button
+						class="btn btn-sm btn-outline fine-border join-item w-1/3 text-xs"
+						class:btn-active={progress > 0.8}>Flip</button
+					>
+				</div>
+				<div class="h-1 rounded-full bg-white w-1/4 m-auto mt-4" />
 			</div>
 		</div>
 	</section>
@@ -133,7 +209,7 @@
 					milliseconds.
 				</p>
 				<div class="w-full h-full rounded-lg bg-white overflow-hidden">
-					<img class="object-cover" src={screenshot} alt="screen1" />
+					<img class="object-cover" src="/screenshot_nuts.png" alt="screen1" />
 				</div>
 			</div>
 			<div class="flex flex-col gap-4 w-full h-full bg-gray-100 rounded-lg px-4 py-4">
@@ -142,7 +218,7 @@
 					breeze.
 				</p>
 				<div class="w-full h-full rounded-lg bg-white overflow-hidden">
-					<img class="object-cover" src={screenshot} alt="screen1" />
+					<img class="object-cover" src="/screenshot_nuts.png" alt="screen1" />
 				</div>
 			</div>
 			<div class="flex flex-col gap-4 w-full h-full bg-gray-100 rounded-lg px-4 py-4">
@@ -151,7 +227,7 @@
 					wallet address.
 				</p>
 				<div class="w-full h-full rounded-lg bg-white overflow-hidden">
-					<img class="object-cover" src={screenshot} alt="screen1" />
+					<img class="object-cover" src="/screenshot_nuts.png" alt="screen1" />
 				</div>
 			</div>
 		</div>

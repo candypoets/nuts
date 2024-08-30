@@ -31,7 +31,7 @@
 	id="top"
 >
 	<div class="flex w-full justify-between items-start">
-		<h1 class="text-2xl mb-4 font-semibold">Cash Home</h1>
+		<h1 class="text-2xl mb-4 font-semibold">Home</h1>
 		<div class="flex gap-2 items-center">
 			<div on:click={() => console.log('ohoh')}><Icon icon="ph:eye" class="text-2xl" /></div>
 			<div on:click={() => ($showQR = true)}><Icon icon="ph:qr-code" class="text-2xl" /></div>
@@ -39,11 +39,6 @@
 				<img src={$profile?.picture || '/ns-naked.svg'} class="w-8 h-8 border rounded-full" />
 			</div>
 		</div>
-		<style>
-			.bg-green-500 {
-				background-color: transparent !important;
-			}
-		</style>
 	</div>
 	<div class="w-full p-4 bg-primary-content rounded-xl py-6">
 		<div class="flex w-full justify-between items-center">
