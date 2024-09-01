@@ -13,17 +13,17 @@
 	let showMenu = false;
 	let scrollY: Writable<number> = writable(0);
 
-	onMount(() => {
-		const unsubscribe = scrollY.subscribe((value) => {
-			if (value > 50) {
-				document.body.classList.add('scrolled');
-			} else {
-				document.body.classList.remove('scrolled');
-			}
-		});
+	// onMount(() => {
+	// 	const unsubscribe = scrollY.subscribe((value) => {
+	// 		if (value > 50) {
+	// 			document.body.classList.add('scrolled');
+	// 		} else {
+	// 			document.body.classList.remove('scrolled');
+	// 		}
+	// 	});
 
-		return unsubscribe;
-	});
+	// 	return unsubscribe;
+	// });
 
 	function toggleMenu() {
 		showMenu = !showMenu;
