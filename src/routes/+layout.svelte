@@ -1,30 +1,28 @@
-<!-- <script context="module">
-	export { load } from './+layout'; // Adjust the path if necessary
-</script> -->
-
 <script lang="ts">
 	import '../app.css';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { addMint } from 'src/actions/mint';
 	import { updateVc } from 'src/lib';
 	import 'src/stores/contacts';
 	import 'src/stores/nuts';
-	import { getNuts } from 'src/stores/nuts';
 	import { onMount } from 'svelte';
 	import { pwaInfo } from 'virtual:pwa-info';
 	import MobileNav from '../comp/MobileNav.svelte';
-	import StorageManager from '../comp/plugin/StorageManager.svelte';
-	import Toasts from '../comp/Toasts.svelte';
-	import { nostrPubKey } from '../stores/nostr';
+
 	import Login from './login.svelte';
+	import { signer } from 'src/stores/signer';
+	import { liveQuery } from 'dexie';
+	import { keyDB, keys } from 'src/stores/db';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
 	// Watch for route changes
 	onMount(() => {
-		if ($page.route.id === '/') {
-			goto('/home');
-		}
+		console.log('mounted');
+		updateVc();
+		updateVh();
+		// if ($page.route.id === '/') {
+		// 	goto('/home');
+		// }
 		// console.log('Route changed to:', $page.route.id);
 		page.subscribe((p) => {
 			// console.log('Route changed to:', $page.route.id);
@@ -32,20 +30,6 @@
 			updateVh();
 			// You can add your custom logic here
 		});
-
-		// while (!$nostrPubKey) {
-		// 	let isSaved = false;
-		// 	setTimeout(async () => {
-		// 		// console.log('Waiting for profile');
-		// 		isSaved = await getNuts();
-		// 	}, 10000);
-		// 	if (isSaved) {
-		// 		break;
-		// 	}
-		// }
-
-		// $: console.log(c);
-		// You can add your custom logic here
 	});
 
 	$: homepage = $page.route.id == '/';
@@ -59,15 +43,11 @@
 	{@html webManifestLink}
 </svelte:head>
 
-<StorageManager>
-	<!-- {#if $useNostr} -->
-	<!-- <NostrSocket /> -->
-	<!-- {/if} -->
-	{#if $nostrPubKey}
-		<slot />
-		<Toasts />
+{#if $signer}
+	<slot />
+	{#if !homepage}
 		<MobileNav />
-	{:else}
-		<Login />
 	{/if}
-</StorageManager>
+{:else}
+	<Login />
+{/if}

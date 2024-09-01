@@ -14,12 +14,14 @@ import type { NostrEvent } from 'nostr-tools';
 import * as nostrTools from 'nostr-tools';
 import { sendMessage } from 'src/actions/chat';
 import { checkProofsSpent, saveNuts } from 'src/actions/wallet';
-import { getKeysForUnit, isValidToken } from 'src/comp/util/walletUtils';
+import { getKeysForUnit, isValidToken } from 'src/actions/wallet';
 import { HistoryItemType } from 'src/model/historyItem';
 import { derived, get } from 'svelte/store';
-import { db, invoices, pendingProofs, proofs, type Invoice } from './db';
-import { nostrPrivKey, nostrPubKey, pool } from './nostr';
+
+import { db, invoices, pendingProofs, proofs, type Invoice, key, spentProofs } from './db';
 import { timestamp10 } from './time';
+import { pool } from './relays';
+import { signer } from './signer';
 
 export const eventMap: { [key: string]: boolean } = {};
 if (browser) {
@@ -27,19 +29,20 @@ if (browser) {
 	let out = 0;
 	let totalMessage = 0;
 	let topups = 0;
-	derived([nostrPubKey, nostrPrivKey, db], async ([$pubkey, $privkey, $db]) => {
+	derived([key, pool, db], async ([$key, $pool, $db]) => {
 		// console.info('fetching messages');
-		if (!$pubkey || (!$privkey && !window.nostr)) return;
+		if (!$key?.pub) return;
+		if (!$pool) return;
 		// if (!get(mints).length) return;
-		const messages = pool.req([
+		const messages = get(pool).req([
 			{
 				kinds: [nostrTools.kinds.EncryptedDirectMessage],
-				'#p': [$pubkey]
+				'#p': [$key.pub]
 				// since: Math.round(Date.now() / 1000)
 			}, // incoming messages
 			{
 				kinds: [nostrTools.kinds.EncryptedDirectMessage],
-				authors: [$pubkey]
+				authors: [$key.pub]
 				// since: Math.round(Date.now() / 1000)
 			} // outgoing messages and topups
 		]);
@@ -47,7 +50,7 @@ if (browser) {
 		for await (const message of messages) {
 			if (message[0] === 'CLOSED') break;
 			if (message[0] !== 'EVENT') continue;
-			console.log('message', totalMessage++);
+			// console.log('message', totalMessage++);
 			const event = message[2];
 			const exist = await $db.messages.where('event.id').equals(event.id).count();
 			if (exist > 0) continue;
@@ -55,11 +58,10 @@ if (browser) {
 			await $db.messages.add({ event });
 
 			// if the event content is in the map, it has been processed already
-			if (eventMap[event.content]) continue;
-			eventMap[event.content] = true;
+
 			if (!nostrTools.validateEvent(event)) continue;
 
-			const incoming = event.tags.some((t) => t[0] === 'p' && t[1] === $pubkey);
+			const incoming = event.tags.some((t) => t[0] === 'p' && t[1] === $key.pub);
 			const token = await decodeEventContent(event, incoming);
 			if (!token) continue;
 
@@ -68,7 +70,13 @@ if (browser) {
 				token.token.map(async (t) => {
 					await Promise.all(
 						t.proofs.map(async (p) => {
-							await $db.keysets.put({ id: p.id, mint: t.mint });
+							// check if the keyset is already in the db
+							const keyset = await $db.keysets.get({ id: p.id });
+							if (!keyset) {
+								const mint = new CashuMint(t.mint);
+								const keysets = await mint.getKeySets();
+								$db.keysets.bulkPut(keysets.keysets.map((ks) => ({ ...ks, mint: t.mint })));
+							}
 						})
 					);
 				})
@@ -82,7 +90,7 @@ if (browser) {
 				if (!isSave) {
 					$db.history.add({
 						date: event.created_at,
-						type: event.pubkey == $pubkey ? HistoryItemType.MINT : HistoryItemType.RECEIVE_NOSTR,
+						type: event.pubkey == $key.pub ? HistoryItemType.MINT : HistoryItemType.RECEIVE_NOSTR,
 						amount: proofs.reduce((acc, cur) => (acc += cur.amount), 0),
 						data: {
 							mint: token.token[0].mint,
@@ -93,7 +101,7 @@ if (browser) {
 				}
 				// incoming messages
 				// add an history entry in the db
-				if (event.pubkey !== $pubkey) {
+				if (event.pubkey !== $key.pub) {
 					console.log('--------incoming message', into++);
 					// if the sender is not yourself, add to pendingProofs to be claimed later
 					await $db.pendingProofs.bulkAdd(proofs);
@@ -128,11 +136,12 @@ if (browser) {
 	}).subscribe((n) => n);
 
 	// when new pendingProofs are added, try to claim them
-	derived([nostrPubKey, nostrPrivKey, db, pendingProofs], async ([$pubkey, $privkey, $db, $pp]) => {
-		if (!$pp.length) return;
-		console.info('claiming proofs', $pp);
+	derived([key, db, timestamp10], async ([$key, $db, $time]) => {
+		const pp = get(pendingProofs);
+		if (!pp.length) return;
+		console.info('claiming proofs', pp);
 		// organize proofs by mint
-		const proofsByKeySet = $pp.reduce(
+		const proofsByKeySet = pp.reduce(
 			(acc, cur) => {
 				if (!acc[cur.id]) acc[cur.id] = [];
 				acc[cur.id].push(cur);
@@ -158,7 +167,7 @@ if (browser) {
 			try {
 				const res = await wallet.receiveTokenEntry(
 					{ proofs: proofsByKeySet[key], mint: m.mint },
-					{ privkey: $privkey }
+					{ privkey: $key.priv }
 				);
 
 				// // add the proofs to the db
@@ -167,7 +176,7 @@ if (browser) {
 				await $db.pendingProofs.bulkDelete(proofsByKeySet[key].map((p) => p.secret));
 
 				if (res.proofs.length) {
-					await saveNuts(res.proofs, $pubkey);
+					await saveNuts(res.proofs, $key.pub);
 				}
 			} catch (e) {
 				console.error(e);
@@ -177,56 +186,58 @@ if (browser) {
 
 	// claim pending invoices
 	let timestampIndex = 0;
-	derived(
-		[nostrPubKey, nostrPrivKey, db, invoices, timestamp10],
-		async ([$pubkey, $privkey, $db, $invoices]) => {
-			if (!$pubkey) return;
+	derived([key, db, invoices, timestamp10], async ([$key, $db, $invoices]) => {
+		if (!$key?.pub) return;
 
-			timestampIndex++;
-			// for fresh invoices, try to claim them on every timestamp
-			$invoices.forEach(async (invoice, i) => {
-				i = i % 30;
-				const minting = async (invoice: Invoice) => {
-					const cashuMint = new CashuMint(invoice.mint);
-					const keys = await cashuMint.getKeys();
-					const wallet = new CashuWallet(cashuMint, keys.keysets[0]);
-					const amount = decode(invoice.request).sections[2].value / 1000;
-					wallet.mintTokens(amount, invoice.quote).then(async (res) => {
-						const encodedToken = getEncodedToken({
-							token: [{ proofs: res.proofs, mint: invoice.mint }],
-							memo: 'invoice'
-						});
-						// will be claimed twice probably
-						// adding anyway in case the message is not sent
-						await $db.proofs.bulkAdd(res.proofs);
-
-						await $db.invoices.delete(invoice.quote);
-						// send the token to the profile public address
-						await sendMessage($pubkey, encodedToken);
+		timestampIndex++;
+		// for fresh invoices, try to claim them on every timestamp
+		$invoices.forEach(async (invoice, i) => {
+			i = i % 30;
+			const minting = async (invoice: Invoice) => {
+				const cashuMint = new CashuMint(invoice.mint);
+				const keys = await cashuMint.getKeys();
+				const wallet = new CashuWallet(cashuMint, keys.keysets[0]);
+				const amount = decode(invoice.request).sections[2].value / 1000;
+				wallet.mintTokens(amount, invoice.quote).then(async (res) => {
+					const encodedToken = getEncodedToken({
+						token: [{ proofs: res.proofs, mint: invoice.mint }],
+						memo: 'invoice'
 					});
-				};
-				if (Date.now() / 1000 - invoice.date < 60 * 5) {
-					await minting(invoice);
-				} else if (timestampIndex % 30 === i) {
-					await minting(invoice);
-				}
-			});
-		}
-	).subscribe((n) => n);
+					// will be claimed twice probably
+					// adding anyway in case the message is not sent
+					await $db.proofs.bulkAdd(res.proofs);
+
+					await $db.invoices.delete(invoice.quote);
+					// send the token to the profile public address
+					await sendMessage($key.pub, encodedToken);
+				});
+			};
+			if (Date.now() / 1000 - invoice.date < 60 * 5) {
+				await minting(invoice);
+			} else if (timestampIndex % 30 === i) {
+				await minting(invoice);
+			}
+		});
+	}).subscribe((n) => n);
 
 	let lastCheck = '';
-	// every 60 seconds, check if the proofs are spent
-	derived([proofs, timestamp10], async ([$proofs, $time]) => {
-		if (!$proofs.length || lastCheck === JSON.stringify($proofs)) return;
-		lastCheck = JSON.stringify($proofs);
-		await checkProofsSpent($proofs);
+	let lastCheckTimestamp = 0;
+	// every 10 seconds, check if the proofs are spent
+	derived([timestamp10], async ([$time]) => {
+		await checkProofsSpent(get(proofs));
+		// lastCheck = JSON.stringify($proofs);
+		// lastCheckTimestamp = $time;
 	}).subscribe((n) => n);
 }
 
 // try to get the cashu tokens saved in the user private chat
 export async function getNuts(cashu: Token) {
 	cashu.token.map(async (t) => {
-		await get(db).proofs.bulkPut(t.proofs);
+		const filtered = t.proofs.filter((p) => !get(spentProofs).some((sp) => sp.secret == p.secret));
+		// get(db).spentProofs.bulkget()
+		if (filtered.length) {
+			await get(db).proofs.bulkPut(filtered);
+		}
 	});
 }
 
@@ -234,19 +245,19 @@ export async function decodeEventContent(
 	event: NostrEvent,
 	incoming: boolean
 ): Promise<Token | undefined> {
-	let decodedMessage: string;
+	let decodedMessage: string | undefined;
 	const pubkey = incoming ? event.pubkey : event.tags.find((t) => t[0] == 'p')?.[1];
 	console.log('pubkey', pubkey);
 	if (!pubkey) return;
 	try {
-		decodedMessage = window.nostr
-			? await window.nostr.nip04.decrypt(pubkey, event.content)
-			: await nostrTools.nip04.decrypt(get(nostrPrivKey), pubkey, event.content);
+		decodedMessage = await get(signer)?.nip04.decrypt(pubkey, event.content);
 	} catch (e) {
 		console.error(e, 'could not decrypt nip-04 message. Ignoring this message');
 		// continue;
 		return;
 	}
+
+	if (!decodedMessage) return;
 
 	let token;
 	try {

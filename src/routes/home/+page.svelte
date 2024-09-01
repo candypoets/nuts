@@ -1,24 +1,14 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
 	import QrScanner from 'src/comp/QRScanner.svelte';
-	import WalletLock from 'src/comp/elements/WalletLock.svelte';
 	import { scanning } from 'src/stores';
-	import { profile } from 'src/stores/nostr';
 	import { onMount } from 'svelte';
 	import { mints } from '../../stores/mints';
-	import { isEncrypted } from '../../stores/settings';
+
 	import AddFriendModal from './add-friend-modal.svelte';
 	import AddModal from './add-modal.svelte';
 	import SendModal from './send/send-modal.svelte';
-	import Transactions from './transactions.svelte';
-	import DrawerSheet from './DrawerSheet.svelte';
-	import TestVaul from './TestVaul.svelte';
-
-	let isDrawerOpen = false;
-
-	function toggleDrawer() {
-		isDrawerOpen = !isDrawerOpen;
-	}
+	import Transactions from './transactions/index.svelte';
 
 	let active = 'base';
 	let encodedToken = '';
@@ -70,46 +60,36 @@
 		// 	}
 		// }
 	});
-
-	$: console.log($profile);
 </script>
 
-<div class="flex gap-8 place-content-center mt-12">
-	<div class="text-center">
-		<TestVaul />
-		<button class="btn w-14 h-14 btn-primary btn-circle" on:click={toggleDrawer}>
-			<Icon icon="carbon:diamond-outline" class="w-8 h-8" />
-		</button>
-		<div class="text-sm mt-1 font-semibold">Drawer</div>
-		<DrawerSheet bind:isOpen={isDrawerOpen} />
-	</div>
-	<div class="text-center">
+<div class="flex gap-2 mx-4 -mt-4 lg:mt-4">
+	<div class="text-center flex-grow">
 		<button class="btn w-14 h-14 btn-primary btn-circle" on:click={() => (addOpen = true)}>
-			<Icon icon="carbon:add" class="w-8 h-8" />
+			<Icon icon="teenyicons:add-outline" class="text-2xl" />
 		</button>
-		<div class="text-sm mt-1 font-semibold">Add</div>
+		<div class="text-sm mt-1 font-semibold">Receive</div>
 	</div>
-	<div class="text-center">
+	<div class="text-center flex-grow">
 		<button class="btn w-14 h-14 btn-primary btn-circle" on:click={() => (sendOpen = true)}>
-			<Icon icon="carbon:arrow-right" class="w-8 h-8" />
+			<Icon icon="ph:arrow-right-thin" class="w-8 h-8" />
 		</button>
 		<div class="text-sm mt-1 font-semibold">Send</div>
 	</div>
-	<div class="text-center">
+	<div class="text-center flex-grow">
 		<!-- <button class="btn w-14 h-14 btn-circle btn-outline" on:click={() => (addFriend = true)}>
 			<Icon icon="carbon:user" class="w-8 h-8" />
 		</button> -->
-		<button class="btn w-14 h-14 btn-outline btn-circle" on:click={() => ($scanning = true)}>
+		<button class="btn w-14 h-14 btn-outline btn-circle">
 			<QrScanner />
 		</button>
 		<div class="text-sm mt-1 font-semibold">Scan</div>
 	</div>
+	<div class="flex-grow w-1/4" />
 </div>
+<br />
 
 <Transactions />
-{#if $isEncrypted}
-	<WalletLock></WalletLock>
-{/if}
+
 <AddModal bind:open={addOpen} />
 
 <SendModal bind:open={sendOpen} />

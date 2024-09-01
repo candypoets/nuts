@@ -1,11 +1,7 @@
 <script lang="ts">
-	import { formatAmount } from 'src/comp/util/walletUtils';
-	import { totalAmountAvailable } from 'src/stores/mints';
-	import { unit } from '../../stores/settings';
-
 	import Icon from '@iconify/svelte';
-	import { profile } from 'src/stores/nostr';
-	import ProfileModal from '../home/profile-modal.svelte';
+	import ProfileModal from 'src/routes/_profile/index.svelte';
+	import { profile } from 'src/stores/profile';
 
 	let profileOpen: boolean = false;
 </script>

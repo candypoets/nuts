@@ -1,8 +1,10 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
+	import { nip19 } from 'nostr-tools';
+	import { signAndSend } from 'src/actions/relay';
 	import type { Contact } from 'src/model/contact';
-	import { db } from 'src/stores/db';
-	import { nostrPubKey, pool, signAndSend } from 'src/stores/nostr';
+	import { contacts, db, key } from 'src/stores/db';
+	import { pool } from 'src/stores/relays';
 	import { Drawer } from 'vaul-svelte';
 
 	export let open: boolean = false;
@@ -23,9 +25,11 @@
 		setTimeout(() => {
 			abortController.abort();
 		}, 10000);
-
+		if (pubkey.startsWith('npub')) {
+			pubkey = nip19.decode(pubkey).data as string;
+		}
 		try {
-			const isAuth = await pool.query([{ authors: [pubkey], kinds: [0] }], { signal });
+			const isAuth = await $pool.query([{ authors: [pubkey], kinds: [0] }], { signal });
 			console.log(isAuth);
 			user = JSON.parse(isAuth[0].content);
 		} catch (error) {
@@ -83,18 +87,30 @@
 						<div class="flex items-end">
 							<button
 								class="btn btn-circle"
+								class:btn-primary={$contacts.some((c) => c.pubkey == pubkey)}
 								on:click={async () => {
 									console.log('add friend');
-									$db.contacts.add({ ...user, pubkey, createdAt: Math.floor(Date.now() / 1000) });
+									await $db.contacts.add({
+										...user,
+										pubkey,
+										createdAt: Math.floor(Date.now() / 1000)
+									});
 									await signAndSend({
 										kind: 3,
-										pubkey: $nostrPubKey,
+										pubkey: $key?.pub,
 										created_at: Math.floor(Date.now() / 1000),
-										tags: [['p', pubkey]],
+										// tags: [['p', pubkey]],
+										tags: $contacts.map((c) => ['p', c.pubkey]),
 										content: ''
 									});
-								}}><Icon icon="mingcute:user-follow-fill" /></button
+								}}
 							>
+								{#if $contacts.some((c) => c.pubkey == pubkey)}
+									<Icon icon="el:ok" />
+								{:else}
+									<Icon icon="mingcute:user-follow-fill" />
+								{/if}
+							</button>
 						</div>
 					</div>
 				{/if}

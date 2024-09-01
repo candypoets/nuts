@@ -1,52 +1,48 @@
 import type { Contact } from '../model/contact';
 import * as nostrTools from 'nostr-tools';
 import { derived, get, writable } from 'svelte/store';
-import { nostrPrivKey, nostrPubKey, pool } from './nostr';
-import { contacts, db } from './db';
+import { contacts, db, key } from './db';
 import { browser } from '$app/environment';
+import { pool } from './relays';
 
 if (browser) {
-	derived([nostrPubKey, nostrPrivKey, db], async ([$pubkey, $privkey, $db]) => {
+	derived([key, db], async ([$key, $db]) => {
 		// console.info('fetching contacts');
-		if (!$pubkey) return;
+		if (!$key?.pub) return;
 		try {
 			// find the last added contact
 			const last = await $db.contacts.orderBy('createdAt').last();
 
-			const messages = pool.req([
+			const follows = get(pool).req([
 				{
 					kinds: [nostrTools.kinds.Contacts],
 					limit: 30,
-					authors: [$pubkey],
+					authors: [$key.pub],
 					since: last?.createdAt
 				}
 			]);
 
-			for await (const message of messages) {
-				if (message[0] === 'CLOSED') break;
-				if (message[0] !== 'EVENT') continue;
-				const event = message[2];
-				const follows = pool.req([
+			for await (const follow of follows) {
+				if (follow[0] === 'CLOSED') break;
+				if (follow[0] !== 'EVENT') continue;
+				console.log('contact', follow[2]);
+				const profiles = get(pool).req([
 					{
 						kinds: [0],
-						authors: event.tags.filter((t) => t[0] == 'p').map((t) => t[1]),
-						since: last?.createdAt
+						authors: follow[2].tags.filter((t) => t[0] == 'p').map((t) => t[1])
+						// since: last?.createdAt
 					}
 				]);
-				for await (const follow of follows) {
-					if (follow[0] === 'CLOSED') break;
-					if (follow[0] !== 'EVENT') continue;
-					const event = follow[2];
-					// console.log(event);
-					const contact = JSON.parse(event.content);
-
-					// console.log(contact, event.created_at);
-
+				for await (const profile of profiles) {
+					if (profile[0] === 'CLOSED') break;
+					if (profile[0] !== 'EVENT') continue;
+					const contact = JSON.parse(profile[2].content);
+					console.log(contact);
 					// add the contact to the db
 					await $db.contacts.put({
-						createdAt: event.created_at,
-						pubkey: event.pubkey,
-						name: contact.name,
+						createdAt: follow[2].created_at,
+						pubkey: profile[2].pubkey,
+						name: contact.name || contact.display_name || contact.displayName,
 						about: contact.about,
 						picture: contact.picture
 					});
@@ -65,7 +61,7 @@ export async function getContact(pubkey: string): Promise<Contact> {
 	if (local) return local;
 	const contact = new Promise<Contact>(async (resolve, reject) => {
 		try {
-			const follows = pool.req([
+			const follows = get(pool).req([
 				{
 					kinds: [0],
 					authors: [pubkey]
@@ -75,8 +71,8 @@ export async function getContact(pubkey: string): Promise<Contact> {
 				if (follow[0] === 'CLOSED') break;
 				if (follow[0] !== 'EVENT') continue;
 				const event = follow[2];
-				console.log(event);
-				resolve(JSON.parse(event.content));
+				// console.log(event);
+				resolve({ ...JSON.parse(event.content), pubkey: event.pubkey });
 			}
 		} catch (e) {
 			reject(e);

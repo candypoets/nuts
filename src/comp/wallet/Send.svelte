@@ -1,19 +1,11 @@
 <script lang="ts">
-	import type { Mint } from '../../model/mint';
-	import { mints } from '../../stores/mints';
-	import MintSelector from '../elements/MintSelector.svelte';
-	import Sending from './Sending.svelte';
-	import { token } from '../../stores/tokens';
-	import { formatAmount, getAmountForTokenSet, getTokensForMint } from '../util/walletUtils';
-	import TokenIcon from '../tokens/TokenIcon.svelte';
 	import { browser } from '$app/environment';
-	import { onMount } from 'svelte';
-	import CoinSelection from '../elements/CoinSelection.svelte';
 	import type { Proof } from '@cashu/cashu-ts';
-	import Melting from './Melting.svelte';
-	import ScanLn from '../elements/ScanLN.svelte';
-	import { showShortCuts } from '../../stores/showShortCuts';
-	import { unit } from '../../stores/settings';
+	import { settings } from 'src/stores/db';
+	import { onMount } from 'svelte';
+	import { mints } from '../../stores/mints';
+	import TokenIcon from 'src/comp/TokenIcon.svelte';
+	import { formatAmount } from 'src/actions/wallet';
 
 	export let active: string;
 	export let mint = $mints[0];
@@ -75,7 +67,7 @@
 					<TokenIcon />
 
 					<p class="font-bold">
-						{formatAmount(getAmountForTokenSet(getTokensForMint(mint, $token)), $unit)}
+						<!-- {formatAmount(getAmountForTokenSet(getTokensForMint(mint, $token)), $settings.unit)} -->
 					</p>
 					<p>available</p>
 				</div>
@@ -99,11 +91,6 @@
 									/>
 								</svg>
 								<p>Send ecash</p>
-								<div class="relative">
-									{#if $showShortCuts}
-										<kbd class="absolute kbd text-neutral-content">E</kbd>
-									{/if}
-								</div>
 							</div>
 						</button>
 						<button
@@ -127,11 +114,6 @@
 								</svg>
 
 								<p>Send lightning</p>
-								<div class="relative">
-									{#if $showShortCuts}
-										<kbd class="absolute kbd text-neutral-content">L</kbd>
-									{/if}
-								</div>
 							</div>
 						</button>
 					</div>
@@ -161,7 +143,7 @@
 					{#if !isSend && fees}
 						<div class="text-sm flex gap-2">
 							<p class="font-bold">
-								{formatAmount(fees, $unit)}
+								{formatAmount(fees, $settings.unit)}
 							</p>
 							<p>fees</p>
 						</div>
@@ -170,7 +152,7 @@
 			</div>
 		{/if}
 
-		<div class=" flex items-center justify-center w-full">
+		<!-- <div class=" flex items-center justify-center w-full">
 			{#if !isSend}
 				<Melting
 					bind:getMeltQuote
@@ -200,5 +182,6 @@
 		{/if}
 	{:else if activeS === 'send-scan'}
 		<ScanLn bind:invoice bind:activeS />
+	{/if} -->
 	{/if}
 </div>

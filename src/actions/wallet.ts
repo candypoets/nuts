@@ -5,14 +5,18 @@ import {
 	type AmountPreference,
 	type Proof,
 	type Token,
-	type TokenEntry
+	type TokenEntry,
+	type MintKeys
 } from '@cashu/cashu-ts';
-import type { NostrEvent, UnsignedEvent } from 'nostr-tools';
-import { db, proofs, spentProofs } from 'src/stores/db';
-import { nostrPubKey, profile, signAndSend, signer } from 'src/stores/nostr';
+import { nip19, type NostrEvent, type UnsignedEvent } from 'nostr-tools';
+import { db, key, proofs, spentProofs } from 'src/stores/db';
+
 import type { WalletInfo } from 'src/stores/wallet';
 import { get } from 'svelte/store';
+import { hexToBytes } from '@noble/hashes/utils';
 import { getDecryptedContent, getEncryptedContent, sendMessage } from './chat';
+import { signer } from 'src/stores/signer';
+import { profile } from 'src/stores/profile';
 
 // send proofs from the most important mint to the least important
 export const send = async (
@@ -75,8 +79,77 @@ export const send = async (
 		spents,
 		returnChanges,
 		encodedToken: getEncodedToken({ token: toEncode, memo }),
-		amount: await getEncryptedContent(get(nostrPubKey), amount.toString())
+		amount: await getEncryptedContent(get(key).pub, amount.toString())
 	};
+};
+
+export const swap = async (
+	send: CashuWallet,
+	receive: CashuWallet,
+	proofs: Proof[],
+	amount: number
+): Promise<{
+	swapIn: Proof[];
+	swapOut: Proof[];
+}> => {
+	const swapIn: Proof[] = proofs;
+	// const sends: Proof[] = [];
+	const swapOut: Proof[] = [];
+
+	const { quote, request } = await receive.getMintQuote(amount);
+
+	const meltQuote = await send.getMeltQuote(request);
+
+	const fees = meltQuote.fee_reserve;
+
+	const melt = await send.meltTokens(meltQuote, proofs);
+	swapOut.push(...melt.change);
+	if (melt.isPaid) {
+		const res = await receive.mintTokens(amount, quote);
+		swapOut.push(...res.proofs);
+	}
+
+	return {
+		swapIn,
+		swapOut
+	};
+};
+
+export const getMeltQuote = async (wallets: WalletInfo[], amount: number) => {
+	let index = 0;
+	let amountAvailable = 0;
+	const swaps: { from: WalletInfo; to: WalletInfo; invoice: string }[] = [];
+	for (let wallet of wallets) {
+		if (amountAvailable > amount) break;
+		let nextWallet = wallets[index + 1];
+		if (!nextWallet) break;
+		const amountMinusFees = wallet.amount - wallet.fees;
+		if (amountMinusFees < amount) {
+			const mint = await nextWallet.wallet.getMintQuote(amountMinusFees);
+			const melt = await wallet.wallet.getMeltQuote(mint.request);
+
+			swaps.push({ from: wallet, to: nextWallet, invoice: mint.request });
+		}
+	}
+};
+
+export const melt = async (
+	wallets: WalletInfo[],
+	amount: number,
+	amountAvailable: number,
+	meltQuote: string
+) => {
+	// try to melt the invoice from the least important mint to the most important (in value)
+	let index = 0;
+	for (let wallet of wallets) {
+		// if the wallet does not have enough funds to melt, try a swap
+		if (wallet.amount < amount) {
+		}
+	}
+	// If we've gone through all wallets and still haven't paid the full amount
+	if (amount > 0) {
+		throw new Error('Insufficient funds to melt the requested amount');
+	}
 };
 
 // export const receive = async (proofs: Proof[], mint: string) => {
@@ -116,24 +189,34 @@ export const send = async (
 // 		amount: await getEncryptedContent(get(nostrPubKey), amount.toString())
 // 	};
 // }
+//
 
-export const signEvent = async (event: Omit<NostrEvent, 'id' | 'sig'>) => {
-	if (window.nostr) {
-		event = await window.nostr.signEvent(event);
-	} else {
-		event = await get(signer).signEvent(event);
-	}
-	return event as NostrEvent;
+export const isValidToken = (obj: any) => {
+	// todo implement
+	return true;
 };
 
-export const getMyPubKey = async (): Promise<string> => {
-	return window.nostr ? await window.nostr.getPublicKey() : get(nostrPubKey);
+export const getKeysForUnit = (keys: MintKeys[], unit = 'sat'): MintKeys | undefined => {
+	return keys.find((k) => {
+		return k.unit === unit;
+	});
+};
+
+export const getAmountForTokenSet = (tokens: Array<Proof>): number => {
+	return (tokens || []).reduce((acc, t) => {
+		return acc + t.amount;
+	}, 0);
+};
+
+export const signEvent = async (event: Omit<NostrEvent, 'id' | 'sig'>) => {
+	event = await get(signer)?.signEvent(event);
+	return event as NostrEvent;
 };
 
 // save a cashu token representing the entire user balance
 // then send a private message to yourself with the encrypted tokens
-export const saveNuts = async (proofs: Proof[], toPubKey: string) => {
-	if (!proofs.length) return;
+export const saveNuts = async (proofs: Proof[], toPubKey?: string) => {
+	if (!proofs.length || !toPubKey) return;
 	const toEncode: TokenEntry[] = [];
 	const proofsByKeySet = proofs.reduce(
 		(acc, cur) => {
@@ -194,3 +277,94 @@ export async function retrieveSpentProofs(event: NostrEvent, pubkey: string): Pr
 	const spentProofs = JSON.parse(decrypted);
 	return spentProofs;
 }
+
+export function decodePrivKey(value: string): Uint8Array {
+	let pk;
+	if (value.startsWith('nsec')) {
+		const { type, data } = nip19.decode(value);
+		pk = data;
+	} else {
+		pk = hexToBytes(value);
+	}
+	return pk;
+}
+
+/**
+ * Checks if a given string is a valid Lightning invoice.
+ * @param {string} invoice - The string to check.
+ * @returns {boolean} - True if the string is a valid Lightning invoice, false otherwise.
+ */
+export function isLightningInvoice(invoice: string): boolean {
+	// Regular expression to match Lightning invoice format
+	const lightningInvoiceRegex = /^(lnbc|lntb|LNBC|LNTB)[0-9a-zA-Z]+$/;
+	return lightningInvoiceRegex.test(invoice);
+}
+
+/**
+ * Checks if a given string is a valid Nostr public key (npub).
+ * @param {string} npub - The string to check.
+ * @returns {boolean} - True if the string is a valid Nostr public key, false otherwise.
+ */
+export function isNpub(npub: string): boolean {
+	// Regular expression to match Nostr public key format (Bech32 with npub prefix)
+	const npubRegex = /^npub[0-9a-zA-Z]+$/;
+	return npubRegex.test(npub);
+}
+
+export function isNostr(content: string): boolean {
+	// Regular expression to match Nostr public key format (Bech32 with npub prefix)
+	const npubRegex = /^nostr:npub[0-9a-zA-Z]+$/;
+	return npubRegex.test(content);
+}
+
+export const getInvoiceFromAddress = async (
+	address: string,
+	amount: number
+): Promise<{ pr: string; maxSendable: number; minSendable: number }> => {
+	const addressParts = address.split('@');
+	const endpoint = `https://${addressParts[1]}/.well-known/lnurlp/${addressParts[0]}`;
+	return await LNURLLookup(endpoint, amount);
+};
+
+export const getInvoiceFromLNURL = async (
+	LNURL: string,
+	amount: number
+): Promise<{ pr: string; maxSendable: number; minSendable: number }> => {
+	const { prefix: hrp, words: dataPart } = bech32.decode(LNURL, 2000);
+	const requestByteArray = bech32.fromWords(dataPart);
+
+	const endpoint = Buffer.from(requestByteArray).toString();
+	return await LNURLLookup(endpoint, amount);
+};
+
+const LNURLLookup = async (endpoint: string, amount: number) => {
+	const { callback, maxSendable, minSendable } = (await (await fetch(endpoint)).json()) as {
+		callback: string;
+		maxSendable: number;
+		minSendable: number;
+	};
+	if (!callback) {
+		throw new Error('No callback url found.');
+	}
+	const cb = callback + (callback.includes('?') ? `&` : `?`) + `amount=${amount * 1000}`;
+	const { pr } = (await (await fetch(cb)).json()) as { pr: string };
+	return { pr, maxSendable, minSendable };
+};
+
+export const formatAmount = (amount: number, unit: string, withSuffix = true): string => {
+	if (unit === 'sat') {
+		return formatSats(amount, withSuffix);
+	} else {
+		console.log(amount);
+		return formatSats(amount, withSuffix);
+	}
+};
+
+const formatSats = (amount: number, withSuffix: boolean): string => {
+	return (
+		new Intl.NumberFormat('en-US').format(amount) +
+		(withSuffix ? ' ' + (amount > 1 ? 'sats' : 'sat') : '')
+	);
+};
+
+export { hexToBytes };

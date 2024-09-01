@@ -2,29 +2,30 @@
 	import { browser } from '$app/environment';
 	import { nip19 } from 'nostr-tools';
 	import { QRCodeImage } from 'svelte-qrcode-image';
-	import { nostrPubKey, useExternalNostrKey, useNostr } from '../../stores/nostr';
+	// import { nostrPubKey, useExternalNostrKey, useNostr } from '../../stores/nostr';
 
 	export let isOffline: boolean = false;
 
 	const getEncodedNpub = async () => {
-		if ($useExternalNostrKey) {
-			if (browser) {
-				const pubK = await window.nostr?.getPublicKey();
-				if (!pubK) {
-					return '';
-				}
-				return pubK;
-			}
-			return '';
-		} else {
-			if (!$nostrPubKey) {
-				return '';
-			}
-			return Promise.resolve($nostrPubKey);
-		}
+		// if ($useExternalNostrKey) {
+		// 	if (browser) {
+		// 		const pubK = await window.nostr?.getPublicKey();
+		// 		if (!pubK) {
+		// 			return '';
+		// 		}
+		// 		return pubK;
+		// 	}
+		// 	return '';
+		// } else {
+		// 	if (!$nostrPubKey) {
+		// 		return '';
+		// 	}
+		// 	return Promise.resolve($nostrPubKey);
+		// }
 	};
 </script>
 
+<!--
 {#await getEncodedNpub() then npub}
 	{#if npub}
 		<div class="flex items-center justify-center w-full">
@@ -44,4 +45,4 @@
 			</div>
 		</div>
 	{/if}
-{/await}
+{/await} -->

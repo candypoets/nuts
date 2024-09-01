@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { type MeltQuoteResponse, type Proof } from '@cashu/cashu-ts';
-	import LoadingCenter from '../LoadingCenter.svelte';
-	import { toast } from '../../stores/toasts';
-	import { token } from '../../stores/tokens';
+
+	// import { toast } from '../../stores/toasts';
+	// import { token } from '../../stores/tokens';
 	import {
 		formatAmount,
 		getAmountForTokenSet,
@@ -12,11 +12,12 @@
 		getTokensToSend
 	} from '../util/walletUtils';
 	import { onMount } from 'svelte';
-	import CoinSelection from '../elements/CoinSelection.svelte';
-	import * as walletActions from '../../actions/walletActions';
+
+	// import * as walletActions from '../../actions/walletActions';
 	import type { Mint } from '../../model/mint';
 	import { decode } from '@gandlaf21/bolt11-decode';
-	import { unit } from '../../stores/settings';
+	import { settings } from 'src/stores/db';
+	// import { unit } from '../../stores/settings';
 
 	export let active;
 	export let invoice = '';
@@ -32,8 +33,8 @@
 	let isLoading = false;
 	let isPaySuccess = false;
 	let memo = '';
-	let maxSend: number | undefined = undefined 
-	let minSend: number | undefined = undefined
+	let maxSend: number | undefined = undefined;
+	let minSend: number | undefined = undefined;
 	let meltQuote: MeltQuoteResponse;
 
 	onMount(() => {
@@ -46,56 +47,46 @@
 		try {
 			if (invoice.includes('@')) {
 				if (!amount) {
-					toast('info','Enter amount to send to address','Amount needed')
-					return
+					return;
 				}
-				toast('info','One moment please','Loading invoice...')
-				const {pr,maxSendable, minSendable} = await getInvoiceFromAddress(invoice, amount)
-				if (amount*1000<minSendable) {
-					toast('error',`Amount ${formatAmount(Math.floor(minSendable/1000), $unit)} minimum`,'Unable to fetch invoice')
-					maxSend = Math.floor(maxSendable/1000)
-					minSend = Math.floor(minSendable/1000)
-					return
+				const { pr, maxSendable, minSendable } = await getInvoiceFromAddress(invoice, amount);
+				if (amount * 1000 < minSendable) {
+					maxSend = Math.floor(maxSendable / 1000);
+					minSend = Math.floor(minSendable / 1000);
+					return;
 				}
-				if (amount*1000> maxSendable) {
-					toast('error',`Amount ${formatAmount(Math.floor(minSendable/1000), $unit)} max`,'Unable to fetch invoice')
-					maxSend = Math.floor(maxSendable/1000)
-					minSend = Math.floor(minSendable/1000)
-					return
+				if (amount * 1000 > maxSendable) {
+					maxSend = Math.floor(maxSendable / 1000);
+					minSend = Math.floor(minSendable / 1000);
+					return;
 				}
-				invoice = pr
-			}
-			else if (invoice.toLowerCase().startsWith('lnurl')) {
+				invoice = pr;
+			} else if (invoice.toLowerCase().startsWith('lnurl')) {
 				if (!amount) {
-					toast('info','Enter amount to send to address','Amount needed')
-					return
+					return;
 				}
-				toast('info','One moment please','Loading invoice...')
-				const {pr,maxSendable, minSendable} = await getInvoiceFromLNURL(invoice, amount)
-				if (amount*1000<minSendable) {
-					toast('error',`Amount ${formatAmount(Math.floor(minSendable/1000), $unit)} minimum`,'Unable to fetch invoice')
-					maxSend = Math.floor(maxSendable/1000)
-					minSend = Math.floor(minSendable/1000)
-					return
+				const { pr, maxSendable, minSendable } = await getInvoiceFromLNURL(invoice, amount);
+				if (amount * 1000 < minSendable) {
+					maxSend = Math.floor(maxSendable / 1000);
+					minSend = Math.floor(minSendable / 1000);
+					return;
 				}
-				if (amount*1000> maxSendable) {
-					toast('error',`Amount ${formatAmount(Math.floor(minSendable/1000), $unit)} max`,'Unable to fetch invoice')
-					maxSend = Math.floor(maxSendable/1000)
-					minSend = Math.floor(minSendable/1000)
-					return
+				if (amount * 1000 > maxSendable) {
+					maxSend = Math.floor(maxSendable / 1000);
+					minSend = Math.floor(minSendable / 1000);
+					return;
 				}
-				invoice = pr
-			}
-			else if (!invoice.toLocaleLowerCase().startsWith('ln')) {
+				invoice = pr;
+			} else if (!invoice.toLocaleLowerCase().startsWith('ln')) {
 				fees = 0;
 				amount = 0;
 				isPayable = false;
-				maxSend = undefined
-				minSend = undefined
-					
-				return
+				maxSend = undefined;
+				minSend = undefined;
+
+				return;
 			}
-			meltQuote = await walletActions.meltQuote(mint, invoice);
+			// meltQuote = await walletActions.meltQuote(mint, invoice);
 			fees = meltQuote.fee_reserve;
 			amount = meltQuote.amount;
 			memo = decode(invoice).description;
@@ -104,21 +95,18 @@
 			fees = 0;
 			amount = 0;
 			isPayable = false;
-			toast('warning', error?.message, 'Oops');
 		}
 	};
 
 	const payInvoice = async () => {
 		try {
 			if (!meltQuote) {
-				toast('warning', 'Invoice is not payable', 'Invoice not paid');
 				return;
 			}
 
-			if (amount+fees> getAmountForTokenSet(getTokensForMint(mint, $token))) {
-				toast('warning', 'Not enough funds in this mint', 'Cannot pay invoice');
-				return
-			}
+			// if (amount + fees > getAmountForTokenSet(getTokensForMint(mint, $token))) {
+			// 	return;
+			// }
 			isLoading = true;
 
 			let tokensToSend: Array<Proof> = [];
@@ -126,22 +114,21 @@
 			if (isCoinSelection) {
 				tokensToSend = selectedTokens;
 			} else {
-				tokensToSend = getTokensToSend(amount + fees, getTokensForMint(mint, $token));
+				// tokensToSend = getTokensToSend(amount + fees, getTokensForMint(mint, $token));
 			}
 
 			if (isCoinSelection && amount + fees > getAmountForTokenSet(tokensToSend)) {
-				toast('warning', 'Not enough funds', 'Could not pay');
 				return;
 			}
 			processing = true;
-			const isPaid = await walletActions.melt(mint, meltQuote, tokensToSend, invoice);
-			if (!isPaid) {
-				toast('error', 'Could not pay invoice', 'Error when paying invoice');
-			}
+			// const isPaid = await walletActions.melt(mint, meltQuote, tokensToSend, invoice);
+			// if (!isPaid) {
+			// 	toast('error', 'Could not pay invoice', 'Error when paying invoice');
+			// }
 			isPaySuccess = true;
-			toast('success', `${formatAmount(amount, $unit)} with fees`, 'Invoice paid');
+			// toast('success', `${formatAmount(amount, $unit)} with fees`, 'Invoice paid');
 		} catch (error) {
-			toast('error', 'Could not pay invoice', 'Error');
+			// toast('error', 'Could not pay invoice', 'Error');
 			console.error(error);
 		} finally {
 			isLoading = false;
@@ -169,7 +156,6 @@
 	{#if isLoading}
 		<div class=" h-full flex items-center justify-center gap-5 flex-col">
 			<p>Paying lightning invoice...</p>
-			<LoadingCenter />
 		</div>
 	{:else if isPaySuccess}
 		<div class="flex w-full h-full flex-col items-center justify-center gap-5">
@@ -197,9 +183,9 @@
 	{:else}
 		<div class="h-10 w-full items-center justify-center flex">
 			{#if maxSend}
-			<p class=" bg-base-200 rounded-lg p-3 text-sm">
-				{formatAmount(maxSend, $unit, false)} - {formatAmount(maxSend, $unit)}
-			</p>
+				<p class=" bg-base-200 rounded-lg p-3 text-sm">
+					{formatAmount(maxSend, $settings.unit, false)} - {formatAmount(maxSend, $settings.unit)}
+				</p>
 			{/if}
 		</div>
 		<div class="inline-block relative w-full">
@@ -215,11 +201,9 @@
 						e.preventDefault();
 						if (isPayable) {
 							payInvoice();
-						}
-						else {
+						} else {
 							getMeltQuote();
 						}
-							
 					}
 				}}
 			/>
@@ -255,7 +239,7 @@
 				bind:value={memo}
 			/>
 		</div>
-		<CoinSelection amount={amount + fees} {mint} bind:selectedTokens bind:isCoinSelection />
+		<!-- <CoinSelection amount={amount + fees} {mint} bind:selectedTokens bind:isCoinSelection /> -->
 
 		<div class="flex items-center gap-2 justify-center">
 			<button

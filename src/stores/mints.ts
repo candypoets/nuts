@@ -2,38 +2,26 @@ import { browser } from '$app/environment';
 import { CashuMint, type Proof } from '@cashu/cashu-ts';
 import type { Mint } from '../../src/model/mint';
 
-import { getAmountForTokenSet } from 'src/comp/util/walletUtils';
+import { getAmountForTokenSet } from 'src/actions/wallet';
 import { derived, get, writable, type Readable } from 'svelte/store';
-import { db, proofs } from './db';
-import { nostrPubKey } from './nostr';
+import { db, dbMints, proofs } from './db';
 import { timestamp60 } from './time';
 
-const defaultMints = writable<Array<string>>([
-	'https://mint.minibits.cash/Bitcoin',
-	'https://mint.lnserver.com/'
-]);
-
-const mints = derived(
-	[defaultMints, db, timestamp60],
-	([$defaultMints, $db, $timestamp60], set) => {
-		// make sure there is no duplicate in defaultMints
-		const map = ($defaultMints || []).reduce(
-			(acc, cur) => {
-				return { ...acc, [cur]: true };
-			},
-			{} as Record<string, boolean>
-		);
-
+export const mints = derived(
+	[dbMints, db, timestamp60],
+	([$dbMints, $db, $timestamp60], set) => {
 		Promise.all(
-			Object.keys(map).map(async (m) => {
+			$dbMints.map(async (m) => {
 				console.log(m);
-				const mint = new CashuMint(m);
+				const mint = new CashuMint(m.url);
 				const keysets = await mint.getKeySets();
 				const keys = await mint.getKeys();
 
-				await $db.keysets.put({ id: keys.keysets[0].id, mint: m });
+				await Promise.all(
+					keysets.keysets.map(async (ks) => await $db.keysets.put({ ...ks, mint: m.url }))
+				);
 				return {
-					mintURL: m,
+					mintURL: m.url,
 					keysets: keysets.keysets,
 					keys: keys.keysets
 				};
@@ -66,9 +54,8 @@ export const getAmountAvailable = async (mint: Mint) => {
 };
 
 export const totalAmountAvailable = derived(
-	[mints, nostrPubKey, proofs],
-	([$mints, $pubkey, $proofs], set) => {
-		if (!$pubkey) set(0);
+	[mints, proofs],
+	([$mints, $proofs], set) => {
 		let total = 0;
 		console.log($mints);
 		Promise.all(
@@ -133,5 +120,3 @@ export const tokensForMint = derived(
 	},
 	[] as Array<Proof>
 );
-
-export { mints };

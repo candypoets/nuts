@@ -1,40 +1,33 @@
 <script lang="ts">
-	import { formatAmount } from 'src/comp/util/walletUtils';
-	import { totalAmountAvailable } from 'src/stores/mints';
-	import { isEncrypted, unit } from '../../stores/settings';
+	import { formatAmount } from 'src/actions/wallet';
 	import { QRCodeImage } from 'svelte-qrcode-image';
 
-	import { nostrPubKey, profile } from 'src/stores/nostr';
 	import Icon from '@iconify/svelte';
-	import { get } from 'svelte/store';
-	import ProfileModal from './profile-modal.svelte';
-	import {
-		accountModalOpen,
-		lightningInvoice,
-		meltModalOpen,
-		scannedPubkey,
-		scanning,
-		showQR
-	} from 'src/stores';
+	import ProfileModal from 'src/routes/_profile/index.svelte';
+	import { accountModalOpen, lightningInvoice, meltModalOpen, scannedPubkey } from 'src/stores';
 	import { nip19 } from 'nostr-tools';
 	import AccountModal from './account-modal.svelte';
 	import MeltModal from './melt-modal.svelte';
 	import { checkProofsSpent } from 'src/actions/wallet';
-	import { db, proofs } from 'src/stores/db';
+	import { db, key, proofs, settings } from 'src/stores/db';
+	import { balance } from 'src/stores/wallet';
+	import { profile } from 'src/stores/profile';
+	import QrModal from './qr-modal.svelte';
 
 	let profileOpen: boolean = false;
+	let qrOpen: boolean = false;
 	let isRefresh = false;
 </script>
 
 <div
-	class=" w-full md:w-1/2 lg:w-1/3 place-content-center m-auto px-4 py-2 lg:pt-12 bg-basic z-10"
+	class="fixed lg:relative w-full md:w-1/2 lg:w-1/3 place-content-center m-auto px-4 py-2 lg:pt-12 bg-basic z-10"
 	id="top"
 >
 	<div class="flex w-full justify-between items-start">
 		<h1 class="text-2xl mb-4 font-semibold">Home</h1>
 		<div class="flex gap-2 items-center">
 			<div on:click={() => console.log('ohoh')}><Icon icon="ph:eye" class="text-2xl" /></div>
-			<div on:click={() => ($showQR = true)}><Icon icon="ph:qr-code" class="text-2xl" /></div>
+			<button on:click={() => (qrOpen = true)}><Icon icon="ph:qr-code" class="text-2xl" /></button>
 			<div on:click={() => (profileOpen = true)} class="cursor-pointer">
 				<img src={$profile?.picture || '/ns-naked.svg'} class="w-8 h-8 border rounded-full" />
 			</div>
@@ -56,58 +49,21 @@
 		</div>
 
 		<strong class="text-3xl">
-			{formatAmount($totalAmountAvailable, $unit, true)}
+			{formatAmount($balance, $settings.unit, true)}
 		</strong>
 	</div>
 </div>
-<div class="lg:h-auto lg:pt-0 overflow-scroll scrollbar-hide container-height" id="container">
+<div
+	class="lg:h-auto lg:pt-0 overflow-scroll scrollbar-hide container-height w-1/3 m-auto"
+	id="container"
+>
 	<slot />
 </div>
 
 <ProfileModal bind:open={profileOpen} />
+
 <MeltModal bind:open={$meltModalOpen} invoice={$lightningInvoice} />
+
 <AccountModal bind:open={$accountModalOpen} npub={$scannedPubkey} />
 
-<!-- Scanner -->
-<div
-	class:!z-10={$scanning}
-	class:bg-black={$scanning}
-	class="-z-10 !fixed w-full top-0 left-0 mobile-height flex flex-col justify-around"
->
-	<div
-		class="absolute inset-0 bg-green-500 opacity-50"
-		style="background-image: url('/path/to/texture.png'); background-size: cover;"
-	></div>
-	<div class="absolute left-4 top-4 cursor-pointer" on:click={() => ($scanning = false)}>
-		<Icon icon="carbon:close" class="text-5xl" />
-	</div>
-	<!-- header -->
-	<div></div>
-	<div id="reader" class="w-full"></div>
-	{#if $scanning}
-		<div class="w-full flex justify-center">
-			<button class="btn btn-primary btn-wide" on:click={() => ($scanning = false)}>Close</button>
-		</div>
-	{/if}
-</div>
-
-{#if $showQR}
-	<!-- PubKey QR code -->
-	<div class="fixed top-0 w-full flex items-center justify-center z-10 mobile-height bg-basic">
-		<div class="absolute left-4 top-4 cursor-pointer" on:click={() => ($showQR = false)}>
-			<Icon icon="carbon:close" class="text-5xl" />
-		</div>
-		<div class="flex items-center justify-center flex-col">
-			<div class="border-primary border rounded-md p-2">
-				<a class="cursor-pointer">
-					<QRCodeImage
-						text={nip19.npubEncode($nostrPubKey)}
-						displayHeight={275}
-						displayWidth={275}
-						margin={1}
-					/>
-				</a>
-			</div>
-		</div>
-	</div>
-{/if}
+<QrModal bind:open={qrOpen} />

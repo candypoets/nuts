@@ -1,13 +1,13 @@
 <script lang="ts">
 	import { getContact } from 'src/stores/contacts';
-	import { contacts, db } from 'src/stores/db';
+	import { contacts, db, key } from 'src/stores/db';
 	import { Drawer } from 'vaul-svelte';
 	import Ecash from './send/ecash.svelte';
 	import Icon from '@iconify/svelte';
-	import TokenIcon from 'src/comp/tokens/TokenIcon.svelte';
-	import { formatAmount } from 'src/comp/util/walletUtils';
+	import TokenIcon from 'src/comp/TokenIcon.svelte';
+	import { formatAmount } from 'src/actions/wallet';
 	import { totalAmountAvailable } from 'src/stores/mints';
-	import { nostrPubKey, signAndSend } from 'src/stores/nostr';
+	import { signAndSend } from 'src/actions/relay';
 
 	export let npub: string;
 
@@ -49,9 +49,9 @@
 							});
 							await signAndSend({
 								kind: 3,
-								pubkey: $nostrPubKey,
+								pubkey: $key.pub,
 								created_at: Math.floor(Date.now() / 1000),
-								tags: [['p', npub]],
+								tags: $contacts.map((c) => ['p', c.pubkey]),
 								content: ''
 							});
 						}}>Add as friend</button
@@ -66,49 +66,8 @@
 							class="pb-8 pt-3 bg-basic absolute top-4 left-0 right-0"
 							style="height: 95vh;"
 						>
-							<div class="px-4 flex justify-between">
-								<div on:click={() => (subopen = false)}>
-									<Icon icon="mdi:close" class="w-6 h-6" />
-								</div>
-								<strong> Send Ecash </strong>
-								<div />
-							</div>
-							<div class="">
-								<div class="p-4">
-									<div class="flex gap-4 items-center">
-										<div class="w-1/2 text-center">
-											<strong class="text-xs">Main Account</strong>
-											<div class="flex gap-1 items-center justify-center">
-												<TokenIcon />
-												<p class="font-bold">
-													{formatAmount($totalAmountAvailable, 'sats')}
-												</p>
-											</div>
-										</div>
-										<div class="flex justify-center">
-											<Icon icon="mdi:arrow-right" class="text-2xl border rounded-full" />
-										</div>
-										<div
-											class="flex items-center justify-center py-2 border-b last:border-none w-1/2"
-										>
-											<!-- <Icon icon="carbon:lightning" class="w-16 h-6" />
-                        -->
-											<div class="w-16">
-												<img
-													src={contact?.picture || '/ns-naked.svg'}
-													alt={contact?.name}
-													class="border w-8 h-8 rounded-full space-x-4 mx-auto"
-												/>
-											</div>
-											<div class="text-xs">
-												<strong>{contact?.name}</strong>
-											</div>
-										</div>
-									</div>
-								</div>
-								<Ecash toPub={npub} />
-							</div></Drawer.Content
-						>
+							<Ecash selected={contact} />
+						</Drawer.Content>
 					</Drawer.Portal>
 				</Drawer.NestedRoot>
 			{:catch}
