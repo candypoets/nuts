@@ -5,21 +5,18 @@ import type { Mint } from '../../src/model/mint';
 import { getAmountForTokenSet } from 'src/actions/wallet';
 import { derived, get, writable, type Readable } from 'svelte/store';
 import { db, dbMints, proofs } from './db';
-import { timestamp60 } from './time';
+import { timestamp10, timestamp60 } from './time';
 
 export const mints = derived(
-	[dbMints, db, timestamp60],
-	([$dbMints, $db, $timestamp60], set) => {
+	[timestamp10],
+	([$time], set) => {
 		Promise.all(
-			$dbMints.map(async (m) => {
-				console.log(m);
+			get(dbMints).map(async (m) => {
 				const mint = new CashuMint(m.url);
 				const keysets = await mint.getKeySets();
 				const keys = await mint.getKeys();
-
-				await Promise.all(
-					keysets.keysets.map(async (ks) => await $db.keysets.put({ ...ks, mint: m.url }))
-				);
+				// $db.keysets.bulkAdd(keysets.keysets.map((ks) => ({ ...ks, mint: m.url })));
+				keysets.keysets.map((ks) => get(db).keysets.add({ ...ks, mint: m.url }));
 				return {
 					mintURL: m.url,
 					keysets: keysets.keysets,

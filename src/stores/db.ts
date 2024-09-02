@@ -10,7 +10,7 @@ export type Invoice = RequestMintResponse & { date: number; mint: string };
 
 export type Endpoint = {
 	url: string;
-	enabled: boolean;
+	enabled?: boolean;
 };
 
 export type Setting = {
@@ -26,10 +26,20 @@ export type Key = {
 	nsec?: string;
 };
 
+export enum Status {
+	Confirmed = 0,
+	Spent = 1
+}
+
+// the default state for the proofs is pending
+export type DbProof = Proof & {
+	status?: Status;
+};
+
 export type DB = Dexie & {
-	proofs: EntityTable<Proof, 'secret'>;
-	pendingProofs: EntityTable<Proof, 'secret'>;
-	spentProofs: EntityTable<Proof, 'secret'>;
+	proofs: EntityTable<DbProof, 'secret'>;
+	// pendingProofs: EntityTable<Proof, 'secret'>;
+	// spentProofs: EntityTable<Proof, 'secret'>;
 	history: EntityTable<HistoryItem<HistoryData>, 'date'>;
 	contacts: EntityTable<Contact, 'pubkey'>;
 	messages: EntityTable<NostrMessage & { id: string }, 'id'>;
@@ -46,6 +56,7 @@ export type KeyDB = Dexie & {
 
 export const keyDB = new Dexie('key') as KeyDB;
 
+console.log('keyDBBBB');
 keyDB.version(1).stores({
 	keys: 'pub,npub,priv,nsec'
 });
@@ -77,52 +88,70 @@ export const db: Readable<DB> = derived([activeAccount, keys], ([$activeAccount,
 	const dex = new Dexie($keys[$activeAccount]?.pub) as DB;
 	console.log('dex');
 	dex.version(1).stores({
-		proofs: 'secret,id,amount,C',
-		pendingProofs: 'secret,id,amount,C',
-		spentProofs: 'secret,id,amount,C',
+		proofs: 'secret,id,amount,C,status',
+		// pendingProofs: 'secret,id,amount,C',
+		// spentProofs: 'secret,id,amount,C',
 		history: 'date,type,amount,data.mint,data.keyset,data.send,data.returnChange,data.encodedToken',
 		contacts: 'pubkey,name,picture,about,createdAt',
 		messages:
 			'++id,event.id,event.kind,event.tags,event.content,event.created_at,event.pubkey,event.sig,token.proofs,token.mint,token.memo,isAccepted',
 		keysets: 'id,unit,active,input_fee_ppk,mint',
 		invoices: 'quote,request,date,mint',
-		relays: 'url, enabled',
-		mints: 'url, enabled',
+		relays: 'url,enabled',
+		mints: 'url,enabled',
 		keys: 'pub,npub,priv,nsec',
 		settings: 'key,visible,unit'
 	});
 	set(dex);
 });
 
+let lastProofsResult: string;
 export const proofs = derived(
 	[db],
 	([$db], set) => {
 		if (!$db) return;
-		liveQuery(() => $db.proofs.toArray()).subscribe((proofs) => {
-			set(proofs);
-		});
+		liveQuery(() => $db.proofs.where('status').equals(Status.Confirmed).toArray()).subscribe(
+			(proofs) => {
+				if (JSON.stringify(proofs) != lastProofsResult) {
+					set(proofs);
+				}
+				lastProofsResult = JSON.stringify(proofs);
+			}
+		);
 	},
 	[] as Proof[]
 );
 
+let lastPendingProofsResult: string;
 export const pendingProofs = derived(
 	[db],
 	([$db], set) => {
 		if (!$db) return;
-		liveQuery(() => $db.pendingProofs.toArray()).subscribe((proofs) => {
-			set(proofs);
+		liveQuery(() =>
+			$db.proofs.where('status').noneOf([Status.Spent, Status.Confirmed]).toArray()
+		).subscribe((proofs) => {
+			if (JSON.stringify(proofs) != lastPendingProofsResult) {
+				set(proofs);
+			}
+			lastPendingProofsResult = JSON.stringify(proofs);
 		});
 	},
 	[] as Proof[]
 );
 
+let lastSpentProofsResult: string;
 export const spentProofs = derived(
 	[db],
 	([$db], set) => {
 		if (!$db) return;
-		liveQuery(() => $db.spentProofs.toArray()).subscribe((proofs) => {
-			set(proofs);
-		});
+		liveQuery(() => $db.proofs.where('status').equals(Status.Spent).toArray()).subscribe(
+			(proofs) => {
+				if (JSON.stringify(proofs) != lastSpentProofsResult) {
+					set(proofs);
+				}
+				lastSpentProofsResult = JSON.stringify(proofs);
+			}
+		);
 	},
 	[] as Proof[]
 );
@@ -160,6 +189,7 @@ export const contacts = derived(
 	[] as Contact[]
 );
 
+let lastMintsResult: string;
 export const dbMints = derived(
 	[db],
 	([$db], set) => {
@@ -174,10 +204,12 @@ export const dbMints = derived(
 			}
 		});
 		liveQuery(() => $db.mints.toArray()).subscribe((mints) => {
+			console.log('newMints', mints, mints.length);
 			// you need at least one mint
-			if (mints.length) {
+			if (mints.length && JSON.stringify(mints) != lastMintsResult) {
 				set(mints);
 			}
+			lastMintsResult = JSON.stringify(mints);
 		});
 	},
 	[

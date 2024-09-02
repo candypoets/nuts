@@ -2,7 +2,6 @@
 	import Icon from '@iconify/svelte';
 	import { checkNostrRelay } from 'src/actions/relay';
 	import { db, dbRelays } from 'src/stores/db';
-	import { eventMap } from 'src/stores/nuts';
 	import { pool } from 'src/stores/relays';
 	import { Drawer } from 'vaul-svelte';
 

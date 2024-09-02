@@ -3,20 +3,19 @@ import {
 	CashuWallet,
 	getEncodedToken,
 	type AmountPreference,
+	type MintKeys,
 	type Proof,
-	type Token,
-	type TokenEntry,
-	type MintKeys
+	type TokenEntry
 } from '@cashu/cashu-ts';
-import { nip19, type NostrEvent, type UnsignedEvent } from 'nostr-tools';
-import { db, key, proofs, spentProofs } from 'src/stores/db';
+import { nip19, type NostrEvent } from 'nostr-tools';
+import { Status, db, key } from 'src/stores/db';
 
+import { hexToBytes } from '@noble/hashes/utils';
+import { profile } from 'src/stores/profile';
+import { signer } from 'src/stores/signer';
 import type { WalletInfo } from 'src/stores/wallet';
 import { get } from 'svelte/store';
-import { hexToBytes } from '@noble/hashes/utils';
 import { getDecryptedContent, getEncryptedContent, sendMessage } from './chat';
-import { signer } from 'src/stores/signer';
-import { profile } from 'src/stores/profile';
 
 // send proofs from the most important mint to the least important
 export const send = async (
@@ -240,6 +239,7 @@ export const saveNuts = async (proofs: Proof[], toPubKey?: string) => {
 };
 
 export async function checkProofsSpent(proofs: Proof[]) {
+	console.log(proofs);
 	const proofsByKeySet = proofs.reduce(
 		(acc, cur) => {
 			if (!acc[cur.id]) acc[cur.id] = [];
@@ -253,7 +253,9 @@ export async function checkProofsSpent(proofs: Proof[]) {
 			// get the mint for the proof
 			const t = await get(db).keysets.get({ id: key });
 			const proofs = proofsByKeySet[key];
+			console.log('hey');
 			if (!t || !proofs.length) return;
+			console.log('hoy');
 			// verify the token
 			const cashuMint = new CashuMint(t.mint);
 			const keys = await cashuMint.getKeys();
@@ -263,8 +265,8 @@ export async function checkProofsSpent(proofs: Proof[]) {
 			// if (unspend.length) {
 			const spents = await wallet.checkProofsSpent(proofs);
 			console.log('spents', spents);
-			await get(db).spentProofs.bulkPut(spents);
-			await get(db).proofs.bulkDelete(spents.map((s) => s.secret));
+			// await get(db).spentProofs.bulkPut(spents);
+			await get(db).proofs.bulkPut(spents.map((p) => ({ ...p, status: Status.Spent })));
 			// validProofs.push(...proofs.filter((p) => !spents.some((s) => s.secret == p.secret)));
 		})
 	);

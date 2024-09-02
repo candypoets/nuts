@@ -38,13 +38,17 @@
 			if (message[0] === 'CLOSED') break;
 			if (message[0] !== 'EVENT') continue;
 			loading = false;
+			try {
+				await keyDB.keys.put({
+					pub: pubkey,
+					priv: privkey,
+					npub: nip19.npubEncode(pubkey),
+					nsec: nip19.nsecEncode(pk)
+				});
+			} catch (error) {
+				console.warn(error);
+			}
 			console.log('hoy');
-			await keyDB.keys.put({
-				pub: pubkey,
-				priv: privkey,
-				npub: nip19.npubEncode(pubkey),
-				nsec: nip19.nsecEncode(pk)
-			});
 			break;
 		}
 	}
@@ -105,10 +109,12 @@
 <main class="w-full flex place-content-center mobile-height">
 	{#if kind == 'login'}
 		<div class="h-1/2 w-full md:w-1/2 xl:w-1/3 py-48">
-			<h1 class="text-3xl text-center font-bold px-4 text-slate-700">Login with your private key</h1>
+			<h1 class="text-3xl text-center font-bold px-4 text-slate-700">
+				Login with your private key
+			</h1>
 			<p class="text-center mt-2 px-4 text-slate-400">
-				To give <strong>nuts.cash</strong> full access to your Nostr identity, enter your Nostr private key
-				below.
+				To give <strong>nuts.cash</strong> full access to your Nostr identity, enter your Nostr private
+				key below.
 			</p>
 
 			<form class="px-8 mt-8" on:submit|preventDefault={handleLogin}>
@@ -132,7 +138,8 @@
 				compatible browser extension to securely store your key.
 			</p>
 			<p class="text-xs text-center mt-2 text-gray-500">
-				Don't have a nostr account?<button class="btn btn-link" on:click={() => (kind = 'signup')}>Signup</button
+				Don't have a nostr account?<button class="btn btn-link" on:click={() => (kind = 'signup')}
+					>Signup</button
 				>
 			</p>
 		</div>

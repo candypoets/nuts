@@ -18,12 +18,12 @@ import { getKeysForUnit, isValidToken } from 'src/actions/wallet';
 import { HistoryItemType } from 'src/model/historyItem';
 import { derived, get } from 'svelte/store';
 
-import { db, invoices, pendingProofs, proofs, type Invoice, key, spentProofs } from './db';
+import { db, invoices, pendingProofs, proofs, type Invoice, key, spentProofs, Status } from './db';
 import { timestamp10 } from './time';
 import { pool } from './relays';
 import { signer } from './signer';
 
-export const eventMap: { [key: string]: boolean } = {};
+// export const eventMap: { [key: string]: boolean } = {};
 if (browser) {
 	let into = 0;
 	let out = 0;
@@ -55,7 +55,7 @@ if (browser) {
 			const exist = await $db.messages.where('event.id').equals(event.id).count();
 			if (exist > 0) continue;
 			// push the message to the db, it will be listed in the chat
-			await $db.messages.add({ event });
+			$db.messages.add({ event });
 
 			// if the event content is in the map, it has been processed already
 
@@ -66,21 +66,11 @@ if (browser) {
 			if (!token) continue;
 
 			// store the mint in the db
-			await Promise.all(
-				token.token.map(async (t) => {
-					await Promise.all(
-						t.proofs.map(async (p) => {
-							// check if the keyset is already in the db
-							const keyset = await $db.keysets.get({ id: p.id });
-							if (!keyset) {
-								const mint = new CashuMint(t.mint);
-								const keysets = await mint.getKeySets();
-								$db.keysets.bulkPut(keysets.keysets.map((ks) => ({ ...ks, mint: t.mint })));
-							}
-						})
-					);
-				})
-			);
+			token.token.map((t) => {
+				t.proofs.map((p) => {
+					$db.mints.add({ url: t.mint });
+				});
+			});
 
 			// get all the proofs in the token
 			const proofs = token.token.reduce((acc, cur) => [...acc, ...cur.proofs], [] as Proof[]);
@@ -104,22 +94,17 @@ if (browser) {
 				if (event.pubkey !== $key.pub) {
 					console.log('--------incoming message', into++);
 					// if the sender is not yourself, add to pendingProofs to be claimed later
-					await $db.pendingProofs.bulkAdd(proofs);
+					proofs.map((p) => $db.proofs.add(p));
 				} else {
-					console.log('hey');
-					try {
-						getNuts(token);
-					} catch (e) {
-						console.error(e);
-					}
+					// get the saved nuts and put the status as confirmed
+					// $db.proofs.bulkPut(proofs.map((p) => ({ ...p, status: Status.Confirmed })));
+					proofs.map((p) => $db.proofs.add({ ...p, status: Status.Confirmed }));
 				}
 			} else {
 				console.log('-----------outgoing message', out++);
 				const proofs = token.token.flatMap((t) => t.proofs);
-				// remove them from the proofs table
-				await $db.proofs.bulkDelete(proofs.map((p) => p.secret));
 				// add them to the spentProofs table
-				await $db.spentProofs.bulkPut(proofs);
+				$db.proofs.bulkPut(proofs.map((p) => ({ ...p, status: Status.Spent })));
 				// outgoing messages
 				$db.history.add({
 					date: event.created_at,
@@ -139,7 +124,7 @@ if (browser) {
 	derived([key, db, timestamp10], async ([$key, $db, $time]) => {
 		const pp = get(pendingProofs);
 		if (!pp.length) return;
-		console.info('claiming proofs', pp);
+		console.info('claiming pending proofs', pp);
 		// organize proofs by mint
 		const proofsByKeySet = pp.reduce(
 			(acc, cur) => {
@@ -167,16 +152,14 @@ if (browser) {
 			try {
 				const res = await wallet.receiveTokenEntry(
 					{ proofs: proofsByKeySet[key], mint: m.mint },
-					{ privkey: $key.priv }
+					{ privkey: $key?.priv }
 				);
 
 				// // add the proofs to the db
-				await $db.proofs.bulkAdd(res.proofs);
-				// // remove the proofs from the pendingProofs
-				await $db.pendingProofs.bulkDelete(proofsByKeySet[key].map((p) => p.secret));
+				$db.proofs.bulkPut(res.proofs.map((p) => ({ ...p, status: Status.Confirmed })));
 
 				if (res.proofs.length) {
-					await saveNuts(res.proofs, $key.pub);
+					await saveNuts(res.proofs, $key?.pub);
 				}
 			} catch (e) {
 				console.error(e);
@@ -228,17 +211,6 @@ if (browser) {
 		// lastCheck = JSON.stringify($proofs);
 		// lastCheckTimestamp = $time;
 	}).subscribe((n) => n);
-}
-
-// try to get the cashu tokens saved in the user private chat
-export async function getNuts(cashu: Token) {
-	cashu.token.map(async (t) => {
-		const filtered = t.proofs.filter((p) => !get(spentProofs).some((sp) => sp.secret == p.secret));
-		// get(db).spentProofs.bulkget()
-		if (filtered.length) {
-			await get(db).proofs.bulkPut(filtered);
-		}
-	});
 }
 
 export async function decodeEventContent(
