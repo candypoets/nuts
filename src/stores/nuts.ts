@@ -22,6 +22,7 @@ import { db, invoices, pendingProofs, proofs, type Invoice, key, spentProofs, St
 import { timestamp10 } from './time';
 import { pool } from './relays';
 import { signer } from './signer';
+import _ from 'lodash';
 
 // export const eventMap: { [key: string]: boolean } = {};
 if (browser) {
@@ -98,7 +99,7 @@ if (browser) {
 				} else {
 					// get the saved nuts and put the status as confirmed
 					// $db.proofs.bulkPut(proofs.map((p) => ({ ...p, status: Status.Confirmed })));
-					proofs.map((p) => $db.proofs.add({ ...p, status: Status.Confirmed }));
+					$db.proofs.bulkPut(proofs.map((p) => ({ ...p, status: Status.Confirmed })));
 				}
 			} else {
 				console.log('-----------outgoing message', out++);
@@ -204,12 +205,11 @@ if (browser) {
 	}).subscribe((n) => n);
 
 	let lastCheck = '';
-	let lastCheckTimestamp = 0;
 	// every 10 seconds, check if the proofs are spent
 	derived([timestamp10], async ([$time]) => {
+		if (lastCheck == JSON.stringify(get(proofs))) return;
 		await checkProofsSpent(get(proofs));
-		// lastCheck = JSON.stringify($proofs);
-		// lastCheckTimestamp = $time;
+		lastCheck = JSON.stringify(get(proofs));
 	}).subscribe((n) => n);
 }
 

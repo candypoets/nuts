@@ -31,10 +31,7 @@
 	<div class="bg-info p-4 m-4 rounded-lg">
 		<strong>Low balance in your account</strong>
 		<div class="text-xs">
-			<p>
-				Before using <strong>nuts.cash</strong>, please make sure you understand the
-				<a class="link" href="https://nutstash.app/#faq" target="_blank"> risks. </a>
-			</p>
+			<p>Be careful out there, nuts.cash is a beta software and you might lose your money.</p>
 		</div>
 		<div class="text-right gap-4">
 			<button class="btn btn-sm btn-ghost" on:click={() => (dismiss = true)}> Dismiss </button>

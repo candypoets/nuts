@@ -4,14 +4,17 @@ import type { Mint } from '../../src/model/mint';
 
 import { getAmountForTokenSet } from 'src/actions/wallet';
 import { derived, get, writable, type Readable } from 'svelte/store';
-import { db, dbMints, proofs } from './db';
+import { Status, db, dbMints, proofs } from './db';
 import { timestamp10, timestamp60 } from './time';
+import _ from 'lodash';
 
+let lastUpdate = '';
 export const mints = derived(
 	[timestamp10],
 	([$time], set) => {
+		if (lastUpdate == JSON.stringify(_.uniqBy(get(dbMints), 'url'))) return;
 		Promise.all(
-			get(dbMints).map(async (m) => {
+			_.uniqBy(get(dbMints), 'url').map(async (m) => {
 				const mint = new CashuMint(m.url);
 				const keysets = await mint.getKeySets();
 				const keys = await mint.getKeys();
@@ -24,6 +27,7 @@ export const mints = derived(
 				};
 			})
 		).then((res) => set(res));
+		lastUpdate = JSON.stringify(_.uniqBy(get(dbMints), 'url'));
 	},
 	[] as Array<Mint>
 );
@@ -102,6 +106,7 @@ export const getTokensForMint = async (mint: Mint) => {
 	const proofs = await get(db)
 		.proofs.where('id')
 		.anyOf(res.map((r) => r.id))
+		.and((p) => p.status == Status.Confirmed)
 		.toArray();
 
 	return proofs;

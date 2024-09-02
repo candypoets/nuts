@@ -15,6 +15,7 @@ import { profile } from 'src/stores/profile';
 import { signer } from 'src/stores/signer';
 import type { WalletInfo } from 'src/stores/wallet';
 import { get } from 'svelte/store';
+import _ from 'lodash';
 import { getDecryptedContent, getEncryptedContent, sendMessage } from './chat';
 
 // send proofs from the most important mint to the least important
@@ -267,6 +268,9 @@ export async function checkProofsSpent(proofs: Proof[]) {
 			console.log('spents', spents);
 			// await get(db).spentProofs.bulkPut(spents);
 			await get(db).proofs.bulkPut(spents.map((p) => ({ ...p, status: Status.Spent })));
+			// await get(db).proofs.bulkPut(
+			console.log(_.difference(proofs, spents), _.difference(spents, proofs));
+			// );
 			// validProofs.push(...proofs.filter((p) => !spents.some((s) => s.secret == p.secret)));
 		})
 	);

@@ -32,32 +32,31 @@ if (browser) {
 	}).subscribe((n) => n);
 
 	derived([key, contacts, db], async ([$key, $contacts, $db]) => {
-		// if (!$db) return;
-		// if (!$key?.pub) return;
-		// // filter contact that have been claimed already
-		// const contacts = $contacts.filter((c) => !c.createdAt);
-		// if (!contacts.length) return;
-		// const profiles = get(pool).req([
-		// 	{
-		// 		kinds: [0],
-		// 		authors: contacts.map((c) => c.pubkey)
-		// 		// since: last?.createdAt
-		// 	}
-		// ]);
-		// for await (const profile of profiles) {
-		// 	if (profile[0] === 'CLOSED') break;
-		// 	if (profile[0] !== 'EVENT') continue;
-		// 	const contact = JSON.parse(profile[2].content);
-		// 	console.log(contact);
-		// 	// add the contact to the db
-		// 	$db.contacts.put({
-		// 		createdAt: profile[2].created_at,
-		// 		pubkey: profile[2].pubkey,
-		// 		name: contact.name || contact.display_name || contact.displayName,
-		// 		about: contact.about,
-		// 		picture: contact.picture
-		// 	});
-		// }
+		if (!$db) return;
+		// filter contact that have been claimed already
+		const contacts = $contacts.filter((c) => !c.createdAt);
+		if (!contacts.length) return;
+		const profiles = get(pool).req([
+			{
+				kinds: [0],
+				authors: contacts.map((c) => c.pubkey)
+				// since: last?.createdAt
+			}
+		]);
+		for await (const profile of profiles) {
+			if (profile[0] === 'CLOSED') break;
+			if (profile[0] !== 'EVENT') continue;
+			const contact = JSON.parse(profile[2].content);
+			console.log(contact);
+			// add the contact to the db
+			$db.contacts.put({
+				createdAt: profile[2].created_at,
+				pubkey: profile[2].pubkey,
+				name: contact.name || contact.display_name || contact.displayName,
+				about: contact.about,
+				picture: contact.picture
+			});
+		}
 	}).subscribe((n) => n);
 }
 

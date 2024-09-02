@@ -14,6 +14,8 @@
 	import { profile } from 'src/stores/profile';
 	import QrModal from './qr-modal.svelte';
 
+	import _ from 'lodash';
+
 	let profileOpen: boolean = false;
 	let qrOpen: boolean = false;
 	let isRefresh = false;
@@ -39,7 +41,7 @@
 			<div
 				on:click={async () => {
 					isRefresh = true;
-					console.log('checking');
+					// console.log('checking', allProofs);
 					await checkProofsSpent($proofs);
 					isRefresh = false;
 				}}

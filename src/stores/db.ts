@@ -5,6 +5,7 @@ import type { HistoryItem } from 'src/model/historyItem';
 import type { HistoryData } from 'src/model/data/HistoryData';
 import type { Contact } from 'src/model/contact';
 import type { NostrMessage } from 'src/model/nostrMessage';
+import _ from 'lodash';
 
 export type Invoice = RequestMintResponse & { date: number; mint: string };
 
@@ -183,7 +184,7 @@ export const contacts = derived(
 	([$db], set) => {
 		if (!$db) return;
 		liveQuery(() => $db.contacts.toArray()).subscribe((contacts) => {
-			set(contacts);
+			set(_.uniqBy(contacts, 'pubkey'));
 		});
 	},
 	[] as Contact[]
@@ -204,12 +205,12 @@ export const dbMints = derived(
 			}
 		});
 		liveQuery(() => $db.mints.toArray()).subscribe((mints) => {
-			console.log('newMints', mints, mints.length);
 			// you need at least one mint
-			if (mints.length && JSON.stringify(mints) != lastMintsResult) {
+			if (mints.length && JSON.stringify(_.uniqBy(mints, 'url')) != lastMintsResult) {
+				console.log('setMints');
 				set(mints);
 			}
-			lastMintsResult = JSON.stringify(mints);
+			lastMintsResult = JSON.stringify(_.uniqBy(mints, 'url'));
 		});
 	},
 	[
