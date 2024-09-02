@@ -31,7 +31,6 @@ if (browser) {
 	let totalMessage = 0;
 	let topups = 0;
 	derived([key, pool, db], async ([$key, $pool, $db]) => {
-		// console.info('fetching messages');
 		if (!$key?.pub) return;
 		if (!$pool) return;
 		// if (!get(mints).length) return;
