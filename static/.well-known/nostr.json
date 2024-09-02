@@ -1,7 +1,8 @@
 {
 	"names": {
 		"thibaut": "6a72db8ef3f3b9ee5ecd808ed6d0631d1e4dda5c5dadf07887104d33957eba48",
-		"santino": "49c3f0ee826a80010c75a66a3e2fb75324302a6969ad62f1e557a6b6dc667777"
+		"santino": "49c3f0ee826a80010c75a66a3e2fb75324302a6969ad62f1e557a6b6dc667777",
+		"_": "7726c437ccf791f6ded97dbac1846e62019e5fbd24f42e9db2f640f231c3c09a"
 	},
 	"relays": {
 		"6a72db8ef3f3b9ee5ecd808ed6d0631d1e4dda5c5dadf07887104d33957eba48": [
@@ -14,6 +15,15 @@
 			"wss://relay.snort.social"
 		],
 		"49c3f0ee826a80010c75a66a3e2fb75324302a6969ad62f1e557a6b6dc667777": [
+			"wss://brb.io",
+			"wss://eden.nostr.land",
+			"wss://nos.lol",
+			"wss://nostr.orangepill.dev",
+			"wss://relay.damus.io",
+			"wss://relay.nuts.cash",
+			"wss://relay.snort.social"
+		],
+		"7726c437ccf791f6ded97dbac1846e62019e5fbd24f42e9db2f640f231c3c09a": [
 			"wss://brb.io",
 			"wss://eden.nostr.land",
 			"wss://nos.lol",
