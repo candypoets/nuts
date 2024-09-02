@@ -33,7 +33,7 @@
 			</div>
 		</div>
 	</div>
-	<div class="w-full p-4 bg-primary-content rounded-xl py-6">
+	<div class="lg:w-full w-11/12 p-4 bg-primary-content rounded-xl py-6">
 		<div class="flex w-full justify-between items-center">
 			<div class="text-lg font-semibold">{$profile.name || 'Main Account'}</div>
 			<div
@@ -54,7 +54,7 @@
 	</div>
 </div>
 <div
-	class="lg:h-auto lg:pt-0 overflow-scroll scrollbar-hide container-height w-1/3 m-auto"
+	class="lg:h-auto lg:pt-0 overflow-scroll scrollbar-hide container-height lg:w-1/3 lg:m-auto"
 	id="container"
 >
 	<slot />
