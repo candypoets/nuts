@@ -70,9 +70,9 @@ export const send = async (
 		}
 	}
 	// remove the spents proofs from the table
-	await get(db).proofs.bulkDelete(spents.map((p) => p.secret));
+	await get(db).proofs.bulkPut(spents.map((p) => ({ ...p, status: Status.Spent })));
 	// add the spents proofs to the spentProofs table
-	get(db).spentProofs.bulkAdd(spents);
+	// get(db).spentProofs.bulkAdd(spents);
 
 	return {
 		sends,

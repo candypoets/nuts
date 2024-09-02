@@ -3,7 +3,7 @@
 	import { browser } from '$app/environment';
 	import { sendMessage } from 'src/actions/chat';
 	import { formatAmount, saveNuts, send } from 'src/actions/wallet';
-	import { db, key, settings } from 'src/stores/db';
+	import { db, key, settings, Status } from 'src/stores/db';
 	import { mintInfos, totalAmountAvailable } from 'src/stores/mints';
 	import { wallets } from 'src/stores/wallet';
 	import { onMount } from 'svelte';
@@ -50,16 +50,20 @@
 					);
 					// add the change to the proofs table
 					if (res.returnChanges.length) {
-						await $db.proofs.bulkPut(res.returnChanges);
-						await $db.spentProofs.bulkPut(res.sends);
+						await $db.proofs.bulkPut(
+							res.returnChanges.map((p) => ({ ...p, status: Status.Confirmed }))
+						);
+						await $db.proofs.bulkPut(res.sends.map((p) => ({ ...p, status: Status.Spent })));
 						await saveNuts(res.returnChanges, $key?.pub);
 					}
 				})
 				.catch(async (e) => {
 					// keep the sent proofs for yourself as renewed proofs
-					await $db.proofs.bulkAdd(res.sends);
+					await $db.proofs.bulkAdd(res.sends.map((p) => ({ ...p, status: Status.Confirmed })));
 					// add the returnchange to the proofs table
-					await $db.proofs.bulkAdd(res.returnChanges);
+					await $db.proofs.bulkAdd(
+						res.returnChanges.map((p) => ({ ...p, status: Status.Confirmed }))
+					);
 
 					await saveNuts([...res.returnChanges, ...res.sends], $key?.pub);
 					console.error(e);
