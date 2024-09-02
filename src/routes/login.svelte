@@ -20,6 +20,16 @@
 
 	let kind: 'login' | 'signup' = 'login';
 
+	let extensionError = false;
+
+	$: {
+		if (extensionError) {
+			setTimeout(() => {
+				extensionError = false;
+			}, 5000);
+		}
+	}
+
 	async function handleLogin() {
 		// Handle login logic here
 		console.log('Logging in with private key:', privateKey);
@@ -133,6 +143,27 @@
 					</button>
 				</div>
 			</form>
+			<button
+				class="btn btn-outline mt-4 m-auto block"
+				class:btn-error={extensionError}
+				on:click={async () => {
+					const pubKey = await window?.nostr?.getPublicKey();
+					if (!pubKey) {
+						extensionError = true;
+						return;
+					}
+					await keyDB.keys.put({
+						pub: pubKey,
+						npub: nip19.npubEncode(pubKey)
+					});
+				}}
+			>
+				{#if !extensionError}
+					Log in with an extension
+				{:else}
+					Extension not found
+				{/if}
+			</button>
 			<p class="mx-8 text-xs text-center mt-8 p-4 rounded-lg bg-slate-100 text-slate-500">
 				Note that sharing your private key directly is not recommended, instead you should use a
 				compatible browser extension to securely store your key.
