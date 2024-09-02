@@ -5,7 +5,7 @@
 	import { formatAmount, saveNuts, send } from 'src/actions/wallet';
 	import { db, key, settings, Status } from 'src/stores/db';
 	import { mintInfos, totalAmountAvailable } from 'src/stores/mints';
-	import { wallets } from 'src/stores/wallet';
+	import { balance, wallets } from 'src/stores/wallet';
 	import { onMount } from 'svelte';
 	import Icon from '@iconify/svelte';
 	import type { Contact } from 'src/model/contact';
@@ -95,7 +95,7 @@
 				<div class="flex gap-1 items-center justify-center">
 					<TokenIcon />
 					<p class="font-bold">
-						{formatAmount($totalAmountAvailable, $settings.unit)}
+						{formatAmount($balance, $settings.unit)}
 					</p>
 				</div>
 			</div>
@@ -152,7 +152,7 @@
 				disabled={!amount || !Number(amount) || amount > $mintInfos.totalAmountAvailable}
 				on:click={() => sendEcash()}
 			>
-				{#if Number(amount) > $mintInfos.totalAmountAvailable}
+				{#if Number(amount) > $balance}
 					Not enough funds
 				{:else}
 					Send

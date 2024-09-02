@@ -3,8 +3,8 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { updateVc } from 'src/lib';
-	import 'src/stores/contacts';
-	import 'src/stores/nuts';
+	// import 'src/stores/contacts';
+	// import 'src/stores/nuts';
 	import { onMount } from 'svelte';
 	import { pwaInfo } from 'virtual:pwa-info';
 	import MobileNav from '../comp/MobileNav.svelte';
