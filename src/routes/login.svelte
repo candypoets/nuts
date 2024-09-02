@@ -25,6 +25,7 @@
 	$: {
 		if (extensionError) {
 			setTimeout(() => {
+				console.log('ok');
 				extensionError = false;
 			}, 5000);
 		}
