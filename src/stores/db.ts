@@ -97,9 +97,9 @@ export const db: Readable<DB> = derived([activeAccount, key], ([$activeAccount, 
 });
 
 export const initialize = derived([db], async ([$db]) => {
-	console.log('-------restoring------');
 	if (!browser) return;
 	if (!$db) return;
+	console.log('-------restoring------');
 	await dmCache.restore($db.dms);
 	await historyCache.restore($db.history);
 	await keysetsCache.restore($db.keysets);
