@@ -25,7 +25,7 @@ export const wallets = derived(
 				const wallet = new CashuWallet(cashuMint, keys.keysets[0]);
 				return {
 					amount,
-					fees: Math.ceil(fees / 1000), // in case of mint or swap, how much fees are paid for all the proofs
+					fees: Math.ceil(fees / 1000) + 2, // in case of mint or swap, how much fees are paid for all the proofs
 					mintURL: keyset.mint,
 					proofs,
 					unit: keys.keysets[0].unit,

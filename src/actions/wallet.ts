@@ -6,7 +6,8 @@ import {
 	type MintKeys,
 	type Proof,
 	type TokenEntry,
-	type MeltQuoteResponse
+	type MeltQuoteResponse,
+	type RequestMintResponse
 } from '@cashu/cashu-ts';
 import { nip19, type NostrEvent } from 'nostr-tools';
 import { Status, db, key, keysetsCache, proofsCache } from 'src/stores/db';
@@ -123,6 +124,7 @@ export const swap = async (
 export type Melt = {
 	wallet: WalletInfo;
 	meltQuote: MeltQuoteResponse;
+	mintQuote?: RequestMintResponse;
 	amount: number;
 };
 
@@ -158,6 +160,7 @@ export const getMeltQuote = async (wallets: WalletInfo[], lightningInvoice: stri
 			melts.push({
 				wallet: wallet,
 				meltQuote: melt,
+				mintQuote: mint,
 				amount: wallet.amount
 			});
 		}
@@ -167,11 +170,28 @@ export const getMeltQuote = async (wallets: WalletInfo[], lightningInvoice: stri
 	return melts;
 };
 
+export const mint = async (wallet: CashuWallet, invoice: RequestMintResponse) => {
+	const amount = decode(invoice.request).sections[2].value / 1000;
+	await wallet.mintTokens(amount, invoice.quote).then(async (res) => {
+		const encodedToken = getEncodedToken({
+			token: [{ proofs: res.proofs, mint: wallet.mint.mintUrl }],
+			memo: 'invoice'
+		});
+		// will be claimed twice probably
+		// adding anyway in case the message is not sent
+		res.proofs.forEach((p) => proofsCache.add(p));
+		// await $db.proofs.bulkAdd(res.proofs);
+
+		sendMessage(get(key).pub, encodedToken);
+	});
+};
+
 export const melt = async (
 	wallet: WalletInfo,
 	meltQuote: MeltQuoteResponse,
 	amount: number
 ): Promise<{ sent: Proof[]; change: Proof[] }> => {
+	console.log(wallet.amount, meltQuote.amount);
 	// try to melt the invoice from the least important mint to the most important (in value)
 	const proofToSend = await bestProofCombination(wallet, meltQuote.amount + meltQuote.fee_reserve);
 	console.log(proofToSend);

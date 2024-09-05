@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
-	import { getEncodedToken, type Proof } from '@cashu/cashu-ts';
+
 	import { settings } from 'src/stores/db';
 	import { onMount } from 'svelte';
-	import MintSelector from 'src/comp/MintSelector.svelte';
+
 	import TokenIcon from 'src/comp/TokenIcon.svelte';
 	import {
 		bestProofCombination,
@@ -13,16 +13,13 @@
 		getMeltQuote,
 		isValidLNURL,
 		melt,
+		mint as mintToken,
 		type Melt
 	} from 'src/actions/wallet';
 	import { amountAvailable, mint, mints } from 'src/stores/mints';
 	import Icon from '@iconify/svelte';
-	import { scanning } from 'src/stores';
-	import QrScanner from 'src/comp/QRScanner.svelte';
 	import { balance, wallets } from 'src/stores/wallet';
 	import { decode } from '@gandlaf21/bolt11-decode';
-	import { sendMessage } from 'src/actions/chat';
-	import { ADDRESS_ZERO } from 'src/stores/constants';
 
 	export let subopen: boolean = false;
 	export let invoice: string;
@@ -87,8 +84,14 @@
 
 	async function send(melts: Melt[]) {
 		ongoingPayment = true;
+		let i = 0;
 		for (const m of melts) {
 			await melt(m.wallet, m.meltQuote, m.amount);
+			if (m.mintQuote) {
+				const nextMelt = melts[i + 1];
+				await mintToken(nextMelt.wallet.wallet, m.mintQuote);
+			}
+			i++;
 		}
 		invoice = '';
 		ongoingPayment = false;
