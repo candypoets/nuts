@@ -1,23 +1,17 @@
 <script lang="ts">
 	import { formatAmount } from 'src/actions/wallet';
-	import { QRCodeImage } from 'svelte-qrcode-image';
 
 	import Icon from '@iconify/svelte';
 	import ProfileModal from 'src/routes/_profile/index.svelte';
 	import { accountModalOpen, lightningInvoice, meltModalOpen, scannedPubkey } from 'src/stores';
 
+	import { checkProofsSpent } from 'src/actions/wallet';
+	import { proofs, settings } from 'src/stores/db';
+	import { profile } from 'src/stores/profile';
+	import { balance } from 'src/stores/wallet';
 	import AccountModal from './account-modal.svelte';
 	import MeltModal from './melt-modal.svelte';
-	import { checkProofsSpent } from 'src/actions/wallet';
-	import { pendingProofs, proofs, proofsCache, settings, spentProofs } from 'src/stores/db';
-	import { balance } from 'src/stores/wallet';
-	import { profile } from 'src/stores/profile';
 	import QrModal from './qr-modal.svelte';
-
-	import _ from 'lodash';
-	import { ADDRESS_ZERO } from 'src/stores/constants';
-	import { getEncryptedContent } from 'src/actions/chat';
-	import { onMount } from 'svelte';
 
 	let profileOpen: boolean = false;
 	let qrOpen: boolean = false;
@@ -29,6 +23,7 @@
 </script>
 
 <svelte:window bind:scrollY />
+
 <div
 	class="fixed lg:relative w-full lg:w-1/3 place-content-center m-auto px-4 py-2 pb-3 lg:pt-12 bg-basic z-10"
 	id="top"
