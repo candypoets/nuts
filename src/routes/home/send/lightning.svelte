@@ -122,7 +122,7 @@
 
 <div class="w-full px-4 mt-10">
 	<input
-		class="input input-primary w-full join-item px-2"
+		class="input input-bordered w-full join-item px-2"
 		type="text"
 		placeholder="Lightning invoice or address"
 		bind:value={invoice}
@@ -132,7 +132,7 @@
 {#if decoded || islnurl}
 	<div class="w-full px-4 mt-4 flex justify-center">
 		{#if decoded}
-			<div class="border rounded-xl p-4 bg-gray-50">
+			<div class="rounded-xl p-4">
 				<p class="font-bold text-3xl">{invoiceAmount} sats</p>
 
 				<p class="font-bold">{invoiceMemo || 'no description'}</p>
@@ -162,16 +162,17 @@
 			><div class="loading" /></button
 		>
 	{:then melts}
-		{#each melts as m, index}
-			<ul class="mx-8 mt-8 list-disc">
+		<ul class="mx-8 mt-8 list-disc">
+			{#each melts as m, index}
 				<li class="font-bold text-sm">
-					{m.meltQuote.amount - melts[index - 1].meltQuote.amount} + {m.meltQuote.fee_reserve} sats from
+					{m.meltQuote.amount - (melts[index - 1]?.meltQuote?.amount || 0)} + {m.meltQuote
+						.fee_reserve} sats from
 					{m.wallet.mintURL}
 				</li>
 
 				<!-- <p class="font-bold">{m.memo || 'no description'}</p> -->
-			</ul>
-		{/each}
+			{/each}
+		</ul>
 
 		<button
 			class="btn btn-primary btn-wide m-auto block mt-10"
@@ -181,5 +182,9 @@
 				{(invoiceAmount || 0) < 10 ? 'At Least 10 Sats' : 'Pay'}
 			{/if}</button
 		>
+		<p class="text-xs w-2/3 m-auto text-center mt-4">
+			Fees are reserved based on a conservative estimate of Lightning fees. Unused amounts will be
+			returned to your wallet.
+		</p>
 	{/await}
 {/if}
