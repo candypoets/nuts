@@ -289,8 +289,7 @@ export const saveNuts = async (proofs: Proof[], toPubKey?: string) => {
 	sendMessage(toPubKey, getEncodedToken({ token: toEncode }), [['nuts']]);
 };
 
-export async function checkProofsSpent(proofs: Proof[]) {
-	console.log(proofs);
+export async function checkProofsSpent(proofs: Proof[]): Promise<string[]> {
 	const proofsByKeySet = proofs.reduce(
 		(acc, cur) => {
 			if (!acc[cur.id]) acc[cur.id] = [];
@@ -299,6 +298,7 @@ export async function checkProofsSpent(proofs: Proof[]) {
 		},
 		{} as Record<string, Proof[]>
 	);
+	const errors: string[] = [];
 	await Promise.all(
 		Object.keys(proofsByKeySet).map(async (key) => {
 			// get the mint for the proof
@@ -306,6 +306,7 @@ export async function checkProofsSpent(proofs: Proof[]) {
 			const proofs = proofsByKeySet[key];
 			if (!t || !proofs.length) {
 				if (!t) {
+					errors.push(`keyset not found, could not check proofs: ${key}`);
 					console.warn('keyset not found, could not check proofs');
 				}
 				return;
@@ -325,6 +326,7 @@ export async function checkProofsSpent(proofs: Proof[]) {
 			// validProofs.push(...proofs.filter((p) => !spents.some((s) => s.secret == p.secret)));
 		})
 	);
+	return errors;
 }
 
 export async function retrieveSpentProofs(event: NostrEvent, pubkey: string): Promise<Proof[]> {
@@ -416,7 +418,7 @@ export function isValidLNURL(ln: string): boolean {
 
 	try {
 		// Attempt to decode using bech32
-		console.log('ok', bech32);
+
 		const { words } = bech32.decode(ln, 1000);
 		const data = bech32.fromWords(words);
 

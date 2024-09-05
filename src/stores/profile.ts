@@ -15,7 +15,7 @@ export const profile: Readable<{ name?: string; picture?: string; about?: string
 				if (message[0] === 'CLOSED') break;
 				if (message[0] !== 'EVENT') continue;
 				const event = message[2];
-				console.log(JSON.parse(event.content));
+				// console.log(JSON.parse(event.content));
 				set(JSON.parse(event.content));
 			}
 		})();

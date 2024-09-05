@@ -102,6 +102,7 @@ export const initialize = derived([db], async ([$db]) => {
 	if (!$db) return;
 	await dmCache.restore($db.dms);
 	await historyCache.restore($db.history);
+	await keysetsCache.restore($db.keysets);
 	await contactsCache.restore($db.contacts);
 	await mintsCache.restore($db.mints, [
 		{ url: 'https://mint.minibits.cash/Bitcoin', enabled: true },

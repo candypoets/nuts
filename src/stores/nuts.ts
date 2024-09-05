@@ -144,7 +144,7 @@ export const nostrEventSub = derived([key, pool, db], async ([$key, $pool, $db])
 export const claimPendingSub = derived([timestamp1], async ([$time]) => {
 	const pp = get(pendingProofs);
 	if (!pp.length) return;
-	console.info('claiming pending proofs', pp);
+
 	// organize proofs by mint
 	const proofsByKeySet = pp.reduce(
 		(acc, cur) => {
@@ -241,8 +241,10 @@ export const proofSpentSub = () => {
 	// // every 10 seconds, check if the proofs are spent
 	return derived([timestamp1], async ([$time]) => {
 		if (lastCheck == JSON.stringify(get(proofs))) return;
-		await checkProofsSpent(get(proofs));
-		lastCheck = JSON.stringify(get(proofs));
+		const errors = await checkProofsSpent(get(proofs));
+		if (!errors.length) {
+			lastCheck = JSON.stringify(get(proofs));
+		}
 	});
 };
 

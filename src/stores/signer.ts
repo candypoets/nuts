@@ -18,7 +18,6 @@ export const signer: Readable<NSecSigner | undefined> = derived([key], ([$key], 
 			}
 		});
 	} else if ($key?.priv) {
-		console.log('hey hey hey');
 		const pk = hexToBytes($key?.priv);
 		set(new NSecSigner(pk));
 	}

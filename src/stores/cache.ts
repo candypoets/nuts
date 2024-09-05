@@ -62,6 +62,7 @@ export function createCache<T, TKeyPropName extends keyof T>(
 		add(value: T) {
 			const newMap = new Map(get(this));
 			const primaryKey = getPrimaryKey(value);
+
 			if (!newMap.get(primaryKey)) {
 				newMap.set(primaryKey, value);
 			}

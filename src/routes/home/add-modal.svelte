@@ -46,7 +46,7 @@
 				<Icon icon="carbon:arrow-right" class="w-6 h-6" />
 			</div>
 
-			<div class="flex items-center justify-around py-2 border-b">
+			<div class="flex items-center justify-around py-2 border-b opacity-40">
 				<Icon icon="carbon:user" class="w-6 h-6" />
 				<div>
 					<strong>Request from friends</strong>
@@ -54,7 +54,7 @@
 				</div>
 				<Icon icon="carbon:arrow-right" class="w-6 h-6" />
 			</div>
-			<div class="flex items-center justify-around py-2">
+			<div class="flex items-center justify-around py-2 opacity-40">
 				<Icon icon="carbon:qr-code" class="w-6 h-6" />
 				<div>
 					<strong>Request via QR code</strong>

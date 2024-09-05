@@ -12,12 +12,11 @@ export function updateVc() {
 		if (!container || !footer) return;
 		// see how many pixel it is from the top
 
-		console.log('updatevc', topper, container, footer);
 		const top = container.getBoundingClientRect().top;
 		const footerHeight = footer?.getBoundingClientRect().height;
 		const topperBottom = topper?.getBoundingClientRect().bottom;
 		const navbarHeight = navbar?.getBoundingClientRect().height;
-		console.log(top, footerHeight, topperBottom, navbarHeight);
+
 		document.documentElement.style.setProperty('--vc', `${window.innerHeight * 0.01}px`);
 		document.documentElement.style.setProperty('--footer-height', `${footerHeight + 15}px`);
 		document.documentElement.style.setProperty('--navbar-height', `${navbarHeight}px`);

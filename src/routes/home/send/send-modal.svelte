@@ -59,8 +59,6 @@
 	// };
 	// $: contacts = liveQuery(() => $db.contacts.orderBy('createdAt').reverse().limit(100).toArray());
 
-	$: console.log('open', open, addFriend);
-
 	onMount(updateVc);
 </script>
 
@@ -105,10 +103,10 @@
 		</div>
 		<div class="my-4 rounded-lg border">
 			<div
-				class="flex items-center justify-around py-2 border-b"
+				class="flex items-center justify-around py-2 border-b opacity-40"
 				on:click={() => {
-					subopen = true;
-					paymentType = 'Tapcash';
+					// subopen = true;
+					// paymentType = 'Tapcash';
 				}}
 			>
 				<Icon icon="carbon:lightning" class="w-16 h-6" />
