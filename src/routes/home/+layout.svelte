@@ -17,17 +17,22 @@
 	import _ from 'lodash';
 	import { ADDRESS_ZERO } from 'src/stores/constants';
 	import { getEncryptedContent } from 'src/actions/chat';
+	import { onMount } from 'svelte';
 
 	let profileOpen: boolean = false;
 	let qrOpen: boolean = false;
 	let isRefresh = false;
 
 	let isViewing = false;
+
+	let scrollY: number = 0;
 </script>
 
+<svelte:window bind:scrollY />
 <div
-	class="fixed lg:relative w-full lg:w-1/3 place-content-center m-auto px-4 py-2 lg:pt-12 bg-basic z-10"
+	class="fixed lg:relative w-full lg:w-1/3 place-content-center m-auto px-4 py-2 pb-3 lg:pt-12 bg-basic z-10"
 	id="top"
+	class:shadow-md={scrollY > 20}
 >
 	<div class="flex w-full justify-between items-start">
 		<h1 class="text-2xl mb-4 font-semibold">Home</h1>

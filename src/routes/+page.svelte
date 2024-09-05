@@ -87,23 +87,25 @@
 	<!-- Hero Section -->
 
 	<section class="pt-32 pb-20 w-4/5 m-auto">
-		<div class="w-full flex flex-col gap-8 lg:flex-row lg:h-full items-center justify-between">
+		<div
+			class="w-full flex gap-8 lg:flex-row lg:h-full items-center justify-between flex-col-reverse"
+		>
 			<div class="flex flex-col items-start w-full gap-1">
 				<h1 class="text-4xl md:text-6xl font-bold mb-2 text-primary">
 					Your nuts are
 					<p class="break-normal">in the Nostr.</p>
 					<p></p>
 				</h1>
-				<p class="text-xl md:text-lg my-8 text-gray-600 w-1/2">
+				<p class="text-xl md:text-lg my-8 text-gray-600 lg:w-1/2 w-full">
 					Nuts.Cash is an ecash wallet that saves your proofs in the Nostr Relays.
 					<br /><br />
 					Send ecash to your friends or zap notes and much more.
 					<br /><br />
 					If you have a Nostr account, you can use it to login to Nuts.Cash and access your nuts.
 				</p>
-				<div class="flex space-x-4">
-					<a href="/home" class="btn btn-primary btn-wide"> Open App </a>
-				</div>
+				<!-- <div class="flex space-x-4"> -->
+				<a href="/home" class="btn btn-primary lg:btn-wide w-full"> Open App </a>
+				<!-- </div> -->
 			</div>
 			<div class="w-1/2 h-screen fixed right-0 top-0 bg-primary-content hidden lg:block" />
 			<div
@@ -113,7 +115,7 @@
 					Math.max(0, 1 - 8 * progress)}deg) skewY({30 *
 					Math.max(0, 1 - 8 * progress)}deg) rotateX({-30 *
 					Math.max(0, 1 - 8 * progress)}deg) rotateY({30 * Math.max(0, 1 - 8 * progress)}deg)
-			translateX(-{100 * Math.max(0, 1 - 8 * progress)}px)"
+			translateX(-{100 * Math.min(0, 1 - 8 * progress)}px)"
 			>
 				<div class="bg-black rounded-full h-5 w-2/5 mx-auto" />
 
