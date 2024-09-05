@@ -19,15 +19,15 @@
 
 	let isViewing = false;
 
-	let scrollY: number = 0;
+	let scrollY: number;
 </script>
 
 <svelte:window bind:scrollY />
 
 <div
 	class="fixed lg:relative w-full lg:w-1/3 place-content-center m-auto px-4 py-2 pb-3 lg:pt-12 bg-basic z-10"
+	class:shadow-md={scrollY > 0}
 	id="top"
-	class:shadow-md={scrollY > 20}
 >
 	<div class="flex w-full justify-between items-start">
 		<h1 class="text-2xl mb-4 font-semibold">Home</h1>
@@ -65,6 +65,7 @@
 <div
 	class="lg:h-auto lg:pt-0 overflow-scroll scrollbar-hide container-height lg:w-1/3 lg:m-auto"
 	id="container"
+	on:scroll={(e) => (scrollY = e?.target?.scrollTop)}
 >
 	<slot />
 </div>
