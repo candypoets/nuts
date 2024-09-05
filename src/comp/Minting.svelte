@@ -75,7 +75,7 @@
 			const mintQuote = await cashuMint.mintQuote({ amount: amount ?? 0, unit: 'sat' });
 			mintingHash = mintQuote.quote;
 			qrCode = mintQuote.request;
-
+			console.log('add invoice');
 			$db.invoices.add({
 				...mintQuote,
 				date: Math.round(Date.now() / 1000),

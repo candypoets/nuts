@@ -162,10 +162,11 @@
 			><div class="loading" /></button
 		>
 	{:then melts}
-		{#each melts as m}
+		{#each melts as m, index}
 			<ul class="mx-8 mt-8 list-disc">
 				<li class="font-bold text-sm">
-					{m.meltQuote.amount} + {m.meltQuote.fee_reserve} sats from {m.wallet.mintURL}
+					{m.meltQuote.amount - melts[index - 1].meltQuote.amount} + {m.meltQuote.fee_reserve} sats from
+					{m.wallet.mintURL}
 				</li>
 
 				<!-- <p class="font-bold">{m.memo || 'no description'}</p> -->

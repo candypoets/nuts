@@ -6,12 +6,14 @@
 	import { accountModalOpen, lightningInvoice, meltModalOpen, scannedPubkey } from 'src/stores';
 
 	import { checkProofsSpent } from 'src/actions/wallet';
+	import { getEncryptedContent } from 'src/actions/chat';
 	import { proofs, settings } from 'src/stores/db';
 	import { profile } from 'src/stores/profile';
 	import { balance } from 'src/stores/wallet';
 	import AccountModal from './account-modal.svelte';
 	import MeltModal from './melt-modal.svelte';
 	import QrModal from './qr-modal.svelte';
+	import { ADDRESS_ZERO } from 'src/stores/constants';
 
 	let profileOpen: boolean = false;
 	let qrOpen: boolean = false;

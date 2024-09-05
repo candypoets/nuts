@@ -224,6 +224,8 @@ export const claimInvoicesSub = () => {
 					// await $db.proofs.bulkAdd(res.proofs);
 
 					sendMessage($key.pub, encodedToken).then((_) => $db.invoices.delete(invoice.quote));
+
+					// checkProofsSpent();
 					// send the token to the profile public address
 				});
 			};
