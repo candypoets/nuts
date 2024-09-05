@@ -1,6 +1,5 @@
 /// this store query nostr for private messages containing nuts
 
-import { browser } from '$app/environment';
 import {
 	CashuMint,
 	CashuWallet,
@@ -18,158 +17,191 @@ import { getKeysForUnit, isValidToken } from 'src/actions/wallet';
 import { HistoryItemType } from 'src/model/historyItem';
 import { derived, get } from 'svelte/store';
 
-import { db, invoices, pendingProofs, proofs, type Invoice, key, spentProofs, Status } from './db';
-import { timestamp10 } from './time';
+import {
+	db,
+	invoices,
+	pendingProofs,
+	proofs,
+	type Invoice,
+	key,
+	Status,
+	proofsCache,
+	mintsCache,
+	keysetsCache,
+	historyCache,
+	dmCache
+} from './db';
+import { timestamp1, timestamp10 } from './time';
 import { pool } from './relays';
 import { signer } from './signer';
 import _ from 'lodash';
+import { browser } from '$app/environment';
+import { ADDRESS_ZERO } from './constants';
 
 // export const eventMap: { [key: string]: boolean } = {};
-if (browser) {
-	let into = 0;
-	let out = 0;
-	let totalMessage = 0;
-	let topups = 0;
-	derived([key, pool, db], async ([$key, $pool, $db]) => {
-		if (!$key?.pub) return;
-		if (!$pool) return;
-		// if (!get(mints).length) return;
-		const messages = get(pool).req([
-			{
-				kinds: [nostrTools.kinds.EncryptedDirectMessage],
-				'#p': [$key.pub]
-				// since: Math.round(Date.now() / 1000)
-			}, // incoming messages
-			{
-				kinds: [nostrTools.kinds.EncryptedDirectMessage],
-				authors: [$key.pub]
-				// since: Math.round(Date.now() / 1000)
-			} // outgoing messages and topups
-		]);
 
-		for await (const message of messages) {
-			if (message[0] === 'CLOSED') break;
-			if (message[0] !== 'EVENT') continue;
-			// console.log('message', totalMessage++);
-			const event = message[2];
-			const exist = await $db.messages.where('event.id').equals(event.id).count();
-			if (exist > 0) continue;
-			// push the message to the db, it will be listed in the chat
-			$db.messages.add({ event });
+export const nostrEventSub = derived([key, pool, db], async ([$key, $pool, $db]) => {
+	if (!browser) return;
+	if (!$key?.pub) return;
+	if (!$pool) return;
+	const lastEvent = await $db.dms.orderBy('created_at').last();
+	console.log(
+		'fetching events',
+		lastEvent,
+		new Date(lastEvent?.created_at * 1000).toLocaleString()
+	);
+	const messages = get(pool).req([
+		{
+			kinds: [nostrTools.kinds.EncryptedDirectMessage],
+			'#p': [$key.pub],
+			since: lastEvent?.created_at
+		}, // incoming messages
+		{
+			kinds: [nostrTools.kinds.EncryptedDirectMessage],
+			authors: [$key.pub],
+			since: lastEvent?.created_at
+		} // outgoing messages and topups
+	]);
 
-			// if the event content is in the map, it has been processed already
+	for await (const message of messages) {
+		if (message[0] === 'CLOSED') break;
+		if (message[0] !== 'EVENT') continue;
+		const event = message[2];
 
-			if (!nostrTools.validateEvent(event)) continue;
+		// push the message to the db, it will be listed in the chat
+		dmCache.add(event);
 
-			const incoming = event.tags.some((t) => t[0] === 'p' && t[1] === $key.pub);
-			const token = await decodeEventContent(event, incoming);
-			if (!token) continue;
+		// if the event content is in the map, it has been processed already
 
-			// store the mint in the db
-			token.token.map((t) => {
-				t.proofs.map((p) => {
-					$db.mints.add({ url: t.mint });
-				});
+		if (!nostrTools.validateEvent(event)) continue;
+
+		const incoming = event.tags.some((t) => t[0] === 'p' && t[1] === $key.pub);
+		const token = await decodeEventContent(event, incoming);
+		if (!token) continue;
+
+		// store the mint in the db
+		token.token.map((t) => {
+			t.proofs.map((p) => {
+				mintsCache.add({ url: t.mint });
 			});
+		});
 
-			// get all the proofs in the token
-			const proofs = token.token.reduce((acc, cur) => [...acc, ...cur.proofs], [] as Proof[]);
-			if (incoming) {
-				// if the nuts tag is present, do not add to history, it is a wallet save
-				const isSave = event.tags.some((t) => t[0] === 'nuts');
-				if (!isSave) {
-					$db.history.add({
-						date: event.created_at,
-						type: event.pubkey == $key.pub ? HistoryItemType.MINT : HistoryItemType.RECEIVE_NOSTR,
-						amount: proofs.reduce((acc, cur) => (acc += cur.amount), 0),
-						data: {
-							mint: token.token[0].mint,
-							keyset: ['0'], // @todo,
-							from: event.pubkey
-						}
-					});
-				}
-				// incoming messages
-				// add an history entry in the db
-				if (event.pubkey !== $key.pub) {
-					console.log('--------incoming message', into++);
-					// if the sender is not yourself, add to pendingProofs to be claimed later
-					proofs.map((p) => $db.proofs.add(p));
-				} else {
-					// get the saved nuts and put the status as confirmed
-					// $db.proofs.bulkPut(proofs.map((p) => ({ ...p, status: Status.Confirmed })));
-					$db.proofs.bulkPut(proofs.map((p) => ({ ...p, status: Status.Confirmed })));
-				}
-			} else {
-				console.log('-----------outgoing message', out++);
-				const proofs = token.token.flatMap((t) => t.proofs);
-				// add them to the spentProofs table
-				$db.proofs.bulkPut(proofs.map((p) => ({ ...p, status: Status.Spent })));
-				// outgoing messages
-				$db.history.add({
+		// get all the proofs in the token
+		const proofs = token.token.reduce((acc, cur) => [...acc, ...cur.proofs], [] as Proof[]);
+		if (incoming) {
+			// if the nuts tag is present, do not add to history, it is a wallet save
+			const isSave = event.tags.some((t) => t[0] === 'nuts');
+			if (!isSave) {
+				historyCache.add({
 					date: event.created_at,
-					type: HistoryItemType.SEND,
-					amount: -proofs.reduce((acc, cur) => (acc += cur.amount), 0),
+					type:
+						event.pubkey == $key.pub
+							? event.tags.some((t) => t[0] === 'change')
+								? HistoryItemType.CHANGE
+								: HistoryItemType.MINT
+							: HistoryItemType.RECEIVE_NOSTR,
+					amount: proofs.reduce((acc, cur) => (acc += cur.amount), 0),
 					data: {
-						mint: '',
-						keyset: ['0'], // @todo
-						to: event.tags.find((t) => t[0] === 'p')?.[1] ?? ''
+						mint: token.token[0].mint,
+						keyset: ['0'], // @todo,
+						from: event.pubkey
 					}
 				});
 			}
-		}
-	}).subscribe((n) => n);
-
-	// when new pendingProofs are added, try to claim them
-	derived([key, db, timestamp10], async ([$key, $db, $time]) => {
-		const pp = get(pendingProofs);
-		if (!pp.length) return;
-		console.info('claiming pending proofs', pp);
-		// organize proofs by mint
-		const proofsByKeySet = pp.reduce(
-			(acc, cur) => {
-				if (!acc[cur.id]) acc[cur.id] = [];
-				acc[cur.id].push(cur);
-				return acc;
-			},
-			{} as Record<string, Proof[]>
-		);
-		for (const key in proofsByKeySet) {
-			const m = await $db.keysets.get({ id: key });
-			if (!m) {
-				console.error('could not find mint for keyset', key);
-				continue;
+			// incoming messages
+			// add an history entry in the db
+			if (event.pubkey !== $key.pub) {
+				// console.log('--------incoming message', into++);
+				// if the sender is not yourself, add to pendingProofs to be claimed later
+				proofs.map((p) => proofsCache.add(p));
+			} else {
+				// get the saved nuts and put the status as confirmed
+				// $db.proofs.bulkPut(proofs.map((p) => ({ ...p, status: Status.Confirmed })));
+				proofsCache.bulkPut(proofs.map((p) => ({ ...p, status: Status.Confirmed })));
 			}
-			const cashuMint = new CashuMint(m.mint);
-
-			const cashukeys = await cashuMint.getKeys();
-			// const keysets = await cashu.getKeySets();
-			const keys = getKeysForUnit(cashukeys.keysets);
-			const wallet: CashuWallet = new CashuWallet(cashuMint, keys);
-			// if (!validateMintKeys(keys)) {
-			// 	return;
-			// }
-			try {
-				const res = await wallet.receiveTokenEntry(
-					{ proofs: proofsByKeySet[key], mint: m.mint },
-					{ privkey: $key?.priv }
-				);
-
-				// // add the proofs to the db
-				$db.proofs.bulkPut(res.proofs.map((p) => ({ ...p, status: Status.Confirmed })));
-
-				if (res.proofs.length) {
-					await saveNuts(res.proofs, $key?.pub);
+		} else {
+			// console.log('-----------outgoing message', out++);
+			const proofs = token.token.flatMap((t) => t.proofs);
+			// add them to the spentProofs table
+			proofsCache.bulkPut(proofs.map((p) => ({ ...p, status: Status.Spent })));
+			const to = event.tags.find((t) => t[0] === 'p')?.[1] ?? '';
+			// outgoing messages
+			historyCache.add({
+				date: event.created_at,
+				type: to == ADDRESS_ZERO ? HistoryItemType.MELT : HistoryItemType.SEND,
+				amount: -proofs.reduce((acc, cur) => (acc += cur.amount), 0),
+				data: {
+					mint: '',
+					keyset: ['0'], // @todo
+					to
 				}
-			} catch (e) {
-				console.error(e);
-			}
+			});
 		}
-	}).subscribe((n) => n);
+	}
+});
 
+// when new pendingProofs are added, try to claim them
+export const claimPendingSub = derived([timestamp1], async ([$time]) => {
+	const pp = get(pendingProofs);
+	if (!pp.length) return;
+	console.info('claiming pending proofs', pp);
+	// organize proofs by mint
+	const proofsByKeySet = pp.reduce(
+		(acc, cur) => {
+			if (!acc[cur.id]) acc[cur.id] = [];
+			acc[cur.id].push(cur);
+			return acc;
+		},
+		{} as Record<string, Proof[]>
+	);
+	for (const keysetId in proofsByKeySet) {
+		const m = get(keysetsCache).get(keysetId);
+		if (!m) {
+			console.error('could not find mint for keyset', keysetId);
+			continue;
+		}
+		const cashuMint = new CashuMint(m.mint);
+
+		const cashukeys = await cashuMint.getKeys();
+		// const keysets = await cashu.getKeySets();
+		const keys = getKeysForUnit(cashukeys.keysets);
+		const wallet: CashuWallet = new CashuWallet(cashuMint, keys);
+		// if (!validateMintKeys(keys)) {
+		// 	return;
+		// }
+		try {
+			console.log('claiming', proofsByKeySet[keysetId]);
+			const res = await wallet.receiveTokenEntry(
+				{ proofs: proofsByKeySet[keysetId], mint: m.mint },
+				{ privkey: get(key)?.priv }
+			);
+
+			proofsCache.bulkPut([
+				...res.proofs.map((p) => ({ ...p, status: Status.Confirmed })),
+				...proofsByKeySet[keysetId].map((p) => ({ ...p, status: Status.Spent }))
+			]);
+			if (res.proofs.length) {
+				// add the proofs to the nostr
+				console.info('saving nuts');
+				await sendMessage(
+					get(key)?.pub,
+					getEncodedToken({ token: [{ mint: m.mint, proofs: res.proofs }] }),
+					[['nuts']]
+				);
+				// await saveNuts(res.proofs, get(key)?.pub);
+			}
+		} catch (e) {
+			console.error(e);
+			// proofsCache.bulkPut(proofsByKeySet[key].map((p) => ({ ...p, status: Status.Spent })));
+		}
+	}
+});
+
+export const claimInvoicesSub = () => {
 	// claim pending invoices
 	let timestampIndex = 0;
-	derived([key, db, invoices, timestamp10], async ([$key, $db, $invoices]) => {
+	return derived([key, db, invoices, timestamp10], async ([$key, $db, $invoices]) => {
+		if (!browser) return;
 		if (!$key?.pub) return;
 
 		timestampIndex++;
@@ -188,11 +220,11 @@ if (browser) {
 					});
 					// will be claimed twice probably
 					// adding anyway in case the message is not sent
-					await $db.proofs.bulkAdd(res.proofs);
+					res.proofs.forEach((p) => proofsCache.add(p));
+					// await $db.proofs.bulkAdd(res.proofs);
 
-					await $db.invoices.delete(invoice.quote);
+					sendMessage($key.pub, encodedToken).then((_) => $db.invoices.delete(invoice.quote));
 					// send the token to the profile public address
-					await sendMessage($key.pub, encodedToken);
 				});
 			};
 			if (Date.now() / 1000 - invoice.date < 60 * 5) {
@@ -201,16 +233,18 @@ if (browser) {
 				await minting(invoice);
 			}
 		});
-	}).subscribe((n) => n);
+	});
+};
 
+export const proofSpentSub = () => {
 	let lastCheck = '';
-	// every 10 seconds, check if the proofs are spent
-	derived([timestamp10], async ([$time]) => {
+	// // every 10 seconds, check if the proofs are spent
+	return derived([timestamp1], async ([$time]) => {
 		if (lastCheck == JSON.stringify(get(proofs))) return;
 		await checkProofsSpent(get(proofs));
 		lastCheck = JSON.stringify(get(proofs));
-	}).subscribe((n) => n);
-}
+	});
+};
 
 export async function decodeEventContent(
 	event: NostrEvent,
@@ -218,7 +252,7 @@ export async function decodeEventContent(
 ): Promise<Token | undefined> {
 	let decodedMessage: string | undefined;
 	const pubkey = incoming ? event.pubkey : event.tags.find((t) => t[0] == 'p')?.[1];
-	console.log('pubkey', pubkey);
+
 	if (!pubkey) return;
 	try {
 		decodedMessage = await get(signer)?.nip04.decrypt(pubkey, event.content);

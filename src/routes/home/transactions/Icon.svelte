@@ -13,6 +13,10 @@
 	<div class="rounded-full border p-2 flex items-center justify-center">
 		<Icon icon="bitcoin-icons:receive-filled" />
 	</div>
+{:else if type === HistoryItemType.CHANGE}
+	<div class="rounded-full border p-2 flex items-center justify-center">
+		<Icon icon="la:exchange-alt" />
+	</div>
 {:else if type === HistoryItemType.RECEIVE_OFFLINE}
 	<div class="rounded-full border p-2 flex items-center justify-center">
 		<Icon icon="mdi:cellphone-nfc" />

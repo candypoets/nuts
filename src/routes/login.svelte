@@ -5,7 +5,7 @@
 	import type { NostrEvent } from '@nostrify/nostrify';
 	import { kinds, nip19, type UnsignedEvent } from 'nostr-tools';
 	import { decodePrivKey } from 'src/actions/wallet';
-	import { keyDB } from 'src/stores/db';
+	import { keyDB, keysCache } from 'src/stores/db';
 	import { pool } from 'src/stores/relays';
 	import { signer } from 'src/stores/signer';
 	import { onMount } from 'svelte';
@@ -50,7 +50,8 @@
 			if (message[0] !== 'EVENT') continue;
 			loading = false;
 			try {
-				await keyDB.keys.put({
+				console.log('ok');
+				keysCache.put({
 					pub: pubkey,
 					priv: privkey,
 					npub: nip19.npubEncode(pubkey),
@@ -72,7 +73,7 @@
 		// Handle signup logic here
 		// console.log('Signing up with details:', userName, profilePicture, bio);
 
-		await keyDB.keys.put({
+		keysCache.put({
 			pub: pubkey,
 			priv: privkey,
 			npub: nip19.npubEncode(pubkey),
@@ -91,7 +92,7 @@
 			pubkey: pubkey
 		};
 		// there should be no such thing as window.nostr for a signup, but ok
-		if (window.nostr) {
+		if (window.nostr.nip04) {
 			event = await window.nostr.signEvent(event);
 		} else {
 			event = await get(signer)?.signEvent(event);
@@ -101,11 +102,11 @@
 	}
 
 	onMount(async () => {
-		if (window.nostr) {
+		if (window?.nostr?.nip04) {
 			// console.log(window.nostr);
 			// $nostrPubKey = await window.nostr.getPublicKey();
 			const pubKey = await window.nostr.getPublicKey();
-			await keyDB.keys.put({
+			keysCache.put({
 				pub: pubKey,
 				npub: nip19.npubEncode(pubKey)
 			});

@@ -1,31 +1,56 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
-	import type { Proof } from '@cashu/cashu-ts';
+	import { getEncodedToken, type Proof } from '@cashu/cashu-ts';
 	import { settings } from 'src/stores/db';
 	import { onMount } from 'svelte';
 	import MintSelector from 'src/comp/MintSelector.svelte';
 	import TokenIcon from 'src/comp/TokenIcon.svelte';
-	import { formatAmount, getAmountForTokenSet } from 'src/actions/wallet';
+	import {
+		bestProofCombination,
+		formatAmount,
+		getAmountForTokenSet,
+		getInvoiceFromLNURL,
+		getMeltQuote,
+		isValidLNURL,
+		melt,
+		type Melt
+	} from 'src/actions/wallet';
 	import { amountAvailable, mint, mints } from 'src/stores/mints';
 	import Icon from '@iconify/svelte';
 	import { scanning } from 'src/stores';
 	import QrScanner from 'src/comp/QRScanner.svelte';
+	import { balance, wallets } from 'src/stores/wallet';
+	import { decode } from '@gandlaf21/bolt11-decode';
+	import { sendMessage } from 'src/actions/chat';
+	import { ADDRESS_ZERO } from 'src/stores/constants';
 
 	export let subopen: boolean = false;
+	export let invoice: string;
 
-	let send: () => Promise<void>;
-	let getMeltQuote: () => Promise<void>;
 	let amount: number | undefined = undefined;
-	let isCoinSelection = false;
-	let selectedTokens: Proof[];
-	let isSend = true;
-	let encodedToken: string;
-	let invoice: string;
-	let fees: 0;
-	let activeS = 'send';
-	let processing = false;
+
+	let decoded: any;
+
+	$: islnurl = isValidLNURL(invoice || '');
+
+	let ongoingPayment = false;
+
+	$: {
+		try {
+			decoded = invoice && decode(invoice);
+		} catch (e) {
+			decoded = null;
+			console.log(e);
+		}
+	}
+
+	$: invoiceAmount = decoded?.sections?.find((s) => s.name == 'amount')?.value / 1000 || 0;
+
+	$: invoiceMemo = decoded?.sections?.find((s) => s.name == 'description')?.value || '';
 
 	$: mintbalance = amountAvailable($mint);
+
+	$: w = $wallets.filter((w) => w.amount > 10);
 
 	onMount(() => {
 		const keyDown = (e: KeyboardEvent) => {
@@ -59,6 +84,22 @@
 			document.getElementById('send-amt')?.focus();
 		}
 	});
+
+	async function send(melts: Melt[]) {
+		ongoingPayment = true;
+		for (const m of melts) {
+			await melt(m.wallet, m.meltQuote, m.amount);
+		}
+		invoice = '';
+		ongoingPayment = false;
+	}
+
+	async function generateInvoice() {
+		const res = await getInvoiceFromLNURL(invoice, amount || 0);
+		invoice = res.pr;
+	}
+
+	$: console.log(decoded, invoice, islnurl);
 </script>
 
 <div class="px-4 flex justify-between">
@@ -69,52 +110,75 @@
 	<div />
 </div>
 <br />
-<MintSelector />
+<!-- <MintSelector /> -->
 <div class="flex gap-1 items-center justify-center mt-4">
 	<TokenIcon />
 
 	<p class="font-bold">
-		{formatAmount($mint ? $mintbalance : 0, $settings.unit)}
+		{formatAmount($balance, $settings.unit)}
 	</p>
 	<p>available</p>
 </div>
 
-<div class="join w-full px-4 mt-20">
-	<input class="w-full join-item px-2" type="text" placeholder="Lightning invoice or address" />
-	<button class="btn btn-primary join-item"><QrScanner /></button>
-	<!-- <button class="btn join-item">Submit</button> -->
+<div class="w-full px-4 mt-10">
+	<input
+		class="input input-primary w-full join-item px-2"
+		type="text"
+		placeholder="Lightning invoice or address"
+		bind:value={invoice}
+	/>
 </div>
 
-<!-- <div class=" flex items-center justify-center w-full">
-			{#if !isSend}
-				<Melting
-					bind:getMeltQuote
-					bind:active
-					bind:invoice
-					bind:mint
-					bind:selectedTokens
-					bind:isCoinSelection
-					bind:fees
-					bind:amount
-					bind:activeS
-					bind:processing
+{#if decoded || islnurl}
+	<div class="w-full px-4 mt-4 flex justify-center">
+		{#if decoded}
+			<div class="border rounded-xl p-4 bg-gray-50">
+				<p class="font-bold text-3xl">{invoiceAmount} sats</p>
+
+				<p class="font-bold">{invoiceMemo || 'no description'}</p>
+			</div>
+		{:else}
+			<div>
+				<input
+					type="text"
+					inputmode="decimal"
+					class="input input-bordered join-item p-2 m-auto mt-12 text-center text-xl"
+					placeholder="Amount"
+					bind:value={amount}
+					id="send-amt"
 				/>
-			{/if}
-		</div>
-		{#if isSend}
-			<Sending
-				bind:send
-				bind:active
-				bind:mint
-				bind:amount
-				bind:selectedTokens
-				bind:isCoinSelection
-				bind:encodedToken
-				bind:processing
-			/>
+				<button
+					disabled={(amount || 0) < 10}
+					class="btn btn-primary w-2/3 block m-auto mt-12"
+					on:click={() => generateInvoice()}
+				>
+					{(amount || 0) < 10 ? 'At least 10 Sats' : 'Generate Invoice'}
+				</button>
+			</div>
 		{/if}
-	{:else if activeS === 'send-scan'}
-		<ScanLn bind:invoice bind:activeS />
-	{/if} -->
-<!-- {/if} -->
-<!-- </div> -->
+	</div>
+	{#await getMeltQuote(w, invoice)}
+		<button class="btn btn-primary btn-disabled btn-wide m-auto block mt-10"
+			><div class="loading" /></button
+		>
+	{:then melts}
+		{#each melts as m}
+			<ul class="mx-8 mt-8 list-disc">
+				<li class="font-bold text-sm">
+					{m.meltQuote.amount} + {m.meltQuote.fee_reserve} sats from {m.wallet.mintURL}
+				</li>
+
+				<!-- <p class="font-bold">{m.memo || 'no description'}</p> -->
+			</ul>
+		{/each}
+
+		<button
+			class="btn btn-primary btn-wide m-auto block mt-10"
+			disabled={!melts.length || ongoingPayment || (invoiceAmount || 0) < 10}
+			on:click={() => send(melts)}
+			>{#if ongoingPayment}<div class="loading" />{:else}
+				{(invoiceAmount || 0) < 10 ? 'At Least 10 Sats' : 'Pay'}
+			{/if}</button
+		>
+	{/await}
+{/if}

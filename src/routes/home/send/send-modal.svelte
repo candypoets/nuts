@@ -1,22 +1,18 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import { liveQuery } from 'dexie';
-	import TokenIcon from 'src/comp/TokenIcon.svelte';
 	import QRScanner from 'src/comp/QRScanner.svelte';
-	import { formatAmount } from 'src/actions/wallet';
-	import Send from 'src/comp/wallet/Send.svelte';
 	import { updateVc } from 'src/lib';
 	import type { Contact } from 'src/model/contact';
-	import { db, settings } from 'src/stores/db';
-	import { mints, totalAmountAvailable } from 'src/stores/mints';
+	import { contacts } from 'src/stores/db';
+	import { mints } from 'src/stores/mints';
 
 	import { onMount } from 'svelte';
-	import { Drawer } from 'vaul-svelte';
 	import AddFriendModal from '../add-friend-modal.svelte';
 	import Ecash from './ecash.svelte';
 	import Tapcash from './tapcash.svelte';
 	import Lightning from './lightning.svelte';
-	import AddModal from '../add-modal.svelte';
+	import Fullscreen from 'src/comp/drawers/Fullscreen.svelte';
+	import Sublayer from 'src/comp/drawers/SubLayer.svelte';
 
 	let active: string;
 	let search: string;
@@ -61,7 +57,7 @@
 	// 		active = 'base';
 	// 	}
 	// };
-	$: contacts = liveQuery(() => $db.contacts.orderBy('createdAt').reverse().limit(100).toArray());
+	// $: contacts = liveQuery(() => $db.contacts.orderBy('createdAt').reverse().limit(100).toArray());
 
 	$: console.log('open', open, addFriend);
 
@@ -69,66 +65,60 @@
 </script>
 
 <!-- <ScanLN bind:invoice={scannedNpub} /> -->
-<Drawer.Root dismissible={!subopen && !scan && !addFriend} bind:open shouldScaleBackground={true}>
+<Fullscreen dismissible={!subopen && !scan && !addFriend} bind:open>
 	<!-- <Drawer.Trigger /> -->
-	<Drawer.Portal>
-		<Drawer.Overlay class="absolute inset-0 bg-black/40 z-10" />
-		<Drawer.Content
-			class="pb-8 pt-3 bg-basic absolute top-0 left-0 right-0 z-10"
-			style="height: 100vh;"
-		>
-			<div class="fixed w-full bg-basic">
-				<div class="px-4 flex justify-between">
-					<div on:click={() => (open = false)}>
-						<Icon icon="mingcute:down-line" class="text-xl" />
-					</div>
-					<div class="flex">
-						<!-- <div on:click={() => (scan = true)}>
+	<div class="fixed w-full bg-basic">
+		<div class="px-4 flex justify-between">
+			<div on:click={() => (open = false)}>
+				<Icon icon="mingcute:down-line" class="text-xl" />
+			</div>
+			<div class="flex">
+				<!-- <div on:click={() => (scan = true)}>
 							<Icon icon="ic:baseline-qrcode" class="text-xl" />
 						</div> -->
 
-						<QRScanner />
-						<div
-							on:click={() => {
-								addFriend = true;
-								subopen = true;
-								paymentType = '';
-							}}
-							class="ml-4"
-						>
-							<Icon icon="teenyicons:add-outline" class="text-2xl" />
-						</div>
-					</div>
+				<QRScanner />
+				<div
+					on:click={() => {
+						addFriend = true;
+						subopen = true;
+						paymentType = '';
+					}}
+					class="ml-4"
+				>
+					<Icon icon="teenyicons:add-outline" class="text-2xl" />
 				</div>
-				<h2 class="text-xl font-bold px-4 pt-4">Send Money</h2>
 			</div>
-			<div class="p-4 container-height overflow-scroll !pt-20" id="container">
-				<div class="join bg-base-200 rounded-md w-full">
-					<div class="join-item p-2">
-						<Icon icon="carbon:search" />
-					</div>
-					<input
-						placeholder="Search"
-						bind:value={search}
-						class="join-item flex-grow px-2 outline-none bg-transparent"
-					/>
+		</div>
+		<h2 class="text-xl font-bold px-4 pt-4">Send Money</h2>
+	</div>
+	<div class="p-4 container-height overflow-scroll !pt-20" id="container">
+		<div class="join bg-base-200 rounded-md w-full">
+			<div class="join-item p-2">
+				<Icon icon="carbon:search" />
+			</div>
+			<input
+				placeholder="Search"
+				bind:value={search}
+				class="join-item flex-grow px-2 outline-none bg-transparent"
+			/>
+		</div>
+		<div class="my-4 rounded-lg border">
+			<div
+				class="flex items-center justify-around py-2 border-b"
+				on:click={() => {
+					subopen = true;
+					paymentType = 'Tapcash';
+				}}
+			>
+				<Icon icon="carbon:lightning" class="w-16 h-6" />
+				<div class="flex-grow">
+					<strong>Tap cash</strong>
+					<p class="text-xs">Offline instant payment</p>
 				</div>
-				<div class="my-4 rounded-lg border">
-					<div
-						class="flex items-center justify-around py-2 border-b"
-						on:click={() => {
-							subopen = true;
-							paymentType = 'Tapcash';
-						}}
-					>
-						<Icon icon="carbon:lightning" class="w-16 h-6" />
-						<div class="flex-grow">
-							<strong>Tap cash</strong>
-							<p class="text-xs">Offline instant payment</p>
-						</div>
-						<Icon icon="carbon:arrow-right" class="w-16 h-6" />
-					</div>
-					<!-- <div
+				<Icon icon="carbon:arrow-right" class="w-16 h-6" />
+			</div>
+			<!-- <div
 						class="flex items-center justify-around py-2 border-b"
 						on:click={() => {
 							subopen = true;
@@ -142,79 +132,69 @@
 						</div>
 						<Icon icon="carbon:arrow-right" class="w-16 h-6" />
 					</div> -->
-					<div
-						class="flex items-center justify-around py-2 border-b"
-						on:click={() => {
-							subopen = true;
-							paymentType = 'Invoice';
-						}}
-					>
-						<Icon icon="carbon:lightning" class="w-16 h-6" />
-						<div class="flex-grow">
-							<strong>Pay an invoice</strong>
-							<p class="text-xs">Pay out with lightning</p>
-						</div>
-						<Icon icon="carbon:arrow-right" class="w-16 h-6" />
-					</div>
+			<div
+				class="flex items-center justify-around py-2 border-b"
+				on:click={() => {
+					subopen = true;
+					paymentType = 'Invoice';
+				}}
+			>
+				<Icon icon="carbon:lightning" class="w-16 h-6" />
+				<div class="flex-grow">
+					<strong>Pay an invoice</strong>
+					<p class="text-xs">Pay out with lightning</p>
 				</div>
-				<strong class="text-lg">Contacts</strong>
-				<div class="my-4 rounded-lg border">
-					{#each $contacts || [] as friend}
-						<div
-							class="flex items-center justify-around py-2 border-b last:border-none"
-							on:click={() => {
-								selectedContact = friend;
-								subopen = true;
-								paymentType = 'Zap';
-							}}
-						>
-							<!-- <Icon icon="carbon:lightning" class="w-16 h-6" />
+				<Icon icon="carbon:arrow-right" class="w-16 h-6" />
+			</div>
+		</div>
+		<strong class="text-lg">Contacts</strong>
+		<div class="my-4 rounded-lg border">
+			{#each $contacts || [] as friend}
+				<div
+					class="flex items-center justify-around py-2 border-b last:border-none"
+					on:click={() => {
+						selectedContact = friend;
+						subopen = true;
+						paymentType = 'Zap';
+					}}
+				>
+					<!-- <Icon icon="carbon:lightning" class="w-16 h-6" />
 							  -->
-							<div class="w-16">
-								<img
-									src={friend.picture || '/ns-naked.svg'}
-									alt={friend.name}
-									class="border w-8 h-8 rounded-full space-x-4 mx-auto"
-								/>
-							</div>
-							<div class="flex-grow">
-								<strong>{friend.name}</strong>
-								<!-- <p class="text-xs">Offline instant payment</p> -->
-							</div>
-							<!-- <Icon icon="carbon:arrow-right" class="w-16 h-6" /> -->
-						</div>
-					{/each}
+					<div class="w-16">
+						<img
+							src={friend.picture || '/ns-naked.svg'}
+							alt={friend.name}
+							class="border w-8 h-8 rounded-full space-x-4 mx-auto"
+						/>
+					</div>
+					<div class="flex-grow">
+						<strong>{friend.name}</strong>
+						<!-- <p class="text-xs">Offline instant payment</p> -->
+					</div>
+					<!-- <Icon icon="carbon:arrow-right" class="w-16 h-6" /> -->
 				</div>
-				<!-- <Send active="send" /> -->
-				<!-- <Minting bind:active bind:isMinting bind:doMint /> -->
+			{/each}
+		</div>
+		<!-- <Send active="send" /> -->
+		<!-- <Minting bind:active bind:isMinting bind:doMint /> -->
 
-				<!-- {#if !isMinting && !doMint && !isToken && $mints.length}
+		<!-- {#if !isMinting && !doMint && !isToken && $mints.length}
 					<div class="divider">or</div>
 				{/if} -->
-				<!-- {#if !isMinting && !doMint}
+		<!-- {#if !isMinting && !doMint}
 					<Receiving bind:active bind:activeR bind:encodedToken bind:isToken />
 				{/if} -->
-			</div>
+	</div>
 
-			<AddFriendModal bind:open={addFriend} />
-			<Drawer.NestedRoot bind:open={subopen}>
-				<!-- <Drawer.Trigger /> -->
-				<Drawer.Portal>
-					<Drawer.Overlay class="absolute inset-0 bg-black/40" />
-					<Drawer.Content
-						class="pb-8 pt-3 bg-basic absolute top-4 left-0 right-0"
-						style="height: 95vh;"
-					>
-						{#if paymentType === 'Tapcash'}
-							<Tapcash />
-						{:else if paymentType === 'Zap'}
-							<Ecash selected={selectedContact} bind:subopen />
-						{:else if paymentType === 'Invoice'}
-							<Lightning bind:subopen />
-						{/if}
-					</Drawer.Content>
-				</Drawer.Portal>
-			</Drawer.NestedRoot>
-		</Drawer.Content>
-	</Drawer.Portal>
-</Drawer.Root>
+	<AddFriendModal bind:open={addFriend} />
+	<Sublayer bind:open={subopen}>
+		<!-- <Drawer.Trigger /> -->
+		{#if paymentType === 'Tapcash'}
+			<Tapcash />
+		{:else if paymentType === 'Zap'}
+			<Ecash selected={selectedContact} bind:subopen />
+		{:else if paymentType === 'Invoice'}
+			<Lightning bind:subopen />
+		{/if}
+	</Sublayer>
+</Fullscreen>

@@ -5,10 +5,13 @@ import {
 	type AmountPreference,
 	type MintKeys,
 	type Proof,
-	type TokenEntry
+	type TokenEntry,
+	type MeltQuoteResponse
 } from '@cashu/cashu-ts';
 import { nip19, type NostrEvent } from 'nostr-tools';
-import { Status, db, key } from 'src/stores/db';
+import { Status, db, key, keysetsCache, proofsCache } from 'src/stores/db';
+
+import { bech32 } from 'bech32';
 
 import { hexToBytes } from '@noble/hashes/utils';
 import { profile } from 'src/stores/profile';
@@ -17,6 +20,8 @@ import type { WalletInfo } from 'src/stores/wallet';
 import { get } from 'svelte/store';
 import _ from 'lodash';
 import { getDecryptedContent, getEncryptedContent, sendMessage } from './chat';
+import { decode } from '@gandlaf21/bolt11-decode';
+import { ADDRESS_ZERO } from 'src/stores/constants';
 
 // send proofs from the most important mint to the least important
 export const send = async (
@@ -115,40 +120,87 @@ export const swap = async (
 	};
 };
 
-export const getMeltQuote = async (wallets: WalletInfo[], amount: number) => {
+export type Melt = {
+	wallet: WalletInfo;
+	meltQuote: MeltQuoteResponse;
+	amount: number;
+};
+
+export const getMeltQuote = async (wallets: WalletInfo[], lightningInvoice: string) => {
+	if (!lightningInvoice) return [];
+	const decoded = decode(lightningInvoice);
+	const amount = decoded?.sections?.find((s) => s.name == 'amount')?.value / 1000 || 0;
+	if (!amount) {
+		console.warn('incorrect lightning invoice');
+		return [];
+	}
 	let index = 0;
 	let amountAvailable = 0;
-	const swaps: { from: WalletInfo; to: WalletInfo; invoice: string }[] = [];
+	const melts: Melt[] = [];
+	console.log('getMeltQuote', lightningInvoice, amount, wallets);
 	for (let wallet of wallets) {
-		if (amountAvailable > amount) break;
+		amountAvailable += wallet.amount - wallet.fees;
+		if (amountAvailable > amount) {
+			const melt = await wallet.wallet.getMeltQuote(lightningInvoice);
+			melts.push({
+				wallet: wallet,
+				meltQuote: melt,
+				amount: amount
+			});
+			break;
+		}
 		let nextWallet = wallets[index + 1];
 		if (!nextWallet) break;
 		const amountMinusFees = wallet.amount - wallet.fees;
 		if (amountMinusFees < amount) {
 			const mint = await nextWallet.wallet.getMintQuote(amountMinusFees);
 			const melt = await wallet.wallet.getMeltQuote(mint.request);
-
-			swaps.push({ from: wallet, to: nextWallet, invoice: mint.request });
+			melts.push({
+				wallet: wallet,
+				meltQuote: melt,
+				amount: wallet.amount
+			});
 		}
 	}
+	if (amountAvailable < amount) return [];
+	console.log(melts);
+	return melts;
 };
 
 export const melt = async (
-	wallets: WalletInfo[],
-	amount: number,
-	amountAvailable: number,
-	meltQuote: string
-) => {
+	wallet: WalletInfo,
+	meltQuote: MeltQuoteResponse,
+	amount: number
+): Promise<{ sent: Proof[]; change: Proof[] }> => {
 	// try to melt the invoice from the least important mint to the most important (in value)
-	let index = 0;
-	for (let wallet of wallets) {
-		// if the wallet does not have enough funds to melt, try a swap
-		if (wallet.amount < amount) {
-		}
-	}
-	// If we've gone through all wallets and still haven't paid the full amount
-	if (amount > 0) {
-		throw new Error('Insufficient funds to melt the requested amount');
+	const proofToSend = await bestProofCombination(wallet, meltQuote.amount + meltQuote.fee_reserve);
+	console.log(proofToSend);
+	if (!proofToSend) return { sent: [], change: [] };
+	const meltResult = await wallet.wallet.meltTokens(meltQuote, proofToSend);
+	console.log(meltResult);
+	// proofsCache.bulkPut(wallet.proofs.map((p) => ({ ...p, status: Status.Spent })));
+	meltResult.change.forEach((p) => {
+		proofsCache.add(p);
+	});
+	console.log(wallet.proofs, meltResult.change);
+	await checkProofsSpent(wallet.proofs);
+	await sendMessage(
+		ADDRESS_ZERO,
+		getEncodedToken({ token: [{ proofs: proofToSend, mint: wallet.mintURL }] })
+	);
+	await sendMessage(
+		get(key)?.pub,
+		getEncodedToken({ token: [{ proofs: meltResult.change, mint: wallet.mintURL }] }),
+		[['change']]
+	);
+
+	return { sent: proofToSend, change: meltResult.change };
+};
+
+export const toLightning = async (wallets: WalletInfo[], lightningInvoice: string) => {
+	const melts = await getMeltQuote(wallets, lightningInvoice);
+	for (let m of melts) {
+		await melt(m.wallet, m.meltQuote, m.amount);
 	}
 };
 
@@ -227,15 +279,13 @@ export const saveNuts = async (proofs: Proof[], toPubKey?: string) => {
 		{} as Record<string, Proof[]>
 	);
 	for (const key in proofsByKeySet) {
-		const m = await get(db).keysets.get({ id: key });
+		const m = get(keysetsCache).get(key);
 		if (!m) {
 			console.error('could not find mint for keyset', key);
 			continue;
 		}
 		toEncode.push({ proofs: proofsByKeySet[key], mint: m.mint });
 	}
-	// do not update the profile if it has not been loaded yet
-	if (!get(profile).name) return;
 	sendMessage(toPubKey, getEncodedToken({ token: toEncode }), [['nuts']]);
 };
 
@@ -252,11 +302,14 @@ export async function checkProofsSpent(proofs: Proof[]) {
 	await Promise.all(
 		Object.keys(proofsByKeySet).map(async (key) => {
 			// get the mint for the proof
-			const t = await get(db).keysets.get({ id: key });
+			const t = get(keysetsCache).get(key);
 			const proofs = proofsByKeySet[key];
-			console.log('hey');
-			if (!t || !proofs.length) return;
-			console.log('hoy');
+			if (!t || !proofs.length) {
+				if (!t) {
+					console.warn('keyset not found, could not check proofs');
+				}
+				return;
+			}
 			// verify the token
 			const cashuMint = new CashuMint(t.mint);
 			const keys = await cashuMint.getKeys();
@@ -265,11 +318,9 @@ export async function checkProofsSpent(proofs: Proof[]) {
 			// const unspend = proofs.filter((p) => !get(spentProofs).some((sp) => sp.secret == p.secret));
 			// if (unspend.length) {
 			const spents = await wallet.checkProofsSpent(proofs);
-			console.log('spents', spents);
 			// await get(db).spentProofs.bulkPut(spents);
-			await get(db).proofs.bulkPut(spents.map((p) => ({ ...p, status: Status.Spent })));
+			proofsCache.bulkPut(spents.map((p) => ({ ...p, status: Status.Spent })));
 			// await get(db).proofs.bulkPut(
-			console.log(_.difference(proofs, spents), _.difference(spents, proofs));
 			// );
 			// validProofs.push(...proofs.filter((p) => !spents.some((s) => s.secret == p.secret)));
 		})
@@ -339,7 +390,7 @@ export const getInvoiceFromLNURL = async (
 	const { prefix: hrp, words: dataPart } = bech32.decode(LNURL, 2000);
 	const requestByteArray = bech32.fromWords(dataPart);
 
-	const endpoint = Buffer.from(requestByteArray).toString();
+	const endpoint = new TextDecoder().decode(Uint8Array.from(requestByteArray));
 	return await LNURLLookup(endpoint, amount);
 };
 
@@ -357,6 +408,32 @@ const LNURLLookup = async (endpoint: string, amount: number) => {
 	return { pr, maxSendable, minSendable };
 };
 
+export function isValidLNURL(ln: string): boolean {
+	// Check if the string starts with "lnurl" (case-insensitive)
+	if (!ln.toLowerCase().startsWith('lnurl')) {
+		return false;
+	}
+
+	try {
+		// Attempt to decode using bech32
+		console.log('ok', bech32);
+		const { words } = bech32.decode(ln, 1000);
+		const data = bech32.fromWords(words);
+
+		// Convert decoded data to a string
+		const urlString = new TextDecoder().decode(new Uint8Array(data));
+
+		// Check if the decoded string is a valid URL
+		new URL(urlString);
+
+		// If we've made it this far, it's likely a valid LNURL
+		return true;
+	} catch (error) {
+		// If any errors occur during decoding or URL parsing, it's not a valid LNURL
+		return false;
+	}
+}
+
 export const formatAmount = (amount: number, unit: string, withSuffix = true): string => {
 	if (unit === 'sat') {
 		return formatSats(amount, withSuffix);
@@ -372,5 +449,50 @@ const formatSats = (amount: number, withSuffix: boolean): string => {
 		(withSuffix ? ' ' + (amount > 1 ? 'sats' : 'sat') : '')
 	);
 };
+
+export async function bestProofCombination(wallet: WalletInfo, target: number) {
+	if (wallet.amount < target) return [];
+	const proofs: number[] = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024].reverse();
+	// Sort proofs in descending order and remove duplicates
+	// const sortedProofs = Array.from(new Set(proofs)).sort((a, b) => b - a);
+
+	const combination: number[] = [];
+	let remaining = target;
+
+	for (const proof of proofs) {
+		while (proof <= remaining) {
+			combination.push(proof);
+			remaining -= proof;
+		}
+	}
+
+	const preference = combination.reduce(
+		(acc, cur) => ({ ...acc, [cur]: acc[cur] ? acc[cur] + 1 : 1 }),
+		{} as any
+	);
+
+	console.log(preference);
+	const res = await wallet.wallet.receiveTokenEntry(
+		{ proofs: wallet.proofs, mint: wallet.mintURL },
+		{
+			privkey: get(key)?.priv,
+			preference: Object.keys(preference).map((key) => ({
+				amount: Number(key),
+				count: preference[key]
+			}))
+		}
+	);
+	console.log(res.proofs);
+	if (res.proofs.length) {
+		proofsCache.bulkPut([
+			...res.proofs.map((p) => ({ ...p, status: Status.Confirmed })),
+			...wallet.proofs.map((p) => ({ ...p, status: Status.Spent }))
+		]);
+		await saveNuts(res.proofs, get(key)?.pub);
+	}
+	return Object.keys(preference).flatMap((key) =>
+		res.proofs.filter((p) => p.amount === Number(key)).slice(0, preference[key])
+	);
+}
 
 export { hexToBytes };

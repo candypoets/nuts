@@ -4,10 +4,10 @@ import { derived, type Readable } from 'svelte/store';
 import { dbRelays } from './db';
 
 export const pool: Readable<NPool> = derived([dbRelays], ([$dbRelay], set) => {
+	if (!browser) return;
 	set(
 		new NPool({
 			open(url) {
-				if (!browser) return;
 				return new NRelay1(url);
 			},
 			async reqRouter(filters) {

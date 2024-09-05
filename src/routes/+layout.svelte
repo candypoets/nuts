@@ -1,35 +1,52 @@
 <script lang="ts">
 	import '../app.css';
-	import { goto } from '$app/navigation';
+	// import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { updateVc } from 'src/lib';
-	import 'src/stores/contacts';
-	import 'src/stores/nuts';
-	import { onMount } from 'svelte';
+
+	import Landing from './+page.svelte';
+	import { followingSub } from 'src/stores/contacts';
+	import { claimInvoicesSub, claimPendingSub, proofSpentSub, nostrEventSub } from 'src/stores/nuts';
+	// // import { onMount } from 'svelte';
 	import { pwaInfo } from 'virtual:pwa-info';
-	import MobileNav from '../comp/MobileNav.svelte';
+	import MobileNav from 'src/comp/MobileNav.svelte';
 
 	import Login from './login.svelte';
-	import { signer } from 'src/stores/signer';
-	import { liveQuery } from 'dexie';
-	import { keyDB, keys } from 'src/stores/db';
+
+	import { initialize, key } from 'src/stores/db';
+	import { onMount } from 'svelte';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
 	// Watch for route changes
 	onMount(() => {
-		console.log('mounted');
 		updateVc();
 		updateVh();
-		// if ($page.route.id === '/') {
-		// 	goto('/home');
-		// }
-		// console.log('Route changed to:', $page.route.id);
+		// 	// if ($page.route.id === '/') {
+		// 	// 	goto('/home');
+		// 	// }
+		// 	// console.log('Route changed to:', $page.route.id);
 		page.subscribe((p) => {
 			// console.log('Route changed to:', $page.route.id);
 			updateVc();
 			updateVh();
 			// You can add your custom logic here
 		});
+		const initializer = initialize.subscribe((n) => n);
+		const nostrEvent = nostrEventSub.subscribe((n) => n);
+		const claimPending = claimPendingSub.subscribe((n) => n);
+		const proofSpent = proofSpentSub().subscribe((n) => n);
+		const claimInvoices = claimInvoicesSub().subscribe((n) => n);
+		const following = followingSub.subscribe((n) => n);
+		// 	// const profile = profileSub.subscribe((n) => n);
+		return () => {
+			initializer();
+			nostrEvent();
+			claimPending();
+			proofSpent();
+			claimInvoices();
+			following();
+			// 		// profile();
+		};
 	});
 
 	$: homepage = $page.route.id == '/';
@@ -37,17 +54,21 @@
 	function updateVh() {
 		document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
 	}
+
+	// $: console.log('signer', $signer);
 </script>
 
 <svelte:head>
 	{@html webManifestLink}
 </svelte:head>
 
-{#if $signer}
-	<slot />
-	{#if !homepage}
+{#if !homepage}
+	{#if $key}
+		<slot />
 		<MobileNav />
+	{:else}
+		<Login />
 	{/if}
 {:else}
-	<Login />
+	<Landing />
 {/if}

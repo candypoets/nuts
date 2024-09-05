@@ -11,7 +11,8 @@ enum HistoryItemType {
 	RECEIVE_NOSTR,
 	MINT,
 	MELT,
-	RECEIVE_OFFLINE
+	RECEIVE_OFFLINE,
+	CHANGE
 }
 
 export type { HistoryItem };

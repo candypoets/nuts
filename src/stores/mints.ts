@@ -4,22 +4,19 @@ import type { Mint } from '../../src/model/mint';
 
 import { getAmountForTokenSet } from 'src/actions/wallet';
 import { derived, get, writable, type Readable } from 'svelte/store';
-import { Status, db, dbMints, proofs } from './db';
-import { timestamp10, timestamp60 } from './time';
-import _ from 'lodash';
+import { Status, db, dbMints, keysets, keysetsCache, proofs } from './db';
 
-let lastUpdate = '';
 export const mints = derived(
-	[timestamp10],
-	([$time], set) => {
-		if (lastUpdate == JSON.stringify(_.uniqBy(get(dbMints), 'url'))) return;
+	[dbMints],
+	([$dbMints], set) => {
+		console.log('dbMints', $dbMints, $dbMints.length);
 		Promise.all(
-			_.uniqBy(get(dbMints), 'url').map(async (m) => {
+			$dbMints.map(async (m) => {
 				const mint = new CashuMint(m.url);
 				const keysets = await mint.getKeySets();
 				const keys = await mint.getKeys();
 				// $db.keysets.bulkAdd(keysets.keysets.map((ks) => ({ ...ks, mint: m.url })));
-				keysets.keysets.map((ks) => get(db).keysets.add({ ...ks, mint: m.url }));
+				keysets.keysets.map((ks) => keysetsCache.add({ ...ks, mint: m.url }));
 				return {
 					mintURL: m.url,
 					keysets: keysets.keysets,
@@ -27,7 +24,6 @@ export const mints = derived(
 				};
 			})
 		).then((res) => set(res));
-		lastUpdate = JSON.stringify(_.uniqBy(get(dbMints), 'url'));
 	},
 	[] as Array<Mint>
 );
@@ -50,6 +46,7 @@ export const amountAvailable = (mint: Mint) =>
 
 export const getAmountAvailable = async (mint: Mint) => {
 	if (!mint) return 0;
+	console.log('mint', mint);
 	const tokens = await getTokensForMint(mint);
 	return getAmountForTokenSet(tokens);
 };
@@ -99,8 +96,10 @@ export const mintInfos: Readable<MintInfos> = derived([mints, proofs], ([$mints,
 
 export const getTokensForMint = async (mint: Mint) => {
 	if (!mint) return [];
+	// const res = await get(db).keysets.where('mint').equals(mint.mintURL).toArray();
+
 	// find all the keyset id for the given mint
-	const res = await get(db).keysets.where('mint').equals(mint.mintURL).toArray();
+	const res = get(keysets).filter((ks) => ks.mint == mint.mintURL);
 
 	// for each keyset id, find the proofs that belong to it
 	const proofs = await get(db)

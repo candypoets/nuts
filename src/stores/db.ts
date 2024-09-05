@@ -1,11 +1,14 @@
 import Dexie, { liveQuery, type EntityTable } from 'dexie';
-import { derived, writable, type Readable, type Writable } from 'svelte/store';
+import { derived, writable, type Readable, type Writable, get } from 'svelte/store';
 import type { MintKeyset, Proof, RequestMintResponse } from '@cashu/cashu-ts';
 import type { HistoryItem } from 'src/model/historyItem';
 import type { HistoryData } from 'src/model/data/HistoryData';
 import type { Contact } from 'src/model/contact';
-import type { NostrMessage } from 'src/model/nostrMessage';
+
 import _ from 'lodash';
+import { browser } from '$app/environment';
+import { createCache, restore, type DBCache } from './cache';
+import type { NostrEvent } from '@nostrify/nostrify';
 
 export type Invoice = RequestMintResponse & { date: number; mint: string };
 
@@ -43,7 +46,8 @@ export type DB = Dexie & {
 	// spentProofs: EntityTable<Proof, 'secret'>;
 	history: EntityTable<HistoryItem<HistoryData>, 'date'>;
 	contacts: EntityTable<Contact, 'pubkey'>;
-	messages: EntityTable<NostrMessage & { id: string }, 'id'>;
+	// messages: EntityTable<NostrMessage & { id: string }, 'id'>;
+	dms: EntityTable<NostrEvent, 'id'>;
 	keysets: EntityTable<MintKeyset & { input_fee_ppk?: number; mint: string }, 'id'>;
 	invoices: EntityTable<Invoice, 'quote'>;
 	relays: EntityTable<Endpoint, 'url'>;
@@ -57,36 +61,24 @@ export type KeyDB = Dexie & {
 
 export const keyDB = new Dexie('key') as KeyDB;
 
-console.log('keyDBBBB');
 keyDB.version(1).stores({
 	keys: 'pub,npub,priv,nsec'
 });
 
 export const activeAccount = writable(0);
 
-export const keys: Writable<Key[]> = writable([]);
-
-liveQuery(() => {
-	console.log('liveQuery');
-	keyDB.keys
-		.toArray()
-		.then((res) => {
-			console.log('ok', res);
-			keys.set(res);
-		})
-		.catch((e) => console.error(e));
-}).subscribe();
+export const keysCache = createCache<Key, 'pub'>(keyDB.keys);
 
 export const key: Readable<Key | undefined> = derived(
-	[keys, activeAccount],
-	([$keys, $activeAccount], set) => {
-		set($keys[$activeAccount]);
+	[keysCache, activeAccount],
+	([$keysCache, $activeAccount], set) => {
+		set(Array.from($keysCache.values())[$activeAccount]);
 	}
 );
 
-export const db: Readable<DB> = derived([activeAccount, keys], ([$activeAccount, $keys], set) => {
-	if (!$keys[$activeAccount]?.pub) return;
-	const dex = new Dexie($keys[$activeAccount]?.pub) as DB;
+export const db: Readable<DB> = derived([activeAccount, key], ([$activeAccount, $key], set) => {
+	if (!$key?.pub) return;
+	const dex = new Dexie($key.pub) as DB;
 	console.log('dex');
 	dex.version(1).stores({
 		proofs: 'secret,id,amount,C,status',
@@ -94,67 +86,72 @@ export const db: Readable<DB> = derived([activeAccount, keys], ([$activeAccount,
 		// spentProofs: 'secret,id,amount,C',
 		history: 'date,type,amount,data.mint,data.keyset,data.send,data.returnChange,data.encodedToken',
 		contacts: 'pubkey,name,picture,about,createdAt',
-		messages:
-			'++id,event.id,event.kind,event.tags,event.content,event.created_at,event.pubkey,event.sig,token.proofs,token.mint,token.memo,isAccepted',
+		dms: 'id,kind,tags,content,created_at,pubkey',
 		keysets: 'id,unit,active,input_fee_ppk,mint',
 		invoices: 'quote,request,date,mint',
 		relays: 'url,enabled',
 		mints: 'url,enabled',
-		keys: 'pub,npub,priv,nsec',
 		settings: 'key,visible,unit'
 	});
 	set(dex);
 });
 
-let lastProofsResult: string;
+export const initialize = derived([db], async ([$db]) => {
+	console.log('-------restoring------');
+	if (!browser) return;
+	if (!$db) return;
+	await dmCache.restore($db.dms);
+	await historyCache.restore($db.history);
+	await contactsCache.restore($db.contacts);
+	await mintsCache.restore($db.mints, [
+		{ url: 'https://mint.minibits.cash/Bitcoin', enabled: true },
+		{ url: 'https://mint.lnserver.com/', enabled: true }
+	]);
+	await proofsCache.restore($db.proofs);
+	console.log('--------restored-------');
+});
+
+export const keysetsCache = createCache<
+	MintKeyset & { input_fee_ppk?: number; mint: string },
+	'id'
+>(get(db)?.keysets, 'id');
+
+export const keysets = derived(
+	[keysetsCache],
+	([$keysetsCache], set) => {
+		set(Array.from($keysetsCache.values()));
+	},
+	[] as (MintKeyset & { input_fee_ppk?: number; mint: string })[]
+);
+
+export const proofsCache = createCache<DbProof, 'secret'>(get(db)?.proofs);
+
 export const proofs = derived(
-	[db],
-	([$db], set) => {
-		if (!$db) return;
-		liveQuery(() => $db.proofs.where('status').equals(Status.Confirmed).toArray()).subscribe(
-			(proofs) => {
-				if (JSON.stringify(proofs) != lastProofsResult) {
-					set(proofs);
-				}
-				lastProofsResult = JSON.stringify(proofs);
-			}
-		);
+	[proofsCache],
+	([$proofsCache], set) => {
+		set(Array.from($proofsCache.values()).filter((p) => p.status == Status.Confirmed));
 	},
-	[] as Proof[]
+	[] as DbProof[]
 );
 
-let lastPendingProofsResult: string;
 export const pendingProofs = derived(
-	[db],
-	([$db], set) => {
-		if (!$db) return;
-		liveQuery(() =>
-			$db.proofs.where('status').noneOf([Status.Spent, Status.Confirmed]).toArray()
-		).subscribe((proofs) => {
-			if (JSON.stringify(proofs) != lastPendingProofsResult) {
-				set(proofs);
-			}
-			lastPendingProofsResult = JSON.stringify(proofs);
-		});
-	},
-	[] as Proof[]
-);
-
-let lastSpentProofsResult: string;
-export const spentProofs = derived(
-	[db],
-	([$db], set) => {
-		if (!$db) return;
-		liveQuery(() => $db.proofs.where('status').equals(Status.Spent).toArray()).subscribe(
-			(proofs) => {
-				if (JSON.stringify(proofs) != lastSpentProofsResult) {
-					set(proofs);
-				}
-				lastSpentProofsResult = JSON.stringify(proofs);
-			}
+	[proofsCache],
+	([$proofsCache], set) => {
+		set(
+			Array.from($proofsCache.values()).filter(
+				(p) => p.status != Status.Spent && p.status != Status.Confirmed
+			)
 		);
 	},
-	[] as Proof[]
+	[] as DbProof[]
+);
+
+export const spentProofs = derived(
+	[proofsCache],
+	([$proofsCache], set) => {
+		set(Array.from($proofsCache.values()).filter((p) => p.status == Status.Spent));
+	},
+	[] as DbProof[]
 );
 
 export const invoices = derived(
@@ -168,55 +165,34 @@ export const invoices = derived(
 	[] as Invoice[]
 );
 
+export const historyCache = createCache<HistoryItem<HistoryData>, 'date'>(get(db)?.history);
+
 export const history = derived(
-	[db],
-	([$db], set) => {
-		if (!$db) return;
-		liveQuery(() => $db.history.toArray()).subscribe((history) => {
-			set(history.sort((a, b) => b.date - a.date));
-		});
+	[historyCache],
+	([$historycache], set) => {
+		set(Array.from($historycache.values()).sort((a, b) => b.date - a.date));
 	},
 	[] as HistoryItem<HistoryData>[]
 );
 
+export const contactsCache = createCache<Contact, 'pubkey'>(get(db)?.contacts);
+
 export const contacts = derived(
-	[db],
-	([$db], set) => {
-		if (!$db) return;
-		liveQuery(() => $db.contacts.toArray()).subscribe((contacts) => {
-			set(_.uniqBy(contacts, 'pubkey'));
-		});
+	[contactsCache],
+	([$contactsCache], set) => {
+		set(Array.from($contactsCache.values()));
 	},
 	[] as Contact[]
 );
 
-let lastMintsResult: string;
+export const mintsCache = createCache<Endpoint, 'url'>(get(db)?.mints);
+
 export const dbMints = derived(
-	[db],
-	([$db], set) => {
-		if (!$db) return;
-		// iniialize the new db with the original set of mints servers
-		$db.mints.toArray().then((res) => {
-			if (!res.length) {
-				$db.mints.bulkAdd([
-					{ url: 'https://mint.minibits.cash/Bitcoin', enabled: true },
-					{ url: 'https://mint.lnserver.com/', enabled: true }
-				]);
-			}
-		});
-		liveQuery(() => $db.mints.toArray()).subscribe((mints) => {
-			// you need at least one mint
-			if (mints.length && JSON.stringify(_.uniqBy(mints, 'url')) != lastMintsResult) {
-				console.log('setMints');
-				set(mints);
-			}
-			lastMintsResult = JSON.stringify(_.uniqBy(mints, 'url'));
-		});
+	[mintsCache],
+	([$mintsCache], set) => {
+		set(Array.from($mintsCache.values()));
 	},
-	[
-		{ url: 'https://mint.minibits.cash/Bitcoin', enabled: true },
-		{ url: 'https://mint.lnserver.com/', enabled: true }
-	] as Endpoint[]
+	[] as Endpoint[]
 );
 
 export const dbRelays = derived(
@@ -248,6 +224,8 @@ export const dbRelays = derived(
 		{ url: 'wss://relay.nuts.cash', enabled: true }
 	] as Endpoint[]
 );
+
+export const dmCache = createCache<NostrEvent, 'id'>(get(db)?.dms);
 
 export const settings = derived(
 	[db],

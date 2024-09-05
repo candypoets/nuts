@@ -17,6 +17,8 @@
 		{/await}
 	{:else if item.type === HistoryItemType.RECEIVE}
 		Received
+	{:else if item.type === HistoryItemType.CHANGE}
+		Change
 	{:else if item.type === HistoryItemType.RECEIVE_OFFLINE}
 		Received Offline
 	{:else if item.type === HistoryItemType.MELT}

@@ -34,6 +34,10 @@
 	height: calc(var(--vh, 1vh) * 100);
 }
 
+.mobile-height-95 {
+	height: calc(var(--vh, 1vh) * 95);
+}
+
 #top {
 	opacity: 1;
 	animation: all 0.5s;

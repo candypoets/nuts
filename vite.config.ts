@@ -10,10 +10,9 @@ export default defineConfig({
 	// WARN: this will not be necessary on your project
 	logLevel: 'info',
 	server: {
-		// https: mkcert,
 		fs: {
 			// Allow serving files from hoisted root node_modules
-			allow: ['../..']
+			// allow: ['../..']
 		}
 	},
 	plugins: [
@@ -63,7 +62,6 @@ export default defineConfig({
 	resolve: {
 		alias: {
 			src: ['/src']
-			// ["ethers/lib/utils"]: ["ethers/lib/utils.js"]
 		}
 	}
 });

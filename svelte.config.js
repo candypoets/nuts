@@ -13,7 +13,7 @@ const config = {
 		serviceWorker: {
 			register: false
 		}
-		// ssr: false,
+		// ssr: false
 	}
 };
 

@@ -1,13 +1,14 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { Html5Qrcode, type QrcodeSuccessCallback, type QrcodeErrorCallback } from 'html5-qrcode';
 	import Icon from '@iconify/svelte';
 	import {} from 'src/stores';
-	import { isLightningInvoice, isNostr, isNpub } from 'src/actions/wallet';
+	import { isLightningInvoice, isNostr, isNpub, isValidLNURL } from 'src/actions/wallet';
 	import AccountModal from 'src/routes/home/account-modal.svelte';
-	import MeltModal from 'src/routes/home/melt-modal.svelte';
+
+	import LightningModal from 'src/routes/home/send/lightning.svelte';
+	import Fullscreen from 'src/comp/drawers/Fullscreen.svelte';
+	import Layer from 'src/comp/drawers/Layer.svelte';
 	import { nip19 } from 'nostr-tools';
-	import { Drawer } from 'vaul-svelte';
 
 	export let open = false;
 
@@ -27,6 +28,14 @@
 			meltModalOpen = true;
 			lightningInvoice = decodedText;
 			// open the melt modal
+		} else if (isValidLNURL(decodedText)) {
+			open = false;
+			console.log(decodedText);
+
+			meltModalOpen = true;
+			lightningInvoice = decodedText;
+			// open the contact modal
+			// either send ecash or add as friend
 		} else if (isNpub(decodedText)) {
 			open = false;
 			console.log(decodedText);
@@ -82,22 +91,17 @@
 <button on:click={() => (open = true)}>
 	<Icon icon="teenyicons:scan-solid" class="text-2xl" />
 </button>
-<Drawer.Root bind:open>
-	<Drawer.Portal>
-		<Drawer.Overlay class="absolute inset-0 bg-black/40 z-10" />
-		<Drawer.Content
-			class="pb-8 pt-3 bg-basic absolute top-0 left-0 right-0 z-10"
-			style="height: 100vh;"
-		>
-			<div class="px-4 flex">
-				<div on:click={() => (open = false)}>
-					<Icon icon="mingcute:down-line" class="text-xl" />
-				</div>
-			</div>
-			<div id="reader" class="w-full mt-32"></div>
-		</Drawer.Content>
-	</Drawer.Portal>
-</Drawer.Root>
+<Fullscreen bind:open scaleBackground={false}>
+	<div class="px-4 flex">
+		<div on:click={() => (open = false)}>
+			<Icon icon="mingcute:down-line" class="text-xl" />
+		</div>
+	</div>
+	<div id="reader" class="w-full mt-32"></div>
+</Fullscreen>
 
 <AccountModal bind:open={accountModalOpen} npub={scannedPubkey} />
-<MeltModal bind:open={meltModalOpen} invoice={lightningInvoice} />
+
+<Layer bind:open={meltModalOpen} scaleBackground={false}>
+	<LightningModal bind:subopen={meltModalOpen} invoice={lightningInvoice} />
+</Layer>
