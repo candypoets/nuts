@@ -82,7 +82,7 @@
 					</div>
 					<!-- {:catch}
         <div>unknown</div> -->
-					<div class="text-xs">
+					<div class="">
 						{f[2].slice(0, 500)}{f[2].length > 500 ? '...' : ''}
 					</div>
 				</div>
@@ -127,7 +127,7 @@
 		</div>
 		<div class="flex items-center w-full mt-1 border-b pb-1">
 			<div class="min-w-8" />
-			<div class="flex-grow flex justify-between px-4 opacity-60 text-xs">
+			<div class="flex-grow flex justify-between px-4 opacity-60">
 				<div class="flex items-center gap-1">
 					<Icon icon="iconamoon:comment-light" class="" />
 				</div>
