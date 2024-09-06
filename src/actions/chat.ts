@@ -37,5 +37,6 @@ export const sendMessage = async (toPub: string, message: string, tags?: string[
 		await get(pool).event(signedEvent);
 	} catch (e) {
 		console.error('could not send event', e);
+		// consider a queue of unsent messagees to be tried again later
 	}
 };

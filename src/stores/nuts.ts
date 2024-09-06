@@ -222,8 +222,9 @@ export const claimInvoicesSub = () => {
 					// adding anyway in case the message is not sent
 					res.proofs.forEach((p) => proofsCache.add(p));
 					// await $db.proofs.bulkAdd(res.proofs);
+					await sendMessage($key.pub, encodedToken);
 
-					sendMessage($key.pub, encodedToken).then((_) => $db.invoices.delete(invoice.quote));
+					$db.invoices.delete(invoice.quote);
 
 					// checkProofsSpent();
 					// send the token to the profile public address

@@ -42,6 +42,7 @@
 			processing = 'Creating Token';
 			const res = await send($wallets, amount as number, memo);
 			processing = 'Sending Token';
+			if (!res.sends.length) return;
 			await sendMessage(selected.pubkey, res.encodedToken)
 				.then(async () => {
 					console.info(
@@ -120,44 +121,45 @@
 	</div>
 </div>
 <div class="">
-	{#if !processing}
-		<div class="w-full gap-3">
-			<!-- <div class="z-10">
+	<div class="w-full gap-3">
+		<!-- <div class="z-10">
 				<MintSelector bind:mint />
 			</div> -->
 
-			<div class="h-52 flex flex-col items-center">
-				<input
-					autofocus
-					id="send-amt"
-					placeholder="0"
-					type="text"
-					inputmode="decimal"
-					bind:value={amount}
-					class="mt-10 text-7xl focus:outline-none text-center max-w-xs border rounded-xl"
-					on:keydown={(e) => {
-						if (e.key === 'Enter') {
-							sendEcash();
-						}
-					}}
-				/>
-				<p />
-				<p class="font-bold text-xl">Sats</p>
-			</div>
+		<div class="h-52 flex flex-col items-center">
+			<input
+				autofocus
+				id="send-amt"
+				placeholder="0"
+				type="text"
+				inputmode="decimal"
+				bind:value={amount}
+				class="mt-10 text-7xl focus:outline-none text-center max-w-xs border rounded-xl"
+				on:keydown={(e) => {
+					if (!!processing) return;
+					if (e.key === 'Enter') {
+						sendEcash();
+					}
+				}}
+			/>
+			<p />
+			<p class="font-bold text-xl">Sats</p>
 		</div>
+	</div>
 
-		<div class="px-4 w-full mt-36">
-			<button
-				class=" btn w-full btn-primary"
-				disabled={!amount || !Number(amount) || amount > $mintInfos.totalAmountAvailable}
-				on:click={() => sendEcash()}
-			>
-				{#if Number(amount) > $balance}
-					Not enough funds
-				{:else}
-					Send
-				{/if}
-			</button>
-		</div>
-	{/if}
+	<div class="px-4 w-full mt-36">
+		<button
+			class=" btn w-full btn-primary"
+			disabled={!amount || !Number(amount) || amount > $mintInfos.totalAmountAvailable}
+			on:click={() => sendEcash()}
+		>
+			{#if Number(amount) > $balance}
+				Not enough funds
+			{:else if !!processing}
+				{processing}
+			{:else}
+				Send
+			{/if}
+		</button>
+	</div>
 </div>

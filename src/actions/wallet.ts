@@ -37,7 +37,7 @@ export const send = async (
 	spents: Proof[];
 	returnChanges: Proof[];
 	encodedToken: string;
-	amount: string; // encrypted amount sent
+	// amount: string; // encrypted amount sent
 }> => {
 	let amountLeft = amount;
 	const spents: Proof[] = [];
@@ -76,7 +76,7 @@ export const send = async (
 		}
 	}
 	// remove the spents proofs from the table
-	await get(db).proofs.bulkPut(spents.map((p) => ({ ...p, status: Status.Spent })));
+	// await get(db).proofs.bulkPut(spents.map((p) => ({ ...p, status: Status.Spent })));
 	// add the spents proofs to the spentProofs table
 	// get(db).spentProofs.bulkAdd(spents);
 
@@ -84,8 +84,8 @@ export const send = async (
 		sends,
 		spents,
 		returnChanges,
-		encodedToken: getEncodedToken({ token: toEncode, memo }),
-		amount: await getEncryptedContent(get(key).pub, amount.toString())
+		encodedToken: getEncodedToken({ token: toEncode, memo })
+		// amount: await getEncryptedContent(get(key)?.pub, amount.toString())
 	};
 };
 

@@ -9,6 +9,7 @@
 	import AddModal from './add-modal.svelte';
 	import SendModal from './send/send-modal.svelte';
 	import Transactions from './transactions/index.svelte';
+	import Layer from 'src/comp/drawers/Layer.svelte';
 
 	let active = 'base';
 	let encodedToken = '';
@@ -94,4 +95,6 @@
 
 <SendModal bind:open={sendOpen} />
 
-<AddFriendModal bind:open={addFriend} />
+<Layer bind:open={addFriend}>
+	<AddFriendModal bind:open={addFriend} />
+</Layer>

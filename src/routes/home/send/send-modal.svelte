@@ -12,7 +12,8 @@
 	import Tapcash from './tapcash.svelte';
 	import Lightning from './lightning.svelte';
 	import Fullscreen from 'src/comp/drawers/Fullscreen.svelte';
-	import Sublayer from 'src/comp/drawers/SubLayer.svelte';
+	import SubLayer from 'src/comp/drawers/SubLayer.svelte';
+	import { getContact } from 'src/stores/contacts';
 
 	let active: string;
 	let search: string;
@@ -79,7 +80,7 @@
 				<div
 					on:click={() => {
 						addFriend = true;
-						subopen = true;
+						// subopen = true;
 						paymentType = '';
 					}}
 					class="ml-4"
@@ -148,29 +149,31 @@
 		<strong class="text-lg">Contacts</strong>
 		<div class="my-4 rounded-lg border">
 			{#each $contacts || [] as friend}
-				<div
-					class="flex items-center justify-around py-2 border-b last:border-none"
-					on:click={() => {
-						selectedContact = friend;
-						subopen = true;
-						paymentType = 'Zap';
-					}}
-				>
-					<!-- <Icon icon="carbon:lightning" class="w-16 h-6" />
+				{#await getContact(friend.pubkey) then f}
+					<div
+						class="flex items-center justify-around py-2 border-b last:border-none"
+						on:click={() => {
+							selectedContact = f;
+							subopen = true;
+							paymentType = 'Zap';
+						}}
+					>
+						<!-- <Icon icon="carbon:lightning" class="w-16 h-6" />
 							  -->
-					<div class="w-16">
-						<img
-							src={friend.picture || '/ns-naked.svg'}
-							alt={friend.name}
-							class="border w-8 h-8 rounded-full space-x-4 mx-auto"
-						/>
+						<div class="w-16">
+							<img
+								src={f?.picture || '/ns-naked.svg'}
+								alt={f?.name}
+								class="border w-8 h-8 rounded-full space-x-4 mx-auto"
+							/>
+						</div>
+						<div class="flex-grow">
+							<strong>{f?.name}</strong>
+							<!-- <p class="text-xs">Offline instant payment</p> -->
+						</div>
+						<!-- <Icon icon="carbon:arrow-right" class="w-16 h-6" /> -->
 					</div>
-					<div class="flex-grow">
-						<strong>{friend.name}</strong>
-						<!-- <p class="text-xs">Offline instant payment</p> -->
-					</div>
-					<!-- <Icon icon="carbon:arrow-right" class="w-16 h-6" /> -->
-				</div>
+				{/await}
 			{/each}
 		</div>
 		<!-- <Send active="send" /> -->
@@ -184,8 +187,10 @@
 				{/if} -->
 	</div>
 
-	<AddFriendModal bind:open={addFriend} />
-	<Sublayer bind:open={subopen}>
+	<SubLayer bind:open={addFriend}>
+		<AddFriendModal bind:open={addFriend} scaleBackground={false} />
+	</SubLayer>
+	<SubLayer bind:open={subopen}>
 		<!-- <Drawer.Trigger /> -->
 		{#if paymentType === 'Tapcash'}
 			<Tapcash />
@@ -194,5 +199,5 @@
 		{:else if paymentType === 'Invoice'}
 			<Lightning bind:subopen />
 		{/if}
-	</Sublayer>
+	</SubLayer>
 </Fullscreen>

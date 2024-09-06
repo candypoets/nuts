@@ -60,8 +60,8 @@ export const followingSub = derived([key, db], async ([$key, $db]) => {
 export async function getContact(pubkey: string): Promise<Contact> {
 	// try to get the contact from the db
 	const local = get(contacts).find((c) => c.pubkey === pubkey);
-	if (local) return local;
-	console.log(pubkey, get(contacts));
+	if (local && !!local.createdAt) return local;
+	// console.log(pubkey, get(contacts));
 	const contact = new Promise<Contact>(async (resolve, reject) => {
 		try {
 			const follows = get(pool).req([
