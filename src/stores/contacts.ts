@@ -76,11 +76,13 @@ export async function getContact(pubkey: string): Promise<Contact> {
 				const event = follow[2];
 				// console.log(event);
 				const contact = JSON.parse(event.content);
+				console.log(contact);
 				contactsCache.put({
 					createdAt: event.created_at,
 					pubkey: event.pubkey,
 					name: contact.name || contact.display_name || contact.displayName,
 					about: contact.about,
+					nip05: contact?.lud16 || contact?.nip05,
 					picture: contact.picture
 				});
 				resolve({ ...JSON.parse(event.content), pubkey: event.pubkey });

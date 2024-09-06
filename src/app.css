@@ -57,13 +57,13 @@
 
 .blur-in {
 	/* filter: blur(24px); */
-	backdrop-filter: blur(24px);
-	transition: all 0.5s;
+	/* backdrop-filter: blur(24px);
+	transition: all 0.5s; */
+	opacity: 0.2;
 }
 
 .blur-out {
-	filter: blur(0);
-	transition: all 0.5s;
+	opacity: 0.2;
 }
 
 .toggle-down {

@@ -40,6 +40,24 @@ export type DbProof = Proof & {
 	status?: Status;
 };
 
+export type Zap = {
+	id: string;
+	kind: number;
+	ref?: string; // id of the event zapped
+	content: string;
+	created_at: number;
+	pubkey: string;
+	amount: number;
+};
+
+export type Reaction = {
+	id: string;
+	kind: number;
+	ref?: string; // id of the event liked
+	created_at: number;
+	pubkey: string;
+};
+
 export type DB = Dexie & {
 	proofs: EntityTable<DbProof, 'secret'>;
 	// pendingProofs: EntityTable<Proof, 'secret'>;
@@ -48,6 +66,9 @@ export type DB = Dexie & {
 	contacts: EntityTable<Contact, 'pubkey'>;
 	// messages: EntityTable<NostrMessage & { id: string }, 'id'>;
 	dms: EntityTable<NostrEvent, 'id'>;
+	notes: EntityTable<NostrEvent, 'id'>;
+	reactions: EntityTable<Reaction, 'id'>;
+	zaps: EntityTable<Zap, 'id'>;
 	keysets: EntityTable<MintKeyset & { input_fee_ppk?: number; mint: string }, 'id'>;
 	invoices: EntityTable<Invoice, 'quote'>;
 	relays: EntityTable<Endpoint, 'url'>;
@@ -80,13 +101,16 @@ export const db: Readable<DB> = derived([activeAccount, key], ([$activeAccount, 
 	if (!$key?.pub) return;
 	const dex = new Dexie($key.pub) as DB;
 	console.log('dex');
-	dex.version(1).stores({
+	dex.version(1.1).stores({
 		proofs: 'secret,id,amount,C,status',
 		// pendingProofs: 'secret,id,amount,C',
 		// spentProofs: 'secret,id,amount,C',
 		history: 'date,type,amount,data.mint,data.keyset,data.send,data.returnChange,data.encodedToken',
-		contacts: 'pubkey,name,picture,about,createdAt',
+		contacts: 'pubkey,name,picture,about,createdAt,nip05',
 		dms: 'id,kind,tags,content,created_at,pubkey',
+		notes: 'id,kind,tags,content,created_at,pubkey',
+		reactions: 'id,kind,ref,created_at,pubkey',
+		zaps: 'id,kind,ref,created_at,content,pubkey,amount',
 		keysets: 'id,unit,active,input_fee_ppk,mint',
 		invoices: 'quote,request,date,mint',
 		relays: 'url,enabled',
@@ -101,6 +125,9 @@ export const initialize = derived([db], async ([$db]) => {
 	if (!$db) return;
 	console.log('-------restoring------');
 	await dmCache.restore($db.dms);
+	await notesCache.restore($db.notes);
+	await reactionsCache.restore($db.reactions);
+	await zapsCache.restore($db.zaps);
 	await historyCache.restore($db.history);
 	await keysetsCache.restore($db.keysets);
 	await contactsCache.restore($db.contacts);
@@ -228,6 +255,21 @@ export const dbRelays = derived(
 
 export const dmCache = createCache<NostrEvent, 'id'>(get(db)?.dms);
 
+export const notesCache = createCache<NostrEvent, 'id'>(get(db)?.notes);
+
+export const notes = derived(
+	[notesCache],
+	([$notesCache], set) => {
+		set(Array.from($notesCache.values()));
+	},
+	[] as NostrEvent[]
+);
+
+export const reactionsCache = createCache<Reaction, 'id'>(get(db)?.reactions);
+
+// export const reactions = derived(
+//   [reaction]
+export const zapsCache = createCache<Zap, 'id'>(get(db)?.zaps);
 export const settings = derived(
 	[db],
 	([$db], set) => {

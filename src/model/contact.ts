@@ -3,6 +3,7 @@ interface Contact {
 	name?: string;
 	picture?: string;
 	about?: string;
+	nip05?: string;
 	createdAt?: number; // unix timestamp
 }
 

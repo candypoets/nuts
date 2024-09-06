@@ -25,7 +25,7 @@
 </script>
 
 <div
-	class="fixed lg:relative w-full lg:w-1/3 place-content-center m-auto px-4 py-2 pb-3 lg:pt-12 bg-basic z-10"
+	class="fixed lg:relative w-full lg:w-1/3 place-content-center m-auto px-4 py-2 pb-3 lg:pt-12 bg-basic z-10 backdrop"
 	class:shadow-md={scrollY > 0}
 	id="top"
 >

@@ -1,5 +1,6 @@
 export function updateVc() {
 	setTimeout(() => {
+		console.log('update vc');
 		// find a div with id container
 		const container = document.getElementById('container');
 		// find a div with id footer
@@ -19,29 +20,36 @@ export function updateVc() {
 
 		document.documentElement.style.setProperty('--vc', `${window.innerHeight * 0.01}px`);
 		document.documentElement.style.setProperty('--footer-height', `${footerHeight + 15}px`);
-		document.documentElement.style.setProperty('--navbar-height', `${navbarHeight}px`);
 		document.documentElement.style.setProperty('--container-top', `${topperBottom + 30}px`);
+
+		console.log(navbar);
 
 		let prevScrollPos = container.scrollTop;
 		// on scroll down, add a className to the top container
-		// container.addEventListener('scroll', (e) => {
-		// 	console.log('scrolling');
-		// 	const currentScrollPos = container.scrollTop;
-		// 	if (currentScrollPos > prevScrollPos + 50) {
-		// 		topper?.classList.add('toggle-up');
-		// 		navbar?.classList.add('blur-in');
-		// 		prevScrollPos = currentScrollPos;
-		// 	} else if (currentScrollPos < prevScrollPos - 50) {
-		// 		topper?.classList.remove('toggle-up');
-		// 		navbar?.classList.remove('blur-in');
-		// 		prevScrollPos = currentScrollPos;
-		// 	} else if (currentScrollPos == 0) {
-		// 		topper?.classList.remove('toggle-up');
-		// 		navbar?.classList.remove('blur-in');
-		// 		prevScrollPos = currentScrollPos;
-		// 	}
-		// });
 
+		const fadein = (e) => {
+			const currentScrollPos = container.scrollTop;
+			if (currentScrollPos > prevScrollPos + 50) {
+				topper?.classList.add('toggle-up');
+				footer?.classList.add('blur-in');
+				prevScrollPos = currentScrollPos;
+			} else if (currentScrollPos < prevScrollPos - 50) {
+				topper?.classList.remove('toggle-up');
+				footer?.classList.remove('blur-in');
+				prevScrollPos = currentScrollPos;
+			} else if (currentScrollPos == 0) {
+				topper?.classList.remove('toggle-up');
+				footer?.classList.remove('blur-in');
+				prevScrollPos = currentScrollPos;
+			}
+		};
+		if (window.location.pathname.includes('home')) {
+			console.log('removing');
+			container.removeEventListener('scroll', fadein);
+			footer?.classList.remove('blur-in');
+		} else {
+			container.addEventListener('scroll', fadein);
+		}
 		// if (topperBottom && top < 0) {
 		//   topper?.classList.add("sticky");
 		//   navbar?.classList.add("sticky");
@@ -50,6 +58,10 @@ export function updateVc() {
 		//   navbar?.classList.remove("sticky");
 		// }
 	}, 0);
+}
+
+export function isImageUrl(url: string) {
+	return /\.(jpg|jpeg|png|webp|avif|gif|svg)$/i.test(url);
 }
 
 export function formatDate(date: Date) {

@@ -39,6 +39,8 @@ import { browser } from '$app/environment';
 import { ADDRESS_ZERO } from './constants';
 
 // export const eventMap: { [key: string]: boolean } = {};
+//
+let abortController = new AbortController();
 
 export const nostrEventSub = derived([key, pool, db], async ([$key, $pool, $db]) => {
 	if (!browser) return;
@@ -50,18 +52,25 @@ export const nostrEventSub = derived([key, pool, db], async ([$key, $pool, $db])
 		lastEvent,
 		new Date(lastEvent?.created_at * 1000).toLocaleString()
 	);
-	const messages = get(pool).req([
-		{
-			kinds: [nostrTools.kinds.EncryptedDirectMessage],
-			'#p': [$key.pub],
-			since: lastEvent?.created_at
-		}, // incoming messages
-		{
-			kinds: [nostrTools.kinds.EncryptedDirectMessage],
-			authors: [$key.pub],
-			since: lastEvent?.created_at
-		} // outgoing messages and topups
-	]);
+	// end the previous ws connection if any
+	abortController.abort();
+
+	abortController = new AbortController();
+	const messages = get(pool).req(
+		[
+			{
+				kinds: [nostrTools.kinds.EncryptedDirectMessage],
+				'#p': [$key.pub],
+				since: lastEvent?.created_at
+			}, // incoming messages
+			{
+				kinds: [nostrTools.kinds.EncryptedDirectMessage],
+				authors: [$key.pub],
+				since: lastEvent?.created_at
+			} // outgoing messages and topups
+		],
+		{ signal: abortController.signal }
+	);
 
 	for await (const message of messages) {
 		if (message[0] === 'CLOSED') break;
