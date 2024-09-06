@@ -82,7 +82,7 @@
 					</div>
 					<!-- {:catch}
         <div>unknown</div> -->
-					<div class="">
+					<div class="text-sm">
 						{f[2].slice(0, 500)}{f[2].length > 500 ? '...' : ''}
 					</div>
 				</div>
