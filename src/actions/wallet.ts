@@ -16,13 +16,14 @@ import { bech32 } from 'bech32';
 
 import { hexToBytes } from '@noble/hashes/utils';
 import { profile } from 'src/stores/profile';
-import { signer } from 'src/stores/signer';
+
 import type { WalletInfo } from 'src/stores/wallet';
 import { get } from 'svelte/store';
 import _ from 'lodash';
-import { getDecryptedContent, getEncryptedContent, sendMessage } from './chat';
+import { sendMessage } from './chat';
 import { decode } from '@gandlaf21/bolt11-decode';
 import { ADDRESS_ZERO } from 'src/stores/constants';
+import type { NSecSigner } from '@nostrify/nostrify';
 
 // send proofs from the most important mint to the least important
 export const send = async (
@@ -170,7 +171,11 @@ export const getMeltQuote = async (wallets: WalletInfo[], lightningInvoice: stri
 	return melts;
 };
 
-export const mint = async (wallet: CashuWallet, invoice: RequestMintResponse) => {
+export const mint = async (
+	signer: NSecSigner,
+	wallet: CashuWallet,
+	invoice: RequestMintResponse
+) => {
 	const amount = decode(invoice.request).sections[2].value / 1000;
 	await wallet.mintTokens(amount, invoice.quote).then(async (res) => {
 		const encodedToken = getEncodedToken({
@@ -182,11 +187,12 @@ export const mint = async (wallet: CashuWallet, invoice: RequestMintResponse) =>
 		res.proofs.forEach((p) => proofsCache.add(p));
 		// await $db.proofs.bulkAdd(res.proofs);
 
-		sendMessage(get(key).pub, encodedToken);
+		sendMessage(signer, get(key).pub, encodedToken);
 	});
 };
 
 export const melt = async (
+	signer: NSecSigner,
 	wallet: WalletInfo,
 	meltQuote: MeltQuoteResponse,
 	amount: number
@@ -205,10 +211,12 @@ export const melt = async (
 	console.log(wallet.proofs, meltResult.change);
 	await checkProofsSpent(wallet.proofs);
 	await sendMessage(
+		signer,
 		ADDRESS_ZERO,
 		getEncodedToken({ token: [{ proofs: proofToSend, mint: wallet.mintURL }] })
 	);
 	await sendMessage(
+		signer,
 		get(key)?.pub,
 		getEncodedToken({ token: [{ proofs: meltResult.change, mint: wallet.mintURL }] }),
 		[['change']]
@@ -217,10 +225,14 @@ export const melt = async (
 	return { sent: proofToSend, change: meltResult.change };
 };
 
-export const toLightning = async (wallets: WalletInfo[], lightningInvoice: string) => {
+export const toLightning = async (
+	signer: NSecSigner,
+	wallets: WalletInfo[],
+	lightningInvoice: string
+) => {
 	const melts = await getMeltQuote(wallets, lightningInvoice);
 	for (let m of melts) {
-		await melt(m.wallet, m.meltQuote, m.amount);
+		await melt(signer, m.wallet, m.meltQuote, m.amount);
 	}
 };
 
@@ -280,8 +292,8 @@ export const getAmountForTokenSet = (tokens: Array<Proof>): number => {
 	}, 0);
 };
 
-export const signEvent = async (event: Omit<NostrEvent, 'id' | 'sig'>) => {
-	event = await get(signer)?.signEvent(event);
+export const signEvent = async (signer: NSecSigner, event: Omit<NostrEvent, 'id' | 'sig'>) => {
+	event = await signer?.signEvent(event);
 	return event as NostrEvent;
 };
 
@@ -306,7 +318,7 @@ export const saveNuts = async (proofs: Proof[], toPubKey?: string) => {
 		}
 		toEncode.push({ proofs: proofsByKeySet[key], mint: m.mint });
 	}
-	sendMessage(toPubKey, getEncodedToken({ token: toEncode }), [['nuts']]);
+	sendMessage(signer, toPubKey, getEncodedToken({ token: toEncode }), [['nuts']]);
 };
 
 export async function checkProofsSpent(proofs: Proof[]): Promise<string[]> {
@@ -349,10 +361,14 @@ export async function checkProofsSpent(proofs: Proof[]): Promise<string[]> {
 	return errors;
 }
 
-export async function retrieveSpentProofs(event: NostrEvent, pubkey: string): Promise<Proof[]> {
+export async function retrieveSpentProofs(
+	signer: NSecSigner,
+	event: NostrEvent,
+	pubkey: string
+): Promise<Proof[]> {
 	const content = event.tags.find((t) => t[0] == 's')?.[1];
 	if (!content) return [];
-	const decrypted = await getDecryptedContent(pubkey, content);
+	const decrypted = await signer.nip04.decrypt(pubkey, content);
 	const spentProofs = JSON.parse(decrypted);
 	return spentProofs;
 }

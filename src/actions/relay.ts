@@ -1,10 +1,15 @@
+import type { NSecSigner } from '@nostrify/nostrify';
 import type { NostrEvent, UnsignedEvent } from 'nostr-tools';
 import { pool } from 'src/stores/relays';
 import { signer } from 'src/stores/signer';
 import { get } from 'svelte/store';
 
-export const signAndSend = async (event: UnsignedEvent) => {
-	event = await get(signer)?.signEvent(event);
+export const signAndSend = async (signer: NSecSigner, event: UnsignedEvent) => {
+	if (!signer) {
+		console.warn('No signer found to publish event');
+		return;
+	}
+	event = await signer?.signEvent(event);
 
 	get(pool).event(event as NostrEvent);
 };

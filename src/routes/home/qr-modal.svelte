@@ -2,7 +2,6 @@
 	import Icon from '@iconify/svelte';
 	import { key } from 'src/stores/db';
 	import { QRCodeImage } from 'svelte-qrcode-image';
-	import { Drawer } from 'vaul-svelte';
 	import Layer from 'src/comp/drawers/Layer.svelte';
 
 	export let open: boolean = false;

@@ -66,7 +66,7 @@ export type DB = Dexie & {
 	contacts: EntityTable<Contact, 'pubkey'>;
 	// messages: EntityTable<NostrMessage & { id: string }, 'id'>;
 	dms: EntityTable<NostrEvent, 'id'>;
-	notes: EntityTable<NostrEvent, 'id'>;
+	notes: EntityTable<NostrEvent & { reply_to: string }, 'id'>;
 	reactions: EntityTable<Reaction, 'id'>;
 	zaps: EntityTable<Zap, 'id'>;
 	keysets: EntityTable<MintKeyset & { input_fee_ppk?: number; mint: string }, 'id'>;
@@ -93,6 +93,7 @@ export const keysCache = createCache<Key, 'pub'>(keyDB.keys);
 export const key: Readable<Key | undefined> = derived(
 	[keysCache, activeAccount],
 	([$keysCache, $activeAccount], set) => {
+		console.log('keys');
 		set(Array.from($keysCache.values())[$activeAccount]);
 	}
 );
@@ -101,14 +102,14 @@ export const db: Readable<DB> = derived([activeAccount, key], ([$activeAccount, 
 	if (!$key?.pub) return;
 	const dex = new Dexie($key.pub) as DB;
 	console.log('dex');
-	dex.version(1.1).stores({
+	dex.version(1.2).stores({
 		proofs: 'secret,id,amount,C,status',
 		// pendingProofs: 'secret,id,amount,C',
 		// spentProofs: 'secret,id,amount,C',
 		history: 'date,type,amount,data.mint,data.keyset,data.send,data.returnChange,data.encodedToken',
 		contacts: 'pubkey,name,picture,about,createdAt,nip05',
 		dms: 'id,kind,tags,content,created_at,pubkey',
-		notes: 'id,kind,tags,content,created_at,pubkey',
+		notes: 'id,kind,tags,content,reply_to,created_at,pubkey',
 		reactions: 'id,kind,ref,created_at,pubkey',
 		zaps: 'id,kind,ref,created_at,content,pubkey,amount',
 		keysets: 'id,unit,active,input_fee_ppk,mint',
@@ -255,7 +256,7 @@ export const dbRelays = derived(
 
 export const dmCache = createCache<NostrEvent, 'id'>(get(db)?.dms);
 
-export const notesCache = createCache<NostrEvent, 'id'>(get(db)?.notes);
+export const notesCache = createCache<NostrEvent & { reply_to: string }, 'id'>(get(db)?.notes);
 
 export const notes = derived(
 	[notesCache],
@@ -282,3 +283,27 @@ export const settings = derived(
 	},
 	{ key: 'settings', visible: true, unit: 'sat' } as Setting
 );
+
+export type Preview = {
+	url: string;
+	title: string;
+	siteName: string | undefined;
+	description: string | undefined;
+	mediaType: string;
+	contentType: string | undefined;
+	images: string[];
+	videos: {
+		url: string | undefined;
+		secureUrl: string | null | undefined;
+		type: string | null | undefined;
+		width: string | undefined;
+		height: string | undefined;
+	}[];
+	favicons: string[];
+};
+
+export const previewCache = createCache<Preview, 'url'>(undefined, 'url');
+
+export const previews = derived([previewCache], ([$previewCache], set) => {
+	set(Array.from($previewCache.values()));
+});

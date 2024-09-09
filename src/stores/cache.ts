@@ -47,6 +47,7 @@ export function createCache<T, TKeyPropName extends keyof T>(
 		set,
 		update,
 		async restore(newTable: EntityTable<T, TKeyPropName>, items?: T[]) {
+			console.log('restore');
 			table = newTable;
 			const all = await table.toArray();
 			const newMap = new Map([...(items || []), ...all].map((item) => [getPrimaryKey(item), item]));

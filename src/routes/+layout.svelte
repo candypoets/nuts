@@ -1,5 +1,6 @@
 <script lang="ts">
 	import '../app.css';
+	import 'photoswipe/style.css';
 	// import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { updateVc } from 'src/lib';
@@ -13,12 +14,29 @@
 
 	import Login from './login.svelte';
 
-	import { initialize, key } from 'src/stores/db';
+	import { activeAccount, initialize, key, keysCache } from 'src/stores/db';
 	import { onMount } from 'svelte';
+	import { nip19 } from 'nostr-tools';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
 	// Watch for route changes
 	onMount(() => {
+		console.log('-----------initial mount-----------', window.nostr);
+		if (window.nostr?.nip04) {
+			console.log('olaaaa');
+			// keysCache.clear();
+			window.nostr
+				.getPublicKey()
+				.then((pubKey: string) => {
+					console.log('-------------hello--------------', pubKey);
+					keysCache.put({
+						pub: pubKey,
+						npub: nip19.npubEncode(pubKey)
+					});
+					$activeAccount = Array.from($keysCache.values()).findIndex((k) => k.pub == pubKey);
+				})
+				.catch((err) => console.warn(err));
+		}
 		updateVc();
 		updateVh();
 		// 	// if ($page.route.id === '/') {
@@ -63,7 +81,7 @@
 </svelte:head>
 
 {#if !homepage}
-	{#if $key}
+	{#if $key?.pub}
 		<slot />
 		<MobileNav />
 	{:else}

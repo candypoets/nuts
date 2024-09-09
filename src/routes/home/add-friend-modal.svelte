@@ -6,6 +6,7 @@
 	import { contacts, db, key } from 'src/stores/db';
 	import { pool } from 'src/stores/relays';
 	import Layer from 'src/comp/drawers/Layer.svelte';
+	import { signer } from 'src/stores/signer';
 
 	export let open: boolean = false;
 
@@ -87,7 +88,7 @@
 							pubkey,
 							createdAt: Math.floor(Date.now() / 1000)
 						});
-						await signAndSend({
+						await signAndSend($signer, {
 							kind: 3,
 							pubkey: $key?.pub,
 							created_at: Math.floor(Date.now() / 1000),

@@ -9,6 +9,7 @@
 	import { onMount } from 'svelte';
 	import Icon from '@iconify/svelte';
 	import type { Contact } from 'src/model/contact';
+	import { signer } from 'src/stores/signer';
 
 	// export let active: string;
 	export let selected: Contact;
@@ -43,7 +44,7 @@
 			const res = await send($wallets, amount as number, memo);
 			processing = 'Sending Token';
 			if (!res.sends.length) return;
-			await sendMessage(selected.pubkey, res.encodedToken)
+			await sendMessage($signer, selected.pubkey, res.encodedToken)
 				.then(async () => {
 					console.info(
 						'return change',

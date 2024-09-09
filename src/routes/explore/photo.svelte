@@ -1,0 +1,33 @@
+<script lang="ts">
+	import { onMount } from 'svelte';
+
+	export let link:
+		| {
+				type: string;
+				value: string;
+				isLink: boolean;
+				href: string;
+				start: number;
+				end: number;
+		  }
+		| undefined = undefined;
+
+	let image: HTMLImageElement | null = null;
+
+	let height: number = 0;
+	let width: number = 0;
+
+	onMount(() => {
+		image.onload = () => {
+			console.log('image', image, image?.width, image?.height, link);
+			height = (image?.height || 0) * 2;
+			width = (image?.width || 0) * 2;
+		};
+	});
+
+	$: console.log('image', image?.width, image?.height, link);
+</script>
+
+<a href={link?.value} data-pswp-width={width} data-pswp-height={height} target="_blank">
+	<img src={link?.value} alt="" bind:this={image} />
+</a>

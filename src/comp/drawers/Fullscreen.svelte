@@ -3,9 +3,10 @@
 	export let dismissible: boolean = true;
 	export let scaleBackground: boolean = true;
 	export let open: boolean = false;
+	export let onClose: any;
 </script>
 
-<Drawer.Root {dismissible} bind:open shouldScaleBackground={scaleBackground}>
+<Drawer.Root {dismissible} bind:open shouldScaleBackground={scaleBackground} {onClose}>
 	<!-- <Drawer.Trigger /> -->
 	<Drawer.Portal>
 		<Drawer.Overlay class="absolute inset-0 bg-black/40 z-10" />

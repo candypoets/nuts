@@ -82,6 +82,14 @@
 	/* margin-top: var(--navbar-height); */
 }
 
+.container-height-200 {
+	height: calc(var(--vc, 1vh) * 200);
+	overflow-x: hidden;
+	overflow-y: scroll;
+	padding-bottom: var(--footer-height);
+	padding-top: calc(var(--container-top));
+}
+
 .scrollbar-hide::-webkit-scrollbar {
 	display: none;
 }

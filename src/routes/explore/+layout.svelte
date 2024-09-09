@@ -12,12 +12,12 @@
 	onMount(() => {
 		updateVc();
 		const notes = notesSub.subscribe((n) => n);
-		const reactions = reactionSub.subscribe((r) => r);
-		const zaps = zapSub.subscribe((z) => z);
+		// const reactions = reactionSub.subscribe((r) => r);
+		// const zaps = zapSub.subscribe((z) => z);
 		return () => {
 			notes();
-			reactions();
-			zaps();
+			// reactions();
+			// zaps();
 		};
 	});
 </script>
@@ -38,7 +38,7 @@
 	<span class="text-sm font-semibold">{$balance} Sats</span>
 </div>
 <div
-	class="lg:h-auto lg:pt-0 overflow-scroll scrollbar-hide container-height lg:w-1/3 m-auto"
+	class="lg:h-auto lg:pt-0 overflow-scroll scrollbar-hide container-height-200 lg:w-1/3 m-auto !pt-16"
 	id="container"
 >
 	<slot />

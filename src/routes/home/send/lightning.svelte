@@ -20,6 +20,7 @@
 	import Icon from '@iconify/svelte';
 	import { balance, wallets } from 'src/stores/wallet';
 	import { decode } from '@gandlaf21/bolt11-decode';
+	import { signer } from 'src/stores/signer';
 
 	export let subopen: boolean = false;
 	export let invoice: string;
@@ -86,10 +87,10 @@
 		ongoingPayment = true;
 		let i = 0;
 		for (const m of melts) {
-			await melt(m.wallet, m.meltQuote, m.amount);
+			await melt($signer, m.wallet, m.meltQuote, m.amount);
 			if (m.mintQuote) {
 				const nextMelt = melts[i + 1];
-				await mintToken(nextMelt.wallet.wallet, m.mintQuote);
+				await mintToken($signer, nextMelt.wallet.wallet, m.mintQuote);
 			}
 			i++;
 		}

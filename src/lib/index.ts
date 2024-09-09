@@ -61,7 +61,8 @@ export function updateVc() {
 }
 
 export function isImageUrl(url: string) {
-	return /\.(jpg|jpeg|png|webp|avif|gif|svg)$/i.test(url);
+	if (url.endsWith('.jpg')) return true;
+	return /\.(jpg|jpeg|png|webp|avif|gif|svg)$/i.test(url) || /\.jpe?g/i.test(url);
 }
 
 export function formatDate(date: Date) {

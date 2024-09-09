@@ -5,7 +5,7 @@
 	import type { NostrEvent } from '@nostrify/nostrify';
 	import { kinds, nip19, type UnsignedEvent } from 'nostr-tools';
 	import { decodePrivKey } from 'src/actions/wallet';
-	import { keyDB, keysCache } from 'src/stores/db';
+	import { activeAccount, keyDB, keysCache } from 'src/stores/db';
 	import { pool } from 'src/stores/relays';
 	import { signer } from 'src/stores/signer';
 	import { onMount } from 'svelte';
@@ -41,28 +41,33 @@
 		const pubkey = bytesToHex(schnorr.getPublicKey(pk));
 		const privkey = bytesToHex(pk);
 
-		// console.log(pk, pubkey);
+		const abortController = new AbortController();
+		// abortController = new AbortController();
+
 		loading = true;
-		const messages = get(pool).req([{ kinds: [kinds.Metadata], authors: [pubkey], limit: 1 }]);
+		const messages = get(pool).req([{ kinds: [kinds.Metadata], authors: [pubkey], limit: 1 }], {
+			signal: abortController.signal
+		});
 
 		for await (const message of messages) {
 			if (message[0] === 'CLOSED') break;
 			if (message[0] !== 'EVENT') continue;
 			loading = false;
 			try {
-				console.log('ok');
 				keysCache.put({
 					pub: pubkey,
 					priv: privkey,
 					npub: nip19.npubEncode(pubkey),
 					nsec: nip19.nsecEncode(pk)
 				});
+				$activeAccount = Array.from($keysCache.values()).findIndex((k) => k.pub == pubkey);
 			} catch (error) {
 				console.warn(error);
 			}
-			console.log('hoy');
 			break;
 		}
+
+		abortController.abort();
 	}
 
 	async function handleSignup() {
@@ -79,6 +84,8 @@
 			npub: nip19.npubEncode(pubkey),
 			nsec: nip19.nsecEncode(priv)
 		});
+
+		$activeAccount = Array.from($keysCache.values()).findIndex((k) => k.pub == pubkey);
 
 		let event: UnsignedEvent = {
 			kind: 0,
@@ -106,10 +113,11 @@
 			// console.log(window.nostr);
 			// $nostrPubKey = await window.nostr.getPublicKey();
 			const pubKey = await window.nostr.getPublicKey();
-			keysCache.put({
+			keysCache.add({
 				pub: pubKey,
 				npub: nip19.npubEncode(pubKey)
 			});
+			$activeAccount = Array.from($keysCache.values()).findIndex((k) => k.pub == pubKey);
 		} else if (window.localStorage.getItem('nostr-privkey')) {
 			// backward compatibility
 			privateKey = window.localStorage.getItem('nostr-privkey');

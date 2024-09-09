@@ -11,7 +11,8 @@ import {
 } from './db';
 import { pool } from './relays';
 import { browser } from '$app/environment';
-import { kinds } from 'nostr-tools';
+import { kinds, type NostrEvent } from 'nostr-tools';
+import type { NPool } from '@nostrify/nostrify';
 
 let abortController = new AbortController();
 
@@ -105,6 +106,40 @@ export const reactionSub = derived(
 	}
 );
 
+export async function fetchReactions(
+	pool: NPool,
+	note: NostrEvent,
+	abortController: AbortController
+) {
+	const messages = pool.req(
+		[
+			{
+				kinds: [kinds.Reaction],
+				// '#e': [postId], // Reference to the specific post
+
+				'#e': [note.id],
+				since: note?.created_at
+			}
+		],
+		{ signal: abortController.signal }
+	);
+
+	for await (const message of messages) {
+		if (message[0] === 'CLOSED') break;
+		if (message[0] !== 'EVENT') continue;
+		const event = message[2];
+		// console.log(event);
+		let reaction: Reaction = {
+			id: event.id,
+			kind: event.kind,
+			created_at: event.created_at,
+			ref: event.tags.find((t) => t[0] === 'e')?.[1],
+			pubkey: event.pubkey
+		};
+		reactionsCache.add(reaction);
+	}
+}
+
 function getAmountFromBolt11(bolt11: string) {
 	// This is a simplified regex. A full implementation would be more robust.
 	const match = bolt11.match(/ln([^1-9]*)([1-9][0-9]*[munp]?)/);
@@ -192,3 +227,67 @@ export const zapSub = derived(
 		}
 	}
 );
+
+export async function fetchZaps(pool: NPool, note: NostrEvent, abortController: AbortController) {
+	const messages = pool.req(
+		[
+			{
+				kinds: [kinds.Zap],
+				// '#e': [postId], // Reference to the specific post
+
+				'#e': [note.id],
+				since: note?.created_at
+			}
+		],
+		{ signal: abortController.signal }
+	);
+
+	for await (const message of messages) {
+		if (message[0] === 'CLOSED') break;
+		if (message[0] !== 'EVENT') continue;
+		const event = message[2];
+
+		const amount = getAmountFromBolt11(event.tags.find((t) => t[0] === 'bolt11')?.[1]);
+
+		console.log(amount);
+
+		let zap: Zap = {
+			id: event.id,
+			kind: event.kind,
+			content: event.content,
+			created_at: event.created_at,
+			ref: event.tags.find((t) => t[0] === 'e')?.[1],
+			pubkey: event.pubkey,
+			amount: amount || 0
+		};
+
+		zapsCache.add(zap);
+	}
+}
+
+export async function fetchReplies(
+	pool: NPool,
+	note: NostrEvent,
+	abortController: AbortController
+) {
+	const messages = pool.req(
+		[
+			{
+				kinds: [kinds.ShortTextNote],
+				// '#e': [postId], // Reference to the specific post
+
+				'#e': [note.id],
+				since: note?.created_at
+			}
+		],
+		{ signal: abortController.signal }
+	);
+
+	for await (const message of messages) {
+		if (message[0] === 'CLOSED') break;
+		if (message[0] !== 'EVENT') continue;
+		const event = message[2];
+
+		notesCache.add({ ...event, reply_to: note.id });
+	}
+}
