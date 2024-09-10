@@ -8,8 +8,6 @@
 	import Icon from '@iconify/svelte';
 	import VirtualList from '@sveltejs/svelte-virtual-list';
 
-	export let selected: NostrEvent;
-
 	$: results = liveQuery(() => $db.notes.where('reply_to').equals($selectedPost?.id).toArray());
 	// sort replies by created_at
 	$: replies = ($results || [])

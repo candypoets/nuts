@@ -20,6 +20,8 @@
 			// zaps();
 		};
 	});
+
+	let scrollY: number;
 </script>
 
 <div
@@ -40,6 +42,7 @@
 <div
 	class="lg:h-auto lg:pt-0 overflow-scroll scrollbar-hide container-height-200 lg:w-1/3 m-auto !pt-16"
 	id="container"
+	on:scroll={(e) => console.log(e)}
 >
 	<slot />
 </div>

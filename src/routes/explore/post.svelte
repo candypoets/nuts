@@ -10,6 +10,7 @@
 	import { liveQuery } from 'dexie';
 	import PhotoSwipeLightbox from 'photoswipe/lightbox';
 	import Contact from './contact.svelte';
+	import Content from './post/content.svelte';
 	import { onMount } from 'svelte';
 	import { pool } from 'src/stores/relays';
 	import { fetchReactions, fetchReplies, fetchZaps } from 'src/stores/notes';
@@ -50,19 +51,7 @@
 
 	$: contact = $contacts.find((c) => c.pubkey === note.pubkey);
 
-	$: reactions = liveQuery(() => $db.reactions.where('ref').equals(note.id).count());
-
-	$: zaps = liveQuery(() => $db.zaps.where('ref').equals(note.id).toArray());
-
-	$: replies = liveQuery(() => $db.notes.where('reply_to').equals(note.id).toArray());
-
 	onMount(() => {
-		let abortController = new AbortController();
-
-		fetchReactions($pool, note, abortController);
-		fetchZaps($pool, note, abortController);
-		fetchReplies($pool, note, abortController);
-
 		otherLinks.map((l) =>
 			getLinkPreview(
 				'https://proxy.nuts.cash/?url=' +
@@ -71,13 +60,7 @@
 				previewCache.add(p as Preview);
 			})
 		);
-
-		return () => {
-			abortController.abort();
-		};
 	});
-
-	$: console.log($previewCache);
 </script>
 
 <div on:click={() => ($selectedPost = note)}>
@@ -90,63 +73,9 @@
 	{/if}
 	<div class="flex gap-2">
 		<div class="min-w-8" />
-		<div class="text-sm">
-			{content?.slice(0, 500)}{content?.length > 500 ? '...' : ''}
-		</div>
-	</div>
-</div>
-<div class="flex gap-2">
-	<div class="min-w-8" />
-	<div class="flex-grow">
-		{#if imageLinks.length > 0}
-			<div class="pswp-gallery pswp-gallery--single-column" id="my-gallery">
-				{#each imageLinks as link}
-					<Photo {link} />
-				{/each}
-			</div>
-		{/if}
-		{#each previews as preview}
-			<a
-				href={preview?.url.split('https://proxy.nuts.cash/?url=')[1]}
-				target="_blank"
-				class="w-full rounded-xl border mt-1 block cursor-pointer"
-			>
-				{#if preview?.images[0]}
-					<img src={preview?.images[0]} alt={preview.title} />
-				{/if}
-				<div class="p-2">
-					{#if preview?.title}
-						<h2 class="text-sm font-semibold">{preview?.title}</h2>
-					{/if}
-					{#if preview?.description}
-						<p class="text-xs">{preview?.description}</p>
-					{/if}
-					{#if preview?.url}
-						<span class="text-xs">{preview?.url.split('https://proxy.nuts.cash/?url=')[1]}</span>
-					{/if}
-				</div>
-			</a>
-		{/each}
-	</div>
-</div>
-<div class="flex items-center w-full mt-1 border-b pb-1">
-	<div class="min-w-8" />
-	<div class="flex-grow flex justify-between px-4 opacity-60">
-		<div class="flex items-center gap-1">
-			<Icon icon="iconamoon:comment-light" class="" />
-			{$replies?.length || ''}
-		</div>
-		<div class="flex items-center">
-			<Icon icon="bitcoin-icons:lightning-outline" class="text-2xl" />
-			{$zaps?.reduce((acc, cur) => (acc += cur.amount), 0) / 1000 || ''}
-		</div>
-		<div class="flex items-center gap-1">
-			<Icon icon="icon-park-outline:like" class="" />
-			{$reactions || ''}
-		</div>
-		<div class="flex items-center gap-1">
-			<Icon icon="grommet-icons:sync" class="" />
-			{0}
+		<div class="text-sm break-words overflow-hidden">
+			<!-- {content?.slice(0, 500)}{content?.length > 500 ? '...' : ''} -->
+			<Content content={note.content} />
 		</div>
 	</div>
 </div>

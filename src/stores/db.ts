@@ -64,9 +64,10 @@ export type DB = Dexie & {
 	// spentProofs: EntityTable<Proof, 'secret'>;
 	history: EntityTable<HistoryItem<HistoryData>, 'date'>;
 	contacts: EntityTable<Contact, 'pubkey'>;
+	users: EntityTable<Contact, 'pubkey'>;
 	// messages: EntityTable<NostrMessage & { id: string }, 'id'>;
 	dms: EntityTable<NostrEvent, 'id'>;
-	notes: EntityTable<NostrEvent & { reply_to: string }, 'id'>;
+	notes: EntityTable<NostrEvent & { reply_to?: string }, 'id'>;
 	reactions: EntityTable<Reaction, 'id'>;
 	zaps: EntityTable<Zap, 'id'>;
 	keysets: EntityTable<MintKeyset & { input_fee_ppk?: number; mint: string }, 'id'>;
@@ -108,6 +109,7 @@ export const db: Readable<DB> = derived([activeAccount, key], ([$activeAccount, 
 		// spentProofs: 'secret,id,amount,C',
 		history: 'date,type,amount,data.mint,data.keyset,data.send,data.returnChange,data.encodedToken',
 		contacts: 'pubkey,name,picture,about,createdAt,nip05',
+		users: 'pubkey,name,picture,about,createdAt,nip05',
 		dms: 'id,kind,tags,content,created_at,pubkey',
 		notes: 'id,kind,tags,content,reply_to,created_at,pubkey',
 		reactions: 'id,kind,ref,created_at,pubkey',
@@ -132,6 +134,7 @@ export const initialize = derived([db], async ([$db]) => {
 	await historyCache.restore($db.history);
 	await keysetsCache.restore($db.keysets);
 	await contactsCache.restore($db.contacts);
+	await usersCache.restore($db.users);
 	await mintsCache.restore($db.mints, [
 		{ url: 'https://mint.minibits.cash/Bitcoin', enabled: true },
 		{ url: 'https://mint.lnserver.com/', enabled: true }
@@ -214,6 +217,8 @@ export const contacts = derived(
 	[] as Contact[]
 );
 
+export const usersCache = createCache<Contact, 'pubkey'>(get(db)?.users);
+
 export const mintsCache = createCache<Endpoint, 'url'>(get(db)?.mints);
 
 export const dbMints = derived(
@@ -256,7 +261,7 @@ export const dbRelays = derived(
 
 export const dmCache = createCache<NostrEvent, 'id'>(get(db)?.dms);
 
-export const notesCache = createCache<NostrEvent & { reply_to: string }, 'id'>(get(db)?.notes);
+export const notesCache = createCache<NostrEvent & { reply_to?: string }, 'id'>(get(db)?.notes);
 
 export const notes = derived(
 	[notesCache],

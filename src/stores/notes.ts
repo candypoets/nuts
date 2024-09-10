@@ -211,7 +211,7 @@ export const zapSub = derived(
 
 			const amount = getAmountFromBolt11(event.tags.find((t) => t[0] === 'bolt11')?.[1]);
 
-			console.log(amount);
+			// console.log(amount);
 
 			let zap: Zap = {
 				id: event.id,
@@ -289,5 +289,24 @@ export async function fetchReplies(
 		const event = message[2];
 
 		notesCache.add({ ...event, reply_to: note.id });
+	}
+}
+
+export async function fetchNote(pool: NPool, noteId: string, abortController: AbortController) {
+	const messages = pool.req(
+		[
+			{
+				kinds: [kinds.ShortTextNote],
+				ids: [noteId]
+			}
+		],
+		{ signal: abortController.signal }
+	);
+	for await (const message of messages) {
+		if (message[0] === 'CLOSED') break;
+		if (message[0] !== 'EVENT') continue;
+		const event = message[2];
+		const reply_to = event.tags.find((t) => t[0] === 'e')?.[1];
+		notesCache.add({ ...event, reply_to: reply_to });
 	}
 }

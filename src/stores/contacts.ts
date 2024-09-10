@@ -1,9 +1,11 @@
 import type { Contact } from '../model/contact';
 import * as nostrTools from 'nostr-tools';
 import { derived, get, writable } from 'svelte/store';
-import { contacts, contactsCache, db, key } from './db';
+import { contacts, contactsCache, db, key, usersCache } from './db';
 import { browser } from '$app/environment';
 import { pool } from './relays';
+import { kinds } from 'nostr-tools';
+import type { NPool } from '@nostrify/nostrify';
 
 export const followingSub = derived([key, db], async ([$key, $db]) => {
 	// console.info('fetching contacts');
@@ -92,4 +94,33 @@ export async function getContact(pubkey: string): Promise<Contact> {
 		}
 	});
 	return contact;
+}
+
+export async function fetchProfile(pool: NPool, npub: string, abortController: AbortController) {
+	const messages = pool.req(
+		[
+			{
+				kinds: [0],
+				authors: [npub]
+			}
+		],
+		{ signal: abortController.signal }
+	);
+	for await (const message of messages) {
+		if (message[0] === 'CLOSED') break;
+		if (message[0] !== 'EVENT') continue;
+		const event = message[2];
+
+		const user = JSON.parse(event.content);
+		console.log('--------user--------', user, event);
+		usersCache.put({
+			createdAt: event.created_at,
+			pubkey: event.pubkey,
+			name: user.name || user.display_name || user.displayName,
+			about: user.about,
+			nip05: user?.lud16 || user?.nip05,
+			picture: user.picture
+		});
+		// usersCache.add({ ...event, reply_to: reply_to });
+	}
 }

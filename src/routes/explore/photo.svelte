@@ -19,13 +19,10 @@
 
 	onMount(() => {
 		image.onload = () => {
-			console.log('image', image, image?.width, image?.height, link);
 			height = (image?.height || 0) * 2;
 			width = (image?.width || 0) * 2;
 		};
 	});
-
-	$: console.log('image', image?.width, image?.height, link);
 </script>
 
 <a href={link?.value} data-pswp-width={width} data-pswp-height={height} target="_blank">

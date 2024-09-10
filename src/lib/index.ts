@@ -86,3 +86,55 @@ export function formatDate(date: Date) {
 		});
 	}
 }
+
+import { nip19 } from 'nostr-tools';
+
+// Decoding a Nostr reference
+export function decodeNostrReference(reference: string) {
+	try {
+		if (reference.startsWith('nostr:')) {
+			reference = reference.slice(6);
+		}
+
+		const { type, data } = nip19.decode(reference);
+
+		console.log('decode', type, data, reference);
+
+		switch (type) {
+			case 'note':
+				return { type: 'note', id: data };
+			case 'npub':
+				return { type: 'pubkey', id: data };
+			case 'nevent':
+				return { type: 'event', id: data.id, ...data };
+			case 'nprofile':
+				return { type: 'profile', id: data.pubkey, ...data };
+			default:
+				return null;
+		}
+	} catch (error) {
+		console.error('Error decoding Nostr reference:', error);
+		return null;
+	}
+}
+
+// Encoding a Nostr reference
+export function encodeNostrReference(type: string, data: string) {
+	try {
+		switch (type) {
+			case 'note':
+				return 'nostr:' + nip19.noteEncode(data);
+			case 'pubkey':
+				return 'nostr:' + nip19.npubEncode(data);
+			case 'event':
+				return 'nostr:' + nip19.neventEncode(data);
+			case 'profile':
+				return 'nostr:' + nip19.nprofileEncode(data);
+			default:
+				throw new Error('Unsupported type');
+		}
+	} catch (error) {
+		console.error('Error encoding Nostr reference:', error);
+		return null;
+	}
+}

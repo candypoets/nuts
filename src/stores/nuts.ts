@@ -279,7 +279,7 @@ export async function decodeEventContent(
 	try {
 		decodedMessage = await signer.nip04.decrypt(pubkey, event.content);
 	} catch (e) {
-		console.error(e, 'could not decrypt nip-04 message. Ignoring this message');
+		// console.error(e, 'could not decrypt nip-04 message. Ignoring this message');
 		// continue;
 		return;
 	}
@@ -290,7 +290,7 @@ export async function decodeEventContent(
 	try {
 		token = getDecodedToken(decodedMessage);
 	} catch (e) {
-		console.error(e, 'could not decode nip-04 message as token. Ignoring this message');
+		// console.error(e, 'could not decode nip-04 message as token. Ignoring this message');
 		return;
 	}
 
