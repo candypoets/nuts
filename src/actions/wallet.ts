@@ -488,7 +488,7 @@ const formatSats = (amount: number, withSuffix: boolean): string => {
 	);
 };
 
-export async function bestProofCombination(wallet: WalletInfo, target: number) {
+export async function bestProofCombination(wallet: WalletInfo, target: number, pubkey?: string) {
 	if (wallet.amount < target) return [];
 	const proofs: number[] = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024].reverse();
 	// Sort proofs in descending order and remove duplicates
@@ -517,7 +517,8 @@ export async function bestProofCombination(wallet: WalletInfo, target: number) {
 			preference: Object.keys(preference).map((key) => ({
 				amount: Number(key),
 				count: preference[key]
-			}))
+			})),
+			pubkey
 		}
 	);
 	console.log(res.proofs);

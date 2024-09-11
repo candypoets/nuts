@@ -78,7 +78,7 @@
 
 		const matches = _.flatten(allMatches).sort((a, b) => a.index - b.index);
 
-		console.log(matches, content);
+		// console.log(matches, content);
 		let lastIndex = 0;
 		parts = [];
 		// for each matches, split the content into parts

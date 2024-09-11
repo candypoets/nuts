@@ -31,18 +31,17 @@
 	<div class="flex justify-between items-start">
 		<h1 class="text-2xl font-semibold">Explore</h1>
 		<div class="flex gap-2 items-center">
+			<span class="text font-semibold">{$balance} Sats</span>
 			<!-- <div on:click={() => console.log('ohoh')}><Icon icon="ph:eye" class="text-2xl" /></div> -->
 			<div on:click={() => (profileOpen = true)} class="cursor-pointer">
 				<img src={$profile?.picture || '/ns-naked.svg'} class="w-8 h-8 border rounded-full" />
 			</div>
 		</div>
 	</div>
-	<span class="text-sm font-semibold">{$balance} Sats</span>
 </div>
 <div
-	class="lg:h-auto lg:pt-0 overflow-scroll scrollbar-hide container-height-200 lg:w-1/3 m-auto !pt-16"
+	class="lg:h-auto lg:pt-0 overflow-scroll scrollbar-hide container-height-200 lg:w-1/3 m-auto !pt-0"
 	id="container"
-	on:scroll={(e) => console.log(e)}
 >
 	<slot />
 </div>

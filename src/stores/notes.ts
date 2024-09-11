@@ -128,7 +128,7 @@ export async function fetchReactions(
 		if (message[0] === 'CLOSED') break;
 		if (message[0] !== 'EVENT') continue;
 		const event = message[2];
-		// console.log(event);
+
 		let reaction: Reaction = {
 			id: event.id,
 			kind: event.kind,

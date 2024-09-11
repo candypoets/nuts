@@ -21,7 +21,7 @@
 	let visible;
 	let mounted;
 
-	let top = 0;
+	export let top = 0;
 	let bottom = 0;
 	let average_height;
 
@@ -149,6 +149,7 @@
 	bind:this={viewport}
 	bind:offsetHeight={viewport_height}
 	on:scroll={handle_scroll}
+	class="pt-16"
 	style="height: {height};"
 >
 	<svelte-virtual-list-contents
@@ -167,6 +168,7 @@
 	svelte-virtual-list-viewport {
 		position: relative;
 		overflow-y: auto;
+		/* overflow: visible; */
 		-webkit-overflow-scrolling: touch;
 		display: block;
 	}

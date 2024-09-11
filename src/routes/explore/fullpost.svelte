@@ -39,14 +39,14 @@
 		<div />
 	</div>
 	<div class="container-height !pt-0">
-		<div>
+		<div class="mt-6">
 			<div class="px-2">
 				<Header note={$selectedPost} />
 				<Content content={$selectedPost.content} />
 			</div>
 			<Footer note={$selectedPost} />
-			<div>
-				<div class="text-sm text-gray-500 mb-2">
+			<div class="border-b">
+				<div class="text-gray-500 mb-2 text-lg mt-4 text-right px-4">
 					{new Date($selectedPost.created_at * 1000).toLocaleString()}
 				</div>
 			</div>
@@ -54,14 +54,18 @@
 			{#each replies as item}
 				<div>
 					<Header note={item} />
-					<div class="flex gap-2" on:click={() => ($selectedPost = item)}>
+					<div class="flex gap-2">
 						<div class="min-w-8" />
-						<div class="text-sm break-words overflow-hidden">
-							<Content content={item.content} />
+						<div class="flex-grow">
+							<div class="flex gap-2" on:click={() => ($selectedPost = item)}>
+								<!-- <div class="min-w-8" /> -->
+								<div class="text-sm break-words overflow-hidden">
+									<Content content={item.content} />
+								</div>
+							</div>
+							<Footer note={item} />
 						</div>
 					</div>
-
-					<Footer note={item} />
 				</div>
 			{/each}
 			<!-- </VirtualList> -->
