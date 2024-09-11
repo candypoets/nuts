@@ -20,4 +20,4 @@
 	// $: console.log('user', user, npub, $usersCache);
 </script>
 
-<strong>@{user?.name || npub}</strong>
+<strong class="text-primary">@{user?.name || npub}</strong>

@@ -1,44 +1,48 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
+	import { liveQuery } from 'dexie';
 	import { type NostrEvent } from 'nostr-tools';
 	import { selectedPost } from 'src/stores';
 	import { fetchProfile } from 'src/stores/contacts';
-	import { contactsCache, usersCache } from 'src/stores/db';
+	import { contactsCache, db, usersCache } from 'src/stores/db';
 	import { pool } from 'src/stores/relays';
 	import { onMount } from 'svelte';
 
 	export let note: NostrEvent;
 
-	$: user = $usersCache.get(note.pubkey) || $contactsCache.get(note.pubkey);
+	// $: user = $usersCache.get(note.pubkey) || $contactsCache.get(note.pubkey);
+
+	$: user = liveQuery(() => $db.users.get(note.pubkey));
+	$: contact = liveQuery(() => $db.contacts.get(note.pubkey));
 	// $: contact = $contactsCache.get(npub);
 	onMount(() => {
 		let abortController = new AbortController();
-		if (!$usersCache.get(note.pubkey) && !$contactsCache.get(note.pubkey)) {
+		if (!$usersCache.get(note.pubkey)?.createdAt && !$contactsCache.get(note.pubkey)?.createdAt) {
 			fetchProfile($pool, note.pubkey, abortController);
 		}
 		return () => {
 			abortController.abort();
 		};
 	});
-
+	$: profile = $user || $contact;
 	// $: console.log('user', user, note.pubkey, $usersCache);
 </script>
 
 <div class="flex gap-2 mt-2">
 	<div class="w-8 min-w-8">
 		<img
-			src={user?.picture || '/ns-naked.svg'}
-			alt={user?.name}
+			src={profile?.picture || '/ns-naked.svg'}
+			alt={profile?.name}
 			class="border w-8 h-8 rounded-full space-x-4 mx-auto"
 		/>
 	</div>
 	<!-- <div>unknown</div> -->
 	<div class="flex-grow">
 		<div class="flex items-center">
-			{user?.name}
-			{#if user?.nip05}
+			<div class="whitespace-nowrap overflow-hidden text-ellipsis">{profile?.name}</div>
+			{#if profile?.nip05}
 				<Icon icon="bitcoin-icons:verify-filled" class="inline text-lg text-primary" />
-				<p class="text-xs opacity-50">{user?.nip05}</p>
+				<p class="text-xs opacity-50">{profile?.nip05}</p>
 			{/if}
 			<p class="text-xs opacity-50 ml-2">
 				{#if Date.now() / 1000 - note.created_at < 60}

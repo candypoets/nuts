@@ -1,11 +1,14 @@
 <script lang="ts">
 	import Fullscreen from 'src/comp/drawers/Fullscreen.svelte';
-	import Post from './post.svelte';
+
 	import { type NostrEvent } from 'nostr-tools';
 	import { liveQuery } from 'dexie';
 	import { db } from 'src/stores/db';
 	import { selectedPost } from 'src/stores';
 	import Icon from '@iconify/svelte';
+	import Header from './post/header.svelte';
+	import Content from './post/content.svelte';
+	import Footer from './post/footer.svelte';
 	import VirtualList from '@sveltejs/svelte-virtual-list';
 
 	$: results = liveQuery(() => $db.notes.where('reply_to').equals($selectedPost?.id).toArray());
@@ -36,11 +39,33 @@
 		<div />
 	</div>
 	<div class="container-height !pt-0">
-		<Post note={$selectedPost} />
-		<!-- <VirtualList items={replies} let:item> -->
-		{#each replies as item}
-			<Post note={item} />
-		{/each}
-		<!-- </VirtualList> -->
-	</div>
-</Fullscreen>
+		<div>
+			<div class="px-2">
+				<Header note={$selectedPost} />
+				<Content content={$selectedPost.content} />
+			</div>
+			<Footer note={$selectedPost} />
+			<div>
+				<div class="text-sm text-gray-500 mb-2">
+					{new Date($selectedPost.created_at * 1000).toLocaleString()}
+				</div>
+			</div>
+			<!-- <VirtualList items={replies} let:item> -->
+			{#each replies as item}
+				<div>
+					<Header note={item} />
+					<div class="flex gap-2" on:click={() => ($selectedPost = item)}>
+						<div class="min-w-8" />
+						<div class="text-sm break-words overflow-hidden">
+							<Content content={item.content} />
+						</div>
+					</div>
+
+					<Footer note={item} />
+				</div>
+			{/each}
+			<!-- </VirtualList> -->
+		</div>
+		<!-- </div> -->
+	</div></Fullscreen
+>

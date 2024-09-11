@@ -5,10 +5,6 @@
 		| {
 				type: string;
 				value: string;
-				isLink: boolean;
-				href: string;
-				start: number;
-				end: number;
 		  }
 		| undefined = undefined;
 
@@ -19,12 +15,12 @@
 
 	onMount(() => {
 		image.onload = () => {
-			height = (image?.height || 0) * 2;
-			width = (image?.width || 0) * 2;
+			height = (image?.height || 0) * 10;
+			width = (image?.width || 0) * 10;
 		};
 	});
 </script>
 
 <a href={link?.value} data-pswp-width={width} data-pswp-height={height} target="_blank">
-	<img src={link?.value} alt="" bind:this={image} />
+	<img src={link?.value} alt="" bind:this={image} class="rounded-lg" />
 </a>

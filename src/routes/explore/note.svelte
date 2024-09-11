@@ -21,8 +21,8 @@
 	});
 </script>
 
-<div class="p-4 rounded-2xl my-2" style="background-color: #cbcccf66;">
-	{#if $note}
+{#if $note}
+	<div class="p-4 rounded-2xl my-2" style="background-color: #cbcccf66;">
 		<Post note={$note} />
-	{/if}
-</div>
+	</div>
+{/if}

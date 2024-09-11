@@ -138,3 +138,40 @@ export function encodeNostrReference(type: string, data: string) {
 		return null;
 	}
 }
+
+type URLType =
+	| 'image'
+	| 'video'
+	| 'html'
+	| 'youtube'
+	| 'github'
+	| 'spotify'
+	| 'twitter'
+	| 'unknown';
+
+export function categorizeURL(url: string): URLType {
+	// Regular expressions for different types
+	const imageRegex = /\.(jpg|jpeg|png|gif|bmp|svg)$/i;
+	const videoRegex = /\.(mp4|webm|ogg|mov)$/i;
+	const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+$/;
+	const githubRegex = /^(https?:\/\/)?(www\.)?github\.com\/.+$/;
+	const spotifyRegex = /^(https?:\/\/)?(open\.)?spotify\.com\/.+$/;
+	const twitterRegex = /^(https?:\/\/)?(www\.)?twitter\.com\/.+$/;
+
+	if (imageRegex.test(url)) {
+		return 'image';
+	} else if (videoRegex.test(url)) {
+		return 'video';
+	} else if (youtubeRegex.test(url)) {
+		return 'youtube';
+	} else if (githubRegex.test(url)) {
+		return 'github';
+	} else if (spotifyRegex.test(url)) {
+		return 'spotify';
+	} else if (twitterRegex.test(url)) {
+		return 'twitter';
+	} else {
+		// If it doesn't match any of the above, assume it's an HTML page
+		return 'html';
+	}
+}

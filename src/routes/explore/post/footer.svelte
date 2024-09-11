@@ -7,12 +7,15 @@
 	import { fetchReactions, fetchReplies, fetchZaps } from 'src/stores/notes';
 	import { pool } from 'src/stores/relays';
 	import { onMount } from 'svelte';
+	import PictureProfile from './picture-profile.svelte';
 
 	export let note: NostrEvent;
 
 	$: reactions = liveQuery(() => $db.reactions.where('ref').equals(note.id).count());
 
 	$: zaps = liveQuery(() => $db.zaps.where('ref').equals(note.id).toArray());
+
+	$: biggerZap = $zaps?.sort((a, b) => (a.amount > b.amount ? -1 : 0))?.[0];
 
 	$: replies = liveQuery(() => $db.notes.where('reply_to').equals(note.id).toArray());
 
@@ -27,9 +30,32 @@
 			abortController.abort();
 		};
 	});
+
+	// $: console.log('biggerZap', biggerZap, note.pubkey, $zaps);
 </script>
 
-<div class="flex items-center w-full mt-1 border-b pb-1">
+<div class="flex items-center gap-1 h-6 justify-between">
+	<!-- <Icon icon="bitcoin-icons:lightning-outline" class="text-2xl" /> -->
+	<div class="max-w-9">
+		{#each ($zaps || []).filter((z) => z.pubkey != biggerZap?.pubkey) as zap}
+			<div class="flex items-center gap-2">
+				<PictureProfile pubkey={zap.pubkey} />
+				<div class="text-sm">{zap.amount / 1000}</div>
+			</div>
+		{/each}
+	</div>
+	{#if biggerZap}
+		<div class="flex items-center gap-2">
+			<div class="text-sm">{biggerZap?.content}</div>
+			<div class="text-sm">{biggerZap?.amount / 1000}</div>
+			<PictureProfile pubkey={biggerZap?.pubkey} />
+		</div>
+	{:else}
+		<div class="text-sm opacity-50">-</div>
+	{/if}
+</div>
+
+<div class="flex items-center w-full mt-1 pb-1">
 	<div class="min-w-8" />
 	<div class="flex-grow flex justify-between px-4 opacity-60">
 		<div class="flex items-center gap-1">

@@ -121,6 +121,8 @@ export async function fetchProfile(pool: NPool, npub: string, abortController: A
 			nip05: user?.lud16 || user?.nip05,
 			picture: user.picture
 		});
+
+		abortController.abort();
 		// usersCache.add({ ...event, reply_to: reply_to });
 	}
 }

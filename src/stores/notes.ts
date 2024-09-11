@@ -165,6 +165,30 @@ function getAmountFromBolt11(bolt11: string) {
 	return null;
 }
 
+function getMemoFromBolt11(bolt11: string): string | null {
+	// This regex looks for the description part of the BOLT11 invoice
+	const match = bolt11.match(/(?<=^ln(?:bc|tb)1)[^\d]+(?=1[02-9])([^1-9]+)([0-9a-zA-Z]+)/);
+	// console.log(match);
+	if (match && match[2]) {
+		try {
+			// The memo is typically base64 encoded
+			const decodedMemo = atob(match[2]);
+			// Try parsing as JSON
+			try {
+				const jsonMemo = JSON.parse(decodedMemo);
+				return jsonMemo.content || jsonMemo.message || decodedMemo;
+			} catch {
+				// If not valid JSON, return the decoded string
+				return decodedMemo;
+			}
+		} catch (error) {
+			console.error('Error decoding memo:', error);
+			return null;
+		}
+	}
+	return null;
+}
+
 let zapController = new AbortController();
 // fetch reactions from most recent posts, or posts that were explicitly requested (profile page and so on)
 export const zapSub = derived(
@@ -249,7 +273,14 @@ export async function fetchZaps(pool: NPool, note: NostrEvent, abortController: 
 
 		const amount = getAmountFromBolt11(event.tags.find((t) => t[0] === 'bolt11')?.[1]);
 
-		console.log(amount);
+		const memo = getMemoFromBolt11(event.tags.find((t) => t[0] === 'bolt11')?.[1]);
+
+		// console.log(
+		// 	event,
+		// 	amount,
+		// 	memo,
+		// 	JSON.parse(event.tags.find((t) => t[0] === 'description')?.[1] || '').content
+		// );
 
 		let zap: Zap = {
 			id: event.id,
