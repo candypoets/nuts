@@ -11,6 +11,7 @@
 	import { sendMessage } from 'src/actions/chat';
 	import { sendReaction } from 'src/actions/notes';
 	import { signer } from 'src/stores/signer';
+	import { replyPost } from 'src/stores';
 
 	export let note: NostrEvent;
 
@@ -69,24 +70,24 @@
 <!-- <div class="flex items-center w-full mt-1 pb-1"> -->
 <!-- <div class="min-w-8" /> -->
 <div class="flex-grow flex justify-between px-4 opacity-60">
-	<div class="flex items-center gap-1">
+	<div class="flex items-center gap-1 cursor-pointer" on:click={() => ($replyPost = note)}>
 		<Icon icon="iconamoon:comment-light" class="" />
 		{$replies?.length || ''}
 	</div>
-	<div class="flex items-center">
+	<div class="flex items-center cursor-pointer">
 		<Icon icon="bitcoin-icons:lightning-outline" class="text-2xl" />
 		{$zaps?.reduce((acc, cur) => (acc += cur.amount), 0) / 1000 || ''}
 	</div>
 	<div
-		class="flex items-center gap-1"
+		class="flex items-center gap-1 cursor-pointer"
 		class:text-red-600={!!$liked}
 		class:font-semibold={!!$liked}
 		on:click={() => !$liked && sendReaction($pool, $signer, note.id, '🤟')}
 	>
-		<Icon icon="icon-park-outline:like" class="" />
+		<Icon icon="icon-park-outline:like" class="cursor-pointer" />
 		{$reactions || ''}
 	</div>
-	<div class="flex items-center gap-1">
+	<div class="flex items-center gap-1 cursor-pointer">
 		<Icon icon="grommet-icons:sync" class="" />
 	</div>
 </div>

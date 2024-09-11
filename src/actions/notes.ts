@@ -1,7 +1,7 @@
 import type { NPool, NSecSigner } from '@nostrify/nostrify';
 import { kinds, type NostrEvent, type UnsignedEvent } from 'nostr-tools';
 import { bestProofCombination, signEvent } from './wallet';
-import { reactionsCache } from 'src/stores/db';
+import { notesCache, reactionsCache } from 'src/stores/db';
 import { wallets, type WalletInfo } from 'src/stores/wallet';
 
 export const sendReaction = async (
@@ -32,6 +32,40 @@ export const sendReaction = async (
 		await pool.event(signedEvent);
 
 		console.log('reaction sent');
+	} catch (e) {
+		console.log('could not send reaction', e);
+	}
+};
+
+export const sendReply = async (
+	pool: NPool,
+	signer: NSecSigner,
+	messageId: string,
+	reply: string
+) => {
+	try {
+		const event: UnsignedEvent = {
+			kind: kinds.ShortTextNote,
+			tags: [['e', messageId]],
+			content: reply,
+			created_at: Math.floor(Date.now() / 1000),
+			pubkey: await signer.getPublicKey()
+		};
+
+		const signedEvent = await signEvent(signer, event);
+
+		notesCache.add({
+			...signedEvent,
+			id: signedEvent.id,
+			kind: signedEvent.kind,
+			created_at: signedEvent.created_at,
+			reply_to: messageId,
+			pubkey: signedEvent.pubkey
+		});
+
+		await pool.event(signedEvent);
+
+		console.log('reply sent');
 	} catch (e) {
 		console.log('could not send reaction', e);
 	}

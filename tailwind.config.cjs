@@ -8,6 +8,7 @@ module.exports = {
 					'primary-content': '#d6e9e5',
 					secondary: '#D926AA',
 					'base-100': '#f9fafb',
+					'base-200': '#f2f2f3',
 					neutral: '#2a323c',
 					info: '#00b5ff',
 					success: '#00a96e',

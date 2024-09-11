@@ -523,10 +523,12 @@ export async function bestProofCombination(wallet: WalletInfo, target: number, p
 	);
 	console.log(res.proofs);
 	if (res.proofs.length) {
+		// @todo if proofs are locked to another pubkey, do not add to confirmed proofs
 		proofsCache.bulkPut([
 			...res.proofs.map((p) => ({ ...p, status: Status.Confirmed })),
 			...wallet.proofs.map((p) => ({ ...p, status: Status.Spent }))
 		]);
+		// @todo if proofs are locked to another pubkey, do not save the proofs
 		await saveNuts(res.proofs, get(key)?.pub);
 	}
 	return Object.keys(preference).flatMap((key) =>

@@ -25,7 +25,7 @@
 </script>
 
 <div
-	class="px-4 lg:px-0 lg:w-1/3 w-full m-auto p-2 lg:mt-40 lg:relative fixed bg-basic z-10"
+	class="px-4 lg:px-0 lg:w-1/3 w-full m-auto p-2 lg:mt-0 lg:relative fixed bg-basic z-10"
 	id="top"
 >
 	<div class="flex justify-between items-start">
@@ -40,7 +40,7 @@
 	</div>
 </div>
 <div
-	class="lg:h-auto lg:pt-0 overflow-scroll scrollbar-hide container-height-200 lg:w-1/3 m-auto !pt-0"
+	class="lg:pt-0 overflow-scroll scrollbar-hide container-height-200 lg:container-height lg:w-1/3 m-auto !pt-0"
 	id="container"
 >
 	<slot />

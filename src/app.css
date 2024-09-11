@@ -5,7 +5,7 @@
 :root {
 	--vh: 100vh;
 	--vc: 1vh;
-	--container-top: 4rem;
+	--container-top: 2rem;
 	/* --b2: transparent; */
 	/* --tw-border-opacity: 0.1; */
 }
@@ -88,6 +88,15 @@
 	overflow-y: scroll;
 	padding-bottom: var(--footer-height);
 	padding-top: calc(var(--container-top));
+}
+
+@media (min-width: 1024px) {
+	.lg\:container-height {
+		height: calc(var(--vc, 1vh) * 100 - var(--container-top));
+		overflow-x: hidden;
+		overflow-y: scroll;
+		padding-bottom: var(--footer-height);
+	}
 }
 
 .scrollbar-hide::-webkit-scrollbar {

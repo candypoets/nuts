@@ -1,22 +1,14 @@
 <script lang="ts">
 	import { liveQuery } from 'dexie';
 	import { type NostrEvent } from 'nostr-tools';
-	import { getContact } from 'src/stores/contacts';
 	import { contactsCache, db, notes } from 'src/stores/db';
-	import { isImageUrl } from 'src/lib';
-	import * as linkify from 'linkifyjs';
-
-	import { getLinkPreview } from 'link-preview-js';
-	import linkifyHtml from 'linkify-html';
-	// import VirtualList from '@sveltejs/svelte-virtual-list';
 	import VirtualList from 'src/comp/VirtualList.svelte';
-	import Post from './post.svelte';
+	import Reply from './reply.svelte';
 	import Header from './post/header.svelte';
 	import Content from './post/content.svelte';
 	import Footer from './post/footer.svelte';
 
 	import Fullpost from './fullpost.svelte';
-	import Icon from '@iconify/svelte';
 	import { selectedPost } from 'src/stores';
 	import { onMount } from 'svelte';
 
@@ -76,7 +68,7 @@
 <br />
 <br /> -->
 <VirtualList items={feed} bind:start bind:end bind:top let:item>
-	<div class="">
+	<div class="lg:hover:bg-base-200 rounded-md pt-2 px-1">
 		<Header note={item} />
 		<div class="flex gap-2" on:click={() => ($selectedPost = item)}>
 			<div class="min-w-8" />
@@ -93,3 +85,4 @@
 </VirtualList>
 <!-- </div> -->
 <Fullpost />
+<Reply />

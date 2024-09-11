@@ -137,7 +137,7 @@
 		</div>
 	{/if}
 	{#if videoLinks.length > 0}
-		<video src={videoLinks[0].value} controls></video>
+		<video class="rounded-md" src={videoLinks[0].value} controls></video>
 	{/if}
 	{#each previews.filter((p) => p?.images?.length) as preview}
 		<a
