@@ -1,81 +1,71 @@
 <script lang="ts">
-	import type { NPool } from '@nostrify/nostrify';
+	import Fullscreen from 'src/comp/drawers/Fullscreen.svelte';
+
+	import { posting, replyPost } from 'src/stores';
 	import Icon from '@iconify/svelte';
-	import { kinds, type Event, type NostrEvent } from 'nostr-tools';
-	import { getContact } from 'src/stores/contacts';
-	import * as linkify from 'linkifyjs';
-	import { isImageUrl } from 'src/lib';
-	import { getLinkPreview } from 'link-preview-js';
-	import { db, contacts, previewCache, type Preview } from 'src/stores/db';
-	import { liveQuery } from 'dexie';
-	import PhotoSwipeLightbox from 'photoswipe/lightbox';
-	import Contact from './contact.svelte';
+	import Header from './post/header.svelte';
 	import Content from './post/content.svelte';
+
+	import Footer from './post/footer.svelte';
+	import VirtualList from '@sveltejs/svelte-virtual-list';
+	import { profile } from 'src/stores/profile';
 	import { onMount } from 'svelte';
 	import { pool } from 'src/stores/relays';
-	import { fetchReactions, fetchReplies, fetchZaps } from 'src/stores/notes';
-	import Photo from './photo.svelte';
-	import { selectedPost } from 'src/stores';
+	import { signer } from 'src/stores/signer';
+	import { sendPost, sendReply } from 'src/actions/notes';
 
-	export let note: NostrEvent;
+	// $: results = liveQuery(() => $db.notes.where('reply_to').equals($replyPost?.id).toArray());
+	// sort replies by created_at
 
-	$: links = linkify.find(note.content);
+	$: open = !!$posting;
 
-	let content: string = note.content;
-
-	let lightbox: PhotoSwipeLightbox;
-
-	$: links.map((link) => {
-		if (isImageUrl(link.value)) {
-			link.type = 'image';
-			lightbox = new PhotoSwipeLightbox({
-				gallery: '#my-gallery',
-				children: 'a',
-				pswpModule: () => import('photoswipe')
-			});
-			lightbox.init();
-		}
-		content = content.slice(0, link.start) + content.slice(link.end);
-	});
-
-	$: imageLinks = links.filter((link) => link.type === 'image');
-
-	$: otherLinks = links.filter((link) => link.type !== 'image');
-
-	$: previews = otherLinks.map((link) =>
-		$previewCache.get(
-			'https://proxy.nuts.cash/?url=' +
-				(link.value.startsWith('http') ? link.value : 'https://' + link.value)
-		)
-	);
-
-	$: contact = $contacts.find((c) => c.pubkey === note.pubkey);
-
-	onMount(() => {
-		otherLinks.map((l) =>
-			getLinkPreview(
-				'https://proxy.nuts.cash/?url=' +
-					(l.value.startsWith('http') ? l.value : 'https://' + l.value)
-			).then((p) => {
-				previewCache.add(p as Preview);
-			})
-		);
-	});
+	// $: console.log(replies);
+	//
+	let post = '';
+	// onMount(() => {
+	// 	console.log('mounted');
+	// 	const textarea = document.getElementById('reply-post');
+	// 	console.log(textarea);
+	// 	if (textarea) {
+	// 		console.log('textarea found');
+	// 		textarea.focus();
+	// 	}
+	// });
 </script>
 
-<div on:click={() => ($selectedPost = note)}>
-	{#if contact?.createdAt}
-		<Contact {note} author={contact} />
-	{:else}
-		{#await getContact(note.pubkey) then author}
-			<Contact {note} {author} />
-		{/await}
-	{/if}
-	<div class="flex gap-2">
-		<div class="min-w-8" />
-		<div class="text-sm break-words overflow-hidden">
-			<!-- {content?.slice(0, 500)}{content?.length > 500 ? '...' : ''} -->
-			<Content content={note.content} />
-		</div>
+<Fullscreen
+	bind:open
+	onClose={() => {
+		$posting = false;
+	}}
+>
+	<div class="flex justify-between items-center px-4">
+		<button class="w-1/5" on:click={() => ($replyPost = null)}>
+			<Icon icon="mingcute:down-line" class="text-xl" />
+		</button>
+		<h1 class="text-2xl font-semibold">new post</h1>
+		<button
+			class="btn btn-primary btn-xs w-1/5"
+			disabled={!post}
+			on:click={async () => {
+				await sendPost($pool, $signer, post);
+				post = '';
+				$posting = false;
+			}}
+		>
+			Post
+		</button>
 	</div>
-</div>
+	<div class="container-height !pt-0" id="reply-container">
+		<div class="flex pt-4 gap-2">
+			<img src={$profile.picture} alt="random" class="w-8 h-8 rounded-full" />
+			<textarea
+				bind:value={post}
+				class="w-full h-24 p-2 rounded-md"
+				placeholder="What's up?"
+				id="reply-post"
+			/>
+		</div>
+		<!-- </div> -->
+	</div></Fullscreen
+>

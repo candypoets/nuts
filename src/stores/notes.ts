@@ -30,27 +30,52 @@ export const notesSub = derived(
 
 		abortController = new AbortController();
 		// Calculate 2 days ago in seconds since epoch
-		const twoDaysAgo = Math.floor(Date.now() / 1000) - 2 * 24 * 60 * 60;
+		const oneDayAgo = Math.floor(Date.now() / 1000) - 2 * 24 * 60 * 60;
 		const lastEvent = await $db.notes.orderBy('created_at').last();
+		// console.log('ongoing feed request', lastEvent?.created_at);
+		try {
+			const messages = get(pool).req(
+				[
+					{
+						kinds: [kinds.ShortTextNote],
+						authors: $contacts.map((c) => c.pubkey),
+						since: lastEvent?.created_at || oneDayAgo,
+						limit: 500
+					}
+				],
+				{ signal: abortController.signal }
+			);
 
-		const messages = get(pool).req(
-			[
-				{
-					kinds: [kinds.ShortTextNote],
-					authors: $contacts.map((c) => c.pubkey),
-					since: lastEvent?.created_at || twoDaysAgo
+			for await (const message of messages) {
+				if (message[0] === 'CLOSED') break;
+				if (message[0] !== 'EVENT') continue;
+				const event = message[2];
+				// console.log(event);
+				// if the e tag is present, it means the note is a reply to another note, add reply_to field
+				const replies = event.tags.filter((t) => t[0] == 'e');
+				let replyTo;
+				let replyToPubkey: string | undefined;
+				if (replies.length > 1) continue;
+
+				if (!!replies.length) {
+					if (!replies.find((r) => r[3] == 'root')) continue;
+					replyTo = replies.find((r) => r[3] == 'root');
 				}
-			],
-			{ signal: abortController.signal }
-		);
-
-		for await (const message of messages) {
-			if (message[0] === 'CLOSED') break;
-			if (message[0] !== 'EVENT') continue;
-			const event = message[2];
-			console.log(event);
-
-			notesCache.add(event);
+				if (replyTo) {
+					// console.log('reply event', event);
+					replyToPubkey = event.tags.find((t) => t[0] == 'p')?.[1];
+					if (event.tags.filter((t) => t[0] === 'p').length > 1) {
+						replyToPubkey = event.tags.filter((t) => t[0] === 'p')[0][1];
+					}
+				}
+				notesCache.add({
+					...event,
+					reply_to: replyTo ? replyTo[1] : undefined,
+					reply_to_pubkey: replyToPubkey
+				});
+			}
+		} catch (e) {
+			// console.error(e);
 		}
 	}
 );
@@ -75,33 +100,36 @@ export const reactionSub = derived(
 		const notes = await $db.notes.where('created_at').above(threeDaysAgo).toArray();
 
 		const since = await $db.reactions.orderBy('created_at').last();
+		try {
+			const messages = get(pool).req(
+				[
+					{
+						kinds: [kinds.Reaction],
+						// '#e': [postId], // Reference to the specific post
 
-		const messages = get(pool).req(
-			[
-				{
-					kinds: [kinds.Reaction],
-					// '#e': [postId], // Reference to the specific post
+						'#e': notes.map((n) => n.id),
+						since: since?.created_at || threeDaysAgo
+					}
+				],
+				{ signal: reactionController.signal }
+			);
 
-					'#e': notes.map((n) => n.id),
-					since: since?.created_at || threeDaysAgo
-				}
-			],
-			{ signal: reactionController.signal }
-		);
-
-		for await (const message of messages) {
-			if (message[0] === 'CLOSED') break;
-			if (message[0] !== 'EVENT') continue;
-			const event = message[2];
-			// console.log(event);
-			let reaction: Reaction = {
-				id: event.id,
-				kind: event.kind,
-				created_at: event.created_at,
-				ref: event.tags.find((t) => t[0] === 'e')?.[1],
-				pubkey: event.pubkey
-			};
-			reactionsCache.add(reaction);
+			for await (const message of messages) {
+				if (message[0] === 'CLOSED') break;
+				if (message[0] !== 'EVENT') continue;
+				const event = message[2];
+				// console.log(event);
+				let reaction: Reaction = {
+					id: event.id,
+					kind: event.kind,
+					created_at: event.created_at,
+					ref: event.tags.find((t) => t[0] === 'e')?.[1],
+					pubkey: event.pubkey
+				};
+				reactionsCache.add(reaction);
+			}
+		} catch (e) {
+			// console.error(e);
 		}
 	}
 );
@@ -111,32 +139,36 @@ export async function fetchReactions(
 	note: NostrEvent,
 	abortController: AbortController
 ) {
-	const messages = pool.req(
-		[
-			{
-				kinds: [kinds.Reaction],
-				// '#e': [postId], // Reference to the specific post
+	try {
+		const messages = pool.req(
+			[
+				{
+					kinds: [kinds.Reaction],
+					// '#e': [postId], // Reference to the specific post
 
-				'#e': [note.id],
-				since: note?.created_at
-			}
-		],
-		{ signal: abortController.signal }
-	);
+					'#e': [note.id],
+					since: note?.created_at
+				}
+			],
+			{ signal: abortController.signal }
+		);
 
-	for await (const message of messages) {
-		if (message[0] === 'CLOSED') break;
-		if (message[0] !== 'EVENT') continue;
-		const event = message[2];
+		for await (const message of messages) {
+			if (message[0] === 'CLOSED') break;
+			if (message[0] !== 'EVENT') continue;
+			const event = message[2];
 
-		let reaction: Reaction = {
-			id: event.id,
-			kind: event.kind,
-			created_at: event.created_at,
-			ref: event.tags.find((t) => t[0] === 'e')?.[1],
-			pubkey: event.pubkey
-		};
-		reactionsCache.add(reaction);
+			let reaction: Reaction = {
+				id: event.id,
+				kind: event.kind,
+				created_at: event.created_at,
+				ref: event.tags.find((t) => t[0] === 'e')?.[1],
+				pubkey: event.pubkey
+			};
+			reactionsCache.add(reaction);
+		}
+	} catch (e) {
+		// console.error(e);
 	}
 }
 
@@ -253,46 +285,50 @@ export const zapSub = derived(
 );
 
 export async function fetchZaps(pool: NPool, note: NostrEvent, abortController: AbortController) {
-	const messages = pool.req(
-		[
-			{
-				kinds: [kinds.Zap],
-				// '#e': [postId], // Reference to the specific post
+	try {
+		const messages = pool.req(
+			[
+				{
+					kinds: [kinds.Zap],
+					// '#e': [postId], // Reference to the specific post
 
-				'#e': [note.id],
-				since: note?.created_at
-			}
-		],
-		{ signal: abortController.signal }
-	);
+					'#e': [note.id],
+					since: note?.created_at
+				}
+			],
+			{ signal: abortController.signal }
+		);
 
-	for await (const message of messages) {
-		if (message[0] === 'CLOSED') break;
-		if (message[0] !== 'EVENT') continue;
-		const event = message[2];
+		for await (const message of messages) {
+			if (message[0] === 'CLOSED') break;
+			if (message[0] !== 'EVENT') continue;
+			const event = message[2];
 
-		const amount = getAmountFromBolt11(event.tags.find((t) => t[0] === 'bolt11')?.[1]);
+			const amount = getAmountFromBolt11(event.tags.find((t) => t[0] === 'bolt11')?.[1]);
 
-		const memo = getMemoFromBolt11(event.tags.find((t) => t[0] === 'bolt11')?.[1]);
+			const memo = getMemoFromBolt11(event.tags.find((t) => t[0] === 'bolt11')?.[1]);
 
-		// console.log(
-		// 	event,
-		// 	amount,
-		// 	memo,
-		// 	JSON.parse(event.tags.find((t) => t[0] === 'description')?.[1] || '').content
-		// );
+			// console.log(
+			// 	event,
+			// 	amount,
+			// 	memo,
+			// 	JSON.parse(event.tags.find((t) => t[0] === 'description')?.[1] || '').content
+			// );
 
-		let zap: Zap = {
-			id: event.id,
-			kind: event.kind,
-			content: event.content,
-			created_at: event.created_at,
-			ref: event.tags.find((t) => t[0] === 'e')?.[1],
-			pubkey: event.pubkey,
-			amount: amount || 0
-		};
+			let zap: Zap = {
+				id: event.id,
+				kind: event.kind,
+				content: event.content,
+				created_at: event.created_at,
+				ref: event.tags.find((t) => t[0] === 'e')?.[1],
+				pubkey: event.pubkey,
+				amount: amount || 0
+			};
 
-		zapsCache.add(zap);
+			zapsCache.add(zap);
+		}
+	} catch (e) {
+		// console.error(e);
 	}
 }
 
@@ -301,29 +337,34 @@ export async function fetchReplies(
 	note: NostrEvent,
 	abortController: AbortController
 ) {
-	const messages = pool.req(
-		[
-			{
-				kinds: [kinds.ShortTextNote],
-				// '#e': [postId], // Reference to the specific post
+	try {
+		const messages = pool.req(
+			[
+				{
+					kinds: [kinds.ShortTextNote],
+					// '#e': [postId], // Reference to the specific post
 
-				'#e': [note.id],
-				since: note?.created_at
-			}
-		],
-		{ signal: abortController.signal }
-	);
+					'#e': [note.id],
+					since: note?.created_at
+				}
+			],
+			{ signal: abortController.signal }
+		);
 
-	for await (const message of messages) {
-		if (message[0] === 'CLOSED') break;
-		if (message[0] !== 'EVENT') continue;
-		const event = message[2];
+		for await (const message of messages) {
+			if (message[0] === 'CLOSED') break;
+			if (message[0] !== 'EVENT') continue;
+			const event = message[2];
 
-		notesCache.add({ ...event, reply_to: note.id });
+			notesCache.add({ ...event, reply_to: note.id });
+		}
+	} catch (e) {
+		// console.error(e);
 	}
 }
 
 export async function fetchNote(pool: NPool, noteId: string, abortController: AbortController) {
+	console.log('fetching note', noteId);
 	const messages = pool.req(
 		[
 			{

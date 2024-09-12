@@ -1,12 +1,13 @@
 <script lang="ts">
 	import { fetchProfile } from 'src/stores/contacts';
-	import { usersCache } from 'src/stores/db';
+	import { usersCache, db } from 'src/stores/db';
 	import { pool } from 'src/stores/relays';
 	import { onMount } from 'svelte';
+	import { liveQuery } from 'dexie';
 
 	export let npub: string;
 
-	$: user = $usersCache.get(npub);
+	$: user = liveQuery(() => $db.users.get(npub));
 	onMount(() => {
 		let abortController = new AbortController();
 		if (!$usersCache.get(npub)) {
@@ -20,4 +21,4 @@
 	// $: console.log('user', user, npub, $usersCache);
 </script>
 
-<strong class="text-primary">@{user?.name || npub}</strong>
+<strong class="text-primary">@{$user?.name || npub}</strong>

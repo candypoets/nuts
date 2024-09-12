@@ -13,6 +13,7 @@ export const lightningInvoice = writable('');
 
 export const selectedPost: Writable<NostrEvent | null> = writable(null);
 export const replyPost: Writable<NostrEvent | null> = writable(null);
+export const posting = writable(false);
 
 // // when message are outgoing, we need to check the proofs status
 // export const needsRefresh = writable(false);

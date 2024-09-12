@@ -77,7 +77,7 @@
 	height: calc(var(--vc, 1vh) * 100);
 	overflow-x: hidden;
 	overflow-y: scroll;
-	padding-bottom: var(--footer-height);
+	/* padding-bottom: var(--footer-height); */
 	padding-top: calc(var(--container-top));
 	/* margin-top: var(--navbar-height); */
 }

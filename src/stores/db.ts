@@ -58,6 +58,8 @@ export type Reaction = {
 	pubkey: string;
 };
 
+export type Note = NostrEvent & { reply_to?: string; reply_to_pubkey?: string };
+
 export type DB = Dexie & {
 	proofs: EntityTable<DbProof, 'secret'>;
 	// pendingProofs: EntityTable<Proof, 'secret'>;
@@ -67,7 +69,7 @@ export type DB = Dexie & {
 	users: EntityTable<Contact, 'pubkey'>;
 	// messages: EntityTable<NostrMessage & { id: string }, 'id'>;
 	dms: EntityTable<NostrEvent, 'id'>;
-	notes: EntityTable<NostrEvent & { reply_to?: string }, 'id'>;
+	notes: EntityTable<Note, 'id'>;
 	reactions: EntityTable<Reaction, 'id'>;
 	zaps: EntityTable<Zap, 'id'>;
 	keysets: EntityTable<MintKeyset & { input_fee_ppk?: number; mint: string }, 'id'>;
@@ -111,7 +113,7 @@ export const db: Readable<DB> = derived([activeAccount, key], ([$activeAccount, 
 		contacts: 'pubkey,name,picture,about,createdAt,nip05',
 		users: 'pubkey,name,picture,about,createdAt,nip05',
 		dms: 'id,kind,tags,content,created_at,pubkey',
-		notes: 'id,kind,tags,content,reply_to,created_at,pubkey',
+		notes: 'id,kind,tags,content,reply_to,reply_to_pubkey,created_at,pubkey',
 		reactions: 'id,kind,ref,created_at,pubkey',
 		zaps: 'id,kind,ref,created_at,content,pubkey,amount',
 		keysets: 'id,unit,active,input_fee_ppk,mint',
@@ -261,7 +263,7 @@ export const dbRelays = derived(
 
 export const dmCache = createCache<NostrEvent, 'id'>(get(db)?.dms);
 
-export const notesCache = createCache<NostrEvent & { reply_to?: string }, 'id'>(get(db)?.notes);
+export const notesCache = createCache<Note, 'id'>(get(db)?.notes);
 
 export const notes = derived(
 	[notesCache],

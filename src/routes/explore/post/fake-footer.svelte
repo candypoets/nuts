@@ -2,20 +2,14 @@
 	import Icon from '@iconify/svelte';
 </script>
 
-{#if biggerZap}
-	<div class="flex items-center gap-1 px-10">
-		<!-- <Icon icon="bitcoin-icons:lightning-outline" class="text-2xl" /> -->
-		<div class="flex items-center gap-2">
-			<PictureProfile pubkey={biggerZap.pubkey} />
-			{biggerZap.amount / 1000}
-		</div>
-		<div class="max-w-9">
-			{#each $zaps.filter((z) => z.pubkey != biggerZap.pubkey) as zap}
-				<PictureProfile pubkey={zap?.pubkey} />
-			{/each}
-		</div>
+<div class="flex items-center gap-1 px-10">
+	<!-- <Icon icon="bitcoin-icons:lightning-outline" class="text-2xl" /> -->
+	<div class="flex items-center gap-2">
+		<img src={'/ns-naked.svg'} alt={'not found'} class="border w-4 h-4 rounded-full mx-auto" />
+		{0}
 	</div>
-{/if}
+	<div class="max-w-9"></div>
+</div>
 <div class="flex items-center w-full mt-1 border-b pb-1">
 	<div class="min-w-8" />
 	<div class="flex-grow flex justify-between px-4 opacity-60">

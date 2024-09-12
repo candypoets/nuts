@@ -97,6 +97,7 @@ export async function getContact(pubkey: string): Promise<Contact> {
 }
 
 export async function fetchProfile(pool: NPool, npub: string, abortController: AbortController) {
+	console.log('fetching profile', npub);
 	const messages = pool.req(
 		[
 			{
@@ -107,7 +108,9 @@ export async function fetchProfile(pool: NPool, npub: string, abortController: A
 		{ signal: abortController.signal }
 	);
 	for await (const message of messages) {
+		console.log('profile message', message);
 		if (message[0] === 'CLOSED') break;
+		if (message[0] === 'EOSE') abortController.abort();
 		if (message[0] !== 'EVENT') continue;
 		const event = message[2];
 

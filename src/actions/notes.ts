@@ -1,8 +1,35 @@
 import type { NPool, NSecSigner } from '@nostrify/nostrify';
 import { kinds, type NostrEvent, type UnsignedEvent } from 'nostr-tools';
 import { bestProofCombination, signEvent } from './wallet';
-import { notesCache, reactionsCache } from 'src/stores/db';
+import { notesCache, reactionsCache, type Note } from 'src/stores/db';
 import { wallets, type WalletInfo } from 'src/stores/wallet';
+
+export const sendPost = async (
+	pool: NPool,
+	signer: NSecSigner,
+	post: string,
+	tags?: string[][]
+) => {
+	try {
+		const event: UnsignedEvent = {
+			kind: kinds.ShortTextNote,
+			content: post,
+			created_at: Math.floor(Date.now() / 1000),
+			pubkey: await signer.getPublicKey(),
+			tags: tags || []
+		};
+
+		const signedEvent = await signEvent(signer, event);
+
+		notesCache.add(signedEvent);
+
+		await pool.event(signedEvent);
+
+		console.log('reaction sent');
+	} catch (e) {
+		console.log('could not send reaction', e);
+	}
+};
 
 export const sendReaction = async (
 	pool: NPool,
@@ -37,16 +64,14 @@ export const sendReaction = async (
 	}
 };
 
-export const sendReply = async (
-	pool: NPool,
-	signer: NSecSigner,
-	messageId: string,
-	reply: string
-) => {
+export const sendReply = async (pool: NPool, signer: NSecSigner, post: Note, reply: string) => {
+	const tags = [];
+	if (post.reply_to) tags.push(['e', post.reply_to, '', 'root']);
+	if (post.reply_to_pubkey) tags.push(['p', post.reply_to_pubkey, '', 'root']);
 	try {
 		const event: UnsignedEvent = {
 			kind: kinds.ShortTextNote,
-			tags: [['e', messageId]],
+			tags: [...tags, ['e', post.id], ['p', post.pubkey]],
 			content: reply,
 			created_at: Math.floor(Date.now() / 1000),
 			pubkey: await signer.getPublicKey()
@@ -59,7 +84,7 @@ export const sendReply = async (
 			id: signedEvent.id,
 			kind: signedEvent.kind,
 			created_at: signedEvent.created_at,
-			reply_to: messageId,
+			reply_to: post.id,
 			pubkey: signedEvent.pubkey
 		});
 

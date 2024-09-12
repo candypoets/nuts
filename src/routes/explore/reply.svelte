@@ -22,19 +22,20 @@
 	// $: console.log(replies);
 	//
 	let reply = '';
-	onMount(() => {
-		console.log('mounted');
-		const textarea = document.getElementById('reply-post');
-		console.log(textarea);
-		if (textarea) {
-			console.log('textarea found');
-			textarea.focus();
-		}
-	});
+	// onMount(() => {
+	// 	console.log('mounted');
+	// 	const textarea = document.getElementById('reply-post');
+	// 	console.log(textarea);
+	// 	if (textarea) {
+	// 		console.log('textarea found');
+	// 		textarea.focus();
+	// 	}
+	// });
 </script>
 
 <Fullscreen
 	bind:open
+	scaleBackground={false}
 	onClose={() => {
 		$replyPost = null;
 	}}
@@ -48,7 +49,7 @@
 			class="btn btn-primary btn-xs w-1/5"
 			disabled={!reply}
 			on:click={async () => {
-				await sendReply($pool, $signer, $replyPost?.id, reply);
+				await sendReply($pool, $signer, $replyPost, reply);
 				reply = '';
 				$replyPost = null;
 			}}

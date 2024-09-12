@@ -14,6 +14,7 @@
 	import { replyPost } from 'src/stores';
 
 	export let note: NostrEvent;
+	export let visible: boolean;
 
 	$: reactions = liveQuery(() => $db.reactions.where('ref').equals(note.id).count());
 
@@ -31,24 +32,41 @@
 
 	$: replies = liveQuery(() => $db.notes.where('reply_to').equals(note.id).toArray());
 
-	onMount(() => {
-		let abortController = new AbortController();
+	let abortController = new AbortController();
 
+	function fetch() {
+		abortController.abort();
+		abortController = new AbortController();
 		fetchReactions($pool, note, abortController);
 		fetchZaps($pool, note, abortController);
 		fetchReplies($pool, note, abortController);
+
+		return abortController;
+	}
+
+	onMount(() => {
+		// fetch();
 
 		return () => {
 			abortController.abort();
 		};
 	});
 
-	$: console.log('liked', $liked);
+	$: visible ? fetch() : abortController.abort();
 </script>
 
-<div class="flex items-center gap-1 h-6 justify-between">
+<div class="flex items-center gap-1 h-6 justify-between pl-2">
 	<!-- <Icon icon="bitcoin-icons:lightning-outline" class="text-2xl" /> -->
-	<div class="max-w-9">
+	{#if biggerZap}
+		<div class="flex items-center gap-2">
+			<PictureProfile pubkey={biggerZap?.pubkey} />
+			<div class="text-sm opacity-50">{biggerZap?.amount / 1000}</div>
+			<div class="text-sm opacity-50">{biggerZap?.content}</div>
+		</div>
+	{:else}
+		<div class="text-sm opacity-50"></div>
+	{/if}
+	<div class="flex items-center">
 		{#each ($zaps || []).filter((z) => z.pubkey != biggerZap?.pubkey) as zap}
 			<div class="flex items-center gap-2">
 				<PictureProfile pubkey={zap.pubkey} />
@@ -56,38 +74,32 @@
 			</div>
 		{/each}
 	</div>
-	{#if biggerZap}
-		<div class="flex items-center gap-2">
-			<div class="text-sm">{biggerZap?.content}</div>
-			<div class="text-sm">{biggerZap?.amount / 1000}</div>
-			<PictureProfile pubkey={biggerZap?.pubkey} />
-		</div>
-	{:else}
-		<div class="text-sm opacity-50">-</div>
-	{/if}
 </div>
 
 <!-- <div class="flex items-center w-full mt-1 pb-1"> -->
 <!-- <div class="min-w-8" /> -->
-<div class="flex-grow flex justify-between px-4 opacity-60">
-	<div class="flex items-center gap-1 cursor-pointer" on:click={() => ($replyPost = note)}>
-		<Icon icon="iconamoon:comment-light" class="" />
+<div class="flex-grow flex justify-end px-4 opacity-60 w-full">
+	<div
+		class="flex items-center justify-end gap-1 cursor-pointer w-1/4"
+		on:click={() => ($replyPost = note)}
+	>
 		{$replies?.length || ''}
+		<Icon icon="iconamoon:comment-light" class="" />
 	</div>
-	<div class="flex items-center cursor-pointer">
-		<Icon icon="bitcoin-icons:lightning-outline" class="text-2xl" />
+	<div class="flex items-center justify-end cursor-pointer w-1/4">
 		{$zaps?.reduce((acc, cur) => (acc += cur.amount), 0) / 1000 || ''}
+		<Icon icon="bitcoin-icons:lightning-outline" class="text-2xl" />
 	</div>
 	<div
-		class="flex items-center gap-1 cursor-pointer"
+		class="flex items-center justify-end gap-1 cursor-pointer w-1/4"
 		class:text-red-600={!!$liked}
 		class:font-semibold={!!$liked}
 		on:click={() => !$liked && sendReaction($pool, $signer, note.id, '🤟')}
 	>
-		<Icon icon="icon-park-outline:like" class="cursor-pointer" />
 		{$reactions || ''}
+		<Icon icon="icon-park-outline:like" class="cursor-pointer" />
 	</div>
-	<div class="flex items-center gap-1 cursor-pointer">
+	<div class="flex items-center justify-end gap-1 cursor-pointer w-1/4">
 		<Icon icon="grommet-icons:sync" class="" />
 	</div>
 </div>

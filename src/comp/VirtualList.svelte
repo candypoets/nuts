@@ -15,7 +15,7 @@
 	// local state
 	let height_map = [];
 	let rows;
-	let viewport;
+	export let viewport;
 	let contents;
 	let viewport_height = 0;
 	let visible;
@@ -42,7 +42,7 @@
 		let content_height = top - scrollTop;
 		let i = start;
 
-		while (content_height < viewport_height && i < items.length) {
+		while (content_height < viewport_height * 2 && i < items.length) {
 			let row = rows[i - start];
 
 			if (!row) {
@@ -99,7 +99,7 @@
 			y += height_map[i] || average_height;
 			i += 1;
 
-			if (y > scrollTop + viewport_height) break;
+			if (y > scrollTop + viewport_height * 2) break;
 		}
 		end = i;
 		// console.log('end', end);
@@ -150,11 +150,11 @@
 	bind:offsetHeight={viewport_height}
 	on:scroll={handle_scroll}
 	class="pt-16"
-	style="height: {height};"
+	style="height: {height}; max-height: 100vh;"
 >
 	<svelte-virtual-list-contents
 		bind:this={contents}
-		style="top: {top}px; padding-bottom: {bottom}px;"
+		style="top: {top}px; padding-bottom: {bottom > 100 ? bottom : 100}px;"
 	>
 		{#each visible as row (row.data.id)}
 			<svelte-virtual-list-row>

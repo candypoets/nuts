@@ -4,22 +4,25 @@
 	import { type NostrEvent } from 'nostr-tools';
 	import { selectedPost } from 'src/stores';
 	import { fetchProfile } from 'src/stores/contacts';
-	import { contactsCache, db, usersCache } from 'src/stores/db';
+	import { contactsCache, db, usersCache, type Note } from 'src/stores/db';
 	import { pool } from 'src/stores/relays';
 	import { onMount } from 'svelte';
+	import User from 'src/routes/explore/user.svelte';
+	import { fetchNote } from 'src/stores/notes';
 
-	export let note: NostrEvent;
+	export let note: Note;
 
 	// $: user = $usersCache.get(note.pubkey) || $contactsCache.get(note.pubkey);
 
-	$: user = liveQuery(() => $db.users.get(note.pubkey));
-	$: contact = liveQuery(() => $db.contacts.get(note.pubkey));
+	$: user = liveQuery(() => $db.users.get(note?.pubkey));
+	$: contact = liveQuery(() => $db.contacts.get(note?.pubkey));
 	// $: contact = $contactsCache.get(npub);
 	onMount(() => {
 		let abortController = new AbortController();
-		if (!$usersCache.get(note.pubkey)?.createdAt && !$contactsCache.get(note.pubkey)?.createdAt) {
-			fetchProfile($pool, note.pubkey, abortController);
+		if (!$usersCache.get(note?.pubkey)?.createdAt && !$contactsCache.get(note?.pubkey)?.createdAt) {
+			fetchProfile($pool, note?.pubkey, abortController);
 		}
+
 		return () => {
 			abortController.abort();
 		};
@@ -45,14 +48,14 @@
 				<p class="text-xs opacity-50">{profile?.nip05}</p>
 			{/if}
 			<p class="text-xs opacity-50 ml-2">
-				{#if Date.now() / 1000 - note.created_at < 60}
-					{Math.floor(Date.now() / 1000 - note.created_at)}s
-				{:else if Date.now() / 1000 - note.created_at < 3600}
-					{Math.floor((Date.now() / 1000 - note.created_at) / 60)}m
-				{:else if Date.now() / 1000 - note.created_at < 86400}
-					{Math.floor((Date.now() / 1000 - note.created_at) / 3600)}h
+				{#if Date.now() / 1000 - note?.created_at < 60}
+					{Math.floor(Date.now() / 1000 - note?.created_at)}s
+				{:else if Date.now() / 1000 - note?.created_at < 3600}
+					{Math.floor((Date.now() / 1000 - note?.created_at) / 60)}m
+				{:else if Date.now() / 1000 - note?.created_at < 86400}
+					{Math.floor((Date.now() / 1000 - note?.created_at) / 3600)}h
 				{:else}
-					{Math.floor((Date.now() / 1000 - note.created_at) / 86400)}d
+					{Math.floor((Date.now() / 1000 - note?.created_at) / 86400)}d
 				{/if}
 			</p>
 		</div>

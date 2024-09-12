@@ -1,15 +1,19 @@
 <script lang="ts">
 	import Fullscreen from 'src/comp/drawers/Fullscreen.svelte';
 
-	import { type NostrEvent } from 'nostr-tools';
 	import { liveQuery } from 'dexie';
-	import { db } from 'src/stores/db';
+	import { db, type Note } from 'src/stores/db';
 	import { selectedPost } from 'src/stores';
 	import Icon from '@iconify/svelte';
 	import Header from './post/header.svelte';
 	import Content from './post/content.svelte';
 	import Footer from './post/footer.svelte';
 	import VirtualList from '@sveltejs/svelte-virtual-list';
+	import { fetchReplies } from 'src/stores/notes';
+	import { onMount } from 'svelte';
+	import { pool } from 'src/stores/relays';
+
+	$: console.log($selectedPost);
 
 	$: results = liveQuery(() => $db.notes.where('reply_to').equals($selectedPost?.id).toArray());
 	// sort replies by created_at
@@ -21,12 +25,28 @@
 		.filter((note) => note.reply_to == $selectedPost?.id);
 	$: open = !!$selectedPost;
 
-	$: console.log(replies);
+	let abortController = new AbortController();
+
+	function fetch() {
+		abortController.abort();
+		abortController = new AbortController();
+		fetchReplies($pool, $selectedPost, abortController);
+		return abortController;
+	}
+
+	onMount(() => {
+		return () => {
+			abortController.abort();
+		};
+	});
+
+	$: $selectedPost && fetch();
 </script>
 
 <Fullscreen
 	bind:open
 	onClose={() => {
+		abortController.abort();
 		$selectedPost = null;
 		replies = [];
 	}}
