@@ -59,7 +59,7 @@
 		<div />
 	</div>
 	<div class="container-height !pt-0">
-		<div class="mt-6">
+		<div class="mt-6 pb-20">
 			<div class="px-2">
 				<Header note={$selectedPost} />
 				<Content content={$selectedPost.content} />
@@ -71,7 +71,7 @@
 				</div>
 			</div>
 			<!-- <VirtualList items={replies} let:item> -->
-			{#each replies as item}
+			{#each replies as item (item.id)}
 				<div>
 					<Header note={item} />
 					<div class="flex gap-2">
