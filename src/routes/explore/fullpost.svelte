@@ -64,7 +64,7 @@
 		<div class="mt-6 pb-20">
 			<div>
 				<div class="px-2">
-					<Header note={$selectedPost} />
+					<Header note={$selectedPost} oneline={false} />
 					<Content content={$selectedPost.content} />
 				</div>
 				<Footer note={$selectedPost} visible />

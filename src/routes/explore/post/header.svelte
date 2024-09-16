@@ -4,13 +4,17 @@
 	import { type NostrEvent } from 'nostr-tools';
 	import { selectedPost } from 'src/stores';
 	import { fetchProfile } from 'src/stores/contacts';
-	import { contactsCache, db, usersCache, type Note } from 'src/stores/db';
+	import { contacts, contactsCache, db, key, usersCache, type Note } from 'src/stores/db';
 	import { pool } from 'src/stores/relays';
 	import { onMount } from 'svelte';
 	import User from 'src/routes/explore/user.svelte';
 	import { fetchNote } from 'src/stores/notes';
+	import { signAndSend } from 'src/actions/relay';
+	import { signer } from 'src/stores/signer';
 
 	export let note: Note;
+
+	export let oneline: boolean = true;
 
 	$: profile = $usersCache.get(note.pubkey) || $contactsCache.get(note.pubkey);
 
@@ -40,12 +44,24 @@
 		/>
 	</div>
 	<!-- <div>unknown</div> -->
-	<div class="flex-grow">
+	<div class="w-full">
 		<div class="flex items-center">
-			<div class="whitespace-nowrap overflow-hidden text-ellipsis">{profile?.name}</div>
-			{#if profile?.nip05}
-				<Icon icon="bitcoin-icons:verify-filled" class="inline text-lg text-primary" />
-				<p class="text-xs opacity-50">{profile?.nip05}</p>
+			{#if oneline}
+				<div class="whitespace-nowrap overflow-hidden text-ellipsis">{profile?.name}</div>
+				{#if profile?.nip05}
+					<Icon icon="bitcoin-icons:verify-filled" class="inline text-lg text-primary" />
+					<p class="text-xs opacity-50">{profile?.nip05}</p>
+				{/if}
+			{:else}
+				<div class="flex-grow">
+					<div class="whitespace-nowrap overflow-hidden text-ellipsis">{profile?.name}</div>
+					{#if profile?.nip05}
+						<div class="flex items-center">
+							<Icon icon="bitcoin-icons:verify-filled" class="inline text-lg text-primary" />
+							<p class="text-xs opacity-50">{profile?.nip05}</p>
+						</div>
+					{/if}
+				</div>
 			{/if}
 			<p class="text-xs opacity-50 ml-2">
 				{#if Date.now() / 1000 - note?.created_at < 60}
@@ -58,6 +74,34 @@
 					{Math.floor((Date.now() / 1000 - note?.created_at) / 86400)}d
 				{/if}
 			</p>
+			{#if !oneline}
+				<div class="flex-grow text-right w-full pr-4">
+					<button
+						class="btn btn-primary btn-xs"
+						disabled={!!$contactsCache.get(note.pubkey)}
+						class:disabled={!!$contactsCache.get(note.pubkey)}
+						on:click={async () => {
+							console.log('add friend');
+							if (!profile) return;
+							await contactsCache.add({
+								...profile,
+								pubkey: note.pubkey,
+								createdAt: Math.floor(Date.now() / 1000)
+							});
+							await signAndSend($signer, {
+								kind: 3,
+								pubkey: $key?.pub,
+								created_at: Math.floor(Date.now() / 1000),
+								// tags: [['p', pubkey]],
+								tags: $contacts.map((c) => ['p', c.pubkey]),
+								content: ''
+							});
+						}}
+					>
+						{!$contactsCache.get(note.pubkey) ? 'Follow' : 'Unfollow'}
+					</button>
+				</div>
+			{/if}
 		</div>
 		<!-- {:catch}
      <div>unknown</div> -->
