@@ -57,7 +57,7 @@
 			Reply
 		</button>
 	</div>
-	<div class="container-height !pt-0" id="reply-container">
+	<div class="!pt-0 fixed reply-height overflow-scroll w-full" id="reply-container">
 		<div class="mt-6">
 			<Header note={$replyPost} />
 			<div class="flex">
@@ -78,6 +78,7 @@
 				bind:value={reply}
 				class="w-full h-24 p-2 rounded-md"
 				placeholder="Post your reply"
+				rows="5"
 				id="reply-post"
 			/>
 		</div>

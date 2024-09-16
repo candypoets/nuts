@@ -82,6 +82,13 @@
 	/* margin-top: var(--navbar-height); */
 }
 
+.reply-height {
+	height: calc(var(--vc, 1vh) * 80);
+	overflow-x: hidden;
+	overflow-y: scroll;
+	padding-top: calc(var(--container-top));
+}
+
 .container-height-200 {
 	height: calc(var(--vc, 1vh) * 200);
 	overflow-x: hidden;

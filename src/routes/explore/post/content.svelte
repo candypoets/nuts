@@ -126,9 +126,9 @@
 		{part.content} -->
 	{/if}
 {/each}
-<div class="flex-grow">
+<div class="flex-grow" on:click={(e) => e.stopPropagation()}>
 	{#if imageLinks.length > 0}
-		<div class="gallery-container" on:click={(e) => e.stopPropagation()}>
+		<div class="gallery-container">
 			<div class="pswp-gallery pswp-gallery--single-column relative" id="my-gallery">
 				{#each imageLinks as link}
 					<Photo {link} />
@@ -137,7 +137,7 @@
 		</div>
 	{/if}
 	{#if videoLinks.length > 0}
-		<video class="rounded-md" src={videoLinks[0].value} controls></video>
+		<video class="rounded-md" src={videoLinks[0].value} controls muted playsinline></video>
 	{/if}
 	{#each previews.filter((p) => p?.images?.length) as preview}
 		<a
