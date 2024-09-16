@@ -116,16 +116,6 @@
 			<Icon icon="teenyicons:add-outline" class="text-2xl" />
 		</button>
 		<VirtualList items={feed} bind:start bind:end bind:viewport bind:top let:item>
-			<!-- {(() => {
-				console.log(
-					'Logging from template:',
-					start,
-					feed.findIndex((note) => note.id === item.id),
-					end,
-					feed.findIndex((note) => note.id === item.id) >= start
-				);
-				return '';
-			})()} -->
 			<div class="lg:hover:bg-base-200 rounded-md pt-2 px-1">
 				<ReplyHeader note={item} />
 				<Header note={item} />

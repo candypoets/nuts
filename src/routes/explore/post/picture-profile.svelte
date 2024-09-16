@@ -7,13 +7,15 @@
 
 	export let pubkey: string;
 
-	$: user = liveQuery(() => $db.users.get(pubkey));
-	$: contact = liveQuery(() => $db.contacts.get(pubkey));
+	// $: user = liveQuery(() => $db.users.get(pubkey));
+	// $: contact = liveQuery(() => $db.contacts.get(pubkey));
+
+	$: profile = $usersCache.get(pubkey) || $contactsCache.get(pubkey);
 	// $: contact = $contactsCache.get(npub);
 	onMount(() => {
 		console.log('picture mount', $usersCache.get(pubkey), $contactsCache.get(pubkey));
 		let abortController = new AbortController();
-		if (!$usersCache.get(pubkey)?.createdAt && !$contactsCache.get(pubkey)?.createdAt) {
+		if (!profile?.createdAt) {
 			console.log('fetching picture', pubkey);
 			fetchProfile($pool, pubkey, abortController);
 		}
@@ -21,7 +23,7 @@
 			abortController.abort();
 		};
 	});
-	$: profile = $user || $contact;
+	// $: profile = $user || $contact;
 </script>
 
 <img

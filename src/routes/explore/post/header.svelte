@@ -12,14 +12,14 @@
 
 	export let note: Note;
 
-	// $: user = $usersCache.get(note.pubkey) || $contactsCache.get(note.pubkey);
+	$: profile = $usersCache.get(note.pubkey) || $contactsCache.get(note.pubkey);
 
-	$: user = liveQuery(() => $db.users.get(note?.pubkey));
-	$: contact = liveQuery(() => $db.contacts.get(note?.pubkey));
+	// let user = liveQuery(() => $db.users.get(note?.pubkey));
+	// let contact = liveQuery(() => $db.contacts.get(note?.pubkey));
 	// $: contact = $contactsCache.get(npub);
 	onMount(() => {
 		let abortController = new AbortController();
-		if (!$usersCache.get(note?.pubkey)?.createdAt && !$contactsCache.get(note?.pubkey)?.createdAt) {
+		if (!profile?.createdAt) {
 			fetchProfile($pool, note?.pubkey, abortController);
 		}
 
@@ -27,7 +27,7 @@
 			abortController.abort();
 		};
 	});
-	$: profile = $user || $contact;
+	// $: profile = $user || $contact;
 	// $: console.log('user', user, note.pubkey, $usersCache);
 </script>
 

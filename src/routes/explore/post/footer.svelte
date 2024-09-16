@@ -16,21 +16,21 @@
 	export let note: NostrEvent;
 	export let visible: boolean;
 
-	$: reactions = liveQuery(() => $db.reactions.where('ref').equals(note.id).count());
+	let reactions = liveQuery(() => $db.reactions.where('ref').equals(note.id).count());
 
-	$: liked = liveQuery(() =>
+	let liked = liveQuery(() =>
 		$db.reactions
 			.where('ref')
 			.equals(note.id)
 			.and((r) => r.pubkey === $key?.pub)
 			.count()
 	);
-
-	$: zaps = liveQuery(() => $db.zaps.where('ref').equals(note.id).toArray());
+	let zaps = liveQuery(() => $db.zaps.where('ref').equals(note.id).toArray());
+	// $: zaps = zapQuery;
 
 	$: biggerZap = $zaps?.sort((a, b) => (a.amount > b.amount ? -1 : 0))?.[0];
 
-	$: replies = liveQuery(() => $db.notes.where('reply_to').equals(note.id).toArray());
+	let replies = liveQuery(() => $db.notes.where('reply_to').equals(note.id).toArray());
 
 	let abortController = new AbortController();
 
@@ -41,7 +41,7 @@
 		fetchZaps($pool, note, abortController);
 		fetchReplies($pool, note, abortController);
 
-		return abortController;
+		// return abortController;
 	}
 
 	onMount(() => {
@@ -55,25 +55,29 @@
 	$: visible ? fetch() : abortController.abort();
 </script>
 
-<div class="flex items-center gap-1 h-6 justify-between pl-2">
+<div class="flex items-center gap-1 min-h-1 justify-between pl-2">
 	<!-- <Icon icon="bitcoin-icons:lightning-outline" class="text-2xl" /> -->
 	{#if biggerZap}
 		<div class="flex items-center gap-2">
 			<PictureProfile pubkey={biggerZap?.pubkey} />
 			<div class="text-sm opacity-50">{biggerZap?.amount / 1000}</div>
-			<div class="text-sm opacity-50">{biggerZap?.content}</div>
+			<div class="text-sm opacity-50 whitespace-nowrap overflow-hidden text-overflow-ellipsis">
+				{biggerZap?.content}
+			</div>
 		</div>
 	{:else}
 		<div class="text-sm opacity-50"></div>
 	{/if}
-	<div class="flex items-center">
-		{#each ($zaps || []).filter((z) => z.pubkey != biggerZap?.pubkey) as zap}
-			<div class="flex items-center gap-2">
-				<PictureProfile pubkey={zap.pubkey} />
-				<div class="text-sm">{zap.amount / 1000}</div>
-			</div>
-		{/each}
-	</div>
+	<!-- <div class="flex items-center">
+		{#if visible}
+			{#each ($zaps || []).filter((z) => z.pubkey != biggerZap?.pubkey) as zap}
+				<div class="flex items-center gap-2">
+					<PictureProfile pubkey={zap.pubkey} />
+					<div class="text-sm">{zap.amount / 1000}</div>
+				</div>
+			{/each}
+		{/if}
+	</div> -->
 </div>
 
 <!-- <div class="flex items-center w-full mt-1 pb-1"> -->
@@ -83,12 +87,16 @@
 		class="flex items-center justify-end gap-1 cursor-pointer w-1/4"
 		on:click={() => ($replyPost = note)}
 	>
-		{$replies?.length || ''}
-		<Icon icon="iconamoon:comment-light" class="" />
+		{#if visible}
+			{$replies?.length || ''}
+			<Icon icon="iconamoon:comment-light" class="" />
+		{/if}
 	</div>
 	<div class="flex items-center justify-end cursor-pointer w-1/4">
-		{$zaps?.reduce((acc, cur) => (acc += cur.amount), 0) / 1000 || ''}
-		<Icon icon="bitcoin-icons:lightning-outline" class="text-2xl" />
+		{#if visible}
+			{$zaps?.reduce((acc, cur) => (acc += cur.amount), 0) / 1000 || ''}
+			<Icon icon="bitcoin-icons:lightning-outline" class="text-2xl" />
+		{/if}
 	</div>
 	<div
 		class="flex items-center justify-end gap-1 cursor-pointer w-1/4"
@@ -96,8 +104,10 @@
 		class:font-semibold={!!$liked}
 		on:click={() => !$liked && sendReaction($pool, $signer, note.id, '🤟')}
 	>
-		{$reactions || ''}
-		<Icon icon="icon-park-outline:like" class="cursor-pointer" />
+		{#if visible}
+			{$reactions || ''}
+			<Icon icon="icon-park-outline:like" class="cursor-pointer" />
+		{/if}
 	</div>
 	<div class="flex items-center justify-end gap-1 cursor-pointer w-1/4">
 		<Icon icon="grommet-icons:sync" class="" />

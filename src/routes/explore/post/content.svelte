@@ -128,7 +128,7 @@
 {/each}
 <div class="flex-grow">
 	{#if imageLinks.length > 0}
-		<div class="gallery-container">
+		<div class="gallery-container" on:click={(e) => e.stopPropagation()}>
 			<div class="pswp-gallery pswp-gallery--single-column relative" id="my-gallery">
 				{#each imageLinks as link}
 					<Photo {link} />
