@@ -1,8 +1,10 @@
 import type { NPool, NSecSigner } from '@nostrify/nostrify';
 import { kinds, type NostrEvent, type UnsignedEvent } from 'nostr-tools';
 import { bestProofCombination, signEvent } from './wallet';
-import { notesCache, reactionsCache, type Note } from 'src/stores/db';
+import { notesCache, reactionsCache, type Note, repostsCache, key, zapsCache } from 'src/stores/db';
 import { wallets, type WalletInfo } from 'src/stores/wallet';
+import { nutKinds } from 'src/lib';
+import { get } from 'svelte/store';
 
 export const sendPost = async (
 	pool: NPool,
@@ -96,6 +98,39 @@ export const sendReply = async (pool: NPool, signer: NSecSigner, post: Note, rep
 	}
 };
 
+export const sendRepost = async (pool: NPool, signer: NSecSigner, note: NostrEvent) => {
+	// let repostId = note.id,
+	try {
+		const event: UnsignedEvent = {
+			kind: kinds.Repost,
+			tags: [
+				['e', note.id],
+				['p', note.pubkey]
+			],
+			content: JSON.stringify(note),
+			created_at: Math.floor(Date.now() / 1000),
+			pubkey: await signer.getPublicKey()
+		};
+
+		const signedEvent = await signEvent(signer, event);
+
+		repostsCache.add({
+			// ...signedEvent,
+			id: signedEvent.id,
+			kind: signedEvent.kind,
+			ref: note.id,
+			created_at: signedEvent.created_at,
+			pubkey: signedEvent.pubkey
+		});
+
+		await pool.event(signedEvent);
+
+		console.log('repost sent');
+	} catch (e) {
+		console.log('could not send reaction', e);
+	}
+};
+
 export const nutsZap = async (
 	pool: NPool,
 	signer: NSecSigner,
@@ -104,16 +139,27 @@ export const nutsZap = async (
 	content: string,
 	amount: number
 ) => {
+	console.log(content, amount);
+	if (!amount) return;
 	let amountLeft = amount;
 	for (const wallet of wallets) {
 		if (amountLeft <= 0) break;
 		if (wallet.amount == 0) continue;
 		const amountSent = wallet.amount > amountLeft ? amountLeft : wallet.amount;
-		const proofs = await bestProofCombination(wallet, amountSent, note.pubkey);
+		let proofs = await bestProofCombination(wallet, amountSent);
+
+		if (!proofs.length) continue;
+
+		// nip-19 encrypt the unblinded signature for each proofs
+		proofs = await Promise.all(
+			proofs.map(async (p) => ({ ...p, C: await signer.nip04.encrypt(note.pubkey, p.C) }))
+		);
+
 		try {
 			const event: UnsignedEvent = {
-				kind: 9321,
-				content,
+				kind: nutKinds.Nutzap,
+				content: content || '',
+				created_at: Math.floor(Date.now() / 1000),
 				pubkey: await signer.getPublicKey(),
 				tags: [
 					['amount', amountSent.toString()],
@@ -121,11 +167,22 @@ export const nutsZap = async (
 					...proofs.map((proof) => ['proof', JSON.stringify(proof)]),
 					['u', wallet.mintURL],
 					['e', note.id],
-					['p', 'e9fbced3a42dcf551486650cc752ab354347dd413b307484e4fd1818ab53f991'] // recipient of nut zap
+					['p', note.pubkey] // recipient of nut zap
 				]
 			};
 
 			const signedEvent = await signEvent(signer, event);
+
+			// optimistically add the nutzap to the cache
+			zapsCache.add({
+				id: signedEvent.id,
+				kind: nutKinds.Nutzap,
+				content: content || '',
+				created_at: signedEvent.created_at,
+				ref: note.id,
+				pubkey: signedEvent.pubkey,
+				amount: Number(amountSent)
+			});
 
 			await pool.event(signedEvent);
 

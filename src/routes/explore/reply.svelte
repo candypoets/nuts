@@ -6,10 +6,7 @@
 	import Header from './post/header.svelte';
 	import Content from './post/content.svelte';
 	import User from './user.svelte';
-	import Footer from './post/footer.svelte';
-	import VirtualList from '@sveltejs/svelte-virtual-list';
 	import { profile } from 'src/stores/profile';
-	import { onMount } from 'svelte';
 	import { pool } from 'src/stores/relays';
 	import { signer } from 'src/stores/signer';
 	import { sendReply } from 'src/actions/notes';
@@ -82,6 +79,7 @@
 				id="reply-post"
 			/>
 		</div>
+		<div class="h-screen" />
 		<!-- </div> -->
-	</div></Fullscreen
->
+	</div>
+</Fullscreen>

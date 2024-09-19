@@ -57,8 +57,7 @@ export const nostrEventSub = derived(
 
 		abortController = new AbortController();
 
-		console.log('fetching events', lastEvent, new Date(lastEvent?.date * 1000).toLocaleString());
-		const messages = get(pool).req(
+		const messages = $pool.req(
 			[
 				{
 					kinds: [nostrTools.kinds.EncryptedDirectMessage],
@@ -78,7 +77,7 @@ export const nostrEventSub = derived(
 			if (message[0] === 'CLOSED') break;
 			if (message[0] !== 'EVENT') continue;
 			const event = message[2];
-
+			console.log('new note');
 			// push the message to the db, it will be listed in the chat
 			dmCache.add(event);
 
@@ -182,12 +181,12 @@ export const claimPendingSub = derived([signer, timestamp1], async ([$signer, $t
 		// 	return;
 		// }
 		try {
-			console.log('claiming', proofsByKeySet[keysetId]);
-			const res = await wallet.receiveTokenEntry(
-				{ proofs: proofsByKeySet[keysetId], mint: m.mint },
-				{ privkey: get(key)?.priv }
-			);
-
+			console.log('claiming', proofsByKeySet[keysetId], get(key)?.priv, get(key)?.pub);
+			const res = await wallet.receiveTokenEntry({
+				proofs: proofsByKeySet[keysetId],
+				mint: m.mint
+			});
+			console.log('res', res);
 			proofsCache.bulkPut([
 				...res.proofs.map((p) => ({ ...p, status: Status.Confirmed })),
 				...proofsByKeySet[keysetId].map((p) => ({ ...p, status: Status.Spent }))

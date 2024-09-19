@@ -9,6 +9,7 @@ import _ from 'lodash';
 import { browser } from '$app/environment';
 import { createCache, restore, type DBCache } from './cache';
 import type { NostrEvent } from '@nostrify/nostrify';
+import { createTableCache } from './tableCache';
 
 export type Invoice = RequestMintResponse & { date: number; mint: string };
 
@@ -18,9 +19,13 @@ export type Endpoint = {
 };
 
 export type Setting = {
-	key: string;
+	key?: string;
 	visible: boolean;
 	unit: 'sat' | 'btc' | 'usd' | 'eur';
+	zap: {
+		amount: number;
+		message: string;
+	};
 };
 
 export type Key = {
@@ -58,7 +63,20 @@ export type Reaction = {
 	pubkey: string;
 };
 
-export type Note = NostrEvent & { reply_to?: string; reply_to_pubkey?: string };
+export type Repost = {
+	id: string;
+	kind: number;
+	ref?: string; // id of the event liked
+	created_at: number;
+	pubkey: string;
+};
+
+export type Note = NostrEvent & {
+	reply_to?: string;
+	reply_to_pubkey?: string;
+	reposted_by?: string;
+	// reposted_from?: string;
+};
 
 export type DB = Dexie & {
 	proofs: EntityTable<DbProof, 'secret'>;
@@ -71,6 +89,7 @@ export type DB = Dexie & {
 	dms: EntityTable<NostrEvent, 'id'>;
 	notes: EntityTable<Note, 'id'>;
 	reactions: EntityTable<Reaction, 'id'>;
+	reposts: EntityTable<Repost, 'id'>;
 	zaps: EntityTable<Zap, 'id'>;
 	keysets: EntityTable<MintKeyset & { input_fee_ppk?: number; mint: string }, 'id'>;
 	invoices: EntityTable<Invoice, 'quote'>;
@@ -105,7 +124,7 @@ export const db: Readable<DB> = derived([activeAccount, key], ([$activeAccount, 
 	if (!$key?.pub) return;
 	const dex = new Dexie($key.pub) as DB;
 	console.log('dex');
-	dex.version(1.2).stores({
+	dex.version(1.3).stores({
 		proofs: 'secret,id,amount,C,status',
 		// pendingProofs: 'secret,id,amount,C',
 		// spentProofs: 'secret,id,amount,C',
@@ -113,9 +132,11 @@ export const db: Readable<DB> = derived([activeAccount, key], ([$activeAccount, 
 		contacts: 'pubkey,name,picture,about,createdAt,nip05',
 		users: 'pubkey,name,picture,about,createdAt,nip05',
 		dms: 'id,kind,tags,content,created_at,pubkey',
-		notes: 'id,kind,tags,content,reply_to,reply_to_pubkey,created_at,pubkey',
+		notes:
+			'id,kind,tags,content,reply_to,reply_to_pubkey,reposted_by,reposted_from,created_at,pubkey',
 		reactions: 'id,kind,ref,created_at,pubkey',
 		zaps: 'id,kind,ref,created_at,content,pubkey,amount',
+		reposts: 'id,kind,ref,created_at,pubkey',
 		keysets: 'id,unit,active,input_fee_ppk,mint',
 		invoices: 'quote,request,date,mint',
 		relays: 'url,enabled',
@@ -129,9 +150,15 @@ export const initialize = derived([db], async ([$db]) => {
 	if (!browser) return;
 	if (!$db) return;
 	console.log('-------restoring------');
+	await settings.restore($db.settings, {
+		unit: 'sat',
+		visible: true,
+		zap: { message: 'freedom unleashed', amount: 21 }
+	});
 	await dmCache.restore($db.dms);
 	await notesCache.restore($db.notes);
 	await reactionsCache.restore($db.reactions);
+	await repostsCache.restore($db.reposts);
 	await zapsCache.restore($db.zaps);
 	await historyCache.restore($db.history);
 	await keysetsCache.restore($db.keysets);
@@ -144,6 +171,8 @@ export const initialize = derived([db], async ([$db]) => {
 	await proofsCache.restore($db.proofs);
 	console.log('--------restored-------');
 });
+
+export const settings = createTableCache('settings', get(db)?.settings);
 
 export const keysetsCache = createCache<
 	MintKeyset & { input_fee_ppk?: number; mint: string },
@@ -278,18 +307,8 @@ export const reactionsCache = createCache<Reaction, 'id'>(get(db)?.reactions);
 // export const reactions = derived(
 //   [reaction]
 export const zapsCache = createCache<Zap, 'id'>(get(db)?.zaps);
-export const settings = derived(
-	[db],
-	([$db], set) => {
-		if (!$db) return;
-		liveQuery(() => $db.settings.get('settings')).subscribe((settings) => {
-			if (settings) {
-				set(settings);
-			}
-		});
-	},
-	{ key: 'settings', visible: true, unit: 'sat' } as Setting
-);
+
+export const repostsCache = createCache<Repost, 'id'>(get(db)?.reposts);
 
 export type Preview = {
 	url: string;

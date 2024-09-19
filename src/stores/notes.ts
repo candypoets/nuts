@@ -7,12 +7,14 @@ import {
 	reactionsCache,
 	type Reaction,
 	type Zap,
-	zapsCache
+	zapsCache,
+	repostsCache
 } from './db';
 import { pool } from './relays';
 import { browser } from '$app/environment';
 import { kinds, type NostrEvent } from 'nostr-tools';
 import type { NPool } from '@nostrify/nostrify';
+import { nutKinds } from 'src/lib';
 
 let abortController = new AbortController();
 
@@ -37,7 +39,7 @@ export const notesSub = derived(
 			const messages = get(pool).req(
 				[
 					{
-						kinds: [kinds.ShortTextNote],
+						kinds: [kinds.ShortTextNote, kinds.Repost],
 						authors: $contacts.map((c) => c.pubkey),
 						since: lastEvent?.created_at || oneDayAgo,
 						limit: 500
@@ -51,11 +53,22 @@ export const notesSub = derived(
 				if (message[0] !== 'EVENT') continue;
 				const event = message[2];
 				// console.log(event);
+				//
+				if (event.kind == kinds.Repost) {
+					console.log('repost', event, JSON.parse(event.content));
+					notesCache.add({
+						...JSON.parse(event.content),
+						reposted_by: event.pubkey,
+						created_at: event.created_at
+					});
+					continue;
+				}
 				// if the e tag is present, it means the note is a reply to another note, add reply_to field
 				const replies = event.tags.filter((t) => t[0] == 'e');
+				if (replies.length > 1) continue;
+
 				let replyTo;
 				let replyToPubkey: string | undefined;
-				if (replies.length > 1) continue;
 
 				if (!!replies.length) {
 					if (!replies.find((r) => r[3] == 'root')) continue;
@@ -192,7 +205,7 @@ function getAmountFromBolt11(bolt11: string) {
 				amount *= 100000000;
 				break; // milli
 		}
-		return amount; // in millisatoshis
+		return amount / 1000; // in millisatoshis
 	}
 	return null;
 }
@@ -250,7 +263,7 @@ export const zapSub = derived(
 		const messages = get(pool).req(
 			[
 				{
-					kinds: [kinds.Zap],
+					kinds: [kinds.Zap, nutKinds.NutzapRedeemed],
 					// '#e': [postId], // Reference to the specific post
 
 					'#e': notes.map((n) => n.id),
@@ -264,6 +277,22 @@ export const zapSub = derived(
 			if (message[0] === 'CLOSED') break;
 			if (message[0] !== 'EVENT') continue;
 			const event = message[2];
+
+			if (event.kind == nutKinds.Nutzap) {
+				const amount = event.content.amount;
+
+				let zap: Zap = {
+					id: event.id,
+					kind: event.kind,
+					content: event.content,
+					created_at: event.created_at,
+					ref: event.tags.find((t) => t[0] === 'e')?.[1],
+					pubkey: event.pubkey,
+					amount: amount || 0
+				};
+				zapsCache.add(zap);
+				continue;
+			}
 
 			const amount = getAmountFromBolt11(event.tags.find((t) => t[0] === 'bolt11')?.[1]);
 
@@ -285,11 +314,12 @@ export const zapSub = derived(
 );
 
 export async function fetchZaps(pool: NPool, note: NostrEvent, abortController: AbortController) {
+	console.log('fetchZaps---------------');
 	try {
 		const messages = pool.req(
 			[
 				{
-					kinds: [kinds.Zap],
+					kinds: [kinds.Zap, nutKinds.NutzapRedeemed],
 					// '#e': [postId], // Reference to the specific post
 
 					'#e': [note.id],
@@ -303,10 +333,20 @@ export async function fetchZaps(pool: NPool, note: NostrEvent, abortController: 
 			if (message[0] === 'CLOSED') break;
 			if (message[0] !== 'EVENT') continue;
 			const event = message[2];
+			let amount = 0;
+			if (event.kind == nutKinds.NutzapRedeemed) {
+				console.log('nutszap redeeemed ---------------');
+				amount = Number(event.tags.find((t) => t[0] == 'amount')?.[1] || 0);
+				const eventID = event.tags.find((t) => t[0] == 'e' && t[3] == 'redeemed')?.[1];
+				if (eventID) {
+					// remove the zap that was optimistacally added
+					zapsCache.delete(eventID);
+				}
+			} else {
+				amount = getAmountFromBolt11(event.tags.find((t) => t[0] === 'bolt11')?.[1]) || 0;
+			}
 
-			const amount = getAmountFromBolt11(event.tags.find((t) => t[0] === 'bolt11')?.[1]);
-
-			const memo = getMemoFromBolt11(event.tags.find((t) => t[0] === 'bolt11')?.[1]);
+			// const memo = getMemoFromBolt11(event.tags.find((t) => t[0] === 'bolt11')?.[1]);
 
 			// console.log(
 			// 	event,
@@ -314,13 +354,14 @@ export async function fetchZaps(pool: NPool, note: NostrEvent, abortController: 
 			// 	memo,
 			// 	JSON.parse(event.tags.find((t) => t[0] === 'description')?.[1] || '').content
 			// );
+			//
 
 			let zap: Zap = {
 				id: event.id,
 				kind: event.kind,
 				content: event.content,
 				created_at: event.created_at,
-				ref: event.tags.find((t) => t[0] === 'e')?.[1],
+				ref: note.id,
 				pubkey: event.pubkey,
 				amount: amount || 0
 			};
@@ -363,8 +404,44 @@ export async function fetchReplies(
 	}
 }
 
+export async function fetchRepost(pool: NPool, note: NostrEvent, abortController: AbortController) {
+	try {
+		const messages = pool.req(
+			[
+				{
+					kinds: [kinds.Repost],
+					// '#e': [postId], // Reference to the specific post
+
+					'#e': [note.id],
+					since: note?.created_at
+				}
+			],
+			{ signal: abortController.signal }
+		);
+
+		for await (const message of messages) {
+			if (message[0] === 'CLOSED') break;
+			if (message[0] !== 'EVENT') continue;
+			if (message[1] === 'EOSE') {
+				abortController.abort();
+				break;
+			}
+			const event = message[2];
+
+			repostsCache.add({
+				id: event.id,
+				kind: event.kind,
+				ref: note.id,
+				created_at: event.created_at,
+				pubkey: event.pubkey
+			});
+		}
+	} catch (e) {
+		// console.error(e);
+	}
+}
+
 export async function fetchNote(pool: NPool, noteId: string, abortController: AbortController) {
-	console.log('fetching note', noteId);
 	const messages = pool.req(
 		[
 			{

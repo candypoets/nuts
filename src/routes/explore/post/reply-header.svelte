@@ -10,7 +10,6 @@
 	onMount(() => {
 		let abortController = new AbortController();
 		if (note?.reply_to) {
-			console.log('fetch reply note');
 			fetchNote($pool, note?.reply_to, abortController);
 		}
 		return () => {
@@ -20,7 +19,8 @@
 </script>
 
 {#if note.reply_to_pubkey}
-	<div class="text-sm opacity-50">
-		Reply to <User npub={note?.reply_to_pubkey} />
+	<div class="text-sm">
+		<span class="opacity-50"> Reply to</span>
+		<User npub={note?.reply_to_pubkey} />
 	</div>
 {/if}

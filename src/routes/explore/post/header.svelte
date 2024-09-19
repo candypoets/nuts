@@ -45,35 +45,50 @@
 	</div>
 	<!-- <div>unknown</div> -->
 	<div class="w-full">
-		<div class="flex items-center">
+		<div class="flex items-start" class:items-center={oneline}>
 			{#if oneline}
-				<div class="whitespace-nowrap overflow-hidden text-ellipsis">{profile?.name}</div>
+				<div class="whitespace-nowrap overflow-hidden text-ellipsis font-semibold">
+					{profile?.name}
+				</div>
 				{#if profile?.nip05}
 					<Icon icon="bitcoin-icons:verify-filled" class="inline text-lg text-primary" />
 					<p class="text-xs opacity-50">{profile?.nip05}</p>
 				{/if}
 			{:else}
 				<div class="flex-grow">
-					<div class="whitespace-nowrap overflow-hidden text-ellipsis">{profile?.name}</div>
+					<div class="flex items-center">
+						<div class="whitespace-nowrap overflow-hidden text-ellipsis">{profile?.name}</div>
+						<Icon icon="bitcoin-icons:verify-filled" class="inline text-lg text-primary" />
+						<p class="text-xs opacity-50 ml-2">
+							{#if Date.now() / 1000 - note?.created_at < 60}
+								{Math.floor(Date.now() / 1000 - note?.created_at)}s
+							{:else if Date.now() / 1000 - note?.created_at < 3600}
+								{Math.floor((Date.now() / 1000 - note?.created_at) / 60)}m
+							{:else if Date.now() / 1000 - note?.created_at < 86400}
+								{Math.floor((Date.now() / 1000 - note?.created_at) / 3600)}h
+							{:else}
+								{Math.floor((Date.now() / 1000 - note?.created_at) / 86400)}d
+							{/if}
+						</p>
+					</div>
 					{#if profile?.nip05}
-						<div class="flex items-center">
-							<Icon icon="bitcoin-icons:verify-filled" class="inline text-lg text-primary" />
-							<p class="text-xs opacity-50">{profile?.nip05}</p>
-						</div>
+						<p class="text-xs opacity-50">{profile?.nip05}</p>
 					{/if}
 				</div>
 			{/if}
-			<p class="text-xs opacity-50 ml-2">
-				{#if Date.now() / 1000 - note?.created_at < 60}
-					{Math.floor(Date.now() / 1000 - note?.created_at)}s
-				{:else if Date.now() / 1000 - note?.created_at < 3600}
-					{Math.floor((Date.now() / 1000 - note?.created_at) / 60)}m
-				{:else if Date.now() / 1000 - note?.created_at < 86400}
-					{Math.floor((Date.now() / 1000 - note?.created_at) / 3600)}h
-				{:else}
-					{Math.floor((Date.now() / 1000 - note?.created_at) / 86400)}d
-				{/if}
-			</p>
+			{#if oneline}
+				<p class="text-xs opacity-50 ml-2">
+					{#if Date.now() / 1000 - note?.created_at < 60}
+						{Math.floor(Date.now() / 1000 - note?.created_at)}s
+					{:else if Date.now() / 1000 - note?.created_at < 3600}
+						{Math.floor((Date.now() / 1000 - note?.created_at) / 60)}m
+					{:else if Date.now() / 1000 - note?.created_at < 86400}
+						{Math.floor((Date.now() / 1000 - note?.created_at) / 3600)}h
+					{:else}
+						{Math.floor((Date.now() / 1000 - note?.created_at) / 86400)}d
+					{/if}
+				</p>
+			{/if}
 			{#if !oneline}
 				<div class="flex-grow text-right w-full pr-4">
 					<button

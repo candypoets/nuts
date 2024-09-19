@@ -3,7 +3,7 @@
 	import { browser } from '$app/environment';
 	import { sendMessage } from 'src/actions/chat';
 	import { formatAmount, saveNuts, send } from 'src/actions/wallet';
-	import { db, key, settings, Status } from 'src/stores/db';
+	import { db, key, proofsCache, settings, Status } from 'src/stores/db';
 	import { mintInfos, totalAmountAvailable } from 'src/stores/mints';
 	import { balance, wallets } from 'src/stores/wallet';
 	import { onMount } from 'svelte';
@@ -17,6 +17,7 @@
 	let memo: string = '';
 
 	let amount: number | undefined = undefined;
+
 	// let invoice: string;
 	// let fees: 0;
 	let processing = '';
@@ -52,22 +53,18 @@
 					);
 					// add the change to the proofs table
 					if (res.returnChanges.length) {
-						await $db.proofs.bulkPut(
-							res.returnChanges.map((p) => ({ ...p, status: Status.Confirmed }))
-						);
-						await $db.proofs.bulkPut(res.sends.map((p) => ({ ...p, status: Status.Spent })));
-						await saveNuts(res.returnChanges, $key?.pub);
+						proofsCache.bulkPut(res.returnChanges.map((p) => ({ ...p, status: Status.Confirmed })));
+						proofsCache.bulkPut(res.sends.map((p) => ({ ...p, status: Status.Spent })));
+						await saveNuts($signer, res.returnChanges, $key?.pub);
 					}
 				})
 				.catch(async (e) => {
 					// keep the sent proofs for yourself as renewed proofs
-					await $db.proofs.bulkAdd(res.sends.map((p) => ({ ...p, status: Status.Confirmed })));
+					proofsCache.bulkPut(res.sends.map((p) => ({ ...p, status: Status.Confirmed })));
 					// add the returnchange to the proofs table
-					await $db.proofs.bulkAdd(
-						res.returnChanges.map((p) => ({ ...p, status: Status.Confirmed }))
-					);
+					proofsCache.bulkPut(res.returnChanges.map((p) => ({ ...p, status: Status.Confirmed })));
 
-					await saveNuts([...res.returnChanges, ...res.sends], $key?.pub);
+					await saveNuts($signer, [...res.returnChanges, ...res.sends], $key?.pub);
 					console.error(e);
 				});
 
@@ -97,7 +94,7 @@
 				<div class="flex gap-1 items-center justify-center">
 					<TokenIcon />
 					<p class="font-bold">
-						{formatAmount($balance, $settings.unit)}
+						{formatAmount($balance, $settings?.unit)}
 					</p>
 				</div>
 			</div>

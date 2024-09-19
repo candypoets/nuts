@@ -12,7 +12,9 @@ enum HistoryItemType {
 	MINT,
 	MELT,
 	RECEIVE_OFFLINE,
-	CHANGE
+	CHANGE,
+	RECEIVE_NUTZAP,
+	SEND_NUTZAP
 }
 
 export type { HistoryItem };

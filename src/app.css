@@ -78,7 +78,7 @@
 	overflow-x: hidden;
 	overflow-y: scroll;
 	/* padding-bottom: var(--footer-height); */
-	padding-top: calc(var(--container-top));
+	padding-top: calc(var(--container-top) - env(safe-area-inset-top));
 	/* margin-top: var(--navbar-height); */
 }
 

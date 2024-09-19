@@ -12,6 +12,7 @@
 		<Drawer.Overlay class="absolute inset-0 bg-black/40 z-10" />
 		<Drawer.Content
 			class="rounded-t-3xl pb-8 pt-3 bg-basic absolute top-4 left-0 right-0 fine-border z-10 mobile-height-95"
+			style="top: calc(1rem + env(safe-area-inset-top, 20px));"
 		>
 			<div class="sr-only" tabindex="-1" autofocus />
 			<slot />

@@ -17,6 +17,17 @@
 		}
 	</style>
 	<body data-sveltekit-preload-data="hover" class="bg-black">
-		<div data-vaul-drawer-wrapper class="bg-basic">%sveltekit.body%</div>
+		<div
+			data-vaul-drawer-wrapper
+			class="bg-basic"
+			style="
+				padding-top: env(safe-area-inset-top, 20px);
+				padding-bottom: env(safe-area-inset-bottom);
+				padding-left: env(safe-area-inset-left);
+				padding-right: env(safe-area-inset-right);
+			"
+		>
+			%sveltekit.body%
+		</div>
 	</body>
 </html>

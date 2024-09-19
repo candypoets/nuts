@@ -11,19 +11,24 @@
 	// // import { onMount } from 'svelte';
 	import { pwaInfo } from 'virtual:pwa-info';
 	import MobileNav from 'src/comp/MobileNav.svelte';
+	import Alert from 'src/comp/Alert.svelte';
 
 	import Login from './login.svelte';
 
 	import { activeAccount, initialize, key, keysCache } from 'src/stores/db';
 	import { onMount } from 'svelte';
 	import { nip19 } from 'nostr-tools';
+	import { mint, mints } from 'src/stores/mints';
+	import { nutzapSub } from 'src/stores/zaps';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
 	// Watch for route changes
 	onMount(() => {
+		// 	// console.log('Route changed to:', $page.route.id);
+		if (!$mint) $mint = $mints[0];
 		console.log('-----------initial mount-----------', window.nostr);
 		if (window.nostr?.nip04) {
-			console.log('olaaaa');
+			// console.log('olaaaa');
 			// keysCache.clear();
 			window.nostr
 				.getPublicKey()
@@ -51,6 +56,7 @@
 		});
 		const initializer = initialize.subscribe((n) => n);
 		const nostrEvent = nostrEventSub.subscribe((n) => n);
+		const nutZaps = nutzapSub.subscribe((n) => n);
 		const claimPending = claimPendingSub.subscribe((n) => n);
 		const proofSpent = proofSpentSub().subscribe((n) => n);
 		const claimInvoices = claimInvoicesSub().subscribe((n) => n);
@@ -63,6 +69,7 @@
 			proofSpent();
 			claimInvoices();
 			following();
+			nutZaps();
 			// 		// profile();
 		};
 	});
@@ -72,8 +79,6 @@
 	function updateVh() {
 		document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
 	}
-
-	// $: console.log('signer', $signer);
 </script>
 
 <svelte:head>
@@ -81,6 +86,7 @@
 </svelte:head>
 
 {#if !homepage}
+	<Alert />
 	{#if $key?.pub}
 		<slot />
 		<MobileNav />

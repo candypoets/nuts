@@ -57,7 +57,7 @@
 		</div>
 
 		<strong class="text-3xl" class:blur-md={isViewing}>
-			{formatAmount($balance, $settings.unit, true)}
+			{formatAmount($balance, $settings?.unit, true)}
 		</strong>
 	</div>
 </div>

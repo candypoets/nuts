@@ -31,6 +31,22 @@
 		{:catch}
 			unknown
 		{/await}
+	{:else if item.type === HistoryItemType.RECEIVE_NUTZAP}
+		{#await getContact(item?.data?.from || '')}
+			@unknown zapped you
+		{:then send}
+			@{send?.name || 'unknown'} zapped you
+		{:catch}
+			@unknown zapped you
+		{/await}
+	{:else if item.type === HistoryItemType.SEND_NUTZAP}
+		{#await getContact(item?.data?.to || '')}
+			zapped <strong>@unknown</strong>
+		{:then send}
+			zapped <strong>@{send?.name || 'unknown'}</strong>
+		{:catch}
+			zapped <strong>@unknown</strong>
+		{/await}
 	{:else}
 		Top up
 	{/if}

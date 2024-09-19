@@ -9,6 +9,8 @@
 	import { mint } from 'src/stores/mints';
 	import MintSelector from 'src/comp/MintSelector.svelte';
 	import { formatAmount } from 'src/actions/wallet';
+	import { alert } from 'src/stores';
+	import Alert from 'src/comp/Alert.svelte';
 
 	export let active;
 	export let isMinting: boolean;
@@ -100,9 +102,18 @@
 
 	$: isPaid = mintingHash && !$exist;
 	$: console.log(isPaid, $exist);
+
+	function copyToClipboard(event: MouseEvent) {
+		event.preventDefault(); // Prevent the default link behavior
+
+		navigator.clipboard.writeText(qrCode ?? '');
+		console.log('hello');
+		$alert = 'copied to clipboard!';
+	}
 </script>
 
 <div class="flex justify-center">
+	<Alert />
 	<p class="font-bold text-xl absolute top-2">Receive</p>
 	{#if isLoading}
 		<div class=" h-full flex items-center justify-center gap-5 flex-col">
@@ -137,7 +148,11 @@
 								class="text-success"
 							/>
 						{:else}
-							<a class="cursor-pointer" href="lightning:{qrCode}">
+							<a
+								class="cursor-pointer"
+								href="lightning:{qrCode}"
+								on:click={(e) => copyToClipboard(e)}
+							>
 								<QRCodeImage text={qrCode} displayHeight={275} displayWidth={275} margin={1} />
 							</a>
 						{/if}

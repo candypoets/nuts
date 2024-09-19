@@ -24,6 +24,7 @@ import { sendMessage } from './chat';
 import { decode } from '@gandlaf21/bolt11-decode';
 import { ADDRESS_ZERO } from 'src/stores/constants';
 import type { NSecSigner } from '@nostrify/nostrify';
+import { signer } from 'src/stores/signer';
 
 // send proofs from the most important mint to the least important
 export const send = async (
@@ -52,6 +53,7 @@ export const send = async (
 			}
 			if (unit && wallet.unit !== unit) continue;
 			console.log(wallet.mintURL);
+
 			try {
 				const { returnChange, send } = await wallet.wallet.send(
 					wallet.amount > amountLeft ? amountLeft : wallet.amount,
@@ -62,6 +64,8 @@ export const send = async (
 						// pubkey
 					}
 				);
+
+				console.log('this', wallet.proofs, returnChange, send);
 
 				toEncode.push({ proofs: send, mint: wallet.mintURL });
 				spents.push(...wallet.proofs);
@@ -215,6 +219,7 @@ export const melt = async (
 		ADDRESS_ZERO,
 		getEncodedToken({ token: [{ proofs: proofToSend, mint: wallet.mintURL }] })
 	);
+	// this is a 'savenuts' message
 	await sendMessage(
 		signer,
 		get(key)?.pub,
@@ -299,7 +304,7 @@ export const signEvent = async (signer: NSecSigner, event: Omit<NostrEvent, 'id'
 
 // save a cashu token representing the entire user balance
 // then send a private message to yourself with the encrypted tokens
-export const saveNuts = async (proofs: Proof[], toPubKey?: string) => {
+export const saveNuts = async (signer: NSecSigner, proofs: Proof[], toPubKey?: string) => {
 	if (!proofs.length || !toPubKey) return;
 	const toEncode: TokenEntry[] = [];
 	const proofsByKeySet = proofs.reduce(
@@ -488,7 +493,26 @@ const formatSats = (amount: number, withSuffix: boolean): string => {
 	);
 };
 
-export async function bestProofCombination(wallet: WalletInfo, target: number, pubkey?: string) {
+/**
+ * Finds the best combination of proofs to match a target amount.
+ *
+ * @param wallet - The wallet information containing proofs and other details.
+ * @param target - The target amount to reach.
+ * @param pubkey - Optional public key for proof locking.
+ * @returns An array of Proof objects that best match the target amount.
+ *
+ * This function:
+ * 1. Checks if the wallet has sufficient funds.
+ * 2. Uses a greedy algorithm to find the best combination of proof amounts.
+ * 3. Creates a preference object based on the required proof amounts.
+ * 4. Calls the wallet's receiveTokenEntry method with the preference.
+ * 5. Updates the proofs cache with new spent statuses (don't store newly created proofs).
+ * 6. Returns the selected proofs matching the target amount.
+ *
+ * It's designed to optimize the selection of proofs for transactions,
+ * minimizing the number of proofs used while reaching the target amount.
+ */
+export async function bestProofCombination(wallet: WalletInfo, target: number) {
 	if (wallet.amount < target) return [];
 	const proofs: number[] = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024].reverse();
 	// Sort proofs in descending order and remove duplicates
@@ -509,7 +533,6 @@ export async function bestProofCombination(wallet: WalletInfo, target: number, p
 		{} as any
 	);
 
-	console.log(preference);
 	const res = await wallet.wallet.receiveTokenEntry(
 		{ proofs: wallet.proofs, mint: wallet.mintURL },
 		{
@@ -517,19 +540,16 @@ export async function bestProofCombination(wallet: WalletInfo, target: number, p
 			preference: Object.keys(preference).map((key) => ({
 				amount: Number(key),
 				count: preference[key]
-			})),
-			pubkey
+			}))
 		}
 	);
-	console.log(res.proofs);
+
 	if (res.proofs.length) {
-		// @todo if proofs are locked to another pubkey, do not add to confirmed proofs
 		proofsCache.bulkPut([
 			...res.proofs.map((p) => ({ ...p, status: Status.Confirmed })),
 			...wallet.proofs.map((p) => ({ ...p, status: Status.Spent }))
 		]);
-		// @todo if proofs are locked to another pubkey, do not save the proofs
-		await saveNuts(res.proofs, get(key)?.pub);
+		await saveNuts(get(signer), res.proofs, get(key)?.pub);
 	}
 	return Object.keys(preference).flatMap((key) =>
 		res.proofs.filter((p) => p.amount === Number(key)).slice(0, preference[key])

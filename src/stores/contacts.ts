@@ -61,7 +61,7 @@ export const followingSub = derived([key, db], async ([$key, $db]) => {
 
 export async function getContact(pubkey: string): Promise<Contact> {
 	// try to get the contact from the db
-	const local = get(contacts).find((c) => c.pubkey === pubkey);
+	const local = get(contactsCache).get(pubkey) || get(usersCache).get(pubkey);
 	if (local && !!local.createdAt) return local;
 	// console.log(pubkey, get(contacts));
 	const contact = new Promise<Contact>(async (resolve, reject) => {
@@ -76,9 +76,9 @@ export async function getContact(pubkey: string): Promise<Contact> {
 				if (follow[0] === 'CLOSED') break;
 				if (follow[0] !== 'EVENT') continue;
 				const event = follow[2];
-				// console.log(event);
+
 				const contact = JSON.parse(event.content);
-				console.log(contact);
+
 				contactsCache.put({
 					createdAt: event.created_at,
 					pubkey: event.pubkey,

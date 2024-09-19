@@ -77,8 +77,6 @@
 		});
 
 		const matches = _.flatten(allMatches).sort((a, b) => a.index - b.index);
-
-		// console.log(matches, content);
 		let lastIndex = 0;
 		parts = [];
 		// for each matches, split the content into parts
@@ -90,10 +88,14 @@
 			lastIndex = m.index + m.match.length;
 		});
 
-		if (!parts.length) {
-			parts = [{ type: 'text', content }];
+		if (lastIndex < content.length) {
+			parts = parts.concat({ type: 'text', content: content.slice(lastIndex) });
 		}
-		console.log('');
+
+		// if (!parts.length) {
+		// 	parts = [{ type: 'text', content }];
+		// }
+		// console.log(parts, content, lastIndex, content.length);
 	});
 	// $: console.log(parts);
 	// return parts;

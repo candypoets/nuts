@@ -6,6 +6,7 @@
 	import Relays from './relays.svelte';
 	import { profile } from 'src/stores/profile';
 	import Mints from './mints.svelte';
+	import Zaps from './zaps.svelte';
 	import Fullscreen from 'src/comp/drawers/Fullscreen.svelte';
 
 	let active: string;
@@ -16,7 +17,7 @@
 
 	export let subopen: boolean = false;
 
-	let route: 'logout' | 'keys' | 'relays' | 'mints' | 'keys' = 'logout';
+	let route: 'logout' | 'keys' | 'relays' | 'mints' | 'keys' | 'zaps' = 'logout';
 </script>
 
 <!-- <ScanLN bind:invoice={scannedNpub} /> -->
@@ -124,6 +125,20 @@
 				</div>
 				<Icon icon="carbon:arrow-right" class="w-16 h-6" />
 			</div>
+			<div
+				class="flex items-center justify-around py-2"
+				on:click={() => {
+					subopen = true;
+					route = 'zaps';
+				}}
+			>
+				<Icon icon="arcticons:zip-zap" class="w-16 h-6" />
+				<div class="flex-grow">
+					<strong>Zaps</strong>
+					<p class="text-xs">Your default zap setting</p>
+				</div>
+				<Icon icon="carbon:arrow-right" class="w-16 h-6" />
+			</div>
 		</div>
 	</div>
 	{#if route == 'logout'}
@@ -134,5 +149,7 @@
 		<Relays bind:subopen />
 	{:else if route == 'mints'}
 		<Mints bind:subopen />
+	{:else if route == 'zaps'}
+		<Zaps bind:subopen />
 	{/if}
 </Fullscreen>

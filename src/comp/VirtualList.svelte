@@ -5,6 +5,7 @@
 	export let items;
 	export let height = '100%';
 	export let itemHeight = undefined;
+	export let className = '';
 
 	let foo;
 
@@ -149,7 +150,7 @@
 	bind:this={viewport}
 	bind:offsetHeight={viewport_height}
 	on:scroll={handle_scroll}
-	class="pt-16"
+	class={className}
 	style="height: {height}; max-height: 100vh;"
 >
 	<svelte-virtual-list-contents

@@ -16,6 +16,7 @@
 	import { onMount } from 'svelte';
 	import { posting, selectedPost } from 'src/stores';
 	import Post from './post.svelte';
+	import RepostHeader from './post/repost-header.svelte';
 
 	$: query = liveQuery<NostrEvent[]>(() =>
 		$db.notes
@@ -26,7 +27,7 @@
 				}
 				return true;
 			})
-			.filter((note) => !!$contactsCache.get(note.pubkey))
+			.filter((note) => !!$contactsCache.get(note.pubkey) || !!note?.reposted_by)
 			.reverse()
 			.toArray()
 	);
@@ -115,8 +116,9 @@
 		>
 			<Icon icon="teenyicons:add-outline" class="text-2xl" />
 		</button>
-		<VirtualList items={feed} bind:start bind:end bind:viewport bind:top let:item>
-			<div class="lg:hover:bg-base-200 rounded-md pt-2 px-1">
+		<VirtualList className="pt-16" items={feed} bind:start bind:end bind:viewport bind:top let:item>
+			<div class="lg:hover:bg-base-200 py-2 px-1 border-b-2 border-gray-100 lg:border-none">
+				<RepostHeader note={item} />
 				<ReplyHeader note={item} />
 				<Header note={item} />
 				<div
@@ -132,16 +134,11 @@
 				>
 					<div class="min-w-8" />
 					<div class="text-sm break-words overflow-hidden">
-						<!-- {content?.slice(0, 500)}{content?.length > 500 ? '...' : ''} -->
 						<Content content={item.content} />
 					</div>
 				</div>
-				<!-- <Content content={item.content} /> -->
-				<Footer note={item} visible={feed.findIndex((note) => note.id === item.id) >= start} />
-
-				<br />
+				<Footer note={item} visible={feed.findIndex((note) => note.id === item.id) >= start - 2} />
 			</div>
-			<!-- <Post note={item} /> -->
 		</VirtualList>
 	</div>
 {:else}

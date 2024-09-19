@@ -1,5 +1,5 @@
 import { browser } from '$app/environment';
-import type { EntityTable, InsertType } from 'dexie';
+import type { EntityTable, IDType, InsertType } from 'dexie';
 import _ from 'lodash';
 import { get, writable, type Writable } from 'svelte/store';
 
@@ -8,6 +8,7 @@ export interface DBCache<T, TKeyPropName extends keyof T = never> extends Writab
 	put: (item: T) => void;
 	add: (item: T) => void;
 	bulkPut: (items: T[]) => void;
+	delete: (key: IDType<T, TKeyPropName>) => void;
 	clear: () => void;
 }
 
@@ -79,6 +80,12 @@ export function createCache<T, TKeyPropName extends keyof T>(
 			}
 			hasChanges(newMap, get(this)) ? set(newMap) : null;
 			table?.bulkPut(values);
+		},
+		delete(key: IDType<T, TKeyPropName>) {
+			const map = new Map(get(this));
+			map.delete(key as string);
+			table?.delete(key);
+			set(map);
 		},
 		clear() {
 			set(new Map());

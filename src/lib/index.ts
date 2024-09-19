@@ -175,3 +175,9 @@ export function categorizeURL(url: string): URLType {
 		return 'html';
 	}
 }
+
+export const nutKinds = {
+	Nutzap: 9321,
+	NutzapRedeemed: 7376,
+	NutzapInfo: 10019
+};
