@@ -16,7 +16,8 @@ module.exports = {
 					error: '#ff5861'
 				},
 				dark: {
-					primary: '#5C2EDD',
+					primary: '#a0ebd8',
+					'primary-content': '#48505a',
 					secondary: '#D926AA',
 					'base-100': '#1d232a',
 					neutral: '#2a323c',

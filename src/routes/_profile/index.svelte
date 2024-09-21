@@ -8,6 +8,7 @@
 	import Mints from './mints.svelte';
 	import Zaps from './zaps.svelte';
 	import Fullscreen from 'src/comp/drawers/Fullscreen.svelte';
+	import Theme from 'src/comp/Theme.svelte';
 
 	let active: string;
 	let search: string;
@@ -37,7 +38,10 @@
 						</div>
 					</div> -->
 		</div>
-		<h2 class="text-xl font-bold px-4 pt-4">{$profile.name || 'Profile'}</h2>
+		<div class="flex justify-between">
+			<h2 class="text-xl font-bold px-4 pt-4">{$profile.name || 'Profile'}</h2>
+			<Theme />
+		</div>
 	</div>
 	<div class="p-4 container-height overflow-scroll !pt-20" id="container">
 		<div class="join bg-base-200 rounded-md w-full">

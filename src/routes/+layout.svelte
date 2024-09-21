@@ -11,6 +11,8 @@
 	// // import { onMount } from 'svelte';
 	import { pwaInfo } from 'virtual:pwa-info';
 	import MobileNav from 'src/comp/MobileNav.svelte';
+	import DesktopNav from 'src/comp/DesktopNav.svelte';
+	import Theme from 'src/comp/Theme.svelte';
 	import Alert from 'src/comp/Alert.svelte';
 
 	import Login from './login.svelte';
@@ -90,6 +92,8 @@
 	{#if $key?.pub}
 		<slot />
 		<MobileNav />
+		<DesktopNav />
+		<Theme />
 	{:else}
 		<Login />
 	{/if}

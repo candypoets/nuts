@@ -16,10 +16,17 @@
 
 	let start = 0;
 
-	$: results = liveQuery(() => $db.notes.where('reply_to').equals($selectedPost?.id).toArray());
+	let results: Note[] = [];
+
+	const resultQuery = () =>
+		$db.notes
+			.where('reply_to')
+			.equals($selectedPost?.id)
+			.toArray()
+			.then((r) => (results = r));
 
 	// sort replies by created_at
-	$: replies = $results
+	$: replies = results
 		?.sort((a, b) => a.created_at - b.created_at)
 		.filter((note) => !note.content.includes($selectedPost?.content))
 		// .map((note) => {
@@ -48,6 +55,7 @@
 	});
 
 	$: $selectedPost && fetch();
+	$: $selectedPost && resultQuery();
 
 	$: items = [$selectedPost, ...(replies || [])].filter((p) => !!p);
 
@@ -66,7 +74,7 @@
 		<button on:click={() => ($selectedPost = null)}>
 			<Icon icon="mingcute:down-line" class="text-xl" />
 		</button>
-		<h1 class="text-2xl font-semibold">Post</h1>
+		<h1 class="text-xl font-semibold">Post</h1>
 		<div />
 	</div>
 	<div class="container-height pb-20 !pt-0">

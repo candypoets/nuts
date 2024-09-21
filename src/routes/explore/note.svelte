@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { liveQuery } from 'dexie';
-	import { db } from 'src/stores/db';
+	import { db, notesCache } from 'src/stores/db';
 	import { fetchNote } from 'src/stores/notes';
 	import { pool } from 'src/stores/relays';
 	import { onMount } from 'svelte';
@@ -12,7 +12,7 @@
 
 	$: console.log('note-------', noteId);
 
-	$: note = liveQuery(() => $db.notes.get(noteId));
+	$: note = $notesCache.get(noteId);
 
 	onMount(() => {
 		let abortController = new AbortController();
@@ -23,14 +23,14 @@
 		};
 	});
 
-	$: console.log($note);
+	$: console.log(note);
 </script>
 
-{#if $note}
+{#if note}
 	<div class="p-4 rounded-2xl my-2" style="background-color: #cbcccf66;">
 		<div class="px-2">
-			<Header note={$note} />
-			<Content content={$note.content} />
+			<Header {note} />
+			<Content content={note.content} />
 		</div>
 		<!-- <Footer note={$selectedPost} /> -->
 	</div>

@@ -205,7 +205,7 @@ function getAmountFromBolt11(bolt11: string) {
 				amount *= 100000000;
 				break; // milli
 		}
-		return amount / 1000; // in millisatoshis
+		return amount / 1000; // in satoshis
 	}
 	return null;
 }

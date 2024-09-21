@@ -18,7 +18,7 @@
 	import Post from './post.svelte';
 	import RepostHeader from './post/repost-header.svelte';
 
-	$: query = liveQuery<NostrEvent[]>(() =>
+	const query = liveQuery<NostrEvent[]>(() =>
 		$db.notes
 			.orderBy('created_at')
 			.filter((note) => {
@@ -89,11 +89,11 @@
 </script>
 
 <div
-	class="px-4 lg:px-0 lg:w-1/3 w-full m-auto p-2 lg:mt-0 lg:relative fixed bg-basic z-10"
+	class="px-4 lg:px-0 lg:w-full w-full m-auto p-2 lg:mt-0 fixed bg-basic z-10"
 	on:click={() => viewport.scrollTo({ top: 0, behavior: 'smooth' })}
 	id="top"
 >
-	<div class="flex justify-between items-start">
+	<div class="flex justify-between items-start lg:w-1/3 lg:m-auto">
 		<h1 class="text-2xl font-semibold">Explore</h1>
 		<div class="flex gap-2 items-center">
 			<span class="text font-semibold">{$balance} Sats</span>
@@ -106,7 +106,7 @@
 </div>
 {#if feed.length}
 	<div
-		class="lg:pt-0 overflow-scroll scrollbar-hide container-height lg:container-height lg:w-1/3 m-auto !pt-0"
+		class="lg:pt-0 overflow-scroll scrollbar-hide container-height lg:h-screen lg:container-height m-auto !pt-0"
 		id="container"
 	>
 		<button
@@ -117,7 +117,9 @@
 			<Icon icon="teenyicons:add-outline" class="text-2xl" />
 		</button>
 		<VirtualList className="pt-16" items={feed} bind:start bind:end bind:viewport bind:top let:item>
-			<div class="lg:hover:bg-base-200 py-2 px-1 border-b-2 border-gray-100 lg:border-none">
+			<div
+				class="lg:hover:bg-base-200 lg:w-1/3 lg:m-auto py-2 px-1 border-b-2 border-base-200 lg:border-none"
+			>
 				<RepostHeader note={item} />
 				<ReplyHeader note={item} />
 				<Header note={item} />
@@ -145,20 +147,20 @@
 	<div
 		class="lg:pt-0 overflow-scroll scrollbar-hide container-height lg:container-height lg:w-1/3 m-auto !pt-0"
 	>
-		{#each Array(5) as _}
+		{#each Array(8) as _}
 			<div class="lg:hover:bg-base-200 rounded-md pt-2 px-1 mb-4 first:pt-16">
 				<div class="flex items-center mb-2">
-					<div class="w-10 h-10 rounded-full bg-gray-300 shimmer"></div>
+					<div class="w-10 h-10 rounded-full shimmer"></div>
 					<div class="ml-2 flex-grow">
-						<div class="h-4 bg-gray-300 rounded w-1/4 shimmer"></div>
-						<div class="h-3 bg-gray-300 rounded w-1/3 mt-1 shimmer"></div>
+						<div class="h-4 rounded w-1/4 shimmer"></div>
+						<div class="h-3 rounded w-1/3 mt-1 shimmer"></div>
 					</div>
 				</div>
-				<div class="h-16 bg-gray-300 rounded shimmer"></div>
+				<div class="h-16 rounded shimmer"></div>
 				<div class="flex justify-between mt-2">
-					<div class="h-4 bg-gray-300 rounded w-1/6 shimmer"></div>
-					<div class="h-4 bg-gray-300 rounded w-1/6 shimmer"></div>
-					<div class="h-4 bg-gray-300 rounded w-1/6 shimmer"></div>
+					<div class="h-4 rounded w-1/6 shimmer"></div>
+					<div class="h-4 rounded w-1/6 shimmer"></div>
+					<div class="h-4 rounded w-1/6 shimmer"></div>
 				</div>
 			</div>
 		{/each}
@@ -171,7 +173,12 @@
 
 <style>
 	.shimmer {
-		background: linear-gradient(to right, #f6f7f8 8%, #edeef1 18%, #f6f7f8 33%);
+		background: linear-gradient(
+			to right,
+			rgba(246, 247, 248, 0.8) 8%,
+			rgba(237, 238, 241, 0.8) 18%,
+			rgba(246, 247, 248, 0.8) 33%
+		);
 		background-size: 1000px 100%;
 		animation: shimmer 2s infinite linear;
 	}
