@@ -6,21 +6,18 @@
 	import { selectedPost } from 'src/stores';
 	import _ from 'lodash';
 	import Icon from '@iconify/svelte';
-	import Header from './post/header.svelte';
-	import Content from './post/content.svelte';
-	import Footer from './post/footer.svelte';
-	import Subpost from './subpost.svelte';
 	import Replypost from './post/reply-post.svelte';
 	import VirtualList from 'src/comp/VirtualList.svelte';
 	import { fetchReplies } from 'src/stores/notes';
 	import { onMount } from 'svelte';
 	import { pool } from 'src/stores/relays';
+	import SubLayer from 'src/comp/drawers/SubLayer.svelte';
 
 	let start = 0;
 
 	let results: Note[] = [];
 
-	let selectedReply: Note;
+	export let selectedReply: Note;
 
 	// sort replies by created_at
 	$: replies = results
@@ -34,24 +31,23 @@
 		// })
 		.filter((note) => note.reply_to == $selectedPost?.id);
 
-	$: open = !!$selectedPost;
+	$: open = !!selectedReply;
 
 	let abortController = new AbortController();
 
 	function fetch() {
-		console.log('fetch');
 		abortController.abort();
 		abortController = new AbortController();
 		$db.notes
 			.where('reply_to')
-			.equals($selectedPost?.id)
+			.equals(selectedReply?.id)
 			.sortBy('created_at')
 			.then(async (r) => {
 				console.log('fetched', r);
 				results = r;
 				const newReplies = fetchReplies(
 					$pool,
-					$selectedPost,
+					selectedReply?.id,
 					abortController,
 					replies[replies.length - 1]?.created_at
 				);
@@ -68,28 +64,20 @@
 		};
 	});
 
-	$: $selectedPost && fetch();
+	$: selectedReply && fetch();
 
-	// $: {
-	// 	if (!$selectedPost) {
-	// 		selectedReply = null;
-	// 	}
-	// }
+	$: items = [selectedReply, ...(replies || [])].filter((p) => !!p);
 
-	$: items = [$selectedPost, ...(replies || [])].filter((p) => !!p);
-
-	$: console.log($selectedPost, selectedReply, replies, items);
+	$: console.log(selectedReply, replies, items);
 </script>
 
-<Fullscreen
+<SubLayer
 	bind:open
 	onClose={() => {
 		abortController.abort();
-		$selectedPost = null;
 		selectedReply = null;
 		replies = [];
 	}}
-	dismissible={!selectedReply}
 >
 	<div class="flex justify-between items-center px-4">
 		<button on:click={() => ($selectedPost = null)}>
@@ -109,5 +97,4 @@
 			/>
 		</VirtualList>
 	</div>
-	<Subpost bind:selectedReply />
-</Fullscreen>
+</SubLayer>

@@ -3,7 +3,8 @@
 	import Header from './header.svelte';
 	import Content from './content.svelte';
 	import Footer from './footer.svelte';
-	import { selectedPost } from 'src/stores';
+
+	export let selectedReply: Note;
 
 	export let note: Note;
 
@@ -30,7 +31,13 @@
 		<div class="flex gap-2">
 			<div class="min-w-8" />
 			<div class="flex-grow">
-				<div class="flex gap-2" on:click={() => ($selectedPost = note)}>
+				<div
+					class="flex gap-2"
+					on:click={() => {
+						console.log('reply clicked');
+						selectedReply = note;
+					}}
+				>
 					<!-- <div class="min-w-8" /> -->
 					<div class="text-sm break-words overflow-hidden">
 						<Content content={note.content} />

@@ -134,6 +134,7 @@
 {#if feed.length}
 	<div
 		class="lg:pt-0 overflow-scroll scrollbar-hide container-height lg:h-screen lg:container-height m-auto !pt-0"
+		on:click={() => ($selectedPost = null)}
 		id="container"
 	>
 		<button
@@ -152,7 +153,8 @@
 				<Header note={item} />
 				<div
 					class="flex gap-2"
-					on:click={() => {
+					on:click={(e) => {
+						e.stopPropagation();
 						console.log('clicked', item);
 						if (item.reply_to) {
 							$selectedPost = $notesCache.get(item.reply_to);

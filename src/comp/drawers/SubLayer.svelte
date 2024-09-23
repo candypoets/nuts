@@ -3,9 +3,10 @@
 
 	export let scaleBackground: boolean = true;
 	export let open: boolean = false;
+	export let onClose: any;
 </script>
 
-<Drawer.NestedRoot bind:open>
+<Drawer.NestedRoot bind:open {onClose} shouldScaleBackground={false}>
 	<!-- <Drawer.Trigger /> -->
 	<Drawer.Portal>
 		<Drawer.Overlay class="absolute inset-0 bg-black/40 z-10" />
