@@ -16,10 +16,10 @@ module.exports = {
 					error: '#ff5861'
 				},
 				dark: {
-					primary: '#a0ebd8',
+					primary: '#1fb092',
 					'primary-content': '#48505a',
 					secondary: '#D926AA',
-					'base-100': '#1d232a',
+					'base-100': '#131716',
 					neutral: '#2a323c',
 					info: '#00b5ff',
 					success: '#00a96e',
