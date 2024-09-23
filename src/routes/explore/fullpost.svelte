@@ -4,6 +4,7 @@
 	import { liveQuery } from 'dexie';
 	import { db, type Note } from 'src/stores/db';
 	import { selectedPost } from 'src/stores';
+	import _ from 'lodash';
 	import Icon from '@iconify/svelte';
 	import Header from './post/header.svelte';
 	import Content from './post/content.svelte';
@@ -17,13 +18,6 @@
 	let start = 0;
 
 	let results: Note[] = [];
-
-	const resultQuery = () =>
-		$db.notes
-			.where('reply_to')
-			.equals($selectedPost?.id)
-			.toArray()
-			.then((r) => (results = r));
 
 	// sort replies by created_at
 	$: replies = results
@@ -42,9 +36,26 @@
 	let abortController = new AbortController();
 
 	function fetch() {
+		console.log('fetch');
 		abortController.abort();
 		abortController = new AbortController();
-		fetchReplies($pool, $selectedPost, abortController);
+		$db.notes
+			.where('reply_to')
+			.equals($selectedPost?.id)
+			.sortBy('created_at')
+			.then(async (r) => {
+				console.log('fetched', r);
+				results = r;
+				const newReplies = fetchReplies(
+					$pool,
+					$selectedPost,
+					abortController,
+					replies[replies.length - 1]?.created_at
+				);
+				for await (const newReply of newReplies) {
+					results = _.uniqBy([...replies, ...newReply], 'id');
+				}
+			});
 		return abortController;
 	}
 
@@ -55,7 +66,6 @@
 	});
 
 	$: $selectedPost && fetch();
-	$: $selectedPost && resultQuery();
 
 	$: items = [$selectedPost, ...(replies || [])].filter((p) => !!p);
 

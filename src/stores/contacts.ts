@@ -98,34 +98,39 @@ export async function getContact(pubkey: string): Promise<Contact> {
 
 export async function fetchProfile(pool: NPool, npub: string, abortController: AbortController) {
 	console.log('fetching profile', npub);
-	const messages = pool.req(
-		[
-			{
-				kinds: [0],
-				authors: [npub]
-			}
-		],
-		{ signal: abortController.signal }
-	);
-	for await (const message of messages) {
-		console.log('profile message', message);
-		if (message[0] === 'CLOSED') break;
-		if (message[0] === 'EOSE') abortController.abort();
-		if (message[0] !== 'EVENT') continue;
-		const event = message[2];
+	return new Promise<Contact>(async (resolve, reject) => {
+		const messages = pool.req(
+			[
+				{
+					kinds: [0],
+					authors: [npub]
+				}
+			],
+			{ signal: abortController.signal }
+		);
+		for await (const message of messages) {
+			console.log('profile message', message);
+			if (message[0] === 'CLOSED') break;
+			if (message[0] === 'EOSE') abortController.abort();
+			if (message[0] !== 'EVENT') continue;
+			const event = message[2];
 
-		const user = JSON.parse(event.content);
-		console.log('--------user--------', user, event);
-		usersCache.put({
-			createdAt: event.created_at,
-			pubkey: event.pubkey,
-			name: user.name || user.display_name || user.displayName,
-			about: user.about,
-			nip05: user?.lud16 || user?.nip05,
-			picture: user.picture
-		});
+			const user = JSON.parse(event.content);
+			console.log('--------user--------', user, event);
+			const profile = {
+				createdAt: event.created_at,
+				pubkey: event.pubkey,
+				name: user.name || user.display_name || user.displayName,
+				about: user.about,
+				nip05: user?.nip05,
+				picture: user.picture
+			};
 
-		abortController.abort();
-		// usersCache.add({ ...event, reply_to: reply_to });
-	}
+			usersCache.put(profile);
+			resolve(profile);
+
+			abortController.abort();
+			break;
+		}
+	});
 }

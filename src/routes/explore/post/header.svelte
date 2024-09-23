@@ -16,15 +16,16 @@
 
 	export let oneline: boolean = true;
 
-	$: profile = $usersCache.get(note.pubkey) || $contactsCache.get(note.pubkey);
+	let profile: Contact;
 
 	// let user = liveQuery(() => $db.users.get(note?.pubkey));
 	// let contact = liveQuery(() => $db.contacts.get(note?.pubkey));
 	// $: contact = $contactsCache.get(npub);
 	onMount(() => {
+		profile = $usersCache.get(note.pubkey) || $contactsCache.get(note.pubkey);
 		let abortController = new AbortController();
 		if (!profile?.createdAt) {
-			fetchProfile($pool, note?.pubkey, abortController);
+			fetchProfile($pool, note?.pubkey, abortController).then((r) => (profile = r));
 		}
 
 		return () => {

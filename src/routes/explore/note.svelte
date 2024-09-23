@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { liveQuery } from 'dexie';
-	import { db, notesCache } from 'src/stores/db';
+	import { db, notesCache, type Note } from 'src/stores/db';
 	import { fetchNote } from 'src/stores/notes';
 	import { pool } from 'src/stores/relays';
 	import { onMount } from 'svelte';
@@ -12,11 +12,12 @@
 
 	$: console.log('note-------', noteId);
 
-	$: note = $notesCache.get(noteId);
+	let note: Note | undefined;
 
 	onMount(() => {
+		note = $notesCache.get(noteId);
 		let abortController = new AbortController();
-		fetchNote($pool, noteId, abortController);
+		fetchNote($pool, noteId, abortController).then((res) => (note = res));
 
 		return () => {
 			abortController.abort();

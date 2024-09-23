@@ -1,12 +1,13 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
+	import _ from 'lodash';
 	import { liveQuery } from 'dexie';
 	import { type NostrEvent } from 'nostr-tools';
 	import { updateVc } from 'src/lib';
 	import ProfileModal from 'src/routes/_profile/index.svelte';
 	import VirtualList from 'src/comp/VirtualList.svelte';
-	import { contactsCache, db, notesCache } from 'src/stores/db';
-	import { notesSub, reactionSub, zapSub } from 'src/stores/notes';
+	import { contacts, contactsCache, db, notesCache, type Note } from 'src/stores/db';
+	import { fetchThread, zapSub } from 'src/stores/notes';
 	import { profile } from 'src/stores/profile';
 	import { balance } from 'src/stores/wallet';
 	import Header from './post/header.svelte';
@@ -17,21 +18,11 @@
 	import { posting, selectedPost } from 'src/stores';
 	import Post from './post.svelte';
 	import RepostHeader from './post/repost-header.svelte';
+	import { pool } from 'src/stores/relays';
+	import { fly } from 'svelte/transition';
 
-	const query = liveQuery<NostrEvent[]>(() =>
-		$db.notes
-			.orderBy('created_at')
-			.filter((note) => {
-				if (note.reply_to) {
-					return !!note.reply_to_pubkey;
-				}
-				return true;
-			})
-			.filter((note) => !!$contactsCache.get(note.pubkey) || !!note?.reposted_by)
-			.reverse()
-			.toArray()
-	);
-	$: feed = $query || [];
+	let feed: Note[] = [];
+	let newPosts: Note[] = [];
 
 	let start = 0;
 	let end = 0;
@@ -51,13 +42,33 @@
 		topper = document.getElementById('top');
 		footer = document.getElementById('footer');
 		updateVc();
-		const notes = notesSub.subscribe((n) => n);
-		// const reactions = reactionSub.subscribe((r) => r);
-		// const zaps = zapSub.subscribe((z) => z);
+		const abortController = new AbortController();
+		$db.notes
+			.orderBy('created_at')
+			.filter((note) => {
+				if (note.reply_to) {
+					return !!note.reply_to_pubkey;
+				}
+				return true;
+			})
+			.filter((note) => !!$contactsCache.get(note.pubkey) || !!note?.reposted_by)
+			.reverse()
+			.toArray()
+			.then(async (res) => {
+				feed = res;
+				const newMessages = fetchThread($pool, $contacts, abortController, res[0]?.created_at);
+				let loaded = false;
+				for await (const message of newMessages) {
+					if (!loaded) {
+						feed = _.uniqBy([...message, ...feed], 'id');
+					} else {
+						newPosts = _.uniqBy([...message, ...newPosts], 'id');
+					}
+					loaded = true;
+				}
+			});
 		return () => {
-			notes();
-			// reactions();
-			// zaps();
+			abortController.abort();
 		};
 	});
 	let fadein = false;
@@ -93,7 +104,23 @@
 	on:click={() => viewport.scrollTo({ top: 0, behavior: 'smooth' })}
 	id="top"
 >
-	<div class="flex justify-between items-start lg:w-1/3 lg:m-auto">
+	<div class="flex justify-between items-start lg:w-1/3 lg:m-auto lg:relative">
+		<div class="absolute top-6 w-full z-40" transition:fly={{ y: -50, duration: 300 }}>
+			{#if newPosts.length}
+				<div
+					class="flex justify-center cursor-pointer"
+					on:click={() => {
+						viewport.scrollTo({ top: 0, behavior: 'smooth' });
+						feed = _.uniqBy([...newPosts, ...feed], 'id');
+						newPosts = [];
+					}}
+				>
+					<div class="bg-primary text-white text-sm py-1 px-2 rounded-lg">
+						{newPosts.length} new posts
+					</div>
+				</div>
+			{/if}
+		</div>
 		<h1 class="text-2xl font-semibold">Explore</h1>
 		<div class="flex gap-2 items-center">
 			<span class="text font-semibold">{$balance} Sats</span>

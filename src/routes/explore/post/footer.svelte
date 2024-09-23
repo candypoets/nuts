@@ -3,6 +3,7 @@
 	import { liveQuery } from 'dexie';
 	import { getLinkPreview } from 'link-preview-js';
 	import { type NostrEvent } from 'nostr-tools';
+	import _ from 'lodash';
 	import {
 		db,
 		key,
@@ -27,73 +28,77 @@
 	export let visible: boolean;
 
 	let reactions: Reaction[] = [];
-	const reactionsQuery = () =>
-		$db.reactions
-			.where('ref')
-			.equals(note.id)
-			.toArray()
-			.then((r) => (reactions = r));
-
-	reactionsQuery();
+	const reactionsQuery = $db.reactions.where('ref').equals(note.id).sortBy('created_at');
 
 	$: liked = reactions?.some((r) => r.pubkey === $key?.pub);
 
-	let repost: Repost[] = [];
-	const repostQuery = () =>
-		$db.reposts
-			.where('ref')
-			.equals(note.id)
-			// .and((r) => r.pubkey === $key?.pub)
-			.toArray()
-			.then((r) => (repost = r));
-	repostQuery();
+	let reposts: Repost[] = [];
+	const repostQuery = $db.reposts.where('ref').equals(note.id).sortBy('created_at');
 
-	$: reposted = repost?.some((r) => r.pubkey === $key?.pub);
+	$: reposted = reposts?.some((r) => r.pubkey === $key?.pub);
 
 	let zaps: Zap[] = [];
-	const zapQuery = () =>
-		$db.zaps
-			.where('ref')
-			.equals(note.id)
-			.toArray()
-			.then((z) => (zaps = z));
-	zapQuery();
+	const zapQuery = $db.zaps.where('ref').equals(note.id).sortBy('created_at');
 
 	$: zapped = zaps?.some((z) => z.pubkey === $key?.pub);
 	$: biggerZap = zaps?.sort((a, b) => (a.amount > b.amount ? -1 : 0))?.[0];
 
 	let replies: Note[] = [];
-	const repliesQuery = () =>
-		$db.notes
-			.where('reply_to')
-			.equals(note.id)
-			.toArray()
-			.then((r) => (replies = r));
-	repliesQuery();
+	const repliesQuery = $db.notes.where('reply_to').equals(note.id).sortBy('created_at');
 
 	let abortController = new AbortController();
 
-	let intervalId: NodeJS.Timeout;
-
-	function subscribe() {
+	async function subscribe() {
 		abortController.abort();
 		abortController = new AbortController();
-		fetchReactions($pool, note, abortController);
-		fetchZaps($pool, note, abortController);
-		fetchReplies($pool, note, abortController);
-		fetchRepost($pool, note, abortController);
-		intervalId = setInterval(() => {
-			reactionsQuery();
-			zapQuery();
-			repostQuery();
-			repliesQuery();
-		}, 2500);
-		// return abortController;
+		reactionsQuery.then(async (r) => {
+			reactions = r;
+			const newReactions = fetchReactions(
+				$pool,
+				note,
+				abortController,
+				reactions[reactions.length - 1]?.created_at
+			);
+			for await (const newReaction of newReactions) {
+				reactions = _.uniqBy([...reactions, ...newReaction], 'id');
+			}
+		});
+		repostQuery.then(async (r) => {
+			reposts = r;
+			const newReposts = fetchRepost(
+				$pool,
+				note,
+				abortController,
+				reposts[reposts.length - 1]?.created_at
+			);
+			for await (const newRepost of newReposts) {
+				reposts = _.uniqBy([...reposts, ...newRepost], 'id');
+			}
+		});
+		zapQuery.then(async (r) => {
+			zaps = r;
+			const newZaps = fetchZaps($pool, note, abortController, zaps[zaps.length - 1]?.created_at);
+			for await (const newZap of newZaps) {
+				zaps = _.uniqBy([...zaps, ...newZap], 'id');
+			}
+		});
+
+		repliesQuery.then(async (r) => {
+			replies = r;
+			const newReplies = fetchReplies(
+				$pool,
+				note,
+				abortController,
+				replies[replies.length - 1]?.created_at
+			);
+			for await (const newReply of newReplies) {
+				replies = _.uniqBy([...replies, ...newReply], 'id');
+			}
+		});
 	}
 
 	function unsubscribe() {
 		abortController.abort();
-		clearInterval(intervalId);
 	}
 
 	onMount(() => {
@@ -183,11 +188,11 @@
 				on:click={() => {
 					if (!reposted) {
 						sendRepost($pool, $signer, note);
-						repost = [...repost, { pubkey: $key?.pub, ref: note.id }];
+						reposts = [...reposts, { pubkey: $key?.pub, ref: note.id }];
 					}
 				}}
 			>
-				{repost?.length || ''}
+				{reposts?.length || ''}
 				<Icon icon="gridicons:reblog" class="" />
 			</div>
 		{/if}
