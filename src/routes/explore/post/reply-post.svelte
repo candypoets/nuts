@@ -19,7 +19,7 @@
 			<Content content={note.content} />
 		</div>
 		<Footer {note} visible />
-		<div class="border-b">
+		<div class="border-b border-base-200">
 			<div class="text-gray-500 mb-2 text-lg mt-4 text-right px-4">
 				{new Date(note.created_at * 1000).toLocaleString()}
 			</div>
@@ -39,7 +39,7 @@
 					}}
 				>
 					<!-- <div class="min-w-8" /> -->
-					<div class="text-sm break-words overflow-hidden">
+					<div class="text-sm break-words -mt-2">
 						<Content content={note.content} />
 					</div>
 				</div>

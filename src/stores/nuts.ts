@@ -46,28 +46,28 @@ let abortController = new AbortController();
 export const nostrEventSub = derived(
 	[key, pool, signer, db],
 	async ([$key, $pool, $signer, $db]) => {
-		console.log('nostrEventSub', $key);
 		abortController.abort();
 		if (!browser) return;
 		if (!$key?.pub) return;
 		if (!$pool) return;
 		if (!$signer) return;
-		const lastEvent = await $db.history.orderBy('date').last();
+		console.log('nostrEventSub', $key.pub);
+		const lastEvent = await $db.dms.orderBy('created_at').last();
 		// end the previous ws connection if any
 
 		abortController = new AbortController();
-
+		console.log('new ws connection');
 		const messages = $pool.req(
 			[
 				{
 					kinds: [nostrTools.kinds.EncryptedDirectMessage],
 					'#p': [$key.pub],
-					since: lastEvent?.date
+					since: lastEvent?.created_at
 				}, // incoming messages
 				{
 					kinds: [nostrTools.kinds.EncryptedDirectMessage],
 					authors: [$key.pub],
-					since: lastEvent?.date
+					since: lastEvent?.created_at
 				} // outgoing messages and topups
 			],
 			{ signal: abortController.signal }
@@ -77,7 +77,7 @@ export const nostrEventSub = derived(
 			if (message[0] === 'CLOSED') break;
 			if (message[0] !== 'EVENT') continue;
 			const event = message[2];
-			console.log('new note');
+			// console.log('new note');
 			// push the message to the db, it will be listed in the chat
 			dmCache.add(event);
 

@@ -51,9 +51,10 @@ export async function* fetchThread(
 		for await (const message of messages) {
 			if (message[0] === 'CLOSED') break;
 			if (message[0] == 'EOSE') {
-				yield Object.values(newMessages);
-				newMessages = {};
-				loaded = true;
+				if (!loaded) {
+					yield Object.values(newMessages);
+					loaded = true;
+				}
 				continue;
 			}
 			if (message[0] !== 'EVENT') continue;
@@ -66,11 +67,10 @@ export async function* fetchThread(
 					reposted_by: event.pubkey,
 					created_at: event.created_at
 				};
-				newMessages[event.id] = post;
-				if (loaded) {
-					yield Object.values(newMessages);
-					newMessages = {};
+				if (loaded && !newMessages[event.id]) {
+					yield [post];
 				}
+				newMessages[event.id] = post;
 				notesCache.add(post);
 				continue;
 			}
@@ -98,9 +98,8 @@ export async function* fetchThread(
 				reply_to_pubkey: replyToPubkey
 			};
 			newMessages[event.id] = note;
-			if (loaded) {
-				yield Object.values(newMessages);
-				newMessages = {};
+			if (loaded && !newMessages[event.id]) {
+				yield [note];
 			}
 			notesCache.add(note);
 		}
@@ -134,9 +133,10 @@ export async function* fetchReactions(
 		for await (const message of messages) {
 			if (message[0] === 'CLOSED') break;
 			if (message[0] == 'EOSE') {
-				yield Object.values(newReactions);
-				newReactions = {};
-				loaded = true;
+				if (!loaded) {
+					yield Object.values(newReactions);
+					loaded = true;
+				}
 				continue;
 			}
 
@@ -152,12 +152,11 @@ export async function* fetchReactions(
 				pubkey: event.pubkey
 			};
 
-			newReactions[event.id] = reaction;
-			if (loaded) {
-				yield Object.values(newReactions);
-				newReactions = {};
+			if (loaded && !newReactions[event.id]) {
+				yield [reaction];
 			}
 			reactionsCache.add(reaction);
+			newReactions[event.id] = reaction;
 		}
 	} catch (e) {
 		// console.error(e);
@@ -213,85 +212,6 @@ function getMemoFromBolt11(bolt11: string): string | null {
 	return null;
 }
 
-let zapController = new AbortController();
-// fetch reactions from most recent posts, or posts that were explicitly requested (profile page and so on)
-export const zapSub = derived(
-	[key, pool, db, refreshed],
-	async ([$key, $pool, $db, $refreshed]) => {
-		if (!browser) return;
-		if (!$key?.pub) return;
-		if (!$pool) return;
-
-		zapController.abort();
-
-		zapController = new AbortController();
-
-		// Calculate 2 days ago in seconds since epoch
-		const threeDaysAgo = Math.floor(Date.now() / 1000) - 3 * 24 * 60 * 60;
-		// const lastEvent = await $db.notes.orderBy('created_at').first();
-		// get all then notes that are less than 3 days old
-		const notes = await $db.notes.where('created_at').above(threeDaysAgo).toArray();
-
-		const lastZap = await $db.zaps.orderBy('created_at').last();
-
-		console.log(
-			'notes',
-			notes
-			// notes.map((n) => n.id)
-		);
-		const messages = get(pool).req(
-			[
-				{
-					kinds: [kinds.Zap, nutKinds.NutzapRedeemed],
-					// '#e': [postId], // Reference to the specific post
-
-					'#e': notes.map((n) => n.id),
-					since: lastZap?.created_at || threeDaysAgo
-				}
-			],
-			{ signal: zapController.signal }
-		);
-
-		for await (const message of messages) {
-			if (message[0] === 'CLOSED') break;
-			if (message[0] !== 'EVENT') continue;
-			const event = message[2];
-
-			if (event.kind == nutKinds.Nutzap) {
-				const amount = event.content.amount;
-
-				let zap: Zap = {
-					id: event.id,
-					kind: event.kind,
-					content: event.content,
-					created_at: event.created_at,
-					ref: event.tags.find((t) => t[0] === 'e')?.[1],
-					pubkey: event.pubkey,
-					amount: amount || 0
-				};
-				zapsCache.add(zap);
-				continue;
-			}
-
-			const amount = getAmountFromBolt11(event.tags.find((t) => t[0] === 'bolt11')?.[1]);
-
-			// console.log(amount);
-
-			let zap: Zap = {
-				id: event.id,
-				kind: event.kind,
-				content: event.content,
-				created_at: event.created_at,
-				ref: event.tags.find((t) => t[0] === 'e')?.[1],
-				pubkey: event.pubkey,
-				amount: amount || 0
-			};
-
-			zapsCache.add(zap);
-		}
-	}
-);
-
 export async function* fetchZaps(
 	pool: NPool,
 	note: NostrEvent,
@@ -317,9 +237,10 @@ export async function* fetchZaps(
 		for await (const message of messages) {
 			if (message[0] === 'CLOSED') break;
 			if (message[0] == 'EOSE') {
-				yield Object.values(newZaps);
-				newZaps = {};
-				loaded = true;
+				if (!loaded) {
+					yield Object.values(newZaps);
+					loaded = true;
+				}
 				continue;
 			}
 			if (message[0] !== 'EVENT') continue;
@@ -356,12 +277,11 @@ export async function* fetchZaps(
 				pubkey: event.pubkey,
 				amount: amount || 0
 			};
-			newZaps[event.id] = zap;
-			if (loaded) {
+			if (loaded && !newZaps[event.id]) {
 				yield [zap];
-				newZaps = {};
 			}
 			zapsCache.add(zap);
+			newZaps[event.id] = zap;
 		}
 	} catch (e) {
 		// console.error(e);
@@ -393,19 +313,19 @@ export async function* fetchReplies(
 		for await (const message of messages) {
 			if (message[0] === 'CLOSED') break;
 			if (message[0] == 'EOSE') {
-				yield Object.values(newReplies);
-				newReplies = {};
-				loaded = true;
+				if (!loaded) {
+					yield Object.values(newReplies);
+					loaded = true;
+				}
 				continue;
 			}
 			if (message[0] !== 'EVENT') continue;
 			const event = message[2];
 
-			newReplies[event.id] = { ...event, reply_to: note.id };
-			if (loaded) {
+			if (loaded && !newReplies[event.id]) {
 				yield [{ ...event, reply_to: note.id }];
-				newReplies = {};
 			}
+			newReplies[event.id] = { ...event, reply_to: note.id };
 			notesCache.add({ ...event, reply_to: note.id });
 		}
 	} catch (e) {
@@ -438,9 +358,10 @@ export async function* fetchRepost(
 		for await (const message of messages) {
 			if (message[0] === 'CLOSED') break;
 			if (message[0] == 'EOSE') {
-				yield Object.values(newReposts);
-				newReposts = {};
-				loaded = true;
+				if (!loaded) {
+					yield Object.values(newReposts);
+					loaded = true;
+				}
 				continue;
 			}
 			if (message[0] !== 'EVENT') continue;
@@ -457,11 +378,10 @@ export async function* fetchRepost(
 				pubkey: event.pubkey
 			};
 
-			newReposts[event.id] = repost;
-			if (loaded) {
+			if (loaded && !newReposts[event.id]) {
 				yield [repost];
-				newReposts = {};
 			}
+			newReposts[event.id] = repost;
 			repostsCache.add(repost);
 		}
 	} catch (e) {

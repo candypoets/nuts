@@ -7,7 +7,7 @@
 	import ProfileModal from 'src/routes/_profile/index.svelte';
 	import VirtualList from 'src/comp/VirtualList.svelte';
 	import { contacts, contactsCache, db, notesCache, type Note } from 'src/stores/db';
-	import { fetchThread, zapSub } from 'src/stores/notes';
+	import { fetchThread } from 'src/stores/notes';
 	import { profile } from 'src/stores/profile';
 	import { balance } from 'src/stores/wallet';
 	import Header from './post/header.svelte';
@@ -138,7 +138,7 @@
 		id="container"
 	>
 		<button
-			class="btn btn-primary btn-circle fixed bottom-24 right-4 z-10 border-opacity-0"
+			class="btn btn-primary btn-circle fixed bottom-24 lg:bottom-4 lg:right-1/3 right-4 z-10 border-opacity-0 lg:translate-x-16"
 			class:bg-opacity-10={fadein}
 			on:click={() => ($posting = true)}
 		>
@@ -146,7 +146,7 @@
 		</button>
 		<VirtualList className="pt-16" items={feed} bind:start bind:end bind:viewport bind:top let:item>
 			<div
-				class="lg:hover:bg-base-200 lg:w-1/3 lg:m-auto py-2 px-1 border-b-2 border-base-200 lg:border-none"
+				class="lg:hover:bg-base-200 lg:w-1/3 lg:m-auto py-2 px-1 border-b-2 border-base-200 lg:border-none max-w-full"
 			>
 				<RepostHeader note={item} />
 				<ReplyHeader note={item} />
@@ -164,7 +164,7 @@
 					}}
 				>
 					<div class="min-w-8" />
-					<div class="text-sm break-words overflow-hidden">
+					<div class="max-w-11/12 -mt-2">
 						<Content content={item.content} />
 					</div>
 				</div>

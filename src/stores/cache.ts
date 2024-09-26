@@ -8,7 +8,7 @@ export interface DBCache<T, TKeyPropName extends keyof T = never> extends Writab
 	put: (item: T) => void;
 	add: (item: T) => void;
 	bulkPut: (items: T[]) => void;
-	delete: (key: IDType<T, TKeyPropName>) => void;
+	delete: (key?: IDType<T, TKeyPropName>) => void;
 	clear: () => void;
 }
 
@@ -81,7 +81,8 @@ export function createCache<T, TKeyPropName extends keyof T>(
 			hasChanges(newMap, get(this)) ? set(newMap) : null;
 			table?.bulkPut(values);
 		},
-		delete(key: IDType<T, TKeyPropName>) {
+		delete(key?: IDType<T, TKeyPropName>) {
+			if (!key) return;
 			const map = new Map(get(this));
 			map.delete(key as string);
 			table?.delete(key);

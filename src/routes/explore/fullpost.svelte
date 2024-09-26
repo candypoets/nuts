@@ -1,14 +1,10 @@
 <script lang="ts">
 	import Fullscreen from 'src/comp/drawers/Fullscreen.svelte';
 
-	import { liveQuery } from 'dexie';
 	import { db, type Note } from 'src/stores/db';
 	import { selectedPost } from 'src/stores';
 	import _ from 'lodash';
 	import Icon from '@iconify/svelte';
-	import Header from './post/header.svelte';
-	import Content from './post/content.svelte';
-	import Footer from './post/footer.svelte';
 	import Subpost from './subpost.svelte';
 	import Replypost from './post/reply-post.svelte';
 	import VirtualList from 'src/comp/VirtualList.svelte';

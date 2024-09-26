@@ -3,7 +3,7 @@
 
 	export let scaleBackground: boolean = true;
 	export let open: boolean = false;
-	export let onClose: any;
+	export let onClose: any = undefined;
 </script>
 
 <Drawer.NestedRoot bind:open {onClose} shouldScaleBackground={false}>

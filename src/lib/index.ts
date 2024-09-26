@@ -1,6 +1,6 @@
-export function updateVc() {
+export function updateVc(mintop?: number) {
 	setTimeout(() => {
-		console.log('update vc');
+		console.log('update vc', mintop);
 		// find a div with id container
 		const container = document.getElementById('container');
 		// find a div with id footer
@@ -12,7 +12,7 @@ export function updateVc() {
 		// check the height of the footer
 		if (!container || !footer) return;
 		// see how many pixel it is from the top
-
+		console.log(topper);
 		const top = container.getBoundingClientRect().top;
 		const footerHeight = footer?.getBoundingClientRect().height;
 		const topperBottom = topper?.getBoundingClientRect().bottom;
@@ -20,36 +20,39 @@ export function updateVc() {
 
 		document.documentElement.style.setProperty('--vc', `${window.innerHeight * 0.01}px`);
 		document.documentElement.style.setProperty('--footer-height', `${footerHeight + 15}px`);
-		document.documentElement.style.setProperty('--container-top', `${topperBottom + 30}px`);
+		document.documentElement.style.setProperty(
+			'--container-top',
+			`${(topperBottom || 0 + 30) >= (mintop || 0) ? (topperBottom || 0) + 30 : mintop}px`
+		);
 
 		console.log(navbar);
 
-		let prevScrollPos = container.scrollTop;
+		// let prevScrollPos = container.scrollTop;
 		// on scroll down, add a className to the top container
 
-		const fadein = (e) => {
-			const currentScrollPos = container.scrollTop;
-			if (currentScrollPos > prevScrollPos + 50) {
-				topper?.classList.add('toggle-up');
-				footer?.classList.add('blur-in');
-				prevScrollPos = currentScrollPos;
-			} else if (currentScrollPos < prevScrollPos - 50) {
-				topper?.classList.remove('toggle-up');
-				footer?.classList.remove('blur-in');
-				prevScrollPos = currentScrollPos;
-			} else if (currentScrollPos == 0) {
-				topper?.classList.remove('toggle-up');
-				footer?.classList.remove('blur-in');
-				prevScrollPos = currentScrollPos;
-			}
-		};
-		if (window.location.pathname.includes('home')) {
-			console.log('removing');
-			container.removeEventListener('scroll', fadein);
-			footer?.classList.remove('blur-in');
-		} else {
-			container.addEventListener('scroll', fadein);
-		}
+		// const fadein = (e) => {
+		// 	const currentScrollPos = container.scrollTop;
+		// 	if (currentScrollPos > prevScrollPos + 50) {
+		// 		topper?.classList.add('toggle-up');
+		// 		footer?.classList.add('blur-in');
+		// 		prevScrollPos = currentScrollPos;
+		// 	} else if (currentScrollPos < prevScrollPos - 50) {
+		// 		topper?.classList.remove('toggle-up');
+		// 		footer?.classList.remove('blur-in');
+		// 		prevScrollPos = currentScrollPos;
+		// 	} else if (currentScrollPos == 0) {
+		// 		topper?.classList.remove('toggle-up');
+		// 		footer?.classList.remove('blur-in');
+		// 		prevScrollPos = currentScrollPos;
+		// 	}
+		// };
+		// if (window.location.pathname.includes('home')) {
+		// 	console.log('removing');
+		// 	container.removeEventListener('scroll', fadein);
+		// 	footer?.classList.remove('blur-in');
+		// } else {
+		// 	container.addEventListener('scroll', fadein);
+		// }
 		// if (topperBottom && top < 0) {
 		//   topper?.classList.add("sticky");
 		//   navbar?.classList.add("sticky");

@@ -1,7 +1,6 @@
 <script lang="ts">
 	import '../app.css';
 	import 'photoswipe/style.css';
-	// import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { updateVc } from 'src/lib';
 
@@ -28,22 +27,6 @@
 	onMount(() => {
 		// 	// console.log('Route changed to:', $page.route.id);
 		if (!$mint) $mint = $mints[0];
-		console.log('-----------initial mount-----------', window.nostr);
-		if (window.nostr?.nip04) {
-			// console.log('olaaaa');
-			// keysCache.clear();
-			window.nostr
-				.getPublicKey()
-				.then((pubKey: string) => {
-					console.log('-------------hello--------------', pubKey);
-					keysCache.put({
-						pub: pubKey,
-						npub: nip19.npubEncode(pubKey)
-					});
-					$activeAccount = Array.from($keysCache.values()).findIndex((k) => k.pub == pubKey);
-				})
-				.catch((err) => console.warn(err));
-		}
 		updateVc();
 		updateVh();
 		// 	// if ($page.route.id === '/') {
@@ -51,7 +34,7 @@
 		// 	// }
 		// 	// console.log('Route changed to:', $page.route.id);
 		page.subscribe((p) => {
-			// console.log('Route changed to:', $page.route.id);
+			console.log('Route changed to:', $page.route.id);
 			updateVc();
 			updateVh();
 			// You can add your custom logic here
@@ -81,6 +64,8 @@
 	function updateVh() {
 		document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
 	}
+
+	$: console.log('logged keys', $key);
 </script>
 
 <svelte:head>
@@ -89,7 +74,7 @@
 
 {#if !homepage}
 	<Alert />
-	{#if $key?.pub}
+	{#if $key?.pub || !!$activeAccount}
 		<slot />
 		<MobileNav />
 		<DesktopNav />

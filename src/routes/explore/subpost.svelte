@@ -22,14 +22,14 @@
 	// sort replies by created_at
 	$: replies = results
 		?.sort((a, b) => a.created_at - b.created_at)
-		.filter((note) => !note.content.includes($selectedPost?.content))
+		.filter((note) => !note.content.includes(selectedReply?.content))
 		// .map((note) => {
 		// 	console.log(note.content);
 		// 	console.log($selectedPost?.content);
 		// 	console.log(note.content.includes($selectedPost?.content));
 		// 	return note;
 		// })
-		.filter((note) => note.reply_to == $selectedPost?.id);
+		.filter((note) => note.reply_to == selectedReply?.id);
 
 	$: open = !!selectedReply;
 

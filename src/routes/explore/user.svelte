@@ -3,10 +3,10 @@
 	import { usersCache, db, contactsCache } from 'src/stores/db';
 	import { pool } from 'src/stores/relays';
 	import { onMount } from 'svelte';
-	import { liveQuery } from 'dexie';
 	import { type Contact } from 'src/model/contact';
 
 	export let npub: string;
+	export let link: boolean = true;
 
 	let user: Contact | undefined;
 
@@ -24,4 +24,8 @@
 	// $: console.log('user', user, npub, $usersCache);
 </script>
 
-<strong class="text-primary">@{user?.name || npub}</strong>
+{#if link}
+	<strong class="text-primary break-all">@{user?.name || npub.slice(0, 15) + '...'}</strong>
+{:else}
+	<span class="break-all">{user?.name || npub.slice(0, 15) + '...'}</span>
+{/if}

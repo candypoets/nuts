@@ -101,65 +101,71 @@
 	// return parts;
 </script>
 
-{#each parts as part, index}
-	{#if part.type == 'text'}
-		<!-- {#if !isImageUrl(part.content)} -->
-		{part.content.slice(0, 500)}
-		<!-- {/if} -->
-	{:else if part.type == 'url'}
-		{#if categorizeURL(part.content) == 'html'}
-			<a href={part.content} class="text-primary text-semibold" target="_blank">{part.content}</a>
-		{/if}
-	{:else if part.type == 'hashtag'}
-		<a class="font-semibold text-primary" href={'/search/' + part.content.slice(1)}
-			>{part.content}</a
-		>
-	{:else if part.type == 'line-break'}
-		<br />
-	{:else if part.type == 'nostr-note'}
-		{#if decodeNostrReference(part.content)?.id}
-			<Note noteId={decodeNostrReference(part.content)?.id} />
-		{/if}
-	{:else if part.type == 'nostr-pub'}
-		{#if decodeNostrReference(part.content)?.id}
-			<User npub={decodeNostrReference(part.content)?.id} />
-		{/if}
-		<!-- {:else}
-		{part.content} -->
-	{/if}
-{/each}
-<div class="flex-grow" on:click={(e) => e.stopPropagation()}>
-	{#if imageLinks.length > 0}
-		<div class="gallery-container">
-			<div class="pswp-gallery pswp-gallery--single-column relative" id="my-gallery">
-				{#each imageLinks as link}
-					<Photo {link} />
-				{/each}
-			</div>
-		</div>
-	{/if}
-	{#if videoLinks.length > 0}
-		<video class="rounded-md" src={videoLinks[0].value} controls muted playsinline></video>
-	{/if}
-	{#each previews.filter((p) => p?.images?.length) as preview}
-		<a
-			href={preview?.url.split('https://proxy.nuts.cash/?url=')[1]}
-			target="_blank"
-			class="w-full rounded-xl border mt-1 block cursor-pointer"
-		>
-			{#if preview?.images[0]}
-				<img src={preview?.images[0]} alt={preview.title} />
+<div class="text-sm text-wrap whitespace-normal break-words max-w-full">
+	{#each parts as part, index}
+		{#if part.type == 'text'}
+			<!-- {#if !isImageUrl(part.content)} -->
+			<span class="break-words">{part.content.slice(0, 500)}</span>
+			<!-- {/if} -->
+		{:else if part.type == 'url'}
+			{#if categorizeURL(part.content) == 'html'}
+				<a
+					href={part.content}
+					class=" text-primary text-semibold break-all overflow-hidden text-ellipsis whitespace-normal text-wrap max-w-full"
+					target="_blank">{part.content}</a
+				>
 			{/if}
-			<div class="p-2">
-				{#if preview?.title}
-					<h2 class="text-sm font-semibold">{preview?.title}</h2>
-				{/if}
-				{#if preview?.description}
-					<p class="text-xs">{preview?.description.slice(0, 150)}...</p>
-				{/if}
-			</div>
-		</a>
+		{:else if part.type == 'hashtag'}
+			<a class="font-semibold text-primary" href={'/search/' + part.content.slice(1)}
+				>{part.content}</a
+			>
+		{:else if part.type == 'line-break'}
+			<br />
+		{:else if part.type == 'nostr-note'}
+			{#if decodeNostrReference(part.content)?.id}
+				<Note noteId={decodeNostrReference(part.content)?.id} />
+			{/if}
+		{:else if part.type == 'nostr-pub'}
+			{#if decodeNostrReference(part.content)?.id}
+				<User npub={decodeNostrReference(part.content)?.id} />
+			{/if}
+			<!-- {:else}
+		{part.content} -->
+		{/if}
 	{/each}
+	<div class="flex-grow" on:click={(e) => e.stopPropagation()}>
+		{#if imageLinks.length > 0}
+			<div class="gallery-container w-full">
+				<div class="pswp-gallery pswp-gallery--single-column relative" id="my-gallery">
+					{#each imageLinks as link}
+						<Photo {link} />
+					{/each}
+				</div>
+			</div>
+		{/if}
+		{#if videoLinks.length > 0}
+			<video class="rounded-md" src={videoLinks[0].value} controls muted playsinline></video>
+		{/if}
+		{#each previews.filter((p) => p?.images?.length) as preview}
+			<a
+				href={preview?.url.split('https://proxy.nuts.cash/?url=')[1]}
+				target="_blank"
+				class="w-full rounded-xl border mt-1 block cursor-pointer"
+			>
+				{#if preview?.images[0]}
+					<img src={preview?.images[0]} alt={preview.title} />
+				{/if}
+				<div class="p-2">
+					{#if preview?.title}
+						<h2 class="text-sm font-semibold">{preview?.title}</h2>
+					{/if}
+					{#if preview?.description}
+						<p class="text-xs">{preview?.description.slice(0, 150)}...</p>
+					{/if}
+				</div>
+			</a>
+		{/each}
+	</div>
 </div>
 
 <style>

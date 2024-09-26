@@ -110,14 +110,12 @@
 
 	onMount(async () => {
 		if (window?.nostr?.nip04) {
-			// console.log(window.nostr);
-			// $nostrPubKey = await window.nostr.getPublicKey();
-			const pubKey = await window.nostr.getPublicKey();
-			keysCache.add({
-				pub: pubKey,
-				npub: nip19.npubEncode(pubKey)
-			});
-			$activeAccount = Array.from($keysCache.values()).findIndex((k) => k.pub == pubKey);
+			// const pubKey = await window.nostr.getPublicKey();
+			// keysCache.add({
+			// 	pub: pubKey,
+			// 	npub: nip19.npubEncode(pubKey)
+			// });
+			// $activeAccount = Array.from($keysCache.values()).findIndex((k) => k.pub == pubKey);
 		} else if (window.localStorage.getItem('nostr-privkey')) {
 			// backward compatibility
 			privateKey = window.localStorage.getItem('nostr-privkey');
@@ -162,10 +160,12 @@
 						extensionError = true;
 						return;
 					}
-					await keyDB.keys.put({
+					keysCache.put({
 						pub: pubKey,
 						npub: nip19.npubEncode(pubKey)
 					});
+					$activeAccount = Array.from($keysCache.values()).findIndex((k) => k.pub == pubKey);
+					console.log('clicked', $activeAccount);
 				}}
 			>
 				{#if !extensionError}

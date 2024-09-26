@@ -10,6 +10,7 @@
 	import SendModal from './send/send-modal.svelte';
 	import Transactions from './transactions/index.svelte';
 	import Layer from 'src/comp/drawers/Layer.svelte';
+	import { updateVc } from 'src/lib';
 
 	let active = 'base';
 	let encodedToken = '';
@@ -37,29 +38,6 @@
 			// this function is called when the component is destroyed
 			window.removeEventListener('keydown', keyDown);
 		};
-	});
-
-	onMount(async () => {
-		// const searchParams = $page.url.searchParams;
-		// if (searchParams) {
-		// 	isOnboarded.set(true);
-		// 	const mintUrl = searchParams.get('mint');
-		// 	if (mintUrl) {
-		// 		$activeTab = 'mint';
-		// 	} else if (searchParams.get('token')) {
-		// 		isOnboarded.set(true);
-		// 		isEncrypted.set(false);
-		// 		active = 'receive';
-		// 		const originalUrl = $page.url.toString();
-		// 		const newUrl = originalUrl.split('?')[0];
-		// 		encodedToken = searchParams.get('token') ?? '';
-		// 		await goto(newUrl, {
-		// 			replaceState: true,
-		// 			keepFocus: true,
-		// 			noScroll: true
-		// 		});
-		// 	}
-		// }
 	});
 </script>
 

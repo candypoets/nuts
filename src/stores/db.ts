@@ -115,8 +115,33 @@ export const keysCache = createCache<Key, 'pub'>(keyDB.keys);
 export const key: Readable<Key | undefined> = derived(
 	[keysCache, activeAccount],
 	([$keysCache, $activeAccount], set) => {
-		console.log('keys');
-		set(Array.from($keysCache.values())[$activeAccount]);
+		if (!browser) return;
+		const currentKey = Array.from($keysCache.values())[$activeAccount];
+		console.log($activeAccount, currentKey);
+		if (!currentKey) {
+			set(undefined);
+		} else if (!currentKey?.priv) {
+			(async () => {
+				if (window.nostr?.nip04) {
+					try {
+						// await new Promise((resolve) => window.addEventListener('load', resolve));
+						console.log('getpubkey', window.nostr.getPublicKey);
+						const pubkey = await window.nostr.getPublicKey();
+						console.log('hey', pubkey);
+						const isLogged = await keyDB.keys.get(pubkey);
+						if (isLogged) {
+							// $activeAccount = Array.from($keysCache.values()).findIndex((k) => k.pub == pubKey);
+							set(isLogged);
+						}
+					} catch (error) {
+						console.error('Failed to get public key:', error);
+						// Handle the error appropriately, e.g., set a default value or show an error message
+					}
+				}
+			})();
+		} else {
+			set(currentKey);
+		}
 	}
 );
 
@@ -233,6 +258,7 @@ export const historyCache = createCache<HistoryItem<HistoryData>, 'date'>(get(db
 export const history = derived(
 	[historyCache],
 	([$historycache], set) => {
+		// console.log('history', $historycache.values());
 		set(Array.from($historycache.values()).sort((a, b) => b.date - a.date));
 	},
 	[] as HistoryItem<HistoryData>[]

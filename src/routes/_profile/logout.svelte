@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
 	import SubLayer from 'src/comp/drawers/SubLayer.svelte';
-	import { db, keyDB, key, keysCache } from 'src/stores/db';
+	import { db, keyDB, key, keysCache, activeAccount } from 'src/stores/db';
 	export let subopen: boolean = false;
 	import { Drawer } from 'vaul-svelte';
 </script>
@@ -19,8 +19,9 @@
 		<button
 			class="btn btn-primary"
 			on:click={async () => {
-				keysCache.clear();
+				keysCache.delete($key?.pub);
 				await $db.delete();
+				$activeAccount = 0;
 			}}
 		>
 			Log Out
