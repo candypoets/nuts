@@ -5,6 +5,8 @@ export const scanning = writable(false);
 
 export const showQR = writable(false);
 
+export const satsLoading = writable(false);
+
 export const accountModalOpen = writable(false);
 export const scannedPubkey = writable('');
 

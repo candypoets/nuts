@@ -297,6 +297,33 @@ export const getAmountForTokenSet = (tokens: Array<Proof>): number => {
 	}, 0);
 };
 
+export const signEventWithRetry = async (
+	signer: NSecSigner,
+	event: Omit<NostrEvent, 'id' | 'sig'>
+) => {
+	let attempts = 0;
+	const maxAttempts = 5;
+	const initialTimeout = 100;
+	while (attempts < maxAttempts) {
+		// console.log('attempts', attempts);
+		try {
+			const decryptPromise = signer.signEvent(event);
+			const timeoutPromise = new Promise((_, reject) =>
+				setTimeout(
+					() => reject(new Error('Decryption timed out')),
+					initialTimeout * Math.pow(2, attempts)
+				)
+			);
+			return (await Promise.race([decryptPromise, timeoutPromise])) as NostrEvent;
+		} catch (error) {
+			console.error(`Event signing attempt ${attempts + 1} failed: ${error}`);
+			attempts++;
+			await new Promise((resolve) => setTimeout(resolve, 100)); // Short delay before retrying
+		}
+	}
+	console.error(`Failed to sign event after ${maxAttempts} attempts`);
+};
+
 export const signEvent = async (signer: NSecSigner, event: Omit<NostrEvent, 'id' | 'sig'>) => {
 	event = await signer?.signEvent(event);
 	return event as NostrEvent;
@@ -325,6 +352,15 @@ export const saveNuts = async (signer: NSecSigner, proofs: Proof[], toPubKey?: s
 	}
 	sendMessage(signer, toPubKey, getEncodedToken({ token: toEncode }), [['nuts']]);
 };
+
+export async function checkProofsSpentWithMintUrl(
+	proofs: Proof[],
+	mintURL: string
+): Promise<Proof[]> {
+	const cashuMint = new CashuMint(mintURL);
+	const wallet = new CashuWallet(cashuMint);
+	return await wallet.checkProofsSpent(proofs);
+}
 
 export async function checkProofsSpent(proofs: Proof[]): Promise<string[]> {
 	const proofsByKeySet = proofs.reduce(
@@ -536,7 +572,6 @@ export async function bestProofCombination(wallet: WalletInfo, target: number) {
 	const res = await wallet.wallet.receiveTokenEntry(
 		{ proofs: wallet.proofs, mint: wallet.mintURL },
 		{
-			privkey: get(key)?.priv,
 			preference: Object.keys(preference).map((key) => ({
 				amount: Number(key),
 				count: preference[key]

@@ -56,7 +56,7 @@
 </script>
 
 <tr on:click={() => (open = true)} class="cursor-pointer last:border-none h-14">
-	<td class="w-8"><HistoryIcon {item} /> </td>
+	<td class="w-16"><HistoryIcon {item} /> </td>
 	<td><HistoryLabel {item} /></td>
 	<td class="text-right">
 		{#if item.amount > 0}

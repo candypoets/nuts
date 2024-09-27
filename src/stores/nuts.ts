@@ -1,289 +1,539 @@
-/// this store query nostr for private messages containing nuts
+// fetch all dms for this account
 
-import {
-	CashuMint,
-	CashuWallet,
-	getDecodedToken,
-	getEncodedToken,
-	type Proof,
-	type Token
-} from '@cashu/cashu-ts';
-import { decode } from '@gandlaf21/bolt11-decode';
-import type { NostrEvent } from 'nostr-tools';
-import * as nostrTools from 'nostr-tools';
-import { sendMessage } from 'src/actions/chat';
-import { checkProofsSpent, saveNuts } from 'src/actions/wallet';
-import { getKeysForUnit, isValidToken } from 'src/actions/wallet';
-import { HistoryItemType } from 'src/model/historyItem';
-import { derived, get } from 'svelte/store';
-
-import {
-	db,
-	invoices,
-	pendingProofs,
-	proofs,
-	type Invoice,
-	key,
-	Status,
-	proofsCache,
-	mintsCache,
-	keysetsCache,
-	historyCache,
-	dmCache
-} from './db';
-import { timestamp1, timestamp10 } from './time';
-import { pool } from './relays';
-import { signer } from './signer';
-import _ from 'lodash';
 import { browser } from '$app/environment';
+import { CashuMint, CashuWallet, getDecodedToken, type Proof, type Token } from '@cashu/cashu-ts';
+import type { NPool, NSecSigner, NostrEvent } from '@nostrify/nostrify';
+import { kinds, type UnsignedEvent } from 'nostr-tools';
+import _ from 'lodash';
+import { checkProofsSpentWithMintUrl, saveNuts, signEventWithRetry } from 'src/actions/wallet';
+import {
+	activeAccount,
+	db,
+	dmCache,
+	historyCache,
+	key,
+	keysCache,
+	keysetsCache,
+	mintsCache,
+	proofsCache,
+	Status
+} from './db';
+import { derived } from 'svelte/store';
+import { signer } from './signer';
+import { pool } from './relays';
+import { nutKinds } from 'src/lib';
+import { HistoryItemType, type HistoryItem } from 'src/model/historyItem';
+import type { HistoryData } from 'src/model/data/HistoryData';
 import { ADDRESS_ZERO } from './constants';
-import type { NSecSigner } from '@nostrify/nostrify';
+import { satsLoading } from '.';
 
-// export const eventMap: { [key: string]: boolean } = {};
-//
 let abortController = new AbortController();
 
-export const nostrEventSub = derived(
-	[key, pool, signer, db],
-	async ([$key, $pool, $signer, $db]) => {
+export const dmSub = derived(
+	[signer, pool, key, db, keysCache, activeAccount],
+	async ([$signer, $pool, $key, $db, $keysCache, $activeAccount]) => {
 		abortController.abort();
 		if (!browser) return;
 		if (!$key?.pub) return;
 		if (!$pool) return;
 		if (!$signer) return;
-		console.log('nostrEventSub', $key.pub);
-		const lastEvent = await $db.dms.orderBy('created_at').last();
-		// end the previous ws connection if any
-
+		if (Array.from($keysCache.values())[$activeAccount]?.pub != $key?.pub) return;
 		abortController = new AbortController();
-		console.log('new ws connection');
-		const messages = $pool.req(
+		const lastEvent = await $db.dms.orderBy('created_at').last();
+		console.log('dmSub');
+		const newDms = fetchDms($signer, $pool, $key.pub, abortController, lastEvent?.created_at);
+		for await (const dm of newDms) {
+			// console.log('dm', dm);
+		}
+	}
+);
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export async function* fetchDms(
+	signer: NSecSigner,
+	pool: NPool,
+	pubkey: string,
+	abortController: AbortController,
+	since?: number
+) {
+	satsLoading.set(true);
+	console.log('fetchDms');
+	let newMessages: { [key: string]: NostrEvent } = {};
+	let newZaps: { [key: string]: NostrEvent } = {};
+	let redeemedZaps: { [key: string]: NostrEvent } = {};
+	let loaded = false;
+
+	try {
+		const messages = pool.req(
 			[
 				{
-					kinds: [nostrTools.kinds.EncryptedDirectMessage],
-					'#p': [$key.pub],
-					since: lastEvent?.created_at
-				}, // incoming messages
+					kinds: [kinds.EncryptedDirectMessage],
+					'#p': [pubkey],
+					since
+				},
 				{
-					kinds: [nostrTools.kinds.EncryptedDirectMessage],
-					authors: [$key.pub],
-					since: lastEvent?.created_at
-				} // outgoing messages and topups
+					kinds: [kinds.EncryptedDirectMessage],
+					authors: [pubkey],
+					since
+				},
+				{
+					kinds: [nutKinds.Nutzap],
+					'#p': [pubkey],
+					since
+				},
+				{
+					kinds: [nutKinds.Nutzap],
+					authors: [pubkey],
+					since
+				},
+				{
+					kinds: [nutKinds.NutzapRedeemed],
+					authors: [pubkey],
+					since
+				}
 			],
 			{ signal: abortController.signal }
 		);
 
 		for await (const message of messages) {
 			if (message[0] === 'CLOSED') break;
+			if (message[0] == 'EOSE') {
+				if (!loaded) {
+					dmCache.bulkPut(Object.values(newMessages));
+					// call a function that will decrypt all message content
+					const { proofsToSave, zapRedeemed, history } = await computeProofs(
+						Object.values(newMessages),
+						Object.values(newZaps),
+						Object.values(redeemedZaps),
+						pubkey,
+						signer
+					);
+
+					historyCache.bulkPut(history);
+
+					await dispatchEvents(proofsToSave, zapRedeemed, newZaps, pubkey, signer, pool);
+
+					loaded = true;
+					satsLoading.set(false);
+				}
+				satsLoading.set(false);
+			}
 			if (message[0] !== 'EVENT') continue;
 			const event = message[2];
-			// console.log('new note');
-			// push the message to the db, it will be listed in the chat
-			dmCache.add(event);
+			if (event.kind == kinds.EncryptedDirectMessage) {
+				if (loaded && !newMessages[event.id]) {
+					const { proofsToSave, zapRedeemed, history } = await computeProofs(
+						[event],
+						[],
+						Object.values(redeemedZaps),
+						pubkey,
+						signer
+					);
 
-			// if the event content is in the map, it has been processed already
+					historyCache.bulkPut(history);
 
-			if (!nostrTools.validateEvent(event)) continue;
-
-			const incoming = event.tags.some((t) => t[0] === 'p' && t[1] === $key.pub);
-			const token = await decodeEventContent(event, incoming, $signer);
-			if (!token) continue;
-
-			// store the mint in the db
-			token.token.map((t) => {
-				t.proofs.map((p) => {
-					mintsCache.add({ url: t.mint });
-				});
-			});
-
-			// get all the proofs in the token
-			const proofs = token.token.reduce((acc, cur) => [...acc, ...cur.proofs], [] as Proof[]);
-			if (incoming) {
-				// if the nuts tag is present, do not add to history, it is a wallet save
-				const isSave = event.tags.some((t) => t[0] === 'nuts');
-				if (!isSave) {
-					historyCache.add({
-						date: event.created_at,
-						type:
-							event.pubkey == $key.pub
-								? event.tags.some((t) => t[0] === 'change')
-									? HistoryItemType.CHANGE
-									: HistoryItemType.MINT
-								: HistoryItemType.RECEIVE_NOSTR,
-						amount: proofs.reduce((acc, cur) => (acc += cur.amount), 0),
-						data: {
-							mint: token.token[0].mint,
-							keyset: ['0'], // @todo,
-							from: event.pubkey
-						}
-					});
+					await dispatchEvents(proofsToSave, zapRedeemed, newZaps, pubkey, signer, pool);
 				}
-				// incoming messages
-				// add an history entry in the db
-				if (event.pubkey !== $key.pub) {
-					// console.log('--------incoming message', into++);
-					// if the sender is not yourself, add to pendingProofs to be claimed later
-					proofs.map((p) => proofsCache.add(p));
-				} else {
-					// get the saved nuts and put the status as confirmed
-					// $db.proofs.bulkPut(proofs.map((p) => ({ ...p, status: Status.Confirmed })));
-					proofsCache.bulkPut(proofs.map((p) => ({ ...p, status: Status.Confirmed })));
-				}
+				newMessages[event.id] = event;
+			} else if (event.kind == nutKinds.NutzapRedeemed) {
+				redeemedZaps[event.id] = event;
 			} else {
-				// console.log('-----------outgoing message', out++);
-				const proofs = token.token.flatMap((t) => t.proofs);
-				// add them to the spentProofs table
-				proofsCache.bulkPut(proofs.map((p) => ({ ...p, status: Status.Spent })));
-				const to = event.tags.find((t) => t[0] === 'p')?.[1] ?? '';
-				// outgoing messages
-				historyCache.add({
-					date: event.created_at,
-					type: to == ADDRESS_ZERO ? HistoryItemType.MELT : HistoryItemType.SEND,
-					amount: -proofs.reduce((acc, cur) => (acc += cur.amount), 0),
-					data: {
-						mint: '',
-						keyset: ['0'], // @todo
-						to
-					}
-				});
+				console.log('new zap');
+				if (loaded && !newZaps[event.id]) {
+					const { proofsToSave, zapRedeemed, history } = await computeProofs(
+						[],
+						[event],
+						Object.values(redeemedZaps),
+						pubkey,
+						signer
+					);
+
+					historyCache.bulkPut(history);
+
+					await dispatchEvents(proofsToSave, zapRedeemed, newZaps, pubkey, signer, pool);
+				}
+				newZaps[event.id] = event;
 			}
+			// console.log('newdm');
+			// if (loaded) {
+			// 	yield event;
+			// }
+		}
+	} catch (e) {
+		console.log('error in dm', e);
+	}
+}
+
+async function dispatchEvents(
+	proofsToSave: Proof[],
+	zapRedeemed: string[],
+	newZaps: { [key: string]: NostrEvent },
+	pubkey: string,
+	signer: NSecSigner,
+	pool: NPool
+) {
+	// send the zap redeem event and the saved proofs event too
+	for (const eventId of zapRedeemed) {
+		const zap = newZaps[eventId];
+		const event = {
+			kind: nutKinds.NutzapRedeemed,
+			content: zap.content,
+			created_at: Math.floor(Date.now() / 1000),
+			pubkey,
+			tags: [
+				...zap.tags,
+				[
+					'amount',
+					zap.tags
+						.filter((t) => t[0] == 'proof')
+						.map((t) => JSON.parse(t[1]))
+						.reduce((acc: number, p: Proof) => acc + p.amount, 0)
+						.toString()
+				],
+				['e', zap.id, 'redeemed', 'true'],
+				['p', zap.pubkey]
+			]
+		};
+		const signedEvent = await signEventWithRetry(signer, event);
+		if (signedEvent) {
+			pool.event(signedEvent);
 		}
 	}
-);
+	if (proofsToSave.length) {
+		saveNuts(signer, proofsToSave, pubkey);
+	}
+}
 
-// when new pendingProofs are added, try to claim them
-export const claimPendingSub = derived([signer, timestamp1], async ([$signer, $time]) => {
-	const pp = get(pendingProofs);
-	if (!pp.length) return;
-
-	// organize proofs by mint
-	const proofsByKeySet = pp.reduce(
-		(acc, cur) => {
-			if (!acc[cur.id]) acc[cur.id] = [];
-			acc[cur.id].push(cur);
-			return acc;
-		},
-		{} as Record<string, Proof[]>
+async function computeProofs(
+	newMessages: NostrEvent[],
+	newZaps: NostrEvent[],
+	redeemedZaps: NostrEvent[],
+	pubkey: string,
+	signer: NSecSigner
+): Promise<{ proofsToSave: Proof[]; zapRedeemed: string[]; history: HistoryItem<HistoryData>[] }> {
+	const { incoming, saving, outgoing, history } = await decryptMessages(
+		newMessages,
+		pubkey,
+		signer
 	);
-	for (const keysetId in proofsByKeySet) {
-		const m = get(keysetsCache).get(keysetId);
-		if (!m) {
-			console.error('could not find mint for keyset', keysetId);
+
+	const { proofsToSave, proofsSpent, zapRedeemed, zapHistory } = await decryptZaps(
+		_.differenceBy(newZaps, redeemedZaps, 'id'),
+		pubkey,
+		signer
+	);
+
+	console.log('message decrypted', proofsSpent);
+	console.log(incoming, saving, outgoing);
+	// for all the proofs that are coming back, save the keysetId to mintURL mapping
+	Object.keys(incoming).map((k) => mintsCache.add({ url: k }));
+	Object.keys(saving).map((k) => mintsCache.add({ url: k }));
+
+	// check what has been spent from the incoming and saving proofs
+	const spents = (
+		await Promise.all([
+			...Object.keys(incoming).map((mintURL) =>
+				checkProofsSpentWithMintUrl(incoming[mintURL], mintURL)
+			),
+			...Object.keys(saving).flatMap((mintURL) =>
+				checkProofsSpentWithMintUrl(saving[mintURL], mintURL)
+			),
+			outgoing,
+			proofsSpent
+		])
+	).flatMap((x) => x);
+
+	const unspentIncomings = _.differenceBy(
+		Object.keys(incoming).flatMap((key) => incoming[key]),
+		spents,
+		'secret'
+	);
+
+	// put all unspent incoming in the db
+	proofsCache.bulkPut(unspentIncomings);
+
+	const unspentSavings = _.differenceBy(
+		Object.keys(saving).flatMap((key) => saving[key]),
+		spents,
+		'secret'
+	);
+
+	// add all the unspent savings to the db as confirmed
+	proofsCache.bulkPut(
+		unspentSavings.concat(proofsToSave).map((p) => ({ ...p, status: Status.Confirmed }))
+	);
+
+	// add all the rest to the db as spent
+	proofsCache.bulkPut(spents.concat(proofsSpent).map((p) => ({ ...p, status: Status.Spent })));
+	return { proofsToSave, zapRedeemed, history: history.concat(zapHistory) };
+}
+
+async function decryptMessages(
+	messages: NostrEvent[],
+	pubkey: string,
+	signer?: NSecSigner
+): Promise<{
+	incoming: { [mintUrl: string]: Proof[] };
+	saving: { [mintUrl: string]: Proof[] };
+	outgoing: Proof[];
+	history: HistoryItem<HistoryData>[];
+}> {
+	if (!signer) return { incoming: {}, saving: {}, outgoing: [], history: [] };
+	if (!pubkey) return { incoming: {}, saving: {}, outgoing: [], history: [] };
+	const incomings = [];
+	const savings = [];
+	const outgoings = [];
+	const history: HistoryItem<HistoryData>[] = [];
+	console.log(messages.length);
+	for (const m of messages) {
+		if (m.pubkey == pubkey) {
+			if (m.tags.some((t) => t[0] === 'p' && t[1] === pubkey)) {
+				savings.push(m);
+			} else {
+				outgoings.push(m);
+			}
+		} else {
+			incomings.push(m);
+		}
+	}
+	// filter message by incoming and outgoing
+	// const incomingTokens = await Promise.all(
+	// 	incomings.map(async (message) => await decryptToken(message, pubkey, signer))
+	// );
+	const incomingTokens = [];
+	for (const incoming of incomings) {
+		const token = await decryptToken(incoming, pubkey, signer);
+		if (token) {
+			history.push({
+				date: incoming.created_at,
+				type: HistoryItemType.RECEIVE_NOSTR,
+				amount:
+					token?.token
+						.reduce((acc, cur) => acc.concat(cur.proofs), [] as Proof[])
+						.reduce((acc, cur) => (acc += cur.amount), 0) || 0,
+				data: {
+					mint: token?.token[0].mint || '',
+					keyset: ['0'], // @todo,
+					from: incoming.pubkey
+				}
+			});
+		}
+		incomingTokens.push(token);
+	}
+	const savingsToken = [];
+	for (const saving of savings) {
+		const token = await decryptToken(saving, pubkey, signer);
+		if (token && !saving.tags.some((t) => t[0] === 'nuts')) {
+			history.push({
+				date: saving.created_at,
+				type: saving.tags.some((t) => t[0] === 'change')
+					? HistoryItemType.CHANGE
+					: HistoryItemType.MINT,
+				amount:
+					token?.token
+						.reduce((acc, cur) => acc.concat(cur.proofs), [] as Proof[])
+						.reduce((acc, cur) => (acc += cur.amount), 0) || 0,
+				data: {
+					mint: token?.token[0].mint || '',
+					keyset: ['0'], // @todo,
+					from: saving.pubkey
+				}
+			});
+		}
+		savingsToken.push(token);
+	}
+	// const savingsToken = await Promise.all(
+	// 	savings.map(async (message) => await decryptToken(message, pubkey, signer))
+	// );
+	const outgoingTokens = [];
+	for (const outgoing of outgoings) {
+		const token = await decryptToken(outgoing, pubkey, signer);
+		const to = outgoing.tags.find((t) => t[0] === 'p')?.[1] ?? '';
+		if (token) {
+			history.push({
+				date: outgoing.created_at,
+				type: to == ADDRESS_ZERO ? HistoryItemType.MELT : HistoryItemType.SEND,
+				amount: -(
+					token?.token
+						.reduce((acc, cur) => acc.concat(cur.proofs), [] as Proof[])
+						.reduce((acc, cur) => (acc += cur.amount), 0) || 0
+				),
+				data: {
+					mint: '',
+					keyset: ['0'], // @todo
+					to
+				}
+			});
+		}
+		outgoingTokens.push(token);
+	}
+	// const outgoingTokens = await Promise.all(
+	// 	outgoings.map(async (message) => await decryptToken(message, pubkey, signer))
+	// );
+	const incoming = (incomingTokens.filter((t) => !!t) as Token[])
+		.flatMap((t) => t.token)
+		.reduce(
+			(acc, cur) => ({ ...acc, [cur.mint]: [...(acc[cur.mint] || []), ...cur.proofs] }),
+			{} as { [key: string]: Proof[] }
+		);
+	const saving = (savingsToken.filter((t) => !!t) as Token[])
+		.flatMap((t) => t.token)
+		.reduce(
+			(acc, cur) => ({ ...acc, [cur.mint]: [...(acc[cur.mint] || []), ...cur.proofs] }),
+			{} as { [key: string]: Proof[] }
+		);
+	for (const key in incoming) {
+		incoming[key] = _.uniqBy(incoming[key], 'secret');
+	}
+	for (const key in saving) {
+		saving[key] = _.uniqBy(saving[key], 'secret');
+	}
+
+	// only return tokens that resolves
+	return {
+		history,
+		incoming,
+		saving,
+		outgoing: _.uniqBy(
+			(outgoingTokens.filter((t) => t) as Token[]).flatMap((t) => t.token).flatMap((t) => t.proofs),
+			'secret'
+		)
+	};
+}
+
+async function decryptZaps(
+	messages: NostrEvent[],
+	pubkey: string,
+	signer: NSecSigner
+): Promise<{
+	proofsToSave: Proof[];
+	proofsSpent: Proof[];
+	zapRedeemed: string[];
+	zapHistory: HistoryItem<HistoryData>[];
+}> {
+	let proofsToSave: Proof[] = [];
+	let proofsSpent: Proof[] = [];
+	const zapRedeemed: string[] = [];
+	const incomings = [];
+	const outgoings = [];
+	const zapHistory: HistoryItem<HistoryData>[] = [];
+	console.log(messages.length);
+	for (const m of messages) {
+		if (m.pubkey == pubkey) {
+			outgoings.push(m);
+		} else {
+			incomings.push(m);
+		}
+	}
+	for (const m of incomings) {
+		const mintUrl = m.tags.find((t) => t[0] === 'u')?.[1];
+		if (!mintUrl) continue;
+		let proofs: Proof[] = m.tags.filter((t) => t[0] === 'proof').map((t) => JSON.parse(t[1]));
+		try {
+			proofs = (
+				await Promise.all(
+					proofs.map(async (p) => {
+						return { ...p, C: await decryptMessageWithRetry(signer, m.pubkey, p.C) };
+					})
+				)
+			).filter((p) => !!p.C) as Proof[];
+		} catch (e) {
+			console.info('invalid zap proofs incoming');
 			continue;
 		}
-		const cashuMint = new CashuMint(m.mint);
+		if (proofs.length > 0) {
+			const cashuMint = new CashuMint(mintUrl);
+			const wallet = new CashuWallet(cashuMint);
+			const res = await wallet.receiveTokenEntry({ proofs, mint: mintUrl });
 
-		const cashukeys = await cashuMint.getKeys();
-		// const keysets = await cashu.getKeySets();
-		const keys = getKeysForUnit(cashukeys.keysets);
-		const wallet: CashuWallet = new CashuWallet(cashuMint, keys);
-		// if (!validateMintKeys(keys)) {
-		// 	return;
-		// }
-		try {
-			console.log('claiming', proofsByKeySet[keysetId], get(key)?.priv, get(key)?.pub);
-			const res = await wallet.receiveTokenEntry({
-				proofs: proofsByKeySet[keysetId],
-				mint: m.mint
-			});
-			console.log('res', res);
-			proofsCache.bulkPut([
-				...res.proofs.map((p) => ({ ...p, status: Status.Confirmed })),
-				...proofsByKeySet[keysetId].map((p) => ({ ...p, status: Status.Spent }))
-			]);
 			if (res.proofs.length) {
-				// add the proofs to the nostr
-				console.info('saving nuts');
-				await sendMessage(
-					$signer,
-					get(key)?.pub,
-					getEncodedToken({ token: [{ mint: m.mint, proofs: res.proofs }] }),
-					[['nuts']]
-				);
-				// await saveNuts(res.proofs, get(key)?.pub);
+				// make sure this mint is known by the cache
+				mintsCache.add({ url: mintUrl });
+				proofsToSave = proofsToSave.concat(res.proofs);
+				zapRedeemed.push(m.id);
 			}
-		} catch (e) {
-			console.error(e);
-			// proofsCache.bulkPut(proofsByKeySet[key].map((p) => ({ ...p, status: Status.Spent })));
-		}
-	}
-});
-
-export const claimInvoicesSub = () => {
-	// claim pending invoices
-	let timestampIndex = 0;
-	return derived(
-		[key, db, invoices, signer, timestamp10],
-		async ([$key, $db, $invoices, $signer]) => {
-			if (!browser) return;
-			if (!$key?.pub) return;
-
-			timestampIndex++;
-			// for fresh invoices, try to claim them on every timestamp
-			$invoices.forEach(async (invoice, i) => {
-				i = i % 30;
-				const minting = async (invoice: Invoice) => {
-					const cashuMint = new CashuMint(invoice.mint);
-					const keys = await cashuMint.getKeys();
-					const wallet = new CashuWallet(cashuMint, keys.keysets[0]);
-					const amount = decode(invoice.request).sections[2].value / 1000;
-					wallet.mintTokens(amount, invoice.quote).then(async (res) => {
-						const encodedToken = getEncodedToken({
-							token: [{ proofs: res.proofs, mint: invoice.mint }],
-							memo: 'invoice'
-						});
-						// will be claimed twice probably
-						// adding anyway in case the message is not sent
-						res.proofs.forEach((p) => proofsCache.add(p));
-						// await $db.proofs.bulkAdd(res.proofs);
-						await sendMessage($signer, $key.pub, encodedToken);
-
-						$db.invoices.delete(invoice.quote);
-
-						// checkProofsSpent();
-						// send the token to the profile public address
-					});
-				};
-				if (Date.now() / 1000 - invoice.date < 60 * 5) {
-					await minting(invoice);
-				} else if (timestampIndex % 30 === i) {
-					await minting(invoice);
+			zapHistory.push({
+				date: m.created_at,
+				type: HistoryItemType.RECEIVE_NUTZAP,
+				amount: proofs.reduce((acc, p) => acc + p.amount, 0),
+				data: {
+					mint: mintUrl,
+					from: m.pubkey,
+					keyset: proofs.map((p) => p.id)
 				}
 			});
 		}
-	);
-};
+	}
+	for (const m of outgoings) {
+		let proofs: Proof[] = m.tags.filter((t) => t[0] === 'proof').map((t) => JSON.parse(t[1]));
+		// try {
+		// 	proofs = (
+		// 		await Promise.all(
+		// 			proofs.map(async (p) => {
+		// 				return { ...p, C: await decryptMessageWithRetry(signer, m.pubkey, p.C) };
+		// 			})
+		// 		)
+		// 	).filter((p) => !!p.C) as Proof[];
+		// } catch (e) {
+		// 	console.info('invalid zap proofs incoming');
+		// 	continue;
+		// }
+		zapHistory.push({
+			date: m.created_at,
+			type: HistoryItemType.SEND_NUTZAP,
+			amount: -proofs.reduce((acc, p) => acc + p.amount, 0),
+			data: {
+				mint: '',
+				to: m.tags.find((t) => t[0] === 'p')?.[1],
+				keyset: proofs.map((p) => p.id)
+			}
+		});
+		proofsSpent = proofsSpent.concat(proofs);
+	}
+	return { proofsToSave, proofsSpent, zapRedeemed, zapHistory };
+}
 
-export const proofSpentSub = () => {
-	let lastCheck = '';
-	// // every 10 seconds, check if the proofs are spent
-	return derived([timestamp1], async ([$time]) => {
-		if (lastCheck == JSON.stringify(get(proofs))) return;
-		const errors = await checkProofsSpent(get(proofs));
-		if (!errors.length) {
-			lastCheck = JSON.stringify(get(proofs));
+export async function decryptMessageWithRetry(
+	signer: NSecSigner,
+	senderKey: string,
+	content: string
+): Promise<string | undefined> {
+	let attempts = 0;
+	const maxAttempts = 5;
+	const initialTimeout = 100;
+	while (attempts < maxAttempts) {
+		// console.log('attempts', attempts);
+		try {
+			const decryptPromise = signer.nip04.decrypt(senderKey, content);
+			const timeoutPromise = new Promise((_, reject) =>
+				setTimeout(() => reject(new Error('Decryption timed out')), initialTimeout)
+			);
+			return (await Promise.race([decryptPromise, timeoutPromise])) as string;
+		} catch (error) {
+			console.error(`Decryption attempt ${attempts + 1} failed: ${error}`);
+			attempts++;
+			// await new Promise((resolve) => setTimeout(resolve, 100)); // Short delay before retrying
 		}
-	});
-};
+	}
+	console.error(`Failed to decrypt message after ${maxAttempts} attempts`);
+	return undefined;
+}
 
-export async function decodeEventContent(
-	event: NostrEvent,
-	incoming: boolean,
-	signer?: NSecSigner
+async function decryptToken(
+	message: NostrEvent,
+	pubkey: string,
+	signer: NSecSigner
 ): Promise<Token | undefined> {
+	const incoming = message.tags.some((t) => t[0] === 'p' && t[1] === pubkey);
 	let decodedMessage: string | undefined;
-	const pubkey = incoming ? event.pubkey : event.tags.find((t) => t[0] == 'p')?.[1];
-	if (!signer) return;
-	if (!pubkey) return;
-	try {
-		decodedMessage = await signer.nip04.decrypt(pubkey, event.content);
-	} catch (e) {
-		// console.error(e, 'could not decrypt nip-04 message. Ignoring this message');
-		// continue;
+	const senderKey = incoming ? message.pubkey : message.tags.find((t) => t[0] == 'p')?.[1];
+
+	decodedMessage = await decryptMessageWithRetry(signer, senderKey as string, message.content);
+
+	if (!decodedMessage) {
 		return;
 	}
-
-	if (!decodedMessage) return;
 
 	let token;
 	try {
@@ -294,13 +544,13 @@ export async function decodeEventContent(
 	}
 
 	if (!token?.token) {
-		//if the event is not in a cashu token format, ignore it
+		// if the event is not in a cashu token format, ignore it
 		return;
 	}
 
-	if (!isValidToken(token.token)) {
-		// ignore messages that are not tokens
-		return;
-	}
+	// if (!isValidToken(token.token)) {
+	// 	// ignore messages that are not tokens
+	// 	return;
+	// }
 	return token;
 }

@@ -1,7 +1,5 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import { liveQuery } from 'dexie';
-	import { getLinkPreview } from 'link-preview-js';
 	import { type NostrEvent } from 'nostr-tools';
 	import _ from 'lodash';
 	import {
@@ -23,6 +21,7 @@
 	import { signer } from 'src/stores/signer';
 	import { replyPost } from 'src/stores';
 	import { wallets } from 'src/stores/wallet';
+	import { nutKinds } from 'src/lib';
 
 	export let note: NostrEvent;
 	export let visible: boolean;
@@ -153,8 +152,18 @@
 			<div
 				class="flex items-center"
 				class:text-yellow-600={zapped}
-				on:click={() =>
-					nutsZap($pool, $signer, $wallets, note, $settings.zap.message, $settings.zap.amount)}
+				on:click={() => {
+					nutsZap($pool, $signer, $wallets, note, $settings.zap.message, $settings.zap.amount);
+					zaps = zaps.concat({
+						id: '0',
+						kind: nutKinds.Nutzap,
+						content: $settings.zap.message || '',
+						created_at: Math.floor(Date.now() / 1000),
+						ref: note.id,
+						pubkey: $key?.pub || '0',
+						amount: $settings.zap.amount
+					});
+				}}
 			>
 				{zaps?.reduce((acc, cur) => (acc += Number(cur.amount)), 0) || ''}
 				<Icon icon="bitcoin-icons:lightning-outline" class={'text-2xl '} />

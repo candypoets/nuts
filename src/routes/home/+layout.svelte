@@ -3,7 +3,13 @@
 
 	import Icon from '@iconify/svelte';
 	import ProfileModal from 'src/routes/_profile/index.svelte';
-	import { accountModalOpen, lightningInvoice, meltModalOpen, scannedPubkey } from 'src/stores';
+	import {
+		accountModalOpen,
+		lightningInvoice,
+		meltModalOpen,
+		satsLoading,
+		scannedPubkey
+	} from 'src/stores';
 
 	import { checkProofsSpent } from 'src/actions/wallet';
 	import { activeAccount, key, keysCache, proofs, settings } from 'src/stores/db';
@@ -134,7 +140,11 @@
 				</div>
 
 				<strong class="text-3xl" class:blur-md={isViewing || isError}>
-					{formatAmount($balance, $settings?.unit, true)}
+					{#if $satsLoading}
+						<Icon icon="mdi:loading" class="animate-spin text-2xl inline" /> sats
+					{:else}
+						{formatAmount($balance, $settings?.unit, true)}
+					{/if}
 				</strong>
 			</div>
 		{/each}

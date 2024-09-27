@@ -6,7 +6,6 @@
 
 	import Landing from './+page.svelte';
 	import { followingSub } from 'src/stores/contacts';
-	import { claimInvoicesSub, claimPendingSub, proofSpentSub, nostrEventSub } from 'src/stores/nuts';
 	// // import { onMount } from 'svelte';
 	import { pwaInfo } from 'virtual:pwa-info';
 	import MobileNav from 'src/comp/MobileNav.svelte';
@@ -21,6 +20,9 @@
 	import { nip19 } from 'nostr-tools';
 	import { mint, mints } from 'src/stores/mints';
 	import { nutzapSub } from 'src/stores/zaps';
+	import { dmSub, fetchDms } from 'src/stores/nuts';
+	import { claimPendingSub, proofSpentSub } from 'src/stores/proofs';
+	import { claimInvoicesSub } from 'src/stores/invoices';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
 	// Watch for route changes
@@ -40,21 +42,23 @@
 			// You can add your custom logic here
 		});
 		const initializer = initialize.subscribe((n) => n);
-		const nostrEvent = nostrEventSub.subscribe((n) => n);
-		const nutZaps = nutzapSub.subscribe((n) => n);
+		// const nostrEvent = nostrEventSub.subscribe((n) => n);
+		const dms = dmSub.subscribe((n) => n);
+		// const nutZaps = nutzapSub.subscribe((n) => n);
 		const claimPending = claimPendingSub.subscribe((n) => n);
 		const proofSpent = proofSpentSub().subscribe((n) => n);
 		const claimInvoices = claimInvoicesSub().subscribe((n) => n);
-		const following = followingSub.subscribe((n) => n);
+		// const following = followingSub.subscribe((n) => n);
 		// 	// const profile = profileSub.subscribe((n) => n);
 		return () => {
 			initializer();
-			nostrEvent();
+			// nostrEvent();
+			dms();
 			claimPending();
 			proofSpent();
 			claimInvoices();
-			following();
-			nutZaps();
+			// following();
+			// nutZaps();
 			// 		// profile();
 		};
 	});
