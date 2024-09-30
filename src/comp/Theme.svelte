@@ -20,7 +20,7 @@
 			document.getElementsByTagName('html')[0].setAttribute('data-theme', theme);
 			document
 				.querySelector('meta[name="theme-color"]')
-				?.setAttribute('content', theme === 'dark' ? '#1b006ae6' : '#fbc7b4');
+				?.setAttribute('content', theme === 'dark' ? '#131716' : '#f9fafb');
 		}
 	}
 
