@@ -155,8 +155,7 @@
 			</div>
 		{/if}
 		{#if videoLinks.length > 0}
-			<video class="rounded-md" src={videoLinks[0].value} controls muted playsinline autoplay
-			></video>
+			<video class="rounded-md" src={videoLinks[0].value} controls muted autoplay></video>
 		{/if}
 		{#each previews.filter((p) => p?.images?.length) as preview}
 			<a

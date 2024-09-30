@@ -47,7 +47,7 @@
 	$: open = !!$selectedTransaction;
 </script>
 
-<div class="flex gap-2 px-4 pb-4 -mt-4 lg:mt-4 lg:w-1/3 lg:m-auto" class:shadow-md={top > 0}>
+<div class="flex gap-2 px-4 pb-4 mt-4 lg:w-1/3 lg:m-auto" class:shadow-md={top > 0}>
 	<div class="text-center flex-grow">
 		<button class="btn w-14 h-14 btn-primary btn-circle" on:click={() => (addOpen = true)}>
 			<Icon icon="teenyicons:add-outline" class="text-2xl" />
