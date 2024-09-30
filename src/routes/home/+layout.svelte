@@ -42,7 +42,7 @@
 	// let scrolling = false;
 
 	onMount(() => {
-		updateVc();
+		// updateVc();
 		accounts.scrollTo({ left: $activeAccount * accounts.offsetWidth });
 	});
 
@@ -185,14 +185,14 @@
 	</div>
 {:else if $key}
 	<div
-		class="lg:h-auto lg:pt-0 overflow-scroll scrollbar-hide container-height lg:w-1/3 lg:m-auto"
+		class="lg:h-auto lg:pt-0 overflow-scroll scrollbar-hide container-height"
 		id="container"
 		on:scroll={(e) => (scrollY = e?.target?.scrollTop)}
 	>
 		<slot />
 	</div>
 {:else}
-	<div class="w-full lg:w-1/3 lg:m-auto container-height lg:h-auto lg:pt-0 px-4">
+	<div class="w-full lg:w-1/3 lg:m-auto h-auto lg:pt-0 px-4">
 		<div class="mt-4">Log in with your nsec</div>
 		<form class="mt-4" on:submit|preventDefault={handleLogin}>
 			<div class="join w-full border">
@@ -203,10 +203,11 @@
 					type="text"
 					bind:value={privateKey}
 				/>
-				<button class="btn join-item btn-primary" type="submit"
-					>{#if !loading}<Icon icon="mdi:login" />
+				<button class="btn join-item btn-primary" type="submit">
+					{#if !loading}<Icon icon="mdi:login" />
 					{:else}
-						<div class="loading" />{/if}
+						<div class="loading" />
+					{/if}
 				</button>
 			</div>
 		</form>

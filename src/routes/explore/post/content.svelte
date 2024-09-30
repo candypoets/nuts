@@ -33,12 +33,12 @@
 	$: links.map((link) => {
 		if (isImageUrl(link.value)) {
 			link.type = 'image';
-			lightbox = new PhotoSwipeLightbox({
-				gallery: '#my-gallery',
-				children: 'a',
-				pswpModule: () => import('photoswipe')
-			});
-			lightbox.init();
+			// lightbox = new PhotoSwipeLightbox({
+			// 	gallery: '#my-gallery',
+			// 	children: 'a',
+			// 	pswpModule: () => import('photoswipe')
+			// });
+			// lightbox.init();
 		}
 		// content = content.slice(0, link.start) + content.slice(link.end);
 	});
@@ -135,16 +135,28 @@
 	{/each}
 	<div class="flex-grow" on:click={(e) => e.stopPropagation()}>
 		{#if imageLinks.length > 0}
-			<div class="gallery-container w-full">
-				<div class="pswp-gallery pswp-gallery--single-column relative" id="my-gallery">
-					{#each imageLinks as link}
+			<div
+				class="flex relative gap-3 overflow-x-scroll items-stretch scrollbar-hide snap-x snap-mandatory scroll-smooth"
+			>
+				{#each imageLinks as link, index}
+					<div
+						class="w-full shrink-0 bg-opacity-50 rounded-xl overflow-hidden snap-always"
+						class:snap-start={index == 0}
+						class:snap-center={index != 0}
+					>
 						<Photo {link} />
+					</div>
+				{/each}
+				<div class="absolute w-full flex items-center justify-center bottom-4 gap-1">
+					{#each imageLinks as _, index (index)}
+						<button class="bg-primary rounded-full h-1 w-1" />
 					{/each}
 				</div>
 			</div>
 		{/if}
 		{#if videoLinks.length > 0}
-			<video class="rounded-md" src={videoLinks[0].value} controls muted playsinline></video>
+			<video class="rounded-md" src={videoLinks[0].value} controls muted playsinline autoplay
+			></video>
 		{/if}
 		{#each previews.filter((p) => p?.images?.length) as preview}
 			<a

@@ -1,17 +1,14 @@
 <script lang="ts">
 	import { formatDate } from 'src/lib';
 	import Row from './Row.svelte';
+	import Transaction from './Transaction.svelte';
 
 	import { history } from 'src/stores/db';
+	import VirtualList from 'src/comp/VirtualList.svelte';
 
-	$: page = 40;
-	$: historySub = $history.slice(0, page);
+	export let top;
 
-	const loadMore = () => {
-		page += 20;
-	};
-
-	$: map = historySub?.reduce(
+	$: map = $history?.reduce(
 		(acc, item) => {
 			// acc += item.amount;
 			const d = formatDate(new Date(item.date * 1000));
@@ -21,10 +18,13 @@
 		{} as Record<string, any>
 	);
 
-	$: console.log($history);
+	$: console.log(map, Object.entries(map));
 	$: open = false;
 	let selected = null;
 	let dismiss = false;
+	$: items = Object.entries(map).reduce((acc, cur) => [...(acc || []), cur[0], ...map[cur[0]]], []);
+
+	$: console.log('items:', items);
 </script>
 
 {#if !$history.length && !dismiss}
@@ -39,10 +39,11 @@
 		</div>
 	</div>
 {:else}
-	<div class="w-full">
-		<div class="flex flex-col w-full h-full justify-start">
-			<div class="w-full">
-				{#each Object.entries(map) as [date, items]}
+	<div class="w-full home-height">
+		<VirtualList {items} bind:top let:item getItemId={(item) => item.date || item}>
+			<Transaction {item} />
+		</VirtualList>
+		<!-- {#each Object.entries(map) as [date, items]}
 					<strong class="text-sm px-4 pt-4">{date}</strong>
 					<div class="mx-4 mt-2 rounded-lg border mb-4">
 						<table class="table table-compact w-full">
@@ -50,12 +51,15 @@
 								{#each items as item}
 									<Row {item} />
 								{/each}
-								<!-- svelte-ignore a11y-click-events-have-key-events -->
 							</tbody>
 						</table>
 					</div>
-				{/each}
-			</div>
-		</div>
+				{/each} -->
 	</div>
 {/if}
+
+<style>
+	.home-height {
+		height: calc(var(--vc, 1vh) * 100 - 22rem - env(safe-area-inset-top));
+	}
+</style>

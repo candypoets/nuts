@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
 	import QrScanner from 'src/comp/QRScanner.svelte';
-	import { scanning } from 'src/stores';
+	import { scanning, selectedTransaction } from 'src/stores';
 	import { onMount } from 'svelte';
 	import { mints } from '../../stores/mints';
 
@@ -11,10 +11,14 @@
 	import Transactions from './transactions/index.svelte';
 	import Layer from 'src/comp/drawers/Layer.svelte';
 	import { updateVc } from 'src/lib';
+	import { formatAmount } from 'src/actions/wallet';
+	import TransactionModal from './transaction-modal.svelte';
 
 	let active = 'base';
 	let encodedToken = '';
 	let selectedMint = $mints[0];
+
+	let top = 0;
 
 	let addOpen: boolean = false;
 	let sendOpen: boolean = false;
@@ -39,9 +43,11 @@
 			window.removeEventListener('keydown', keyDown);
 		};
 	});
+
+	$: open = !!$selectedTransaction;
 </script>
 
-<div class="flex gap-2 mx-4 -mt-4 lg:mt-4">
+<div class="flex gap-2 px-4 pb-4 -mt-4 lg:mt-4 lg:w-1/3 lg:m-auto" class:shadow-md={top > 0}>
 	<div class="text-center flex-grow">
 		<button class="btn w-14 h-14 btn-primary btn-circle" on:click={() => (addOpen = true)}>
 			<Icon icon="teenyicons:add-outline" class="text-2xl" />
@@ -65,9 +71,8 @@
 	</div>
 	<div class="flex-grow w-1/4" />
 </div>
-<br />
 
-<Transactions />
+<Transactions bind:top />
 
 <AddModal bind:open={addOpen} />
 
@@ -75,4 +80,8 @@
 
 <Layer bind:open={addFriend}>
 	<AddFriendModal bind:open={addFriend} />
+</Layer>
+
+<Layer bind:open>
+	<TransactionModal />
 </Layer>

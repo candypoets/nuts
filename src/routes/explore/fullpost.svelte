@@ -96,7 +96,7 @@
 	</div>
 	<div class="container-height pb-20 !pt-0">
 		<!-- <div class="h-screen"> -->
-		<VirtualList {items} bind:start let:item>
+		<VirtualList {items} bind:start let:item getItemId={(item) => item.data.id}>
 			<Replypost
 				note={item}
 				bind:selectedReply

@@ -26,23 +26,23 @@
 	export let note: NostrEvent;
 	export let visible: boolean;
 
-	let reactions: Reaction[] = [];
+	$: reactions = [] as Reaction[];
 	const reactionsQuery = $db.reactions.where('ref').equals(note.id).sortBy('created_at');
 
 	$: liked = reactions?.some((r) => r.pubkey === $key?.pub);
 
-	let reposts: Repost[] = [];
+	$: reposts = [] as Repost[];
 	const repostQuery = $db.reposts.where('ref').equals(note.id).sortBy('created_at');
 
 	$: reposted = reposts?.some((r) => r.pubkey === $key?.pub);
 
-	let zaps: Zap[] = [];
+	$: zaps = [] as Zap[];
 	const zapQuery = $db.zaps.where('ref').equals(note.id).sortBy('created_at');
 
 	$: zapped = zaps?.some((z) => z.pubkey === $key?.pub);
 	$: biggerZap = zaps?.sort((a, b) => (a.amount > b.amount ? -1 : 0))?.[0];
 
-	let replies: Note[] = [];
+	$: replies = [] as Note[];
 	const repliesQuery = $db.notes.where('reply_to').equals(note.id).sortBy('created_at');
 
 	let abortController = new AbortController();

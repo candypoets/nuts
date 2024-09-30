@@ -7,6 +7,8 @@
 	export let itemHeight = undefined;
 	export let className = '';
 
+	export let getItemId;
+
 	let foo;
 
 	// read-only, but visible to consumers via bind:start
@@ -157,7 +159,7 @@
 		bind:this={contents}
 		style="top: {top}px; padding-bottom: {bottom > 100 ? bottom : 100}px;"
 	>
-		{#each visible as row (row.data.id)}
+		{#each visible as row (getItemId(row))}
 			<svelte-virtual-list-row>
 				<slot item={row.data}>Missing template</slot>
 			</svelte-virtual-list-row>

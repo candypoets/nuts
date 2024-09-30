@@ -134,17 +134,32 @@
 {#if feed.length}
 	<div
 		class="lg:pt-0 overflow-scroll scrollbar-hide container-height lg:h-screen lg:container-height m-auto !pt-0"
-		on:click={() => ($selectedPost = null)}
+		on:click={() => {
+			$selectedPost = null;
+			$posting = null;
+		}}
 		id="container"
 	>
 		<button
-			class="btn btn-primary btn-circle fixed bottom-24 lg:bottom-4 lg:right-1/3 right-4 z-10 border-opacity-0 lg:translate-x-16"
+			class="p-4 bg-primary rounded-full text-white fixed bottom-24 lg:bottom-4 lg:right-1/3 right-4 z-10 border-opacity-0 lg:translate-x-20"
 			class:bg-opacity-10={fadein}
-			on:click={() => ($posting = true)}
+			on:click={(e) => {
+				e.stopPropagation();
+				$posting = true;
+			}}
 		>
 			<Icon icon="teenyicons:add-outline" class="text-2xl" />
 		</button>
-		<VirtualList className="pt-16" items={feed} bind:start bind:end bind:viewport bind:top let:item>
+		<VirtualList
+			className="pt-16"
+			items={feed}
+			bind:start
+			bind:end
+			bind:viewport
+			bind:top
+			let:item
+			getItemId={(item) => item.data.id}
+		>
 			<div
 				class="lg:hover:bg-base-200 lg:w-1/3 lg:m-auto py-2 px-1 border-b-2 border-base-200 lg:border-none max-w-full"
 			>

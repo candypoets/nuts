@@ -7,6 +7,7 @@
 	import { onMount } from 'svelte';
 
 	export let pubkey: string;
+	export let className: string;
 
 	// $: user = liveQuery(() => $db.users.get(pubkey));
 	// $: contact = liveQuery(() => $db.contacts.get(pubkey));
@@ -31,7 +32,7 @@
 </script>
 
 <img
-	src={profile?.picture || '/ns-naked.svg'}
+	src={profile?.picture}
 	alt={profile?.name}
-	class="border w-6 h-6 rounded-full mx-auto"
+	class={'border w-6 h-6 rounded-full mx-auto ' + className}
 />
