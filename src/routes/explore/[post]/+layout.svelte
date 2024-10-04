@@ -109,7 +109,7 @@
 	on:end={end}
 >
 	<div class="max-h-screen z-10 lg:w-25vw w-100vw bg-basic safe-padding-top">
-		<div class="flex justify-between items-center px-4">
+		<div class="flex justify-between items-center px-4 pb-4">
 			<a href="/explore">
 				<Icon icon="mingcute:left-line" class="text-xl" />
 			</a>

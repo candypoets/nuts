@@ -6,6 +6,7 @@
 	export let dismissible: boolean = true;
 	export let scaleBackground: boolean = true;
 	export let open: boolean = false;
+	export let onClose: () => void = undefined;
 
 	let viewport = { width: 0, height: 0 };
 
@@ -25,6 +26,7 @@
 	shouldScaleBackground={scaleBackground && !desktop}
 	dismissible={dismissible && !desktop}
 	bind:open
+	{onClose}
 >
 	<!-- <Drawer.Trigger /> -->
 	<Drawer.Portal>

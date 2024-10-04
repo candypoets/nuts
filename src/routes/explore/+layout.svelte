@@ -13,9 +13,10 @@
 	import Footer from './post/footer.svelte';
 	import ReplyHeader from './post/reply-header.svelte';
 	import { onMount } from 'svelte';
-	import { posting, selectedPost } from 'src/stores';
+	import { posting, replyPost, selectedPost } from 'src/stores';
 	import Post from './post.svelte';
 	import RepostHeader from './post/repost-header.svelte';
+	import Reply from './reply.svelte';
 	import { pool } from 'src/stores/relays';
 	import { fly } from 'svelte/transition';
 	import { goto, onNavigate } from '$app/navigation';
@@ -147,12 +148,13 @@
 	<div
 		class="lg:pt-0 overflow-scroll scrollbar-hide container-height lg:h-screen lg:container-height m-auto !pt-0"
 		on:click={() => {
+			$posting = false;
 			goto('/explore');
 		}}
 		id="container"
 	>
 		<button
-			class="p-4 bg-primary rounded-full text-white fixed bottom-24 lg:bottom-4 lg:right-1/3 right-4 z-10 border-opacity-0 lg:translate-x-20"
+			class="p-4 bg-primary rounded-full text-white fixed bottom-28 lg:bottom-4 lg:right-1/3 right-4 z-10 border-opacity-0 lg:translate-x-20"
 			class:bg-opacity-10={fadein}
 			on:click={(e) => {
 				e.stopPropagation();
@@ -220,6 +222,7 @@
 <slot />
 <ProfileModal bind:open={profileOpen} />
 <Post bind:open={$posting} />
+<Reply />
 
 <style>
 	.shimmer {
@@ -240,53 +243,5 @@
 		100% {
 			background-position: 1000px 0;
 		}
-	}
-
-	/* @keyframes fade-in {
-		from {
-			opacity: 0;
-		}
-	}
-
-	@keyframes fade-out {
-		to {
-			opacity: 0;
-		}
-	}
-
-	@keyframes slide-from-right {
-		from {
-			transform: translateX(100%);
-		}
-		to {
-			transform: translateX(0);
-		}
-	}
-
-	@keyframes slide-to-right {
-		from {
-			transform: translateX(0);
-		}
-		to {
-			transform: translateX(100%);
-		}
-	}
-
-	:root::view-transition-new(root) {
-		animation: 500ms cubic-bezier(0.4, 0, 0.2, 1) both slide-from-right;
-	}
-
-	:root::view-transition-old(root) {
-		animation: 500ms cubic-bezier(0.4, 0, 0.2, 1) both slide-to-right;
-	} */
-
-	#top {
-		view-transition-name: top;
-	}
-	#container {
-		view-transition-name: container;
-	}
-	#footer {
-		view-transition-name: footer;
 	}
 </style>

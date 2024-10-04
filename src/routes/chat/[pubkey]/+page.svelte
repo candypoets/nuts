@@ -15,6 +15,9 @@
 	import Icon from '@iconify/svelte';
 	import { sendMessage } from 'src/actions/chat';
 	import { signer } from 'src/stores/signer';
+	import { fetchMessages } from 'src/stores/chat';
+	import { pool } from 'src/stores/relays';
+	import _ from 'lodash';
 
 	let postElement: HTMLElement;
 
@@ -49,7 +52,9 @@
 
 				let key;
 				if (diffMinutes < 60) {
-					if (diffMinutes < 10) {
+					if (diffMinutes < 1) {
+						key = 'Just now';
+					} else if (diffMinutes < 10) {
 						key = `${diffMinutes} minute${diffMinutes !== 1 ? 's' : ''} ago`;
 					} else {
 						key = `${Math.floor(diffMinutes / 10) * 10} minutes ago`;
@@ -83,7 +88,7 @@
 		.sortBy('created_at')
 		.then((dms) => (outgoings = dms));
 
-	$: console.log(incomings, outgoings);
+	// $: console.log(incomings, outgoings);
 
 	$: messages = [
 		...incomings.map((i) => ({ ...i, incoming: true })),
@@ -93,9 +98,9 @@
 	$: map = groupMessagesByDate(messages);
 
 	$: groupedMessages = Object.keys(map)
-		.reduce((acc, cur) => [...(acc || []), ...map[cur], cur], [])
+		.reduce((acc, cur) => [...(acc || []), cur, ...map[cur]], [])
 		.reverse();
-	$: console.log(map, groupedMessages);
+	// $: console.log(map, groupedMessages);
 
 	const translateX = spring(0);
 	function handler(event: SwipeCustomEvent) {
@@ -114,6 +119,40 @@
 			$translateX = 0;
 		}
 	}
+
+	let abortController = new AbortController();
+	async function subscribe() {
+		console.log('subscribe');
+		abortController.abort();
+		abortController = new AbortController();
+		const lastEvent = await $db.dms.orderBy('created_at').last();
+		try {
+			const messages = fetchMessages(
+				$pool,
+				$signer,
+				abortController,
+				$key?.pub || '',
+				$page.params.pubkey,
+				lastEvent?.created_at
+			);
+			for await (const message of messages) {
+				console.log('ok message');
+				// divide the message in incoming and outgoing
+				const newincomings = message.filter((m) => m.pubkey == $page.params.pubkey);
+				incomings = _.uniqBy([...incomings, ...newincomings], 'id');
+
+				const newoutgoings = message.filter((m) => m.pubkey != $page.params.pubkey);
+
+				outgoings = _.uniqBy([...outgoings, ...newoutgoings], 'id');
+			}
+		} catch (error) {
+			console.log('error', error);
+		} finally {
+			console.log('finally');
+		}
+	}
+
+	$: $page.params.pubkey && subscribe();
 </script>
 
 <div
@@ -126,18 +165,20 @@
 	on:end={end}
 >
 	{#key $page.params.pubkey}
-		<div class="max-h-screen z-10 lg:w-25vw w-100vw bg-basic border-l border">
-			<div class="flex justify-between py-2">
+		<div class="max-h-screen z-10 lg:w-50vw w-100vw bg-basic lg:border-l lg:border relative">
+			<div
+				class="fixed pt-safe flex justify-between lg:w-50vw py-2 w-full backdrop-blur-xl bg-transparent h-32 z-10"
+			>
 				<a href="/chat">
 					<Icon icon="mingcute:left-line" class="text-2xl" />
 				</a>
 				<div>
-					<PictureProfile pubkey={$page.params.pubkey || ''} className="!w-12 h-12" />
+					<PictureProfile pubkey={$page.params.pubkey || ''} className="!w-12 !h-12" />
 					<User npub={$page.params.pubkey || ''} link={false} />
 				</div>
 				<div />
 			</div>
-			<div class="h-container lg:m-auto lg:w-4/5 overflow-scroll">
+			<div class="lg:m-auto lg:w-4/5 h-screen">
 				<VirtualListBottom
 					items={groupedMessages}
 					let:item
@@ -146,7 +187,9 @@
 					<Message message={item} />
 				</VirtualListBottom>
 			</div>
-			<div class="w-4/5 m-auto py-8">
+			<div
+				class="w-full px-2 lg:w-40vw lg:px-0 m-auto pb-6 fixed bottom-20 lg:bottom-0 bg-transparent"
+			>
 				<div class="join w-full">
 					<input
 						type="text"
@@ -156,7 +199,10 @@
 					/>
 					<button
 						class="btn btn-primary join-item"
-						on:click={() => sendMessage($signer, $page.params.pubkey, message)}
+						on:click={() => {
+							sendMessage($signer, $page.params.pubkey, message);
+							message = '';
+						}}
 					>
 						<Icon icon="ion:send" class="text-2xl" />
 					</button>
@@ -172,8 +218,12 @@
 	}
 
 	@media (min-width: 1024px) {
-		.lg\:w-25vw {
+		.lg\:w-50vw {
 			width: 50vw !important;
+		}
+		.lg\:w-40vw {
+			width: 40vw !important;
+			margin-left: 5vw;
 		}
 	}
 	.w-100vw {

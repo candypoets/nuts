@@ -40,7 +40,7 @@
 	}}
 >
 	<div class="flex justify-between items-center px-4">
-		<button class="w-1/5" on:click={() => ($replyPost = null)}>
+		<button class="w-1/5" on:click={() => ($posting = false)}>
 			<Icon icon="mingcute:down-line" class="text-xl" />
 		</button>
 		<h1 class="text-2xl font-semibold">new post</h1>
@@ -61,8 +61,9 @@
 			<img src={$profile.picture} alt="random" class="w-8 h-8 rounded-full" />
 			<textarea
 				bind:value={post}
-				class="w-full h-24 p-2 rounded-md"
+				class="textarea w-full p-2 rounded-md"
 				placeholder="What's up?"
+				rows="10"
 				id="reply-post"
 			/>
 		</div>

@@ -27,3 +27,9 @@
 		</div>
 	</div>
 {/if}
+
+<style>
+	.max-w-11-12 {
+		max-width: 92%;
+	}
+</style>

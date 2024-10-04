@@ -41,25 +41,17 @@
 	let startY;
 
 	function handleTouchStart(event) {
-		startY = event.touches[0].pageY;
+		// startY = event.touches[0].pageY;
 	}
 
 	function handleTouchMove(event) {
-		if (!startY) return;
-
-		let deltaY = startY - event.touches[0].pageY;
-		// let deltaX = startX - event.touches[0].pageX;
-
-		// Reverse the deltas
-		deltaY = -deltaY;
-		// deltaX = -deltaX;
-
-		event.preventDefault();
-		event.currentTarget.scrollTop += deltaY;
-		// event.currentTarget.scrollLeft += deltaX;
-
-		startY = event.touches[0].pageY;
-		// startX = event.touches[0].pageX;
+		// if (!startY) return;
+		// let deltaY = startY - event.touches[0].pageY;
+		// // Reverse the deltas
+		// deltaY = -deltaY;
+		// event.preventDefault();
+		// event.currentTarget.scrollTop += deltaY;
+		// startY = event.touches[0].pageY;
 	}
 
 	$: visible = items.slice(0, end).map((data, i) => {
@@ -185,11 +177,9 @@
 	bind:this={viewport}
 	bind:offsetHeight={viewport_height}
 	on:scroll={handle_scroll}
-	class={className}
+	class="pt-44 pb-32 lg:pt-20 scrollbar-hide {className}"
 	style="height: {height}; max-height: 100vh; transform: rotateZ(180deg);"
 	on:wheel={reverseScroll}
-	on:touchstart={handleTouchStart}
-	on:touchmove={handleTouchMove}
 >
 	<svelte-virtual-list-contents
 		bind:this={contents}

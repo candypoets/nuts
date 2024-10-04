@@ -88,6 +88,25 @@
 					previewCache.add(p as Preview);
 				})
 		);
+
+		// if the post start or finish with <br/> remove it
+		while (parts[0].type === 'line-break') {
+			parts.shift();
+		}
+		while (parts[parts.length - 1].type === 'line-break') {
+			parts.pop();
+		}
+		// if there is 3 br in a row, remove one
+		for (let i = 0; i < parts.length - 1; i++) {
+			if (
+				parts[i].type === 'line-break' &&
+				parts[i + 1].type === 'line-break' &&
+				parts[i + 2].type === 'line-break'
+			) {
+				parts.splice(i, 1);
+				i--;
+			}
+		}
 	});
 </script>
 

@@ -86,6 +86,21 @@
 	/* margin-top: var(--navbar-height); */
 }
 
+.pt-safe {
+	padding-top: env(safe-area-inset-top);
+}
+
+.scrollbar-hide {
+	/* IE and Edge */
+	'-ms-overflow-style': 'none',
+          /* Firefox */
+          'scrollbar-width': 'none',
+          /* Safari and Chrome */
+          '&::-webkit-scrollbar': {
+		display: 'none';
+	}
+}
+
 .safe-padding-top {
 	padding-top: env(safe-area-inset-top);
 }

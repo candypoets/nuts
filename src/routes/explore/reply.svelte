@@ -73,9 +73,9 @@
 			<img src={$profile.picture} alt="random" class="w-8 h-8 rounded-full" />
 			<textarea
 				bind:value={reply}
-				class="w-full h-24 p-2 rounded-md"
+				class="textarea w-full p-2 rounded-md"
 				placeholder="Post your reply"
-				rows="5"
+				rows="10"
 				id="reply-post"
 			/>
 		</div>

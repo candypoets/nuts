@@ -26,6 +26,7 @@
 		class="flex gap-4 overflow-x-scroll items-center bg-base-200 rounded-xl scrollbar-hide snap-x snap-mandatory scroll-smooth"
 		bind:this={carouselElement}
 		on:wheel={handleScroll}
+		on:touchmove={handleScroll}
 	>
 		{#each items as item, index (item.value)}
 			<div

@@ -82,6 +82,6 @@
 	<AddFriendModal bind:open={addFriend} />
 </Layer>
 
-<Layer bind:open>
+<Layer bind:open onClose={() => ($selectedTransaction = null)}>
 	<TransactionModal />
 </Layer>
