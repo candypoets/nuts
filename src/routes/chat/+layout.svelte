@@ -1,36 +1,106 @@
 <script lang="ts">
+	import { updateVc } from 'src/lib';
 	import ProfileModal from 'src/routes/_profile/index.svelte';
 	import { profile } from 'src/stores/profile';
+	import { onMount } from 'svelte';
+	import type { NostrEvent } from 'nostr-tools';
+	import { db, key } from 'src/stores/db';
+	import PictureProfile from '../explore/post/picture-profile.svelte';
+	import User from '../explore/user.svelte';
+	import { signer } from 'src/stores/signer';
+	import { spring } from 'svelte/motion';
+	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
 
 	let profileOpen: boolean = false;
+
+	onMount(() => updateVc());
+
+	let messages: NostrEvent[] = [];
+
+	let contacts: { [key: string]: NostrEvent } = {};
+	// find all the different authors in the dms collection
+	$db.dms
+		.orderBy('created_at')
+		.toArray()
+		.then((dms) => {
+			dms.forEach((dm) => {
+				const sender = dm.tags.find((tag) => tag[0] === 'p')?.[1];
+				if (dm.pubkey == $key?.pub && sender == $key?.pub) return;
+				contacts[dm.pubkey] = dm;
+				if (sender) {
+					contacts[sender] = dm;
+				}
+			});
+		});
+
+	$: filteredContacts = Object.keys(contacts)
+		.sort((a, b) => contacts[b].created_at - contacts[a].created_at)
+		.filter((c) => c != $key.pub);
+
+	$: console.log(messages, Object.keys(contacts));
+
+	const translateX = spring(0);
+
+	$: {
+		if ($page.params.pubkey) {
+			$translateX = -500;
+		} else {
+			$translateX = 0;
+		}
+	}
 </script>
 
-<div
-	class="px-4 lg:px-0 lg:w-1/2 w-full m-auto p-2 lg:mt-40 lg:relative fixed bg-basic z-10"
-	id="top"
->
-	<div class="flex justify-between items-start">
-		<h1 class="text-3xl mb-8">Chat</h1>
-		<div class="flex gap-4 p-2 items-center">
-			<div on:click={() => (profileOpen = true)} class="cursor-pointer">
-				<img src={$profile?.picture || '/ns-naked.svg'} class="w-6 h-6 border-2 rounded-full" />
-			</div>
-		</div>
-	</div>
-	<div class="p-4 bg-primary-content rounded-xl w-5/6">
-		<div class="flex w-full justify-between">
-			<div></div>
-			<!-- <div>Main Account</div> -->
-			<!-- <img src={$profile.picture || '/ns-naked.svg'} class="w-6 h-6" /> -->
-		</div>
-		<br />
-		<strong class="text-2xl">
-			<!-- {formatAmount($totalAmountAvailable, $unit, true)} -->
-		</strong>
+<div class="px-4 lg:px-0 lg:w-full w-full m-auto p-2 lg:mt-0 bg-basic z-10" id="top">
+	<div class="flex justify-between items-start lg:w-1/3 lg:m-auto lg:relative">
+		<h1 class="text-2xl font-semibold">Chat</h1>
 	</div>
 </div>
-<div class="lg:h-auto lg:pt-0 overflow-scroll scrollbar-hide container-height" id="container">
-	<slot />
+<div
+	class="lg:h-auto lg:pt-0 overflow-scroll scrollbar-hide h-screen px-2"
+	on:click={() => goto('/chat')}
+>
+	<div class="lg:w-1/4 lg:m-50 transition-all" class:lg:m-25={$page.params.pubkey}>
+		{#each filteredContacts as contact}
+			<a
+				href={'/chat/' + contact}
+				class="flex mb-4 gap-2 overflow-x-hidden w-full hover:bg-base-200 py-2 px-4 cursor-pointer"
+			>
+				<div class="w-10 flex-shrink-0">
+					<PictureProfile pubkey={contact} className="!w-10 !h-10" />
+				</div>
+				<div class="flex-grow-0 max-w-full">
+					<div class="flex justify-between">
+						<User npub={contact} link={false} />
+						{new Date(contacts[contact].created_at * 1000).toLocaleDateString()}
+					</div>
+					<div class="text-xs break-words max-h-12 overflow-hidden">
+						<span>
+							{#if contacts[contact].pubkey == $key.pub}vous:
+							{/if}
+							{contacts[contact].content}
+						</span>
+					</div>
+				</div>
+			</a>
+		{/each}
+	</div>
 </div>
 
+<slot />
+
 <ProfileModal bind:open={profileOpen} />
+
+<style>
+	.max-w-full {
+		width: calc(100% - 3rem);
+	}
+	@media (min-width: 1024px) {
+		.lg\:m-25 {
+			margin-left: 25% !important;
+		}
+		.lg\:m-50 {
+			margin-left: 37.5%;
+		}
+	}
+</style>

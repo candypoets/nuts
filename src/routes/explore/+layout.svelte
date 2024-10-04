@@ -1,8 +1,6 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
 	import _ from 'lodash';
-	import { liveQuery } from 'dexie';
-	import { type NostrEvent } from 'nostr-tools';
 	import { updateVc } from 'src/lib';
 	import ProfileModal from 'src/routes/_profile/index.svelte';
 	import VirtualList from 'src/comp/VirtualList.svelte';
@@ -20,6 +18,7 @@
 	import RepostHeader from './post/repost-header.svelte';
 	import { pool } from 'src/stores/relays';
 	import { fly } from 'svelte/transition';
+	import { goto, onNavigate } from '$app/navigation';
 
 	let feed: Note[] = [];
 	let newPosts: Note[] = [];
@@ -38,7 +37,20 @@
 	let topper: HTMLElement;
 	let footer: HTMLElement;
 
+	// onNavigate((navigation) => {
+	// 	if (!document.startViewTransition) return;
+	// 	console.log(navigation);
+	// 	if (navigation.from.params.post && navigation.to.params.post) return;
+	// 	return new Promise((resolve) => {
+	// 		document.startViewTransition(async () => {
+	// 			resolve();
+	// 			await navigation.complete;
+	// 		});
+	// 	});
+	// });
+
 	onMount(() => {
+		console.log('mount');
 		topper = document.getElementById('top');
 		footer = document.getElementById('footer');
 		updateVc();
@@ -135,8 +147,7 @@
 	<div
 		class="lg:pt-0 overflow-scroll scrollbar-hide container-height lg:h-screen lg:container-height m-auto !pt-0"
 		on:click={() => {
-			$selectedPost = null;
-			$posting = null;
+			goto('/explore');
 		}}
 		id="container"
 	>
@@ -161,7 +172,7 @@
 			getItemId={(item) => item.data.id}
 		>
 			<div
-				class="lg:hover:bg-base-200 lg:w-1/3 lg:m-auto py-2 px-1 border-b-2 border-base-200 lg:border-none max-w-full"
+				class="block lg:hover:bg-base-200 lg:w-1/3 lg:m-auto py-1 px-1 border-b-2 border-base-200 lg:border-none max-w-full"
 			>
 				<RepostHeader note={item} />
 				<ReplyHeader note={item} />
@@ -170,12 +181,7 @@
 					class="flex gap-2"
 					on:click={(e) => {
 						e.stopPropagation();
-						console.log('clicked', item);
-						if (item.reply_to) {
-							$selectedPost = $notesCache.get(item.reply_to);
-						} else {
-							$selectedPost = item;
-						}
+						goto(`/explore/${item.reply_to ? item.reply_to : item.id}`);
 					}}
 				>
 					<div class="min-w-8" />
@@ -234,5 +240,53 @@
 		100% {
 			background-position: 1000px 0;
 		}
+	}
+
+	/* @keyframes fade-in {
+		from {
+			opacity: 0;
+		}
+	}
+
+	@keyframes fade-out {
+		to {
+			opacity: 0;
+		}
+	}
+
+	@keyframes slide-from-right {
+		from {
+			transform: translateX(100%);
+		}
+		to {
+			transform: translateX(0);
+		}
+	}
+
+	@keyframes slide-to-right {
+		from {
+			transform: translateX(0);
+		}
+		to {
+			transform: translateX(100%);
+		}
+	}
+
+	:root::view-transition-new(root) {
+		animation: 500ms cubic-bezier(0.4, 0, 0.2, 1) both slide-from-right;
+	}
+
+	:root::view-transition-old(root) {
+		animation: 500ms cubic-bezier(0.4, 0, 0.2, 1) both slide-to-right;
+	} */
+
+	#top {
+		view-transition-name: top;
+	}
+	#container {
+		view-transition-name: container;
+	}
+	#footer {
+		view-transition-name: footer;
 	}
 </style>

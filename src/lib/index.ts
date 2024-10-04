@@ -155,7 +155,8 @@ type URLType =
 export function categorizeURL(url: string): URLType {
 	// Regular expressions for different types
 	const imageRegex = /\.(jpg|jpeg|png|gif|bmp|svg)$/i;
-	const videoRegex = /\.(mp4|webm|ogg|mov)$/i;
+	const videoRegex =
+		/https?:\/\/(?:www\.)?video\.nostr\.build\/[a-f0-9]+\.(?:mp4|webm|ogg|mov)(?:#.*)?/i;
 	const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+$/;
 	const githubRegex = /^(https?:\/\/)?(www\.)?github\.com\/.+$/;
 	const spotifyRegex = /^(https?:\/\/)?(open\.)?spotify\.com\/.+$/;

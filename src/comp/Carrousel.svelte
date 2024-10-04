@@ -10,6 +10,7 @@
 				left: index * carouselElement.offsetWidth,
 				behavior: 'smooth'
 			});
+			currentIndex = index;
 		}
 	}
 
@@ -20,26 +21,28 @@
 	}
 </script>
 
-<div
-	class="flex relative gap-3 overflow-x-scroll items-stretch scrollbar-hide snap-x snap-mandatory scroll-smooth"
-	bind:this={carouselElement}
-	on:wheel={handleScroll}
->
-	{#each items as item, index (index)}
-		<div
-			class="w-full shrink-0 bg-opacity-50 rounded-xl overflow-hidden snap-always"
-			class:snap-start={index == 0}
-			class:snap-center={index != 0}
-		>
-			{item}
-		</div>
-	{/each}
+<div class="relative w-full">
+	<div
+		class="flex gap-4 overflow-x-scroll items-center bg-base-200 rounded-xl scrollbar-hide snap-x snap-mandatory scroll-smooth"
+		bind:this={carouselElement}
+		on:wheel={handleScroll}
+	>
+		{#each items as item, index (item.value)}
+			<div
+				class="w-full shrink-0 bg-opacity-50 rounded-xl overflow-hidden snap-always"
+				class:snap-start={index == 0}
+				class:snap-center={index != 0}
+			>
+				<slot {item}>Missing template</slot>
+			</div>
+		{/each}
+	</div>
 	{#if items.length > 1}
 		<div class="absolute w-full flex items-center justify-center bottom-4 gap-1">
 			{#each items as _, index (index)}
 				<button
-					class="bg-primary rounded-full h-1 w-1"
-					class:active={index === currentIndex}
+					class="border border-primary rounded-full h-2 w-2"
+					class:bg-primary={index === currentIndex}
 					on:click={() => scrollToIndex(index)}
 				/>
 			{/each}

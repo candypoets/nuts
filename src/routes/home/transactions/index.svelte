@@ -20,7 +20,6 @@
 
 	$: console.log(map, Object.entries(map));
 	$: open = false;
-	let selected = null;
 	let dismiss = false;
 	$: items = Object.entries(map).reduce((acc, cur) => [...(acc || []), cur[0], ...map[cur[0]]], []);
 

@@ -36,7 +36,7 @@
 	// $: console.log('user', user, note.pubkey, $usersCache);
 </script>
 
-<div class="flex gap-2 mt-2">
+<div class="flex gap-2">
 	<div class="w-8 min-w-8">
 		<img
 			src={profile?.picture || '/ns-naked.svg'}

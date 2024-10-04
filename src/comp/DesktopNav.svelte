@@ -8,6 +8,7 @@
 
 <div
 	class="fixed hidden bg-transparent h-screen top-0 lg:flex flex-col justify-center items-center w-20 gap-8 left-4 z-10"
+	id="desktop-nav"
 >
 	<a
 		class:text-primary={$page.route?.id?.startsWith('/home')}
@@ -45,3 +46,9 @@
 		<span class="btm-nav-label text-xs">Chat</span>
 	</a>
 </div>
+
+<style>
+	#desktop-nav {
+		view-transition-name: desktop-nav;
+	}
+</style>

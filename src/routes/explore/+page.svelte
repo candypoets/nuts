@@ -5,7 +5,6 @@
 
 	import Reply from './reply.svelte';
 
-	import Fullpost from './fullpost.svelte';
 	import { selectedPost } from 'src/stores';
 	import { onMount } from 'svelte';
 
@@ -66,5 +65,4 @@
 <br /> -->
 
 <!-- </div> -->
-<Fullpost />
 <Reply />

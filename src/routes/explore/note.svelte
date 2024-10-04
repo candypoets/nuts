@@ -8,6 +8,7 @@
 	import Content from './post/content.svelte';
 	import Footer from './post/header.svelte';
 	import { selectedPost } from 'src/stores';
+	import { page } from '$app/stores';
 
 	export let noteId: string;
 
@@ -29,7 +30,11 @@
 </script>
 
 {#if note}
-	<div class="px-1 py-2 rounded-2xl -ml-10" style="background-color: #cbcccf1a;">
+	<div
+		class="px-1 py-2 rounded-2xl"
+		class:-ml-10={!$page.params.post}
+		style="background-color: #cbcccf1a;"
+	>
 		<div class="px-2">
 			<Header {note} />
 			<div

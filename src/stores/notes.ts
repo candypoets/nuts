@@ -42,7 +42,7 @@ export async function* fetchThread(
 					kinds: [kinds.ShortTextNote, kinds.Repost],
 					authors: contacts.map((c) => c.pubkey),
 					since: since || oneDayAgo,
-					limit: 500
+					limit: 150
 				}
 			],
 			{ signal: abortController.signal }

@@ -156,7 +156,7 @@ export const db: Readable<DB> = derived([activeAccount, key], ([$activeAccount, 
 		history: 'date,type,amount,data.mint,data.keyset,data.send,data.returnChange,data.encodedToken',
 		contacts: 'pubkey,name,picture,about,createdAt,nip05',
 		users: 'pubkey,name,picture,about,createdAt,nip05',
-		dms: 'id,kind,tags,content,created_at,pubkey',
+		dms: 'id,kind,tags,content,created_at,pubkey,token',
 		notes:
 			'id,kind,tags,content,reply_to,reply_to_pubkey,reposted_by,reposted_from,created_at,pubkey',
 		reactions: 'id,kind,ref,created_at,pubkey',

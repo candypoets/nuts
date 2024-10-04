@@ -1,11 +1,10 @@
 <script lang="ts">
-	import { bech32 } from 'bech32';
-	import * as linkify from 'linkifyjs';
 	import Note from '../note.svelte';
 	import User from '../user.svelte';
 	import Photo from '../photo.svelte';
+	import Cashu from './cashu.svelte';
+	import Carrousel from 'src/comp/Carrousel.svelte';
 	import { categorizeURL, decodeNostrReference, isImageUrl } from 'src/lib';
-	import PhotoSwipeLightbox from 'photoswipe/lightbox';
 	import { previewCache, type Preview } from 'src/stores/db';
 	import { onMount } from 'svelte';
 	import { getLinkPreview } from 'link-preview-js';
@@ -18,56 +17,19 @@
 		{ regex: /nostr:(npub1|nprofile1)([a-zA-Z0-9]+)/g, type: 'nostr-pub' },
 		{ regex: /(https?:\/\/[^\s]+)/g, type: 'url' },
 		{ regex: /#(\w+)/g, type: 'hashtag' },
-		{ regex: /\n/g, type: 'line-break' }
+		{ regex: /\n/g, type: 'line-break' },
+		{ regex: /cashuAeyJ0b[A-Za-z0-9+/=]+/g, type: 'cashu' }
 		// Add more patterns as needed
 	];
 
 	let parts: { type: string; content: string }[] = [];
 
-	$: links = parts
-		.filter((p) => p.type === 'url')
-		.map((p) => ({ type: categorizeURL(p.content), value: p.content }));
+	let links: { type: string; value: string }[] = [];
 
-	let lightbox: PhotoSwipeLightbox;
-
-	$: links.map((link) => {
-		if (isImageUrl(link.value)) {
-			link.type = 'image';
-			// lightbox = new PhotoSwipeLightbox({
-			// 	gallery: '#my-gallery',
-			// 	children: 'a',
-			// 	pswpModule: () => import('photoswipe')
-			// });
-			// lightbox.init();
-		}
-		// content = content.slice(0, link.start) + content.slice(link.end);
-	});
-
-	$: imageLinks = links.filter((link) => link.type === 'image');
-
-	$: videoLinks = links.filter((link) => link.type === 'video');
-
-	$: otherLinks = links.filter((link) => link.type === 'html');
-
-	$: previews = otherLinks.map((link) =>
-		$previewCache.get(
-			'https://proxy.nuts.cash/?url=' +
-				(link.value.startsWith('http') ? link.value : 'https://' + link.value)
-		)
-	);
-
-	$: {
-		otherLinks.map(
-			(l) =>
-				l &&
-				getLinkPreview(
-					'https://proxy.nuts.cash/?url=' +
-						(l.value.startsWith('http') ? l.value : 'https://' + l.value)
-				).then((p) => {
-					previewCache.add(p as Preview);
-				})
-		);
-	}
+	let imageLinks: { type: string; value: string }[] = [];
+	let videoLinks: { type: string; value: string }[] = [];
+	let otherLinks: { type: string; value: string }[] = [];
+	let previews: Preview[] = [];
 
 	onMount(() => {
 		// parse the content until it is parsed completely
@@ -92,16 +54,44 @@
 			parts = parts.concat({ type: 'text', content: content.slice(lastIndex) });
 		}
 
-		// if (!parts.length) {
-		// 	parts = [{ type: 'text', content }];
-		// }
-		// console.log(parts, content, lastIndex, content.length);
+		links = parts
+			.filter((p) => p.type === 'url')
+			.map((p) => ({ type: categorizeURL(p.content), value: p.content }));
+
+		links.map((link) => {
+			if (isImageUrl(link.value)) {
+				link.type = 'image';
+			}
+			// content = content.slice(0, link.start) + content.slice(link.end);
+		});
+
+		imageLinks = links.filter((link) => link.type === 'image');
+
+		videoLinks = links.filter((link) => link.type === 'video');
+
+		otherLinks = links.filter((link) => link.type === 'html');
+
+		previews = otherLinks.map((link) =>
+			$previewCache.get(
+				'https://proxy.nuts.cash/?url=' +
+					(link.value.startsWith('http') ? link.value : 'https://' + link.value)
+			)
+		);
+
+		otherLinks.map(
+			(l) =>
+				l &&
+				getLinkPreview(
+					'https://proxy.nuts.cash/?url=' +
+						(l.value.startsWith('http') ? l.value : 'https://' + l.value)
+				).then((p) => {
+					previewCache.add(p as Preview);
+				})
+		);
 	});
-	// $: console.log(parts);
-	// return parts;
 </script>
 
-<div class="text-sm text-wrap whitespace-normal break-words max-w-full">
+<div class="text-sm text-wrap whitespace-normal break-words max-w-full relative">
 	{#each parts as part, index}
 		{#if part.type == 'text'}
 			<!-- {#if !isImageUrl(part.content)} -->
@@ -129,13 +119,16 @@
 			{#if decodeNostrReference(part.content)?.id}
 				<User npub={decodeNostrReference(part.content)?.id} />
 			{/if}
-			<!-- {:else}
-		{part.content} -->
+		{:else if part.type == 'cashu'}
+			<Cashu cashu={part.content} />
 		{/if}
 	{/each}
-	<div class="flex-grow" on:click={(e) => e.stopPropagation()}>
+	<div class="w-full" on:click={(e) => e.stopPropagation()}>
 		{#if imageLinks.length > 0}
-			<div
+			<Carrousel items={imageLinks} let:item>
+				<Photo link={item} />
+			</Carrousel>
+			<!-- <div
 				class="flex relative gap-3 overflow-x-scroll items-stretch scrollbar-hide snap-x snap-mandatory scroll-smooth"
 			>
 				{#each imageLinks as link, index}
@@ -152,10 +145,12 @@
 						<button class="bg-primary rounded-full h-1 w-1" />
 					{/each}
 				</div>
-			</div>
+			</div> -->
 		{/if}
 		{#if videoLinks.length > 0}
-			<video class="rounded-md" src={videoLinks[0].value} controls muted autoplay></video>
+			<Carrousel items={videoLinks} let:item>
+				<video class="rounded-md" src={item.value} controls muted autoplay playsinline></video>
+			</Carrousel>
 		{/if}
 		{#each previews.filter((p) => p?.images?.length) as preview}
 			<a

@@ -110,7 +110,8 @@
 		class="flex gap-2 overflow-x-scroll items-stretch scrollbar-hide snap-x snap-mandatory scroll-smooth"
 		bind:this={accounts}
 		on:wheel={async (e) => {
-			$activeAccount = Math.round(accounts.scrollLeft / accounts.offsetWidth);
+			console.log(accounts.scrollLeft, accounts.clientWidth);
+			$activeAccount = Math.round(accounts.scrollLeft / accounts.clientWidth);
 		}}
 	>
 		{#each Array.from($keysCache.values()) as k, index}

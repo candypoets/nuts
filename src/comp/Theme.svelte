@@ -40,6 +40,7 @@
 			saveThemeSelection();
 		}
 	}}
+	id="theme"
 	class="lg:h-8 lg:w-8 lg:p-1 p-4 items-center justify-center cursor-pointer lg:fixed lg:bottom-8 lg:left-8 z-40"
 >
 	{#if theme === 'dark'}
@@ -48,3 +49,9 @@
 		<Icon icon="ph:sun-bold" class="lg:text-3xl text-2xl text-primary" />
 	{/if}
 </button>
+
+<style>
+	#theme {
+		view-transition-name: theme;
+	}
+</style>

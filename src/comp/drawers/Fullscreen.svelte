@@ -30,9 +30,9 @@
 >
 	<!-- <Drawer.Trigger /> -->
 	<Drawer.Portal>
-		<Drawer.Overlay class="absolute inset-0 bg-black/40 z-10 lg:hidden" />
+		<Drawer.Overlay class="absolute inset-0 bg-black/40 z-20 lg:hidden" />
 		<Drawer.Content
-			class="pb-8 bg-basic absolute top-0 left-0 right-0 z-10 mobile-height lg:w-1/4 lg:right-0 lg:left-auto lg:shadow"
+			class="pb-8 bg-basic absolute top-0 left-0 right-0 z-20 mobile-height lg:w-1/4 lg:right-0 lg:left-auto lg:shadow"
 			style="padding-top: env(safe-area-inset-top, 20px);"
 		>
 			<div class="sr-only" tabindex="-1" autofocus />

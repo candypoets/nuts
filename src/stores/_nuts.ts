@@ -48,6 +48,8 @@ export const dmSub = derived(
 	}
 );
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export async function* fetchDms(
 	signer: NSecSigner,
 	pool: NPool,
@@ -137,7 +139,6 @@ export async function* fetchDms(
 			} else if (event.kind == nutKinds.NutzapRedeemed) {
 				redeemedZaps[event.id] = event;
 			} else {
-				console.log('new zap');
 				if (loaded && !newZaps[event.id]) {
 					const { proofsToSave, zapRedeemed, history } = await computeProofs(
 						[],
@@ -153,6 +154,10 @@ export async function* fetchDms(
 				}
 				newZaps[event.id] = event;
 			}
+			// console.log('newdm');
+			// if (loaded) {
+			// 	yield event;
+			// }
 		}
 	} catch (e) {
 		console.log('error in dm', e);
@@ -218,7 +223,7 @@ async function computeProofs(
 		signer
 	);
 
-	console.log('message decrypted', proofsSpent);
+	console.log('message decrypted');
 	console.log(incoming, saving, outgoing);
 	// for all the proofs that are coming back, save the keysetId to mintURL mapping
 	Object.keys(incoming).map((k) => mintsCache.add({ url: k }));
@@ -406,8 +411,8 @@ async function decryptZaps(
 	zapRedeemed: string[];
 	zapHistory: HistoryItem<HistoryData>[];
 }> {
-	let proofsToSave: Proof[] = [];
-	let proofsSpent: Proof[] = [];
+	const proofsToSave: Proof[] = [];
+	const proofsSpent: Proof[] = [];
 	const zapRedeemed: string[] = [];
 	const incomings = [];
 	const outgoings = [];
@@ -444,7 +449,7 @@ async function decryptZaps(
 			if (res.proofs.length) {
 				// make sure this mint is known by the cache
 				mintsCache.add({ url: mintUrl });
-				proofsToSave = proofsToSave.concat(res.proofs);
+				proofsToSave.concat(res.proofs);
 				zapRedeemed.push(m.id);
 			}
 			zapHistory.push({
@@ -483,7 +488,7 @@ async function decryptZaps(
 				keyset: proofs.map((p) => p.id)
 			}
 		});
-		proofsSpent = proofsSpent.concat(proofs);
+		proofsSpent.concat(proofs);
 	}
 	return { proofsToSave, proofsSpent, zapRedeemed, zapHistory };
 }
@@ -524,8 +529,6 @@ async function decryptToken(
 	const senderKey = incoming ? message.pubkey : message.tags.find((t) => t[0] == 'p')?.[1];
 
 	decodedMessage = await decryptMessageWithRetry(signer, senderKey as string, message.content);
-
-	dmCache.put({ ...message, content: decodedMessage || '' });
 
 	if (!decodedMessage) {
 		return;

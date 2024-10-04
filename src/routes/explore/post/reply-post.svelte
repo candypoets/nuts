@@ -3,6 +3,8 @@
 	import Header from './header.svelte';
 	import Content from './content.svelte';
 	import Footer from './footer.svelte';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 
 	export let selectedReply: Note;
 
@@ -10,6 +12,8 @@
 
 	export let full: boolean = false;
 	export let visible: boolean = false;
+
+	$: console.log($page.params.post);
 </script>
 
 {#if full}
@@ -33,10 +37,7 @@
 			<div class="flex-grow">
 				<div
 					class="flex gap-2"
-					on:click={() => {
-						console.log('reply clicked');
-						selectedReply = note;
-					}}
+					on:click={(e) => goto('/explore/' + ($page.params.post || '') + '/' + note.id)}
 				>
 					<!-- <div class="min-w-8" /> -->
 					<div class="text-sm break-words -mt-2">
