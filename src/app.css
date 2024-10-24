@@ -10,6 +10,10 @@
 	/* --tw-border-opacity: 0.1; */
 }
 
+.hscroll-container {
+	z-index: 100;
+}
+
 @font-face {
 	font-family: 'm6x';
 	src: url('/m6x11plus.ttf') format('truetype');

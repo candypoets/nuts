@@ -83,7 +83,7 @@
 	});
 	function handler(event: SwipeCustomEvent) {
 		console.log('handler');
-		$translateX = event.detail.deltaX;
+		translateX.set(event.detail.deltaX, { hard: true });
 	}
 	function end(event: SwipeCustomEvent) {
 		console.log('end');
@@ -102,7 +102,7 @@
 <div
 	class="fixed top-0 right-0 overflow-hidden z-10"
 	transition:slide={{ duration: 300, easing: quintOut, axis: 'x' }}
-	style="right: -{$translateX}px;"
+	style="transform: translateX({$translateX}px);"
 	bind:this={postElement}
 	use:swipe
 	on:swipe={handler}

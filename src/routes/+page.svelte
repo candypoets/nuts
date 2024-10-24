@@ -3,12 +3,9 @@
 	import Row from 'src/routes/home/transactions/Row.svelte';
 	import { type HistoryData } from 'src/model/data/HistoryData';
 	import { type HistoryItem, HistoryItemType } from 'src/model/historyItem';
-	import { onMount } from 'svelte';
 	import { writable, type Writable } from 'svelte/store';
-	import MobileNav from 'src/comp/MobileNav.svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
-	// import screenshot from '/Users/abdoughariani/Nuts/nuts-cash/assets/screenshot_nuts.png';
 
 	let showMenu = false;
 	let scrollY: Writable<number> = writable(0);

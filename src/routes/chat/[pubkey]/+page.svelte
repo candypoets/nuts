@@ -7,7 +7,7 @@
 	import { slide } from 'svelte/transition';
 	import User from 'src/routes/explore/user.svelte';
 	import { swipe, type SwipeCustomEvent } from 'src/actions/swipe';
-	import { spring } from 'svelte/motion';
+	import { spring, tweened } from 'svelte/motion';
 	import { goto } from '$app/navigation';
 	import { quintOut } from 'svelte/easing';
 	import { onMount } from 'svelte';
@@ -18,6 +18,20 @@
 	import { fetchMessages } from 'src/stores/chat';
 	import { pool } from 'src/stores/relays';
 	import _ from 'lodash';
+
+	import { Keyboard } from '@capacitor/keyboard';
+
+	let keyboardHeight = tweened(0, { delay: 250, easing: quintOut });
+
+	Keyboard.addListener('keyboardWillShow', (info) => {
+		// Animate your content here
+		$keyboardHeight = info.keyboardHeight;
+	});
+
+	Keyboard.addListener('keyboardWillHide', () => {
+		// Animate your content back
+		$keyboardHeight = 0;
+	});
 
 	let postElement: HTMLElement;
 
@@ -102,13 +116,16 @@
 		.reverse();
 	// $: console.log(map, groupedMessages);
 
-	const translateX = spring(0);
+	const translateX = spring(0, {
+		stiffness: 0.3,
+		damping: 0.8
+	});
 	function handler(event: SwipeCustomEvent) {
 		console.log('handler');
-		$translateX = event.detail.deltaX;
+		translateX.set(event.detail.deltaX, { hard: true });
 	}
 	function end(event: SwipeCustomEvent) {
-		console.log('end');
+		// console.log('end');
 		if ($translateX > postElement.clientWidth / 2) {
 			// goto('/explore');
 			$translateX = postElement.clientWidth;
@@ -188,7 +205,10 @@
 				</VirtualListBottom>
 			</div>
 			<div
-				class="w-full px-2 lg:w-40vw lg:px-0 m-auto pb-6 fixed bottom-20 lg:bottom-0 bg-transparent"
+				class="fixed w-full px-2 lg:w-40vw lg:px-0 m-auto pb-6 bottom-20 lg:bottom-0 bg-transparent"
+				style="transform: translateY(calc(5rem - {$keyboardHeight
+					? $keyboardHeight + 'px'
+					: '5rem'}));"
 			>
 				<div class="join w-full">
 					<input

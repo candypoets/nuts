@@ -1,12 +1,9 @@
 <script lang="ts">
 	import '../app.css';
-	import 'photoswipe/style.css';
 	import { page } from '$app/stores';
 	import { updateVc } from 'src/lib';
 
 	import Landing from './+page.svelte';
-	import { followingSub } from 'src/stores/contacts';
-	// // import { onMount } from 'svelte';
 	import { pwaInfo } from 'virtual:pwa-info';
 	import MobileNav from 'src/comp/MobileNav.svelte';
 	import DesktopNav from 'src/comp/DesktopNav.svelte';
@@ -17,9 +14,7 @@
 
 	import { activeAccount, initialize, key, keysCache } from 'src/stores/db';
 	import { onMount } from 'svelte';
-	import { nip19 } from 'nostr-tools';
 	import { mint, mints } from 'src/stores/mints';
-	import { nutzapSub } from 'src/stores/zaps';
 	import { dmSub, fetchDms } from 'src/stores/nuts';
 	import { claimPendingSub, proofSpentSub } from 'src/stores/proofs';
 	import { claimInvoicesSub } from 'src/stores/invoices';

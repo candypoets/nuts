@@ -195,6 +195,7 @@
 			</div>
 		</VirtualList>
 	</div>
+	<div id="photoviewer-container" />
 {:else}
 	<div
 		class="lg:pt-0 overflow-scroll scrollbar-hide container-height lg:container-height lg:w-1/3 m-auto !pt-0"

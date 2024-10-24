@@ -9,6 +9,7 @@
 	import Footer from './post/header.svelte';
 	import { selectedPost } from 'src/stores';
 	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
 
 	export let noteId: string;
 
@@ -42,11 +43,7 @@
 				on:click={(e) => {
 					e.stopPropagation();
 
-					if (note?.reply_to) {
-						$selectedPost = $notesCache.get(note.reply_to);
-					} else {
-						$selectedPost = note;
-					}
+					goto(`/explore/${note?.reply_to ? note?.reply_to : note?.id}`);
 				}}
 			>
 				<div class="min-w-8" />

@@ -16,14 +16,12 @@ export function swipe(
 	const { direction } = options;
 	let startX: number | null;
 	let startY: number | null;
-	let startTime: number;
 
 	function handleTouchStart(event: TouchEvent) {
 		console.log('touch start');
 		const touch = event.touches[0];
 		startX = touch.clientX;
 		startY = touch.clientY;
-		startTime = new Date().getTime();
 	}
 
 	function handleTouchMove(event: TouchEvent) {

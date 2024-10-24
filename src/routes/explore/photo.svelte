@@ -21,6 +21,4 @@
 	});
 </script>
 
-<a href={link?.value} data-pswp-width={width} data-pswp-height={height} target="_blank">
-	<img src={link?.value} alt="" bind:this={image} class="rounded-lg" />
-</a>
+<img src={link?.value} alt="" bind:this={image} class="rounded-lg" />

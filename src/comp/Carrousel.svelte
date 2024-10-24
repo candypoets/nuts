@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { PhotoViewer } from '@capacitor-community/photoviewer';
+
 	export let items: any[] = [];
 
 	let carouselElement: HTMLElement;
@@ -14,7 +16,10 @@
 		}
 	}
 
-	function handleScroll() {
+	function handleScroll(event: WheelEvent | TouchEvent) {
+		if (items.length > 1 && currentIndex != items.length - 1) {
+			event.stopPropagation();
+		}
 		if (carouselElement) {
 			currentIndex = Math.round(carouselElement.scrollLeft / carouselElement.offsetWidth);
 		}
@@ -27,12 +32,24 @@
 		bind:this={carouselElement}
 		on:wheel={handleScroll}
 		on:touchmove={handleScroll}
+		on:touchend={handleScroll}
 	>
 		{#each items as item, index (item.value)}
 			<div
 				class="w-full shrink-0 bg-opacity-50 rounded-xl overflow-hidden snap-always"
 				class:snap-start={index == 0}
 				class:snap-center={index != 0}
+				on:click={() =>
+					PhotoViewer.show({
+						images: items.map((i) => ({ url: i.value })),
+						mode: items.length > 1 ? 'slider' : 'one',
+						startFrom: index,
+						options: {
+							title: true,
+							share: false,
+							transformer: 'depth'
+						}
+					})}
 			>
 				<slot {item}>Missing template</slot>
 			</div>
