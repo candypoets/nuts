@@ -5,10 +5,10 @@
 	import Footer from './footer.svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
+	import type { ParsedEvent } from 'src/workers/nipworker';
+	import type { NIP10Parsed } from 'src/workers/nip10';
 
-	export let selectedReply: Note;
-
-	export let note: Note;
+	export let note: ParsedEvent<NIP10Parsed>;
 
 	export let full: boolean = false;
 	export let visible: boolean = false;
@@ -20,7 +20,7 @@
 	<div>
 		<div class="px-2">
 			<Header {note} oneline={false} />
-			<Content content={note.content} />
+			<Content parsedContent={note.parsed?.parsedContent || []} />
 		</div>
 		<Footer {note} visible />
 		<div class="border-b border-base-200">
@@ -41,7 +41,7 @@
 				>
 					<!-- <div class="min-w-8" /> -->
 					<div class="text-sm break-words -mt-2">
-						<Content content={note.content} />
+						<Content parsedContent={note.parsed?.parsedContent || []} />
 					</div>
 				</div>
 				<Footer {note} {visible} />

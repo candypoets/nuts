@@ -1,0 +1,1 @@
+- update the cache with each new message from workers, rather than dumping on indexed db

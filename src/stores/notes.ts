@@ -1,22 +1,19 @@
-import { derived, get, writable, type Writable } from 'svelte/store';
+import { browser } from '$app/environment';
+import type { NPool } from '@nostrify/nostrify';
+import { kinds, type NostrEvent } from 'nostr-tools';
+import { nutKinds } from 'src/lib';
+import { writable, type Writable } from 'svelte/store';
 import {
-	db,
-	key,
 	notesCache,
 	reactionsCache,
-	type Reaction,
-	type Zap,
-	zapsCache,
 	repostsCache,
-	type Repost,
+	zapsCache,
+	type Contact,
 	type Note,
-	type Contact
+	type Reaction,
+	type Repost,
+	type Zap
 } from './db';
-import { pool } from './relays';
-import { browser } from '$app/environment';
-import { kinds, type NostrEvent } from 'nostr-tools';
-import type { NPool } from '@nostrify/nostrify';
-import { nutKinds } from 'src/lib';
 
 let abortController = new AbortController();
 

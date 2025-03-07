@@ -1,31 +1,21 @@
 <script lang="ts">
-	import { fetchProfile } from 'src/stores/contacts';
-	import { usersCache, db, contactsCache } from 'src/stores/db';
-	import { pool } from 'src/stores/relays';
-	import { onMount } from 'svelte';
-	import { type Contact } from 'src/model/contact';
+	import { cachedProfile, isInitialized } from 'src/db';
+	import type { NostrProfile } from 'src/workers/nip01';
 
 	export let npub: string;
 	export let link: boolean = true;
 
-	let user: Contact | undefined;
+	let user: NostrProfile | undefined;
 
-	onMount(() => {
-		let abortController = new AbortController();
-		user = $usersCache.get(npub) || $contactsCache.get(npub);
-		if (!user?.createdAt) {
-			fetchProfile($pool, npub, abortController).then((res) => (user = res));
+	$: {
+		if (!user && npub && $isInitialized) {
+			user = JSON.parse(cachedProfile(npub)?.content || '{}');
 		}
-		return () => {
-			abortController.abort();
-		};
-	});
-
-	// $: console.log('user', user, npub, $usersCache);
+	}
 </script>
 
 {#if link}
-	<strong class="text-primary break-all">@{user?.name || npub.slice(0, 15) + '...'}</strong>
+	<strong class="text-primary break-all">@{user?.name || npub?.slice(0, 15) + '...'}</strong>
 {:else}
-	<span class="break-all">{user?.name || npub.slice(0, 15) + '...'}</span>
+	<span class="break-all">{user?.name || npub?.slice(0, 15) + '...'}</span>
 {/if}

@@ -1,196 +1,65 @@
 <script lang="ts">
 	import Note from '../note.svelte';
 	import User from '../user.svelte';
-	import Photo from '../photo.svelte';
 	import Cashu from './cashu.svelte';
-	import Carrousel from 'src/comp/Carrousel.svelte';
-	import { categorizeURL, decodeNostrReference, isImageUrl } from 'src/lib';
-	import { previewCache, type Preview } from 'src/stores/db';
-	import { onMount } from 'svelte';
-	import { getLinkPreview } from 'link-preview-js';
 	import _ from 'lodash';
+	import type { ContentBlock } from 'src/workers/utils';
+	import ImageGrid from 'src/comp/ImageGrid.svelte';
 
-	export let content: string = '';
-
-	const patterns = [
-		{ regex: /nostr:(note1|nevent1)([a-zA-Z0-9]+)/g, type: 'nostr-note' },
-		{ regex: /nostr:(npub1|nprofile1)([a-zA-Z0-9]+)/g, type: 'nostr-pub' },
-		{ regex: /(https?:\/\/[^\s]+)/g, type: 'url' },
-		{ regex: /#(\w+)/g, type: 'hashtag' },
-		{ regex: /\n/g, type: 'line-break' },
-		{ regex: /cashuAeyJ0b[A-Za-z0-9+/=]+/g, type: 'cashu' }
-		// Add more patterns as needed
-	];
-
-	let parts: { type: string; content: string }[] = [];
-
-	let links: { type: string; value: string }[] = [];
-
-	let imageLinks: { type: string; value: string }[] = [];
-	let videoLinks: { type: string; value: string }[] = [];
-	let otherLinks: { type: string; value: string }[] = [];
-	let previews: Preview[] = [];
-
-	onMount(() => {
-		// parse the content until it is parsed completely
-		const allMatches = patterns.map((p) => {
-			const results = content.matchAll(p.regex);
-			return [...results].map((r) => ({ match: r[0], index: r.index, type: p.type }));
-		});
-
-		const matches = _.flatten(allMatches).sort((a, b) => a.index - b.index);
-		let lastIndex = 0;
-		parts = [];
-		// for each matches, split the content into parts
-		matches.forEach((m) => {
-			if (m.index > lastIndex) {
-				parts = parts.concat({ type: 'text', content: content.slice(lastIndex, m.index) });
-			}
-			parts = parts.concat({ type: m.type, content: m.match });
-			lastIndex = m.index + m.match.length;
-		});
-
-		if (lastIndex < content.length) {
-			parts = parts.concat({ type: 'text', content: content.slice(lastIndex) });
-		}
-
-		links = parts
-			.filter((p) => p.type === 'url')
-			.map((p) => ({ type: categorizeURL(p.content), value: p.content }));
-
-		links.map((link) => {
-			if (isImageUrl(link.value)) {
-				link.type = 'image';
-			}
-			// content = content.slice(0, link.start) + content.slice(link.end);
-		});
-
-		imageLinks = links.filter((link) => link.type === 'image');
-
-		videoLinks = links.filter((link) => link.type === 'video');
-
-		otherLinks = links.filter((link) => link.type === 'html');
-
-		previews = otherLinks.map((link) =>
-			$previewCache.get(
-				'https://proxy.nuts.cash/?url=' +
-					(link.value.startsWith('http') ? link.value : 'https://' + link.value)
-			)
-		);
-
-		otherLinks.map(
-			(l) =>
-				l &&
-				getLinkPreview(
-					'https://proxy.nuts.cash/?url=' +
-						(l.value.startsWith('http') ? l.value : 'https://' + l.value)
-				).then((p) => {
-					previewCache.add(p as Preview);
-				})
-		);
-
-		// if the post start or finish with <br/> remove it
-		while (parts[0].type === 'line-break') {
-			parts.shift();
-		}
-		while (parts[parts.length - 1].type === 'line-break') {
-			parts.pop();
-		}
-		// if there is 3 br in a row, remove one
-		for (let i = 0; i < parts.length - 1; i++) {
-			if (
-				parts[i].type === 'line-break' &&
-				parts[i + 1].type === 'line-break' &&
-				parts[i + 2].type === 'line-break'
-			) {
-				parts.splice(i, 1);
-				i--;
-			}
-		}
-	});
+	export let parsedContent: ContentBlock[] = [];
 </script>
 
 <div class="text-sm text-wrap whitespace-normal break-words max-w-full relative">
-	{#each parts as part, index}
-		{#if part.type == 'text'}
+	{#each parsedContent as parsed, index}
+		{#if parsed.type == 'text'}
 			<!-- {#if !isImageUrl(part.content)} -->
-			<span class="break-words">{part.content.slice(0, 500)}</span>
+			<span class="break-words">{@html parsed.text.trim().replace(/\n/g, '<br>')}</span>
 			<!-- {/if} -->
-		{:else if part.type == 'url'}
-			{#if categorizeURL(part.content) == 'html'}
+		{:else if parsed.type == 'link'}
+			{#if parsed.data?.preview && parsed.data?.preview?.images?.[0]}
 				<a
-					href={part.content}
-					class=" text-primary text-semibold break-all overflow-hidden text-ellipsis whitespace-normal text-wrap max-w-full"
-					target="_blank">{part.content}</a
+					href={parsed.data?.href}
+					target="_blank"
+					class="w-full rounded-xl border mt-1 block cursor-pointer"
 				>
+					{#if parsed.data?.preview?.images[0]}
+						<img src={parsed.data?.preview?.images[0]} alt={parsed.data?.preview?.title} />
+					{/if}
+					<div class="p-2">
+						{#if parsed.data?.preview?.title}
+							<h2 class="text-sm break-all font-semibold">{parsed.data?.preview?.title}</h2>
+						{/if}
+						{#if parsed.data?.preview?.description}
+							<p class="text-xs break-all">{parsed.data?.preview?.description.slice(0, 150)}...</p>
+						{/if}
+					</div>
+				</a>
+			{:else}
+				<a class="text-purple-600" href={parsed.data?.href || ''}>
+					{parsed.text}
+				</a>
 			{/if}
-		{:else if part.type == 'hashtag'}
-			<a class="font-semibold text-primary" href={'/search/' + part.content.slice(1)}
-				>{part.content}</a
-			>
-		{:else if part.type == 'line-break'}
-			<br />
-		{:else if part.type == 'nostr-note'}
-			{#if decodeNostrReference(part.content)?.id}
-				<Note noteId={decodeNostrReference(part.content)?.id} />
-			{/if}
-		{:else if part.type == 'nostr-pub'}
-			{#if decodeNostrReference(part.content)?.id}
-				<User npub={decodeNostrReference(part.content)?.id} />
-			{/if}
-		{:else if part.type == 'cashu'}
-			<Cashu cashu={part.content} />
+		{:else if parsed.type == 'hashtag'}
+			<a class="font-semibold text-primary" href={'/search/' + parsed.data?.tag}>{parsed.text}</a>
+		{:else if parsed.type == 'npub' || parsed.type == 'nprofile'}
+			<Note noteId={parsed.data?.decoded?.id} />
+		{:else if parsed.type == 'note' || parsed.type == 'nevent'}
+			<User npub={parsed.data?.decoded?.id} />
+		{:else if parsed.type == 'cashu'}
+			<Cashu cashu={parsed.text} />
+		{:else if parsed.type == 'image'}
+			<img class="w-full rounded-md" src={parsed.text} alt={parsed.text} />
+		{:else if parsed.type == 'video'}
+			<video class="w-full rounded-md" src={parsed.text} autoplay muted></video>
+		{:else if parsed.type == 'mediaGrid'}
+			<ImageGrid links={parsed.data?.items || []} />
 		{/if}
 	{/each}
-	<div class="w-full" on:click={(e) => e.stopPropagation()}>
-		{#if imageLinks.length > 0}
-			<Carrousel items={imageLinks} let:item>
-				<Photo link={item} />
-			</Carrousel>
-			<!-- <div
-				class="flex relative gap-3 overflow-x-scroll items-stretch scrollbar-hide snap-x snap-mandatory scroll-smooth"
-			>
-				{#each imageLinks as link, index}
-					<div
-						class="w-full shrink-0 bg-opacity-50 rounded-xl overflow-hidden snap-always"
-						class:snap-start={index == 0}
-						class:snap-center={index != 0}
-					>
-						<Photo {link} />
-					</div>
-				{/each}
-				<div class="absolute w-full flex items-center justify-center bottom-4 gap-1">
-					{#each imageLinks as _, index (index)}
-						<button class="bg-primary rounded-full h-1 w-1" />
-					{/each}
-				</div>
-			</div> -->
-		{/if}
-		{#if videoLinks.length > 0}
-			<Carrousel items={videoLinks} let:item>
-				<video class="rounded-md" src={item.value} controls muted autoplay playsinline></video>
-			</Carrousel>
-		{/if}
+	<!-- <div class="w-full" on:click={(e) => e.stopPropagation()}>
 		{#each previews.filter((p) => p?.images?.length) as preview}
-			<a
-				href={preview?.url.split('https://proxy.nuts.cash/?url=')[1]}
-				target="_blank"
-				class="w-full rounded-xl border mt-1 block cursor-pointer"
-			>
-				{#if preview?.images[0]}
-					<img src={preview?.images[0]} alt={preview.title} />
-				{/if}
-				<div class="p-2">
-					{#if preview?.title}
-						<h2 class="text-sm font-semibold">{preview?.title}</h2>
-					{/if}
-					{#if preview?.description}
-						<p class="text-xs">{preview?.description.slice(0, 150)}...</p>
-					{/if}
-				</div>
-			</a>
+
 		{/each}
-	</div>
+	</div> -->
 </div>
 
 <style>

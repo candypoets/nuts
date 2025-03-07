@@ -1,28 +1,36 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import Icon from '@iconify/svelte';
 	import _ from 'lodash';
+	import VirtualList from 'src/comp/VirtualList.svelte';
 	import { updateVc } from 'src/lib';
 	import ProfileModal from 'src/routes/_profile/index.svelte';
-	import VirtualList from 'src/comp/VirtualList.svelte';
-	import { contacts, contactsCache, db, notesCache, type Note } from 'src/stores/db';
-	import { fetchThread } from 'src/stores/notes';
-	import { profile } from 'src/stores/profile';
+	import { posting } from 'src/stores';
 	import { balance } from 'src/stores/wallet';
-	import Header from './post/header.svelte';
+	import { getContext, onMount } from 'svelte';
+	import { fly } from 'svelte/transition';
+	import Post from './post.svelte';
 	import Content from './post/content.svelte';
 	import Footer from './post/footer.svelte';
-	import ReplyHeader from './post/reply-header.svelte';
-	import { onMount } from 'svelte';
-	import { posting, replyPost, selectedPost } from 'src/stores';
-	import Post from './post.svelte';
-	import RepostHeader from './post/repost-header.svelte';
+	import Header from './post/header.svelte';
 	import Reply from './reply.svelte';
-	import { pool } from 'src/stores/relays';
-	import { fly } from 'svelte/transition';
-	import { goto, onNavigate } from '$app/navigation';
+	import NIP10Worker from 'src/workers/nip10?worker';
+	import { handler } from 'src/handlers';
+	import type { NIP01Parsed } from 'src/workers/nip01';
+	import type { NIP02Parsed } from 'src/workers/nip02';
+	import type { Nip10Params, NIP10Parsed } from 'src/workers/nip10';
+	import { ago, DAY } from 'src/lib/period';
+	import type { Writable } from 'svelte/store';
+	import type { NostrEvent } from 'nostr-tools';
+	import type { ParsedEvent } from 'src/workers/nipworker';
+	import Note from './note.svelte';
+	import type { NIP65Parsed } from 'src/workers/nip65';
+	import Zap from './post/zap.svelte';
 
-	let feed: Note[] = [];
-	let newPosts: Note[] = [];
+	let nip10: Worker | undefined;
+
+	let feed: ParsedEvent<NIP10Parsed>[] = [];
+	let newPosts: ParsedEvent<NIP10Parsed>[] = [];
 
 	let start = 0;
 	let end = 0;
@@ -38,50 +46,51 @@
 	let topper: HTMLElement;
 	let footer: HTMLElement;
 
-	// onNavigate((navigation) => {
-	// 	if (!document.startViewTransition) return;
-	// 	console.log(navigation);
-	// 	if (navigation.from.params.post && navigation.to.params.post) return;
-	// 	return new Promise((resolve) => {
-	// 		document.startViewTransition(async () => {
-	// 			resolve();
-	// 			await navigation.complete;
-	// 		});
-	// 	});
-	// });
+	let profile: Writable<NIP01Parsed | null> = getContext('profile');
+	let followList: Writable<NIP02Parsed> = getContext('followList');
+	let outboxList: Writable<NIP02Parsed> = getContext('outboxList');
+	let nip65s: Writable<ParsedEvent<NIP65Parsed>[]> = getContext('nip65s');
+
+	let feedMap: Map<string, ParsedEvent<NIP10Parsed> | boolean> = new Map();
+
+	$: {
+		if ($outboxList.length) {
+			nip10?.terminate();
+			nip10 = undefined;
+			fetchFeeds();
+		}
+		// } else if ($followList.length) {
+		// 	console.log('follow fetching');
+		// 	nip10?.terminate();
+		// 	nip10 = new NIP10Worker();
+		// 	nip10?.postMessage({ pubkeys: $followList, since: ago(2 * DAY), limit: 150 } as Nip10Params);
+		// }
+	}
+
+	async function fetchFeeds() {
+		if (!nip10) nip10 = new NIP10Worker();
+		nip10?.postMessage({ pubkeys: $outboxList, since: ago(2 * DAY), limit: 150 } as Nip10Params);
+		for await (const data of handler<NIP10Parsed>(nip10)) {
+			if (!data.parsed || feedMap.has(data.id)) continue;
+			// filter out deep replies
+			if (data?.parsed?.reply?.id && data?.parsed.root?.id != data?.parsed?.reply?.id) continue;
+
+			if (data?.parsed.root?.id) feedMap.set(data.parsed.root.id, true);
+			feedMap.set(data.id, data);
+			feed = Array.from(feedMap.values())
+				.filter((p) => p!.created_at)
+				.sort((a, b) => b.created_at - a.created_at);
+		}
+	}
 
 	onMount(() => {
-		console.log('mount');
+		nip10 = new NIP10Worker();
 		topper = document.getElementById('top');
 		footer = document.getElementById('footer');
 		updateVc();
-		const abortController = new AbortController();
-		$db.notes
-			.orderBy('created_at')
-			.filter((note) => {
-				if (note.reply_to) {
-					return !!note.reply_to_pubkey;
-				}
-				return true;
-			})
-			.filter((note) => !!$contactsCache.get(note.pubkey) || !!note?.reposted_by)
-			.reverse()
-			.toArray()
-			.then(async (res) => {
-				feed = res;
-				const newMessages = fetchThread($pool, $contacts, abortController, res[0]?.created_at);
-				let loaded = false;
-				for await (const message of newMessages) {
-					if (!loaded) {
-						feed = _.uniqBy([...message, ...feed], 'id');
-					} else {
-						newPosts = _.uniqBy([...message, ...newPosts], 'id');
-					}
-					loaded = true;
-				}
-			});
+
 		return () => {
-			abortController.abort();
+			nip10?.terminate();
 		};
 	});
 	let fadein = false;
@@ -109,7 +118,6 @@
 			// prevScrollPos = currentScrollPos;
 		}
 	}
-	// $: console.log(start, end, top);
 </script>
 
 <div
@@ -174,28 +182,30 @@
 			getItemId={(item) => item.data.id}
 		>
 			<div
-				class="block lg:hover:bg-base-200 lg:w-1/3 lg:m-auto py-1 px-1 border-b-2 border-base-200 lg:border-none max-w-full"
+				class="block lg:hover:bg-base-200 lg:w-1/3 lg:m-auto py-1 px-1 border-b-2 border-base-200 max-w-full"
 			>
-				<RepostHeader note={item} />
-				<ReplyHeader note={item} />
+				<!-- <RepostHeader note={item} /> -->
+				{#if item.parsed.root}
+					<Note noteId={item.parsed.root.id} leading />
+				{/if}
+				<Zap note={item} visible={feed.findIndex((note) => note.id === item.id) >= start - 2} />
 				<Header note={item} />
 				<div
 					class="flex gap-2"
 					on:click={(e) => {
 						e.stopPropagation();
-						goto(`/explore/${item.reply_to ? item.reply_to : item.id}`);
+						goto(`/explore/${item.reply ? item.parsed.reply.id : item.id}`);
 					}}
 				>
 					<div class="min-w-8" />
 					<div class="max-w-11/12 -mt-2">
-						<Content content={item.content} />
+						<Content parsedContent={item.parsed.parsedContent} />
 					</div>
 				</div>
 				<Footer note={item} visible={feed.findIndex((note) => note.id === item.id) >= start - 2} />
 			</div>
 		</VirtualList>
 	</div>
-	<div id="photoviewer-container" />
 {:else}
 	<div
 		class="lg:pt-0 overflow-scroll scrollbar-hide container-height lg:container-height lg:w-1/3 m-auto !pt-0"
@@ -224,25 +234,3 @@
 <ProfileModal bind:open={profileOpen} />
 <Post bind:open={$posting} />
 <Reply />
-
-<style>
-	.shimmer {
-		background: linear-gradient(
-			to right,
-			rgba(246, 247, 248, 0.8) 8%,
-			rgba(237, 238, 241, 0.8) 18%,
-			rgba(246, 247, 248, 0.8) 33%
-		);
-		background-size: 1000px 100%;
-		animation: shimmer 2s infinite linear;
-	}
-
-	@keyframes shimmer {
-		0% {
-			background-position: -1000px 0;
-		}
-		100% {
-			background-position: 1000px 0;
-		}
-	}
-</style>

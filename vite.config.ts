@@ -4,9 +4,10 @@ import { SvelteKitPWA as VitePWA } from '@vite-pwa/sveltekit';
 
 import { defineConfig } from 'vite';
 
-const generateSW = true;
-
 export default defineConfig({
+	ssr: {
+		// noExternal: ['idb']
+	},
 	// WARN: this will not be necessary on your project
 	logLevel: 'info',
 	server: {
@@ -15,9 +16,12 @@ export default defineConfig({
 			// allow: ['../..']
 		}
 	},
+	worker: {
+		format: 'es',
+		plugins: []
+	},
 	plugins: [
 		sveltekit(),
-		// mkcert(),
 		VitePWA({
 			devOptions: {
 				enabled: true,
@@ -62,6 +66,22 @@ export default defineConfig({
 	resolve: {
 		alias: {
 			src: ['/src']
+		}
+	},
+	test: {
+		include: ['src/**/*.{test,spec}.{js,ts,svelte}'],
+		exclude: ['build', '.svelte-kit/**'],
+		environment: 'jsdom',
+		globals: true,
+		deps: {
+			inline: [/svelte/, /@testing-library/]
+		},
+		coverage: {
+			reporter: ['text', 'json', 'html'],
+			exclude: ['**/node_modules/**', '**/.svelte-kit/**']
+		},
+		env: {
+			VITE_INDEXER_RELAYS: 'relay1,relay2,relay3' // Mock value for tests
 		}
 	}
 });

@@ -1,26 +1,14 @@
 <script lang="ts">
 	import User from 'src/routes/explore/user.svelte';
-	import { type Note } from 'src/stores/db';
-	import { fetchNote } from 'src/stores/notes';
-	import { pool } from 'src/stores/relays';
-	import { onMount } from 'svelte';
+	import type { NIP10Parsed } from 'src/workers/nip10';
+	import type { ParsedEvent } from 'src/workers/nipworker';
 
-	export let note: Note;
-
-	onMount(() => {
-		let abortController = new AbortController();
-		if (note?.reply_to) {
-			fetchNote($pool, note?.reply_to, abortController);
-		}
-		return () => {
-			abortController.abort();
-		};
-	});
+	export let note: ParsedEvent<NIP10Parsed>;
 </script>
 
-{#if note.reply_to_pubkey}
+{#if note?.root?.author}
 	<div class="text-sm">
 		<span class="opacity-50"> Reply to</span>
-		<User npub={note?.reply_to_pubkey} />
+		<User npub={note?.root.author} />
 	</div>
 {/if}

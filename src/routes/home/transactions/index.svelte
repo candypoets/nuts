@@ -18,16 +18,13 @@
 		{} as Record<string, any>
 	);
 
-	$: console.log(map, Object.entries(map));
 	$: open = false;
 	let dismiss = false;
 	$: items = Object.entries(map).reduce((acc, cur) => [...(acc || []), cur[0], ...map[cur[0]]], []);
-
-	$: console.log('items:', items);
 </script>
 
 {#if !$history.length && !dismiss}
-	<div class="bg-info p-4 m-4 rounded-lg">
+	<div class="bg-info lg:w-1/3 lg:m-auto p-4 m-4 rounded-lg">
 		<strong>Low balance in your account</strong>
 		<div class="text-xs">
 			<p>Be careful out there, nuts.cash is a beta software and you might lose your money.</p>

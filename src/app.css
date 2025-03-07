@@ -185,3 +185,23 @@
 	--tw-text-opacity: 1;
 	color: oklch(var(--nc) / var(--tw-text-opacity));
 }
+
+.shimmer {
+	background: linear-gradient(
+		to right,
+		rgba(246, 247, 248, 0.8) 8%,
+		rgba(237, 238, 241, 0.8) 18%,
+		rgba(246, 247, 248, 0.8) 33%
+	);
+	background-size: 1000px 100%;
+	animation: shimmer 2s infinite linear;
+}
+
+@keyframes shimmer {
+	0% {
+		background-position: -1000px 0;
+	}
+	100% {
+		background-position: 1000px 0;
+	}
+}

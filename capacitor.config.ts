@@ -12,10 +12,6 @@ const config: CapacitorConfig = {
 	plugins: {
 		Keyboard: {
 			resize: KeyboardResize.None
-		},
-		PhotoViewer: {
-			iosImageLocation: 'Library/Images',
-			androidImageLocation: 'Files/Images'
 		}
 	}
 };

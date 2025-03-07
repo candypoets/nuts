@@ -73,7 +73,6 @@
 
 	const translateX = spring(0);
 	function handler(event: SwipeCustomEvent) {
-		console.log('handler');
 		translateX.set(event.detail.deltaX, { hard: true });
 	}
 	function end(event: SwipeCustomEvent) {

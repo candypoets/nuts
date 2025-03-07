@@ -1,11 +1,9 @@
-import type { Contact } from '../model/contact';
-import * as nostrTools from 'nostr-tools';
-import { derived, get, writable } from 'svelte/store';
-import { contacts, contactsCache, db, key, usersCache } from './db';
-import { browser } from '$app/environment';
-import { pool } from './relays';
-import { kinds } from 'nostr-tools';
 import type { NPool } from '@nostrify/nostrify';
+import * as nostrTools from 'nostr-tools';
+import { derived, get } from 'svelte/store';
+import type { Contact } from '../model/contact';
+import { contactsCache, db, key, usersCache } from './db';
+import { pool } from './relays';
 
 export const followingSub = derived([key, db], async ([$key, $db]) => {
 	// console.info('fetching contacts');
@@ -97,7 +95,7 @@ export async function getContact(pubkey: string): Promise<Contact> {
 }
 
 export async function fetchProfile(pool: NPool, npub: string, abortController: AbortController) {
-	console.log('fetching profile', npub);
+	// console.log('fetching profile', npub);
 	return new Promise<Contact>(async (resolve, reject) => {
 		const messages = pool.req(
 			[
@@ -109,14 +107,14 @@ export async function fetchProfile(pool: NPool, npub: string, abortController: A
 			{ signal: abortController.signal }
 		);
 		for await (const message of messages) {
-			console.log('profile message', message);
+			// console.log('profile message', message);
 			if (message[0] === 'CLOSED') break;
 			if (message[0] === 'EOSE') abortController.abort();
 			if (message[0] !== 'EVENT') continue;
 			const event = message[2];
 
 			const user = JSON.parse(event.content);
-			console.log('--------user--------', user, event);
+			// console.log('--------user--------', user, event);
 			const profile = {
 				createdAt: event.created_at,
 				pubkey: event.pubkey,

@@ -101,8 +101,6 @@ export function decodeNostrReference(reference: string) {
 
 		const { type, data } = nip19.decode(reference);
 
-		console.log('decode', type, data, reference);
-
 		switch (type) {
 			case 'note':
 				return { type: 'note', id: data };

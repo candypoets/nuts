@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { getProfile, nostrDb } from 'src/db';
 	import { type Contact } from 'src/model/contact';
 	import { fetchProfile } from 'src/stores/contacts';
 	import { contactsCache, db, usersCache } from 'src/stores/db';
@@ -6,20 +7,12 @@
 	import { onMount } from 'svelte';
 
 	export let pubkey: string;
-	export let className: string;
+	export let className: string = undefined;
 
 	let profile: Contact | undefined;
-	onMount(() => {
-		profile = $usersCache.get(pubkey) || $contactsCache.get(pubkey);
-		let abortController = new AbortController();
-		if (!profile?.createdAt) {
-			fetchProfile($pool, pubkey, abortController).then((res) => {
-				profile = res;
-			});
-		}
-		return () => {
-			abortController.abort();
-		};
+	onMount(async () => {
+		const result = await getProfile(await nostrDb, pubkey);
+		profile = JSON.parse(result?.content || '{}');
 	});
 </script>
 

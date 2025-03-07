@@ -174,15 +174,6 @@ export const nutsZap = async (
 			const signedEvent = await signEvent(signer, event);
 
 			// optimistically add the nutzap to the cache
-			zapsCache.add({
-				id: signedEvent.id,
-				kind: nutKinds.Nutzap,
-				content: content || '',
-				created_at: signedEvent.created_at,
-				ref: note.id,
-				pubkey: signedEvent.pubkey,
-				amount: Number(amountSent)
-			});
 
 			await pool.event(signedEvent);
 

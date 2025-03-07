@@ -56,7 +56,7 @@ export async function* fetchDms(
 	since?: number
 ) {
 	satsLoading.set(true);
-	console.log('fetchDms');
+
 	let newMessages: { [key: string]: NostrEvent } = {};
 	let newZaps: { [key: string]: NostrEvent } = {};
 	let redeemedZaps: { [key: string]: NostrEvent } = {};

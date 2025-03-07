@@ -9,29 +9,120 @@
 	import DesktopNav from 'src/comp/DesktopNav.svelte';
 	import Theme from 'src/comp/Theme.svelte';
 	import Alert from 'src/comp/Alert.svelte';
-
 	import Login from './login.svelte';
 
-	import { activeAccount, initialize, key, keysCache } from 'src/stores/db';
-	import { onMount } from 'svelte';
+	import { activeAccount, initialize, key } from 'src/stores/db';
+	import { onMount, setContext } from 'svelte';
 	import { mint, mints } from 'src/stores/mints';
-	import { dmSub, fetchDms } from 'src/stores/nuts';
+	import { dmSub } from 'src/stores/nuts';
 	import { claimPendingSub, proofSpentSub } from 'src/stores/proofs';
 	import { claimInvoicesSub } from 'src/stores/invoices';
+	import { handler } from 'src/handlers';
+	import type { NIP01Parsed } from 'src/workers/nip01';
+	import type { NIP02Parsed } from 'src/workers/nip02';
+	import NIP01Worker from 'src/workers/nip01?worker';
+	import NIP02Worker from 'src/workers/nip02?worker';
+	import NIP65Worker from 'src/workers/nip65?worker';
+	import { writable, type Writable } from 'svelte/store';
+	import type { Nip65Params, NIP65Parsed } from 'src/workers/nip65';
+	import type { ParsedEvent } from 'src/workers/nipworker';
+	import _ from 'lodash';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
+
+	let nip01: Worker;
+	let nip02: Worker;
+	let nip65: Worker;
+	let profile: Writable<NIP01Parsed> = writable();
+	let followList: Writable<NIP02Parsed> = writable([]);
+	let outboxList: Writable<NIP02Parsed> = writable([]);
+	let inboxList: Writable<NIP02Parsed> = writable([]);
+	let nip65s: Writable<ParsedEvent<NIP65Parsed>[]> = writable([]);
+
+	$: $key && $key.pub && nip01 && nip01.postMessage({ pubkey: $key.pub });
+	$: $key && $key.pub && nip02 && nip02.postMessage({ pubkey: $key.pub, relays: $profile?.relays });
+	$: $followList.length &&
+		nip65.postMessage({ authors: $followList.map((c) => c.pubkey) } as Nip65Params);
+
+	$: setContext('profile', profile);
+	$: setContext('followList', followList);
+	$: setContext('outboxList', outboxList);
+	$: setContext('nip65s', nip65s);
+
 	// Watch for route changes
 	onMount(() => {
+		nip01 = new NIP01Worker();
+		nip02 = new NIP02Worker();
+		nip65 = new NIP65Worker();
+		(async function () {
+			for await (const data of handler<NIP01Parsed>(nip01)) {
+				if (data.parsed) {
+					$profile = data.parsed;
+				}
+			}
+		})();
+		(async function () {
+			for await (const data of handler<NIP02Parsed>(nip02)) {
+				if (data.parsed) {
+					$followList = data.parsed;
+				}
+			}
+		})();
+		(async function () {
+			for await (const data of handler<NIP65Parsed>(nip65)) {
+				if (data.parsed) {
+					$nip65s = [...$nip65s, data];
+				}
+				if (data.type == 'EOSE') {
+					// Create a combined list that prioritizes nip65s over followList
+					const outboxSources = _.chain($nip65s)
+						.map((item) => ({
+							pubkey: item.pubkey,
+							relays: item.parsed?.filter((r) => r.write).map((r) => r.url) || []
+						}))
+						.keyBy('pubkey')
+						.value();
+					const inboxSources = _.chain($nip65s)
+						.map((item) => ({
+							pubkey: item.pubkey,
+							relays: item.parsed?.filter((r) => r.read).map((r) => r.url) || []
+						}))
+						.keyBy('pubkey')
+						.value();
+
+					// Merge with followList, replacing entries when we have nip65 data
+					$outboxList = _.chain($followList)
+						.map((contact) => {
+							if (outboxSources[contact.pubkey]) {
+								return {
+									...contact,
+									relays: outboxSources[contact.pubkey].relays
+								};
+							}
+							return contact;
+						})
+						.value();
+					$inboxList = _.chain($followList)
+						.map((contact) => {
+							if (inboxSources[contact.pubkey]) {
+								return {
+									...contact,
+									relays: inboxSources[contact.pubkey].relays
+								};
+							}
+							return contact;
+						})
+						.value();
+
+					console.log('outboxList', $outboxList);
+				}
+			}
+		})();
 		// 	// console.log('Route changed to:', $page.route.id);
 		if (!$mint) $mint = $mints[0];
 		updateVc();
 		updateVh();
-		// 	// if ($page.route.id === '/') {
-		// 	// 	goto('/home');
-		// 	// }
-		// 	// console.log('Route changed to:', $page.route.id);
 		page.subscribe((p) => {
-			console.log('Route changed to:', $page.route.id);
 			updateVc();
 			updateVh();
 			// You can add your custom logic here
@@ -44,6 +135,7 @@
 		const proofSpent = proofSpentSub().subscribe((n) => n);
 		const claimInvoices = claimInvoicesSub().subscribe((n) => n);
 		// const following = followingSub.subscribe((n) => n);
+
 		// 	// const profile = profileSub.subscribe((n) => n);
 		return () => {
 			initializer();
@@ -52,6 +144,9 @@
 			claimPending();
 			proofSpent();
 			claimInvoices();
+			nip01.terminate();
+			nip02.terminate();
+			nip65.terminate();
 			// following();
 			// nutZaps();
 			// 		// profile();
@@ -63,8 +158,6 @@
 	function updateVh() {
 		document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
 	}
-
-	$: console.log('logged keys', $key);
 </script>
 
 <svelte:head>
