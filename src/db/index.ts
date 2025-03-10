@@ -175,102 +175,134 @@ export async function addEvents(db: IDBPDatabase, events: NostrEvent[]) {
 }
 
 export async function queryEvents(db: IDBPDatabase, filter: Filter, limit = undefined) {
-	// We'll handle each filter condition separately and then intersect results
-	let matchingEventIds = null;
-
-	// Helper function to get event IDs from an index
-	async function getEventIdsByIndex(indexName: string, values: (string | number)[]) {
-		const events = [];
-		const tx = db.transaction('events', 'readonly');
-		const index = tx.store.index(indexName);
-
-		for (const value of values) {
-			// Use getAll on the index with the specific value
-			const matches = await index.getAll(value);
-			events.push(...matches);
-		}
-
-		// Return unique event IDs
-		return [...new Set(events.map((event) => event.id))];
-	}
-
-	// Helper function to get events by their IDs
-	async function getEventsByIds(ids: string[]) {
-		const events = [];
-		const tx = db.transaction('events', 'readonly');
-
-		for (const id of ids) {
-			const event = await tx.store.get(id);
-			if (event) events.push(event);
-		}
-
-		return events;
-	}
-
-	// Helper function to intersect IDs or initialize if null
-	function intersectIds(current: string[] | null, newIds: string[]) {
-		if (current === null) return newIds;
-		return current.filter((id) => newIds.includes(id));
-	}
-
-	// Apply filter conditions
 	try {
+		// Create a single transaction for the entire operation
+		const tx = db.transaction('events', 'readonly');
+		const store = tx.store;
+
+		// Track matching event IDs across all filters
+		let matchingEventIds: string[] | null = null;
+
+		// Helper function to intersect IDs or initialize if null
+		function intersectIds(current: string[] | null, newIds: string[]) {
+			if (current === null) return newIds;
+			return current.filter((id) => newIds.includes(id));
+		}
+
+		// Apply filter conditions, all using the same transaction
+
+		// Filter by IDs
 		if (filter.ids && filter.ids.length > 0) {
-			// Since id is the primary key, we can directly fetch events by id
-			const events = await getEventsByIds(filter.ids);
-			const ids = events.map((event) => event.id);
+			const events = await Promise.all(filter.ids.map((id) => store.get(id)));
+			const ids = events.filter(Boolean).map((event) => event.id);
 			matchingEventIds = intersectIds(matchingEventIds, ids);
 			if (matchingEventIds && matchingEventIds.length === 0) return [];
 		}
+
 		// Filter by kinds (event types)
 		if (filter.kinds && filter.kinds.length > 0) {
-			const ids = await getEventIdsByIndex('kind', filter.kinds);
+			const kindIndex = store.index('kind');
+			const events = [];
+
+			const kindResults = await Promise.all(filter.kinds.map((kind) => kindIndex.getAll(kind)));
+
+			for (const result of kindResults) {
+				events.push(...result);
+			}
+
+			const ids = [...new Set(events.map((event) => event.id))];
 			matchingEventIds = intersectIds(matchingEventIds, ids);
 			if (matchingEventIds && matchingEventIds.length === 0) return [];
 		}
 
 		// Filter by authors (pubkeys)
 		if (filter.authors && filter.authors.length > 0) {
-			const ids = await getEventIdsByIndex('pubkey', filter.authors);
+			const pubkeyIndex = store.index('pubkey');
+			const events = [];
+
+			const authorResults = await Promise.all(
+				filter.authors.map((author) => pubkeyIndex.getAll(author))
+			);
+
+			for (const result of authorResults) {
+				events.push(...result);
+			}
+
+			const ids = [...new Set(events.map((event) => event.id))];
 			matchingEventIds = intersectIds(matchingEventIds, ids);
 			if (matchingEventIds && matchingEventIds.length === 0) return [];
 		}
 
 		// Filter by e tags
 		if (filter['#e'] && filter['#e'].length > 0) {
-			const ids = await getEventIdsByIndex('e_tags', filter['#e']);
+			const eTagsIndex = store.index('e_tags');
+			const events = [];
+
+			const eTagResults = await Promise.all(filter['#e'].map((tag) => eTagsIndex.getAll(tag)));
+
+			for (const result of eTagResults) {
+				events.push(...result);
+			}
+
+			const ids = [...new Set(events.map((event) => event.id))];
 			matchingEventIds = intersectIds(matchingEventIds, ids);
 			if (matchingEventIds && matchingEventIds.length === 0) return [];
 		}
 
 		// Filter by p tags
 		if (filter['#p'] && filter['#p'].length > 0) {
-			const ids = await getEventIdsByIndex('p_tags', filter['#p']);
+			const pTagsIndex = store.index('p_tags');
+			const events = [];
+
+			const pTagResults = await Promise.all(filter['#p'].map((tag) => pTagsIndex.getAll(tag)));
+
+			for (const result of pTagResults) {
+				events.push(...result);
+			}
+
+			const ids = [...new Set(events.map((event) => event.id))];
 			matchingEventIds = intersectIds(matchingEventIds, ids);
 			if (matchingEventIds && matchingEventIds.length === 0) return [];
 		}
 
 		// Filter by a tags
 		if (filter['#a'] && filter['#a'].length > 0) {
-			const ids = await getEventIdsByIndex('a_tags', filter['#a']);
+			const aTagsIndex = store.index('a_tags');
+			const events = [];
+
+			const aTagResults = await Promise.all(filter['#a'].map((tag) => aTagsIndex.getAll(tag)));
+
+			for (const result of aTagResults) {
+				events.push(...result);
+			}
+
+			const ids = [...new Set(events.map((event) => event.id))];
 			matchingEventIds = intersectIds(matchingEventIds, ids);
 			if (matchingEventIds && matchingEventIds.length === 0) return [];
 		}
 
 		// Filter by d tags
 		if (filter['#d'] && filter['#d'].length > 0) {
-			const ids = await getEventIdsByIndex('d_tags', filter['#d']);
+			const dTagsIndex = store.index('d_tags');
+			const events = [];
+
+			const dTagResults = await Promise.all(filter['#d'].map((tag) => dTagsIndex.getAll(tag)));
+
+			for (const result of dTagResults) {
+				events.push(...result);
+			}
+
+			const ids = [...new Set(events.map((event) => event.id))];
 			matchingEventIds = intersectIds(matchingEventIds, ids);
 			if (matchingEventIds && matchingEventIds.length === 0) return [];
 		}
 
-		// If we have no IDs yet (no filters applied) get all events
+		// If no filters were applied, get all events
 		if (matchingEventIds === null) {
-			const allEvents = await db.getAll('events');
-			if (limit !== undefined) {
-				return allEvents.slice(0, limit);
-			}
-			return allEvents;
+			const allEvents = await store.getAll();
+			// Wait for transaction to complete
+			await tx.done;
+			return limit !== undefined ? allEvents.slice(0, limit) : allEvents;
 		}
 
 		// Apply limit if specified
@@ -278,14 +310,14 @@ export async function queryEvents(db: IDBPDatabase, filter: Filter, limit = unde
 			matchingEventIds = matchingEventIds.slice(0, limit);
 		}
 
-		// Fetch the actual events for the IDs
-		const events = [];
-		for (const id of matchingEventIds) {
-			const event = await db.get('events', id);
-			if (event) events.push(event);
-		}
+		// Get all matching events in a single batch operation
+		const events = await Promise.all(matchingEventIds.map((id) => store.get(id)));
 
-		return events;
+		// Wait for transaction to complete
+		await tx.done;
+
+		// Filter out any null results and return the events
+		return events.filter(Boolean);
 	} catch (error) {
 		console.error('Error querying events:', error);
 		throw error;
