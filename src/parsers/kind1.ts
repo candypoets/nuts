@@ -33,8 +33,6 @@ export async function parseKind1(
 		const references = parseReferences(event);
 
 		let pending: { [key: string]: boolean } = {};
-		// let missingEvents: EventPointer[] = [];
-		// let missingProfiles: ProfilePointer[] = [];
 		let promises: Promise<void | NostrEvent[]>[] = [];
 
 		const pool = new SimplePool();
