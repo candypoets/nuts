@@ -144,8 +144,11 @@
 			claimPending();
 			proofSpent();
 			claimInvoices();
+			nip01.postMessage({ type: 'UNSUBSCRIBE' });
 			nip01.terminate();
+			nip02.postMessage({ type: 'UNSUBSCRIBE' });
 			nip02.terminate();
+			nip65.postMessage({ type: 'UNSUBSCRIBE' });
 			nip65.terminate();
 			// following();
 			// nutZaps();

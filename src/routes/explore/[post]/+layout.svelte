@@ -29,6 +29,7 @@
 	let replies: ParsedEvent<NIP10Parsed>[] = [];
 
 	async function fetchReplies() {
+		nip10?.postMessage({ type: 'UNSUBSCRIBE' });
 		nip10?.terminate();
 		nip10 = undefined;
 		replies = [];
@@ -61,6 +62,7 @@
 
 	onMount(() => {
 		return () => {
+			nip10?.postMessage({ type: 'UNSUBSCRIBE' });
 			nip10?.terminate();
 		};
 	});

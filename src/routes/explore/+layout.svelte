@@ -55,6 +55,7 @@
 
 	$: {
 		if ($outboxList.length) {
+			nip10?.postMessage({ type: 'UNSUBSCRIBE' });
 			nip10?.terminate();
 			nip10 = undefined;
 			fetchFeeds();
@@ -90,6 +91,7 @@
 		updateVc();
 
 		return () => {
+			nip10?.postMessage({ type: 'UNSUBSCRIBE' });
 			nip10?.terminate();
 		};
 	});

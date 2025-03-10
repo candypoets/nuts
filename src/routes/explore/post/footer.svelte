@@ -16,8 +16,9 @@
 	import type { ParsedEvent } from 'src/workers/nipworker';
 	import type { Nip10Params, NIP10Parsed } from 'src/workers/nip10';
 	import { replyPost } from 'src/stores';
-	import type { Kind10002Parsed } from 'src/parsers';
+	import { ReactionType, type Kind10002Parsed } from 'src/parsers';
 	import { getRelaysFromNote } from 'src/lib/getRelaysFromNote';
+	import { Emojisets } from 'nostr-tools/kinds';
 
 	let nip25: Worker | undefined;
 	let nip10: Worker | undefined;
@@ -36,6 +37,7 @@
 	let timeout: NodeJS.Timeout | undefined;
 	const mapReactions: Record<string, ParsedEvent<NIP25Parsed>> = {};
 	const mapReplies: Record<string, ParsedEvent<NIP10Parsed>> = {};
+	const mapEmoticons: Record<string, number> = {};
 
 	async function subscribe() {
 		relays = await getRelaysFromNote(note);
@@ -59,6 +61,11 @@
 			if (!data.parsed || mapReactions[data.id]) continue;
 			if (data.pubkey == $profile?.pubkey) liked = true;
 			mapReactions[data.id] = data;
+			if (data.parsed?.emoji) {
+				mapEmoticons[data.parsed?.emoji.url] = (mapEmoticons[data.parsed?.emoji.url] || 0) + 1;
+			} else if (data.parsed?.type == ReactionType.CUSTOM) {
+				mapEmoticons[data.content] = (mapEmoticons[data.content] || 0) + 1;
+			}
 			// Throttle updates to every 100ms
 			updateReactions();
 		}
@@ -88,15 +95,19 @@
 			clearTimeout(timeout);
 			timeout = undefined;
 		}
+		nip25?.postMessage({ type: 'UNSUBSCRIBE' });
 		nip25?.terminate();
 		nip25 = undefined;
+		nip10?.postMessage({ type: 'UNSUBSCRIBE' });
 		nip10?.terminate();
 		nip10 = undefined;
 	}
 
 	onMount(() => {
 		return () => {
+			nip25?.postMessage({ type: 'UNSUBSCRIBE' });
 			nip25?.terminate();
+			nip10?.postMessage({ type: 'UNSUBSCRIBE' });
 			nip10?.terminate();
 			unsubscribe();
 		};
@@ -132,7 +143,7 @@
 
 <!-- <div class="flex items-center w-full mt-1 pb-1"> -->
 <!-- <div class="min-w-8" /> -->
-<div class="flex-grow flex px-2 opacity-60 w-full h-6 pl-12">
+<div class="flex-grow flex px-2 w-full h-6 pl-12">
 	<div class="flex items-center gap-1 cursor-pointer w-full">
 		{#if visible}
 			<div
@@ -169,8 +180,19 @@
 			</div>
 		{/if}
 	</div> -->
-	<div class="flex items-center justify-end gap-1 cursor-pointer">
+	<div class="flex items-center shrink-0 justify-end gap-1 cursor-pointer">
 		{#if visible}
+			<div class="flex items-center space-x-1">
+				{#each Object.entries(mapEmoticons)
+					.sort((a, b) => b[1] - a[1])
+					.slice(0, 10) as [emoji, count]}
+					{#if emoji.startsWith('http')}
+						<img src={emoji} alt={emoji} class="w-4 h-4 inline-block" />
+					{:else}
+						{emoji}
+					{/if}
+				{/each}
+			</div>
 			<div
 				class="flex items-center space-x-1 hover:text-black hover:-mt-1 transition-all"
 				class:text-red-600={!!liked}

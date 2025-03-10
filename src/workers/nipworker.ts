@@ -145,7 +145,11 @@ export function createNipWorker<T, P = any>(config: WorkerConfig<T, P>) {
 				P & { type: 'SUBSCRIBE' | 'UNSUBSCRIBE' | 'FETCH_LATEST'; parse?: boolean }
 			>
 		) => {
-			console.log('newMessage', event.data);
+			if (event.type === 'UNSUBSCRIBE') {
+				console.log('UNSUBSCRIBING');
+				closeAllSubscriptions();
+				return;
+			}
 			// Wait for DB initialization
 			const db = await nostrDb;
 			if (!db) {
@@ -287,9 +291,4 @@ export function createNipWorker<T, P = any>(config: WorkerConfig<T, P>) {
 			}
 		}
 	);
-
-	// Clean up on close
-	self.addEventListener('close', () => {
-		closeAllSubscriptions();
-	});
 }
