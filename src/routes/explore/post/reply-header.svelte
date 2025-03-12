@@ -6,9 +6,9 @@
 	export let note: ParsedEvent<NIP10Parsed>;
 </script>
 
-{#if note?.root?.author}
+{#if note?.parsed?.root?.author}
 	<div class="text-sm">
 		<span class="opacity-50"> Reply to</span>
-		<User npub={note?.root.author} />
+		<User npub={note?.parsed?.root?.author} />
 	</div>
 {/if}

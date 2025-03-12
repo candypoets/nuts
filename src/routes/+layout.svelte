@@ -26,7 +26,9 @@
 	import { writable, type Writable } from 'svelte/store';
 	import type { Nip65Params, NIP65Parsed } from 'src/workers/nip65';
 	import type { ParsedEvent } from 'src/workers/nipworker';
+	import { nostrManager } from 'src/wasm/manager';
 	import _ from 'lodash';
+	import type { P } from 'vitest/dist/reporters-w_64AS5f.js';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
 
@@ -39,85 +41,96 @@
 	let inboxList: Writable<NIP02Parsed> = writable([]);
 	let nip65s: Writable<ParsedEvent<NIP65Parsed>[]> = writable([]);
 
-	$: $key && $key.pub && nip01 && nip01.postMessage({ pubkey: $key.pub });
-	$: $key && $key.pub && nip02 && nip02.postMessage({ pubkey: $key.pub, relays: $profile?.relays });
-	$: $followList.length &&
-		nip65.postMessage({ authors: $followList.map((c) => c.pubkey) } as Nip65Params);
+	$: profileSub =
+		$key &&
+		$key.pub &&
+		nostrManager.subscribe(
+			'profile',
+			[{ kinds: [0], authors: [$key.pub], relays: [] }],
+			(event: ParsedEvent<unknown>) => {
+				console.log('____EVENT____', event, typeof event);
+				$profile = (event as ParsedEvent<NIP01Parsed>).parsed;
+				// Handle subscription updates here
+			}
+		);
+	// $: $key && $key.pub && nip02 && nip02.postMessage({ pubkey: $key.pub, relays: $profile?.relays });
+	// $: $followList.length &&
+	// 	nip65.postMessage({ authors: $followList.map((c) => c.pubkey) } as Nip65Params);
 
 	$: setContext('profile', profile);
-	$: setContext('followList', followList);
-	$: setContext('outboxList', outboxList);
-	$: setContext('nip65s', nip65s);
+	// $: setContext('followList', followList);
+	// $: setContext('outboxList', outboxList);
+	// $: setContext('nip65s', nip65s);
 
 	// Watch for route changes
 	onMount(() => {
-		nip01 = new NIP01Worker();
-		nip02 = new NIP02Worker();
-		nip65 = new NIP65Worker();
-		(async function () {
-			for await (const data of handler<NIP01Parsed>(nip01)) {
-				if (data.parsed) {
-					$profile = data.parsed;
-				}
-			}
-		})();
-		(async function () {
-			for await (const data of handler<NIP02Parsed>(nip02)) {
-				if (data.parsed) {
-					$followList = data.parsed;
-				}
-			}
-		})();
-		(async function () {
-			for await (const data of handler<NIP65Parsed>(nip65)) {
-				if (data.parsed) {
-					$nip65s = [...$nip65s, data];
-				}
-				if (data.type == 'EOSE') {
-					// Create a combined list that prioritizes nip65s over followList
-					const outboxSources = _.chain($nip65s)
-						.map((item) => ({
-							pubkey: item.pubkey,
-							relays: item.parsed?.filter((r) => r.write).map((r) => r.url) || []
-						}))
-						.keyBy('pubkey')
-						.value();
-					const inboxSources = _.chain($nip65s)
-						.map((item) => ({
-							pubkey: item.pubkey,
-							relays: item.parsed?.filter((r) => r.read).map((r) => r.url) || []
-						}))
-						.keyBy('pubkey')
-						.value();
+		// nip01 = new NIP01Worker();
+		// nip02 = new NIP02Worker();
+		// nip65 = new NIP65Worker();
+		// (async function () {
+		// 	for await (const data of handler<NIP01Parsed>(nip01)) {
+		// 		if (data.parsed) {
+		// 			$profile = data.parsed;
+		// 		}
+		// 	}
+		// })();
+		// (async function () {
+		// 	for await (const data of handler<NIP02Parsed>(nip02)) {
+		// 		if (data.parsed) {
+		// 			$followList = data.parsed;
+		// 		}
+		// 	}
+		// })();
+		// (async function () {
+		// 	for await (const data of handler<NIP65Parsed>(nip65)) {
+		// 		if (data.parsed) {
+		// 			$nip65s = [...$nip65s, data];
+		// 		}
+		// 		if (data.type == 'EOSE') {
+		// 			// Create a combined list that prioritizes nip65s over followList
+		// 			const outboxSources = _.chain($nip65s)
+		// 				.map((item) => ({
+		// 					pubkey: item.pubkey,
+		// 					relays: item.parsed?.filter((r) => r.write).map((r) => r.url) || []
+		// 				}))
+		// 				.keyBy('pubkey')
+		// 				.value();
+		// 			const inboxSources = _.chain($nip65s)
+		// 				.map((item) => ({
+		// 					pubkey: item.pubkey,
+		// 					relays: item.parsed?.filter((r) => r.read).map((r) => r.url) || []
+		// 				}))
+		// 				.keyBy('pubkey')
+		// 				.value();
 
-					// Merge with followList, replacing entries when we have nip65 data
-					$outboxList = _.chain($followList)
-						.map((contact) => {
-							if (outboxSources[contact.pubkey]) {
-								return {
-									...contact,
-									relays: outboxSources[contact.pubkey].relays
-								};
-							}
-							return contact;
-						})
-						.value();
-					$inboxList = _.chain($followList)
-						.map((contact) => {
-							if (inboxSources[contact.pubkey]) {
-								return {
-									...contact,
-									relays: inboxSources[contact.pubkey].relays
-								};
-							}
-							return contact;
-						})
-						.value();
+		// 			// Merge with followList, replacing entries when we have nip65 data
+		// 			$outboxList = _.chain($followList)
+		// 				.map((contact) => {
+		// 					if (outboxSources[contact.pubkey]) {
+		// 						return {
+		// 							...contact,
+		// 							relays: outboxSources[contact.pubkey].relays
+		// 						};
+		// 					}
+		// 					return contact;
+		// 				})
+		// 				.value();
+		// 			$inboxList = _.chain($followList)
+		// 				.map((contact) => {
+		// 					if (inboxSources[contact.pubkey]) {
+		// 						return {
+		// 							...contact,
+		// 							relays: inboxSources[contact.pubkey].relays
+		// 						};
+		// 					}
+		// 					return contact;
+		// 				})
+		// 				.value();
 
-					console.log('outboxList', $outboxList);
-				}
-			}
-		})();
+		// 			console.log('outboxList', $outboxList);
+		// 		}
+		// 	}
+		// })();
 		// 	// console.log('Route changed to:', $page.route.id);
 		if (!$mint) $mint = $mints[0];
 		updateVc();
@@ -144,12 +157,13 @@
 			claimPending();
 			proofSpent();
 			claimInvoices();
-			nip01.postMessage({ type: 'UNSUBSCRIBE' });
-			nip01.terminate();
-			nip02.postMessage({ type: 'UNSUBSCRIBE' });
-			nip02.terminate();
-			nip65.postMessage({ type: 'UNSUBSCRIBE' });
-			nip65.terminate();
+			profileSub && profileSub();
+			// nip01.postMessage({ type: 'UNSUBSCRIBE' });
+			// nip01.terminate();
+			// nip02.postMessage({ type: 'UNSUBSCRIBE' });
+			// nip02.terminate();
+			// nip65.postMessage({ type: 'UNSUBSCRIBE' });
+			// nip65.terminate();
 			// following();
 			// nutZaps();
 			// 		// profile();
