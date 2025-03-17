@@ -1,21 +1,24 @@
 <script lang="ts">
-	import { cachedProfile, isInitialized } from 'src/db';
-	import type { NostrProfile } from 'src/workers/nip01';
+	import type { AnyKind, Kind0Parsed } from 'src/parsers';
+	import type { ParsedEvent } from 'src/workers/nipworker';
 
-	export let npub: string;
+	export let pubkey: string;
 	export let link: boolean = true;
+	export let context: ParsedEvent<AnyKind>[];
 
-	let user: NostrProfile | undefined;
+	let user: Kind0Parsed | undefined;
 
 	$: {
-		if (!user && npub && $isInitialized) {
-			user = JSON.parse(cachedProfile(npub)?.content || '{}');
+		if (!user && pubkey) {
+			user = context.find((event) => event.kind === 0 && event.pubkey === pubkey)?.parsed as
+				| Kind0Parsed
+				| undefined;
 		}
 	}
 </script>
 
 {#if link}
-	<strong class="text-primary break-all">@{user?.name || npub?.slice(0, 15) + '...'}</strong>
+	<strong class="text-primary break-all">@{user?.name || pubkey?.slice(0, 15) + '...'}</strong>
 {:else}
-	<span class="break-all">{user?.name || npub?.slice(0, 15) + '...'}</span>
+	<span class="break-all">{user?.name || pubkey?.slice(0, 15) + '...'}</span>
 {/if}

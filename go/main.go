@@ -6,7 +6,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"runtime"
 	"syscall/js"
+	"time"
 
 	"github.com/candypoets/nutscash/db"
 	"github.com/candypoets/nutscash/parser"
@@ -21,6 +23,25 @@ var globalManager *subscriptions.SubscriptionManager
 
 var defaultRelays = []string{"wss://relay.damus.io", "wss://relay.nostr.band", "wss://purplepag.es"}
 
+func trackGoroutines(m *runtime.MemStats) {
+	runtime.GC() // Force garbage collection
+	// Print current number of goroutines
+
+	runtime.ReadMemStats(m)
+	fmt.Printf("Number of goroutines: %d\n", runtime.NumGoroutine())
+	fmt.Printf("Memory usage: %d KB\n", m.Alloc/1024)
+	fmt.Printf("Number of subscriptions: %d\n", globalManager.GetActiveSubscriptionCount())
+}
+
+// Call periodically to monitor
+func monitorGoroutines() {
+	var m runtime.MemStats
+	for {
+		trackGoroutines(&m)
+		time.Sleep(5 * time.Second)
+	}
+}
+
 // Initialize sets up the global subscription manager with required dependencies
 func Initialize() {
 	nostrDb := db.InitNostrDB()
@@ -29,7 +50,7 @@ func Initialize() {
 	registerCallbacks()
 	// Signal that initialization is complete by calling the JS callback
 	js.Global().Call("nostrWasmInitialized", js.ValueOf(map[string]interface{}{
-		"version": "1.0.0",
+		"version": "1.0.1",
 	}))
 }
 
@@ -64,14 +85,14 @@ func jsOpenSubscription(this js.Value, args []js.Value) interface{} {
 	}
 
 	// Create persistent callback
-	persistentCallback := js.FuncOf(func(this js.Value, callbackArgs []js.Value) interface{} {
+	persistentCallback := js.FuncOf(func(this js.Value, callbackArgs []js.Value) any {
 		callback.Invoke(callbackArgs[0], callbackArgs[1])
 		return nil
 	})
 
 	// Open subscription using the manager
 	if err := globalManager.OpenSubscription(subscriptionID, requests, persistentCallback); err != nil {
-		return js.ValueOf(map[string]interface{}{
+		return js.ValueOf(map[string]any{
 			"error": fmt.Sprintf("Something bad happened: %v", err),
 		})
 	}
@@ -79,7 +100,7 @@ func jsOpenSubscription(this js.Value, args []js.Value) interface{} {
 	return nil
 }
 
-func jsCloseSubscription(this js.Value, args []js.Value) interface{} {
+func jsCloseSubscription(this js.Value, args []js.Value) any {
 	if len(args) < 1 {
 		return js.Error{Value: js.ValueOf("Subscription ID required")}
 	}
@@ -96,6 +117,8 @@ func registerCallbacks() {
 }
 
 func main() {
+	// Start the monitor in your main function
+	go monitorGoroutines()
 	// This function is required for the wasm build
 	Initialize()
 	c := make(chan struct{})

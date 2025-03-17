@@ -10,9 +10,9 @@ import (
 
 // RelayInfo represents a NIP-65 relay record
 type RelayInfo struct {
-	URL   string `json:"url"`
-	Read  bool   `json:"read"`
-	Write bool   `json:"write"`
+	URL   string `json:"url" msgpack:"url"`
+	Read  bool   `json:"read" msgpack:"read"`
+	Write bool   `json:"write" msgpack:"write"`
 }
 
 // Kind10002Parsed represents parsed relay list data

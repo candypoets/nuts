@@ -12,31 +12,33 @@ import (
 
 // Kind0Parsed represents a parsed kind 0 profile event
 type Kind0Parsed struct {
-	Name        string `json:"name,omitempty"`
-	DisplayName string `json:"display_name,omitempty"`
-	Picture     string `json:"picture,omitempty"`
-	Banner      string `json:"banner,omitempty"`
-	About       string `json:"about,omitempty"`
-	Website     string `json:"website,omitempty"`
-	Nip05       string `json:"nip05,omitempty"`
-	Lud06       string `json:"lud06,omitempty"`
-	Lud16       string `json:"lud16,omitempty"`
+	Name        string `json:"name,omitempty" msgpack:"name,omitempty"`
+	DisplayName string `json:"display_name,omitempty" msgpack:"display_name,omitempty"`
+	Picture     string `json:"picture,omitempty" msgpack:"picture,omitempty"`
+	Banner      string `json:"banner,omitempty" msgpack:"banner,omitempty"`
+	About       string `json:"about,omitempty" msgpack:"about,omitempty"`
+	Website     string `json:"website,omitempty" msgpack:"website,omitempty"`
+	Nip05       string `json:"nip05,omitempty" msgpack:"nip05,omitempty"`
+	Lud06       string `json:"lud06,omitempty" msgpack:"lud06,omitempty"`
+	Lud16       string `json:"lud16,omitempty" msgpack:"lud16,omitempty"`
 
-	Github   string `json:"github,omitempty"`
-	Twitter  string `json:"twitter,omitempty"`
-	Mastodon string `json:"mastodon,omitempty"`
-	Nostr    string `json:"nostr,omitempty"`
+	Github   string `json:"github,omitempty" msgpack:"github,omitempty"`
+	Twitter  string `json:"twitter,omitempty" msgpack:"twitter,omitempty"`
+	Mastodon string `json:"mastodon,omitempty" msgpack:"mastodon,omitempty"`
+	Nostr    string `json:"nostr,omitempty" msgpack:"nostr,omitempty"`
 
 	// Alternative formats
-	DisplayNameAlt string `json:"displayName,omitempty"`
-	Username       string `json:"username,omitempty"`
-	Bio            string `json:"bio,omitempty"`
-	Image          string `json:"image,omitempty"`
-	Avatar         string `json:"avatar,omitempty"`
-	Background     string `json:"background,omitempty"`
+	DisplayNameAlt string `json:"displayName,omitempty" msgpack:"displayName,omitempty"`
+	Username       string `json:"username,omitempty" msgpack:"username,omitempty"`
+	Bio            string `json:"bio,omitempty" msgpack:"bio,omitempty"`
+	Image          string `json:"image,omitempty" msgpack:"image,omitempty"`
+	Avatar         string `json:"avatar,omitempty" msgpack:"avatar,omitempty"`
+	Background     string `json:"background,omitempty" msgpack:"background,omitempty"`
+
+	CreatedAt int64 `json:"created_at,omitempty" msgpack:"created_at,omitempty"`
 
 	// Custom fields stored in a map
-	CustomFields map[string]string `json:"-"`
+	// CustomFields map[string]string `json:"-" msgpack:"-"`
 }
 
 // ProfilePointer represents NIP-05 information
@@ -62,74 +64,27 @@ func (p *Parser) ParseKind0(event nostr.Event) (*Kind0Parsed, *[]types.Request, 
 	}
 
 	var profile Kind0Parsed
-	profile.CustomFields = make(map[string]string)
 
 	// Parse the content JSON
-	var contentMap map[string]string
-	if err := json.Unmarshal([]byte(event.Content), &contentMap); err != nil {
-		return nil, nil, fmt.Errorf("failed to parse profile: %v", err)
+	if err := json.Unmarshal([]byte(event.Content), &profile); err != nil {
+		return nil, nil, fmt.Errorf("failed to parse profile: %v, %s", err, event.Content)
 	}
 
-	// Map JSON fields to struct fields
-	for key, value := range contentMap {
-		switch key {
-		case "name":
-			profile.Name = value
-		case "display_name":
-			profile.DisplayName = value
-		case "picture":
-			profile.Picture = value
-		case "banner":
-			profile.Banner = value
-		case "about":
-			profile.About = value
-		case "website":
-			profile.Website = value
-		case "nip05":
-			profile.Nip05 = value
-		case "lud06":
-			profile.Lud06 = value
-		case "lud16":
-			profile.Lud16 = value
-		case "github":
-			profile.Github = value
-		case "twitter":
-			profile.Twitter = value
-		case "mastodon":
-			profile.Mastodon = value
-		case "nostr":
-			profile.Nostr = value
-		case "displayName":
-			profile.DisplayNameAlt = value
-		case "username":
-			profile.Username = value
-		case "bio":
-			profile.Bio = value
-		case "image":
-			profile.Image = value
-		case "avatar":
-			profile.Avatar = value
-		case "background":
-			profile.Background = value
-		default:
-			profile.CustomFields[key] = value
-		}
-	}
-
+	// calling the http enpoint synchronously result in a deadlock, we need to handle it differently in go
 	// If nip05 is present, try to query additional information
-	if profile.Nip05 != "" {
-		profilePointer, err := QueryNIP05(profile.Nip05)
-		if err != nil {
-			fmt.Printf("Failed to query nip05: %v\n", err)
-		} else if profilePointer != nil {
-			// if profilePointer != nil {
-			// 	profile.Relays = profilePointer.Relays
-			// 	profile.Image = profilePointer.Image
-			// 	profile.Avatar = profilePointer.Avatar
-			// 	profile.Background = profilePointer.Background
-			// }
-		}
-	}
+	// if profile.Nip05 != "" {
+	// 	profilePointer, err := QueryNIP05(profile.Nip05)
+	// 	if err != nil {
+	// 		fmt.Printf("Failed to query nip05: %v\n", err)
+	// 	} else if profilePointer != nil {
+	// 		// if profilePointer != nil {
+	// 		// 	profile.Relays = profilePointer.Relays
+	// 		// 	profile.Image = profilePointer.Image
+	// 		// 	profile.Avatar = profilePointer.Avatar
+	// 		// 	profile.Background = profilePointer.Background
+	// 		// }
+	// 	}
+	// }
 
 	return &profile, nil, nil
 }

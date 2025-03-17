@@ -4,11 +4,13 @@
 package db
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
 	"syscall/js"
 
+	"github.com/candypoets/nutscash/types"
 	"github.com/nbd-wtf/go-nostr"
 )
 
@@ -26,10 +28,73 @@ type NostrEvent struct {
 // ProcessedNostrEvent extends NostrEvent with extracted tags for easier filtering
 type ProcessedNostrEvent struct {
 	NostrEvent
-	ETags []string `json:"e_tags"`
-	ATags []string `json:"a_tags"`
-	PTags []string `json:"p_tags"`
-	DTags []string `json:"d_tags"`
+	ETags    []string         `json:"e_tags"`
+	ATags    []string         `json:"a_tags"`
+	PTags    []string         `json:"p_tags"`
+	DTags    []string         `json:"d_tags"`
+	Parsed   any              `json:"parsed,omitempty"`
+	Requests *[]types.Request `json:"requests,omitempty"`
+}
+
+func (pe *ProcessedNostrEvent) ToParseEvent() types.ParsedEvent {
+	return types.ParsedEvent{
+		Event: nostr.Event{
+			ID:        pe.ID,
+			PubKey:    pe.PubKey,
+			CreatedAt: pe.CreatedAt,
+			Kind:      pe.Kind,
+			Tags:      pe.Tags,
+			Content:   pe.Content,
+			Sig:       pe.Sig,
+		},
+		Parsed:   pe.Parsed,
+		Requests: pe.Requests,
+		// Note: ProcessedNostrEvent doesn't have Relays field
+		// so we're initializing it as an empty slice or nil
+		Relays: nil,
+	}
+}
+
+// FromParseEvent converts a types.ParsedEvent to a ProcessedNostrEvent
+func FromParseEvent(event types.ParsedEvent) ProcessedNostrEvent {
+	// Extract tags by type
+	eTags := []string{}
+	pTags := []string{}
+	aTags := []string{}
+	dTags := []string{}
+
+	for _, tag := range event.Tags {
+		if len(tag) > 1 {
+			switch tag[0] {
+			case "e":
+				eTags = append(eTags, tag[1])
+			case "p":
+				pTags = append(pTags, tag[1])
+			case "a":
+				aTags = append(aTags, tag[1])
+			case "d":
+				dTags = append(dTags, tag[1])
+			}
+		}
+	}
+
+	return ProcessedNostrEvent{
+		NostrEvent: NostrEvent{
+			ID:        event.ID,
+			PubKey:    event.PubKey,
+			CreatedAt: event.CreatedAt,
+			Kind:      event.Kind,
+			Tags:      event.Tags,
+			Content:   event.Content,
+			Sig:       event.Sig,
+		},
+		ETags:    eTags,
+		PTags:    pTags,
+		ATags:    aTags,
+		DTags:    dTags,
+		Parsed:   event.Parsed,
+		Requests: event.Requests,
+	}
 }
 
 // NostrDB is the in-memory database for Nostr events
@@ -80,10 +145,10 @@ func InitNostrDB() *NostrDB {
 		isInitialized:    false,
 	}
 
-	err := DB.LoadFromPersistentStorage("nostr-local-relay")
-	if err != nil {
-		fmt.Printf("Error loading from persistent storage: %v\n", err)
-	}
+	// err := DB.LoadFromPersistentStorage("nostr-local-relay")
+	// if err != nil {
+	// 	fmt.Printf("Error loading from persistent storage: %v\n", err)
+	// }
 
 	return DB
 }
@@ -138,6 +203,117 @@ func (db *NostrDB) indexEvent(event ProcessedNostrEvent) {
 	// Special handling for profiles (kind 0)
 	if event.Kind == 0 {
 		db.profilesByPubkey[event.PubKey] = event
+	}
+}
+
+func (db *NostrDB) SaveEventsToPersistentStorage(events []types.ParsedEvent) error {
+	if len(events) == 0 {
+		return nil // Nothing to save
+	}
+
+	fmt.Printf("Saving %d events to IndexedDB\n", len(events))
+
+	// Create channels for completion and errors
+	doneCh := make(chan bool)
+	errCh := make(chan error)
+
+	// Process events before sending to JS
+	processedEvents := make([]ProcessedNostrEvent, len(events))
+	for i, event := range events {
+		processedEvents[i] = FromParseEvent(event)
+	}
+
+	// Convert to JSON for passing to JavaScript
+	eventsJSON, err := json.Marshal(processedEvents)
+	if err != nil {
+		return fmt.Errorf("failed to marshal events: %w", err)
+	}
+
+	// Using syscall/js for WASM interop
+	go func() {
+		// Get JS global object
+		global := js.Global()
+
+		// Create a JS array from the JSON
+		eventsArray := global.Get("JSON").Call("parse", string(eventsJSON))
+
+		// Create a JavaScript function to save the events
+		saveEventsFn := js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+			// Return a new Promise
+			return global.Get("Promise").New(js.FuncOf(func(this js.Value, promiseArgs []js.Value) interface{} {
+				resolve := promiseArgs[0]
+				reject := promiseArgs[1]
+
+				// Open the IndexedDB database
+				openDBPromise := global.Get("openDB").Invoke("nostr-local-relay", 1)
+
+				// Handle database opening error
+				openDBPromise.Call("catch", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+					err := args[0]
+					reject.Invoke(err)
+					return nil
+				}))
+
+				// Handle successful database opening
+				openDBPromise.Call("then", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+					db := args[0]
+
+					// Open a transaction and get the events store
+					tx := db.Call("transaction", js.ValueOf([]interface{}{"events"}), js.ValueOf("readwrite"))
+					store := tx.Call("objectStore", js.ValueOf("events"))
+
+					// Create an array to hold all promises
+					promisesArray := global.Get("Array").New(eventsArray.Length())
+
+					// Create a promise for each put operation
+					for i := 0; i < eventsArray.Length(); i++ {
+						event := eventsArray.Index(i)
+						putPromise := store.Call("put", event)
+						promisesArray.SetIndex(i, putPromise)
+					}
+
+					// Use Promise.all to wait for all promises to complete
+					global.Get("Promise").Call("all", promisesArray).Call("then",
+						js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+							// All operations succeeded
+							resolve.Invoke("Success")
+							return nil
+						})).Call("catch",
+						js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+							// At least one operation failed
+							reject.Invoke(args[0])
+							return nil
+						}))
+
+					return nil
+				}))
+
+				return nil
+			}))
+		})
+		defer saveEventsFn.Release()
+
+		// Call the function and handle the result
+		saveEventsFn.Invoke().Call("then",
+			js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+				doneCh <- true
+				return nil
+			})).Call("catch",
+			js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+				err := args[0]
+				errCh <- fmt.Errorf("failed to save events: %s", err.Get("message").String())
+				return nil
+			}))
+	}()
+
+	// Wait for completion or error
+	select {
+	case <-doneCh:
+		fmt.Printf("Successfully saved %d events to IndexedDB\n", len(events))
+		return nil
+	case err := <-errCh:
+		fmt.Printf("Error saving %d events to IndexedDB: %s\n", len(events), err)
+		return err
 	}
 }
 
@@ -212,70 +388,13 @@ func (db *NostrDB) LoadFromPersistentStorage(source string) error {
 				for i := 0; i < length; i++ {
 					jsEvent := eventsArray.Index(i)
 
-					// Convert JS event object to Go struct
-					event := ProcessedNostrEvent{
-						NostrEvent: NostrEvent{
-							ID:        jsEvent.Get("id").String(),
-							PubKey:    jsEvent.Get("pubkey").String(),
-							CreatedAt: nostr.Timestamp(jsEvent.Get("created_at").Int()),
-							Kind:      jsEvent.Get("kind").Int(),
-							Content:   jsEvent.Get("content").String(),
-							Sig:       jsEvent.Get("sig").String(),
-						},
-					}
-
-					// Extract tags from JS array
-					jsTags := jsEvent.Get("tags")
-					tagsLen := jsTags.Length()
-					event.NostrEvent.Tags = make(nostr.Tags, tagsLen)
-
-					for j := 0; j < tagsLen; j++ {
-						jsTag := jsTags.Index(j)
-						tagLen := jsTag.Length()
-						tag := make(nostr.Tag, tagLen)
-
-						for k := 0; k < tagLen; k++ {
-							tag[k] = jsTag.Index(k).String()
-						}
-
-						event.NostrEvent.Tags[j] = tag
-					}
-
-					// Extract pre-processed tag arrays
-					jsETags := jsEvent.Get("e_tags")
-					if !jsETags.IsUndefined() && !jsETags.IsNull() {
-						eTagsLen := jsETags.Length()
-						event.ETags = make([]string, eTagsLen)
-						for j := 0; j < eTagsLen; j++ {
-							event.ETags[j] = jsETags.Index(j).String()
-						}
-					}
-
-					jsPTags := jsEvent.Get("p_tags")
-					if !jsPTags.IsUndefined() && !jsPTags.IsNull() {
-						pTagsLen := jsPTags.Length()
-						event.PTags = make([]string, pTagsLen)
-						for j := 0; j < pTagsLen; j++ {
-							event.PTags[j] = jsPTags.Index(j).String()
-						}
-					}
-
-					jsATags := jsEvent.Get("a_tags")
-					if !jsATags.IsUndefined() && !jsATags.IsNull() {
-						aTagsLen := jsATags.Length()
-						event.ATags = make([]string, aTagsLen)
-						for j := 0; j < aTagsLen; j++ {
-							event.ATags[j] = jsATags.Index(j).String()
-						}
-					}
-
-					jsDTags := jsEvent.Get("d_tags")
-					if !jsDTags.IsUndefined() && !jsDTags.IsNull() {
-						dTagsLen := jsDTags.Length()
-						event.DTags = make([]string, dTagsLen)
-						for j := 0; j < dTagsLen; j++ {
-							event.DTags[j] = jsDTags.Index(j).String()
-						}
+					// Convert JS object to JSON string
+					jsonStr := js.Global().Get("JSON").Call("stringify", jsEvent).String()
+					var event ProcessedNostrEvent
+					if err := json.Unmarshal([]byte(jsonStr), &event); err != nil {
+						// Handle error
+						println("Error unmarshaling event:", err)
+						continue
 					}
 
 					// Send the event to the main goroutine
@@ -324,54 +443,13 @@ func (db *NostrDB) LoadFromPersistentStorage(source string) error {
 	}
 }
 
-// processEventForStorage extracts structured tag information from a NostrEvent
-func processEventForStorage(event nostr.Event) ProcessedNostrEvent {
-	// Convert nostr.Event to NostrEvent
-	localEvent := NostrEvent{
-		ID:        event.ID,
-		PubKey:    event.PubKey,
-		CreatedAt: event.CreatedAt,
-		Kind:      event.Kind,
-		Tags:      event.Tags,
-		Content:   event.Content,
-		Sig:       event.Sig,
-	}
-
-	// Create the processed event with the local event
-	processedEvent := ProcessedNostrEvent{
-		NostrEvent: localEvent,
-		ETags:      make([]string, 0),
-		PTags:      make([]string, 0),
-		ATags:      make([]string, 0),
-		DTags:      make([]string, 0),
-	}
-
-	// Extract tags
-	for _, tag := range event.Tags {
-		if len(tag) > 1 {
-			switch tag[0] {
-			case "e":
-				processedEvent.ETags = append(processedEvent.ETags, tag[1])
-			case "p":
-				processedEvent.PTags = append(processedEvent.PTags, tag[1])
-			case "a":
-				processedEvent.ATags = append(processedEvent.ATags, tag[1])
-			case "d":
-				processedEvent.DTags = append(processedEvent.DTags, tag[1])
-			}
-		}
-	}
-
-	return processedEvent
-}
-
 // AddEvent adds a single event to the database
-func (db *NostrDB) AddEvent(event nostr.Event) error {
+func (db *NostrDB) AddEvent(event types.ParsedEvent) error {
 	if event.ID == "" {
 		return errors.New("event ID cannot be empty")
 	}
 
-	processedEvent := processEventForStorage(event)
+	processedEvent := FromParseEvent(event)
 
 	db.Lock()
 	defer db.Unlock()
@@ -383,7 +461,7 @@ func (db *NostrDB) AddEvent(event nostr.Event) error {
 }
 
 // AddEvents adds multiple events to the database in one operation
-func (db *NostrDB) AddEvents(events []nostr.Event) ([]string, error) {
+func (db *NostrDB) AddEvents(events []types.ParsedEvent) ([]string, error) {
 	if len(events) == 0 {
 		return nil, nil
 	}
@@ -398,7 +476,7 @@ func (db *NostrDB) AddEvents(events []nostr.Event) ([]string, error) {
 			continue
 		}
 
-		processedEvent := processEventForStorage(event)
+		processedEvent := FromParseEvent(event)
 
 		processedEventIDs = append(processedEventIDs, processedEvent.ID)
 
@@ -440,7 +518,7 @@ func intersectMaps(a, b map[string]bool) map[string]bool {
 }
 
 // QueryEvents retrieves events that match the given filter
-func (db *NostrDB) QueryEvents(filter nostr.Filter, limit ...int) ([]ProcessedNostrEvent, error) {
+func (db *NostrDB) QueryEvents(filter nostr.Filter, limit ...int) ([]types.ParsedEvent, error) {
 	db.RLock()
 	defer db.RUnlock()
 
@@ -467,7 +545,7 @@ func (db *NostrDB) QueryEvents(filter nostr.Filter, limit ...int) ([]ProcessedNo
 		}
 
 		if len(candidateIDs) == 0 {
-			return []ProcessedNostrEvent{}, nil
+			return []types.ParsedEvent{}, nil
 		}
 	}
 
@@ -490,7 +568,7 @@ func (db *NostrDB) QueryEvents(filter nostr.Filter, limit ...int) ([]ProcessedNo
 		}
 
 		if len(candidateIDs) == 0 {
-			return []ProcessedNostrEvent{}, nil
+			return []types.ParsedEvent{}, nil
 		}
 	}
 
@@ -513,7 +591,7 @@ func (db *NostrDB) QueryEvents(filter nostr.Filter, limit ...int) ([]ProcessedNo
 		}
 
 		if len(candidateIDs) == 0 {
-			return []ProcessedNostrEvent{}, nil
+			return []types.ParsedEvent{}, nil
 		}
 	}
 
@@ -536,7 +614,7 @@ func (db *NostrDB) QueryEvents(filter nostr.Filter, limit ...int) ([]ProcessedNo
 		}
 
 		if len(candidateIDs) == 0 {
-			return []ProcessedNostrEvent{}, nil
+			return []types.ParsedEvent{}, nil
 		}
 	}
 
@@ -559,7 +637,7 @@ func (db *NostrDB) QueryEvents(filter nostr.Filter, limit ...int) ([]ProcessedNo
 		}
 
 		if len(candidateIDs) == 0 {
-			return []ProcessedNostrEvent{}, nil
+			return []types.ParsedEvent{}, nil
 		}
 	}
 
@@ -582,7 +660,7 @@ func (db *NostrDB) QueryEvents(filter nostr.Filter, limit ...int) ([]ProcessedNo
 		}
 
 		if len(candidateIDs) == 0 {
-			return []ProcessedNostrEvent{}, nil
+			return []types.ParsedEvent{}, nil
 		}
 	}
 
@@ -605,16 +683,16 @@ func (db *NostrDB) QueryEvents(filter nostr.Filter, limit ...int) ([]ProcessedNo
 		}
 
 		if len(candidateIDs) == 0 {
-			return []ProcessedNostrEvent{}, nil
+			return []types.ParsedEvent{}, nil
 		}
 	}
 
 	// If no filters were applied, use all events
 	if isFirstFilter {
 		// Return all events up to the limit
-		result := make([]ProcessedNostrEvent, 0, len(db.eventsById))
+		result := make([]types.ParsedEvent, 0, len(db.eventsById))
 		for _, event := range db.eventsById {
-			result = append(result, event)
+			result = append(result, event.ToParseEvent())
 			if len(limit) > 0 && len(result) >= limit[0] {
 				break
 			}
@@ -631,10 +709,10 @@ func (db *NostrDB) QueryEvents(filter nostr.Filter, limit ...int) ([]ProcessedNo
 	}
 
 	// Collect the matching events
-	result := make([]ProcessedNostrEvent, 0, len(eventIDs))
+	result := make([]types.ParsedEvent, 0, len(eventIDs))
 	for _, id := range eventIDs {
 		if event, exists := db.eventsById[id]; exists {
-			result = append(result, event)
+			result = append(result, event.ToParseEvent())
 		}
 	}
 
@@ -642,12 +720,12 @@ func (db *NostrDB) QueryEvents(filter nostr.Filter, limit ...int) ([]ProcessedNo
 }
 
 // GetEvent retrieves a single event by ID
-func (db *NostrDB) GetEvent(id string) (ProcessedNostrEvent, bool) {
+func (db *NostrDB) GetEvent(id string) (types.ParsedEvent, bool) {
 	db.RLock()
 	defer db.RUnlock()
 
 	event, exists := db.eventsById[id]
-	return event, exists
+	return event.ToParseEvent(), exists
 }
 
 // HasEvent checks if an event with the given ID exists
@@ -660,11 +738,11 @@ func (db *NostrDB) HasEvent(id string) bool {
 }
 
 // GetProfile retrieves a profile for a given pubkey
-func (db *NostrDB) GetProfile(pubkey string) (ProcessedNostrEvent, bool) {
+func (db *NostrDB) GetProfile(pubkey string) (types.ParsedEvent, bool) {
 	db.RLock()
 	defer db.RUnlock()
 
 	// Direct lookup from profiles index
 	profile, exists := db.profilesByPubkey[pubkey]
-	return profile, exists
+	return profile.ToParseEvent(), exists
 }

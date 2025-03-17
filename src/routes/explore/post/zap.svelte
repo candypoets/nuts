@@ -31,8 +31,8 @@
 		timeout = setTimeout(async () => {
 			if (visible) {
 				// handle zaps
-				handleZaps();
-				handleNuts();
+				// handleZaps();
+				// handleNuts();
 			}
 		}, 100);
 	}
@@ -83,21 +83,21 @@
 			clearTimeout(timeout);
 			timeout = undefined;
 		}
-		nip57?.postMessage({ type: 'UNSUBSCRIBE' });
-		nip57?.terminate();
-		nip57 = undefined;
+		// nip57?.postMessage({ type: 'UNSUBSCRIBE' });
+		// nip57?.terminate();
+		// nip57 = undefined;
 
-		nip61?.postMessage({ type: 'UNSUBSCRIBE' });
-		nip61?.terminate();
-		nip61 = undefined;
+		// nip61?.postMessage({ type: 'UNSUBSCRIBE' });
+		// nip61?.terminate();
+		// nip61 = undefined;
 	}
 
 	onMount(() => {
 		return () => {
-			nip57?.postMessage({ type: 'UNSUBSCRIBE' });
-			nip57?.terminate();
-			nip61?.postMessage({ type: 'UNSUBSCRIBE' });
-			nip61?.terminate();
+			// nip57?.postMessage({ type: 'UNSUBSCRIBE' });
+			// nip57?.terminate();
+			// nip61?.postMessage({ type: 'UNSUBSCRIBE' });
+			// nip61?.terminate();
 
 			unsubscribe();
 		};

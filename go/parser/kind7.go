@@ -27,12 +27,12 @@ type Emoji struct {
 
 // Kind7Parsed represents a parsed reaction event
 type Kind7Parsed struct {
-	Type              ReactionType `json:"type"`
-	EventID           string       `json:"eventId"`                     // The id of the event being reacted to
-	Pubkey            string       `json:"pubkey"`                      // The pubkey of the author of the reacted event
-	EventKind         *int         `json:"eventKind,omitempty"`         // The kind of the event being reacted to (from k tag)
-	Emoji             *Emoji       `json:"emoji,omitempty"`             // Emoji data if this is an emoji reaction
-	TargetCoordinates string       `json:"targetCoordinates,omitempty"` // For addressable events (from a tag)
+	Type              ReactionType `json:"type" msgpack:"type"`
+	EventID           string       `json:"eventId" msgpack:"eventId"`                                         // The id of the event being reacted to
+	Pubkey            string       `json:"pubkey" msgpack:"pubkey"`                                           // The pubkey of the author of the reacted event
+	EventKind         *int         `json:"eventKind,omitempty" msgpack:"eventKind,omitempty"`                 // The kind of the event being reacted to (from k tag)
+	Emoji             *Emoji       `json:"emoji,omitempty" msgpack:"emoji,omitempty"`                         // Emoji data if this is an emoji reaction
+	TargetCoordinates string       `json:"targetCoordinates,omitempty" msgpack:"targetCoordinates,omitempty"` // For addressable events (from a tag)
 }
 
 // ParseKind7 parses a kind 7 (reaction) event

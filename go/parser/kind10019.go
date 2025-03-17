@@ -9,8 +9,8 @@ import (
 
 // Kind10019Parsed represents parsed data from a kind 10019 event
 type Kind10019Parsed struct {
-	TrustedMints []string `json:"trustedMints,omitempty"` // Mints trusted by the user
-	P2PKPubkey   string   `json:"p2pkPubkey,omitempty"`   // P2PK pubkey for receiving nutzaps
+	TrustedMints []string `json:"trustedMints,omitempty" msgpack:"trustedMints,omitempty"` // Mints trusted by the user
+	P2PKPubkey   string   `json:"p2pkPubkey,omitempty" msgpack:"p2pkPubkey,omitempty"`     // P2PK pubkey for receiving nutzaps
 }
 
 // ParseKind10019 parses a kind 10019 event (trusted mints and P2PK pubkey for nutzaps)

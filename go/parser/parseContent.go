@@ -1,24 +1,24 @@
 package parser
 
 import (
-	"regexp"
 	"sort"
 	"strings"
 
+	"github.com/dlclark/regexp2"
 	"github.com/nbd-wtf/go-nostr/nip19"
 )
 
 // ContentBlock represents a parsed block of content
 type ContentBlock struct {
-	Type string                 `json:"type"`
-	Text string                 `json:"text"`
-	Data map[string]interface{} `json:"data,omitempty"`
+	Type string         `json:"type" msgpack:"type"`
+	Text string         `json:"text" msgpack:"text"`
+	Data map[string]any `json:"data,omitempty" msgpack:"data,omitempty"`
 }
 
 // Pattern defines a regex pattern and a processor function for content parsing
 type Pattern struct {
 	Type         string
-	Regex        *regexp.Regexp
+	Regex        *regexp2.Regexp
 	ProcessMatch func([]string) (ContentBlock, error)
 }
 
@@ -30,7 +30,6 @@ type Match struct {
 }
 
 // GetLinkPreview is a placeholder for the link preview functionality
-// You can implement this later using an appropriate Go library
 func GetLinkPreview(url string) (map[string]interface{}, error) {
 	// Placeholder - return minimal preview data
 	return map[string]interface{}{
@@ -40,13 +39,52 @@ func GetLinkPreview(url string) (map[string]interface{}, error) {
 	}, nil
 }
 
+// findAllMatches finds all matches for a regexp2 pattern in the content
+func findAllMatches(re *regexp2.Regexp, content string) ([][]string, [][]int, error) {
+	var matches [][]string
+	var matchIndices [][]int
+
+	match, err := re.FindStringMatchStartingAt(content, 0)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	for match != nil {
+		// Extract all groups
+		groups := []string{match.String()}
+		indices := []int{match.Index, match.Index + match.Length}
+
+		for i := 1; i <= match.GroupCount(); i++ {
+			group := match.GroupByNumber(i)
+			if group != nil && group.Length > 0 {
+				groups = append(groups, group.String())
+				indices = append(indices, group.Index, group.Index+group.Length)
+			} else {
+				groups = append(groups, "")
+				indices = append(indices, -1, -1)
+			}
+		}
+
+		matches = append(matches, groups)
+		matchIndices = append(matchIndices, indices)
+
+		// Find the next match
+		match, err = re.FindNextMatch(match)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	return matches, matchIndices, nil
+}
+
 // ParseContent parses a string content into ContentBlocks
 func ParseContent(content string) ([]ContentBlock, error) {
 	// Define patterns to match
 	patterns := []Pattern{
 		{
 			Type:  "code",
-			Regex: regexp.MustCompile("```([\\s\\S]*?)```"),
+			Regex: regexp2.MustCompile("```([\\s\\S]*?)```", regexp2.None),
 			ProcessMatch: func(match []string) (ContentBlock, error) {
 				return ContentBlock{
 					Type: "code",
@@ -59,7 +97,7 @@ func ParseContent(content string) ([]ContentBlock, error) {
 		},
 		{
 			Type:  "cashu",
-			Regex: regexp.MustCompile("(cashuA[A-Za-z0-9_-]+)"),
+			Regex: regexp2.MustCompile("(cashuA[A-Za-z0-9_-]+)", regexp2.None),
 			ProcessMatch: func(match []string) (ContentBlock, error) {
 				return ContentBlock{
 					Type: "cashu",
@@ -72,20 +110,20 @@ func ParseContent(content string) ([]ContentBlock, error) {
 		},
 		{
 			Type:  "hashtag",
-			Regex: regexp.MustCompile(`(?<![^\s"'(])(#[a-zA-Z0-9_]+)(?![a-zA-Z0-9_])`),
+			Regex: regexp2.MustCompile(`(?<![^\s"'(])(#[a-zA-Z0-9_]+)(?![a-zA-Z0-9_])`, regexp2.None),
 			ProcessMatch: func(match []string) (ContentBlock, error) {
 				return ContentBlock{
 					Type: "hashtag",
 					Text: match[0],
 					Data: map[string]interface{}{
-						"tag": match[0][1:], // Remove the # symbol
+						"tag": match[1][1:], // Remove the # symbol
 					},
 				}, nil
 			},
 		},
 		{
 			Type:  "image",
-			Regex: regexp.MustCompile(`(?i)(https?://\S+\.(jpg|jpeg|png|gif|webp|svg|ico)(\?\S*)?)`),
+			Regex: regexp2.MustCompile(`(?i)(https?://\S+\.(jpg|jpeg|png|gif|webp|svg|ico)(\?\S*)?)`, regexp2.None),
 			ProcessMatch: func(match []string) (ContentBlock, error) {
 				return ContentBlock{
 					Type: "image",
@@ -98,7 +136,7 @@ func ParseContent(content string) ([]ContentBlock, error) {
 		},
 		{
 			Type:  "video",
-			Regex: regexp.MustCompile(`(?i)(https?://\S+\.(mp4|mov|avi|mkv|webm|m4v)(\?\S*)?)`),
+			Regex: regexp2.MustCompile(`(?i)(https?://\S+\.(mp4|mov|avi|mkv|webm|m4v)(\?\S*)?)`, regexp2.None),
 			ProcessMatch: func(match []string) (ContentBlock, error) {
 				return ContentBlock{
 					Type: "video",
@@ -111,7 +149,7 @@ func ParseContent(content string) ([]ContentBlock, error) {
 		},
 		{
 			Type:  "nostr",
-			Regex: regexp.MustCompile(`(?i)nostr:([a-z0-9]+)`),
+			Regex: regexp2.MustCompile(`(?i)nostr:([a-z0-9]+)`, regexp2.None),
 			ProcessMatch: func(match []string) (ContentBlock, error) {
 				entity := match[1]
 
@@ -136,7 +174,7 @@ func ParseContent(content string) ([]ContentBlock, error) {
 		},
 		{
 			Type:  "link",
-			Regex: regexp.MustCompile(`(?i)(https?://\S+)(?!\[\)])`),
+			Regex: regexp2.MustCompile(`(?i)(https?://\S+)(?![\]\)])`, regexp2.None),
 			ProcessMatch: func(match []string) (ContentBlock, error) {
 				url := match[0]
 				if !strings.HasPrefix(strings.ToLower(url), "http") {
@@ -166,27 +204,18 @@ func ParseContent(content string) ([]ContentBlock, error) {
 
 	for _, pattern := range patterns {
 		// Find all matches for this pattern
-		matches := pattern.Regex.FindAllStringSubmatchIndex(content, -1)
+		matchTexts, matchIndices, err := findAllMatches(pattern.Regex, content)
+		if err != nil {
+			continue
+		}
 
-		for _, matchIndices := range matches {
-			start := matchIndices[0]
-			end := matchIndices[1]
-
-			// Extract the matched text and subgroups
-			matchText := content[start:end]
-			submatches := []string{matchText}
-
-			// Extract capture groups
-			for i := 1; i < len(matchIndices)/2; i++ {
-				if matchIndices[2*i] != -1 {
-					submatches = append(submatches, content[matchIndices[2*i]:matchIndices[2*i+1]])
-				} else {
-					submatches = append(submatches, "")
-				}
-			}
+		for i, matchText := range matchTexts {
+			// Get the start and end positions
+			start := matchIndices[i][0]
+			end := matchIndices[i][1]
 
 			// Process the match
-			block, err := pattern.ProcessMatch(submatches)
+			block, err := pattern.ProcessMatch(matchText)
 			if err != nil {
 				continue
 			}

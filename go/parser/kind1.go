@@ -11,11 +11,11 @@ import (
 
 // Kind1Parsed represents the parsed data from a kind 1 (text note) event
 type Kind1Parsed struct {
-	ParsedContent []ContentBlock
-	Quotes        []*nostr.ProfilePointer
-	Mentions      []*nostr.EventPointer
-	Reply         *nostr.EventPointer
-	Root          *nostr.EventPointer
+	ParsedContent []ContentBlock          `json:"parsedContent" msgpack:"parsedContent"`
+	Quotes        []*nostr.ProfilePointer `json:"quotes" msgpack:"quotes"`
+	Mentions      []*nostr.EventPointer   `json:"mentions" msgpack:"mentions"`
+	Reply         *nostr.EventPointer     `json:"reply" msgpack:"reply"`
+	Root          *nostr.EventPointer     `json:"root" msgpack:"root"`
 }
 
 // ParseKind1 parses a kind 1 (text note) event
@@ -29,15 +29,15 @@ func (p *Parser) ParseKind1(event nostr.Event) (*Kind1Parsed, *[]types.Request, 
 	parsed := &Kind1Parsed{}
 
 	// Check if the event author is in the db
-	_, authorExists := p.DB.GetProfile(event.PubKey)
+	// _, authorExists := p.DB.GetProfile(event.PubKey)
 
-	if !authorExists {
-		newRequest := types.NewRequest(p.GetRelays(event), nostr.Filter{
-			Kinds:   []int{0},
-			Authors: []string{event.PubKey},
-		})
-		requests = append(requests, newRequest)
-	}
+	// if !authorExists {
+	newRequest := types.NewRequest(p.GetRelays(event), nostr.Filter{
+		Kinds:   []int{0},
+		Authors: []string{event.PubKey},
+	})
+	requests = append(requests, newRequest)
+	// }
 
 	parsedRefs := nip27.ParseReferences(event)
 
@@ -47,28 +47,30 @@ func (p *Parser) ParseKind1(event nostr.Event) (*Kind1Parsed, *[]types.Request, 
 		switch pointer := ref.Pointer.(type) {
 		case *nostr.ProfilePointer:
 			// Check if profile exists in DB
-			_, exists := p.DB.GetProfile(pointer.PublicKey)
+			// _, exists := p.DB.GetProfile(pointer.PublicKey)
 			parsed.Quotes = append(parsed.Quotes, pointer)
 
-			if !exists {
-				newRequest := types.NewRequest(p.GetRelays(event), nostr.Filter{
-					Authors: []string{pointer.PublicKey},
-					Kinds:   []int{0},
-				})
-				requests = append(requests, newRequest)
-			}
+			// if !exists {
+			newRequest := types.NewRequest(p.GetRelays(event), nostr.Filter{
+				Authors: []string{pointer.PublicKey},
+				Kinds:   []int{0},
+				Limit:   1,
+			})
+			requests = append(requests, newRequest)
+			// }
 
 		case *nostr.EventPointer:
 			// Check if event exists
-			_, exists := p.DB.GetEvent(pointer.ID)
+			// _, exists := p.DB.GetEvent(pointer.ID)
 			parsed.Mentions = append(parsed.Mentions, pointer)
 
-			if !exists {
-				newRequest := types.NewRequest(p.GetRelays(event), nostr.Filter{
-					IDs: []string{pointer.ID},
-				})
-				requests = append(requests, newRequest)
-			}
+			// if !exists {
+			newRequest := types.NewRequest(p.GetRelays(event), nostr.Filter{
+				IDs:   []string{pointer.ID},
+				Limit: 1,
+			})
+			requests = append(requests, newRequest)
+			// }
 
 		case *nostr.EntityPointer:
 
@@ -77,14 +79,15 @@ func (p *Parser) ParseKind1(event nostr.Event) (*Kind1Parsed, *[]types.Request, 
 				Kinds:   []int{pointer.Kind},
 				Authors: []string{pointer.PublicKey},
 				Tags:    map[string][]string{"#d": {pointer.Identifier}},
+				Limit:   1,
 			}
 
-			exists, _ := p.DB.QueryEvents(filter, 1)
+			// exists, _ := p.DB.QueryEvents(filter, 1)
 
-			if len(exists) == 0 {
-				newRequest := types.NewRequest(p.GetRelays(event), filter)
-				requests = append(requests, newRequest)
-			}
+			// if len(exists) == 0 {
+			newRequest := types.NewRequest(p.GetRelays(event), filter)
+			requests = append(requests, newRequest)
+			// }
 		}
 
 		return true // Continue iteration

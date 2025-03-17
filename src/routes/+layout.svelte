@@ -17,48 +17,58 @@
 	import { dmSub } from 'src/stores/nuts';
 	import { claimPendingSub, proofSpentSub } from 'src/stores/proofs';
 	import { claimInvoicesSub } from 'src/stores/invoices';
-	import { handler } from 'src/handlers';
 	import type { NIP01Parsed } from 'src/workers/nip01';
 	import type { NIP02Parsed } from 'src/workers/nip02';
-	import NIP01Worker from 'src/workers/nip01?worker';
-	import NIP02Worker from 'src/workers/nip02?worker';
-	import NIP65Worker from 'src/workers/nip65?worker';
 	import { writable, type Writable } from 'svelte/store';
-	import type { Nip65Params, NIP65Parsed } from 'src/workers/nip65';
 	import type { ParsedEvent } from 'src/workers/nipworker';
 	import { nostrManager } from 'src/wasm/manager';
 	import _ from 'lodash';
-	import type { P } from 'vitest/dist/reporters-w_64AS5f.js';
+	import type { Kind10002Parsed, Kind3Parsed } from 'src/parsers';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
 
-	let nip01: Worker;
-	let nip02: Worker;
-	let nip65: Worker;
 	let profile: Writable<NIP01Parsed> = writable();
+	setContext('profile', profile);
 	let followList: Writable<NIP02Parsed> = writable([]);
+	setContext('followList', followList);
 	let outboxList: Writable<NIP02Parsed> = writable([]);
-	let inboxList: Writable<NIP02Parsed> = writable([]);
-	let nip65s: Writable<ParsedEvent<NIP65Parsed>[]> = writable([]);
+	setContext('outboxList', outboxList);
 
 	$: profileSub =
 		$key &&
 		$key.pub &&
 		nostrManager.subscribe(
 			'profile',
-			[{ kinds: [0], authors: [$key.pub], relays: [] }],
-			(event: ParsedEvent<unknown>) => {
-				console.log('____EVENT____', event, typeof event);
-				$profile = (event as ParsedEvent<NIP01Parsed>).parsed;
+			[
+				{
+					kinds: [0, 3, 10002],
+					authors: [$key.pub],
+					relays: ['wss://relay.damus.io']
+				}
+			],
+			(events: ParsedEvent<unknown>[]) => {
+				// the first event is from the sub, everything else is contextual
+				const event = events[0];
+				console.log('____PROFILE____', event);
+				if (event.parsed) {
+					switch (event.kind) {
+						case 0:
+							$profile = (event as ParsedEvent<NIP01Parsed>).parsed;
+							break;
+						case 3:
+							$followList = (event as ParsedEvent<Kind3Parsed>).parsed;
+							break;
+						case 10002:
+							$outboxList = (event as ParsedEvent<Kind10002Parsed>).parsed;
+							break;
+					}
+				}
 				// Handle subscription updates here
 			}
 		);
-	// $: $key && $key.pub && nip02 && nip02.postMessage({ pubkey: $key.pub, relays: $profile?.relays });
 	// $: $followList.length &&
 	// 	nip65.postMessage({ authors: $followList.map((c) => c.pubkey) } as Nip65Params);
 
-	$: setContext('profile', profile);
-	// $: setContext('followList', followList);
 	// $: setContext('outboxList', outboxList);
 	// $: setContext('nip65s', nip65s);
 

@@ -9,9 +9,9 @@ import (
 
 // Contact represents a contact from a kind 3 (contact list) event
 type Contact struct {
-	Pubkey  string   `json:"pubkey"`
-	Relays  []string `json:"relays,omitempty"`
-	Petname string   `json:"petname,omitempty"`
+	Pubkey  string   `json:"pubkey" msgpack:"pubkey"`
+	Relays  []string `json:"relays,omitempty" msgpack:"relays,omitempty"`
+	Petname string   `json:"petname,omitempty" msgpack:"petname,omitempty"`
 }
 
 // Kind3Parsed represents a parsed contact list

@@ -13,7 +13,6 @@ export const initNostrWasm = async () => {
 				// Return the API
 				resolve({
 					openSubscription: (subscriptionId: string, requests: BinaryData, callback: Function) => {
-						console.log('openSubscription called', subscriptionId);
 						return self.openSubscription(subscriptionId, requests, callback);
 					},
 					closeSubscription: (subscriptionId: string) => {

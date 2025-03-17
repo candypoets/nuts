@@ -10,22 +10,22 @@ import (
 
 // Proof represents a Cashu token proof
 type Proof struct {
-	Amount  int    `json:"amount"`
-	Id      string `json:"id,omitempty"`
-	Secret  string `json:"secret,omitempty"`
-	C       string `json:"C,omitempty"`
-	Script  string `json:"script,omitempty"`
-	Witness string `json:"witness,omitempty"`
+	Amount  int    `json:"amount" msgpack:"amount"`
+	Id      string `json:"id,omitempty" msgpack:"id,omitempty"`
+	Secret  string `json:"secret,omitempty" msgpack:"secret,omitempty"`
+	C       string `json:"C,omitempty" msgpack:"C,omitempty"`
+	Script  string `json:"script,omitempty" msgpack:"script,omitempty"`
+	Witness string `json:"witness,omitempty" msgpack:"witness,omitempty"`
 }
 
 // Kind9321Parsed represents parsed data from a kind 9321 event (nutzap)
 type Kind9321Parsed struct {
-	Amount    int     `json:"amount"`
-	Recipient string  `json:"recipient"`
-	EventID   string  `json:"eventId,omitempty"` // event being zapped if any
-	MintURL   string  `json:"mintUrl"`           // mint for the proofs
-	Redeemed  bool    `json:"redeemed"`          // Default to not redeemed, will check later if needed
-	Proofs    []Proof `json:"proofs"`
+	Amount    int     `json:"amount" msgpack:"amount"`
+	Recipient string  `json:"recipient" msgpack:"recipient"`
+	EventID   string  `json:"eventId,omitempty" msgpack:"eventId,omitempty"` // event being zapped if any
+	MintURL   string  `json:"mintUrl" msgpack:"mintUrl"`                     // mint for the proofs
+	Redeemed  bool    `json:"redeemed" msgpack:"redeemed"`                   // Default to not redeemed, will check later if needed
+	Proofs    []Proof `json:"proofs" msgpack:"proofs"`
 }
 
 // ParseKind9321 parses a kind 9321 event (nutzap)
@@ -76,13 +76,16 @@ func (p *Parser) ParseKind9321(event nostr.Event) (*Kind9321Parsed, *[]types.Req
 		total += proofData.Amount
 		proofs = append(proofs, proofData)
 	}
-
+	// try to find receipt event from the recipient
 	newRequest := types.NewRequest(p.GetRelays(event), nostr.Filter{
+		Kinds: []int{7376},
 		Tags: map[string][]string{
 			"#e": {event.ID},
 		},
 		Authors: []string{recipientTag[1]},
+		Limit:   1,
 	})
+
 	requests = append(requests, newRequest)
 
 	// Create the parsed result

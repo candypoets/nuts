@@ -16,27 +16,27 @@ var INDEXER_RELAYS = []string{} // Fill with your relay URLs from env
 
 // ZapRequest represents the data structure of a zap request
 type ZapRequest struct {
-	Kind      int        `json:"kind"`
-	Pubkey    string     `json:"pubkey"`
-	Content   string     `json:"content"`
-	Tags      [][]string `json:"tags"`
-	Signature string     `json:"sig"`
+	Kind      int        `json:"kind" msgpack:"kind"`
+	Pubkey    string     `json:"pubkey" msgpack:"pubkey"`
+	Content   string     `json:"content" msgpack:"content"`
+	Tags      [][]string `json:"tags" msgpack:"tags"`
+	Signature string     `json:"sig" msgpack:"sig"`
 }
 
 // Kind9735Parsed represents parsed data from a kind 9735 event (zap receipt)
 type Kind9735Parsed struct {
-	ID              string          `json:"id"`
-	Amount          int             `json:"amount"`                    // Amount in sats
-	Content         string          `json:"content"`                   // Content from the zap request
-	Bolt11          string          `json:"bolt11"`                    // Lightning invoice
-	Preimage        string          `json:"preimage,omitempty"`        // Payment preimage (optional)
-	Sender          string          `json:"sender"`                    // Pubkey of sender
-	Recipient       string          `json:"recipient"`                 // Pubkey of recipient
-	Event           string          `json:"event,omitempty"`           // ID of the event being zapped (if any)
-	EventCoordinate string          `json:"eventCoordinate,omitempty"` // Event coordinate for addressable events (if any)
-	Timestamp       nostr.Timestamp `json:"timestamp"`                 // When the zap was created
-	Valid           bool            `json:"valid"`                     // Whether the zap appears valid
-	Description     ZapRequest      `json:"description"`               // The original zap request data
+	ID              string          `json:"id" msgpack:"id"`
+	Amount          int             `json:"amount" msgpack:"amount"`                                       // Amount in sats
+	Content         string          `json:"content" msgpack:"content"`                                     // Content from the zap request
+	Bolt11          string          `json:"bolt11" msgpack:"bolt11"`                                       // Lightning invoice
+	Preimage        string          `json:"preimage,omitempty" msgpack:"preimage,omitempty"`               // Payment preimage (optional)
+	Sender          string          `json:"sender" msgpack:"sender"`                                       // Pubkey of sender
+	Recipient       string          `json:"recipient" msgpack:"recipient"`                                 // Pubkey of recipient
+	Event           string          `json:"event,omitempty" msgpack:"event,omitempty"`                     // ID of the event being zapped (if any)
+	EventCoordinate string          `json:"eventCoordinate,omitempty" msgpack:"eventCoordinate,omitempty"` // Event coordinate for addressable events (if any)
+	Timestamp       nostr.Timestamp `json:"timestamp" msgpack:"timestamp"`                                 // When the zap was created
+	Valid           bool            `json:"valid" msgpack:"valid"`                                         // Whether the zap appears valid
+	Description     ZapRequest      `json:"description" msgpack:"description"`                             // The original zap request data
 }
 
 // ParseKind9735 parses a kind 9735 event (zap receipt)
@@ -132,10 +132,11 @@ func (p *Parser) ParseKind9735(event nostr.Event) (*Kind9735Parsed, *[]types.Req
 	} else {
 		zapperRelayHints = p.GetRelays(event)
 	}
-
+	// try to find the zapper profile
 	newRequest := types.NewRequest(zapperRelayHints, nostr.Filter{
 		Kinds:   []int{0},
 		Authors: []string{event.PubKey},
+		Limit:   1,
 	})
 
 	requests = append(requests, newRequest)

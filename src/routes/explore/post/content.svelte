@@ -5,8 +5,11 @@
 	import _ from 'lodash';
 	import type { ContentBlock } from 'src/workers/utils';
 	import ImageGrid from 'src/comp/ImageGrid.svelte';
+	import type { ParsedEvent } from 'src/workers/nipworker';
+	import type { AnyKind } from 'src/parsers';
 
-	export let parsedContent: ContentBlock[] = [];
+	export let parsedContent: ContentBlock[];
+	export let context: ParsedEvent<AnyKind>[];
 </script>
 
 <div class="text-sm text-wrap whitespace-normal break-words max-w-full relative">
@@ -42,7 +45,7 @@
 		{:else if parsed.type == 'hashtag'}
 			<a class="font-semibold text-primary" href={'/search/' + parsed.data?.tag}>{parsed.text}</a>
 		{:else if parsed.type == 'npub' || parsed.type == 'nprofile'}
-			<Note noteId={parsed.data?.decoded?.id} />
+			<Note noteId={parsed.data?.decoded?.id} {context} />
 		{:else if parsed.type == 'note' || parsed.type == 'nevent'}
 			<User npub={parsed.data?.decoded?.id} />
 		{:else if parsed.type == 'cashu'}
@@ -61,37 +64,3 @@
 		{/each}
 	</div> -->
 </div>
-
-<style>
-	.gallery-container {
-		width: 100%;
-		overflow: hidden;
-		position: relative;
-	}
-
-	.pswp-gallery {
-		display: flex;
-		overflow-x: auto;
-		scroll-snap-type: x mandatory;
-		-webkit-overflow-scrolling: touch;
-		scrollbar-width: none; /* Firefox */
-		-ms-overflow-style: none; /* Internet Explorer 10+ */
-	}
-
-	.pswp-gallery::-webkit-scrollbar {
-		display: none; /* WebKit */
-	}
-
-	.pswp-gallery a {
-		flex: 0 0 100%;
-		width: 100%;
-		scroll-snap-align: center;
-		scroll-snap-stop: always;
-	}
-
-	.pswp-gallery img {
-		width: 100%;
-		height: auto;
-		object-fit: cover;
-	}
-</style>

@@ -4,8 +4,10 @@ import { type IDBPDatabase } from 'idb';
 import type { Filter, NostrEvent } from 'nostr-tools';
 import { addEvent, nostrDb, type ProcessedNostrEvent } from 'src/db';
 import type { ParsedEvent } from 'src/workers/nipworker';
+import type { AnyKind } from 'src/parsers';
 
-type SubscriptionCallback = (events: ParsedEvent<unknown>) => void;
+// only the first event is from the request, all others are contextuals
+type SubscriptionCallback = (events: ParsedEvent<AnyKind>[]) => void;
 
 export type Request = Filter & {
 	relays: string[];
@@ -49,7 +51,7 @@ export class NostrManager {
 			switch (type) {
 				case 'CACHED_EVENTS':
 					console.log('Received cached events');
-					this.handleEvent(subscriptionId, eventData, true);
+					this.handleEvent(subscriptionId, eventData);
 					break;
 				case 'FETCHED_EVENTS':
 					console.log('Received fetched events');
@@ -57,6 +59,7 @@ export class NostrManager {
 					break;
 				case 'EOSE':
 					console.log(`End of stored events for subscription ${subscriptionId}`);
+					this.handleEvent(subscriptionId, eventData);
 					if (subscription.options.closeOnEose) {
 						this.unsubscribe(subscriptionId);
 					}
@@ -116,51 +119,14 @@ export class NostrManager {
 		this.subscriptions.delete(subscriptionId);
 	}
 
-	private async handleEvent(subscriptionId: string, eventData: Uint8Array, fromCache?: boolean) {
+	private async handleEvent(subscriptionId: string, eventData: Uint8Array) {
 		const subscription = this.subscriptions.get(subscriptionId);
 		if (!subscription) return;
 
-		const decodedEvent = msgpack.decode(eventData) as ParsedEvent<unknown>;
-
-		// Process and cache the event
-		await this.processAndCacheEvent(decodedEvent, fromCache);
+		const decodedEvent = msgpack.decode(eventData) as ParsedEvent<AnyKind>[];
 
 		// Call the subscription callback with the fresh event
 		subscription.callback(decodedEvent);
-	}
-
-	private async processAndCacheEvent(event: NostrEvent, fromCache?: boolean): Promise<void> {
-		if (!event || !event.id || !this.db) return;
-
-		try {
-			// if the event was sent from the cache, it is already in the database
-			if (fromCache) {
-				// Add to IndexedDB
-				await addEvent(this.db, event);
-			}
-
-			// Add to in-memory cache
-			const processedEvent = event as ProcessedNostrEvent;
-
-			// Cache by ID for all events
-			this.eventsById.set(processedEvent.id, processedEvent);
-
-			// Cache kind 0 events by pubkey (profile metadata)
-			if (processedEvent.kind === 0) {
-				this.profilesByPubkey.set(processedEvent.pubkey, processedEvent);
-			}
-		} catch (error) {
-			console.error('Error processing event:', error, event);
-		}
-	}
-
-	// Helper methods to access cached data
-	getEventById(id: string): ProcessedNostrEvent | undefined {
-		return this.eventsById.get(id);
-	}
-
-	getProfileByPubkey(pubkey: string): ProcessedNostrEvent | undefined {
-		return this.profilesByPubkey.get(pubkey);
 	}
 
 	// Clean up resources

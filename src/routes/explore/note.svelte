@@ -3,24 +3,27 @@
 	import Content from './post/content.svelte';
 	import Footer from './post/footer.svelte';
 	import { goto } from '$app/navigation';
-	import { getEvent, isInitialized, nostrDb } from 'src/db';
+	import { getEvent, nostrDb } from 'src/db';
 	import type { NIP10Parsed } from 'src/workers/nip10';
 	import type { ParsedEvent } from 'src/workers/nipworker';
+	import type { AnyKind, Kind1Parsed } from 'src/parsers';
 
 	export let noteId: string;
+	export let context: ParsedEvent<AnyKind>[];
 
 	// is the note leading in a thread
 	export let leading: boolean | undefined = undefined;
 	// is the note tailing in a thread
 	export let tailing: boolean | undefined = undefined;
 
-	let note: ParsedEvent<NIP10Parsed> | undefined;
+	let note: ParsedEvent<Kind1Parsed> | undefined;
 
 	$: {
-		if (!note && noteId && $isInitialized) {
-			(async () => {
-				note = await getEvent((await nostrDb) as any, noteId);
-			})();
+		if (!note && noteId) {
+			note = context.find((event) => event.id === noteId) as ParsedEvent<Kind1Parsed>;
+			// (async () => {
+			// note = await getEvent((await nostrDb) as any, noteId);
+			// })();
 		}
 	}
 </script>

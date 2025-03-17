@@ -5,13 +5,13 @@
 	import { signAndSend } from 'src/actions/relay';
 	import { signer } from 'src/stores/signer';
 	import type { NIP10Parsed } from 'src/workers/nip10';
-	import { cachedProfile, getProfile, isInitialized, nostrDb } from 'src/db';
 	import type { Writable } from 'svelte/store';
 	import type { ParsedEvent } from 'src/workers/nipworker';
 	import _ from 'lodash';
-	import type { Contact, Kind0Parsed } from 'src/parsers';
+	import type { AnyKind, Contact, Kind0Parsed } from 'src/parsers';
 
 	export let note: ParsedEvent<NIP10Parsed>;
+	export let context: ParsedEvent<AnyKind>[];
 
 	export let oneline: boolean = true;
 
@@ -21,20 +21,22 @@
 	$: followList = getContext<Writable<Contact[]>>('followList');
 
 	$: {
-		if (!author?.name && $isInitialized) {
-			author = JSON.parse(cachedProfile(note.pubkey)?.content || '{}');
+		if (!author?.name) {
+			author = (context || []).find((c) => c.pubkey === note.pubkey && c.kind == 0)?.parsed as
+				| Kind0Parsed
+				| undefined;
 		}
 	}
 
 	onMount(() => {
 		//if there is no author after 500 ms, try to fetch from indexedb
-		const timeout = setTimeout(async () => {
-			const db = await nostrDb;
-			if (!author?.name && db) {
-				getProfile(db, note.pubkey).then((res) => (author = JSON.parse(res?.content || '{}')));
-			}
-		}, 500);
-		return () => clearTimeout(timeout);
+		// const timeout = setTimeout(async () => {
+		// 	const db = await nostrDb;
+		// 	if (!author?.name && db) {
+		// 		getProfile(db, note.pubkey).then((res) => (author = JSON.parse(res?.content || '{}')));
+		// 	}
+		// }, 500);
+		// return () => clearTimeout(timeout);
 	});
 </script>
 

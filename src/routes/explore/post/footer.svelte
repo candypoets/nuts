@@ -8,20 +8,24 @@
 	import { nutsZap, sendReaction, sendRepost } from 'src/actions/notes';
 	import { signer } from 'src/stores/signer';
 	import type { Nip25Params, NIP25Parsed } from 'src/workers/nip25';
-	import NIP25Worker from 'src/workers/nip25?worker';
-	import NIP10Worker from 'src/workers/nip10?worker';
-	import { handler } from 'src/handlers';
 	import type { Writable } from 'svelte/store';
 	import type { NIP01Parsed } from 'src/workers/nip01';
 	import type { ParsedEvent } from 'src/workers/nipworker';
 	import type { Nip10Params, NIP10Parsed } from 'src/workers/nip10';
 	import { replyPost } from 'src/stores';
-	import { ReactionType, type Kind10002Parsed } from 'src/parsers';
+	import {
+		isKind1,
+		isKind17,
+		isKind7,
+		ReactionType,
+		type AnyKind,
+		type Kind1Parsed,
+		type Kind7Parsed
+	} from 'src/parsers';
 	import { getRelaysFromNote } from 'src/lib/getRelaysFromNote';
 	import { Emojisets } from 'nostr-tools/kinds';
-
-	let nip25: Worker | undefined;
-	let nip10: Worker | undefined;
+	import type { P } from 'vitest/dist/reporters-w_64AS5f.js';
+	import { nostrManager } from 'src/wasm/manager';
 
 	export let note: ParsedEvent<any>;
 	export let visible: boolean;
@@ -39,55 +43,50 @@
 	const mapReplies: Record<string, ParsedEvent<NIP10Parsed>> = {};
 	const mapEmoticons: Record<string, number> = {};
 
+	const handleReactions = (event: ParsedEvent<Kind7Parsed>) => {
+		console.log('reactions EVENT', event);
+		if (!event.parsed || mapReactions[event.id]) return;
+		if (event.pubkey == $profile?.pubkey) liked = true;
+		mapReactions[event.id] = event;
+		if (event.parsed?.emoji) {
+			mapEmoticons[event.parsed?.emoji.url] = (mapEmoticons[event.parsed?.emoji.url] || 0) + 1;
+		} else if (event.parsed?.type == ReactionType.CUSTOM) {
+			mapEmoticons[event.content] = (mapEmoticons[event.content] || 0) + 1;
+		}
+
+		reactions = Object.values(mapReactions);
+	};
+
+	const handleEvents = (events: ParsedEvent<AnyKind>[]) => {
+		const event = events[0];
+		if (isKind7(event) || isKind17(event)) {
+			handleReactions(event);
+		} else if (isKind1(event)) {
+			handleReplies(event);
+		}
+	};
+
 	async function subscribe() {
-		relays = await getRelaysFromNote(note);
 		timeout = setTimeout(async () => {
-			if (visible) {
-				// handle reactions
-				handleReactions();
-				// handle comments
-				handleReplies();
-			}
-		}, 100);
+			// nostrManager.subscribe(
+			// 	note.id,
+			// 	[
+			// 		{
+			// 			kinds: [1, 7, 17],
+			// 			tags: { '#e': [note.id] },
+			// 			relays: relays || note.relays || []
+			// 		}
+			// 	],
+			// 	handleEvents
+			// );
+		}, 200);
 	}
 
-	async function handleReactions() {
-		if (!nip25) nip25 = new NIP25Worker();
-		nip25.postMessage({ '#e': [note.id], relays: relays || note.relays } as Nip25Params);
-		const updateReactions = _.throttle(() => {
-			reactions = Object.values(mapReactions);
-		}, 100);
-		for await (const data of handler<NIP25Parsed>(nip25, false)) {
-			if (!data.parsed || mapReactions[data.id]) continue;
-			if (data.pubkey == $profile?.pubkey) liked = true;
-			mapReactions[data.id] = data;
-			if (data.parsed?.emoji) {
-				mapEmoticons[data.parsed?.emoji.url] = (mapEmoticons[data.parsed?.emoji.url] || 0) + 1;
-			} else if (data.parsed?.type == ReactionType.CUSTOM) {
-				mapEmoticons[data.content] = (mapEmoticons[data.content] || 0) + 1;
-			}
-			// Throttle updates to every 100ms
-			updateReactions();
-		}
-	}
-
-	async function handleReplies() {
-		if (!nip10) nip10 = new NIP10Worker();
-		nip10.postMessage({
-			'#e': [note.id],
-			relays: relays || note.relays,
-			parse: false
-		} as Nip10Params);
-		const updateReplies = _.throttle(() => {
-			replies = Object.values(mapReplies);
-		}, 100);
-		for await (const data of handler<NIP10Parsed>(nip10, false)) {
-			if (data.type == 'EOSE' || mapReplies[data.id]) continue;
-			if (data.pubkey == $profile?.pubkey) replied = true;
-			mapReplies[data.id] = data;
-			// // Throttle updates to every 100ms
-			updateReplies();
-		}
+	async function handleReplies(event: ParsedEvent<Kind1Parsed>) {
+		if (mapReplies[event.id]) return;
+		if (event.pubkey == $profile?.pubkey) replied = true;
+		mapReplies[event.id] = event;
+		replies = Object.values(mapReplies);
 	}
 
 	function unsubscribe() {
@@ -95,20 +94,12 @@
 			clearTimeout(timeout);
 			timeout = undefined;
 		}
-		nip25?.postMessage({ type: 'UNSUBSCRIBE' });
-		nip25?.terminate();
-		nip25 = undefined;
-		nip10?.postMessage({ type: 'UNSUBSCRIBE' });
-		nip10?.terminate();
-		nip10 = undefined;
+		nostrManager.unsubscribe(note.id);
 	}
 
 	onMount(() => {
+		getRelaysFromNote(note).then((r) => (relays = r));
 		return () => {
-			nip25?.postMessage({ type: 'UNSUBSCRIBE' });
-			nip25?.terminate();
-			nip10?.postMessage({ type: 'UNSUBSCRIBE' });
-			nip10?.terminate();
 			unsubscribe();
 		};
 	});
