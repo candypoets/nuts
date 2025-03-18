@@ -135,7 +135,7 @@
 	on:click={() => viewport.scrollTo({ top: 0, behavior: 'smooth' })}
 	id="top"
 >
-	<div class="flex justify-between items-start lg:w-1/3 lg:m-auto lg:relative">
+	<div class="flex justify-between items-start lg:w-96 lg:m-auto lg:relative">
 		<div class="absolute top-6 w-full z-40" transition:fly={{ y: -50, duration: 300 }}>
 			<button on:click={() => nostrManager.unsubscribe('main_feed')}>Unsubscribe</button>
 			{#if newPosts.length}
@@ -195,7 +195,7 @@
 			{@const post = item[0]}
 			{@const context = item[1]}
 			<div
-				class="block lg:hover:bg-base-200 lg:w-1/3 lg:m-auto py-1 px-1 border-b-2 border-base-200 max-w-full"
+				class="block lg:hover:bg-base-200 lg:w-96 lg:m-auto py-1 px-1 border-b-2 border-base-200 max-w-full"
 			>
 				<!-- {post.id}
 				{post.requests.length} - {context.length} -->

@@ -12,7 +12,7 @@
 	export let context: ParsedEvent<AnyKind>[];
 </script>
 
-<div class="text-sm text-wrap whitespace-normal break-words lg:max-w-lg relative">
+<div class="text-sm text-wrap whitespace-normal break-words lg:w-88 relative">
 	{#each parsedContent as parsed, index}
 		{#if parsed.type == 'text'}
 			<!-- {#if !isImageUrl(part.content)} -->
@@ -56,7 +56,7 @@
 		{:else if parsed.type == 'cashu'}
 			<Cashu cashu={parsed.text} />
 		{:else if parsed.type == 'image'}
-			<img class="w-full rounded-md" src={parsed.text} alt={parsed.text} />
+			<img class="lg:min-w-88 rounded-md" src={parsed.text} alt={parsed.text} />
 		{:else if parsed.type == 'video'}
 			<video class="w-full rounded-md" src={parsed.text} autoplay muted></video>
 		{:else if parsed.type == 'mediaGrid'}
