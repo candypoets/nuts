@@ -7,16 +7,19 @@
 	import type { NIP10Parsed } from 'src/workers/nip10';
 	import type { ParsedEvent } from 'src/workers/nipworker';
 	import type { AnyKind, Kind1Parsed } from 'src/parsers';
+	import Zap from './post/zap.svelte';
 
-	export let noteId: string;
-	export let context: ParsedEvent<AnyKind>[];
+	export let noteId: string | undefined = undefined;
+	export let context: ParsedEvent<AnyKind>[] = [];
+	export let note: ParsedEvent<Kind1Parsed> | undefined = undefined;
+	export let zaps: boolean = false;
+	export let footer: boolean = true;
+	export let visible: boolean = false;
 
 	// is the note leading in a thread
 	export let leading: boolean | undefined = undefined;
 	// is the note tailing in a thread
 	export let tailing: boolean | undefined = undefined;
-
-	let note: ParsedEvent<Kind1Parsed> | undefined;
 
 	$: {
 		if (!note && noteId) {
@@ -33,6 +36,9 @@
 		{#if leading}
 			<div class="absolute border-gray-300 left-4 h-full border-r-2" />
 		{/if}
+		{#if zaps}
+			<Zap {note} {visible} />
+		{/if}
 		<Header {note} {context} />
 		<div
 			class="flex gap-2"
@@ -44,10 +50,11 @@
 		>
 			<div class="min-w-8" />
 			<div class="-mt-2">
-				<Content parsedContent={note.parsed?.parsedContent || []} />
+				<Content parsedContent={note.parsed?.parsedContent || []} {context} />
 			</div>
 		</div>
-		<!-- <Content content={note.content} /> -->
-		<Footer {note} visible />
+		{#if footer}
+			<Footer {note} visible />
+		{/if}
 	</div>
 {/if}

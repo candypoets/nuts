@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"runtime"
 	"syscall/js"
-	"time"
 
 	"github.com/candypoets/nutscash/db"
 	"github.com/candypoets/nutscash/parser"
@@ -35,11 +34,11 @@ func trackGoroutines(m *runtime.MemStats) {
 
 // Call periodically to monitor
 func monitorGoroutines() {
-	var m runtime.MemStats
-	for {
-		trackGoroutines(&m)
-		time.Sleep(5 * time.Second)
-	}
+	// var m runtime.MemStats
+	// for {
+	// 	trackGoroutines(&m)
+	// 	time.Sleep(5 * time.Second)
+	// }
 }
 
 // Initialize sets up the global subscription manager with required dependencies

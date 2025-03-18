@@ -14,10 +14,12 @@
 				?.parsed as Kind0Parsed | undefined;
 		}
 	}
+
+	$: console.log(context, pubkey);
 </script>
 
 {#if link}
-	<strong class="text-primary">@{user?.name || pubkey?.slice(0, 15) + '...'}</strong>
+	<strong class="text-violet-700">@{user?.name || pubkey?.slice(0, 15) + '...'}</strong>
 {:else}
 	<span>{user?.name || pubkey?.slice(0, 15) + '...'}</span>
 {/if}

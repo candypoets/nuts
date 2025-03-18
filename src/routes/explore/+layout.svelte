@@ -60,7 +60,9 @@
 			if (event?.parsed?.reply?.id && event?.parsed?.root?.id != event?.parsed?.reply?.id) return;
 			if (!event?.parsed?.root?.id) return;
 			console.log('EVENT', event, context);
-			feed = [...feed, [event, _.uniqBy(context, 'id')]];
+			feed = [...feed, [event, _.uniqBy(context, 'id')]].sort(
+				(a, b) => b[0]?.created_at - a[0]?.created_at
+			);
 		}
 	};
 
@@ -69,12 +71,13 @@
 			console.log('SUBSCRIBE?');
 			nostrManager.subscribe(
 				'main_feed',
-				$followList.map((c) => ({
-					kinds: [1],
-					authors: [c.pubkey],
-					relays: c.relays || [],
-					since: ago(2 * DAY)
-				})),
+				// $followList.map((c) => ({
+				// 	kinds: [1],
+				// 	authors: [c.pubkey],
+				// 	relays: c.relays || [],
+				// 	since: ago(2 * DAY)
+				// })),
+				[{ ids: ['67e68415fe7b0c74af62c5a5ce0831ee7d8ebb096e37a8e5fc3817ba1296f5e0'], relays: [] }],
 				handleEvents
 			);
 		}
@@ -197,28 +200,15 @@
 			<div
 				class="block lg:hover:bg-base-200 lg:w-96 lg:m-auto py-1 px-1 border-b-2 border-base-200 max-w-full"
 			>
-				<!-- {post.id}
-				{post.requests.length} - {context.length} -->
+				{post.id}
+				{post.requests.length} - {context.length}
 				<!-- <RepostHeader note={item} /> -->
 				{#if post.parsed.root}
 					<Note noteId={post.parsed.root.id} {context} leading />
 				{/if}
-				<Zap note={post} visible={feed.findIndex((note) => note[0]?.id === post.id) >= start - 2} />
-				<Header note={post} {context} />
-				<div
-					class="flex gap-2"
-					on:click={(e) => {
-						e.stopPropagation();
-						goto(`/explore/${post.reply ? post.parsed.reply.id : post.id}`);
-					}}
-				>
-					<div class="min-w-8" />
-					<div class="max-w-11/12 -mt-2">
-						<Content parsedContent={post.parsed.parsedContent} {context} />
-					</div>
-				</div>
-				<Footer
+				<Note
 					note={post}
+					{context}
 					visible={feed.findIndex((note) => note[0]?.id === post.id) >= start - 2}
 				/>
 			</div>
