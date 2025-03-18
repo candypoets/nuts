@@ -6,6 +6,7 @@ package subscriptions
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"sync"
 	"syscall/js"
 	"time"
@@ -69,12 +70,10 @@ func (sm *SubscriptionManager) OpenSubscription(subscriptionID string, requests 
 	// Create a new pool for this subscription
 	ctx, cancel := context.WithCancel(context.Background())
 
-	pool := nostr.NewSimplePool(ctx)
 	// Create subscription record
 	sm.mutex.Lock()
 	subscription := &Subscription{
 		ID:         subscriptionID,
-		Pool:       pool,
 		Ctx:        ctx,
 		Sent:       make(map[string]*[]types.ParsedEvent),
 		CancelFunc: cancel,
@@ -84,24 +83,24 @@ func (sm *SubscriptionManager) OpenSubscription(subscriptionID string, requests 
 
 	sm.ProcessLocalRequests(subscriptionID, requests, callback, 0)
 
-	sm.ProcessSubscriptionRequests(subscriptionID, ctx, pool, requests, callback, 0)
+	sm.ProcessSubscriptionRequests(subscriptionID, ctx, requests, callback, 0)
 
 	return nil
 }
 
 // CloseSubscription closes a subscription by ID
 func (sm *SubscriptionManager) CloseSubscription(subscriptionID string) {
-	println(fmt.Sprintf("Closing subscription: %s", subscriptionID))
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
 	if sub, exists := sm.subscriptions[subscriptionID]; exists {
 		// Call cancel on the shared pool
-		sub.Pool.Close(fmt.Sprintf("Closing subscription: %s", subscriptionID))
+		// sub.Pool.Close(fmt.Sprintf("Closing subscription: %s", subscriptionID))
 		// Cancel the context to close all subscriptions
 		sub.CancelFunc()
 		delete(sm.subscriptions, subscriptionID)
 	}
+	println(fmt.Sprintf("Closing subscription: %s, goroutines %d", subscriptionID, runtime.NumGoroutine()))
 }
 
 // ProcessLocalRequests searches for events in the database based on requests,
@@ -225,13 +224,14 @@ func (sm *SubscriptionManager) ProcessLocalRequests(
 func (sm *SubscriptionManager) ProcessSubscriptionRequests(
 	subscriptionID string,
 	ctx context.Context,
-	pool *nostr.SimplePool,
 	requests []types.Request,
 	callback js.Func,
 	depth int,
 	root ...string) {
-	println(fmt.Sprintf("Processing subscription requests at depth %d, %s", depth, callback))
-	// Check recursion depth limit
+	println(fmt.Sprintf("Processing subscription requests at depth %d, Opened goroutine %d", depth, runtime.NumGoroutine()))
+	if len(root) > 0 {
+		println("Root ID:", root[0])
+	}
 	if depth >= 3 {
 		println("Warning: Reached maximum recursion depth (3) for subscription requests")
 		return
@@ -246,16 +246,6 @@ func (sm *SubscriptionManager) ProcessSubscriptionRequests(
 	// Optimize subscription requests
 	optimizedRequests := OptimizeSubscriptions(requests)
 
-	// Log the original and optimized request counts
-	println(fmt.Sprintf("Original requests: %d, Optimized requests: %d", len(requests), len(optimizedRequests)))
-	totalFilters := 0
-	totalRelays := 0
-	for _, req := range optimizedRequests {
-		totalFilters += len(req.Filters)
-		totalRelays += len(req.Relays)
-	}
-	println(fmt.Sprintf("Total filters after optimization: %d and relays: %d", totalFilters, totalRelays))
-
 	for _, req := range optimizedRequests {
 		relays := req.Relays
 		filters := req.Filters
@@ -264,37 +254,45 @@ func (sm *SubscriptionManager) ProcessSubscriptionRequests(
 			continue
 		}
 
-		for _, filter := range filters {
+		for _, r := range relays {
 			wg.Add(1)
-
 			// Create a subscription context that can be cancelled
 			subCtx, cancelSub := context.WithCancel(ctx)
 
-			go func(relays []string, filter nostr.Filter) {
+			go func(relay string) {
 				defer wg.Done()
 
-				eoseChan := make(chan struct{})
-				println(fmt.Sprintf("Creating subscription for relays: %v and filter: %+v", relays, filter))
-				if len(relays) != 1 {
+				newRelay, err := nostr.RelayConnect(subCtx, relay)
+				if err != nil {
+					fmt.Printf("Error connecting to relay %s: %v\n", relay, err)
 					return
 				}
-				// Subscribe to events
-				sub := pool.SubscribeManyNotifyEOSE(subCtx, relays, filter, eoseChan)
+				innerDone := make(chan struct{})
 
-				// Process events as they arrive
-				go func() {
+				go func(rl *nostr.Relay) {
+					defer close(innerDone) // Signal completion
+					sub, err := rl.Subscribe(subCtx, filters)
+					if err != nil {
+						fmt.Printf("Error subscribing to relay %s: %v\n", rl.URL, err)
+						return
+					}
+
+					// Process events as they arrive
+					println("Processing events")
 					for {
 						select {
 						case <-subCtx.Done():
+							println("subscription context cancelled")
+							// sub.Unsub()
+							// rl.Close()
 							return
-						case ev, ok := <-sub:
-							println(fmt.Sprintf("new event received with filter: %+v", filter))
-							if !ok {
-								// Channel was closed, exit goroutine
-								println("Subscription channel closed, exiting event processing goroutine")
+						case ev, more := <-sub.Events:
+							if !more {
+								println("Subscription closed")
 								return
 							}
-							rootID := ev.Event.ID
+							println("new event", ev.ID, ev.Kind, r, subscriptionID)
+							rootID := ev.ID
 							if len(root) > 0 {
 								rootID = root[0]
 							}
@@ -309,12 +307,12 @@ func (sm *SubscriptionManager) ProcessSubscriptionRequests(
 									sm.mutex.Unlock()
 									continue
 								}
-								sm.subscriptions[subscriptionID].Sent[rootID] = &[]types.ParsedEvent{types.ParsedEvent{Event: *ev.Event}}
+								sm.subscriptions[subscriptionID].Sent[rootID] = &[]types.ParsedEvent{types.ParsedEvent{Event: *ev}}
 								sm.mutex.Unlock()
 							}
 
 							// Process the event
-							parsedEvent, err := sm.parser.Parse(*ev.Event)
+							parsedEvent, err := sm.parser.Parse(*ev)
 							if err != nil {
 								println("Error parsing event:", err.Error())
 								continue
@@ -324,91 +322,88 @@ func (sm *SubscriptionManager) ProcessSubscriptionRequests(
 							sm.database.AddEvent(parsedEvent)
 							sm.stagedEvents = append(sm.stagedEvents, parsedEvent)
 
-							var newRequests []types.Request = []types.Request{}
+							var newRequests []types.Request = sm.findRequests(subscriptionID, rootID, parsedEvent, depth)
 
-							if parsedEvent.Requests != nil && len(*parsedEvent.Requests) > 0 {
-								// loop over the requests, and keep only those that return no result from the cache
-								for _, request := range *parsedEvent.Requests {
-									events, _ := sm.database.QueryEvents(request.ToFilter())
-									if len(events) > 0 {
-										eventSlice := append(*sm.subscriptions[subscriptionID].Sent[rootID], events...)
-										sm.subscriptions[subscriptionID].Sent[rootID] = &eventSlice
-										if depth == 1 {
-											// loop one more time
-										}
-									} else {
-										newRequests = append(newRequests, request)
-									}
-								}
-							}
-
-							// Excerpt from: func (sm *SubscriptionManager) ProcessSubscriptionRequests
 							// First process any new requests that came from parsing this event
 							if len(newRequests) > 0 {
 								// Process new requests synchronously before continuing
-								sm.ProcessSubscriptionRequests(subscriptionID, ctx, pool, newRequests, callback, depth+1, rootID)
+								sm.ProcessSubscriptionRequests(subscriptionID, ctx, newRequests, callback, depth+1, rootID)
 							}
 
 							if len(root) > 0 {
 								sm.mutex.Lock()
+								println(fmt.Sprintf("New context event with ID %s and pubKey %s at depth %d", parsedEvent.ID, parsedEvent.PubKey, depth))
 								// Sent[root[0]] is a pointer to a slice, so we need to dereference it first
-								eventSlice := append(*sm.subscriptions[subscriptionID].Sent[rootID], parsedEvent)
-								sm.subscriptions[subscriptionID].Sent[rootID] = &eventSlice
+								if sm.subscriptions[subscriptionID] != nil {
+									eventSlice := append(*sm.subscriptions[subscriptionID].Sent[rootID], parsedEvent)
+									sm.subscriptions[subscriptionID].Sent[rootID] = &eventSlice
+								}
 								sm.mutex.Unlock()
 							} else {
 								// modify index 0 in the sent slice
 								sm.mutex.Lock()
-								(*sm.subscriptions[subscriptionID].Sent[parsedEvent.ID])[0] = parsedEvent
-								sm.mutex.Unlock()
-								// Convert to JSON for callback
-								pack, err := msgpack.Marshal(sm.subscriptions[subscriptionID].Sent[parsedEvent.ID])
-								if err != nil {
-									println("Error marshaling event:", err.Error())
-									continue
+								if sm.subscriptions[subscriptionID] != nil {
+									(*sm.subscriptions[subscriptionID].Sent[parsedEvent.ID])[0] = parsedEvent
+									sm.mutex.Unlock()
+									// Convert to JSON for callback
+									pack, err := msgpack.Marshal(sm.subscriptions[subscriptionID].Sent[parsedEvent.ID])
+									if err != nil {
+										println("Error marshaling event:", err.Error())
+										continue
+									}
+									// Create a JavaScript Uint8Array to hold the MessagePack data
+									uint8Array := js.Global().Get("Uint8Array").New(len(pack))
+
+									// Copy the Go bytes to the JavaScript Uint8Array
+									js.CopyBytesToJS(uint8Array, pack)
+
+									// Only call the callback after all related requests are processed
+									callback.Invoke("FETCHED_EVENTS", uint8Array)
 								}
-								// Create a JavaScript Uint8Array to hold the MessagePack data
-								uint8Array := js.Global().Get("Uint8Array").New(len(pack))
-
-								// Copy the Go bytes to the JavaScript Uint8Array
-								js.CopyBytesToJS(uint8Array, pack)
-
-								// Only call the callback after all related requests are processed
-								callback.Invoke("FETCHED_EVENTS", uint8Array)
 							}
 
+						case <-sub.EndOfStoredEvents:
+							// Notify callback about EOSE
+							relaysPack, err := msgpack.Marshal(relays)
+							if err != nil {
+								println("Error marshaling EOSE event:", err.Error())
+								return
+							}
+							// Create a JavaScript Uint8Array to hold the MessagePack data
+							uint8Array := js.Global().Get("Uint8Array").New(len(relaysPack))
+
+							// Copy the Go bytes to the JavaScript Uint8Array
+							js.CopyBytesToJS(uint8Array, relaysPack)
+
+							callback.Invoke("EOSE", uint8Array)
+
+							// For depth > 0, close the subscription after EOSE
+							// For depth 0, keep the subscription open for real-time updates
+							if depth > 0 {
+								sub.Unsub()
+								rl.Close()
+								cancelSub()
+								println("Closed subscription at depth", depth, "after EOSE")
+								return
+							} else {
+								println(fmt.Sprintf("Keeping subscription open at depth 0 for real-time updates, goroutines %d", runtime.NumGoroutine()))
+							}
 						}
-						// Wait for EOSE
-						<-eoseChan
-
-						// Notify callback about EOSE
-						relaysPack, err := msgpack.Marshal(relays)
-						if err != nil {
-							println("Error marshaling EOSE event:", err.Error())
-							return
-						}
-						// Create a JavaScript Uint8Array to hold the MessagePack data
-						uint8Array := js.Global().Get("Uint8Array").New(len(relaysPack))
-
-						// Copy the Go bytes to the JavaScript Uint8Array
-						js.CopyBytesToJS(uint8Array, relaysPack)
-
-						callback.Invoke("EOSE", uint8Array)
-
-						// For depth > 0, close the subscription after EOSE
-						// For depth 0, keep the subscription open for real-time updates
-						if depth > 0 {
-							cancelSub()
-							println("Closed subscription at depth", depth, "after EOSE")
-							return
-						} else {
-							println("Keeping subscription open at depth 0 for real-time updates")
-						}
-
 					}
-
-				}()
-
-			}(relays, filter)
+				}(newRelay)
+				select {
+				case <-subCtx.Done():
+					// Context was cancelled
+					newRelay.Close()
+					println("Outer goroutine ending due to context cancellation")
+					return
+				case <-innerDone:
+					// Inner goroutine completed on its own
+					newRelay.Close()
+					println("Outer goroutine ending because inner goroutine finished")
+					return
+				}
+			}(r)
 		}
 	}
 
@@ -427,4 +422,30 @@ func (sm *SubscriptionManager) GetActiveSubscriptionCount() int {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 	return len(sm.subscriptions)
+}
+
+func (sm *SubscriptionManager) findRequests(subscriptionID string, rootID string, parsedEvent types.ParsedEvent, depth int) []types.Request {
+	var findRequestsForEvent func(parsedEvent types.ParsedEvent, depth int) []types.Request
+	var newRequests []types.Request = []types.Request{}
+	findRequestsForEvent = func(parsedEvent types.ParsedEvent, depth int) []types.Request {
+		if depth == 3 {
+			return []types.Request{}
+		}
+		if parsedEvent.Requests != nil && len(*parsedEvent.Requests) > 0 {
+			// loop over the requests, and keep only those that return no result from the cache
+			for _, request := range *parsedEvent.Requests {
+				events, _ := sm.database.QueryEvents(request.ToFilter())
+				if len(events) > 0 {
+					eventSlice := append(*sm.subscriptions[subscriptionID].Sent[rootID], events...)
+					sm.subscriptions[subscriptionID].Sent[rootID] = &eventSlice
+					// there is always only one event / request
+					findRequestsForEvent(events[0], depth+1)
+				} else {
+					newRequests = append(newRequests, request)
+				}
+			}
+		}
+		return newRequests
+	}
+	return findRequestsForEvent(parsedEvent, depth)
 }

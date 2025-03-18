@@ -20,7 +20,7 @@
 
 	$: {
 		if (!note && noteId) {
-			note = context.find((event) => event.id === noteId) as ParsedEvent<Kind1Parsed>;
+			note = (context || []).find((event) => event.id === noteId) as ParsedEvent<Kind1Parsed>;
 			// (async () => {
 			// note = await getEvent((await nostrDb) as any, noteId);
 			// })();
@@ -33,7 +33,7 @@
 		{#if leading}
 			<div class="absolute border-gray-300 left-4 h-full border-r-2" />
 		{/if}
-		<Header {note} />
+		<Header {note} {context} />
 		<div
 			class="flex gap-2"
 			on:click={(e) => {

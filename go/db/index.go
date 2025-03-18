@@ -145,10 +145,10 @@ func InitNostrDB() *NostrDB {
 		isInitialized:    false,
 	}
 
-	// err := DB.LoadFromPersistentStorage("nostr-local-relay")
-	// if err != nil {
-	// 	fmt.Printf("Error loading from persistent storage: %v\n", err)
-	// }
+	err := DB.LoadFromPersistentStorage("nostr-local-relay")
+	if err != nil {
+		fmt.Printf("Error loading from persistent storage: %v\n", err)
+	}
 
 	return DB
 }

@@ -12,7 +12,7 @@
 	export let context: ParsedEvent<AnyKind>[];
 </script>
 
-<div class="text-sm text-wrap whitespace-normal break-words max-w-full relative">
+<div class="text-sm text-wrap whitespace-normal break-words lg:max-w-lg relative">
 	{#each parsedContent as parsed, index}
 		{#if parsed.type == 'text'}
 			<!-- {#if !isImageUrl(part.content)} -->
@@ -45,9 +45,14 @@
 		{:else if parsed.type == 'hashtag'}
 			<a class="font-semibold text-primary" href={'/search/' + parsed.data?.tag}>{parsed.text}</a>
 		{:else if parsed.type == 'npub' || parsed.type == 'nprofile'}
-			<Note noteId={parsed.data?.decoded?.id} {context} />
+			<User
+				pubkey={parsed.data?.decoded?.pubkey ||
+					parsed.data?.decoded?.PublicKey ||
+					parsed.data?.decoded}
+				{context}
+			/>
 		{:else if parsed.type == 'note' || parsed.type == 'nevent'}
-			<User npub={parsed.data?.decoded?.id} />
+			<Note noteId={parsed.data?.decoded} {context} />
 		{:else if parsed.type == 'cashu'}
 			<Cashu cashu={parsed.text} />
 		{:else if parsed.type == 'image'}

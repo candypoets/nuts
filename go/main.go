@@ -24,7 +24,7 @@ var globalManager *subscriptions.SubscriptionManager
 var defaultRelays = []string{"wss://relay.damus.io", "wss://relay.nostr.band", "wss://purplepag.es"}
 
 func trackGoroutines(m *runtime.MemStats) {
-	runtime.GC() // Force garbage collection
+	// runtime.GC() // Force garbage collection
 	// Print current number of goroutines
 
 	runtime.ReadMemStats(m)

@@ -10,15 +10,14 @@
 
 	$: {
 		if (!user && pubkey) {
-			user = context.find((event) => event.kind === 0 && event.pubkey === pubkey)?.parsed as
-				| Kind0Parsed
-				| undefined;
+			user = (context || []).find((event) => event.kind === 0 && event.pubkey === pubkey)
+				?.parsed as Kind0Parsed | undefined;
 		}
 	}
 </script>
 
 {#if link}
-	<strong class="text-primary break-all">@{user?.name || pubkey?.slice(0, 15) + '...'}</strong>
+	<strong class="text-primary">@{user?.name || pubkey?.slice(0, 15) + '...'}</strong>
 {:else}
-	<span class="break-all">{user?.name || pubkey?.slice(0, 15) + '...'}</span>
+	<span>{user?.name || pubkey?.slice(0, 15) + '...'}</span>
 {/if}

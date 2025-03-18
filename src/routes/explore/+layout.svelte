@@ -56,11 +56,11 @@
 		const [event, ...context] = events;
 		if (!event.parsed) return;
 		if (isKind1(event)) {
-			console.log('EVENT', event);
 			// only show replies to root posts
-			if (event?.parsed?.reply?.id && event?.parsed.root?.id != event?.parsed?.reply?.id) return;
-			// console.error('ParsedContent is missing: ', event.parsed);
-			feed = [...feed, [event, context]];
+			if (event?.parsed?.reply?.id && event?.parsed?.root?.id != event?.parsed?.reply?.id) return;
+			if (!event?.parsed?.root?.id) return;
+			console.log('EVENT', event, context);
+			feed = [...feed, [event, _.uniqBy(context, 'id')]];
 		}
 	};
 
@@ -137,6 +137,7 @@
 >
 	<div class="flex justify-between items-start lg:w-1/3 lg:m-auto lg:relative">
 		<div class="absolute top-6 w-full z-40" transition:fly={{ y: -50, duration: 300 }}>
+			<button on:click={() => nostrManager.unsubscribe('main_feed')}>Unsubscribe</button>
 			{#if newPosts.length}
 				<div
 					class="flex justify-center cursor-pointer"
@@ -196,6 +197,8 @@
 			<div
 				class="block lg:hover:bg-base-200 lg:w-1/3 lg:m-auto py-1 px-1 border-b-2 border-base-200 max-w-full"
 			>
+				<!-- {post.id}
+				{post.requests.length} - {context.length} -->
 				<!-- <RepostHeader note={item} /> -->
 				{#if post.parsed.root}
 					<Note noteId={post.parsed.root.id} {context} leading />

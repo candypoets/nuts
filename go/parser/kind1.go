@@ -45,13 +45,13 @@ func (p *Parser) ParseKind1(event nostr.Event) (*Kind1Parsed, *[]types.Request, 
 	parsedRefs(func(ref nip27.Reference) bool {
 		// Process based on the pointer type
 		switch pointer := ref.Pointer.(type) {
-		case *nostr.ProfilePointer:
+		case nostr.ProfilePointer:
 			// Check if profile exists in DB
 			// _, exists := p.DB.GetProfile(pointer.PublicKey)
-			parsed.Quotes = append(parsed.Quotes, pointer)
+			parsed.Quotes = append(parsed.Quotes, &pointer)
 
 			// if !exists {
-			newRequest := types.NewRequest(p.GetRelays(event), nostr.Filter{
+			newRequest := types.NewRequest(pointer.Relays, nostr.Filter{
 				Authors: []string{pointer.PublicKey},
 				Kinds:   []int{0},
 				Limit:   1,
@@ -59,20 +59,20 @@ func (p *Parser) ParseKind1(event nostr.Event) (*Kind1Parsed, *[]types.Request, 
 			requests = append(requests, newRequest)
 			// }
 
-		case *nostr.EventPointer:
+		case nostr.EventPointer:
 			// Check if event exists
 			// _, exists := p.DB.GetEvent(pointer.ID)
-			parsed.Mentions = append(parsed.Mentions, pointer)
+			parsed.Mentions = append(parsed.Mentions, &pointer)
 
 			// if !exists {
-			newRequest := types.NewRequest(p.GetRelays(event), nostr.Filter{
+			newRequest := types.NewRequest(pointer.Relays, nostr.Filter{
 				IDs:   []string{pointer.ID},
 				Limit: 1,
 			})
 			requests = append(requests, newRequest)
 			// }
 
-		case *nostr.EntityPointer:
+		case nostr.EntityPointer:
 
 			// Check if address exists
 			filter := nostr.Filter{
@@ -85,9 +85,11 @@ func (p *Parser) ParseKind1(event nostr.Event) (*Kind1Parsed, *[]types.Request, 
 			// exists, _ := p.DB.QueryEvents(filter, 1)
 
 			// if len(exists) == 0 {
-			newRequest := types.NewRequest(p.GetRelays(event), filter)
+			newRequest := types.NewRequest(pointer.Relays, filter)
 			requests = append(requests, newRequest)
 			// }
+		default:
+			println(fmt.Printf("Unknown pointer type: %T\n", pointer))
 		}
 
 		return true // Continue iteration
@@ -95,7 +97,22 @@ func (p *Parser) ParseKind1(event nostr.Event) (*Kind1Parsed, *[]types.Request, 
 
 	// Extract reply and root
 	parsed.Reply = nip10.GetImmediateParent(event.Tags)
+	if parsed.Reply != nil {
+		newRequest := types.NewRequest(parsed.Reply.Relays, nostr.Filter{
+			IDs:   []string{parsed.Reply.ID},
+			Limit: 1,
+		})
+		requests = append(requests, newRequest)
+	}
+
 	parsed.Root = nip10.GetThreadRoot(event.Tags)
+	if parsed.Root != nil && parsed.Root.ID != event.ID {
+		newRequest := types.NewRequest(parsed.Root.Relays, nostr.Filter{
+			IDs:   []string{parsed.Root.ID},
+			Limit: 1,
+		})
+		requests = append(requests, newRequest)
+	}
 
 	// Parse content
 	parsedContent, err := ParseContent(event.Content)
