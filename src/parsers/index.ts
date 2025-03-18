@@ -5,7 +5,7 @@ import { parseKind3, type Kind3Parsed } from './kind3';
 import { parseKind7, type Kind7Parsed } from './kind7';
 import { parseKind17, type Kind17Parsed } from './kind17';
 import { parseKind9735, type Kind9735Parsed } from './kind9735';
-import { parseKind9321 } from './kind9321';
+import { parseKind9321, type Kind9321 } from './kind9321';
 import { parseKind10002, type Kind10002Parsed } from './kind10002';
 import { parseKind10019, type Kind10019 } from './kind10019';
 import type { ParsedEvent } from 'src/workers/nipworker';
@@ -29,7 +29,7 @@ export const isKind17 = (event: NostrEvent): event is ParsedEvent<Kind17Parsed> 
 	event.kind === 17;
 export const isKind9735 = (event: NostrEvent): event is ParsedEvent<Kind9735Parsed> =>
 	event.kind === 9735;
-export const isKind9321 = (event: NostrEvent): event is ParsedEvent<Kind1Parsed> =>
+export const isKind9321 = (event: NostrEvent): event is ParsedEvent<Kind9321> =>
 	event.kind === 9321;
 export const isKind10002 = (event: NostrEvent): event is ParsedEvent<Kind10002Parsed> =>
 	event.kind === 10002;

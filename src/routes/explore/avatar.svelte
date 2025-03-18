@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { cachedProfile, isInitialized } from 'src/db';
-	import type { NostrProfile } from 'src/workers/nip01';
+	import type { Kind0Parsed } from 'src/parsers';
 
 	// The pubkey/npub of the user
 	export let pubkey: string = '';
@@ -10,7 +10,7 @@
 	// Optional custom class to override default styling
 	export let customClass: string = '';
 
-	let profile: NostrProfile | undefined;
+	let profile: Kind0Parsed | undefined;
 	let imageUrl: string = '';
 	let imageLoaded = false;
 	let imageError = false;

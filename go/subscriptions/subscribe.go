@@ -83,7 +83,7 @@ func (sm *SubscriptionManager) OpenSubscription(subscriptionID string, requests 
 
 	sm.ProcessLocalRequests(subscriptionID, requests, callback, 0)
 
-	sm.ProcessSubscriptionRequests(subscriptionID, ctx, requests, callback, 0)
+	sm.ProcessSubscriptionRequests(subscriptionID, ctx, requests, callback)
 
 	return nil
 }
@@ -225,17 +225,8 @@ func (sm *SubscriptionManager) ProcessSubscriptionRequests(
 	subscriptionID string,
 	ctx context.Context,
 	requests []types.Request,
-	callback js.Func,
-	depth int,
-	root ...string) {
-	println(fmt.Sprintf("Processing subscription requests at depth %d, Opened goroutine %d", depth, runtime.NumGoroutine()))
-	if len(root) > 0 {
-		println("Root ID:", root[0])
-	}
-	if depth >= 3 {
-		println("Warning: Reached maximum recursion depth (3) for subscription requests")
-		return
-	}
+	callback js.Func) {
+	println(fmt.Sprintf("Processing subscription requests %s, Opened goroutine %d", subscriptionID, runtime.NumGoroutine()))
 
 	if requests == nil {
 		return
@@ -257,7 +248,7 @@ func (sm *SubscriptionManager) ProcessSubscriptionRequests(
 		for _, r := range relays {
 			wg.Add(1)
 			// Create a subscription context that can be cancelled
-			subCtx, cancelSub := context.WithCancel(ctx)
+			subCtx, _ := context.WithCancel(ctx)
 
 			go func(relay string) {
 				defer wg.Done()
@@ -271,6 +262,19 @@ func (sm *SubscriptionManager) ProcessSubscriptionRequests(
 
 				go func(rl *nostr.Relay) {
 					defer close(innerDone) // Signal completion
+					// var flts = []nostr.Filter{}
+
+					// for _, filter := range filters {
+					// 	flts = append(flts, nostr.Filter{
+					// 		IDs:     filter.IDs,
+					// 		Kinds:   filter.Kinds,
+					// 		Authors: filter.Authors,
+					// 		Since:   filter.Since,
+					// 		Until:   filter.Until,
+					// 		Limit:   filter.Limit,
+					// 		Tags:    filter.Tags,
+					// 	})
+					// }
 					sub, err := rl.Subscribe(subCtx, filters)
 					if err != nil {
 						fmt.Printf("Error subscribing to relay %s: %v\n", rl.URL, err)
@@ -292,24 +296,18 @@ func (sm *SubscriptionManager) ProcessSubscriptionRequests(
 								return
 							}
 							println("new event", ev.ID, ev.Kind, r, subscriptionID)
-							rootID := ev.ID
-							if len(root) > 0 {
-								rootID = root[0]
-							}
 							// check before parsing if the event has already been sent
 							// it's also a good way to avoid double parsing,
 							// since that event would have been sent by the cache already
 							// only check at depth 0
-							if depth == 0 {
-								sm.mutex.Lock()
-								// check before parsing event if it has already been treated
-								if sm.subscriptions[subscriptionID].Sent[rootID] != nil {
-									sm.mutex.Unlock()
-									continue
-								}
-								sm.subscriptions[subscriptionID].Sent[rootID] = &[]types.ParsedEvent{types.ParsedEvent{Event: *ev}}
+							sm.mutex.Lock()
+							// check before parsing event if it has already been treated
+							if sm.subscriptions[subscriptionID].Sent[ev.ID] != nil {
 								sm.mutex.Unlock()
+								continue
 							}
+							sm.subscriptions[subscriptionID].Sent[ev.ID] = &[]types.ParsedEvent{types.ParsedEvent{Event: *ev}}
+							sm.mutex.Unlock()
 
 							// Process the event
 							parsedEvent, err := sm.parser.Parse(*ev)
@@ -322,44 +320,27 @@ func (sm *SubscriptionManager) ProcessSubscriptionRequests(
 							sm.database.AddEvent(parsedEvent)
 							sm.stagedEvents = append(sm.stagedEvents, parsedEvent)
 
-							var newRequests []types.Request = sm.findRequests(subscriptionID, rootID, parsedEvent, depth)
-
-							// First process any new requests that came from parsing this event
-							if len(newRequests) > 0 {
-								// Process new requests synchronously before continuing
-								sm.ProcessSubscriptionRequests(subscriptionID, ctx, newRequests, callback, depth+1, rootID)
-							}
-
-							if len(root) > 0 {
-								sm.mutex.Lock()
-								println(fmt.Sprintf("New context event with ID %s and pubKey %s at depth %d", parsedEvent.ID, parsedEvent.PubKey, depth))
-								// Sent[root[0]] is a pointer to a slice, so we need to dereference it first
-								if sm.subscriptions[subscriptionID] != nil {
-									eventSlice := append(*sm.subscriptions[subscriptionID].Sent[rootID], parsedEvent)
-									sm.subscriptions[subscriptionID].Sent[rootID] = &eventSlice
-								}
+							// try to build the best context from the cache
+							sm.findContext(subscriptionID, parsedEvent)
+							// modify index 0 in the sent slice
+							sm.mutex.Lock()
+							if sm.subscriptions[subscriptionID] != nil {
+								(*sm.subscriptions[subscriptionID].Sent[parsedEvent.ID])[0] = parsedEvent
 								sm.mutex.Unlock()
-							} else {
-								// modify index 0 in the sent slice
-								sm.mutex.Lock()
-								if sm.subscriptions[subscriptionID] != nil {
-									(*sm.subscriptions[subscriptionID].Sent[parsedEvent.ID])[0] = parsedEvent
-									sm.mutex.Unlock()
-									// Convert to JSON for callback
-									pack, err := msgpack.Marshal(sm.subscriptions[subscriptionID].Sent[parsedEvent.ID])
-									if err != nil {
-										println("Error marshaling event:", err.Error())
-										continue
-									}
-									// Create a JavaScript Uint8Array to hold the MessagePack data
-									uint8Array := js.Global().Get("Uint8Array").New(len(pack))
-
-									// Copy the Go bytes to the JavaScript Uint8Array
-									js.CopyBytesToJS(uint8Array, pack)
-
-									// Only call the callback after all related requests are processed
-									callback.Invoke("FETCHED_EVENTS", uint8Array)
+								// Convert to JSON for callback
+								pack, err := msgpack.Marshal(sm.subscriptions[subscriptionID].Sent[parsedEvent.ID])
+								if err != nil {
+									println("Error marshaling event:", err.Error())
+									continue
 								}
+								// Create a JavaScript Uint8Array to hold the MessagePack data
+								uint8Array := js.Global().Get("Uint8Array").New(len(pack))
+
+								// Copy the Go bytes to the JavaScript Uint8Array
+								js.CopyBytesToJS(uint8Array, pack)
+
+								// Only call the callback after all related requests are processed
+								callback.Invoke("FETCHED_EVENTS", uint8Array)
 							}
 
 						case <-sub.EndOfStoredEvents:
@@ -377,17 +358,7 @@ func (sm *SubscriptionManager) ProcessSubscriptionRequests(
 
 							callback.Invoke("EOSE", uint8Array)
 
-							// For depth > 0, close the subscription after EOSE
-							// For depth 0, keep the subscription open for real-time updates
-							if depth > 0 {
-								sub.Unsub()
-								rl.Close()
-								cancelSub()
-								println("Closed subscription at depth", depth, "after EOSE")
-								return
-							} else {
-								println(fmt.Sprintf("Keeping subscription open at depth 0 for real-time updates, goroutines %d", runtime.NumGoroutine()))
-							}
+							println(fmt.Sprintf("Keeping subscription open for real-time updates, goroutines %d", runtime.NumGoroutine()))
 						}
 					}
 				}(newRelay)
@@ -406,12 +377,6 @@ func (sm *SubscriptionManager) ProcessSubscriptionRequests(
 			}(r)
 		}
 	}
-
-	// For non-zero depths, wait for all subscriptions to complete
-	// For depth 0, we return immediately while subscriptions stay alive
-	if depth > 0 {
-		wg.Wait()
-	}
 }
 
 // GetActiveSubscriptionCount returns the number of active subscriptions
@@ -424,28 +389,27 @@ func (sm *SubscriptionManager) GetActiveSubscriptionCount() int {
 	return len(sm.subscriptions)
 }
 
-func (sm *SubscriptionManager) findRequests(subscriptionID string, rootID string, parsedEvent types.ParsedEvent, depth int) []types.Request {
-	var findRequestsForEvent func(parsedEvent types.ParsedEvent, depth int) []types.Request
-	var newRequests []types.Request = []types.Request{}
-	findRequestsForEvent = func(parsedEvent types.ParsedEvent, depth int) []types.Request {
-		if depth == 3 {
-			return []types.Request{}
+// findContext will use the cache to find the event context with a depth up to 2
+func (sm *SubscriptionManager) findContext(subscriptionID string, parsedEvent types.ParsedEvent) {
+	var findSubContext func(subEvent types.ParsedEvent, depth int)
+	findSubContext = func(subEvent types.ParsedEvent, depth int) {
+		if depth > 2 {
+			return
 		}
-		if parsedEvent.Requests != nil && len(*parsedEvent.Requests) > 0 {
+		if subEvent.Requests != nil && len(*subEvent.Requests) > 0 {
 			// loop over the requests, and keep only those that return no result from the cache
-			for _, request := range *parsedEvent.Requests {
+			for _, request := range *subEvent.Requests {
 				events, _ := sm.database.QueryEvents(request.ToFilter())
 				if len(events) > 0 {
-					eventSlice := append(*sm.subscriptions[subscriptionID].Sent[rootID], events...)
-					sm.subscriptions[subscriptionID].Sent[rootID] = &eventSlice
-					// there is always only one event / request
-					findRequestsForEvent(events[0], depth+1)
-				} else {
-					newRequests = append(newRequests, request)
+					eventSlice := append(*sm.subscriptions[subscriptionID].Sent[parsedEvent.ID], events...)
+					sm.subscriptions[subscriptionID].Sent[parsedEvent.ID] = &eventSlice
+					// Loop through all events
+					for _, event := range events {
+						findSubContext(event, depth+1)
+					}
 				}
 			}
 		}
-		return newRequests
 	}
-	return findRequestsForEvent(parsedEvent, depth)
+	findSubContext(parsedEvent, 0)
 }

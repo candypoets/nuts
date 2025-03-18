@@ -32,7 +32,7 @@
 
 	let profile: Writable<NIP01Parsed | null> = getContext('profile');
 
-	let relays: string[] = [];
+	$: relays = getRelaysFromNote(note);
 
 	let reactions: ParsedEvent<NIP25Parsed>[] = [];
 	let replies: ParsedEvent<NIP10Parsed>[] = [];
@@ -66,19 +66,19 @@
 		}
 	};
 
-	async function subscribe() {
+	function subscribe() {
 		timeout = setTimeout(async () => {
-			// nostrManager.subscribe(
-			// 	note.id,
-			// 	[
-			// 		{
-			// 			kinds: [1, 7, 17],
-			// 			tags: { '#e': [note.id] },
-			// 			relays: relays || note.relays || []
-			// 		}
-			// 	],
-			// 	handleEvents
-			// );
+			nostrManager.subscribe(
+				note.id + 'footer',
+				[
+					{
+						kinds: [1, 7, 17],
+						tags: { '#e': [note.id] },
+						relays: relays || note.relays || []
+					}
+				],
+				handleEvents
+			);
 		}, 200);
 	}
 
@@ -94,11 +94,10 @@
 			clearTimeout(timeout);
 			timeout = undefined;
 		}
-		nostrManager.unsubscribe(note.id);
+		nostrManager.unsubscribe(note.id + 'footer');
 	}
 
 	onMount(() => {
-		getRelaysFromNote(note).then((r) => (relays = r));
 		return () => {
 			unsubscribe();
 		};
@@ -179,7 +178,7 @@
 					.slice(0, 10) as [emoji, count]}
 					{#if emoji.startsWith('http')}
 						<img src={emoji} alt={emoji} class="w-4 h-4 inline-block" />
-					{:else}
+					{:else if !!emoji && emoji != 'undefined'}
 						{emoji}
 					{/if}
 				{/each}

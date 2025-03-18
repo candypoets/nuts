@@ -9,13 +9,20 @@
 	import { getContext, onMount } from 'svelte';
 	import type { Writable } from 'svelte/store';
 	import Avatar from '../avatar.svelte';
-	import type { Kind0Parsed } from 'src/parsers';
+	import {
+		isKind9321,
+		isKind9735,
+		type AnyKind,
+		type Kind0Parsed,
+		type Kind9321,
+		type Kind9735Parsed
+	} from 'src/parsers';
+	import { nostrManager } from 'src/wasm/manager';
+	import { getRelaysFromNote } from 'src/lib/getRelaysFromNote';
 
 	export let note: ParsedEvent<any>;
 	export let visible: boolean;
 
-	let nip57: Worker;
-	let nip61: Worker;
 	let timeout: NodeJS.Timeout | undefined;
 
 	let profile: Writable<Kind0Parsed | null> = getContext('profile');
@@ -27,55 +34,54 @@
 	let totalZapAmount = 0;
 	let totalNutAmount = 0;
 
+	$: relays = getRelaysFromNote(note);
+
 	async function subscribe() {
-		timeout = setTimeout(async () => {
-			if (visible) {
-				// handle zaps
-				// handleZaps();
-				// handleNuts();
-			}
-		}, 100);
+		timeout = setTimeout(() => {
+			nostrManager.subscribe(
+				note.id + 'zaps',
+				[
+					{
+						kinds: [9735, 9321],
+						tags: { '#e': [note.id] },
+						since: note.created_at,
+						relays: relays || []
+					}
+				],
+				handleEvents
+			);
+		}, 200);
 	}
 
-	async function handleNuts() {
-		if (!nip61) nip61 = new NIP61Worker();
-		nip61.postMessage({
-			zaps: { '#e': [note.id], since: note.created_at, relays: note.relays },
-			wallet: { authors: [note.pubkey], relays: note.relays }
-		} as Nip61Params);
-
-		for await (const data of handler<NIP61Parsed>(nip61, false)) {
-			if (data.kind == 9321) {
-				console.log('A NUT', data);
-				if (!data.parsed) continue;
-				if (data.pubkey == $profile?.pubkey) zapped = true;
-				if (nuts.some((n) => n.id == data.id)) continue;
-				totalNutAmount += data.parsed.amount;
-			}
-			// biggestNut = data.parsed.amount > (biggestNut?.parsed?.amount || 0) ? data : biggestNut;
-			// // filter out deep replies
-			// nuts = _.sortBy([...nuts, data], (n) => n.parsed?.amount);
+	const handleEvents = (events: ParsedEvent<AnyKind>[]) => {
+		const event = events[0];
+		if (isKind9735(event)) {
+			handleZaps(event);
+		} else if (isKind9321(event)) {
+			handleNuts(event);
 		}
+	};
+
+	function handleNuts(event: ParsedEvent<Kind9321>) {
+		console.log('A NUT', event);
+		if (!event.parsed) return;
+		if (event.pubkey == $profile?.pubkey) zapped = true;
+		if (nuts.some((n) => n.id == event.id)) return;
+		totalNutAmount += event.parsed.amount;
+
+		// biggestNut = data.parsed.amount > (biggestNut?.parsed?.amount || 0) ? data : biggestNut;
+		// // filter out deep replies
+		// nuts = _.sortBy([...nuts, data], (n) => n.parsed?.amount);
 	}
 
-	async function handleZaps() {
-		if (!nip57) nip57 = new NIP57Worker();
-		nip57.postMessage({
-			'#e': [note.id],
-			since: note.created_at,
-			relays: note.relays
-		} as Nip57Params);
-
-		for await (const data of handler<NIP57Parsed>(nip57)) {
-			console.log('zaps', data);
-			if (!data.parsed) continue;
-			if (data.pubkey == $profile?.pubkey) zapped = true;
-			if (zaps.some((z) => z.id == data.id)) continue;
-			totalZapAmount += data.parsed.amount;
-			biggestZap = data.parsed.amount > (biggestZap?.parsed?.amount || 0) ? data : biggestZap;
-			// filter out deep replies
-			zaps = _.sortBy([...zaps, data], (z) => z.parsed?.amount);
-		}
+	function handleZaps(event: ParsedEvent<Kind9735Parsed>) {
+		if (!event.parsed) return;
+		if (event.pubkey == $profile?.pubkey) zapped = true;
+		if (zaps.some((z) => z.id == event.id)) return;
+		totalZapAmount += event.parsed.amount;
+		biggestZap = event.parsed.amount > (biggestZap?.parsed?.amount || 0) ? event : biggestZap;
+		// filter out deep replies
+		zaps = _.sortBy([...zaps, event], (z) => z.parsed?.amount);
 	}
 
 	function unsubscribe() {
@@ -83,22 +89,10 @@
 			clearTimeout(timeout);
 			timeout = undefined;
 		}
-		// nip57?.postMessage({ type: 'UNSUBSCRIBE' });
-		// nip57?.terminate();
-		// nip57 = undefined;
-
-		// nip61?.postMessage({ type: 'UNSUBSCRIBE' });
-		// nip61?.terminate();
-		// nip61 = undefined;
 	}
 
 	onMount(() => {
 		return () => {
-			// nip57?.postMessage({ type: 'UNSUBSCRIBE' });
-			// nip57?.terminate();
-			// nip61?.postMessage({ type: 'UNSUBSCRIBE' });
-			// nip61?.terminate();
-
 			unsubscribe();
 		};
 	});

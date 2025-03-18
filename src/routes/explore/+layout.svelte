@@ -71,13 +71,13 @@
 			console.log('SUBSCRIBE?');
 			nostrManager.subscribe(
 				'main_feed',
-				// $followList.map((c) => ({
-				// 	kinds: [1],
-				// 	authors: [c.pubkey],
-				// 	relays: c.relays || [],
-				// 	since: ago(2 * DAY)
-				// })),
-				[{ ids: ['67e68415fe7b0c74af62c5a5ce0831ee7d8ebb096e37a8e5fc3817ba1296f5e0'], relays: [] }],
+				$followList.map((c) => ({
+					kinds: [1],
+					authors: [c.pubkey],
+					relays: c.relays || [],
+					since: ago(2 * DAY)
+				})),
+				// [{ ids: ['67e68415fe7b0c74af62c5a5ce0831ee7d8ebb096e37a8e5fc3817ba1296f5e0'], relays: [] }],
 				handleEvents
 			);
 		}
@@ -203,9 +203,7 @@
 				{post.id}
 				{post.requests.length} - {context.length}
 				<!-- <RepostHeader note={item} /> -->
-				{#if post.parsed.root}
-					<Note noteId={post.parsed.root.id} {context} leading />
-				{/if}
+
 				<Note
 					note={post}
 					{context}
