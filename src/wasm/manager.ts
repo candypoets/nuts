@@ -16,6 +16,7 @@ export type Request = Filter & {
 interface SubscriptionOptions {
 	closeOnEose?: boolean;
 	skipCache?: boolean;
+	force?: boolean; // force a new subscription if one already exists
 }
 
 interface Subscription {
@@ -80,6 +81,18 @@ export class NostrManager {
 		if (!subscriptionId) {
 			throw new Error('Subscription ID is required');
 		}
+
+		// if the subscription already exist reuse it
+		// if (this.subscriptions.has(subscriptionId) && !options.force) {
+		// 	const existingSubscription = this.subscriptions.get(subscriptionId)!;
+		// 	// Combine the existing callback with the new one
+		// 	const existingCallback = existingSubscription.callback;
+		// 	existingSubscription.callback = (events) => {
+		// 		existingCallback(events);
+		// 		callback(events);
+		// 	};
+		// 	return () => this.unsubscribe(subscriptionId);
+		// }
 
 		// Store the subscription
 		this.subscriptions.set(subscriptionId, {

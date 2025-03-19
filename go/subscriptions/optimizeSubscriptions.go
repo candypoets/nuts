@@ -23,6 +23,11 @@ func OptimizeSubscriptions(requests []types.Request) []Sub {
 
 	// make sure each request has at least one relay, if not apply default relay
 	for i := range requests {
+		// strip out any relays that are localhost or local IP addresses
+		if requests[i].Relays != nil {
+			cleanRelays := filterLocalRelays(requests[i])
+			requests[i].Relays = cleanRelays
+		}
 		if requests[i].Relays == nil || len(requests[i].Relays) == 0 {
 			requests[i].Relays = config.DefaultRelays
 		}
@@ -299,4 +304,66 @@ func MergeFilters(filters []nostr.Filter) []nostr.Filter {
 	}
 
 	return result
+}
+
+// filterLocalRelays removes any localhost or local IP addresses from a request's relays
+func filterLocalRelays(request types.Request) []string {
+	cleanRelays := []string{}
+	for _, relay := range request.Relays {
+		// Skip empty relays
+		if relay == "" {
+			continue
+		}
+
+		originalRelay := relay
+		relay = strings.TrimPrefix(relay, "wss://")
+		relay = strings.TrimPrefix(relay, "ws://")
+
+		// Check for media file extensions and other non-relay URLs
+		mediaExtensions := []string{".png", ".jpg", ".jpeg", ".gif", ".webp", ".mov", ".mp4", ".avi", ".webm", ".mp3", ".wav", ".ogg"}
+		isMediaUrl := false
+		for _, ext := range mediaExtensions {
+			if strings.HasSuffix(strings.ToLower(relay), ext) {
+				isMediaUrl = true
+				break
+			}
+		}
+
+		if isMediaUrl {
+			continue
+		}
+
+		// Extract hostname part without path, query params, etc.
+		relay = strings.Split(relay, "/")[0]
+		relay = strings.Split(relay, ":")[0]
+
+		isLocal := false
+		if relay == "localhost" || relay == "127.0.0.1" ||
+			strings.HasPrefix(relay, "192.168.") ||
+			strings.HasPrefix(relay, "10.") ||
+			strings.HasPrefix(relay, "172.16.") ||
+			strings.HasPrefix(relay, "172.17.") ||
+			strings.HasPrefix(relay, "172.18.") ||
+			strings.HasPrefix(relay, "172.19.") ||
+			strings.HasPrefix(relay, "172.20.") ||
+			strings.HasPrefix(relay, "172.21.") ||
+			strings.HasPrefix(relay, "172.22.") ||
+			strings.HasPrefix(relay, "172.23.") ||
+			strings.HasPrefix(relay, "172.24.") ||
+			strings.HasPrefix(relay, "172.25.") ||
+			strings.HasPrefix(relay, "172.26.") ||
+			strings.HasPrefix(relay, "172.27.") ||
+			strings.HasPrefix(relay, "172.28.") ||
+			strings.HasPrefix(relay, "172.29.") ||
+			strings.HasPrefix(relay, "172.30.") ||
+			strings.HasPrefix(relay, "172.31.") {
+			isLocal = true
+		}
+
+		// Only add valid, non-local, non-media relays
+		if !isLocal {
+			cleanRelays = append(cleanRelays, originalRelay)
+		}
+	}
+	return cleanRelays
 }

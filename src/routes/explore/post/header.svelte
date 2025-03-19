@@ -11,7 +11,7 @@
 	import type { AnyKind, Contact, Kind0Parsed } from 'src/parsers';
 
 	export let note: ParsedEvent<NIP10Parsed>;
-	export let context: ParsedEvent<AnyKind>[];
+	export let context: ParsedEvent<AnyKind>[] = [];
 
 	export let oneline: boolean = true;
 
@@ -21,8 +21,8 @@
 	$: followList = getContext<Writable<Contact[]>>('followList');
 
 	$: {
-		if (!author?.name) {
-			author = (context || []).find((c) => c.pubkey === note.pubkey && c.kind == 0)?.parsed as
+		if (!author) {
+			author = context.find((c) => c.pubkey === note.pubkey && c.kind == 0)?.parsed as
 				| Kind0Parsed
 				| undefined;
 		}

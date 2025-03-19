@@ -68,17 +68,19 @@
 
 	function subscribe() {
 		timeout = setTimeout(async () => {
-			nostrManager.subscribe(
-				note.id + 'footer',
-				[
-					{
-						kinds: [1, 7, 17],
-						tags: { '#e': [note.id] },
-						relays: relays || note.relays || []
-					}
-				],
-				handleEvents
-			);
+			if (visible) {
+				nostrManager.subscribe(
+					note.id + 'footer',
+					[
+						{
+							kinds: [1, 7, 17],
+							tags: { '#e': [note.id] },
+							relays: relays || note.relays || []
+						}
+					],
+					handleEvents
+				);
+			}
 		}, 200);
 	}
 
@@ -93,8 +95,8 @@
 		if (timeout) {
 			clearTimeout(timeout);
 			timeout = undefined;
+			nostrManager.unsubscribe(note.id + 'footer');
 		}
-		nostrManager.unsubscribe(note.id + 'footer');
 	}
 
 	onMount(() => {

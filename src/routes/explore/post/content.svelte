@@ -9,11 +9,12 @@
 	import type { AnyKind } from 'src/parsers';
 
 	export let parsedContent: ContentBlock[];
-	export let context: ParsedEvent<AnyKind>[];
+	export let context: ParsedEvent<AnyKind>[] = [];
+	export let visible: boolean = false;
 </script>
 
 <div class="text-sm text-wrap whitespace-normal break-words lg:w-88 relative">
-	{#each parsedContent as parsed, index}
+	{#each parsedContent as parsed}
 		{#if parsed.type == 'text'}
 			<!-- {#if !isImageUrl(part.content)} -->
 			<span class="break-words">{@html parsed.text.trim().replace(/\n/g, '<br>')}</span>
@@ -52,7 +53,12 @@
 				{context}
 			/>
 		{:else if parsed.type == 'note' || parsed.type == 'nevent'}
-			<Note noteId={parsed.data?.decoded} {context} />
+			<Note
+				noteId={parsed.data?.decoded?.id || parsed.data?.decoded}
+				{context}
+				{visible}
+				footer={false}
+			/>
 		{:else if parsed.type == 'cashu'}
 			<Cashu cashu={parsed.text} />
 		{:else if parsed.type == 'image'}

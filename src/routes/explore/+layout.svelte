@@ -77,7 +77,7 @@
 					relays: c.relays || [],
 					since: ago(2 * DAY)
 				})),
-				// [{ ids: ['67e68415fe7b0c74af62c5a5ce0831ee7d8ebb096e37a8e5fc3817ba1296f5e0'], relays: [] }],
+				// [{ ids: ['1921c37ed207f4d9e75540c7d0387af0ddcc3ea5eec4909245db652889e747c1'], relays: [] }],
 				handleEvents
 			);
 		}

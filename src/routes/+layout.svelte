@@ -64,6 +64,9 @@
 					}
 				}
 				// Handle subscription updates here
+			},
+			{
+				force: true
 			}
 		);
 	// $: $followList.length &&

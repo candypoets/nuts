@@ -132,14 +132,15 @@ func (p *Parser) ParseKind9735(event nostr.Event) (*Kind9735Parsed, *[]types.Req
 	} else {
 		zapperRelayHints = p.GetRelays(event)
 	}
-	// try to find the zapper profile
-	newRequest := types.NewRequest(zapperRelayHints, nostr.Filter{
-		Kinds:   []int{0},
-		Authors: []string{event.PubKey},
-		Limit:   1,
-	})
 
-	requests = append(requests, newRequest)
+	// try to find the zapper profile
+	requests = append(requests, types.Request{
+		Kinds:      []int{0},
+		Authors:    []string{event.PubKey},
+		Limit:      1,
+		CacheFirst: true,
+		Relays:     zapperRelayHints,
+	})
 
 	// Create the parsed zap receipt
 	receipt := &Kind9735Parsed{

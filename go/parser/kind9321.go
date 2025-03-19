@@ -77,16 +77,16 @@ func (p *Parser) ParseKind9321(event nostr.Event) (*Kind9321Parsed, *[]types.Req
 		proofs = append(proofs, proofData)
 	}
 	// try to find receipt event from the recipient
-	newRequest := types.NewRequest(p.GetRelays(event), nostr.Filter{
+	requests = append(requests, types.Request{
 		Kinds: []int{7376},
 		Tags: map[string][]string{
 			"#e": {event.ID},
 		},
-		Authors: []string{recipientTag[1]},
-		Limit:   1,
+		Authors:    []string{recipientTag[1]},
+		Limit:      1,
+		CacheFirst: true,
+		Relays:     p.GetRelays(event),
 	})
-
-	requests = append(requests, newRequest)
 
 	// Create the parsed result
 	result := &Kind9321Parsed{

@@ -38,18 +38,20 @@
 
 	async function subscribe() {
 		timeout = setTimeout(() => {
-			nostrManager.subscribe(
-				note.id + 'zaps',
-				[
-					{
-						kinds: [9735, 9321],
-						tags: { '#e': [note.id] },
-						since: note.created_at,
-						relays: relays || []
-					}
-				],
-				handleEvents
-			);
+			if (visible) {
+				nostrManager.subscribe(
+					note.id + 'zaps',
+					[
+						{
+							kinds: [9735, 9321],
+							tags: { '#e': [note.id] },
+							since: note.created_at,
+							relays: relays || []
+						}
+					],
+					handleEvents
+				);
+			}
 		}, 200);
 	}
 
@@ -88,6 +90,7 @@
 		if (timeout) {
 			clearTimeout(timeout);
 			timeout = undefined;
+			nostrManager.unsubscribe(note.id + 'zaps');
 		}
 	}
 

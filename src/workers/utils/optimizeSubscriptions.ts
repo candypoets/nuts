@@ -2,6 +2,7 @@ import type { Filter } from 'nostr-tools';
 
 export type Request = Filter & {
 	relays: string[];
+	cacheFirst: boolean; // if true, the request cancel if the response is in the cache
 };
 
 export type Subscription = {
