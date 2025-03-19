@@ -85,6 +85,9 @@ func (p *Parser) ParseKind0(event nostr.Event) (*Kind0Parsed, *[]types.Request, 
 	// 		// }
 	// 	}
 	// }
+	if len(profile.Name) == 0 && len(profile.DisplayName) > 0 {
+		profile.Name = profile.DisplayName
+	}
 
 	return &profile, nil, nil
 }

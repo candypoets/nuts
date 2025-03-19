@@ -77,7 +77,15 @@
 					relays: c.relays || [],
 					since: ago(2 * DAY)
 				})),
-				// [{ ids: ['1921c37ed207f4d9e75540c7d0387af0ddcc3ea5eec4909245db652889e747c1'], relays: [] }],
+				// [
+				// 	{
+				// 		ids: [
+				// 			'2ff0a18aa43848c83c037061b8a8999b0fbb119e2ca3abd9ed6afcfc8c495a28',
+				// 			'375f21bf489398e235c83f396f0c22cddac67eb63b43d391fc903c4af900ca74'
+				// 		],
+				// 		relays: []
+				// 	}
+				// ],
 				handleEvents
 			);
 		}

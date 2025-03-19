@@ -26,7 +26,8 @@ type SubscriptionManager struct {
 	database      *db.NostrDB
 	parser        *parser.Parser
 	stagedEvents  []types.ParsedEvent // keep a list of events to save to indexdb
-	pool          nostr.SimplePool
+	relays        map[string]*nostr.Relay
+	subs          map[string]int
 }
 
 // NewSubscriptionManager creates a new subscription manager
@@ -36,7 +37,8 @@ func NewSubscriptionManager(database *db.NostrDB, parser *parser.Parser) *Subscr
 		database:      database,
 		parser:        parser,
 		stagedEvents:  []types.ParsedEvent{},
-		pool:          *nostr.NewSimplePool(context.Background()),
+		relays:        make(map[string]*nostr.Relay),
+		subs:          make(map[string]int),
 	}
 
 	go func() {
@@ -253,15 +255,27 @@ func (sm *SubscriptionManager) ProcessSubscriptionRequests(
 			continue
 		}
 
-		for _, f := range filters {
+		for _, r := range relays {
 			wg.Add(1)
 			// Create a subscription context that can be cancelled
-			subCtx, _ := context.WithCancel(ctx)
 
-			go func(filter nostr.Filter) {
+			go func(relay string) {
+				subCtx, _ := context.WithCancel(ctx)
 				defer wg.Done()
 
-				evChan := sm.pool.SubscribeMany(subCtx, relays, filter)
+				if sm.relays[relay] == nil {
+					relayCtx := context.Background()
+					sm.relays[relay] = nostr.NewRelay(relayCtx, relay)
+					sm.relays[relay].Connect(relayCtx)
+				}
+
+				sub, err := sm.relays[relay].Subscribe(subCtx, filters)
+				if err != nil {
+					fmt.Println(fmt.Sprintf("Error subscribing to %s:", relay), err)
+					return
+				}
+				sm.subs[relay]++
+
 				innerDone := make(chan struct{})
 
 				go func() {
@@ -276,12 +290,12 @@ func (sm *SubscriptionManager) ProcessSubscriptionRequests(
 							// sub.Unsub()
 							// rl.Close()
 							return
-						case ev, more := <-evChan:
+						case ev, more := <-sub.Events:
 							if !more {
 								println("Subscription closed")
 								return
 							}
-							println("new event", ev.Event.ID, ev.Event.Kind, subscriptionID)
+							println("new event", ev.ID, ev.Kind, subscriptionID)
 							// check before parsing if the event has already been sent
 							// it's also a good way to avoid double parsing,
 							// since that event would have been sent by the cache already
@@ -292,11 +306,11 @@ func (sm *SubscriptionManager) ProcessSubscriptionRequests(
 								sm.mutex.Unlock()
 								continue
 							}
-							sm.subscriptions[subscriptionID].Sent[ev.ID] = &[]types.ParsedEvent{types.ParsedEvent{Event: *ev.Event}}
+							sm.subscriptions[subscriptionID].Sent[ev.ID] = &[]types.ParsedEvent{types.ParsedEvent{Event: *ev}}
 							sm.mutex.Unlock()
 
 							// Process the event
-							parsedEvent, err := sm.parser.Parse(*ev.Event)
+							parsedEvent, err := sm.parser.Parse(*ev)
 							if err != nil {
 								println("Error parsing event:", err.Error())
 								continue
@@ -329,38 +343,54 @@ func (sm *SubscriptionManager) ProcessSubscriptionRequests(
 								callback.Invoke("FETCHED_EVENTS", uint8Array)
 							}
 
-							// case <-sub.EndOfStoredEvents:
-							// 	// Notify callback about EOSE
-							// 	relaysPack, err := msgpack.Marshal(relays)
-							// 	if err != nil {
-							// 		println("Error marshaling EOSE event:", err.Error())
-							// 		return
-							// 	}
-							// 	// Create a JavaScript Uint8Array to hold the MessagePack data
-							// 	uint8Array := js.Global().Get("Uint8Array").New(len(relaysPack))
+						case <-sub.EndOfStoredEvents:
+							// Notify callback about EOSE
+							relaysPack, err := msgpack.Marshal(relays)
+							if err != nil {
+								println("Error marshaling EOSE event:", err.Error())
+								return
+							}
+							// Create a JavaScript Uint8Array to hold the MessagePack data
+							uint8Array := js.Global().Get("Uint8Array").New(len(relaysPack))
 
-							// 	// Copy the Go bytes to the JavaScript Uint8Array
-							// 	js.CopyBytesToJS(uint8Array, relaysPack)
+							// Copy the Go bytes to the JavaScript Uint8Array
+							js.CopyBytesToJS(uint8Array, relaysPack)
 
-							// 	callback.Invoke("EOSE", uint8Array)
+							callback.Invoke("EOSE", uint8Array)
 
-							// 	println(fmt.Sprintf("Keeping subscription open for real-time updates, goroutines %d", runtime.NumGoroutine()))
+							println(fmt.Sprintf("Keeping subscription open for real-time updates, goroutines %d", runtime.NumGoroutine()))
 						}
 					}
 				}()
 				select {
 				case <-subCtx.Done():
 					// Context was cancelled
-					// newRelay.Close()
+					// The sub should now be closed
+					sub.Unsub()
+					// decrement the subscription count
+					sm.subs[relay]--
+					// if there is no sub to this relay close it
+					if sm.subs[relay] == 0 {
+						sm.relays[relay].Close()
+						sm.relays[relay] = nil
+					}
 					println("Outer goroutine ending due to context cancellation")
 					return
 				case <-innerDone:
 					// Inner goroutine completed on its own
-					// newRelay.Close()
+					// The sub should now be closed
+					sub.Unsub()
+					// decrement the subscription count
+					sm.subs[relay]--
+					// if there is no sub to this relay close it
+					if sm.subs[relay] == 0 {
+						sm.relays[relay].Close()
+						sm.relays[relay] = nil
+					}
 					println("Outer goroutine ending because inner goroutine finished")
 					return
 				}
-			}(f)
+			}(r)
 		}
 	}
 }

@@ -38,6 +38,7 @@
 		// }, 500);
 		// return () => clearTimeout(timeout);
 	});
+	$: console.log('author', author);
 </script>
 
 <div class="flex gap-2 relative">

@@ -10,6 +10,7 @@
 
 	export let parsedContent: ContentBlock[];
 	export let context: ParsedEvent<AnyKind>[] = [];
+	export let depth = 0;
 	export let visible: boolean = false;
 </script>
 
@@ -57,6 +58,7 @@
 				noteId={parsed.data?.decoded?.id || parsed.data?.decoded}
 				{context}
 				{visible}
+				depth={depth + 1}
 				footer={false}
 			/>
 		{:else if parsed.type == 'cashu'}

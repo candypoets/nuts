@@ -16,6 +16,7 @@
 	export let footer: boolean = true;
 	export let visible: boolean = false;
 	export let root: boolean = false;
+	export let depth = 0;
 
 	// is the note leading in a thread
 	export let leading: boolean | undefined = undefined;
@@ -28,7 +29,7 @@
 
 	$: {
 		if (!note && noteId) {
-			// console.log('note events context', noteId, randomId, context);
+			console.log('note events context', noteId, context);
 			note = context.find((event) => event.id === noteId) as ParsedEvent<Kind1Parsed>;
 		}
 	}
@@ -62,7 +63,7 @@
 	$: console.log('noteId', noteId, visible);
 </script>
 
-{#if note?.parsed?.root && !(note.parsed.mentions || []).some((m) => m.id == note?.parsed?.root?.id)}
+{#if note?.parsed?.root && !(note.parsed.mentions || []).some((m) => m.id == note?.parsed?.root?.id) && !depth}
 	<svelte:self noteId={note.parsed.root.id} {context} {visible} zaps leading />
 {/if}
 <div class="py-2 rounded-2xl relative">
@@ -72,7 +73,7 @@
 	<!-- <span class="text-xs">{noteId || note?.id}</span> -->
 	{#if note}
 		<!-- <div class="text-xs">{randomId} - {context.length}</div> -->
-		{#if zaps}
+		{#if zaps && !depth}
 			<Zap {note} {visible} />
 		{/if}
 		<Header {note} {context} />
@@ -86,10 +87,10 @@
 		>
 			<div class="min-w-8" />
 			<div class="-mt-2">
-				<Content parsedContent={note.parsed?.parsedContent || []} {context} {visible} />
+				<Content parsedContent={note.parsed?.parsedContent || []} {context} {visible} {depth} />
 			</div>
 		</div>
-		{#if footer}
+		{#if footer && !depth}
 			<Footer {note} visible />
 		{/if}
 	{:else}
