@@ -14,6 +14,7 @@
 
 	// Props
 	export let subscriptionID: string;
+	export let headerItem: ParsedEvent<AnyKind> | undefined;
 	export let requests: any[] = [];
 
 	let feed: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
@@ -29,6 +30,14 @@
 	let topper: HTMLElement;
 	let footer: HTMLElement;
 	let fadein = false;
+
+	// Combined feed including the header item if provided
+	$: combinedItems = headerItem ? [headerItem, ...feed] : feed;
+
+	const isHeaderItem = (item) => {
+		console.log(item);
+		return item?.index == 0;
+	};
 
 	// In a separate function to avoid infinite loops in the reactive block
 	const handleEvents = (events: ParsedEvent<AnyKind>[]) => {
@@ -121,25 +130,33 @@
 
 		<VirtualList
 			className="pt-16"
-			items={feed}
+			items={combinedItems}
 			bind:start
 			bind:end
 			bind:viewport
 			bind:top
-			getItemId={(item) => item.data[0].id}
+			getItemId={(item) => (headerItem && item.index == 0 ? 'header-item' : item.data[0]?.id)}
 			let:item
 		>
-			{@const post = item[0]}
-			{@const context = item[1]}
-			<div
-				class="block lg:hover:bg-base-200 w-feed lg:m-auto py-1 px-1 border-b-2 border-base-200 max-w-full"
-			>
-				<Note
-					note={post}
-					{context}
-					visible={feed.findIndex((note) => note[0]?.id === post.id) >= start - 2}
-				/>
-			</div>
+			{#if headerItem && item.id == headerItem?.id}
+				<!-- Render header item -->
+				<div class="block w-feed lg:m-auto py-1 px-1 border-b-2 border-base-200 max-w-full">
+					<!-- Render custom header content -->
+					<slot name="header-content" {item} />
+				</div>
+			{:else}
+				{@const post = item[0]}
+				{@const context = item[1]}
+				<div
+					class="block lg:hover:bg-base-200 w-feed lg:m-auto py-1 px-1 border-b-2 border-base-200 max-w-full"
+				>
+					<Note
+						note={post}
+						{context}
+						visible={feed.findIndex((note) => note[0]?.id === post.id) >= start - 2}
+					/>
+				</div>
+			{/if}
 		</VirtualList>
 	</div>
 {:else}

@@ -70,12 +70,12 @@ func (sm *SubscriptionManager) OpenSubscription(subscriptionID string, requests 
 	if sm.subscriptions[subscriptionID] != nil {
 		sm.CloseSubscription(subscriptionID)
 	}
+	sm.mutex.Lock()
 
 	// Create a new pool for this subscription
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Create subscription record
-	sm.mutex.Lock()
 	subscription := &Subscription{
 		ID:         subscriptionID,
 		Ctx:        ctx,
@@ -85,9 +85,13 @@ func (sm *SubscriptionManager) OpenSubscription(subscriptionID string, requests 
 	sm.subscriptions[subscriptionID] = subscription
 	sm.mutex.Unlock()
 
-	networkRequests := sm.ProcessLocalRequests(subscriptionID, requests, callback, 0)
-
-	sm.ProcessSubscriptionRequests(subscriptionID, ctx, networkRequests, callback)
+	go func() {
+		networkRequests := sm.ProcessLocalRequests(subscriptionID, ctx, requests, callback, 0)
+		if ctx.Err() != nil {
+			return
+		}
+		sm.ProcessSubscriptionRequests(subscriptionID, ctx, networkRequests, callback)
+	}()
 
 	return nil
 }
@@ -111,6 +115,7 @@ func (sm *SubscriptionManager) CloseSubscription(subscriptionID string) {
 // processes them, and recursively handles any resulting requests up to a maximum depth of 3.
 func (sm *SubscriptionManager) ProcessLocalRequests(
 	subscriptionID string,
+	ctx context.Context,
 	requests []types.Request,
 	callback js.Func,
 	depth int,
@@ -123,6 +128,9 @@ func (sm *SubscriptionManager) ProcessLocalRequests(
 		return filteredRequests
 	}
 	for _, req := range requests {
+		if ctx.Err() != nil {
+			return filteredRequests
+		}
 		filter := nostr.Filter{
 			IDs:     req.IDs,
 			Kinds:   req.Kinds,
@@ -132,14 +140,6 @@ func (sm *SubscriptionManager) ProcessLocalRequests(
 			Limit:   req.Limit,
 			Tags:    req.Tags,
 		}
-		// }
-
-		// filters = MergeFilters(filters)
-
-		// For each merged filter, search the database
-		// for _, filter := range filters {
-
-		// Convert request to database filter format
 		// Query the database for events matching the filter
 		events, err := sm.database.QueryEvents(filter)
 		if err != nil {
@@ -156,6 +156,9 @@ func (sm *SubscriptionManager) ProcessLocalRequests(
 
 		// Process each event found
 		for _, event := range events {
+			if ctx.Err() != nil {
+				return filteredRequests
+			}
 			rootID := event.Event.ID
 			if len(root) > 0 {
 				rootID = root[0]
@@ -193,7 +196,7 @@ func (sm *SubscriptionManager) ProcessLocalRequests(
 			// process them recursively, but with incremented depth
 			if event.Requests != nil && len(*event.Requests) > 0 {
 				// Process recursively with increased depth
-				filteredRequests = append(filteredRequests, sm.ProcessLocalRequests(subscriptionID, *event.Requests, callback, depth+1, rootID)...)
+				filteredRequests = append(filteredRequests, sm.ProcessLocalRequests(subscriptionID, ctx, *event.Requests, callback, depth+1, rootID)...)
 			}
 
 			if len(root) > 0 {
@@ -206,6 +209,9 @@ func (sm *SubscriptionManager) ProcessLocalRequests(
 				}
 				sm.mutex.Unlock()
 			} else {
+				if ctx.Err() != nil {
+					return filteredRequests
+				}
 				// Convert parsed events for callback
 				pack, err := msgpack.Marshal(sm.subscriptions[subscriptionID].Sent[event.ID])
 				if err != nil {
