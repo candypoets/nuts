@@ -12,6 +12,7 @@
 
 	export let note: ParsedEvent<NIP10Parsed>;
 	export let context: ParsedEvent<AnyKind>[] = [];
+	export let depth = 0;
 
 	export let oneline: boolean = true;
 
@@ -38,23 +39,28 @@
 		// }, 500);
 		// return () => clearTimeout(timeout);
 	});
-	$: console.log('author', author);
 </script>
 
-<div class="flex gap-2 relative">
-	<div class="w-8 min-w-8">
-		<img
-			src={author?.picture || '/ns-naked.svg'}
-			alt={author?.name}
-			class="border w-8 h-8 rounded-full space-x-4 mx-auto z-10"
-		/>
+<div class="flex gap-2 relative" class:!gap-1={!!depth}>
+	<div class="w-8 min-w-8" class:!w-6={!!depth} class:!min-w-6={!!depth}>
+		<a href={`/explore/profile/${note.pubkey}`} class="cursor-pointer">
+			<img
+				src={author?.picture || '/ns-naked.svg'}
+				alt={author?.name}
+				class="border w-8 h-8 rounded-full space-x-4 mx-auto z-10 object-cover"
+				class:!w-6={!!depth}
+				class:!h-6={!!depth}
+			/>
+		</a>
 	</div>
 	<div class="w-full">
 		<div class="flex items-start" class:items-center={oneline}>
 			{#if oneline}
-				<div class="whitespace-nowrap overflow-hidden text-ellipsis font-semibold">
-					{author?.name}
-				</div>
+				<a href={`/explore/profile/${note.pubkey}`} class="hover:underline cursor-pointer">
+					<div class="whitespace-nowrap overflow-hidden text-ellipsis font-semibold">
+						{author?.name}
+					</div>
+				</a>
 				{#if author?.nip05}
 					<Icon icon="bitcoin-icons:verify-filled" class="inline text-lg text-primary" />
 					<p class="text-xs opacity-50">{author?.nip05}</p>
@@ -62,7 +68,9 @@
 			{:else}
 				<div class="flex-grow">
 					<div class="flex items-center">
-						<div class="whitespace-nowrap overflow-hidden text-ellipsis">{author?.name}</div>
+						<a href={`/explore/profile/${note.pubkey}`} class="hover:underline cursor-pointer">
+							<div class="whitespace-nowrap overflow-hidden text-ellipsis">{author?.name}</div>
+						</a>
 						<Icon icon="bitcoin-icons:verify-filled" class="inline text-lg text-primary" />
 						<p class="text-xs opacity-50 ml-2">
 							{#if Date.now() / 1000 - note?.created_at < 60}

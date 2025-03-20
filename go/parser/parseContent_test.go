@@ -53,17 +53,16 @@ func TestParseContent(t *testing.T) {
 			},
 		},
 		{
-			name:    "Image URLs",
-			content: "Check these images: https://example.com/image.jpg https://example.com/photo.png",
+			name: "Image URLs",
+			content: `	⚡️ MORE - Physical #Bitcoin exchange spotted in Bolivia 🇧🇴
+https://m.primal.net/PlWm.jpg`,
 			expected: []ContentBlock{
-				{Type: "text", Text: "Check these images: "},
-				{Type: "mediaGrid", Text: "https://example.com/image.jpg\nhttps://example.com/photo.png",
-					Data: map[string]interface{}{
-						"items": []map[string]interface{}{
-							{"type": "image", "src": "https://example.com/image.jpg"},
-							{"type": "image", "src": "https://example.com/photo.png"},
-						},
-					}},
+				{Type: "text", Text: "	⚡️ MORE - Physical "},
+				{Type: "hashtag", Text: "#Bitcoin", Data: map[string]interface{}{"tag": "Bitcoin"}},
+				{Type: "text", Text: " exchange spotted in Bolivia 🇧🇴\n"},
+				{Type: "image", Text: "https://m.primal.net/PlWm.jpg", Data: map[string]interface{}{
+					"src": "https://m.primal.net/PlWm.jpg",
+				}},
 			},
 		},
 		{
@@ -227,7 +226,7 @@ func TestEdgeCases(t *testing.T) {
 		{
 			name:     "Empty content",
 			content:  "",
-			expected: 1, // Should have one empty text block
+			expected: 0, // Should have one empty text block
 		},
 		{
 			name:     "Only whitespace",

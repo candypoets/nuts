@@ -44,7 +44,6 @@
 	const mapEmoticons: Record<string, number> = {};
 
 	const handleReactions = (event: ParsedEvent<Kind7Parsed>) => {
-		console.log('reactions EVENT', event);
 		if (!event.parsed || mapReactions[event.id]) return;
 		if (event.pubkey == $profile?.pubkey) liked = true;
 		mapReactions[event.id] = event;

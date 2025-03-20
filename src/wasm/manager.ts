@@ -11,6 +11,7 @@ type SubscriptionCallback = (events: ParsedEvent<AnyKind>[]) => void;
 
 export type Request = Filter & {
 	relays: string[];
+	cacheFirst: boolean;
 };
 
 interface SubscriptionOptions {
@@ -77,7 +78,7 @@ export class NostrManager {
 		requests: Request[],
 		callback: SubscriptionCallback,
 		options: SubscriptionOptions = {}
-	): Function {
+	): () => void {
 		if (!subscriptionId) {
 			throw new Error('Subscription ID is required');
 		}

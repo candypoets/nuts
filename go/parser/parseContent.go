@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"sort"
 	"strings"
 
 	"github.com/dlclark/regexp2"
@@ -24,9 +23,8 @@ type Pattern struct {
 
 // Match represents a matched pattern in the content with position info
 type Match struct {
-	Start int
-	End   int
 	Block ContentBlock
+	Raw   string // The exact raw substring matched
 }
 
 // GetLinkPreview is a placeholder for the link preview functionality
@@ -40,42 +38,37 @@ func GetLinkPreview(url string) (map[string]interface{}, error) {
 }
 
 // findAllMatches finds all matches for a regexp2 pattern in the content
-func findAllMatches(re *regexp2.Regexp, content string) ([][]string, [][]int, error) {
+func findAllMatches(re *regexp2.Regexp, content string) ([][]string, error) {
 	var matches [][]string
-	var matchIndices [][]int
 
 	match, err := re.FindStringMatchStartingAt(content, 0)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	for match != nil {
 		// Extract all groups
 		groups := []string{match.String()}
-		indices := []int{match.Index, match.Index + match.Length}
 
 		for i := 1; i <= match.GroupCount(); i++ {
 			group := match.GroupByNumber(i)
 			if group != nil && group.Length > 0 {
 				groups = append(groups, group.String())
-				indices = append(indices, group.Index, group.Index+group.Length)
 			} else {
 				groups = append(groups, "")
-				indices = append(indices, -1, -1)
 			}
 		}
 
 		matches = append(matches, groups)
-		matchIndices = append(matchIndices, indices)
 
 		// Find the next match
 		match, err = re.FindNextMatch(match)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 	}
 
-	return matches, matchIndices, nil
+	return matches, nil
 }
 
 // ParseContent parses a string content into ContentBlocks
@@ -199,98 +192,105 @@ func ParseContent(content string) ([]ContentBlock, error) {
 		},
 	}
 
-	// Find all matches with their positions
-	var allMatches []Match
+	// A simpler approach that still avoids byte position issues
+	var blocks []ContentBlock
 
+	// Start with a text block for the entire content
+	currentContent := content
+
+	// Process one pattern at a time (in order to prioritize patterns)
 	for _, pattern := range patterns {
-		// Find all matches for this pattern
-		matchTexts, matchIndices, err := findAllMatches(pattern.Regex, content)
-		if err != nil {
-			continue
-		}
+		var newBlocks []ContentBlock
 
-		for i, matchText := range matchTexts {
-			// Get the start and end positions
-			start := matchIndices[i][0]
-			end := matchIndices[i][1]
-
-			// Process the match
-			block, err := pattern.ProcessMatch(matchText)
-			if err != nil {
+		for _, block := range append(blocks, ContentBlock{Type: "text", Text: currentContent}) {
+			// Only process text blocks
+			if block.Type != "text" {
+				newBlocks = append(newBlocks, block)
 				continue
 			}
 
-			allMatches = append(allMatches, Match{
-				Start: start,
-				End:   end,
-				Block: block,
-			})
-		}
-	}
+			// Skip empty text blocks
+			if block.Text == "" {
+				continue
+			}
 
-	// Sort matches by start position
-	sort.Slice(allMatches, func(i, j int) bool {
-		return allMatches[i].Start < allMatches[j].Start
-	})
+			// Find matches in this text block
+			matchTexts, err := findAllMatches(pattern.Regex, block.Text)
+			if err != nil || len(matchTexts) == 0 {
+				// No matches, keep block as is
+				newBlocks = append(newBlocks, block)
+				continue
+			}
 
-	// Remove overlapping matches (prioritize earlier patterns)
-	var filteredMatches []Match
+			// Process matches and split the text
+			lastIndex := 0
 
-	for _, match := range allMatches {
-		overlaps := false
+			for _, matchText := range matchTexts {
+				// Find the match position
+				matchStart := strings.Index(block.Text[lastIndex:], matchText[0])
+				if matchStart == -1 {
+					continue
+				}
+				matchStart += lastIndex
+				matchEnd := matchStart + len(matchText[0])
 
-		for _, existing := range filteredMatches {
-			if (match.Start >= existing.Start && match.Start < existing.End) ||
-				(match.End > existing.Start && match.End <= existing.End) ||
-				(match.Start <= existing.Start && match.End >= existing.End) {
-				overlaps = true
-				break
+				// Add text before the match if any
+				if matchStart > lastIndex {
+					newBlocks = append(newBlocks, ContentBlock{
+						Type: "text",
+						Text: block.Text[lastIndex:matchStart],
+					})
+				}
+
+				// Process and add the match
+				matchBlock, err := pattern.ProcessMatch(matchText)
+				if err == nil {
+					newBlocks = append(newBlocks, matchBlock)
+				} else {
+					// If we can't process the match, treat it as text
+					newBlocks = append(newBlocks, ContentBlock{
+						Type: "text",
+						Text: matchText[0],
+					})
+				}
+
+				lastIndex = matchEnd
+			}
+
+			// Add remaining text after last match
+			if lastIndex < len(block.Text) {
+				newBlocks = append(newBlocks, ContentBlock{
+					Type: "text",
+					Text: block.Text[lastIndex:],
+				})
 			}
 		}
 
-		if !overlaps {
-			filteredMatches = append(filteredMatches, match)
-		}
+		blocks = newBlocks
+		currentContent = ""
 	}
 
-	// Re-sort filtered matches
-	sort.Slice(filteredMatches, func(i, j int) bool {
-		return filteredMatches[i].Start < filteredMatches[j].Start
-	})
+	// Combine adjacent text blocks
+	var combinedBlocks []ContentBlock
 
-	// Build the final result, including text between matches
-	var blocks []ContentBlock
-	lastIndex := 0
-
-	for _, match := range filteredMatches {
-		// Add text before this match
-		if match.Start > lastIndex {
-			blocks = append(blocks, ContentBlock{
-				Type: "text",
-				Text: content[lastIndex:match.Start],
-			})
+	for _, block := range blocks {
+		if len(combinedBlocks) > 0 &&
+		   block.Type == "text" &&
+		   combinedBlocks[len(combinedBlocks)-1].Type == "text" {
+			// Combine with previous text block
+			lastIdx := len(combinedBlocks) - 1
+			combinedBlocks[lastIdx].Text += block.Text
+		} else {
+			combinedBlocks = append(combinedBlocks, block)
 		}
-
-		// Add the match
-		blocks = append(blocks, match.Block)
-
-		lastIndex = match.End
-	}
-
-	// Add any remaining text after the last match
-	if lastIndex < len(content) {
-		blocks = append(blocks, ContentBlock{
-			Type: "text",
-			Text: content[lastIndex:],
-		})
 	}
 
 	// Post-processing: group consecutive media into grids
 	var processedBlocks []ContentBlock
 	var mediaGroup []ContentBlock
 
-	for i := 0; i < len(blocks); i++ {
-		block := blocks[i]
+	for i := 0; i < len(combinedBlocks); i++ {
+		block := combinedBlocks[i]
 
 		// If this is an image or video
 		if block.Type == "image" || block.Type == "video" {
@@ -310,8 +310,8 @@ func ParseContent(content string) ([]ContentBlock, error) {
 
 			if isWhitespace {
 				// If we have media before and media after, continue collecting
-				if len(mediaGroup) > 0 && i+1 < len(blocks) {
-					nextBlock := blocks[i+1]
+				if len(mediaGroup) > 0 && i+1 < len(combinedBlocks) {
+					nextBlock := combinedBlocks[i+1]
 					if nextBlock.Type == "image" || nextBlock.Type == "video" {
 						continue
 					}
@@ -378,5 +378,13 @@ func ParseContent(content string) ([]ContentBlock, error) {
 		}
 	}
 
-	return processedBlocks, nil
+	// Remove empty text blocks
+	var finalBlocks []ContentBlock
+	for _, block := range processedBlocks {
+		if block.Type != "text" || block.Text != "" {
+			finalBlocks = append(finalBlocks, block)
+		}
+	}
+
+	return finalBlocks, nil
 }

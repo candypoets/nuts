@@ -14,11 +14,20 @@
 	export let visible: boolean = false;
 </script>
 
-<div class="text-sm text-wrap whitespace-normal break-words lg:w-88 relative">
-	{#each parsedContent as parsed}
+<div
+	class={!depth
+		? 'w-post'
+		: 'w-post-' + depth + ' text-sm text-wrap whitespace-normal break-words relative'}
+>
+	{#each parsedContent as parsed, index}
 		{#if parsed.type == 'text'}
 			<!-- {#if !isImageUrl(part.content)} -->
-			<span class="break-words">{@html parsed.text.trim().replace(/\n/g, '<br>')}</span>
+			<span class="break-words"
+				>{@html (index == 0 || index == parsedContent.length - 1
+					? parsed.text.trim()
+					: parsed.text
+				).replace(/\n/g, '<br>')}</span
+			>
 			<!-- {/if} -->
 		{:else if parsed.type == 'link'}
 			{#if parsed.data?.preview && parsed.data?.preview?.images?.[0]}
@@ -64,9 +73,11 @@
 		{:else if parsed.type == 'cashu'}
 			<Cashu cashu={parsed.text} />
 		{:else if parsed.type == 'image'}
-			<img class="lg:min-w-88 rounded-md" src={parsed.text} alt={parsed.text} />
+			<ImageGrid links={[{ src: parsed.text, type: 'image' }]} />
+			<!-- <img class="lg:min-w-88 rounded-md" src={parsed.text} alt={parsed.text} /> -->
 		{:else if parsed.type == 'video'}
-			<video class="w-full rounded-md" src={parsed.text} autoplay muted></video>
+			<ImageGrid links={[{ src: parsed.text, type: 'video' }]} />
+			<!-- <video class="w-full rounded-md" src={parsed.text} autoplay muted></video> -->
 		{:else if parsed.type == 'mediaGrid'}
 			<ImageGrid links={parsed.data?.items || []} />
 		{/if}

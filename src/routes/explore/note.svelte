@@ -29,7 +29,6 @@
 
 	$: {
 		if (!note && noteId) {
-			console.log('note events context', noteId, context);
 			note = context.find((event) => event.id === noteId) as ParsedEvent<Kind1Parsed>;
 		}
 	}
@@ -59,24 +58,22 @@
 	}
 
 	$: visible && note ? subscribe() : unsubscribe();
-
-	$: console.log('noteId', noteId, visible);
 </script>
 
 {#if note?.parsed?.root && !(note.parsed.mentions || []).some((m) => m.id == note?.parsed?.root?.id) && !depth}
 	<svelte:self noteId={note.parsed.root.id} {context} {visible} zaps leading />
 {/if}
 <div class="py-2 rounded-2xl relative">
-	{#if leading}
-		<div class="absolute border-gray-300 left-4 h-full border-r-2" />
-	{/if}
 	<!-- <span class="text-xs">{noteId || note?.id}</span> -->
 	{#if note}
 		<!-- <div class="text-xs">{randomId} - {context.length}</div> -->
 		{#if zaps && !depth}
 			<Zap {note} {visible} />
 		{/if}
-		<Header {note} {context} />
+		{#if leading}
+			<div class="absolute border-gray-300 left-4 h-full border-r-2" />
+		{/if}
+		<Header {note} {context} {depth} />
 		<div
 			class="flex gap-2"
 			on:click={(e) => {
@@ -85,25 +82,36 @@
 				goto(`/explore/${note?.parsed?.root?.id ? note?.parsed.root.id : note?.id}`);
 			}}
 		>
-			<div class="min-w-8" />
-			<div class="-mt-2">
+			{#if !depth}
+				<div class="min-w-8" />
+			{/if}
+			<div class="-mt-2" class:!mt-0={!!depth}>
 				<Content parsedContent={note.parsed?.parsedContent || []} {context} {visible} {depth} />
 			</div>
 		</div>
 		{#if footer && !depth}
 			<Footer {note} visible />
 		{/if}
+		{#if leading}
+			<div
+				class={(!depth ? 'w-post' : 'w-post-' + (depth + 1)) +
+					' border-b border-gray-200 absolute right-0 mt-2'}
+			/>
+		{/if}
 	{:else}
-		<div class="flex flex-col gap-2 animate-pulse">
+		<div class="flex flex-col gap-2">
 			<div class="flex items-center gap-2">
-				<div class="w-8 h-8 bg-gray-200 rounded-full"></div>
-				<div class="h-4 bg-gray-200 rounded w-24"></div>
+				<div class="w-8 h-8 shimmer rounded-full"></div>
+				<div class="h-4 shimmer rounded w-24"></div>
 			</div>
-			<div class="flex gap-2">
+			{#if leading}
+				<div class="absolute border-gray-300 left-4 h-full border-r-2" />
+			{/if}
+			<div class="flex gap-2 w-full">
 				<div class="min-w-8"></div>
 				<div class="flex-1 space-y-2">
-					<div class="h-4 bg-gray-200 rounded w-3/4"></div>
-					<div class="h-4 bg-gray-200 rounded w-1/2"></div>
+					<div class="h-4 shimmer rounded w-3/4"></div>
+					<div class="h-4 shimmer rounded w-1/2"></div>
 				</div>
 			</div>
 		</div>

@@ -2,13 +2,12 @@
 	import cx from 'classnames';
 	import ImageZoom from 'src/comp/ImageZoom.svelte';
 
-	export let links: { src: string }[];
+	export let links: { src: string; type?: 'image' | 'video' }[];
 
 	let zoomed: number;
-	let grid: HTMLElement;
 	$: columns = Math.ceil(Math.sqrt(links.length));
 
-	function getSpan(i: number) {
+	function getSpan(i: number, fullwidth = false) {
 		// how many slots are left in the row
 		const slots = columns - (i % columns);
 		return slots;
@@ -16,7 +15,6 @@
 </script>
 
 <div
-	bind:this={grid}
 	on:click|preventDefault|stopPropagation
 	class={cx(
 		'grid-cols-' + columns,
@@ -24,15 +22,25 @@
 	)}
 >
 	{#each links as link, i}
-		{#if i === 0}
-			<img
-				class={cx('col-span-' + getSpan(links.length - 1), 'h-full max-h-96 w-full object-cover')}
+		{#if link.type === 'video'}
+			<video
+				class={cx(
+					i == 0 ? 'col-span-' + getSpan(i == 0 ? links.length - 1 : i) : '',
+					'h-full max-h-96 w-full object-cover'
+				)}
 				on:click={() => (zoomed = i)}
 				src={link.src.toString()}
+				controls
+				muted
+				autoplay
+				loop
 			/>
 		{:else}
 			<img
-				class="h-full max-h-96 w-full object-cover"
+				class={cx(
+					i == 0 ? 'col-span-' + getSpan(links.length - 1) : '',
+					'h-full max-h-96 w-full object-cover'
+				)}
 				on:click={() => (zoomed = i)}
 				src={link.src.toString()}
 			/>
