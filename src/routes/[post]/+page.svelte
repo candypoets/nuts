@@ -9,7 +9,7 @@
 	import type { ParsedEvent } from 'src/workers/nipworker';
 	import { getContext, onMount } from 'svelte';
 	import type { Writable } from 'svelte/store';
-	import Note from '../note.svelte';
+	import Note from 'src/routes/explore/note.svelte';
 
 	// Get pubkey from URL parameter
 	const post = $page.params.post;
@@ -55,10 +55,10 @@
 	});
 </script>
 
-{#if headerItem && feedRequests.length}
-	<Feed subscriptionID={'replies_' + post} requests={feedRequests} {headerItem}>
-		<div slot="header-content" let:item let:visible>
+{#if feedRequests.length > 0}
+	<Feed subscriptionID={'replies_' + post} requests={feedRequests}>
+		<!-- <div slot="header-content" let:item let:visible>
 			<Note note={item} {context} />
-		</div>
+		</div> -->
 	</Feed>
 {/if}

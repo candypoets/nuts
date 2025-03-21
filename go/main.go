@@ -4,7 +4,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"runtime"
 	"syscall/js"
@@ -59,8 +58,7 @@ func Initialize() {
 }
 
 // JavaScript bridge functions
-func jsOpenSubscription(this js.Value, args []js.Value) interface{} {
-
+func jsOpenSubscription(this js.Value, args []js.Value) any {
 	if len(args) < 3 {
 		return js.Error{Value: js.ValueOf("Not enough arguments")}
 	}
@@ -68,6 +66,11 @@ func jsOpenSubscription(this js.Value, args []js.Value) interface{} {
 	subscriptionID := args[0].String()
 	binaryData := args[1]
 	callback := args[2]
+
+	// Validate the callback is a function
+	if callback.Type() != js.TypeFunction {
+		return js.Error{Value: js.ValueOf("Third argument must be a function")}
+	}
 
 	// Convert JS Uint8Array to Go []byte
 	length := binaryData.Length()
@@ -80,28 +83,34 @@ func jsOpenSubscription(this js.Value, args []js.Value) interface{} {
 		return js.Error{Value: js.ValueOf("Failed to parse binary data: " + err.Error())}
 	}
 
-	// Log the parsed requests array as JSON
-	debugJSON, err := json.MarshalIndent(requests, "", "  ")
-	if err != nil {
-		js.Global().Get("console").Call("error", "Failed to marshal requests for debugging:", err.Error())
-	} else {
-		js.Global().Get("console").Call("log", "Parsed requests:", string(debugJSON))
-	}
+	// Create a safe wrapper for the callback
+	safeCallback := js.FuncOf(func(this js.Value, callbackArgs []js.Value) interface{} {
+		defer func() {
+			if r := recover(); r != nil {
+				js.Global().Get("console").Call("error", "Recovered from panic in callback:", r)
+			}
+		}()
 
-	// Create persistent callback
-	persistentCallback := js.FuncOf(func(this js.Value, callbackArgs []js.Value) any {
-		callback.Invoke(callbackArgs[0], callbackArgs[1])
+		// Forward each argument individually
+		if len(callbackArgs) == 2 {
+			callback.Invoke(callbackArgs[0], callbackArgs[1])
+		} else {
+			args := make([]interface{}, len(callbackArgs))
+			for i, arg := range callbackArgs {
+				args[i] = arg
+			}
+			callback.Invoke(args...)
+		}
 		return nil
 	})
 
 	// Open subscription using the manager
-	if err := globalManager.OpenSubscription(subscriptionID, requests, persistentCallback); err != nil {
-		return js.ValueOf(map[string]any{
-			"error": fmt.Sprintf("Something bad happened: %v", err),
-		})
+	if err := globalManager.OpenSubscription(subscriptionID, requests, safeCallback); err != nil {
+		safeCallback.Release() // Clean up on error
+		return js.Error{Value: js.ValueOf("Failed to open subscription: " + err.Error())}
 	}
 
-	return nil
+	return js.ValueOf(true)
 }
 
 func jsCloseSubscription(this js.Value, args []js.Value) any {

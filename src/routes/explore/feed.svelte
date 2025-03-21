@@ -40,7 +40,8 @@
 	const handleEvents = (events: ParsedEvent<AnyKind>[], eventKind: EventKind) => {
 		try {
 			if (eventKind == 'EOSE') {
-				eoses++;
+				// eoses++;
+				return;
 			}
 			const [event, ...context] = events;
 			if (!event.parsed) return;
@@ -70,8 +71,10 @@
 
 	$: {
 		if (requests && requests.length) {
-			console.log('SUBSCRIBING: ', subscriptionID, requests, handleEvents);
-			nostrManager.subscribe(subscriptionID, requests, handleEvents);
+			setTimeout(() => {
+				console.log('SUBSCRIBING: ', subscriptionID, requests, handleEvents);
+				nostrManager.subscribe(subscriptionID, requests, handleEvents);
+			}, 100);
 		}
 	}
 
