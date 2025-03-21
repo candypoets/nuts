@@ -20,6 +20,7 @@
 			}));
 		}
 	}
+	$: console.log(feedRequests);
 </script>
 
 <Feed subscriptionID="main_feed" requests={feedRequests} />

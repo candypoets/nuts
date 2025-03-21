@@ -8,13 +8,13 @@
 	import { onMount } from 'svelte';
 	import { fly } from 'svelte/transition';
 	import { isKind1, type AnyKind, type Kind1Parsed } from 'src/parsers';
-	import { nostrManager } from 'src/wasm/manager';
+	import { nostrManager, type EventKind } from 'src/wasm/manager';
 	import type { ParsedEvent } from 'src/workers/nipworker';
 	import Note from './note.svelte';
 
 	// Props
 	export let subscriptionID: string;
-	export let headerItem: ParsedEvent<AnyKind> | undefined;
+	export let headerItem: ParsedEvent<AnyKind> | undefined = undefined;
 	export let requests: any[] = [];
 
 	let feed: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
@@ -31,33 +31,46 @@
 	let footer: HTMLElement;
 	let fadein = false;
 
+	let eoses = 0;
+
 	// Combined feed including the header item if provided
 	$: combinedItems = headerItem ? [headerItem, ...feed] : feed;
 
-	const isHeaderItem = (item) => {
-		console.log(item);
-		return item?.index == 0;
-	};
-
 	// In a separate function to avoid infinite loops in the reactive block
-	const handleEvents = (events: ParsedEvent<AnyKind>[]) => {
-		const [event, ...context] = events;
-		if (!event.parsed) return;
-		if (isKind1(event)) {
-			// only show replies to root posts
-			if (event?.parsed?.reply?.id && event?.parsed?.root?.id != event?.parsed?.reply?.id) return;
-			if (!event?.parsed?.root?.id) return;
-			// check if the event is already in the feed
-			if (feed.some(([e]) => e.id === event.id)) return;
-			feed = [...feed, [event, _.uniqBy(context, 'id')]].sort(
-				(a, b) => b[0]?.created_at - a[0]?.created_at
-			);
+	const handleEvents = (events: ParsedEvent<AnyKind>[], eventKind: EventKind) => {
+		try {
+			if (eventKind == 'EOSE') {
+				eoses++;
+			}
+			const [event, ...context] = events;
+			if (!event.parsed) return;
+			if (isKind1(event)) {
+				// only show replies to root posts
+				if (event?.parsed?.reply?.id && event?.parsed?.root?.id != event?.parsed?.reply?.id) return;
+				// check if the event is already in the feed
+				if (feed.some(([e]) => e.id === event.id)) return;
+				if (eventKind == 'CACHED_EVENT') {
+					// cached event are filtered in the worker
+					feed = [...feed, [event, _.uniqBy(context, 'id')]];
+				} else if (eventKind == 'FETCHED_EVENT') {
+					if (event.created_at >= feed?.[0]?.[0]?.created_at) {
+						feed = [[event, _.uniqBy(context, 'id')], ...feed];
+					} else {
+						// Add the event to the feed and sort by created_at (most recent first)
+						feed = [...feed, [event, _.uniqBy(context, 'id')]].sort(
+							(a, b) => b[0].created_at - a[0].created_at
+						);
+					}
+				}
+			}
+		} catch (e) {
+			console.error('Error handling events:', e);
 		}
 	};
 
 	$: {
 		if (requests && requests.length) {
-			console.log('SUBSCRIBING: ', subscriptionID, requests);
+			console.log('SUBSCRIBING: ', subscriptionID, requests, handleEvents);
 			nostrManager.subscribe(subscriptionID, requests, handleEvents);
 		}
 	}
@@ -140,9 +153,12 @@
 		>
 			{#if headerItem && item.id == headerItem?.id}
 				<!-- Render header item -->
-				<div class="block w-feed lg:m-auto py-1 px-1 border-b-2 border-base-200 max-w-full">
+				<div
+					class="block w-feed lg:m-auto py-1 px-1 border-b-2 border-base-200 max-w-full"
+					id="header"
+				>
 					<!-- Render custom header content -->
-					<slot name="header-content" {item} />
+					<slot name="header-content" {item} visible={start < 1} />
 				</div>
 			{:else}
 				{@const post = item[0]}
@@ -161,7 +177,7 @@
 	</div>
 {:else}
 	<div
-		class="lg:pt-0 overflow-scroll scrollbar-hide container-height lg:container-height lg:w-1/3 m-auto !pt-0"
+		class="lg:pt-0 overflow-scroll scrollbar-hide container-height lg:container-height m-auto w-feed !pt-0"
 	>
 		{#each Array(8) as _}
 			<div class="lg:hover:bg-base-200 rounded-md pt-2 px-1 mb-4 first:pt-16">

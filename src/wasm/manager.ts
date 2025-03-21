@@ -6,12 +6,13 @@ import { addEvent, nostrDb, type ProcessedNostrEvent } from 'src/db';
 import type { ParsedEvent } from 'src/workers/nipworker';
 import type { AnyKind } from 'src/parsers';
 
+export type EventKind = 'CACHED_EVENT' | 'FETCHED_EVENT' | 'EOSE';
 // only the first event is from the request, all others are contextuals
-type SubscriptionCallback = (events: ParsedEvent<AnyKind>[]) => void;
+type SubscriptionCallback = (events: ParsedEvent<AnyKind>[], type: EventKind) => void;
 
 export type Request = Filter & {
 	relays: string[];
-	cacheFirst: boolean;
+	cacheFirst?: boolean;
 };
 
 interface SubscriptionOptions {
@@ -52,16 +53,16 @@ export class NostrManager {
 
 			switch (type) {
 				case 'CACHED_EVENTS':
-					console.log('Received cached events');
-					this.handleEvent(subscriptionId, eventData);
+					console.debug('Received cached events');
+					this.handleEvent(subscriptionId, eventData, 'CACHED_EVENT');
 					break;
 				case 'FETCHED_EVENTS':
-					console.log('Received fetched events');
-					this.handleEvent(subscriptionId, eventData);
+					console.debug('Received fetched events');
+					this.handleEvent(subscriptionId, eventData, 'FETCHED_EVENT');
 					break;
 				case 'EOSE':
-					console.log(`End of stored events for subscription ${subscriptionId}`);
-					this.handleEvent(subscriptionId, eventData);
+					console.debug(`End of stored events for subscription ${subscriptionId}`);
+					this.handleEvent(subscriptionId, eventData, 'EOSE');
 					if (subscription.options.closeOnEose) {
 						this.unsubscribe(subscriptionId);
 					}
@@ -82,18 +83,6 @@ export class NostrManager {
 		if (!subscriptionId) {
 			throw new Error('Subscription ID is required');
 		}
-
-		// if the subscription already exist reuse it
-		// if (this.subscriptions.has(subscriptionId) && !options.force) {
-		// 	const existingSubscription = this.subscriptions.get(subscriptionId)!;
-		// 	// Combine the existing callback with the new one
-		// 	const existingCallback = existingSubscription.callback;
-		// 	existingSubscription.callback = (events) => {
-		// 		existingCallback(events);
-		// 		callback(events);
-		// 	};
-		// 	return () => this.unsubscribe(subscriptionId);
-		// }
 
 		// Store the subscription
 		this.subscriptions.set(subscriptionId, {
@@ -133,14 +122,14 @@ export class NostrManager {
 		this.subscriptions.delete(subscriptionId);
 	}
 
-	private async handleEvent(subscriptionId: string, eventData: Uint8Array) {
+	private async handleEvent(subscriptionId: string, eventData: Uint8Array, eventKind: EventKind) {
 		const subscription = this.subscriptions.get(subscriptionId);
 		if (!subscription) return;
-
+		console.log('EVENT ENCODED');
 		const decodedEvent = msgpack.decode(eventData) as ParsedEvent<AnyKind>[];
-
+		console.log('EVENT DECODED', decodedEvent);
 		// Call the subscription callback with the fresh event
-		subscription.callback(decodedEvent);
+		subscription.callback(decodedEvent, eventKind);
 	}
 
 	// Clean up resources

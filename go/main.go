@@ -10,12 +10,16 @@ import (
 	"syscall/js"
 
 	"github.com/candypoets/nutscash/db"
+	"github.com/candypoets/nutscash/logger"
 	"github.com/candypoets/nutscash/parser"
 	"github.com/candypoets/nutscash/subscriptions"
 	"github.com/candypoets/nutscash/types"
 
 	"github.com/vmihailenco/msgpack/v5"
 )
+
+// Debug mode flag
+const debugMode = true
 
 // Global manager instance that will be exposed to JavaScript
 var globalManager *subscriptions.SubscriptionManager
@@ -43,6 +47,7 @@ func monitorGoroutines() {
 
 // Initialize sets up the global subscription manager with required dependencies
 func Initialize() {
+	logger.Initialize(debugMode)
 	nostrDb := db.InitNostrDB()
 	nostrParser := parser.NewParser(nostrDb, defaultRelays)
 	globalManager = subscriptions.NewSubscriptionManager(nostrDb, nostrParser)

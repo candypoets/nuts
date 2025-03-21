@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"sync"
 	"syscall/js"
 
@@ -515,6 +516,89 @@ func intersectMaps(a, b map[string]bool) map[string]bool {
 	}
 
 	return result
+}
+
+func (db *NostrDB) QueryEventsForRequests(requests []types.Request, cacheOnly bool) ([]types.Request, []types.ParsedEvent, error) {
+	if len(requests) == 0 {
+		return []types.Request{}, []types.ParsedEvent{}, nil
+	}
+
+	type queryResult struct {
+		events   []types.ParsedEvent
+		request  types.Request
+		err      error
+		position int // maintain original position for stable ordering
+	}
+
+	resultChan := make(chan queryResult, len(requests))
+
+	// Launch a goroutine for each request
+	for i, req := range requests {
+		go func(pos int, request types.Request) {
+			filter := nostr.Filter{
+				IDs:     request.IDs,
+				Kinds:   request.Kinds,
+				Authors: request.Authors,
+				Since:   request.Since,
+				Until:   request.Until,
+				Limit:   request.Limit,
+				Tags:    request.Tags,
+			}
+
+			// Query the database for events matching the filter
+			events, err := db.QueryEvents(filter)
+
+			resultChan <- queryResult{
+				events:   events,
+				request:  request,
+				err:      err,
+				position: pos,
+			}
+		}(i, req)
+	}
+
+	// Collect all results
+	var allEvents []types.ParsedEvent
+	filteredRequests := make([]types.Request, 0)
+	results := make([]queryResult, 0, len(requests))
+
+	// Wait for all goroutines to complete
+	for i := 0; i < len(requests); i++ {
+		result := <-resultChan
+		if result.err != nil {
+			return nil, nil, result.err
+		}
+		results = append(results, result)
+	}
+
+	// Sort results by original position for stable output
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].position < results[j].position
+	})
+
+	// Process results in original order
+	for _, result := range results {
+		// Add events to the combined result
+		allEvents = append(allEvents, result.events...)
+
+		// Determine if this request should be forwarded to network
+		if !cacheOnly {
+			// If not cacheOnly mode, forward all requests
+			if !result.request.CacheFirst {
+				filteredRequests = append(filteredRequests, result.request)
+			} else if len(result.events) == 0 {
+				// Forward cache-first requests only if no results found
+				filteredRequests = append(filteredRequests, result.request)
+			}
+		}
+	}
+
+	// Sort all events by creation time, newest first
+	sort.Slice(allEvents, func(i, j int) bool {
+		return allEvents[i].CreatedAt > allEvents[j].CreatedAt
+	})
+
+	return filteredRequests, allEvents, nil
 }
 
 // QueryEvents retrieves events that match the given filter

@@ -207,7 +207,8 @@
 }
 
 :root {
-	--post-offset: 3rem;
+	--post-offset: 4rem;
+	--depth-offset: 2rem;
 }
 
 .w-feed {
@@ -219,15 +220,15 @@
 }
 
 .w-post-1 {
-	width: calc(100% - (var(--post-offset) * 1));
+	width: calc(100% - (var(--post-offset) + (1 * var(--depth-offset))));
 }
 
 .w-post-2 {
-	width: calc(100% - (var(--post-offset) * 2));
+	width: calc(100% - (var(--post-offset) + (2 * var(--depth-offset))));
 }
 
 .w-post-3 {
-	width: calc(100% - (var(--post-offset) * 3));
+	width: calc(100% - (var(--post-offset) + (3 * var(--depth-offset))));
 }
 
 @media (min-width: 640px) {
@@ -240,15 +241,15 @@
 	}
 
 	.w-post-1 {
-		width: calc(30rem - (var(--post-offset) * 1));
+		width: calc(30rem - (var(--post-offset) + (1 * var(--depth-offset))));
 	}
 
 	.w-post-2 {
-		width: calc(30rem - (var(--post-offset) * 2));
+		width: calc(30rem - (var(--post-offset) + (2 * var(--depth-offset))));
 	}
 
 	.w-post-3 {
-		width: calc(30rem - (var(--post-offset) * 3));
+		width: calc(30rem - (var(--post-offset) + (3 * var(--depth-offset))));
 	}
 }
 
@@ -262,15 +263,15 @@
 	}
 
 	.w-post-1 {
-		width: calc(40rem - (var(--post-offset) * 1));
+		width: calc(40rem - (var(--post-offset) + (1 * var(--depth-offset))));
 	}
 
 	.w-post-2 {
-		width: calc(40rem - (var(--post-offset) * 2));
+		width: calc(40rem - (var(--post-offset) + (2 * var(--depth-offset))));
 	}
 
 	.w-post-3 {
-		width: calc(40rem - (var(--post-offset) * 3));
+		width: calc(40rem - (var(--post-offset) + (3 * var(--depth-offset))));
 	}
 }
 
@@ -284,15 +285,15 @@
 	}
 
 	.w-post-1 {
-		width: calc(50rem - (var(--post-offset) * 1));
+		width: calc(50rem - (var(--post-offset) + (1 * var(--depth-offset))));
 	}
 
 	.w-post-2 {
-		width: calc(50rem - (var(--post-offset) * 2));
+		width: calc(50rem - (var(--post-offset) + (2 * var(--depth-offset))));
 	}
 
 	.w-post-3 {
-		width: calc(50rem - (var(--post-offset) * 3));
+		width: calc(50rem - (var(--post-offset) + (3 * var(--depth-offset))));
 	}
 }
 
@@ -306,14 +307,23 @@
 	}
 
 	.w-post-1 {
-		width: calc(50rem - (var(--post-offset) * 1));
+		width: calc(50rem - (var(--post-offset) + (1 * var(--depth-offset))));
 	}
 
 	.w-post-2 {
-		width: calc(50rem - (var(--post-offset) * 2));
+		width: calc(50rem - (var(--post-offset) + (2 * var(--depth-offset))));
 	}
 
 	.w-post-3 {
-		width: calc(50rem - (var(--post-offset) * 3));
+		width: calc(50rem - (var(--post-offset) + (3 * var(--depth-offset))));
+	}
+}
+
+@keyframes slideInFromTop {
+	0% {
+		transform: translateY(-100%);
+	}
+	100% {
+		transform: translateY(0);
 	}
 }

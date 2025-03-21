@@ -12,12 +12,10 @@
 	import { page } from '$app/stores';
 
 	let profileOpen: boolean = false;
-	let topper: HTMLElement;
 
 	let profile: Writable<Kind0Parsed | null> = getContext('profile');
 
 	onMount(() => {
-		topper = document.getElementById('top');
 		updateVc();
 		return () => {};
 	});
@@ -36,7 +34,6 @@
 			</div>
 		</div>
 	</div>
-	<slot name="subheader" />
 </div>
 
 <slot />

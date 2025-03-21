@@ -1,18 +1,11 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import _ from 'lodash';
-	import { db, key } from 'src/stores/db';
+	import { key } from 'src/stores/db';
 	import { pool } from 'src/stores/relays';
 	import { getContext, onMount } from 'svelte';
 
-	import { nutsZap, sendReaction, sendRepost } from 'src/actions/notes';
-	import { signer } from 'src/stores/signer';
-	import type { Nip25Params, NIP25Parsed } from 'src/workers/nip25';
-	import type { Writable } from 'svelte/store';
-	import type { NIP01Parsed } from 'src/workers/nip01';
-	import type { ParsedEvent } from 'src/workers/nipworker';
-	import type { Nip10Params, NIP10Parsed } from 'src/workers/nip10';
-	import { replyPost } from 'src/stores';
+	import { sendReaction } from 'src/actions/notes';
+	import { getRelaysFromNote } from 'src/lib/getRelaysFromNote';
 	import {
 		isKind1,
 		isKind17,
@@ -22,10 +15,14 @@
 		type Kind1Parsed,
 		type Kind7Parsed
 	} from 'src/parsers';
-	import { getRelaysFromNote } from 'src/lib/getRelaysFromNote';
-	import { Emojisets } from 'nostr-tools/kinds';
-	import type { P } from 'vitest/dist/reporters-w_64AS5f.js';
+	import { replyPost } from 'src/stores';
+	import { signer } from 'src/stores/signer';
 	import { nostrManager } from 'src/wasm/manager';
+	import type { NIP01Parsed } from 'src/workers/nip01';
+	import type { NIP10Parsed } from 'src/workers/nip10';
+	import type { NIP25Parsed } from 'src/workers/nip25';
+	import type { ParsedEvent } from 'src/workers/nipworker';
+	import type { Writable } from 'svelte/store';
 
 	export let note: ParsedEvent<any>;
 	export let visible: boolean;

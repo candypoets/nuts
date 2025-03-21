@@ -82,9 +82,9 @@
 				goto(`/explore/${note?.parsed?.root?.id ? note?.parsed.root.id : note?.id}`);
 			}}
 		>
-			{#if !depth}
-				<div class="min-w-8" />
-			{/if}
+			<!-- {#if !depth} -->
+			<div class="min-w-8" class:!min-w-4={!!depth} />
+			<!-- {/if} -->
 			<div class="-mt-2" class:!mt-0={!!depth}>
 				<Content parsedContent={note.parsed?.parsedContent || []} {context} {visible} {depth} />
 			</div>

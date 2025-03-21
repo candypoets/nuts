@@ -6,8 +6,11 @@
 	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/parsers';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import { nostrManager } from 'src/wasm/manager';
+	import type { NIP02Parsed } from 'src/workers/nip02';
 	import type { ParsedEvent } from 'src/workers/nipworker';
-	import { onMount } from 'svelte';
+	import { getContext, onMount } from 'svelte';
+	import type { Writable } from 'svelte/store';
+	import { crossfade, fly, slide } from 'svelte/transition';
 
 	// Get pubkey from URL parameter
 	const pubkey = $page.params.pubkey;
@@ -16,11 +19,13 @@
 	let loading = true;
 	let feedRequests: any[] = [];
 
+	let followList: Writable<NIP02Parsed> = getContext('followList');
+
 	onMount(() => {
 		window.scrollTo(0, 0);
 		updateVc();
 		const sub = nostrManager.subscribe(
-			'profile',
+			'profile_' + pubkey,
 			[{ kinds: [0], authors: [pubkey], limit: 1, relays: [], cacheFirst: true }],
 			(events: ParsedEvent<AnyKind>[]) => {
 				const [event] = events;
@@ -46,26 +51,114 @@
 
 {#if feedRequests.length > 0}
 	<Feed subscriptionID="profile_feed" requests={feedRequests} headerItem={profile}>
-		<div slot="header-content" let:item>
+		<div slot="header-content" let:item let:visible>
 			{@const p = item.parsed}
-			<div class="mb-6 px-4">
-				<div class="flex items-center gap-3 mb-4">
-					<img
-						src={p.picture || '/ns-naked.svg'}
-						alt={p.name || 'Profile'}
-						class="w-16 h-16 rounded-full border"
-					/>
-					<div>
-						<h2 class="text-xl font-bold">{p.name || 'Unnamed'}</h2>
-						<p class="text-gray-600">@{p.nip05 || pubkey.substring(0, 8)}</p>
-					</div>
-				</div>
-				{#if p.about}
-					<p class="text-gray-800 mb-4">{p.about}</p>
-				{/if}
-			</div>
+			<div
+				class="transition-all duration-300 bg-basic w-feed mx-auto will-change-transform"
+				class:relative={visible}
+				class:shadow-md={!visible}
+				class:border-b={!visible}
+				class:z-20={!visible}
+				class:top-0={!visible}
+				class:left-0={!visible}
+				class:right-0={!visible}
+			>
+				<!-- Banner image (only shown when header is visible) -->
+				{#if p.banner}
+					<div class="relative w-full banner-container rounded-2xl">
+						<!-- Banner image -->
 
-			<h3 class="text-lg font-medium mb-4 px-4">Posts</h3>
+						<div
+							class="w-full h-52 bg-cover bg-center absolute top-0 left-0 right-0"
+							style="background-image: url('{p.banner}');"
+						></div>
+
+						<!-- Gradient overlay that fades out the banner towards the bottom -->
+						<div class="absolute top-0 left-0 right-0 bottom-0 banner-fade-overlay"></div>
+
+						<!-- Placeholder to maintain height -->
+						<div class="h-52 w-full"></div>
+					</div>
+				{/if}
+				<!-- Content adjusts size/layout based on visible state -->
+				<div class="px-4 my-6">
+					<div class="flex items-center gap-3 mb-4">
+						<div class="absolute right-4 top-20" class:top-4={!p.banner}>
+							<button class="z-10 btn btn-wide btn-nav text-xl bg-opacity-80"
+								><Icon icon="mdi:account-plus" />
+								{($followList || []).some((f) => f.pubkey == pubkey)
+									? 'Unfollow'
+									: 'Follow'}</button
+							>
+							<br />
+
+							<button class="z-10 btn btn-wide btn-nav text-xl bg-opacity-80 mt-4">
+								<Icon icon="ion:flash" />
+								Zap
+							</button>
+						</div>
+						<img
+							src={p.picture || '/ns-naked.svg'}
+							alt={p.name || 'Profile'}
+							class:-mt-64={p.banner}
+							class:!relative={!p.banner}
+							class="{visible ? 'w-32 h-32' : 'w-8 h-8'} rounded-full border absolute object-cover"
+						/>
+						<div>
+							<h2 class="text-xl font-bold">{p.name || 'Unnamed'}</h2>
+							{#if visible}
+								<p class="text-gray-600">@{p.nip05 || pubkey.substring(0, 8)}</p>
+							{/if}
+						</div>
+					</div>
+
+					{#if p.about}
+						<p class="text-gray-800 mb-4 opacity-1" class:opacity-0={!visible}>{@html p.about}</p>
+					{/if}
+				</div>
+
+				<div class="tabs tabs-bordered">
+					<a class="tab tab-active">Posts</a>
+					<a class="tab">Follows</a>
+				</div>
+				<!-- <h3 class="text-lg font-medium mb-4 px-4">Posts</h3> -->
+			</div>
 		</div>
 	</Feed>
 {/if}
+
+<style>
+	.fixed {
+		position: fixed;
+	}
+
+	.relative {
+		position: relative;
+	}
+
+	.will-change-transform {
+		will-change: transform;
+	}
+
+	.banner-container {
+		position: relative;
+		overflow: hidden;
+	}
+
+	/* .banner-fade-overlay {
+		background: linear-gradient(
+			to bottom,
+			transparent 0%,
+			transparent 30%,
+			rgba(255, 255, 255, 0.65) 70%,
+			rgba(255, 255, 255, 0.9) 85%,
+			white 100%
+		);
+	} */
+
+	.banner-content {
+		position: relative;
+		/* z-index: 0; */
+		margin-top: -20px; /* Pull content slightly up into the faded part of banner */
+	}
+</style>
