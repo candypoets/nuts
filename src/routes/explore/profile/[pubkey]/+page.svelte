@@ -29,7 +29,7 @@
 			[{ kinds: [0], authors: [pubkey], limit: 1, relays: [], cacheFirst: true }],
 			(events: ParsedEvent<AnyKind>[]) => {
 				const [event] = events;
-				if (!event.parsed) return;
+				if (!event?.parsed) return;
 				if (isKind0(event)) {
 					loading = false;
 					// console.log('note events', note?.id, randomId, events, context);

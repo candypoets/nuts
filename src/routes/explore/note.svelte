@@ -71,7 +71,7 @@
 {#if note?.parsed?.root && !(note.parsed.mentions || []).some((m) => m.id == note?.parsed?.root?.id) && !depth && showRoot}
 	<svelte:self noteId={note.parsed.root.id} {context} {visible} zaps leading />
 {/if}
-<div class="py-2 rounded-2xl relative">
+<div class="py-2 rounded-2xl relative hover:shadow-md cursor-pointer">
 	<!-- <span class="text-xs">{noteId || note?.id}</span> -->
 	{#if note}
 		<!-- <div class="text-xs">{randomId} - {context.length}</div> -->

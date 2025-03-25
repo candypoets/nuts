@@ -53,3 +53,5 @@
 		</div>
 	</svelte.fragment>
 </Feed>
+
+<slot />

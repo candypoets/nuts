@@ -335,112 +335,223 @@ func (db *NostrDB) LoadFromPersistentStorage(source string) error {
 
 	fmt.Println("Loading events from IndexedDB:", source)
 
-	// Create a channel to receive events and a channel for completion
-	eventsCh := make(chan ProcessedNostrEvent)
-	doneCh := make(chan bool)
-	errCh := make(chan error)
+	// Create channels for communication
+	eventsCh := make(chan []ProcessedNostrEvent, 1)
+	errCh := make(chan error, 1)
 
 	// Using syscall/js for WASM interop
-	// This code runs in a separate goroutine to allow async JS operations
 	go func() {
 		// Get JS global object
 		global := js.Global()
+		console := global.Get("console")
 
-		// Open the IndexedDB database
+		// Open the database
 		openDBPromise := global.Get("openDB").Invoke("nostr-local-relay", 1)
 
-		// Handle database opening error
-		openDBPromise.Call("catch", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+		openDBPromise.Call("then", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+			db := args[0]
+
+			// Open a transaction and get the object store
+			tx := db.Call("transaction", js.ValueOf([]interface{}{"events"}), js.ValueOf("readonly"))
+			store := tx.Call("objectStore", js.ValueOf("events"))
+
+			// Get the count first to allocate memory
+			store.Call("count").Call("then", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+				count := args[0].Int()
+				console.Call("log", "Total events to load:", count)
+
+				// Get all events now that we know the count
+				store.Call("getAll").Call("then", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+					events := args[0]
+					length := events.Length()
+
+					// Pre-allocate the slice with the right capacity
+					allEvents := make([]ProcessedNostrEvent, 0, length)
+
+					// Process events in batches to avoid blocking the JS thread too long
+					const batchSize = 1000
+					numBatches := (length + batchSize - 1) / batchSize
+
+					for batchNum := 0; batchNum < numBatches; batchNum++ {
+						startIdx := batchNum * batchSize
+						endIdx := min(startIdx+batchSize, length)
+
+						// Process this batch
+						for i := startIdx; i < endIdx; i++ {
+							jsEvent := events.Index(i)
+
+							// Convert JS object to JSON string
+							jsonStr := global.Get("JSON").Call("stringify", jsEvent).String()
+							var event ProcessedNostrEvent
+							if err := json.Unmarshal([]byte(jsonStr), &event); err != nil {
+								console.Call("error", "Error unmarshaling event:", err.Error())
+								continue
+							}
+
+							allEvents = append(allEvents, event)
+						}
+
+						// Yield to the JavaScript event loop periodically
+						if batchNum < numBatches-1 {
+							global.Call("setTimeout", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+								return nil
+							}), 0)
+						}
+					}
+
+					// Send all events back
+					eventsCh <- allEvents
+					return nil
+				})).Call("catch", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+					err := args[0]
+					errCh <- fmt.Errorf("failed to get events: %s", err.Get("message").String())
+					return nil
+				}))
+
+				return nil
+			})).Call("catch", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+				err := args[0]
+				errCh <- fmt.Errorf("failed to count events: %s", err.Get("message").String())
+				return nil
+			}))
+
+			return nil
+		})).Call("catch", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 			err := args[0]
 			errCh <- fmt.Errorf("failed to open IndexedDB: %s", err.Get("message").String())
 			return nil
 		}))
-
-		// Handle successful database opening
-		openDBPromise.Call("then", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
-			db := args[0]
-
-			// Open a transaction and get the events store
-			tx := db.Call("transaction", js.ValueOf([]interface{}{"events"}), js.ValueOf("readonly"))
-			store := tx.Call("objectStore", js.ValueOf("events"))
-
-			// Get all events
-			getAllPromise := store.Call("getAll")
-
-			// Handle get all error
-			getAllPromise.Call("catch", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
-				err := args[0]
-				errCh <- fmt.Errorf("failed to get events: %s", err.Get("message").String())
-				return nil
-			}))
-
-			// Handle successful retrieval of all events
-			getAllPromise.Call("then", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
-				eventsArray := args[0]
-				length := eventsArray.Length()
-
-				// If no events, signal completion
-				if length == 0 {
-					doneCh <- true
-					return nil
-				}
-
-				// Process each event
-				for i := 0; i < length; i++ {
-					jsEvent := eventsArray.Index(i)
-
-					// Convert JS object to JSON string
-					jsonStr := js.Global().Get("JSON").Call("stringify", jsEvent).String()
-					var event ProcessedNostrEvent
-					if err := json.Unmarshal([]byte(jsonStr), &event); err != nil {
-						// Handle error
-						println("Error unmarshaling event:", err)
-						continue
-					}
-
-					// Send the event to the main goroutine
-					eventsCh <- event
-				}
-
-				// Signal completion
-				doneCh <- true
-				return nil
-			}))
-
-			return nil
-		}))
-
 	}()
 
-	// Process events as they come in
-	eventCount := 0
-	profileCount := 0
+	// Wait for events or error
+	select {
+	case events := <-eventsCh:
+		eventCount := len(events)
+		profileCount := 0
 
-	// Wait for events or completion
-	for {
-		select {
-		case event := <-eventsCh:
-			eventCount++
+		// Pre-allocate commonly used maps
+		for kind := 0; kind <= 10; kind++ {
+			db.eventsByKind[kind] = make(map[string]bool)
+		}
 
-			db.indexEvent(event)
+		// First pass: build the main index and collect statistics
+		pubkeyFrequency := make(map[string]int)
+		kindFrequency := make(map[int]int)
+		eTagFrequency := make(map[string]int)
+		pTagFrequency := make(map[string]int)
 
-			// Special handling for profiles (kind 0)
+		for _, event := range events {
+			// Add to main index
+			db.eventsById[event.ID] = event
+
+			// Count frequencies
+			pubkeyFrequency[event.PubKey]++
+			kindFrequency[event.Kind]++
+
+			// Count tag frequencies
+			for _, tag := range event.Tags {
+				if len(tag) < 2 {
+					continue
+				}
+
+				tagType := tag[0]
+				tagValue := tag[1]
+
+				switch tagType {
+				case "e":
+					eTagFrequency[tagValue]++
+				case "p":
+					pTagFrequency[tagValue]++
+				}
+			}
+
+			// Track profiles
 			if event.Kind == 0 {
 				db.profilesByPubkey[event.PubKey] = event
 				profileCount++
 			}
-
-		case <-doneCh:
-			// All events processed
-			db.isInitialized = true
-			fmt.Printf("In-memory database initialized with %d events and %d profiles\n",
-				eventCount, profileCount)
-			return nil
-
-		case err := <-errCh:
-			// Error occurred
-			return err
 		}
+
+		// Pre-allocate maps for high-frequency items
+		for pubkey, count := range pubkeyFrequency {
+			if count > 5 { // Threshold for pre-allocation
+				db.eventsByPubkey[pubkey] = make(map[string]bool, count)
+			}
+		}
+
+		for kind, count := range kindFrequency {
+			if db.eventsByKind[kind] == nil {
+				db.eventsByKind[kind] = make(map[string]bool, count)
+			}
+		}
+
+		for etag, count := range eTagFrequency {
+			if count > 5 {
+				db.eventsByETag[etag] = make(map[string]bool, count)
+			}
+		}
+
+		for ptag, count := range pTagFrequency {
+			if count > 5 {
+				db.eventsByPTag[ptag] = make(map[string]bool, count)
+			}
+		}
+
+		// Second pass: build the indexes with pre-allocated maps
+		for _, event := range events {
+			// Index by kind
+			if _, exists := db.eventsByKind[event.Kind]; !exists {
+				db.eventsByKind[event.Kind] = make(map[string]bool)
+			}
+			db.eventsByKind[event.Kind][event.ID] = true
+
+			// Index by pubkey
+			if _, exists := db.eventsByPubkey[event.PubKey]; !exists {
+				db.eventsByPubkey[event.PubKey] = make(map[string]bool)
+			}
+			db.eventsByPubkey[event.PubKey][event.ID] = true
+
+			// Process tags
+			for _, tag := range event.Tags {
+				if len(tag) < 2 {
+					continue
+				}
+
+				tagType := tag[0]
+				tagValue := tag[1]
+
+				switch tagType {
+				case "e":
+					if _, exists := db.eventsByETag[tagValue]; !exists {
+						db.eventsByETag[tagValue] = make(map[string]bool)
+					}
+					db.eventsByETag[tagValue][event.ID] = true
+				case "p":
+					if _, exists := db.eventsByPTag[tagValue]; !exists {
+						db.eventsByPTag[tagValue] = make(map[string]bool)
+					}
+					db.eventsByPTag[tagValue][event.ID] = true
+				case "a":
+					if _, exists := db.eventsByATag[tagValue]; !exists {
+						db.eventsByATag[tagValue] = make(map[string]bool)
+					}
+					db.eventsByATag[tagValue][event.ID] = true
+				case "d":
+					if _, exists := db.eventsByDTag[tagValue]; !exists {
+						db.eventsByDTag[tagValue] = make(map[string]bool)
+					}
+					db.eventsByDTag[tagValue][event.ID] = true
+				}
+			}
+		}
+
+		db.isInitialized = true
+		fmt.Printf("In-memory database initialized with %d events and %d profiles\n",
+			eventCount, profileCount)
+		return nil
+
+	case err := <-errCh:
+		return err
 	}
 }
 
