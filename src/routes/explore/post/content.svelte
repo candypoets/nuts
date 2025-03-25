@@ -12,6 +12,8 @@
 	export let context: ParsedEvent<AnyKind>[] = [];
 	export let depth = 0;
 	export let visible: boolean = false;
+	export let showMedia = true;
+	export let showQuote = true;
 </script>
 
 <div
@@ -23,9 +25,11 @@
 		{#if parsed.type == 'text'}
 			<!-- {#if !isImageUrl(part.content)} -->
 			<span class="break-words"
-				>{@html (index == 0 || index == parsedContent.length - 1
-					? parsed.text.trim()
-					: parsed.text
+				>{@html (index == 0
+					? parsed.text.trimStart()
+					: index == parsedContent.length - 1
+						? parsed.text.trimEnd()
+						: parsed.text
 				).replace(/\n/g, '<br>')}</span
 			>
 			<!-- {/if} -->
@@ -62,7 +66,7 @@
 					parsed.data?.decoded}
 				{context}
 			/>
-		{:else if parsed.type == 'note' || parsed.type == 'nevent'}
+		{:else if parsed.type == 'note' || (parsed.type == 'nevent' && showQuote)}
 			<Note
 				noteId={parsed.data?.decoded?.id || parsed.data?.decoded}
 				{context}
@@ -72,13 +76,13 @@
 			/>
 		{:else if parsed.type == 'cashu'}
 			<Cashu cashu={parsed.text} />
-		{:else if parsed.type == 'image'}
+		{:else if parsed.type == 'image' && showMedia}
 			<ImageGrid links={[{ src: parsed.text, type: 'image' }]} />
 			<!-- <img class="lg:min-w-88 rounded-md" src={parsed.text} alt={parsed.text} /> -->
-		{:else if parsed.type == 'video'}
+		{:else if parsed.type == 'video' && showMedia}
 			<ImageGrid links={[{ src: parsed.text, type: 'video' }]} />
 			<!-- <video class="w-full rounded-md" src={parsed.text} autoplay muted></video> -->
-		{:else if parsed.type == 'mediaGrid'}
+		{:else if parsed.type == 'mediaGrid' && showMedia}
 			<ImageGrid links={parsed.data?.items || []} />
 		{/if}
 	{/each}

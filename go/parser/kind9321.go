@@ -36,6 +36,14 @@ func (p *Parser) ParseKind9321(event nostr.Event) (*Kind9321Parsed, *[]types.Req
 		return nil, nil, fmt.Errorf("event is not kind 9321")
 	}
 
+	// get the sender profile for this zap
+	requests = append(requests, types.Request{
+		Kinds:      []int{0},
+		Authors:    []string{event.PubKey},
+		CacheFirst: true,
+		Relays:     p.GetRelays(event),
+	})
+
 	// Extract required tags
 	var proofTags [][]string
 	var mintTag, recipientTag, eventTag []string

@@ -57,7 +57,6 @@
 				class="transition-all duration-300 bg-basic w-feed mx-auto will-change-transform"
 				class:relative={visible}
 				class:shadow-md={!visible}
-				class:border-b={!visible}
 				class:z-20={!visible}
 				class:top-0={!visible}
 				class:left-0={!visible}
@@ -84,11 +83,14 @@
 				<div class="px-4 my-6">
 					<div class="flex items-center gap-3 mb-4">
 						<div class="absolute right-4 top-20" class:top-4={!p.banner}>
-							<button class="z-10 btn btn-wide btn-nav text-xl bg-opacity-80"
-								><Icon icon="mdi:account-plus" />
-								{($followList || []).some((f) => f.pubkey == pubkey)
-									? 'Unfollow'
-									: 'Follow'}</button
+							<button class="z-10 btn btn-wide btn-nav text-xl bg-opacity-80">
+								{#if $followList?.some((f) => f.pubkey === pubkey)}
+									<Icon icon="mdi:account-check" />
+									Unfollow
+								{:else}
+									<Icon icon="mdi:account-plus" />
+									Follow
+								{/if}</button
 							>
 							<br />
 

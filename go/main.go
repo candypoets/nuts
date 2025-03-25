@@ -23,6 +23,9 @@ const debugMode = true
 // Global manager instance that will be exposed to JavaScript
 var globalManager *subscriptions.SubscriptionManager
 
+// In main.go - add this global callback
+var globalEventCallback js.Func
+
 var defaultRelays = []string{"wss://relay.damus.io", "wss://relay.nostr.band", "wss://purplepag.es"}
 
 func trackGoroutines(m *runtime.MemStats) {
@@ -51,8 +54,23 @@ func Initialize() {
 	nostrParser := parser.NewParser(nostrDb, defaultRelays)
 	globalManager = subscriptions.NewSubscriptionManager(nostrDb, nostrParser)
 	registerCallbacks()
+
+	// Create the global callback
+	globalEventCallback = js.FuncOf(func(this js.Value, args []js.Value) any {
+		// args[0] = event type
+		// args[1] = subscription ID
+		// args[2] = event data
+		if len(args) >= 3 {
+			js.Global().Get("self").Call("postMessage", map[string]interface{}{
+				"type":           args[0].String(),
+				"subscriptionId": args[1].String(),
+				"eventData":      args[2],
+			})
+		}
+		return nil
+	})
 	// Signal that initialization is complete by calling the JS callback
-	js.Global().Call("nostrWasmInitialized", js.ValueOf(map[string]interface{}{
+	js.Global().Call("nostrWasmInitialized", js.ValueOf(map[string]any{
 		"version": "1.0.1",
 	}))
 }
@@ -84,7 +102,7 @@ func jsOpenSubscription(this js.Value, args []js.Value) any {
 	}
 
 	// Create a safe wrapper for the callback
-	safeCallback := js.FuncOf(func(this js.Value, callbackArgs []js.Value) interface{} {
+	safeCallback := js.FuncOf(func(this js.Value, callbackArgs []js.Value) any {
 		defer func() {
 			if r := recover(); r != nil {
 				js.Global().Get("console").Call("error", "Recovered from panic in callback:", r)
@@ -95,7 +113,7 @@ func jsOpenSubscription(this js.Value, args []js.Value) any {
 		if len(callbackArgs) == 2 {
 			callback.Invoke(callbackArgs[0], callbackArgs[1])
 		} else {
-			args := make([]interface{}, len(callbackArgs))
+			args := make([]any, len(callbackArgs))
 			for i, arg := range callbackArgs {
 				args[i] = arg
 			}

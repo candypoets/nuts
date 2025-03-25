@@ -6,7 +6,7 @@ import { addEvent, nostrDb, type ProcessedNostrEvent } from 'src/db';
 import type { ParsedEvent } from 'src/workers/nipworker';
 import type { AnyKind } from 'src/parsers';
 
-export type EventKind = 'CACHED_EVENT' | 'FETCHED_EVENT' | 'EOSE';
+export type EventKind = 'CACHED_EVENT' | 'FETCHED_EVENT' | 'EOSE' | 'EOCE';
 // only the first event is from the request, all others are contextuals
 type SubscriptionCallback = (events: ParsedEvent<AnyKind>[], type: EventKind) => void;
 
@@ -63,6 +63,13 @@ export class NostrManager {
 				case 'EOSE':
 					console.debug(`End of stored events for subscription ${subscriptionId}`);
 					this.handleEvent(subscriptionId, eventData, 'EOSE');
+					if (subscription.options.closeOnEose) {
+						this.unsubscribe(subscriptionId);
+					}
+					break;
+				case 'EOCE':
+					console.debug(`End of cached events for subscription ${subscriptionId}`);
+					this.handleEvent(subscriptionId, eventData, 'EOCE');
 					if (subscription.options.closeOnEose) {
 						this.unsubscribe(subscriptionId);
 					}
@@ -125,9 +132,7 @@ export class NostrManager {
 	private async handleEvent(subscriptionId: string, eventData: Uint8Array, eventKind: EventKind) {
 		const subscription = this.subscriptions.get(subscriptionId);
 		if (!subscription) return;
-		console.log('EVENT ENCODED');
 		const decodedEvent = msgpack.decode(eventData) as ParsedEvent<AnyKind>[];
-		console.log('EVENT DECODED', decodedEvent);
 		// Call the subscription callback with the fresh event
 		subscription.callback(decodedEvent, eventKind);
 	}

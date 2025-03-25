@@ -24,6 +24,7 @@ export * from './kind10019';
 export const isKind0 = (event: NostrEvent): event is ParsedEvent<Kind0Parsed> => event.kind === 0;
 export const isKind1 = (event: NostrEvent): event is ParsedEvent<Kind1Parsed> => event.kind === 1;
 export const isKind3 = (event: NostrEvent): event is ParsedEvent<Kind3Parsed> => event.kind === 3;
+export const isKind6 = (event: NostrEvent): event is ParsedEvent<any> => event.kind === 6;
 export const isKind7 = (event: NostrEvent): event is ParsedEvent<Kind7Parsed> => event.kind === 7;
 export const isKind17 = (event: NostrEvent): event is ParsedEvent<Kind17Parsed> =>
 	event.kind === 17;

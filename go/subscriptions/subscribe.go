@@ -142,10 +142,6 @@ func (sm *SubscriptionManager) ProcessLocalRequests(
 	callback js.Func,
 	depth int,
 	root ...string) []types.Request {
-	// sm.log.Debug().
-	// 	Str("subscription_id", subscriptionID).
-	// 	Int("depth", depth).
-	// 	Msg("Processing local requests")
 	// Check recursion depth limit
 	if depth >= 2 {
 		sm.log.Debug().Msg("Reached maximum recursion depth (2) for local requests")
@@ -238,6 +234,7 @@ func (sm *SubscriptionManager) ProcessLocalRequests(
 			callback.Invoke("CACHED_EVENTS", uint8Array)
 		}
 	}
+	callback.Invoke("EOCE")
 	return filteredRequests
 }
 

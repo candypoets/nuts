@@ -32,7 +32,8 @@
 	$: relays = getRelaysFromNote(note);
 
 	let reactions: ParsedEvent<NIP25Parsed>[] = [];
-	let replies: ParsedEvent<NIP10Parsed>[] = [];
+	// replies are exported back to the parent, if the parent decides to show some
+	export let replies: ParsedEvent<NIP10Parsed>[] = [];
 	let liked = false;
 	let replied = false;
 	let timeout: NodeJS.Timeout | undefined;
@@ -52,6 +53,13 @@
 
 		reactions = Object.values(mapReactions);
 	};
+
+	async function handleReplies(event: ParsedEvent<Kind1Parsed>) {
+		if (mapReplies[event.id]) return;
+		if (event.pubkey == $profile?.pubkey) replied = true;
+		mapReplies[event.id] = event;
+		replies = Object.values(mapReplies);
+	}
 
 	const handleEvents = (events: ParsedEvent<AnyKind>[]) => {
 		const event = events[0];
@@ -80,13 +88,6 @@
 		}, 200);
 	}
 
-	async function handleReplies(event: ParsedEvent<Kind1Parsed>) {
-		if (mapReplies[event.id]) return;
-		if (event.pubkey == $profile?.pubkey) replied = true;
-		mapReplies[event.id] = event;
-		replies = Object.values(mapReplies);
-	}
-
 	function unsubscribe() {
 		if (timeout) {
 			clearTimeout(timeout);
@@ -104,34 +105,9 @@
 	$: visible ? subscribe() : unsubscribe();
 </script>
 
-<div class="flex items-center gap-1 min-h-1 justify-between pl-2">
-	<!-- <Icon icon="bitcoin-icons:lightning-outline" class="text-2xl" /> -->
-	<!-- {#if biggerZap}
-		<div class="flex items-center gap-2">
-			<PictureProfile pubkey={biggerZap?.pubkey} />
-			<div class="text-sm opacity-50">{biggerZap?.amount}</div>
-			<div class="text-sm opacity-50 whitespace-nowrap overflow-hidden text-overflow-ellipsis">
-				{biggerZap?.content}
-			</div>
-		</div>
-	{:else}
-		<div class="text-sm opacity-50"></div>
-	{/if} -->
-	<!-- <div class="flex items-center">
-		{#if visible}
-			{#each ($zaps || []).filter((z) => z.pubkey != biggerZap?.pubkey) as zap}
-				<div class="flex items-center gap-2">
-					<PictureProfile pubkey={zap.pubkey} />
-					<div class="text-sm">{zap.amount}</div>
-				</div>
-			{/each}
-		{/if}
-	</div> -->
-</div>
-
 <!-- <div class="flex items-center w-full mt-1 pb-1"> -->
 <!-- <div class="min-w-8" /> -->
-<div class="flex-grow flex px-2 w-full h-6 pl-12">
+<div class="flex-grow flex px-2 w-full h-6 pl-10">
 	<div class="flex items-center gap-1 cursor-pointer w-full">
 		{#if visible}
 			<div
@@ -145,29 +121,6 @@
 			</div>
 		{/if}
 	</div>
-	<!-- <div class="flex items-center justify-end cursor-pointer w-1/4">
-		{#if visible}
-			<div
-				class="flex items-center"
-				class:text-yellow-600={zapped}
-				on:click={() => {
-					nutsZap($pool, $signer, $wallets, note, $settings.zap.message, $settings.zap.amount);
-					zaps = zaps.concat({
-						id: '0',
-						kind: nutKinds.Nutzap,
-						content: $settings.zap.message || '',
-						created_at: Math.floor(Date.now() / 1000),
-						ref: note.id,
-						pubkey: $key?.pub || '0',
-						amount: $settings.zap.amount
-					});
-				}}
-			>
-				{zaps?.reduce((acc, cur) => (acc += Number(cur.amount)), 0) || ''}
-				<Icon icon="bitcoin-icons:lightning-outline" class={'text-2xl '} />
-			</div>
-		{/if}
-	</div> -->
 	<div class="flex items-center shrink-0 justify-end gap-1 cursor-pointer">
 		{#if visible}
 			<div class="flex items-center space-x-1">
@@ -216,4 +169,3 @@
 		{/if}
 	</div> -->
 </div>
-<!-- </div> -->

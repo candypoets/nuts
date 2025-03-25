@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import { cachedProfile, isInitialized } from 'src/db';
-	import type { Kind0Parsed } from 'src/parsers';
+	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/parsers';
+	import { nostrManager, type EventKind } from 'src/wasm/manager';
+	import type { ParsedEvent } from 'src/workers/nipworker';
 
 	// The pubkey/npub of the user
 	export let pubkey: string = '';
@@ -9,9 +9,11 @@
 	export let size: 'xs' | 'sm' | 'md' | 'lg' | 'xl' = 'xs';
 	// Optional custom class to override default styling
 	export let customClass: string = '';
+	export let context: ParsedEvent<AnyKind>[] = [];
+	export let query = true;
 
 	let profile: Kind0Parsed | undefined;
-	let imageUrl: string = '';
+	let imageUrl: string | undefined;
 	let imageLoaded = false;
 	let imageError = false;
 
@@ -26,20 +28,23 @@
 
 	// Try to fetch profile from IndexedDB when pubkey changes or DB is initialized
 	$: {
-		if (pubkey && $isInitialized) {
-			try {
-				const cachedData = cachedProfile(pubkey);
-				if (cachedData?.content) {
-					profile = JSON.parse(cachedData.content);
-					// Get profile picture URL
-					imageUrl = profile?.picture || '/ns-naked.svg';
-				} else {
-					// Use fallback if no profile
-					imageUrl = '/ns-naked.svg';
-				}
-			} catch (e) {
-				console.error('Error loading profile picture:', e);
-				imageUrl = '/ns-naked.svg';
+		if (!profile) {
+			profile = context.find((c) => c.pubkey === pubkey && c.kind == 0)?.parsed as
+				| Kind0Parsed
+				| undefined;
+			imageUrl = profile?.picture;
+			if (!profile && query) {
+				nostrManager.subscribe(
+					'avatar_' + pubkey + size,
+					[{ kinds: [0], authors: [pubkey], limit: 1, cacheFirst: true, relays: [] }],
+					(events: ParsedEvent<AnyKind>[], type: EventKind) => {
+						const [event, ...context] = events;
+						if (isKind0(event)) {
+							profile = event.parsed as Kind0Parsed;
+							imageUrl = profile?.picture;
+						}
+					}
+				);
 			}
 		}
 	}
@@ -71,6 +76,6 @@
 		/>
 	{:else}
 		<!-- Placeholder while loading -->
-		<div class="w-full h-full bg-gray-300 animate-pulse"></div>
+		<div class="w-full h-full bg-gray-300 shimmer"></div>
 	{/if}
 </div>

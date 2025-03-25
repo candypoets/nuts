@@ -47,6 +47,14 @@ func (p *Parser) ParseKind9735(event nostr.Event) (*Kind9735Parsed, *[]types.Req
 		return nil, nil, fmt.Errorf("event is not kind 9735")
 	}
 
+	// get the sender profile for this zap
+	requests = append(requests, types.Request{
+		Kinds:      []int{0},
+		Authors:    []string{event.PubKey},
+		CacheFirst: true,
+		Relays:     p.GetRelays(event),
+	})
+
 	// Extract tags
 	var pTag, eTag, aTag, bolt11Tag, descriptionTag, preimageTag, senderTag []string
 

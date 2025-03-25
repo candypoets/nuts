@@ -37,9 +37,17 @@ type Kind7Parsed struct {
 
 // ParseKind7 parses a kind 7 (reaction) event
 func (p *Parser) ParseKind7(event nostr.Event) (*Kind7Parsed, *[]types.Request, error) {
+	var requests = []types.Request{}
 	if event.Kind != 7 {
 		return nil, nil, fmt.Errorf("event is not kind 7")
 	}
+
+	requests = append(requests, types.Request{
+		Kinds:      []int{0},
+		Authors:    []string{event.PubKey},
+		CacheFirst: true,
+		Relays:     p.GetRelays(event),
+	})
 
 	// Find the e tag for the target event (should be the last one if multiple)
 	eTag := event.Tags.FindLast("e")

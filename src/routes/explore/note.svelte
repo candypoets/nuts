@@ -15,13 +15,21 @@
 	export let zaps: boolean = false;
 	export let footer: boolean = true;
 	export let visible: boolean = false;
-	export let root: boolean = false;
+	export let showReplies:
+		| ((events: ParsedEvent<Kind1Parsed>[]) => ParsedEvent<Kind1Parsed>[])
+		| undefined = undefined;
+	// for replies, show the original post above
+	export let showRoot: boolean = true;
 	export let depth = 0;
 
 	// is the note leading in a thread
 	export let leading: boolean | undefined = undefined;
 	// is the note tailing in a thread
 	export let tailing: boolean | undefined = undefined;
+
+	let replies: ParsedEvent<Kind1Parsed>[] = [];
+
+	$: visibleReplies = showReplies ? showReplies(replies) : [];
 
 	let timeout: NodeJS.Timeout | undefined;
 
@@ -60,7 +68,7 @@
 	$: visible && note ? subscribe() : unsubscribe();
 </script>
 
-{#if note?.parsed?.root && !(note.parsed.mentions || []).some((m) => m.id == note?.parsed?.root?.id) && !depth}
+{#if note?.parsed?.root && !(note.parsed.mentions || []).some((m) => m.id == note?.parsed?.root?.id) && !depth && showRoot}
 	<svelte:self noteId={note.parsed.root.id} {context} {visible} zaps leading />
 {/if}
 <div class="py-2 rounded-2xl relative">
@@ -70,7 +78,7 @@
 		{#if zaps && !depth}
 			<Zap {note} {visible} />
 		{/if}
-		{#if leading}
+		{#if leading || visibleReplies.length}
 			<div class="absolute border-gray-300 left-4 h-full border-r-2" />
 		{/if}
 		<Header {note} {context} {depth} />
@@ -90,7 +98,7 @@
 			</div>
 		</div>
 		{#if footer && !depth}
-			<Footer {note} visible />
+			<Footer bind:replies {note} visible />
 		{/if}
 		{#if leading}
 			<div
@@ -117,3 +125,6 @@
 		</div>
 	{/if}
 </div>
+{#each visibleReplies as reply}
+	<svelte:self note={reply} {context} {visible} zaps tailing showRoot={false} />
+{/each}
