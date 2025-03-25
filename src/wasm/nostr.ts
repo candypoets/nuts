@@ -12,8 +12,8 @@ export const initNostrWasm = async () => {
 
 				// Return the API
 				resolve({
-					openSubscription: (subscriptionId: string, requests: BinaryData, callback: Function) => {
-						return self.openSubscription(subscriptionId, requests, callback);
+					openSubscription: (subscriptionId: string, requests: BinaryData) => {
+						return self.openSubscription(subscriptionId, requests);
 					},
 					closeSubscription: (subscriptionId: string) => {
 						return self.closeSubscription(subscriptionId);
@@ -46,18 +46,7 @@ self.onmessage = async function (e) {
 	try {
 		switch (action) {
 			case 'SUBSCRIBE':
-				nostr.openSubscription(
-					subscriptionId,
-					requests,
-					function (eventType: string, eventData: any) {
-						// Forward events back to the main thread
-						self.postMessage({
-							type: eventType,
-							subscriptionId: subscriptionId,
-							eventData: eventData
-						});
-					}
-				);
+				nostr.openSubscription(subscriptionId, requests);
 				break;
 
 			case 'UNSUBSCRIBE':
@@ -65,18 +54,7 @@ self.onmessage = async function (e) {
 				break;
 
 			default:
-				nostr.openSubscription(
-					subscriptionId,
-					requests,
-					function (eventType: string, eventData: any) {
-						// Forward events back to the main thread
-						self.postMessage({
-							type: eventType,
-							subscriptionId: subscriptionId,
-							eventData: eventData
-						});
-					}
-				);
+				nostr.openSubscription(subscriptionId, requests);
 		}
 	} catch (err) {
 		console.error(err);

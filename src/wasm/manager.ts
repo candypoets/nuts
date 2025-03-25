@@ -132,7 +132,7 @@ export class NostrManager {
 	private async handleEvent(subscriptionId: string, eventData: Uint8Array, eventKind: EventKind) {
 		const subscription = this.subscriptions.get(subscriptionId);
 		if (!subscription) return;
-		const decodedEvent = msgpack.decode(eventData) as ParsedEvent<AnyKind>[];
+		const decodedEvent = eventData ? (msgpack.decode(eventData) as ParsedEvent<AnyKind>[]) : [];
 		// Call the subscription callback with the fresh event
 		subscription.callback(decodedEvent, eventKind);
 	}

@@ -49,6 +49,7 @@
 			(events: ParsedEvent<unknown>[]) => {
 				// the first event is from the sub, everything else is contextual
 				const event = events[0];
+				if (!event) return;
 				console.log('____PROFILE____', event);
 				if (event.parsed) {
 					switch (event.kind) {

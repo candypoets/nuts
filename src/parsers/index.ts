@@ -21,21 +21,21 @@ export * from './kind10002';
 export * from './kind10019';
 
 // Type guard functions for each event kind
-export const isKind0 = (event: NostrEvent): event is ParsedEvent<Kind0Parsed> => event.kind === 0;
-export const isKind1 = (event: NostrEvent): event is ParsedEvent<Kind1Parsed> => event.kind === 1;
-export const isKind3 = (event: NostrEvent): event is ParsedEvent<Kind3Parsed> => event.kind === 3;
-export const isKind6 = (event: NostrEvent): event is ParsedEvent<any> => event.kind === 6;
-export const isKind7 = (event: NostrEvent): event is ParsedEvent<Kind7Parsed> => event.kind === 7;
+export const isKind0 = (event: NostrEvent): event is ParsedEvent<Kind0Parsed> => event?.kind === 0;
+export const isKind1 = (event: NostrEvent): event is ParsedEvent<Kind1Parsed> => event?.kind === 1;
+export const isKind3 = (event: NostrEvent): event is ParsedEvent<Kind3Parsed> => event?.kind === 3;
+export const isKind6 = (event: NostrEvent): event is ParsedEvent<any> => event?.kind === 6;
+export const isKind7 = (event: NostrEvent): event is ParsedEvent<Kind7Parsed> => event?.kind === 7;
 export const isKind17 = (event: NostrEvent): event is ParsedEvent<Kind17Parsed> =>
-	event.kind === 17;
+	event?.kind === 17;
 export const isKind9735 = (event: NostrEvent): event is ParsedEvent<Kind9735Parsed> =>
-	event.kind === 9735;
+	event?.kind === 9735;
 export const isKind9321 = (event: NostrEvent): event is ParsedEvent<Kind9321> =>
-	event.kind === 9321;
+	event?.kind === 9321;
 export const isKind10002 = (event: NostrEvent): event is ParsedEvent<Kind10002Parsed> =>
-	event.kind === 10002;
+	event?.kind === 10002;
 export const isKind10019 = (event: NostrEvent): event is ParsedEvent<Kind10019> =>
-	event.kind === 10019;
+	event?.kind === 10019;
 
 export type AnyKind =
 	| Kind0Parsed

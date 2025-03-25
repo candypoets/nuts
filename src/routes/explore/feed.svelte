@@ -50,7 +50,7 @@
 			return;
 		}
 		const [event, ...context] = events;
-		if (!event.parsed) return;
+		if (!event?.parsed) return;
 		if (updateFeed) {
 			feed = updateFeed(feed, events, eventKind);
 			return;

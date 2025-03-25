@@ -31,10 +31,11 @@ type SubscriptionManager struct {
 	relays        map[string]*nostr.Relay
 	subs          map[string]int
 	log           zerolog.Logger
+	callback      js.Func
 }
 
 // NewSubscriptionManager creates a new subscription manager
-func NewSubscriptionManager(database *db.NostrDB, parser *parser.Parser) *SubscriptionManager {
+func NewSubscriptionManager(database *db.NostrDB, parser *parser.Parser, callback js.Func) *SubscriptionManager {
 	// Get a contextualized logger
 	componentLogger := logger.WithComponent("subscriptions")
 
@@ -46,6 +47,7 @@ func NewSubscriptionManager(database *db.NostrDB, parser *parser.Parser) *Subscr
 		relays:        make(map[string]*nostr.Relay),
 		subs:          make(map[string]int),
 		log:           componentLogger,
+		callback:      callback,
 	}
 
 	go func() {
@@ -72,7 +74,7 @@ type Subscription struct {
 }
 
 // openSubscriptions starts a new subscription
-func (sm *SubscriptionManager) OpenSubscription(subscriptionID string, requests []types.Request, callback js.Func) error {
+func (sm *SubscriptionManager) OpenSubscription(subscriptionID string, requests []types.Request) error {
 	sm.log.Info().
 		Str("subscription_id", subscriptionID).
 		Int("request_count", len(requests)).
@@ -97,14 +99,14 @@ func (sm *SubscriptionManager) OpenSubscription(subscriptionID string, requests 
 	sm.mutex.Unlock()
 
 	go func() {
-		networkRequests := sm.ProcessLocalRequests(subscriptionID, ctx, requests, callback, 0)
+		networkRequests := sm.ProcessLocalRequests(subscriptionID, ctx, requests, 0)
 		if ctx.Err() != nil {
 			return
 		}
 		if len(networkRequests) == 0 {
 			return
 		}
-		sm.ProcessSubscriptionRequests(subscriptionID, ctx, networkRequests, callback)
+		sm.ProcessSubscriptionRequests(subscriptionID, ctx, networkRequests)
 	}()
 	sm.log.Info().
 		Str("subscription_id", subscriptionID).
@@ -139,7 +141,6 @@ func (sm *SubscriptionManager) ProcessLocalRequests(
 	subscriptionID string,
 	ctx context.Context,
 	requests []types.Request,
-	callback js.Func,
 	depth int,
 	root ...string) []types.Request {
 	// Check recursion depth limit
@@ -202,7 +203,7 @@ func (sm *SubscriptionManager) ProcessLocalRequests(
 		// process them recursively, but with incremented depth
 		if event.Requests != nil && len(*event.Requests) > 0 {
 			// Process recursively with increased depth
-			sm.ProcessLocalRequests(subscriptionID, ctx, *event.Requests, callback, depth+1, rootID)
+			sm.ProcessLocalRequests(subscriptionID, ctx, *event.Requests, depth+1, rootID)
 		}
 
 		if len(root) > 0 {
@@ -231,10 +232,10 @@ func (sm *SubscriptionManager) ProcessLocalRequests(
 			js.CopyBytesToJS(uint8Array, pack)
 
 			// Call the callback with the event (same format as subscription events)
-			callback.Invoke("CACHED_EVENTS", uint8Array)
+			sm.callback.Invoke("CACHED_EVENTS", subscriptionID, uint8Array)
 		}
 	}
-	callback.Invoke("EOCE")
+	sm.callback.Invoke("EOCE", subscriptionID)
 	return filteredRequests
 }
 
@@ -247,7 +248,7 @@ func (sm *SubscriptionManager) ProcessSubscriptionRequests(
 	subscriptionID string,
 	ctx context.Context,
 	requests []types.Request,
-	callback js.Func) {
+) {
 	sm.log.Debug().
 		Str("subscription_id", subscriptionID).
 		Int("request_count", len(requests)).
@@ -369,7 +370,7 @@ func (sm *SubscriptionManager) ProcessSubscriptionRequests(
 								js.CopyBytesToJS(uint8Array, pack)
 
 								// Only call the callback after all related requests are processed
-								callback.Invoke("FETCHED_EVENTS", uint8Array)
+								sm.callback.Invoke("FETCHED_EVENTS", subscriptionID, uint8Array)
 							}
 
 						case <-sub.EndOfStoredEvents:
@@ -388,7 +389,7 @@ func (sm *SubscriptionManager) ProcessSubscriptionRequests(
 							// Copy the Go bytes to the JavaScript Uint8Array
 							js.CopyBytesToJS(uint8Array, relaysPack)
 
-							callback.Invoke("EOSE", uint8Array)
+							sm.callback.Invoke("EOSE", subscriptionID, uint8Array)
 
 							sm.log.Debug().
 								Str("subscription_id", subscriptionID).
