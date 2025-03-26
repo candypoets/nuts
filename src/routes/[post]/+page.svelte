@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { updateVc } from 'src/lib';
 	import { ago, DAY } from 'src/lib/period';
 	import { isKind0, isKind1, type AnyKind, type Kind0Parsed, type Kind1Parsed } from 'src/parsers';
 	import Feed from 'src/routes/explore/feed.svelte';
@@ -67,13 +66,12 @@
 
 	onMount(() => {
 		window.scrollTo(0, 0);
-		updateVc();
 		const sub = nostrManager.subscribe(
 			'profile_' + post,
 			[{ kinds: [1], ids: [post], limit: 1, relays: [], cacheFirst: true }],
 			(events: ParsedEvent<AnyKind>[]) => {
 				const [event, ...rest] = events;
-				if (!event.parsed) return;
+				if (!event?.parsed) return;
 				if (isKind1(event)) {
 					loading = false;
 					// console.log('note events', note?.id, randomId, events, context);

@@ -1,57 +1,113 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import Icon from '@iconify/svelte';
-	import { updateVc } from 'src/lib';
 	import { ago, DAY } from 'src/lib/period';
-	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/parsers';
+	import { isKind0, type AnyKind } from 'src/parsers';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import { nostrManager } from 'src/wasm/manager';
 	import type { NIP02Parsed } from 'src/workers/nip02';
 	import type { ParsedEvent } from 'src/workers/nipworker';
 	import { getContext, onMount } from 'svelte';
 	import type { Writable } from 'svelte/store';
-	import { crossfade, fly, slide } from 'svelte/transition';
 
 	// Get pubkey from URL parameter
-	const pubkey = $page.params.pubkey;
+	export let pubkey: string;
+	export let visible: boolean;
 
-	let profile: ParsedEvent<Kind0Parsed> | undefined;
 	let loading = true;
 	let feedRequests: any[] = [];
+	let headerItem = { id: 'header' };
+	let timeout: NodeJS.Timeout | undefined;
+
+	let sub: () => void;
 
 	let followList: Writable<NIP02Parsed> = getContext('followList');
 
-	onMount(() => {
-		window.scrollTo(0, 0);
-		updateVc();
-		const sub = nostrManager.subscribe(
-			'profile_' + pubkey,
-			[{ kinds: [0], authors: [pubkey], limit: 1, relays: [], cacheFirst: true }],
-			(events: ParsedEvent<AnyKind>[]) => {
-				const [event] = events;
-				if (!event?.parsed) return;
-				if (isKind0(event)) {
-					loading = false;
-					// console.log('note events', note?.id, randomId, events, context);
-					profile = event;
-					feedRequests = [
-						{
-							kinds: [1],
-							authors: [pubkey],
-							limit: 500,
-							since: ago(30 * DAY)
-						}
-					];
+	function handleEvents(events: ParsedEvent<AnyKind>[]) {
+		const [event] = events;
+		if (!event?.parsed) return;
+		if (isKind0(event)) {
+			loading = false;
+			headerItem = event;
+			feedRequests = [
+				{
+					kinds: [1],
+					authors: [pubkey],
+					limit: 500,
+					since: ago(30 * DAY)
 				}
-			}
-		);
+			];
+		}
+	}
+
+	function goBack() {
+		// Get current path
+		const currentPath = $page.url.pathname;
+
+		// Find the last "/" and get everything before it
+		const lastSlashIndex = currentPath.lastIndexOf('/');
+		console.log(currentPath, lastSlashIndex);
+
+		if (lastSlashIndex > 0) {
+			// Navigate to the parent path (everything before last slash)
+			const parentPath = currentPath.substring(0, lastSlashIndex);
+			goto(parentPath);
+		} else {
+			// If no slash or at root, go to explore page
+			goto('/explore');
+		}
+	}
+
+	onMount(() => {
 		return sub;
 	});
+
+	function subscribe() {
+		timeout = setTimeout(async () => {
+			if (visible) {
+				feedRequests = [];
+				sub = nostrManager.subscribe(
+					'kind0_' + pubkey,
+					[{ kinds: [0], authors: [pubkey], limit: 1, relays: [], cacheFirst: true }],
+					handleEvents
+				);
+			}
+		});
+	}
+
+	function unsubscribe() {
+		if (timeout) {
+			clearTimeout(timeout);
+			timeout = undefined;
+			nostrManager.unsubscribe('kind0_' + pubkey);
+		}
+	}
+
+	$: visible ? subscribe() : unsubscribe();
 </script>
 
-{#if feedRequests.length > 0}
-	<Feed subscriptionID="profile_feed" requests={feedRequests} headerItem={profile}>
-		<div slot="header-content" let:item let:visible>
+<Feed subscriptionID={'kind0_feed_' + pubkey} requests={feedRequests} {headerItem}>
+	<svelte:fragment slot="sticky-header">
+		<div
+			class="px-4 py-3 flex items-center justify-between backdrop-blur bg-base-100 bg-opacity-90"
+		>
+			<button on:click={goBack} class="p-1 rounded-full hover:bg-base-200 mr-4">
+				<Icon icon="mdi:arrow-left" class="text-xl" />
+			</button>
+			<h1 class="text-lg font-semibold">Profile</h1>
+			<span />
+		</div>
+	</svelte:fragment>
+	<svelte:fragment slot="header-content" let:item let:visible>
+		<div class="w-feed border-b border-base-200 h-16 flex items-center justify-between shadow-sm">
+			<button on:click={goBack} class="p-1 rounded-full hover:bg-base-200 mr-4">
+				<Icon icon="mdi:arrow-left" class="text-xl" />
+			</button>
+			<h1 class="text-lg font-semibold">Profile</h1>
+			<span class="w-10" />
+		</div>
+		{#if item.id != 'header'}
 			{@const p = item.parsed}
 			<div
 				class="transition-all duration-300 bg-basic w-feed mx-auto will-change-transform"
@@ -125,9 +181,9 @@
 				</div>
 				<!-- <h3 class="text-lg font-medium mb-4 px-4">Posts</h3> -->
 			</div>
-		</div>
-	</Feed>
-{/if}
+		{/if}
+	</svelte:fragment>
+</Feed>
 
 <style>
 	.fixed {

@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { updateVc } from 'src/lib';
 	import ProfileModal from 'src/routes/_profile/index.svelte';
 	import { profile } from 'src/stores/profile';
 	import { onMount } from 'svelte';
@@ -13,8 +12,6 @@
 	import { goto } from '$app/navigation';
 
 	let profileOpen: boolean = false;
-
-	onMount(() => updateVc());
 
 	let messages: NostrEvent[] = [];
 

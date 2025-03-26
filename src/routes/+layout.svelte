@@ -1,7 +1,6 @@
 <script lang="ts">
 	import '../app.css';
 	import { page } from '$app/stores';
-	import { updateVc } from 'src/lib';
 
 	import Landing from './+page.svelte';
 	import { pwaInfo } from 'virtual:pwa-info';
@@ -24,6 +23,7 @@
 	import { nostrManager } from 'src/wasm/manager';
 	import _ from 'lodash';
 	import type { Kind10002Parsed, Kind3Parsed } from 'src/parsers';
+	import { viewport } from 'src/lib';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
 
@@ -73,14 +73,8 @@
 
 	// Watch for route changes
 	onMount(() => {
+		setViewport();
 		if (!$mint) $mint = $mints[0];
-		updateVc();
-		updateVh();
-		page.subscribe((p) => {
-			updateVc();
-			updateVh();
-			// You can add your custom logic here
-		});
 		const initializer = initialize.subscribe((n) => n);
 		// const nostrEvent = nostrEventSub.subscribe((n) => n);
 		const dms = dmSub.subscribe((n) => n);
@@ -104,11 +98,13 @@
 
 	$: homepage = $page.route.id == '/';
 
-	function updateVh() {
+	function setViewport() {
 		document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
-	}
+		document.documentElement.style.setProperty('--vw', `${window.innerWidth * 0.01}px`);
 
-	$: console.log('keys', $key);
+		$viewport.vw = window.innerWidth * 0.01;
+		$viewport.vh = window.innerHeight * 0.01;
+	}
 </script>
 
 <svelte:head>

@@ -3,8 +3,9 @@
 @tailwind utilities;
 
 :root {
-	--vh: 100vh;
+	--vh: 1vh;
 	--vc: 1vh;
+	--vw: 1vw;
 	--container-top: 2rem;
 	/* --b2: transparent; */
 	/* --tw-border-opacity: 0.1; */

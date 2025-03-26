@@ -21,7 +21,6 @@
 	import User from 'src/routes/explore/user.svelte';
 	import { onMount } from 'svelte';
 	import { ADDRESS_ZERO } from 'src/stores/constants';
-	import { updateVc } from 'src/lib';
 	import { bytesToHex } from '@noble/hashes/utils';
 	import { schnorr } from '@noble/curves/secp256k1';
 	import { pool } from 'src/stores/relays';
@@ -42,7 +41,6 @@
 	// let scrolling = false;
 
 	onMount(() => {
-		// updateVc();
 		accounts.scrollTo({ left: $activeAccount * accounts.offsetWidth });
 	});
 

@@ -1,14 +1,13 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import { Drawer } from 'vaul-svelte';
-	import Keys from './keys.svelte';
-	import Logout from './logout.svelte';
-	import Relays from './relays.svelte';
-	import { profile } from 'src/stores/profile';
-	import Mints from './mints.svelte';
-	import Zaps from './zaps.svelte';
 	import Fullscreen from 'src/comp/drawers/Fullscreen.svelte';
 	import Theme from 'src/comp/Theme.svelte';
+	import { profile } from 'src/stores/profile';
+	import Keys from './keys.svelte';
+	import Logout from './logout.svelte';
+	import Mints from './mints.svelte';
+	import Relays from './relays.svelte';
+	import Zaps from './zaps.svelte';
 
 	let active: string;
 	let search: string;

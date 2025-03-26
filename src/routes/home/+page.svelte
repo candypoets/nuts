@@ -10,7 +10,6 @@
 	import SendModal from './send/send-modal.svelte';
 	import Transactions from './transactions/index.svelte';
 	import Layer from 'src/comp/drawers/Layer.svelte';
-	import { updateVc } from 'src/lib';
 	import { formatAmount } from 'src/actions/wallet';
 	import TransactionModal from './transaction-modal.svelte';
 

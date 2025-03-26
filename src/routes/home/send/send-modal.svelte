@@ -1,7 +1,6 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
 	import QRScanner from 'src/comp/QRScanner.svelte';
-	import { updateVc } from 'src/lib';
 	import type { Contact } from 'src/model/contact';
 	import { contacts } from 'src/stores/db';
 	import { mints } from 'src/stores/mints';
@@ -23,9 +22,7 @@
 
 	$: {
 		if (open) {
-			updateVc();
 		} else {
-			updateVc();
 		}
 	}
 
@@ -59,8 +56,6 @@
 	// 	}
 	// };
 	// $: contacts = liveQuery(() => $db.contacts.orderBy('createdAt').reverse().limit(100).toArray());
-
-	onMount(updateVc);
 </script>
 
 <!-- <ScanLN bind:invoice={scannedNpub} /> -->

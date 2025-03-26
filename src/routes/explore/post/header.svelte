@@ -9,6 +9,8 @@
 	import type { ParsedEvent } from 'src/workers/nipworker';
 	import _ from 'lodash';
 	import type { AnyKind, Contact, Kind0Parsed } from 'src/parsers';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 
 	export let note: ParsedEvent<NIP10Parsed>;
 	export let context: ParsedEvent<AnyKind>[] = [];
@@ -29,21 +31,20 @@
 		}
 	}
 
-	onMount(() => {
-		//if there is no author after 500 ms, try to fetch from indexedb
-		// const timeout = setTimeout(async () => {
-		// 	const db = await nostrDb;
-		// 	if (!author?.name && db) {
-		// 		getProfile(db, note.pubkey).then((res) => (author = JSON.parse(res?.content || '{}')));
-		// 	}
-		// }, 500);
-		// return () => clearTimeout(timeout);
-	});
+	function go() {
+		const currentPath = $page.url.pathname;
+		const profilePath = `nprofile:${note.pubkey}`;
+
+		// Check if the current URL already ends with the profile we're trying to navigate to
+		if (!currentPath.endsWith(profilePath)) {
+			goto(`${currentPath}/${profilePath}`);
+		}
+	}
 </script>
 
 <div class="flex gap-2 relative" class:!gap-1={!!depth}>
 	<div class="w-8 min-w-8" class:!w-6={!!depth} class:!min-w-6={!!depth}>
-		<a href={`/explore/profile/${note.pubkey}`} class="cursor-pointer">
+		<a on:click|stopPropagation|preventDefault={go} class="cursor-pointer">
 			<img
 				src={author?.picture || '/ns-naked.svg'}
 				alt={author?.name}
@@ -56,7 +57,7 @@
 	<div class="w-full">
 		<div class="flex items-start" class:items-center={oneline}>
 			{#if oneline}
-				<a href={`/explore/profile/${note.pubkey}`} class="hover:underline cursor-pointer">
+				<a on:click|stopPropagation|preventDefault={go} class="hover:underline cursor-pointer">
 					<div class="whitespace-nowrap overflow-hidden text-ellipsis font-semibold">
 						{author?.name}
 					</div>
@@ -68,7 +69,7 @@
 			{:else}
 				<div class="flex-grow">
 					<div class="flex items-center">
-						<a href={`/explore/profile/${note.pubkey}`} class="hover:underline cursor-pointer">
+						<a on:click|stopPropagation|preventDefault={go} class="hover:underline cursor-pointer">
 							<div class="whitespace-nowrap overflow-hidden text-ellipsis">{author?.name}</div>
 						</a>
 						<Icon icon="bitcoin-icons:verify-filled" class="inline text-lg text-primary" />

@@ -2,7 +2,6 @@
 	import Icon from '@iconify/svelte';
 	import _ from 'lodash';
 	import VirtualList from 'src/comp/VirtualList.svelte';
-	import { updateVc } from 'src/lib';
 	import { isKind1, type AnyKind, type Kind1Parsed } from 'src/parsers';
 	import { posting } from 'src/stores';
 	import { nostrManager, type EventKind } from 'src/wasm/manager';
@@ -86,7 +85,6 @@
 	}
 
 	onMount(() => {
-		updateVc();
 		// nostrManager.subscribe(subscriptionID, requests, handleEvents);
 		return () => {
 			console.log('UNSUBSCRIBING: ', subscriptionID, requests);
@@ -115,14 +113,13 @@
 </script>
 
 <div
-	class="lg:pt-0 overflow-scroll scrollbar-hide container-height lg:h-screen lg:container-height m-auto !pt-0"
+	class="lg:pt-0 overflow-scroll scrollbar-hide h-full m-auto !pt-0"
 	on:click={() => {
 		$posting = false;
 		// goto('/explore');
 	}}
-	id="container"
 >
-	<button
+	<!-- <button
 		class="p-4 bg-primary rounded-full text-white fixed bottom-28 lg:bottom-4 lg:right-1/3 right-4 z-10 border-opacity-0 lg:translate-x-20"
 		class:bg-opacity-10={fadein}
 		on:click={(e) => {
@@ -131,7 +128,7 @@
 		}}
 	>
 		<Icon icon="teenyicons:add-outline" class="text-2xl" />
-	</button>
+	</button> -->
 
 	<div class="absolute top-6 w-full z-40" transition:fly={{ y: -50, duration: 300 }}>
 		{#if newPosts.length}
@@ -149,7 +146,14 @@
 			</div>
 		{/if}
 	</div>
-
+	{#if start >= 1}
+		<!-- Fixed header (only visible when scrolled) -->
+		<div class="absolute z-10 w-full">
+			<div class="w-feed m-auto">
+				<slot name="sticky-header" visible={true} scrolled={true} />
+			</div>
+		</div>
+	{/if}
 	<VirtualList
 		items={combinedItems}
 		bind:start
@@ -164,14 +168,7 @@
 			<!-- <div class="relative w-feed m-auto">
 					<slot name="sticky-header" visible={true} scrolled={false} />
 				</div> -->
-			{#if start >= 1}
-				<!-- Fixed header (only visible when scrolled) -->
-				<div class="fixed left-0 top-0 right-0 w-full z-30 backdrop-blur bg-base-100 bg-opacity-50">
-					<div class="w-feed m-auto">
-						<slot name="sticky-header" visible={true} scrolled={true} />
-					</div>
-				</div>
-			{/if}
+
 			<!-- Render header item -->
 			<div
 				class="block w-feed lg:m-auto py-1 px-1 max-w-full"

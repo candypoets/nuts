@@ -8,6 +8,7 @@
 	import Zap from './post/zap.svelte';
 	import _ from 'lodash';
 	import { nostrManager } from 'src/wasm/manager';
+	import { page } from '$app/stores';
 
 	export let noteId: string | undefined = undefined;
 	export let context: ParsedEvent<AnyKind>[] = [];
@@ -66,15 +67,23 @@
 	}
 
 	$: visible && note ? subscribe() : unsubscribe();
+
+	function go() {
+		const currentPath = $page.url.pathname;
+		const eventPath = `nevent:${note?.id}`;
+
+		// Check if the current URL already ends with the profile we're trying to navigate to
+		if (!currentPath.endsWith(eventPath)) {
+			goto(`${currentPath}/${eventPath}`);
+		}
+	}
 </script>
 
-{#if note?.parsed?.root && !(note.parsed.mentions || []).some((m) => m.id == note?.parsed?.root?.id) && !depth && showRoot}
-	<svelte:self noteId={note.parsed.root.id} {context} {visible} zaps leading />
+{#if note?.parsed?.reply && !(note.parsed.mentions || []).some((m) => m.id == note?.parsed?.reply?.id) && !depth && showRoot}
+	<svelte:self noteId={note.parsed.reply.id} {context} {visible} zaps leading />
 {/if}
-<div class="py-2 rounded-2xl relative hover:shadow-md cursor-pointer">
-	<!-- <span class="text-xs">{noteId || note?.id}</span> -->
+<div class="py-2 rounded-2xl relative cursor-pointer" on:click|stopPropagation={go}>
 	{#if note}
-		<!-- <div class="text-xs">{randomId} - {context.length}</div> -->
 		{#if zaps && !depth}
 			<Zap {note} {visible} />
 		{/if}
@@ -82,14 +91,7 @@
 			<div class="absolute border-gray-300 left-4 h-full border-r-2" />
 		{/if}
 		<Header {note} {context} {depth} />
-		<div
-			class="flex gap-2"
-			on:click={(e) => {
-				e.stopPropagation();
-
-				goto(`/explore/${note?.parsed?.root?.id ? note?.parsed.root.id : note?.id}`);
-			}}
-		>
+		<div class="flex gap-2">
 			<!-- {#if !depth} -->
 			<div class="min-w-8" class:!min-w-4={!!depth} />
 			<!-- {/if} -->
