@@ -3,6 +3,7 @@ import { NIP05_REGEX } from 'nostr-tools/nip05';
 import type { ProfilePointer } from 'nostr-tools/nip19';
 
 export interface Kind0Parsed {
+	pubkey?: string;
 	name?: string;
 	display_name?: string;
 	picture?: string;

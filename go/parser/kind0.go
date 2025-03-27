@@ -12,6 +12,7 @@ import (
 
 // Kind0Parsed represents a parsed kind 0 profile event
 type Kind0Parsed struct {
+	Pubkey      string `json:"pubkey,omitempty" msgpack:"pubkey,omitempty"`
 	Name        string `json:"name,omitempty" msgpack:"name,omitempty"`
 	DisplayName string `json:"display_name,omitempty" msgpack:"display_name,omitempty"`
 	Picture     string `json:"picture,omitempty" msgpack:"picture,omitempty"`
@@ -64,7 +65,7 @@ func (p *Parser) ParseKind0(event nostr.Event) (*Kind0Parsed, *[]types.Request, 
 	}
 
 	var profile Kind0Parsed
-
+	profile.Pubkey = event.PubKey
 	// Parse the content JSON
 	if err := json.Unmarshal([]byte(event.Content), &profile); err != nil {
 		return nil, nil, fmt.Errorf("failed to parse profile: %v, %s", err, event.Content)
