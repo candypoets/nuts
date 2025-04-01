@@ -1,19 +1,18 @@
 <script lang="ts">
 	import { posting } from 'src/stores';
 	import { balance } from 'src/stores/wallet';
-	import { getContext, onMount } from 'svelte';
+	import { getContext } from 'svelte';
 	import Post from './post.svelte';
-	import Reply from './reply.svelte';
 
+	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
+	import { viewport } from 'src/lib';
 	import { ago, DAY } from 'src/lib/period';
 	import type { Kind0Parsed, Kind10002Parsed, Kind3Parsed } from 'src/parsers';
+	import { cubicOut } from 'svelte/easing';
+	import { tweened } from 'svelte/motion';
 	import type { Writable } from 'svelte/store';
 	import Feed from './feed.svelte';
-	import { tweened } from 'svelte/motion';
-	import { cubicOut } from 'svelte/easing';
-	import { viewport } from 'src/lib';
-	import { goto } from '$app/navigation';
 
 	let profileOpen: boolean = false;
 	let feedRequests: any[] = [];
@@ -34,7 +33,7 @@
 		}
 	}
 
-	$: subs = $page.params.sub?.split('/').filter((sub) => sub !== '');
+	$: subs = $page.params.sub?.split('/').filter((sub) => sub !== '') || [];
 
 	$: tweenedValue = tweened(0, {
 		duration: 400,
@@ -100,4 +99,3 @@
 <slot />
 <!-- <ProfileModal bind:open={profileOpen} /> -->
 <Post bind:open={$posting} />
-<Reply />
