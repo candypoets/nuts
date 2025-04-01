@@ -1,5 +1,4 @@
 <script lang="ts">
-	import Icon from '@iconify/svelte';
 	import _ from 'lodash';
 	import VirtualList from 'src/comp/VirtualList.svelte';
 	import { isKind1, type AnyKind, type Kind1Parsed } from 'src/parsers';
@@ -7,8 +6,7 @@
 	import { nostrManager, type EventKind } from 'src/wasm/manager';
 	import type { ParsedEvent } from 'src/workers/nipworker';
 	import { onMount } from 'svelte';
-	import { cubicOut } from 'svelte/easing';
-	import { crossfade, fly } from 'svelte/transition';
+	import { fly } from 'svelte/transition';
 	import Note from './note.svelte';
 
 	// Props
@@ -24,7 +22,11 @@
 		| undefined = undefined;
 
 	let feed: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
+	let cachedFeed: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
+	let fetchedFeed: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
 	let newPosts: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
+	let timeout: NodeJS.Timeout | undefined;
+	let sub: () => void | undefined;
 
 	let start = 0;
 	let end = 0;
@@ -37,49 +39,63 @@
 	let footer: HTMLElement;
 	let fadein = false;
 
-	let eoses = 0;
-
+	let eose = false;
+	let eoce = false;
 	// Combined feed including the header item if provided
 	$: combinedItems = headerItem ? [headerItem, ...feed] : feed;
 
 	// In a separate function to avoid infinite loops in the reactive block
 	const handleEvents = (events: ParsedEvent<AnyKind>[], eventKind: EventKind) => {
-		if (eventKind == 'EOSE') {
-			// eoses++;
+		if (eventKind == 'EOSE' && !eose) {
+			eose = true;
+			feed = [...fetchedFeed.sort((a, b) => b[0].created_at - a[0].created_at), ...feed].slice(
+				0,
+				100
+			);
+			fetchedFeed = [];
+			return;
+		}
+		if (eventKind == 'EOCE' && !eoce) {
+			eoce = true;
+			feed = cachedFeed;
+			cachedFeed = [];
 			return;
 		}
 		const [event, ...context] = events;
 		if (!event?.parsed) return;
 		if (updateFeed) {
-			feed = updateFeed(feed, events, eventKind);
+			if (!eoce) {
+				cachedFeed = updateFeed(cachedFeed, events, eventKind);
+			} else if (!eose) {
+				fetchedFeed = updateFeed(fetchedFeed, events, eventKind);
+			} else {
+				feed = updateFeed(feed, events, eventKind);
+			}
 			return;
 		}
 		if (isKind1(event)) {
 			// only show replies to root posts
 			if (event?.parsed?.reply?.id && event?.parsed?.root?.id != event?.parsed?.reply?.id) return;
 			// check if the event is already in the feed
-			// if (feed.some(([e]) => e.id === event.id)) return;
-			if (eventKind == 'CACHED_EVENT') {
-				// cached event are filtered in the worker
-				feed = [...feed, [event, _.uniqBy(context, 'id')]];
-			} else if (eventKind == 'FETCHED_EVENT') {
-				if (event.created_at >= feed?.[0]?.[0]?.created_at) {
-					feed = [[event, _.uniqBy(context, 'id')], ...feed];
-				} else {
-					// Add the event to the feed and sort by created_at (most recent first)
-					feed = [...feed, [event, _.uniqBy(context, 'id')]].sort(
-						(a, b) => b[0].created_at - a[0].created_at
-					);
-				}
+			if (!eoce) {
+				// cached event are filtered and sorted in the worker
+				cachedFeed = [...cachedFeed, [event, _.uniqBy(context, 'id')]];
+			} else if (!eose) {
+				fetchedFeed = [[event, _.uniqBy(context, 'id')], ...fetchedFeed];
+			} else {
+				feed = [[event, _.uniqBy(context, 'id')], ...feed];
 			}
 		}
 	};
 
 	$: {
 		if (requests && requests.length) {
-			setTimeout(() => {
-				console.log('SUBSCRIBING: ', subscriptionID, requests, handleEvents);
-				nostrManager.subscribe(subscriptionID, requests, handleEvents);
+			timeout = setTimeout(() => {
+				console.log('SUBSCRIBING: ', subscriptionID, requests);
+				eoce = false;
+				eose = false;
+				cachedFeed = [];
+				sub = nostrManager.subscribe(subscriptionID, requests, handleEvents);
 			}, 100);
 		}
 	}
@@ -88,28 +104,10 @@
 		// nostrManager.subscribe(subscriptionID, requests, handleEvents);
 		return () => {
 			console.log('UNSUBSCRIBING: ', subscriptionID, requests);
-			nostrManager.unsubscribe(subscriptionID);
+			sub?.();
+			clearTimeout(timeout);
 		};
 	});
-
-	$: {
-		if (top > oldTop + 25) {
-			topper?.classList.add('toggle-up');
-			footer?.classList.add('blur-in');
-			fadein = true;
-			oldTop = top;
-		} else if (top < oldTop - 25) {
-			topper?.classList.remove('toggle-up');
-			footer?.classList.remove('blur-in');
-			fadein = false;
-			oldTop = top;
-		} else if (top == 0) {
-			topper?.classList.remove('toggle-up');
-			footer?.classList.remove('blur-in');
-			fadein = false;
-			oldTop = top;
-		}
-	}
 </script>
 
 <div
