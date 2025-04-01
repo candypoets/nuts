@@ -207,6 +207,13 @@
 	}
 }
 
+.tippy-box {
+	background-color: transparent !important;
+}
+.tippy-content {
+	padding: 0 !important;
+}
+
 :root {
 	--post-offset: 4rem;
 	--depth-offset: 2rem;
