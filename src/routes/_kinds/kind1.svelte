@@ -12,6 +12,7 @@
 	import type { ParsedEvent } from 'src/workers/nipworker';
 	import { getContext, onMount } from 'svelte';
 	import type { Writable } from 'svelte/store';
+	import Reply from '../explore/reply.svelte';
 
 	export let postId: string;
 	export let visible: boolean;
@@ -143,8 +144,8 @@
 		</div>
 		{#if item.id != 'header'}
 			<Note note={item} {context} visible={true} zaps />
-			<div class="w-feed h-12" />
 		{/if}
+		<Reply replyingTo={context?.find((c) => c.kind == 0 && c.pubkey === item?.pubkey)?.name} />
 	</svelte.fragment>
 	<svelte.fragment slot="item-content" let:post let:context let:visible>
 		<Note
