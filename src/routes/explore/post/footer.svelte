@@ -114,7 +114,7 @@
 				class="flex items-center space-x-1 hover:font-bold hover:text-black hover:-mt-1 transition-all"
 				class:text-red-600={!!replied}
 				class:font-semibold={!!replied}
-				on:click={() => ($replyPost = note)}
+				on:click|stopPropagation={() => ($replyPost = note)}
 			>
 				<Icon icon="iconamoon:comment-light" class="text-xl" />
 				<span>{replies?.length || ''}</span>
@@ -136,9 +136,9 @@
 			</div>
 			<div
 				class="flex items-center space-x-1 hover:text-black hover:-mt-1 transition-all"
-				class:text-red-600={!!liked}
-				class:font-semibold={!!liked}
-				on:click={() => {
+				class:text-red-600={liked}
+				class:font-semibold={liked}
+				on:click|stopPropagation={() => {
 					if (!liked) {
 						sendReaction($pool, $signer, note.id, '🤟');
 						reactions = [...reactions, { pubkey: $key?.pub, ref: note.id }];
