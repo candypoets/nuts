@@ -4,23 +4,24 @@ import { SvelteRenderer } from 'svelte-tiptap';
 import tippy, { type Instance } from 'tippy.js';
 import MentionList from './mention.svelte';
 import type { SvelteComponent } from 'svelte';
+import { nip19 } from 'nostr-tools';
 
 export const NostrMention = Mention.configure({
-	HTMLAttributes: {
-		class: 'text-blue-600 bg-blue-50 rounded px-1 font-medium hover:bg-blue-100 transition-colors'
-	},
-	renderHTML({ node, options }) {
-		return [
-			'a',
-			{
-				// ...HTMLAttributes,
-				href: `nostr:${node.attrs.id}`,
-				'data-npub': node.attrs.id
-			},
-			`@${node.attrs.label || node.attrs.id.slice(0, 8)}`
-		];
-	},
 	suggestion: {
+		command: ({ editor, range, props }) => {
+			const nodeAfter = editor.view.state.selection.$to.nodeAfter;
+			const overrideSpace = nodeAfter?.text?.startsWith(' ');
+
+			if (overrideSpace) {
+				range.to += 1;
+			}
+			console.log(props);
+			editor
+				.chain()
+				.focus()
+				.insertContentAt(range, [{ type: 'nprofile', attrs: props }])
+				.run();
+		},
 		char: '@',
 		allowSpaces: false,
 		// This is a simple placeholder array - the actual items will be managed by the MentionList component
@@ -50,11 +51,9 @@ export const NostrMention = Mention.configure({
 						trigger: 'manual',
 						placement: 'bottom-start'
 					});
-					console.log('onStart', popup, component);
 				},
 
 				onUpdate: (props) => {
-					console.log('onUpdate', popup);
 					if (props.query) {
 						popup[0].show();
 					} else {

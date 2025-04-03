@@ -1,4 +1,5 @@
 <script lang="ts">
+	import User from 'src/routes/explore/user.svelte';
 	import { onMount } from 'svelte';
 	import { NodeViewWrapper } from 'svelte-tiptap';
 
@@ -7,12 +8,11 @@
 	export let updateAttributes;
 
 	// Extract nprofile data from node attributes
-	const npub = node.attrs?.id || '';
-	const name = node.attrs?.name || '';
-	const relays = node.attrs?.relays || [];
+	const npub = node.attrs?.pubkey || '';
+	const bech32 = node.attrs?.bech32 || '';
 
 	// Display formatted name (without the full npub in UI)
-	$: displayName = name || (npub ? `${npub.substring(0, 8)}...` : 'Unknown user');
+	$: displayName = npub ? `${npub.substring(0, 8)}...` : 'Unknown user';
 
 	// Handle click to potentially view profile
 	function handleClick() {
@@ -21,11 +21,6 @@
 	}
 </script>
 
-<NodeViewWrapper>
-	<span
-		class="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-sm font-medium text-blue-700 cursor-pointer hover:bg-blue-100"
-		on:click={handleClick}
-	>
-		@{displayName}
-	</span>
+<NodeViewWrapper class="inline">
+	<User pubkey={npub} context={[]} />
 </NodeViewWrapper>
