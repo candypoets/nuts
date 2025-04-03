@@ -48,10 +48,9 @@
 	const handleEvents = (events: ParsedEvent<AnyKind>[], eventKind: EventKind) => {
 		if (eventKind == 'EOSE' && !eose) {
 			eose = true;
-			feed = [...fetchedFeed.sort((a, b) => b[0].created_at - a[0].created_at), ...feed].slice(
-				0,
-				100
-			);
+			feed = [...fetchedFeed, ...feed]
+				.slice(0, 100)
+				.sort((a, b) => b[0].created_at - a[0].created_at);
 			fetchedFeed = [];
 			return;
 		}
