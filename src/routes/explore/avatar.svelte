@@ -2,6 +2,7 @@
 	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/parsers';
 	import { nostrManager, type EventKind } from 'src/wasm/manager';
 	import type { ParsedEvent } from 'src/workers/nipworker';
+	import { onDestroy } from 'svelte';
 
 	// The pubkey/npub of the user
 	export let pubkey: string = '';
@@ -16,6 +17,8 @@
 	let imageUrl: string | undefined;
 	let imageLoaded = false;
 	let imageError = false;
+
+	let sub: () => void;
 
 	// Size mapping to Tailwind classes
 	const sizeClasses = {
@@ -34,7 +37,7 @@
 				| undefined;
 			imageUrl = profile?.picture;
 			if (!profile && query) {
-				nostrManager.subscribe(
+				sub = nostrManager.subscribe(
 					'avatar_' + pubkey + size,
 					[{ kinds: [0], authors: [pubkey], limit: 1, cacheFirst: true, relays: [] }],
 					(events: ParsedEvent<AnyKind>[], type: EventKind) => {
@@ -60,6 +63,10 @@
 		imageError = true;
 		imageUrl = '/ns-naked.svg';
 	}
+
+	onDestroy(() => {
+		sub?.();
+	});
 </script>
 
 <!-- Profile picture with fallback and sizing -->
