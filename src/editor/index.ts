@@ -7,6 +7,7 @@ import NEvent from './nevent.svelte';
 import NProfile from './nprofile.svelte';
 import Tweet from './tweet.svelte';
 import Video from './video.svelte';
+import Tag from './tag.svelte';
 import { signEvent } from 'src/actions/wallet';
 import { signer } from 'src/stores/signer';
 import { get } from 'svelte/store';

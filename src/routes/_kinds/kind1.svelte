@@ -32,7 +32,6 @@
 
 		// Find the last "/" and get everything before it
 		const lastSlashIndex = currentPath.lastIndexOf('/');
-		console.log(currentPath, lastSlashIndex);
 
 		if (lastSlashIndex > 0) {
 			// Navigate to the parent path (everything before last slash)
@@ -145,7 +144,7 @@
 		{#if item.id != 'header'}
 			<Note note={item} {context} visible={true} zaps />
 		{/if}
-		<Reply replyingTo={context?.find((c) => c.kind == 0 && c.pubkey === item?.pubkey)?.name} />
+		<Reply parent={item} {context} />
 	</svelte.fragment>
 	<svelte.fragment slot="item-content" let:post let:context let:visible>
 		<Note

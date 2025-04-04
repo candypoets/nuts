@@ -6,11 +6,21 @@
 	import { fly } from 'svelte/transition';
 	import type { Readable } from 'svelte/store';
 	import GifPicker from 'src/comp/GIFPicker.svelte';
+	import { prepareEvent } from 'src/editor/utils';
+	import type { ParsedEvent } from 'src/workers/nipworker';
+	import type { AnyKind, Kind1Parsed } from 'src/parsers';
+	import User from './user.svelte';
+	import type { EventTemplate, NostrEvent, Relay } from 'nostr-tools';
+	import { signEvent } from 'src/actions/wallet';
+	import { now } from 'src/lib/period';
+	import { signer } from 'src/stores/signer';
+	import { nostrManager, type RelayStatus } from 'src/wasm/manager';
 
 	export let placeholder = 'Write your reply...';
-	export let onSubmit = (content: string) => {};
 	export let initialContent = '';
-	export let replyingTo = ''; // Optional: name/handle of person being replied to
+	export let parent: ParsedEvent<Kind1Parsed>;
+	export let context: ParsedEvent<AnyKind>[] = [];
+	export let onSubmit = (event: NostrEvent) => {};
 
 	let editorReady = false;
 	let isSubmitting = false;
@@ -84,13 +94,28 @@
 		showGifPicker = false;
 	}
 
-	function handleSubmit() {
-		if (!editorReady || isSubmitting || !$editor.getText().trim()) return;
-
+	async function handleSubmit() {
+		if (!$signer || !editorReady || isSubmitting || !$editor.getText().trim()) return;
+		console.log('submitting', $editor.commands);
 		isSubmitting = true;
-		const content = $editor.getHTML();
+		const content = $editor.getText();
 
-		onSubmit(content);
+		let reply = {
+			...parent,
+			created_at: now(),
+			content
+		} as EventTemplate;
+
+		reply = prepareEvent(reply);
+
+		reply = await signEvent($signer, reply);
+
+		onSubmit(reply as NostrEvent);
+
+		nostrManager.publish(reply as NostrEvent, (status: RelayStatus) => {
+			console.log(status.relay, status.message);
+		});
+
 		$editor.commands.clearContent();
 		isExpanded = false;
 		showEmojiPicker = false;
@@ -120,7 +145,6 @@
 	}
 
 	function handleEditorFocus() {
-		console.log('Editor focused');
 		isExpanded = true;
 	}
 
@@ -190,9 +214,9 @@
 		: 'shadow-sm'}"
 	bind:this={editorContainer}
 >
-	{#if replyingTo && isExpanded}
+	{#if isExpanded}
 		<div class="px-4 pt-3 text-sm text-gray-500 dark:text-gray-400">
-			Replying to <span class="text-blue-500">@{replyingTo}</span>
+			Replying to <User pubkey={parent.pubkey} {context} />
 		</div>
 	{/if}
 
@@ -218,7 +242,11 @@
 					class="absolute top-3 left-3 text-gray-400 pointer-events-none"
 					style={editorReady ? '' : 'display: none;'}
 				>
-					{isExpanded ? placeholder : `Reply to ${replyingTo || 'this post'}...`}
+					{#if isExpanded}
+						{placeholder}
+					{:else}
+						Reply to <User pubkey={parent.pubkey} {context} link={false} />...
+					{/if}
 				</div>
 			{/if}
 		</div>
@@ -303,8 +331,13 @@
 						disabled={!editorReady || isSubmitting || !$editor?.getText().trim()}
 					>
 						<div class="flex items-center space-x-1">
-							<span>Send</span>
-							<Icon icon="carbon:send" class="w-4 h-4" />
+							{#if isSubmitting}
+								<span>Signing...</span>
+								<Icon icon="carbon:circle-dash" class="w-4 h-4 animate-spin" />
+							{:else}
+								<span>Send</span>
+								<Icon icon="carbon:send" class="w-4 h-4" />
+							{/if}
 						</div>
 					</button>
 				</div>

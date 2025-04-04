@@ -9,7 +9,7 @@ import {
 	type MeltQuoteResponse,
 	type RequestMintResponse
 } from '@cashu/cashu-ts';
-import { nip19, type NostrEvent } from 'nostr-tools';
+import { nip19, type EventTemplate, type NostrEvent } from 'nostr-tools';
 import { Status, db, key, keysetsCache, proofsCache } from 'src/stores/db';
 
 import { bech32 } from 'bech32';
@@ -324,7 +324,7 @@ export const signEventWithRetry = async (
 	console.error(`Failed to sign event after ${maxAttempts} attempts`);
 };
 
-export const signEvent = async (signer: NSecSigner, event: Omit<NostrEvent, 'id' | 'sig'>) => {
+export const signEvent = async (signer: NSecSigner, event: EventTemplate) => {
 	event = await signer?.signEvent(event);
 	return event as NostrEvent;
 };
