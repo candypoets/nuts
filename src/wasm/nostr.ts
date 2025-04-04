@@ -1,5 +1,10 @@
 import './wasm_exec.js'; // Path to wasm_exec.js
 import { openDB } from 'idb';
+import * as msgpack from '@msgpack/msgpack';
+import { get } from 'svelte/store';
+import { signer } from 'src/stores/signer.js';
+import type { NostrEvent } from 'nostr-tools';
+
 // Initialize WASM and export it as a promise
 export const initNostrWasm = async () => {
 	const go = new Go();
@@ -8,7 +13,7 @@ export const initNostrWasm = async () => {
 		try {
 			// Define the initialization callback
 			self.nostrWasmInitialized = (info: any) => {
-				console.log('WASM initialization complete:', info);
+				console.log('WASM initialization complete:', info, self);
 
 				// Return the API
 				resolve({
@@ -17,6 +22,9 @@ export const initNostrWasm = async () => {
 					},
 					closeSubscription: (subscriptionId: string) => {
 						return self.closeSubscription(subscriptionId);
+					},
+					publishEvent: (event: BinaryData) => {
+						return self.publishEvent(event);
 					}
 				});
 			};
@@ -40,11 +48,16 @@ const nostrWasm = initNostrWasm();
 
 // Handle messages from the main thread
 self.onmessage = async function (e) {
-	const { action, subscriptionId, requests } = e.data;
+	const { action, subscriptionId, requests, event } = e.data;
 	const nostr = await nostrWasm;
 
 	try {
 		switch (action) {
+			case 'PUBLISH':
+				console.log('nostr.publishEvent(event);');
+				nostr.publishEvent(event);
+				break;
+
 			case 'SUBSCRIBE':
 				nostr.openSubscription(subscriptionId, requests);
 				break;
@@ -52,9 +65,6 @@ self.onmessage = async function (e) {
 			case 'UNSUBSCRIBE':
 				nostr.closeSubscription(subscriptionId);
 				break;
-
-			default:
-				nostr.openSubscription(subscriptionId, requests);
 		}
 	} catch (err) {
 		console.error(err);
@@ -64,5 +74,24 @@ self.onmessage = async function (e) {
 			action: action,
 			subscriptionId: subscriptionId
 		});
+	}
+};
+
+self.signNostrEventSync = function (eventData: Uint8Array): Uint8Array | null {
+	try {
+		// Decode the event data from MessagePack
+		const event = msgpack.decode(new Uint8Array(eventData)) as NostrEvent;
+
+		const signedEvent = get(signer)?.signEvent(event);
+
+		// Encode the signed event back to MessagePack
+		const signedEventData = msgpack.encode(signedEvent);
+
+		// Return the signed event data as a Uint8Array
+		return new Uint8Array(signedEventData);
+	} catch (error) {
+		console.error('Error signing event:', error);
+		// Return null to indicate an error
+		return null;
 	}
 };

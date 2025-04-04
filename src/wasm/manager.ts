@@ -1,14 +1,39 @@
 import * as msgpack from '@msgpack/msgpack';
-import NostrWorker from 'src/wasm/nostr?worker';
-import { type IDBPDatabase } from 'idb';
 import type { Filter, NostrEvent } from 'nostr-tools';
-import { addEvent, nostrDb, type ProcessedNostrEvent } from 'src/db';
-import type { ParsedEvent } from 'src/workers/nipworker';
 import type { AnyKind } from 'src/parsers';
+import NostrWorker from 'src/wasm/nostr?worker';
+import type { ParsedEvent } from 'src/workers/nipworker';
 
-export type EventKind = 'CACHED_EVENT' | 'FETCHED_EVENT' | 'EOSE' | 'EOCE';
+export type SubscribeKind = 'CACHED_EVENT' | 'FETCHED_EVENT' | 'EOSE' | 'EOCE';
+export type PublishKind = 'PUBLISH_STATUS';
 // only the first event is from the request, all others are contextuals
-type SubscriptionCallback = (events: ParsedEvent<AnyKind>[], type: EventKind) => void;
+type SubscriptionCallback = (events: ParsedEvent<AnyKind>[], type: SubscribeKind) => void;
+
+type PublishCallback = (data: RelayStatus, type: PublishKind) => void;
+
+enum PublishStatus {
+	StatusPending = 'pending',
+	StatusSent = 'sent',
+	StatusSuccess = 'success',
+	StatusFailed = 'failed',
+	StatusRejected = 'rejected',
+	StatusConnError = 'connection_error'
+}
+
+export type RelayStatus = {
+	relay: string;
+	status: PublishStatus;
+	message: string;
+	timestamp: number;
+};
+
+// type PublishSummary = {
+// 	relayCount: number;
+// 	successCount: number;
+// 	relayStatuses: Record<string, PublishStatus>;
+// 	durationMs: number;
+// 	timestamp: number;
+// };
 
 export type Request = Filter & {
 	relays: string[];
@@ -21,6 +46,23 @@ interface SubscriptionOptions {
 	force?: boolean; // force a new subscription if one already exists
 }
 
+interface SubscriptionMessage {
+	type: SubscribeKind;
+	subscriptionId: string;
+	eventData: Uint8Array;
+}
+
+interface PublishMessage {
+	type: PublishKind;
+	publishId: string;
+	eventData: Uint8Array;
+}
+
+interface Publish {
+	event: NostrEvent;
+	callback: PublishCallback;
+}
+
 interface Subscription {
 	id: string;
 	callback: SubscriptionCallback;
@@ -29,56 +71,90 @@ interface Subscription {
 
 export class NostrManager {
 	private worker: Worker;
-	private subscriptions: Map<string, Subscription>;
-	private db: IDBPDatabase<unknown> | undefined; // IDBPDatabase type
-	private eventsById: Map<string, ProcessedNostrEvent> = new Map();
-	private profilesByPubkey: Map<string, ProcessedNostrEvent> = new Map();
+	private subscriptions: Map<string, Subscription> = new Map();
+	private publishes: Map<string, Publish> = new Map();
 
 	constructor() {
 		// check with vite if we are on the server
 		if (import.meta.env.SSR) return;
 		this.worker = new NostrWorker();
-		this.subscriptions = new Map();
-		nostrDb.then((db) => (this.db = db));
 		this.setupWorkerHandlers();
 	}
 
 	private setupWorkerHandlers() {
 		this.worker.onmessage = (event) => {
 			if (!event.data) return;
-			const { type, subscriptionId, eventData } = event.data;
-
-			const subscription = this.subscriptions.get(subscriptionId);
-			if (!subscription) return;
-
-			switch (type) {
-				case 'CACHED_EVENTS':
-					console.debug('Received cached events');
-					this.handleEvent(subscriptionId, eventData, 'CACHED_EVENT');
-					break;
-				case 'FETCHED_EVENTS':
-					console.debug('Received fetched events');
-					this.handleEvent(subscriptionId, eventData, 'FETCHED_EVENT');
-					break;
-				case 'EOSE':
-					console.debug(`End of stored events for subscription ${subscriptionId}`);
-					this.handleEvent(subscriptionId, eventData, 'EOSE');
-					if (subscription.options.closeOnEose) {
-						this.unsubscribe(subscriptionId);
-					}
-					break;
-				case 'EOCE':
-					console.debug(`End of cached events for subscription ${subscriptionId}`);
-					this.handleEvent(subscriptionId, eventData, 'EOCE');
-					if (subscription.options.closeOnEose) {
-						this.unsubscribe(subscriptionId);
-					}
-					break;
-				case 'error':
-					console.error(`Error in subscription ${subscriptionId}:`, eventData);
-					break;
+			if (event.data.type === 'PUBLISH_STATUS') {
+				this.onPublishEvent(event.data);
+				return;
 			}
+
+			this.onSubscribeEvent(event.data);
 		};
+	}
+
+	private onPublishEvent(data: PublishMessage) {
+		const { type, publishId, eventData } = data;
+
+		const publish = this.publishes.get(publishId);
+		if (!publish) return;
+
+		switch (type) {
+			case 'PUBLISH_STATUS':
+				console.debug('Publish status received');
+				this.handlePublishEvent(publishId, eventData, type);
+				break;
+		}
+	}
+
+	private onSubscribeEvent(data: SubscriptionMessage) {
+		const { type, subscriptionId, eventData } = data as SubscriptionMessage;
+
+		const subscription = this.subscriptions.get(subscriptionId);
+		if (!subscription) return;
+
+		switch (type) {
+			case 'CACHED_EVENT':
+				console.debug('Received cached events');
+				this.handleSubscriptionEvent(subscriptionId, eventData, 'CACHED_EVENT');
+				break;
+			case 'FETCHED_EVENT':
+				console.debug('Received fetched events');
+				this.handleSubscriptionEvent(subscriptionId, eventData, 'FETCHED_EVENT');
+				break;
+			case 'EOSE':
+				console.debug(`End of stored events for subscription ${subscriptionId}`);
+				this.handleSubscriptionEvent(subscriptionId, eventData, 'EOSE');
+				if (subscription.options.closeOnEose) {
+					this.unsubscribe(subscriptionId);
+				}
+				break;
+			case 'EOCE':
+				console.debug(`End of cached events for subscription ${subscriptionId}`);
+				this.handleSubscriptionEvent(subscriptionId, eventData, 'EOCE');
+				break;
+		}
+	}
+
+	publish(event: NostrEvent, callback: (status: RelayStatus) => void) {
+		// Check if the event is signed already
+		if (!event.sig) {
+			throw new Error('Event must be signed before publishing');
+		}
+
+		this.publishes.set(event.id, {
+			event,
+			callback
+		});
+
+		// Serialize to binary format
+		const binaryData = msgpack.encode(event);
+
+		// Send the publish request to the worker
+		this.worker.postMessage({
+			action: 'PUBLISH',
+			event: binaryData
+		});
 	}
 
 	subscribe(
@@ -129,12 +205,29 @@ export class NostrManager {
 		this.subscriptions.delete(subscriptionId);
 	}
 
-	private async handleEvent(subscriptionId: string, eventData: Uint8Array, eventKind: EventKind) {
+	private async handleSubscriptionEvent(
+		subscriptionId: string,
+		eventData: Uint8Array,
+		eventKind: SubscribeKind
+	) {
 		const subscription = this.subscriptions.get(subscriptionId);
 		if (!subscription) return;
 		const decodedEvent = eventData ? (msgpack.decode(eventData) as ParsedEvent<AnyKind>[]) : [];
 		// Call the subscription callback with the fresh event
 		subscription.callback(decodedEvent, eventKind);
+	}
+
+	private handlePublishEvent(
+		publishId: string,
+		eventData: Uint8Array,
+		eventKind: PublishKind
+	): void {
+		const subscribe = this.publishes.get(publishId);
+		if (!subscribe || !eventData) return;
+
+		const decodedEvent = msgpack.decode(eventData) as RelayStatus;
+
+		subscribe.callback(decodedEvent, eventKind);
 	}
 
 	// Clean up resources
