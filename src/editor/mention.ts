@@ -15,7 +15,7 @@ export const NostrMention = Mention.configure({
 			if (overrideSpace) {
 				range.to += 1;
 			}
-			console.log(props);
+
 			editor
 				.chain()
 				.focus()

@@ -35,7 +35,7 @@
 			command({
 				pubkey: item.pubkey,
 				type: 'nprofile',
-				bech32: `nprofile1${nip19.nprofileEncode({ pubkey: item.pubkey, relays: [] })}`,
+				bech32: nip19.nprofileEncode({ pubkey: item.pubkey, relays: [] }),
 				relays: []
 			});
 		}
