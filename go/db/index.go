@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"syscall/js"
 
@@ -648,12 +649,13 @@ func (db *NostrDB) QueryEventsForRequests(requests []types.Request, cacheOnly bo
 		go func(pos int, request types.Request) {
 			filter := nostr.Filter{
 				IDs:     request.IDs,
-				Kinds:   request.Kinds,
 				Authors: request.Authors,
+				Kinds:   request.Kinds,
+				Tags:    request.Tags,
 				Since:   request.Since,
 				Until:   request.Until,
 				Limit:   request.Limit,
-				Tags:    request.Tags,
+				Search:  request.Search,
 			}
 
 			// Query the database for events matching the filter
@@ -713,7 +715,7 @@ func (db *NostrDB) QueryEventsForRequests(requests []types.Request, cacheOnly bo
 }
 
 // QueryEvents retrieves events that match the given filter
-func (db *NostrDB) QueryEvents(filter nostr.Filter, limit ...int) ([]types.ParsedEvent, error) {
+func (db *NostrDB) QueryEvents(filter nostr.Filter) ([]types.ParsedEvent, error) {
 	db.RLock()
 	defer db.RUnlock()
 
@@ -790,125 +792,114 @@ func (db *NostrDB) QueryEvents(filter nostr.Filter, limit ...int) ([]types.Parse
 		}
 	}
 
-	// 4. Filter by e tags (indexed lookup)
-	if eTags, ok := filter.Tags["#e"]; ok && len(eTags) > 0 {
-		currentMatches := make(map[string]bool)
-		for _, tag := range eTags {
-			if eTagIndex, exists := db.eventsByETag[tag]; exists {
-				for id := range eTagIndex {
-					currentMatches[id] = true
+	tagFilters := []struct {
+		tagKey string
+		index  map[string]map[string]bool
+	}{
+		{"#e", db.eventsByETag},
+		{"#p", db.eventsByPTag},
+		{"#a", db.eventsByATag},
+		{"#d", db.eventsByDTag},
+		// Add other indexed tags here if needed
+	}
+
+	for _, tf := range tagFilters {
+		if tagValues, ok := filter.Tags[tf.tagKey]; ok && len(tagValues) > 0 {
+			currentMatches := make(map[string]bool)
+			for _, value := range tagValues {
+				if tagIndex, exists := tf.index[value]; exists {
+					for id := range tagIndex {
+						currentMatches[id] = true
+					}
 				}
 			}
-		}
 
-		if isFirstFilter {
-			candidateIDs = currentMatches
-			isFirstFilter = false
-		} else {
-			candidateIDs = intersectMaps(candidateIDs, currentMatches)
-		}
+			if isFirstFilter {
+				candidateIDs = currentMatches
+				isFirstFilter = false
+			} else {
+				candidateIDs = intersectMaps(candidateIDs, currentMatches)
+			}
 
-		if len(candidateIDs) == 0 {
-			return []types.ParsedEvent{}, nil
+			if len(candidateIDs) == 0 {
+				return []types.ParsedEvent{}, nil // Early exit
+			}
 		}
 	}
 
-	// 5. Filter by p tags (indexed lookup)
-	if pTags, ok := filter.Tags["#p"]; ok && len(pTags) > 0 {
-		currentMatches := make(map[string]bool)
-		for _, tag := range pTags {
-			if pTagIndex, exists := db.eventsByPTag[tag]; exists {
-				for id := range pTagIndex {
-					currentMatches[id] = true
-				}
-			}
-		}
+	// Declare slice, initialize capacity smartly later
+	var intermediateCandidates []ProcessedNostrEvent
 
-		if isFirstFilter {
-			candidateIDs = currentMatches
-			isFirstFilter = false
-		} else {
-			candidateIDs = intersectMaps(candidateIDs, currentMatches)
-		}
-
-		if len(candidateIDs) == 0 {
-			return []types.ParsedEvent{}, nil
-		}
+	searchLower := ""
+	hasSearch := filter.Search != ""
+	if hasSearch {
+		searchLower = strings.ToLower(filter.Search)
 	}
 
-	// 6. Filter by a tags (indexed lookup)
-	if aTags, ok := filter.Tags["#a"]; ok && len(aTags) > 0 {
-		currentMatches := make(map[string]bool)
-		for _, tag := range aTags {
-			if aTagIndex, exists := db.eventsByATag[tag]; exists {
-				for id := range aTagIndex {
-					currentMatches[id] = true
-				}
-			}
-		}
-
-		if isFirstFilter {
-			candidateIDs = currentMatches
-			isFirstFilter = false
-		} else {
-			candidateIDs = intersectMaps(candidateIDs, currentMatches)
-		}
-
-		if len(candidateIDs) == 0 {
-			return []types.ParsedEvent{}, nil
-		}
-	}
-
-	// 7. Filter by d tags (indexed lookup)
-	if dTags, ok := filter.Tags["#d"]; ok && len(dTags) > 0 {
-		currentMatches := make(map[string]bool)
-		for _, tag := range dTags {
-			if dTagIndex, exists := db.eventsByDTag[tag]; exists {
-				for id := range dTagIndex {
-					currentMatches[id] = true
-				}
-			}
-		}
-
-		if isFirstFilter {
-			candidateIDs = currentMatches
-			isFirstFilter = false
-		} else {
-			candidateIDs = intersectMaps(candidateIDs, currentMatches)
-		}
-
-		if len(candidateIDs) == 0 {
-			return []types.ParsedEvent{}, nil
-		}
-	}
-
-	// If no filters were applied, use all events
+	// Iterate either through all events or through the indexed candidates.
 	if isFirstFilter {
-		// Return all events up to the limit
-		result := make([]types.ParsedEvent, 0, len(db.eventsById))
+		// No indexed filters applied. We don't have a good size estimate.
+		// Start with 0 capacity; append will grow it as needed.
+		intermediateCandidates = make([]ProcessedNostrEvent, 0)
+
+		// Loop through all events in the DB
 		for _, event := range db.eventsById {
-			result = append(result, event.ToParseEvent())
-			if len(limit) > 0 && len(result) >= limit[0] {
-				break
+			if filter.Since != nil && event.CreatedAt < *filter.Since {
+				continue
 			}
+			if filter.Until != nil && event.CreatedAt > *filter.Until {
+				continue
+			}
+			if hasSearch && !strings.Contains(strings.ToLower(event.Content), searchLower) {
+				continue
+			}
+
+			// Event passed all checks
+			intermediateCandidates = append(intermediateCandidates, event)
 		}
-		return result, nil
+	} else {
+		// Indexed filters produced a candidate set. Use its size as the capacity.
+		// This is the maximum number of events we might add in this loop.
+		intermediateCandidates = make([]ProcessedNostrEvent, 0, len(candidateIDs))
+
+		// Loop only through the IDs identified by indexed filters
+		for id := range candidateIDs {
+			event, exists := db.eventsById[id]
+			if !exists {
+				continue
+			}
+
+			if filter.Since != nil && event.CreatedAt < *filter.Since {
+				continue
+			}
+			if filter.Until != nil && event.CreatedAt > *filter.Until {
+				continue
+			}
+			if hasSearch && !strings.Contains(strings.ToLower(event.Content), searchLower) {
+				continue
+			}
+
+			// Event passed all checks
+			intermediateCandidates = append(intermediateCandidates, event)
+		}
 	}
 
-	// Convert candidate IDs to a slice for easier handling
-	eventIDs := getIDsFromMap(candidateIDs)
+	sort.Slice(intermediateCandidates, func(i, j int) bool {
+		return intermediateCandidates[i].CreatedAt > intermediateCandidates[j].CreatedAt
+	})
 
-	// Apply limit if specified
-	if len(limit) > 0 && len(eventIDs) > limit[0] {
-		eventIDs = eventIDs[:limit[0]]
+	finalCandidates := intermediateCandidates
+	limit := filter.Limit
+	if limit == 0 && filter.LimitZero {
+		finalCandidates = []ProcessedNostrEvent{}
+	} else if limit > 0 && len(finalCandidates) > limit {
+		finalCandidates = finalCandidates[:limit]
 	}
 
-	// Collect the matching events
-	result := make([]types.ParsedEvent, 0, len(eventIDs))
-	for _, id := range eventIDs {
-		if event, exists := db.eventsById[id]; exists {
-			result = append(result, event.ToParseEvent())
-		}
+	// Allocate the final slice with the *exact* required size.
+	result := make([]types.ParsedEvent, len(finalCandidates))
+	for i, event := range finalCandidates {
+		result[i] = event.ToParseEvent()
 	}
 
 	return result, nil
