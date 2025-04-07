@@ -1,17 +1,19 @@
 import type { NSecSigner } from '@nostrify/nostrify';
 import type { NostrEvent, UnsignedEvent } from 'nostr-tools';
-import { pool } from 'src/stores/relays';
-import { signer } from 'src/stores/signer';
-import { get } from 'svelte/store';
+import { nostrManager, type RelayStatus } from 'src/wasm/manager';
 
-export const signAndSend = async (signer: NSecSigner, event: UnsignedEvent) => {
+export const signAndSend = async (
+	signer: NSecSigner,
+	event: UnsignedEvent,
+	callback?: (status: RelayStatus) => void
+) => {
 	if (!signer) {
 		console.warn('No signer found to publish event');
 		return;
 	}
 	event = await signer?.signEvent(event);
 
-	get(pool).event(event as NostrEvent);
+	nostrManager.publish(event as NostrEvent, callback || (() => {}));
 };
 
 export const checkNostrRelay = (url: string): Promise<boolean> => {
