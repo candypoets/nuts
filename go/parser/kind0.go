@@ -36,7 +36,7 @@ type Kind0Parsed struct {
 	Avatar         string `json:"avatar,omitempty" msgpack:"avatar,omitempty"`
 	Background     string `json:"background,omitempty" msgpack:"background,omitempty"`
 
-	CreatedAt int64 `json:"created_at,omitempty" msgpack:"created_at,omitempty"`
+	// CreatedAt int64 `json:"created_at,omitempty" msgpack:"created_at,omitempty"`
 
 	// Custom fields stored in a map
 	// CustomFields map[string]string `json:"-" msgpack:"-"`
