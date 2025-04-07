@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"runtime"
 	"syscall/js"
+	"time"
 
 	"github.com/candypoets/nutscash/db"
 	"github.com/candypoets/nutscash/logger"
@@ -25,6 +26,7 @@ const debugMode = true
 var (
 	globalSubscriptionManager *network.SubscriptionManager
 	globalPublishManager      *network.PublishManager
+	globalRelayManager        *network.RelayConnectionManager
 )
 
 var defaultRelays = []string{"wss://relay.damus.io", "wss://relay.nostr.band", "wss://purplepag.es"}
@@ -51,6 +53,7 @@ func Initialize() {
 	logger.Initialize(debugMode)
 	nostrDb := db.InitNostrDB()
 	nostrParser := parser.NewParser(nostrDb, defaultRelays)
+	globalRelayManager := network.NewRelayConnectionManager(10*time.Second, 3)
 
 	// Subscription callback
 	subscriptionCallback := js.FuncOf(func(this js.Value, args []js.Value) any {
@@ -92,8 +95,8 @@ func Initialize() {
 	})
 
 	// Initialize managers
-	globalSubscriptionManager = network.NewSubscriptionManager(nostrDb, nostrParser, subscriptionCallback)
-	globalPublishManager = network.NewPublishManager(nostrDb, publishCallback, defaultRelays)
+	globalSubscriptionManager = network.NewSubscriptionManager(nostrDb, nostrParser, globalRelayManager, subscriptionCallback)
+	globalPublishManager = network.NewPublishManager(nostrDb, globalRelayManager, publishCallback, defaultRelays)
 
 	registerCallbacks()
 
