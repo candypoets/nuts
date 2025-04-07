@@ -1,9 +1,10 @@
 <script lang="ts">
 	import _ from 'lodash';
 	import VirtualList from 'src/comp/VirtualList.svelte';
+	import { now } from 'src/lib/period';
 	import { isKind1, type AnyKind, type Kind1Parsed } from 'src/parsers';
 	import { posting } from 'src/stores';
-	import { nostrManager, type EventKind } from 'src/wasm/manager';
+	import { nostrManager, type SubscribeKind } from 'src/wasm/manager';
 	import type { ParsedEvent } from 'src/workers/nipworker';
 	import { onMount } from 'svelte';
 	import { fly } from 'svelte/transition';
@@ -17,19 +18,23 @@
 		| ((
 				feed: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][],
 				newEvents: ParsedEvent<AnyKind>[],
-				eventKind: EventKind
+				eventKind: SubscribeKind
 		  ) => [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][])
 		| undefined = undefined;
 
 	let feed: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
 	let cachedFeed: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
 	let fetchedFeed: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
+	// used in order to throttle fast incoming events
+	let bufferFeed: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
 	let newPosts: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
 	let timeout: NodeJS.Timeout | undefined;
 	let sub: () => void | undefined;
 
 	let start = 0;
 	let end = 0;
+
+	let lastBufferDump = 0;
 
 	let viewport: HTMLElement;
 	let top: number = 0;
@@ -45,10 +50,10 @@
 	$: combinedItems = headerItem ? [headerItem, ...feed] : feed;
 
 	// In a separate function to avoid infinite loops in the reactive block
-	const handleEvents = (events: ParsedEvent<AnyKind>[], eventKind: EventKind) => {
+	const handleEvents = (events: ParsedEvent<AnyKind>[], eventKind: SubscribeKind) => {
 		if (eventKind == 'EOSE' && !eose) {
 			eose = true;
-			feed = [...fetchedFeed, ...feed]
+			feed = _.uniqBy([...fetchedFeed, ...feed], (item) => item[0].id)
 				.slice(0, 100)
 				.sort((a, b) => b[0].created_at - a[0].created_at);
 			fetchedFeed = [];
@@ -56,7 +61,7 @@
 		}
 		if (eventKind == 'EOCE' && !eoce) {
 			eoce = true;
-			feed = cachedFeed;
+			feed = cachedFeed.slice(0, 100);
 			cachedFeed = [];
 			return;
 		}
@@ -82,7 +87,7 @@
 			} else if (!eose) {
 				fetchedFeed = [[event, _.uniqBy(context, 'id')], ...fetchedFeed];
 			} else {
-				feed = [[event, _.uniqBy(context, 'id')], ...feed];
+				bufferFeed.push([event, _.uniqBy(context, 'id')]);
 			}
 		}
 	};
@@ -100,11 +105,21 @@
 	}
 
 	onMount(() => {
+		const interval = setInterval(() => {
+			if (now() - lastBufferDump > 2 && !!bufferFeed.length) {
+				feed = [...feed, ...bufferFeed]
+					.sort((a, b) => b[0].created_at - a[0].created_at)
+					.slice(0, 100);
+				bufferFeed = [];
+				lastBufferDump = now();
+			}
+		}, 2000);
 		// nostrManager.subscribe(subscriptionID, requests, handleEvents);
 		return () => {
 			console.log('UNSUBSCRIBING: ', subscriptionID, requests);
 			sub?.();
 			clearTimeout(timeout);
+			clearInterval(interval);
 		};
 	});
 </script>
