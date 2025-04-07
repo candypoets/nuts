@@ -1,10 +1,8 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import { key } from 'src/stores/db';
-	import { pool } from 'src/stores/relays';
+	import EmojiPickerContent from 'src/comp/EmojiPickerContent.svelte';
 	import { getContext, onMount } from 'svelte';
 
-	import { sendReaction } from 'src/actions/notes';
 	import { getRelaysFromNote } from 'src/lib/getRelaysFromNote';
 	import {
 		isKind1,
@@ -16,13 +14,17 @@
 		type Kind7Parsed
 	} from 'src/parsers';
 	import { replyPost } from 'src/stores';
-	import { signer } from 'src/stores/signer';
 	import { nostrManager } from 'src/wasm/manager';
 	import type { NIP01Parsed } from 'src/workers/nip01';
 	import type { NIP10Parsed } from 'src/workers/nip10';
 	import type { NIP25Parsed } from 'src/workers/nip25';
 	import type { ParsedEvent } from 'src/workers/nipworker';
 	import type { Writable } from 'svelte/store';
+	import { signer } from 'src/stores/signer';
+	import { key } from 'src/stores/db';
+	import { kinds, type EventTemplate } from 'nostr-tools';
+	import { now } from 'src/lib/period';
+	import { signAndSend } from 'src/actions/relay';
 
 	export let note: ParsedEvent<any>;
 	export let visible: boolean;
@@ -37,9 +39,11 @@
 	let liked = false;
 	let replied = false;
 	let timeout: NodeJS.Timeout | undefined;
+	let triggerElement: HTMLElement;
 	const mapReactions: Record<string, ParsedEvent<NIP25Parsed>> = {};
 	const mapReplies: Record<string, ParsedEvent<NIP10Parsed>> = {};
 	const mapEmoticons: Record<string, number> = {};
+	const commonEmoticons = ['👍', '❤️', '😂', '🔥', '😍', '🙏', '💯', '🤔', '🫂', '🚀'];
 
 	const handleReactions = (event: ParsedEvent<Kind7Parsed>) => {
 		if (!event.parsed || mapReactions[event.id]) return;
@@ -96,6 +100,29 @@
 		}
 	}
 
+	function sendReaction(emoji: string) {
+		// Renamed from handleSelect for clarity in parent scope
+		if (!$signer || !$key?.pub) {
+			console.error('Signer or public key not available.');
+			return;
+		}
+
+		const event: EventTemplate = {
+			kind: kinds.Reaction,
+			tags: [['e', note.id]],
+			content: emoji,
+			created_at: now()
+		};
+
+		console.log('Sending reaction:', event);
+
+		signAndSend($signer, event, (status) => {
+			console.log('Reaction status:', status.relay, status.message);
+			// Assuming reactions prop updates automatically via subscription
+		});
+		// No need to hide tippy here - the child component does that
+	}
+
 	onMount(() => {
 		return () => {
 			unsubscribe();
@@ -134,38 +161,25 @@
 					{/if}
 				{/each}
 			</div>
-			<div
-				class="flex items-center space-x-1 hover:text-black hover:-mt-1 transition-all"
-				class:text-red-600={liked}
-				class:font-semibold={liked}
-				on:click|stopPropagation={() => {
-					if (!liked) {
-						sendReaction($pool, $signer, note.id, '🤟');
-						reactions = [...reactions, { pubkey: $key?.pub, ref: note.id }];
-					}
-				}}
-			>
-				<span>{reactions?.length || ''}</span>
-				<Icon icon="icon-park-outline:like" class="cursor-pointer text-xl" />
+			<div>
+				<!-- Trigger Area - Bind this element -->
+				<div
+					bind:this={triggerElement}
+					class="reaction-trigger flex items-center space-x-1 hover:text-black hover:-mt-1 transition-all cursor-pointer"
+					class:text-blue-600={liked}
+					class:font-semibold={liked}
+					title={liked ? 'You reacted' : 'React to this post'}
+					aria-label="React to post"
+					on:click|stopPropagation
+				>
+					<span>{reactions?.length || ''}</span>
+					<Icon icon="icon-park-outline:like" class="text-xl pointer-events-none" />
+				</div>
+
+				{#if triggerElement}
+					<EmojiPickerContent {triggerElement} emojis={commonEmoticons} onSelect={sendReaction} />
+				{/if}
 			</div>
 		{/if}
 	</div>
-	<!-- <div class="flex items-center justify-end gap-1 cursor-pointer w-1/4">
-		{#if visible}
-			<div
-				class="flex items-center"
-				class:text-primary={!!reposted}
-				class:font-semibold={!!reposted}
-				on:click={() => {
-					if (!reposted) {
-						sendRepost($pool, $signer, note);
-						reposts = [...reposts, { pubkey: $key?.pub, ref: note.id }];
-					}
-				}}
-			>
-				{reposts?.length || ''}
-				<Icon icon="gridicons:reblog" class="" />
-			</div>
-		{/if}
-	</div> -->
 </div>
