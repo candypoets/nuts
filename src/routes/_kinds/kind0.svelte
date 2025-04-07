@@ -2,10 +2,13 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import Icon from '@iconify/svelte';
-	import { ago, DAY } from 'src/lib/period';
-	import { isKind0, type AnyKind } from 'src/parsers';
+	import _ from 'lodash';
+	import { signAndSend } from 'src/actions/relay';
+	import { ago, DAY, now } from 'src/lib/period';
+	import { isKind0, type AnyKind, type Contact, type Kind0Parsed } from 'src/parsers';
 	import Feed from 'src/routes/explore/feed.svelte';
-	import { nostrManager } from 'src/wasm/manager';
+	import { signer } from 'src/stores/signer';
+	import { nostrManager, type RelayStatus } from 'src/wasm/manager';
 	import type { NIP02Parsed } from 'src/workers/nip02';
 	import type { ParsedEvent } from 'src/workers/nipworker';
 	import { getContext, onMount } from 'svelte';
@@ -17,12 +20,15 @@
 
 	let loading = true;
 	let feedRequests: any[] = [];
-	let headerItem = { id: 'header' };
+	let headerItem: ParsedEvent<Kind0Parsed> = { id: 'header' };
 	let timeout: NodeJS.Timeout | undefined;
 
 	let sub: () => void;
 
 	let followList: Writable<NIP02Parsed> = getContext('followList');
+
+	$: profile = getContext<Writable<Kind0Parsed>>('profile');
+	$: followList = getContext<Writable<Contact[]>>('followList');
 
 	function handleEvents(events: ParsedEvent<AnyKind>[]) {
 		const [event] = events;
@@ -84,6 +90,29 @@
 		}
 	}
 
+	function updateFollowList() {
+		if (!$profile) return;
+		if ($followList.length == 0) return console.error('empty follow list');
+		signAndSend(
+			$signer,
+			{
+				kind: 3,
+				created_at: now(),
+				tags: _.uniqBy(
+					[
+						...$followList.map((c) => ['p', c.pubkey, c.relays?.[0] || '']),
+						['p', pubkey, headerItem.parsed?.relays?.[0] || '']
+					],
+					(c) => c[1]
+				).filter((c) => ($followList.some((c) => c.pubkey === pubkey) ? c[1] !== pubkey : true)),
+				content: ''
+			},
+			(status: RelayStatus) => {
+				console.log(status.relay, status.message, status.status);
+			}
+		);
+	}
+
 	$: visible ? subscribe() : unsubscribe();
 </script>
 
@@ -139,7 +168,10 @@
 				<div class="px-4 my-6">
 					<div class="flex items-center gap-3 mb-4">
 						<div class="absolute right-4 top-20" class:top-4={!p.banner}>
-							<button class="z-10 btn btn-wide btn-nav text-xl bg-opacity-80">
+							<button
+								class="z-10 btn btn-wide btn-nav text-xl bg-opacity-80"
+								on:click={updateFollowList}
+							>
 								{#if $followList?.some((f) => f.pubkey === pubkey)}
 									<Icon icon="mdi:account-check" />
 									Unfollow
