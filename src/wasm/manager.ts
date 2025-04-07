@@ -11,7 +11,7 @@ type SubscriptionCallback = (events: ParsedEvent<AnyKind>[], type: SubscribeKind
 
 type PublishCallback = (data: RelayStatus, type: PublishKind) => void;
 
-enum PublishStatus {
+export enum PublishStatus {
 	StatusPending = 'pending',
 	StatusSent = 'sent',
 	StatusSuccess = 'success',
@@ -59,7 +59,6 @@ interface PublishMessage {
 }
 
 interface Publish {
-	event: NostrEvent;
 	callback: PublishCallback;
 }
 
@@ -101,7 +100,6 @@ export class NostrManager {
 
 		switch (type) {
 			case 'PUBLISH_STATUS':
-				console.debug('Publish status received');
 				this.handlePublishEvent(publishId, eventData, type);
 				break;
 		}
@@ -143,7 +141,6 @@ export class NostrManager {
 		}
 
 		this.publishes.set(event.id, {
-			event,
 			callback
 		});
 
@@ -155,6 +152,10 @@ export class NostrManager {
 			action: 'PUBLISH',
 			event: binaryData
 		});
+	}
+	// you can add a publish callback without publishing anything and just listen to an event update
+	addPublishCallbackAll(callback: (status: RelayStatus) => void) {
+		this.publishes.set('*', { callback });
 	}
 
 	subscribe(
@@ -223,11 +224,13 @@ export class NostrManager {
 		eventKind: PublishKind
 	): void {
 		const subscribe = this.publishes.get(publishId);
-		if (!subscribe || !eventData) return;
+		const subscribeAll = this.publishes.get('*');
+		if (!subscribe || !subscribeAll || !eventData) return;
 
 		const decodedEvent = msgpack.decode(eventData) as RelayStatus;
 
-		subscribe.callback(decodedEvent, eventKind);
+		subscribe && subscribe.callback(decodedEvent, eventKind);
+		subscribeAll && subscribeAll.callback(decodedEvent, publishId);
 	}
 
 	// Clean up resources
