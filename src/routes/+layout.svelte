@@ -9,6 +9,7 @@
 	import Theme from 'src/comp/Theme.svelte';
 	import Alert from 'src/comp/Alert.svelte';
 	import Login from './login.svelte';
+	import Statuses from 'src/comp/Statuses.svelte';
 
 	import { activeAccount, initialize, key } from 'src/stores/db';
 	import { onMount, setContext } from 'svelte';
@@ -112,6 +113,7 @@
 </svelte:head>
 
 {#if !homepage}
+	<Statuses />
 	<Alert />
 	{#if $key?.pub || !!$activeAccount}
 		<slot />
