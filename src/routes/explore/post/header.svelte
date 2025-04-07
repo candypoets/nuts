@@ -11,6 +11,7 @@
 	import type { AnyKind, Contact, Kind0Parsed } from 'src/parsers';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
+	import { now } from 'src/lib/period';
 
 	export let note: ParsedEvent<NIP10Parsed>;
 	export let context: ParsedEvent<AnyKind>[] = [];
@@ -39,6 +40,25 @@
 		if (!currentPath.endsWith(profilePath)) {
 			goto(`${currentPath}/${profilePath}`);
 		}
+	}
+
+	function updateFollowList() {
+		if (!$profile || !author) return;
+		signAndSend($signer, {
+			kind: 3,
+			pubkey: $key?.pub,
+			created_at: now(),
+			tags: _.uniqBy(
+				[
+					...$followList.map((c) => [['p', c.pubkey, c.relays?.[0]]]),
+					[['p', author.pubkey, author.relays?.[0]]]
+				],
+				(c) => c[0][1]
+			).filter((c) =>
+				$followList.some((c) => c.pubkey === author?.pubkey) ? c[0][1] !== author?.pubkey : true
+			),
+			content: ''
+		});
 	}
 </script>
 
@@ -105,29 +125,7 @@
 			{/if}
 			{#if !oneline}
 				<div class="flex-grow text-right w-full pr-4">
-					<button
-						class="btn btn-primary btn-xs"
-						on:click={async () => {
-							if (!$profile || !author) return;
-							await signAndSend($signer, {
-								kind: 3,
-								pubkey: $key?.pub,
-								created_at: Math.floor(Date.now() / 1000),
-								tags: _.uniqBy(
-									[
-										...$followList.map((c) => [['p', c.pubkey, c.relays?.[0]]]),
-										[['p', author.pubkey, author.relays?.[0]]]
-									],
-									(c) => c[0][1]
-								).filter((c) =>
-									$followList.some((c) => c.pubkey === author?.pubkey)
-										? c[0][1] !== author?.pubkey
-										: true
-								),
-								content: ''
-							});
-						}}
-					>
+					<button class="btn btn-primary btn-xs" on:click={updateFollowList}>
 						{!$followList.some((c) => c.pubkey === note?.pubkey) ? 'Follow' : 'Unfollow'}
 					</button>
 				</div>
