@@ -5,6 +5,7 @@ package network
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"syscall/js"
@@ -61,8 +62,7 @@ type PublishSummary struct {
 type PublishManager struct {
 	mutex         sync.Mutex
 	operations    map[string]*PublishOperation
-	relays        map[string]*nostr.Relay
-	relayUsage    map[string]int
+	relayManager  *RelayConnectionManager
 	database      *db.NostrDB
 	parser        *parser.Parser
 	log           zerolog.Logger
@@ -71,13 +71,12 @@ type PublishManager struct {
 }
 
 // NewPublishManager creates a new publish manager
-func NewPublishManager(database *db.NostrDB, callback js.Func, defaultRelays []string) *PublishManager {
+func NewPublishManager(database *db.NostrDB, relayManager *RelayConnectionManager, callback js.Func, defaultRelays []string) *PublishManager {
 	componentLogger := logger.WithComponent("publish")
 
 	return &PublishManager{
 		operations:    make(map[string]*PublishOperation),
-		relays:        make(map[string]*nostr.Relay),
-		relayUsage:    make(map[string]int),
+		relayManager:  relayManager,
 		database:      database,
 		log:           componentLogger,
 		callback:      callback,
@@ -176,9 +175,13 @@ func (pm *PublishManager) determineTargetRelays(ctx context.Context, event nostr
 
 	// Extract all mentioned pubkeys from event tags
 	mentionedPubkeys := make([]string, 0)
-	for _, tag := range event.Tags {
-		if len(tag) >= 2 && tag[0] == "p" {
-			mentionedPubkeys = append(mentionedPubkeys, tag[1])
+
+	// Skip extracting mentioned pubkeys for kind 3 (contact list) events
+	if event.Kind != 3 && event.Kind < 10000 {
+		for _, tag := range event.Tags {
+			if len(tag) >= 2 && tag[0] == "p" {
+				mentionedPubkeys = append(mentionedPubkeys, tag[1])
+			}
 		}
 	}
 
@@ -230,11 +233,32 @@ func (pm *PublishManager) findNIP65(ctx context.Context, pubkey string) (*parser
 	// Query the database
 	events, err := pm.database.QueryEvents(filter)
 	if err == nil && len(events) > 0 {
+		pm.log.Debug().
+			Str("pubkey", pubkey).
+			Int("count", len(events)).
+			Msg("Found potential NIP-65 event(s) in database")
 		// Check if the event has been parsed already
-		relayList, ok := events[0].Parsed.(*parser.Kind10002Parsed)
-		if ok && relayList != nil {
-			return relayList, nil
+		jsonData, err := json.Marshal(events[0].Parsed)
+		if err != nil {
+			pm.log.Error().Err(err).Msg("Failed to marshal parsed data to JSON")
+			return nil, err
 		}
+
+		// Then unmarshal it into a Kind10002Parsed slice
+		var relayList parser.Kind10002Parsed
+		if err := json.Unmarshal(jsonData, &relayList); err != nil {
+			pm.log.Error().Err(err).Msg("Failed to unmarshal JSON to Kind10002Parsed")
+			return nil, err
+		}
+
+		// Now relayList should contain your properly typed data
+		pm.log.Debug().
+			Str("pubkey", pubkey).
+			Int("relay_count", len(relayList)).
+			Interface("relay_list", relayList).
+			Msg("Successfully converted NIP-65 relay list")
+
+		return &relayList, nil
 	}
 
 	// Use default relays to fetch the metadata
@@ -266,7 +290,7 @@ func (pm *PublishManager) findNIP65(ctx context.Context, pubkey string) (*parser
 			defer wg.Done()
 
 			// Connect to relay
-			relay, err := pm.getRelay(url)
+			relay, err := pm.relayManager.GetRelay(url)
 			if err != nil {
 				pm.log.Debug().
 					Str("relay", url).
@@ -274,6 +298,7 @@ func (pm *PublishManager) findNIP65(ctx context.Context, pubkey string) (*parser
 					Msg("Failed to connect to relay")
 				return
 			}
+			defer pm.relayManager.ReleaseRelay(url)
 
 			// Subscribe to the relay
 			sub, err := relay.Subscribe(queryCtx, []nostr.Filter{filter})
@@ -292,18 +317,34 @@ func (pm *PublishManager) findNIP65(ctx context.Context, pubkey string) (*parser
 			for {
 				select {
 				case <-queryCtx.Done():
+					pm.log.Debug().
+						Str("relay", url).
+						Msg("Query context done, canceling subscription")
 					return
 				case ev, ok := <-sub.Events:
 					if !ok {
+						pm.log.Debug().
+							Str("relay", url).
+							Msg("Subscription channel closed")
 						return
 					}
 					// Send this event to the collection channel
 					select {
 					case eventChan <- ev:
+						pm.log.Debug().
+							Str("relay", url).
+							Str("event_id", ev.ID).
+							Msg("Received NIP-65 event")
 					case <-queryCtx.Done():
+						pm.log.Debug().
+							Str("relay", url).
+							Msg("Operation canceled, stopping event subscription")
 						return
 					}
 				case <-sub.EndOfStoredEvents:
+					pm.log.Debug().
+						Str("relay", url).
+						Msg("Subscription channel closed")
 					return
 				}
 			}
@@ -377,11 +418,13 @@ func (pm *PublishManager) publishToRelay(relayURL string, event nostr.Event, ctx
 	pm.updateRelayStatus(event.ID, relayURL, StatusSent, "Sending event to relay")
 
 	// Get or establish a connection to the relay
-	relay, err := pm.getRelay(relayURL)
+	relay, err := pm.relayManager.GetRelay(relayURL)
 	if err != nil {
 		pm.updateRelayStatus(event.ID, relayURL, StatusConnError, fmt.Sprintf("Failed to connect: %v", err))
 		return
 	}
+
+	defer pm.relayManager.ReleaseRelay(relayURL)
 
 	// Publish the event
 	publishCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -395,36 +438,6 @@ func (pm *PublishManager) publishToRelay(relayURL string, event nostr.Event, ctx
 
 	// Update status based on relay response
 	pm.updateRelayStatus(event.ID, relayURL, StatusSuccess, "Event published successfully")
-}
-
-// getRelay gets or establishes a connection to a relay
-func (pm *PublishManager) getRelay(relayURL string) (*nostr.Relay, error) {
-	println("query relay")
-	pm.mutex.Lock()
-	defer pm.mutex.Unlock()
-
-	// Check if we already have a connection
-	if relay, exists := pm.relays[relayURL]; exists && relay != nil {
-		pm.log.Debug().Str("relay", relayURL).Msg("Using existing relay connection")
-		return relay, nil
-	}
-
-	// Establish a new connection
-	relay, err := nostr.RelayConnect(context.Background(), relayURL)
-	println("relay connected")
-	if err != nil {
-		pm.log.Error().
-			Str("relay", relayURL).
-			Err(err).
-			Msg("Failed to connect to relay")
-		return nil, err
-	}
-
-	// Store the connection and initialize usage counter
-	pm.relays[relayURL] = relay
-	pm.relayUsage[relayURL] = 1
-
-	return relay, nil
 }
 
 // updateRelayStatus updates the status of a relay for a publish operation
@@ -543,25 +556,6 @@ func (pm *PublishManager) cleanupOperation(publishID string) {
 
 	// Delete the operation
 	delete(pm.operations, publishID)
-}
-
-// CloseRelayConnection closes a connection to a specific relay
-func (pm *PublishManager) CloseRelayConnection(relayURL string) {
-	pm.mutex.Lock()
-	defer pm.mutex.Unlock()
-
-	relay, exists := pm.relays[relayURL]
-	if !exists || relay == nil {
-		return
-	}
-
-	// Only close if no active operations are using it
-	pm.relayUsage[relayURL]--
-	if pm.relayUsage[relayURL] <= 0 {
-		relay.Close()
-		delete(pm.relays, relayURL)
-		delete(pm.relayUsage, relayURL)
-	}
 }
 
 // GetActivePublishCount returns the number of active publish operations

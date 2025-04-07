@@ -28,9 +28,8 @@ type RelayConnection struct {
 	LastUsed    time.Time
 	ErrorCount  int
 	Subscribers int
-	// Channel that will receive the relay once connection completes
-	// nil if not currently connecting
-	ConnectChan chan *nostr.Relay
+	cond        *sync.Cond
+	lastError   error
 }
 
 // RelayConnectionManager manages connections to Nostr relays
@@ -54,135 +53,151 @@ func NewRelayConnectionManager(connectTimeout time.Duration, maxRetries int) *Re
 
 // GetRelay returns an existing connection or initiates a new one
 func (rcm *RelayConnectionManager) GetRelay(url string) (*nostr.Relay, error) {
-	// First, check if we already have a connected relay
-	rcm.connectionsMutex.RLock()
+	url = nostr.NormalizeURL(url)
+	rcm.log.Debug().Str("relay", url).Msg("GetRelay called, acquiring lock")
+
+	rcm.connectionsMutex.Lock() // Acquire write lock immediately
+
 	conn, exists := rcm.connections[url]
 
+	// --- Case 1: Connection exists and is already connected ---
 	if exists && conn.Status == RelayStatusConnected && conn.Relay != nil {
-		// Update last used timestamp and return existing connection
+		rcm.log.Debug().Str("relay", url).Msg("Using existing connected relay")
 		conn.LastUsed = time.Now()
 		conn.Subscribers++
-		rcm.connectionsMutex.RUnlock()
+		rcm.connectionsMutex.Unlock()
 		return conn.Relay, nil
+
 	}
 
-	// If we're already connecting, just wait for that connection
-	if exists && conn.Status == RelayStatusConnecting && conn.ConnectChan != nil {
-		connectChan := conn.ConnectChan
-		rcm.connectionsMutex.RUnlock()
+	// --- Case 2: Connection exists and is currently connecting ---
+	if exists && conn.Status == RelayStatusConnecting {
+		rcm.log.Debug().Str("relay", url).Msg("Connection in progress, waiting...")
+		// Ensure cond is initialized (should have been by the initiator)
+		if conn.cond == nil {
+			// This shouldn't happen if the initiating goroutine sets it, but handle defensively
+			rcm.log.Warn().Str("relay", url).Msg("Condition variable was nil while connecting, initializing")
+			conn.cond = sync.NewCond(&rcm.connectionsMutex)
+		}
 
-		// Wait for connection to complete or timeout
-		select {
-		case relay := <-connectChan:
-			if relay == nil {
-				return nil, ErrConnectionFailed
-			}
+		// Wait until the status is no longer 'Connecting'
+		for conn.Status == RelayStatusConnecting {
+			conn.cond.Wait() // Atomically unlocks Mutex, waits, and re-locks upon waking
+		}
+		rcm.log.Debug().Str("relay", url).Msg("Woke up from waiting")
 
-			// Update usage info
-			rcm.connectionsMutex.Lock()
-			conn.Subscribers++
+		// After waking up, check the final status
+		if conn.Status == RelayStatusConnected && conn.Relay != nil {
+			rcm.log.Debug().Str("relay", url).Msg("Connection successful after waiting")
 			conn.LastUsed = time.Now()
+			conn.Subscribers++ // Increment subscriber count for this waiter
 			rcm.connectionsMutex.Unlock()
-
-			return relay, nil
-		case <-time.After(rcm.connectTimeout):
-			return nil, ErrConnectionTimeout
+			return conn.Relay, nil
+		} else {
+			// Connection failed while we were waiting
+			rcm.log.Debug().Str("relay", url).Msg("Connection failed after waiting")
+			err := conn.lastError // Use the stored error
+			if err == nil {
+				err = ErrConnectionFailed // Fallback error
+			}
+			rcm.connectionsMutex.Unlock()
+			return nil, err
 		}
 	}
 
-	// Need to create a new connection
-	rcm.connectionsMutex.RUnlock()
-	rcm.connectionsMutex.Lock()
+	// --- Case 3: No connection exists, or it exists but failed/disconnected ---
+	// Need to initiate a new connection attempt.
+	rcm.log.Debug().Str("relay", url).Msg("Initiating new connection attempt")
 
-	// Double check now that we have the write lock
-	conn, exists = rcm.connections[url]
-	if exists && conn.Status == RelayStatusConnected && conn.Relay != nil {
-		conn.Subscribers++
-		conn.LastUsed = time.Now()
-		rcm.connectionsMutex.Unlock()
-		return conn.Relay, nil
-	}
-
-	// If currently connecting, create a listener on the connect channel
-	if exists && conn.Status == RelayStatusConnecting && conn.ConnectChan != nil {
-		connectChan := conn.ConnectChan
-		rcm.connectionsMutex.Unlock()
-
-		// Wait for connection to complete or timeout
-		select {
-		case relay := <-connectChan:
-			if relay == nil {
-				return nil, ErrConnectionFailed
-			}
-
-			rcm.connectionsMutex.Lock()
-			conn.Subscribers++
-			conn.LastUsed = time.Now()
-			rcm.connectionsMutex.Unlock()
-
-			return relay, nil
-		case <-time.After(rcm.connectTimeout):
-			return nil, ErrConnectionTimeout
-		}
-	}
-
-	// Create a new connection process
-	connectChan := make(chan *nostr.Relay, 1)
-
-	// Initialize or update connection record
+	// Initialize or reset the connection entry
 	if !exists {
 		conn = &RelayConnection{
-			URL:         url,
-			Status:      RelayStatusConnecting,
-			LastUsed:    time.Now(),
-			ConnectChan: connectChan,
-			Subscribers: 1,
+			URL:    url,
+			Status: RelayStatusConnecting,               // Set status before releasing lock/starting goroutine
+			cond:   sync.NewCond(&rcm.connectionsMutex), // Initialize cond
 		}
 		rcm.connections[url] = conn
-	} else {
+	} else { // exists but is Failed or Disconnected
 		conn.Status = RelayStatusConnecting
-		conn.ConnectChan = connectChan
-		conn.LastUsed = time.Now()
-		conn.Subscribers = 1
+		conn.ErrorCount = 0 // Reset error count for new attempt
+		conn.lastError = nil
+		conn.Relay = nil // Ensure old relay object is cleared
+		if conn.cond == nil {
+			conn.cond = sync.NewCond(&rcm.connectionsMutex) // Initialize cond if needed
+		}
 	}
 
-	rcm.log.Debug().Str("relay", url).Msg("Starting connection attempt")
-	rcm.connectionsMutex.Unlock()
+	// Set initial state before starting the connection goroutine
+	conn.LastUsed = time.Now()
+	conn.Subscribers = 1 // This call is the first subscriber
 
 	// Start connection attempt in background
-	go rcm.connectToRelay(url, connectChan)
+	// Pass the connection object itself or just the URL; URL is simpler.
+	go rcm.connectToRelay(url)
 
-	// Wait for connection to complete or timeout
-	select {
-	case relay := <-connectChan:
-		if relay == nil {
-			return nil, ErrConnectionFailed
+	rcm.log.Debug().Str("relay", url).Msg("Started connection goroutine, now waiting for result...")
+
+	// Wait for the connection goroutine we just started
+	for conn.Status == RelayStatusConnecting {
+		conn.cond.Wait()
+	}
+	rcm.log.Debug().Str("relay", url).Msg("Woke up after initiating connection")
+
+	// Check the final status set by connectToRelay
+	if conn.Status == RelayStatusConnected && conn.Relay != nil {
+		rcm.log.Debug().Str("relay", url).Msg("Connection successful after initiating")
+		// Subscribers and LastUsed already set
+		rcm.connectionsMutex.Unlock()
+		return conn.Relay, nil
+	} else {
+		// Connection failed
+		rcm.log.Debug().Str("relay", url).Msg("Connection failed after initiating")
+		err := conn.lastError
+		if err == nil {
+			err = ErrConnectionFailed // Fallback error
 		}
-		return relay, nil
-	case <-time.After(rcm.connectTimeout):
-		return nil, ErrConnectionTimeout
+		// Clean up the failed connection entry immediately? Or leave it as Failed?
+		// Leaving it allows checking ErrorCount later. Let's leave it.
+		// delete(rcm.connections, url) // Option: Remove immediately on first failure
+		rcm.connectionsMutex.Unlock()
+		return nil, err
 	}
 }
 
 // connectToRelay attempts to connect to a relay and updates the connection status
-func (rcm *RelayConnectionManager) connectToRelay(url string, connectChan chan *nostr.Relay) {
-	// Create a context with timeout for the connection
+func (rcm *RelayConnectionManager) connectToRelay(url string) {
+	rcm.log.Debug().Str("relay", url).Msg("Starting connectToRelay goroutine")
+
+	// Create a context with timeout for the connection attempt
 	ctx, cancel := context.WithTimeout(context.Background(), rcm.connectTimeout)
 	defer cancel()
 
-	// Try to connect with timeout
+	// Try to connect
 	relay, err := nostr.RelayConnect(ctx, url)
 
+	// --- Update shared state under lock ---
 	rcm.connectionsMutex.Lock()
-	defer rcm.connectionsMutex.Unlock()
+	defer rcm.connectionsMutex.Unlock() // Ensure unlock happens
 
+	// Retrieve the connection entry again (it must exist)
 	conn, exists := rcm.connections[url]
 	if !exists {
-		// Connection was removed while we were connecting
+		// This is unexpected if GetRelay added it before starting the goroutine
+		rcm.log.Error().Str("relay", url).Msg("Connection entry disappeared during connection attempt!")
+		if relay != nil {
+			relay.Close() // Close the potentially successful connection
+		}
+		// Cannot signal cond if conn is gone.
+		return
+	}
+
+	// Only proceed if the status is still Connecting (avoid race conditions if connection was cancelled/retried)
+	if conn.Status != RelayStatusConnecting {
+		rcm.log.Warn().Str("relay", url).Int("current_status", int(conn.Status)).Msg("Connection status changed unexpectedly during connect attempt, aborting update")
 		if relay != nil {
 			relay.Close()
 		}
-		close(connectChan)
+		// Do not signal here, as another process likely took over.
 		return
 	}
 
@@ -190,39 +205,48 @@ func (rcm *RelayConnectionManager) connectToRelay(url string, connectChan chan *
 	if err != nil {
 		conn.Status = RelayStatusFailed
 		conn.ErrorCount++
+		conn.lastError = err // Store the specific error
+		conn.Relay = nil     // Ensure relay is nil on failure
 		rcm.log.Error().Err(err).Str("relay", url).Msg("Failed to connect to relay")
-		connectChan <- nil
 	} else {
 		conn.Status = RelayStatusConnected
 		conn.Relay = relay
 		conn.ErrorCount = 0
+		conn.lastError = nil
 		rcm.log.Info().Str("relay", url).Msg("Successfully connected to relay")
-		connectChan <- relay
 	}
 
-	// Close the channel after sending the result
-	close(conn.ConnectChan)
-	conn.ConnectChan = nil
+	// Signal all waiting goroutines (if any)
+	if conn.cond != nil {
+		rcm.log.Debug().Str("relay", url).Msg("Broadcasting connection result")
+		conn.cond.Broadcast()
+	} else {
+		// Should not happen if GetRelay initialized it
+		rcm.log.Warn().Str("relay", url).Msg("Condition variable was nil when trying to broadcast result")
+	}
 }
 
 // ReleaseRelay decrements the subscriber count and potentially closes the connection
 func (rcm *RelayConnectionManager) ReleaseRelay(url string) {
+	url = nostr.NormalizeURL(url)
 	rcm.connectionsMutex.Lock()
 	defer rcm.connectionsMutex.Unlock()
 
 	conn, exists := rcm.connections[url]
-	if !exists || conn.Relay == nil {
+	// Only decrement if connected and exists
+	if !exists || conn.Status != RelayStatusConnected {
 		return
 	}
 
 	conn.Subscribers--
+	rcm.log.Debug().Str("relay", url).Int("subscribers", conn.Subscribers).Msg("Released relay")
 
-	// If no more subscribers, mark for potential cleanup
-	if conn.Subscribers <= 0 {
+	if conn.Subscribers < 0 {
+		rcm.log.Warn().Str("relay", url).Int("subscribers", conn.Subscribers).Msg("Subscriber count went negative")
 		conn.Subscribers = 0
-		// We don't close immediately to allow reuse
-		// Cleanup will happen in CleanupIdleConnections
 	}
+
+	// No immediate closing, CleanupIdleConnections handles that
 }
 
 // CleanupIdleConnections closes connections that haven't been used recently
@@ -231,17 +255,34 @@ func (rcm *RelayConnectionManager) CleanupIdleConnections(idleTimeout time.Durat
 	defer rcm.connectionsMutex.Unlock()
 
 	now := time.Now()
+	rcm.log.Debug().Msg("Running idle connection cleanup")
+	cleanedCount := 0
 	for url, conn := range rcm.connections {
-		// Close connections that are idle and have no subscribers
-		if conn.Status == RelayStatusConnected &&
-			conn.Subscribers <= 0 &&
-			now.Sub(conn.LastUsed) > idleTimeout {
-			rcm.log.Debug().Str("relay", url).Msg("Closing idle connection")
+		// Close connections that are idle (Connected or Failed) and have no subscribers
+		// We also clean up Failed connections eventually if they have no subscribers
+		isIdle := now.Sub(conn.LastUsed) > idleTimeout
+		canCleanup := conn.Subscribers <= 0 && (conn.Status == RelayStatusConnected || conn.Status == RelayStatusFailed)
+
+		if isIdle && canCleanup {
+			rcm.log.Info().Str("relay", url).Dur("idle_duration", now.Sub(conn.LastUsed)).Msg("Closing idle/unused connection")
 			if conn.Relay != nil {
-				conn.Relay.Close()
+				conn.Relay.Close() // Safe to call Close multiple times or on nil
 			}
 			delete(rcm.connections, url)
+			cleanedCount++
+		} else if conn.Status == RelayStatusConnecting && now.Sub(conn.LastUsed) > idleTimeout*2 {
+			// Optional: Timeout stuck connections (adjust multiplier as needed)
+			rcm.log.Warn().Str("relay", url).Msg("Connection stuck in connecting state for too long, marking as failed")
+			conn.Status = RelayStatusFailed
+			conn.lastError = ErrConnectionTimeout // Or a specific "stuck" error
+			if conn.cond != nil {
+				conn.cond.Broadcast() // Wake up any potential waiters
+			}
+			// It will be cleaned up on the next cycle if subscribers is 0
 		}
+	}
+	if cleanedCount > 0 {
+		rcm.log.Debug().Int("cleaned_count", cleanedCount).Msg("Idle connection cleanup finished")
 	}
 }
 

@@ -29,14 +29,13 @@ type SubscriptionManager struct {
 	database      *db.NostrDB
 	parser        *parser.Parser
 	stagedEvents  []types.ParsedEvent // keep a list of events to save to indexdb
-	relays        map[string]*nostr.Relay
-	subs          map[string]int
+	relayManager  *RelayConnectionManager
 	log           zerolog.Logger
 	callback      js.Func
 }
 
 // NewSubscriptionManager creates a new subscription manager
-func NewSubscriptionManager(database *db.NostrDB, parser *parser.Parser, callback js.Func) *SubscriptionManager {
+func NewSubscriptionManager(database *db.NostrDB, parser *parser.Parser, relayManager *RelayConnectionManager, callback js.Func) *SubscriptionManager {
 	// Get a contextualized logger
 	componentLogger := logger.WithComponent("subscriptions")
 
@@ -45,8 +44,7 @@ func NewSubscriptionManager(database *db.NostrDB, parser *parser.Parser, callbac
 		database:      database,
 		parser:        parser,
 		stagedEvents:  []types.ParsedEvent{},
-		relays:        make(map[string]*nostr.Relay),
-		subs:          make(map[string]int),
+		relayManager:  relayManager,
 		log:           componentLogger,
 		callback:      callback,
 	}
@@ -284,32 +282,15 @@ func (sm *SubscriptionManager) ProcessSubscriptionRequests(
 			go func(relay string) {
 				subCtx, _ := context.WithCancel(ctx)
 				defer wg.Done()
-				sm.mutex.Lock()
-				relayConn := sm.relays[relay]
-				sm.mutex.Unlock()
-				if relayConn == nil {
-					var err error
-					relayConn, err = nostr.RelayConnect(context.Background(), relay)
-					if err != nil {
-						sm.log.Error().
-							Str("relay", relay).
-							Str("subscription_id", subscriptionID).
-							Err(err).
-							Msg("Error connecting to relay")
-						return
-					}
-					// Now lock the mutex only to update the map
-					sm.mutex.Lock()
-					// Double-check that another goroutine didn't create the connection while we were connecting
-					if sm.relays[relay] == nil {
-						sm.relays[relay] = relayConn
-						sm.mutex.Unlock()
-					} else {
-						// Another goroutine created the connection first, use that one and close our connection
-						sm.mutex.Unlock()
-						relayConn.Close()
-						relayConn = sm.relays[relay]
-					}
+				// Get relay connection from the manager
+				relayConn, err := sm.relayManager.GetRelay(relay)
+				if err != nil {
+					sm.log.Error().
+						Str("relay", relay).
+						Str("subscription_id", subscriptionID).
+						Err(err).
+						Msg("Error connecting to relay")
+					return
 				}
 
 				sub, err := relayConn.Subscribe(subCtx, filters)
@@ -319,9 +300,9 @@ func (sm *SubscriptionManager) ProcessSubscriptionRequests(
 						Str("subscription_id", subscriptionID).
 						Err(err).
 						Msg("Error subscribing to relay")
+					sm.relayManager.ReleaseRelay(relay)
 					return
 				}
-				sm.subs[relay]++
 
 				innerDone := make(chan struct{})
 
@@ -334,8 +315,6 @@ func (sm *SubscriptionManager) ProcessSubscriptionRequests(
 							sm.log.Debug().
 								Str("subscription_id", subscriptionID).
 								Msg("Subscription context cancelled")
-							// sub.Unsub()
-							// rl.Close()
 							return
 						case ev, more := <-sub.Events:
 							if !more {
@@ -425,45 +404,20 @@ func (sm *SubscriptionManager) ProcessSubscriptionRequests(
 				}()
 				select {
 				case <-subCtx.Done():
-					sm.mutex.Lock()
 					// Context was cancelled
 					// The sub should now be closed
 					sub.Unsub()
-					// decrement the subscription count
-					sm.subs[relay]--
-					// if there is no sub to this relay close it
-					if sm.subs[relay] == 0 {
-						relayConn := sm.relays[relay]
-						sm.relays[relay] = nil
-						sm.mutex.Unlock()
-						if relayConn != nil {
-							relayConn.Close()
-						}
-					} else {
-						sm.mutex.Unlock()
-					}
+					sm.relayManager.ReleaseRelay(relay)
 					sm.log.Debug().
 						Str("subscription_id", subscriptionID).
 						Msg("Outer goroutine ending due to context cancellation")
 					return
 				case <-innerDone:
-					sm.mutex.Lock()
 					// Inner goroutine completed on its own
 					// The sub should now be closed
 					sub.Unsub()
 					// decrement the subscription count
-					sm.subs[relay]--
-					// if there is no sub to this relay close it
-					if sm.subs[relay] == 0 {
-						relayConn := sm.relays[relay]
-						sm.relays[relay] = nil
-						sm.mutex.Unlock()
-						if relayConn != nil {
-							relayConn.Close()
-						}
-					} else {
-						sm.mutex.Unlock()
-					}
+					sm.relayManager.ReleaseRelay(relay)
 					sm.log.Debug().
 						Str("subscription_id", subscriptionID).
 						Msg("Outer goroutine ending because inner goroutine finished")
