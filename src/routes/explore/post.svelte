@@ -1,72 +1,343 @@
 <script lang="ts">
-	import Fullscreen from 'src/comp/drawers/Fullscreen.svelte';
-
-	import { posting, replyPost } from 'src/stores';
+	import { onDestroy, onMount } from 'svelte';
+	import { extensions } from 'src/editor';
+	import { Editor, EditorContent, createEditor } from 'svelte-tiptap';
 	import Icon from '@iconify/svelte';
-	import Header from './post/header.svelte';
-	import Content from './post/content.svelte';
-
-	import Footer from './post/footer.svelte';
-	import VirtualList from '@sveltejs/svelte-virtual-list';
-	import { profile } from 'src/stores/profile';
-	import { onMount } from 'svelte';
-	import { pool } from 'src/stores/relays';
+	import { fly } from 'svelte/transition';
+	import type { Readable } from 'svelte/store';
+	import EmojiPicker from 'src/comp/EmojiPicker.svelte';
+	import GifPicker from 'src/comp/GIFPicker.svelte';
+	import { prepareEvent } from 'src/editor/utils';
+	import type { EventTemplate, NostrEvent } from 'nostr-tools';
+	import { signEvent } from 'src/actions/wallet';
+	import { now } from 'src/lib/period';
 	import { signer } from 'src/stores/signer';
-	import { sendPost, sendReply } from 'src/actions/notes';
+	import { nostrManager, type RelayStatus } from 'src/wasm/manager';
+	import { composing } from 'src/controller/editor';
 
-	// $: results = liveQuery(() => $db.notes.where('reply_to').equals($replyPost?.id).toArray());
-	// sort replies by created_at
+	export let placeholder = "What's on your mind?";
+	export let initialContent = '';
+	export let onSubmit = (event: NostrEvent) => {};
 
-	$: open = !!$posting;
+	let editorReady = false;
+	let isSubmitting = false;
+	let editor: Readable<Editor>;
+	let isExpanded = false;
+	let editorContainer: HTMLElement;
+	let showEmojiPicker = false;
+	let showGifPicker = false;
+	let editorFocusTimeout: ReturnType<typeof setTimeout>;
 
-	// $: console.log(replies);
-	//
-	let post = '';
-	// onMount(() => {
-	// 	console.log('mounted');
-	// 	const textarea = document.getElementById('reply-post');
-	// 	console.log(textarea);
-	// 	if (textarea) {
-	// 		console.log('textarea found');
-	// 		textarea.focus();
-	// 	}
-	// });
+	// Tenor API key
+	const TENOR_API_KEY = 'YOUR_TENOR_API_KEY';
+
+	onMount(async () => {
+		editor = createEditor({
+			extensions,
+			editorProps: {
+				attributes: {
+					class: 'outline-none'
+				}
+			}
+		});
+		$editor.commands.setContent(initialContent);
+		editorReady = true;
+
+		// Focus the editor if there's initial content
+		if (initialContent || $composing) {
+			setTimeout(() => {
+				focusEditor();
+				isExpanded = true;
+				$composing = false;
+			}, 100);
+		}
+	});
+
+	onDestroy(() => {
+		// Clear any pending timeouts
+		clearTimeout(editorFocusTimeout);
+	});
+
+	// Added a dedicated function to handle editor focusing
+	function focusEditor() {
+		if (!$editor) return;
+
+		// Clear any existing timeouts
+		clearTimeout(editorFocusTimeout);
+
+		// Use a timeout to ensure the focus happens after the current execution context
+		editorFocusTimeout = setTimeout(() => {
+			$editor.commands.focus('end');
+			isExpanded = true;
+		}, 10);
+	}
+
+	function handleEmojiSelect(event: CustomEvent) {
+		if (editor && $editor) {
+			const emoji = event.detail.unicode;
+			$editor.commands.insertContent(emoji);
+
+			// Close the picker and refocus the editor
+			showEmojiPicker = false;
+			focusEditor();
+		}
+	}
+
+	function handleGifSelect(gif: any) {
+		// Get the GIF URL
+		const gifUrl = gif.media_formats.gif.url;
+
+		// Insert the GIF into the editor
+		$editor.commands.insertContent(
+			`<img src="${gifUrl}" alt="${gif.content_description || 'GIF'}" />`
+		);
+
+		// Close the GIF picker and refocus the editor
+		showGifPicker = false;
+		focusEditor();
+	}
+
+	async function handleSubmit() {
+		if (!$signer || !editorReady || isSubmitting || !$editor.getText().trim()) return;
+		isSubmitting = true;
+		const content = $editor.getText();
+
+		let post: EventTemplate = {
+			kind: 1,
+			created_at: now(),
+			content,
+			tags: []
+		};
+
+		post = prepareEvent(post);
+
+		post = await signEvent($signer, post);
+
+		onSubmit(post as NostrEvent);
+
+		nostrManager.publish(post as NostrEvent, (status: RelayStatus) => {
+			console.log(status.relay, status.message);
+		});
+
+		$editor.commands.clearContent();
+		isExpanded = false;
+		showEmojiPicker = false;
+		showGifPicker = false;
+
+		isSubmitting = false;
+	}
+
+	function handleKeyDown(event: KeyboardEvent) {
+		// Submit on Ctrl+Enter or Cmd+Enter
+		if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+			event.preventDefault();
+			handleSubmit();
+		}
+
+		// Escape minimizes the editor
+		if (event.key === 'Escape' && isExpanded) {
+			if (!$editor.getText().trim()) {
+				isExpanded = false;
+				$editor.commands.blur();
+			}
+
+			// Close pickers if open
+			showEmojiPicker = false;
+			showGifPicker = false;
+		}
+	}
+
+	function handleEditorFocus() {
+		isExpanded = true;
+	}
+
+	// Modified to handle click on the entire container
+	function handleEditorContainerClick() {
+		focusEditor();
+	}
+
+	function handleClickOutside(event: any) {
+		// Close pickers when clicking outside
+		if (showEmojiPicker && !event?.target.closest('[data-emoji-trigger]')) {
+			showEmojiPicker = false;
+		}
+
+		if (showGifPicker && !event?.target.closest('[data-gif-trigger]')) {
+			// The GifPicker component handles its own click containment
+			showGifPicker = false;
+		}
+
+		// If editor is expanded and click is outside editor container
+		// and there's no content, minimize the editor
+		if (
+			isExpanded &&
+			editorContainer &&
+			!editorContainer.contains(event?.target) &&
+			editor &&
+			!$editor.getText().trim()
+		) {
+			isExpanded = false;
+			$editor.commands.blur();
+		}
+	}
+
+	function toggleEmojiPicker() {
+		showEmojiPicker = !showEmojiPicker;
+		if (showEmojiPicker) showGifPicker = false;
+
+		// Focus the editor after toggling
+		focusEditor();
+	}
+
+	function toggleGifPicker() {
+		showGifPicker = !showGifPicker;
+		if (showGifPicker) showEmojiPicker = false;
+
+		// Focus the editor after toggling
+		focusEditor();
+	}
+
+	// Make sure editor focuses properly when composing
+	$: $composing && focusEditor();
+	$: $composing && (isExpanded = true);
 </script>
 
-<Fullscreen
-	bind:open
-	onClose={() => {
-		$posting = false;
-	}}
+<svelte:window on:click={handleClickOutside} />
+
+<div
+	class="w-full rounded-lg transition-all duration-200 {isExpanded ? 'shadow-md' : 'shadow-sm'}"
+	bind:this={editorContainer}
 >
-	<div class="flex justify-between items-center px-4">
-		<button class="w-1/5" on:click={() => ($posting = false)}>
-			<Icon icon="mingcute:down-line" class="text-xl" />
-		</button>
-		<h1 class="text-2xl font-semibold">new post</h1>
-		<button
-			class="btn btn-primary btn-xs w-1/5"
-			disabled={!post}
-			on:click={async () => {
-				await sendPost($pool, $signer, post);
-				post = '';
-				$posting = false;
-			}}
+	<div class="p-3">
+		<!-- Editor container -->
+		<div
+			class="min-h-[60px] rounded-md dark:bg-gray-800 relative transition-all duration-200"
+			on:keydown={handleKeyDown}
+			on:click={handleEditorContainerClick}
+			tabindex="-1"
 		>
-			Post
-		</button>
-	</div>
-	<div class="container-height !pt-0" id="reply-container">
-		<div class="flex pt-4 gap-2">
-			<img src={$profile.picture} alt="random" class="w-8 h-8 rounded-full" />
-			<textarea
-				bind:value={post}
-				class="textarea w-full p-2 rounded-md"
-				placeholder="What's up?"
-				rows="10"
-				id="reply-post"
-			/>
+			<!-- Editor content -->
+			<div class="prose dark:prose-invert prose-sm max-w-none p-3 bg-base-300 rounded-xl">
+				<EditorContent editor={$editor} on:focus={handleEditorFocus} />
+			</div>
+
+			<!-- Placeholder text -->
+			{#if !$editor?.getText().trim()}
+				<div
+					class="absolute top-3 left-3 text-gray-400 pointer-events-none"
+					style={editorReady ? '' : 'display: none;'}
+				>
+					{placeholder}
+				</div>
+			{/if}
 		</div>
-		<!-- </div> -->
-	</div></Fullscreen
->
+
+		<!-- Editor toolbar - only visible when expanded -->
+		{#if isExpanded}
+			<div
+				class="flex items-center justify-between mt-3 pt-2 border-t border-gray-100 dark:border-gray-700 transition-opacity duration-200"
+				transition:fly={{ y: 20, duration: 200 }}
+			>
+				<div class="flex items-center space-x-1">
+					<!-- Image upload button -->
+					<button
+						type="button"
+						class="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+						title="Upload image"
+						on:click={() => {
+							$editor.commands.selectFiles();
+							focusEditor();
+						}}
+					>
+						<Icon icon="carbon:image" class="w-5 h-5" />
+					</button>
+
+					<!-- Emoji picker button -->
+					<div class="relative">
+						<button
+							type="button"
+							class="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 {showEmojiPicker
+								? 'bg-gray-100 dark:bg-gray-700'
+								: ''}"
+							title="Insert emoji"
+							on:click={toggleEmojiPicker}
+							data-emoji-trigger
+						>
+							<Icon icon="carbon:face-satisfied" class="w-5 h-5" />
+						</button>
+
+						{#if showEmojiPicker}
+							<EmojiPicker onEmojiSelect={handleEmojiSelect} position="bottom" />
+						{/if}
+					</div>
+
+					<!-- GIF picker button -->
+					<div class="relative">
+						<button
+							type="button"
+							class="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 {showGifPicker
+								? 'bg-gray-100 dark:bg-gray-700'
+								: ''}"
+							title="Insert GIF"
+							on:click={toggleGifPicker}
+							data-gif-trigger
+						>
+							<Icon icon="mage:gif" class="w-5 h-5" />
+						</button>
+
+						{#if showGifPicker}
+							<GifPicker apiKey={TENOR_API_KEY} onGifSelect={handleGifSelect} position="bottom" />
+						{/if}
+					</div>
+				</div>
+
+				<!-- Cancel & Post buttons -->
+				<div class="flex items-center space-x-2">
+					{#if $editor?.getText().trim()}
+						<button
+							type="button"
+							class="px-3 py-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+							on:click={() => {
+								isExpanded = false;
+								$editor.commands.clearContent();
+							}}
+						>
+							Cancel
+						</button>
+					{/if}
+
+					<button
+						type="button"
+						class="px-4 py-2 bg-blue-500 text-white rounded-full font-medium hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300 dark:focus:ring-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+						on:click={handleSubmit}
+						disabled={!editorReady || isSubmitting || !$editor?.getText().trim()}
+					>
+						<div class="flex items-center space-x-1">
+							{#if isSubmitting}
+								<span>Signing...</span>
+								<Icon icon="carbon:circle-dash" class="w-4 h-4 animate-spin" />
+							{:else}
+								<span>Post</span>
+								<Icon icon="carbon:send" class="w-4 h-4" />
+							{/if}
+						</div>
+					</button>
+				</div>
+			</div>
+		{:else if $editor?.getText().trim()}
+			<!-- Minimized state with content - show just the post button -->
+			<div class="flex justify-end mt-2">
+				<button
+					type="button"
+					class="px-4 py-1.5 bg-blue-500 text-white rounded-full font-medium hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300 dark:focus:ring-blue-700 transition"
+					on:click={handleSubmit}
+				>
+					<div class="flex items-center space-x-1">
+						<span>Post</span>
+						<Icon icon="carbon:send" class="w-4 h-4" />
+					</div>
+				</button>
+			</div>
+		{/if}
+	</div>
+</div>
