@@ -77,6 +77,7 @@
 		"@tiptap/starter-kit": "^2.11.5",
 		"@tiptap/suggestion": "^2.11.5",
 		"classnames": "^2.5.1",
+		"date-fns": "^4.1.0",
 		"dexie": "^4.0.8",
 		"emoji-picker-element": "^1.26.1",
 		"light-bolt11-decoder": "^3.2.0",
