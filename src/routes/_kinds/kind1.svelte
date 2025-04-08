@@ -7,7 +7,7 @@
 	import { isKind1, type AnyKind, type Kind1Parsed } from 'src/parsers';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import Note from 'src/routes/explore/note.svelte';
-	import { nostrManager, type EventKind } from 'src/wasm/manager';
+	import { nostrManager, type SubscribeKind } from 'src/wasm/manager';
 	import type { NIP02Parsed } from 'src/workers/nip02';
 	import type { ParsedEvent } from 'src/workers/nipworker';
 	import { getContext, onMount } from 'svelte';
@@ -46,15 +46,15 @@
 	function updateFeed(
 		feed: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][],
 		events: ParsedEvent<AnyKind>[],
-		eventKind: EventKind
+		eventKind: SubscribeKind
 	): [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][] {
 		const [event, ...context] = events;
 		if (isKind1(event)) {
 			// only show replies to root posts
+			if (event?.parsed?.reply?.id && event.parsed?.reply?.id != postId) return feed;
 			if (
-				event?.parsed?.reply?.id &&
-				event?.parsed?.root?.id != event?.parsed?.reply?.id &&
-				event.parsed?.root?.id == postId
+				(!event?.parsed?.reply.id || event?.parsed?.reply?.id == event?.parsed?.root?.id) &&
+				event.parsed?.root?.id != postId
 			)
 				return feed;
 			// check if the event is already in the feed
