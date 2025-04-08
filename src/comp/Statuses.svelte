@@ -101,16 +101,6 @@
 		}
 	}
 
-	// Calculate progress value for pending statuses
-	function getProgress(entry: StatusEntry): number {
-		if (entry.status.status === 'pending') {
-			// Simple progress simulation based on time elapsed (max 10 seconds)
-			const elapsed = Math.min(Date.now() - entry.timestamp, 10000);
-			return elapsed / 10000;
-		}
-		return 1; // Full progress for non-pending statuses
-	}
-
 	onMount(() => {
 		// Subscribe to publish status updates
 		nostrManager.addPublishCallbackAll((status, eventId) => {
@@ -128,12 +118,14 @@
 	});
 </script>
 
-<div class="fixed right-5 top-5 flex flex-col items-end gap-3 z-50 pointer-events-none">
+<div
+	class="fixed h-[100vh] left-5 top-5 flex flex-col justify-center gap-3 z-50 pointer-events-none"
+>
 	{#each statuses as entry (entry.relay + entry.eventId)}
 		<div
 			class="pointer-events-auto"
-			in:fly={{ y: -20, duration: 300 }}
-			out:fade={{ duration: 200 }}
+			in:fly={{ y: -200, duration: 300 }}
+			out:fly={{ x: -50, duration: 200 }}
 		>
 			<StatusCircle
 				relayName={getRelayName(entry.relay)}

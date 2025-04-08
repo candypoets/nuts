@@ -11,7 +11,7 @@
 	export let progress = 0; // 0 to 1
 	export let errorMessage = '';
 	export let eventData = {};
-	export let size = 48; // Size in pixels
+	export let size = 20; // Size in pixels
 
 	// Event dispatcher
 	const dispatch = createEventDispatcher();
@@ -106,16 +106,20 @@
 		[PublishStatus.StatusFailed]: 'text-red-500',
 		[PublishStatus.StatusRejected]: 'text-red-500'
 	}[status];
+
+	const isErrorStatus = status === PublishStatus.StatusFailed ||
+		status === PublishStatus.StatusRejected || [PublishStatus.StatusConnError];
 </script>
 
 <div class="inline-block relative" style="opacity: {$opacity}; transform: scale({$scale})">
+	<!-- {$progressValue} -->
 	<svg
 		width={size}
 		height={size}
 		viewBox="0 0 100 100"
 		on:click={toggleDetails}
 		class="overflow-visible cursor-pointer transition-transform duration-200 ease-in-out {status ===
-			'error' || showDetails
+			PublishStatus.StatusFailed || showDetails
 			? 'hover:scale-105'
 			: ''}"
 	>
@@ -125,7 +129,9 @@
 		<!-- Progress arc -->
 		{#if $progressValue > 0}
 			<path
-				d={describeArc(50, 50, 46, 0, $progressValue * 360)}
+				d={$progressValue >= 0.99
+					? describeArc(50, 50, 46, 0, 359.9)
+					: describeArc(50, 50, 46, 0, $progressValue * 360)}
 				fill="none"
 				stroke={colors[status]}
 				stroke-width="8"
@@ -145,14 +151,7 @@
 					clip-path="circle(25px at center)"
 				/>
 			{:else}
-				<text
-					x="50"
-					y="50"
-					text-anchor="middle"
-					dominant-baseline="central"
-					font-size="40"
-					fill={colors[status]}
-				>
+				<text x="50" y="50" text-anchor="middle" dominant-baseline="central" font-size="40">
 					{firstLetter}
 				</text>
 			{/if}
@@ -162,30 +161,30 @@
 	<!-- Details popup -->
 	{#if showDetails}
 		<div
-			class="absolute top-full right-0 mt-3 bg-white rounded-lg shadow-lg w-72 z-50 overflow-hidden"
+			class="card absolute left-1/2 top-1/2 mt-8 ml-4 bg-base-100 shadow-lg w-72 z-50"
 			transition:tweened={{ duration: 200 }}
 		>
-			<div class="flex justify-between items-center px-4 py-3 bg-gray-50 border-b border-gray-200">
-				<span class="font-bold {statusTextColor}">{status.toUpperCase()}</span>
+			<div class="card-title bg-base-200 px-4 py-3 flex justify-between items-center">
+				<span class="font-bold {statusTextColor} text-sm">{status.toUpperCase()}</span>
 				<button
-					class="text-gray-500 hover:text-gray-700 text-xl leading-none"
+					class="btn btn-ghost btn-xs btn-circle"
 					on:click|stopPropagation={() => (showDetails = false)}
 				>
-					×
+					<iconify-icon icon="mdi:close" width="16" height="16"></iconify-icon>
 				</button>
 			</div>
 
-			{#if status === 'error' && errorMessage}
-				<div class="px-4 py-3 text-red-500 border-b border-gray-200">
+			{#if isErrorStatus && errorMessage}
+				<div class="px-4 py-3 text-error border-b border-base-300">
 					{errorMessage}
 				</div>
 			{/if}
 
-			<div class="px-4 py-3 max-h-48 overflow-y-auto">
+			<div class="card-body p-4 max-h-48 overflow-y-auto">
 				{#if Object.keys(eventData).length > 0}
 					<pre class="text-xs whitespace-pre-wrap">{JSON.stringify(eventData, null, 2)}</pre>
 				{:else}
-					<p class="text-gray-500">No event data available</p>
+					<p class="text-base-content/60">No event data available</p>
 				{/if}
 			</div>
 		</div>
