@@ -192,7 +192,7 @@
 							alt={p.name || 'Profile'}
 							class:-mt-64={p.banner}
 							class:!relative={!p.banner}
-							class="{visible ? 'w-32 h-32' : 'w-8 h-8'} rounded-full border absolute object-cover"
+							class="w-32 h-32 rounded-full border absolute object-cover"
 						/>
 						<div>
 							<h2 class="text-xl font-bold">{p.name || 'Unnamed'}</h2>
