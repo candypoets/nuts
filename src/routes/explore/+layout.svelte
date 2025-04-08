@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { posting } from 'src/stores';
 	import { balance } from 'src/stores/wallet';
 	import { getContext } from 'svelte';
 	import Post from './post.svelte';
@@ -92,10 +91,9 @@
 					</div>
 				</div>
 			</div>
+			<Post />
 		</svelte.fragment>
 	</Feed>
 </div>
 
 <slot />
-<!-- <ProfileModal bind:open={profileOpen} /> -->
-<Post bind:open={$posting} />

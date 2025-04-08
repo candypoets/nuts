@@ -117,8 +117,8 @@
 	<Alert />
 	{#if $key?.pub || !!$activeAccount}
 		<slot />
-		<MobileNav />
-		<DesktopNav />
+		<!-- <MobileNav /> -->
+		<!-- <DesktopNav /> -->
 		<Theme />
 	{:else}
 		<Login />

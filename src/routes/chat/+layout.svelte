@@ -1,15 +1,12 @@
 <script lang="ts">
-	import ProfileModal from 'src/routes/_profile/index.svelte';
-	import { profile } from 'src/stores/profile';
-	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 	import type { NostrEvent } from 'nostr-tools';
+	import ProfileModal from 'src/routes/_profile/index.svelte';
 	import { db, key } from 'src/stores/db';
+	import { spring } from 'svelte/motion';
 	import PictureProfile from '../explore/post/picture-profile.svelte';
 	import User from '../explore/user.svelte';
-	import { signer } from 'src/stores/signer';
-	import { spring } from 'svelte/motion';
-	import { page } from '$app/stores';
-	import { goto } from '$app/navigation';
 
 	let profileOpen: boolean = false;
 
