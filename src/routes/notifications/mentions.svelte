@@ -1,6 +1,5 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import { formatDistanceToNow } from 'date-fns';
 	import { type AnyKind } from 'src/parsers';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import { nostrManager } from 'src/wasm/manager';
@@ -35,7 +34,7 @@
 						...(post.requests || [])
 					],
 					(events, eventType) => {
-						if (events[0].parsed) {
+						if (events[0]?.parsed) {
 							context = [...context, ...events];
 						}
 					}

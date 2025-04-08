@@ -45,7 +45,7 @@
 					(events, eventType) => {
 						if (isKind1(events[0])) {
 							originalPost = events[0];
-						} else if (events[0].parsed) {
+						} else if (events[0]?.parsed) {
 							context = [...context, ...events];
 						}
 					}
