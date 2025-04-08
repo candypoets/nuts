@@ -15,6 +15,7 @@
 	import { now } from 'src/lib/period';
 	import { signer } from 'src/stores/signer';
 	import { nostrManager, type RelayStatus } from 'src/wasm/manager';
+	import { replying } from 'src/controller/editor';
 
 	export let placeholder = 'Write your reply...';
 	export let initialContent = '';
@@ -52,10 +53,11 @@
 		editorReady = true;
 
 		// Focus the editor if there's initial content
-		if (initialContent) {
+		if (initialContent || $replying) {
 			setTimeout(() => {
 				$editor.commands.focus();
 				isExpanded = true;
+				$replying = false;
 			}, 100);
 		}
 	});
@@ -174,6 +176,7 @@
 			!$editor.getText().trim()
 		) {
 			isExpanded = false;
+			$editor.commands.blur();
 		}
 	}
 
@@ -204,6 +207,9 @@
 	$: if (showEmojiPicker && emojiPickerRef) {
 		applyEmojiPickerTheme();
 	}
+
+	$: $replying && $editor?.commands?.focus();
+	$: $replying && (isExpanded = true);
 </script>
 
 <svelte:window on:click={handleClickOutside} />

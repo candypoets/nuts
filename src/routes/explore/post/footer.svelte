@@ -25,6 +25,7 @@
 	import { kinds, type EventTemplate } from 'nostr-tools';
 	import { now } from 'src/lib/period';
 	import { signAndSend } from 'src/actions/relay';
+	import { replying } from 'src/controller/editor';
 
 	export let note: ParsedEvent<any>;
 	export let visible: boolean;
@@ -114,8 +115,6 @@
 			created_at: now()
 		};
 
-		console.log('Sending reaction:', event);
-
 		signAndSend($signer, event, (status) => {
 			console.log('Reaction status:', status.relay, status.message);
 			// Assuming reactions prop updates automatically via subscription
@@ -141,7 +140,7 @@
 				class="flex items-center space-x-1 hover:font-bold hover:text-black hover:-mt-1 transition-all"
 				class:text-red-600={!!replied}
 				class:font-semibold={!!replied}
-				on:click|stopPropagation={() => ($replyPost = note)}
+				on:click={() => ($replying = true)}
 			>
 				<Icon icon="iconamoon:comment-light" class="text-xl" />
 				<span>{replies?.length || ''}</span>
