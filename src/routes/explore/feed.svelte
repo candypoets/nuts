@@ -107,6 +107,7 @@
 
 	onMount(() => {
 		const interval = setInterval(() => {
+			if (loading) loading = false;
 			if (now() - lastBufferDump > 2 && !!bufferFeed.length) {
 				feed = [...feed, ...bufferFeed]
 					.sort((a, b) => b[0].created_at - a[0].created_at)
