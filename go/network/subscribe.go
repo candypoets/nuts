@@ -24,10 +24,10 @@ import (
 
 // SubscriptionManager manages all active subscriptions
 type SubscriptionManager struct {
-	subscriptions map[string]*Subscription
-	mutex         sync.Mutex
+	Parser        *parser.Parser
 	database      *db.NostrDB
-	parser        *parser.Parser
+	mutex         sync.Mutex
+	subscriptions map[string]*Subscription
 	stagedEvents  []types.ParsedEvent // keep a list of events to save to indexdb
 	relayManager  *RelayConnectionManager
 	log           zerolog.Logger
@@ -42,7 +42,7 @@ func NewSubscriptionManager(database *db.NostrDB, parser *parser.Parser, relayMa
 	sm := &SubscriptionManager{
 		subscriptions: make(map[string]*Subscription),
 		database:      database,
-		parser:        parser,
+		Parser:        parser,
 		stagedEvents:  []types.ParsedEvent{},
 		relayManager:  relayManager,
 		log:           componentLogger,
@@ -183,7 +183,7 @@ func (sm *SubscriptionManager) ProcessLocalRequests(
 
 		if event.Parsed == nil {
 			// Parse the event to generate UI data and potential recursive requests
-			event, err = sm.parser.Parse(nostr.Event{
+			event, err = sm.Parser.Parse(nostr.Event{
 				ID:        event.ID,
 				Kind:      event.Kind,
 				CreatedAt: event.CreatedAt,
@@ -337,7 +337,7 @@ func (sm *SubscriptionManager) ProcessSubscriptionRequests(
 							sm.mutex.Unlock()
 
 							// Process the event
-							parsedEvent, err := sm.parser.Parse(*ev)
+							parsedEvent, err := sm.Parser.Parse(*ev)
 							if err != nil {
 								sm.log.Error().
 									Str("subscription_id", subscriptionID).

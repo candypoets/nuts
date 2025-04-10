@@ -206,6 +206,13 @@ export class NostrManager {
 		this.subscriptions.delete(subscriptionId);
 	}
 
+	loginWithPrivateKey(pk: string): void {
+		this.worker.postMessage({
+			action: 'LOGIN',
+			pk
+		});
+	}
+
 	private async handleSubscriptionEvent(
 		subscriptionId: string,
 		eventData: Uint8Array,

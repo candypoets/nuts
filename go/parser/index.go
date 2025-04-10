@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/candypoets/nutscash/db"
+	"github.com/candypoets/nutscash/signer"
 	"github.com/candypoets/nutscash/types"
 	"github.com/nbd-wtf/go-nostr"
 )
@@ -11,7 +12,8 @@ import (
 // Parser is a unified parser for different kinds of Nostr events
 type Parser struct {
 	DB            *db.NostrDB // Database connection
-	DefaultRelays []string    // Default relays to use if none are specified in the event
+	Signer        signer.Signer
+	DefaultRelays []string // Default relays to use if none are specified in the event
 }
 
 // NewParser creates a new Parser instance with the given database
@@ -60,6 +62,13 @@ func (p *Parser) Parse(event nostr.Event) (types.ParsedEvent, error) {
 		}, err
 	case 3:
 		parsed, requests, err := p.ParseKind3(event)
+		return types.ParsedEvent{
+			Event:    event,
+			Parsed:   parsed,
+			Requests: requests,
+		}, err
+	case 4:
+		parsed, requests, err := p.ParseKind4(event)
 		return types.ParsedEvent{
 			Event:    event,
 			Parsed:   parsed,

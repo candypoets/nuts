@@ -59,6 +59,8 @@
 		scroller.scrollLeft = $scrollPosition;
 	}
 
+	$: $key && $key.priv && nostrManager.loginWithPrivateKey($key.priv);
+
 	$: profileSub =
 		$key &&
 		$key.pub &&
@@ -75,7 +77,6 @@
 				// the first event is from the sub, everything else is contextual
 				const event = events[0];
 				if (!event) return;
-				console.log('____PROFILE____', event);
 				if (event.parsed) {
 					switch (event.kind) {
 						case 0:
@@ -108,8 +109,6 @@
 		const proofSpent = proofSpentSub().subscribe((n) => n);
 		const claimInvoices = claimInvoicesSub().subscribe((n) => n);
 		// const following = followingSub.subscribe((n) => n);
-
-		// 	// const profile = profileSub.subscribe((n) => n);
 		return () => {
 			initializer();
 			// nostrEvent();

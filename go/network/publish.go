@@ -14,6 +14,7 @@ import (
 	"github.com/candypoets/nutscash/db"
 	"github.com/candypoets/nutscash/logger"
 	"github.com/candypoets/nutscash/parser"
+	"github.com/candypoets/nutscash/signer"
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/rs/zerolog"
 	"github.com/vmihailenco/msgpack/v5"
@@ -60,11 +61,12 @@ type PublishSummary struct {
 
 // PublishManager handles publishing events to relays
 type PublishManager struct {
+	Signer        signer.Signer
+	database      *db.NostrDB
+	parser        *parser.Parser
 	mutex         sync.Mutex
 	operations    map[string]*PublishOperation
 	relayManager  *RelayConnectionManager
-	database      *db.NostrDB
-	parser        *parser.Parser
 	log           zerolog.Logger
 	callback      js.Func
 	defaultRelays []string

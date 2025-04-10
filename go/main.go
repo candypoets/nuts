@@ -1,6 +1,8 @@
 //go:build js && wasm
 // +build js,wasm
 
+// This file contains WebAssembly-specific code for integration with JavaScript
+
 package main
 
 import (
@@ -13,6 +15,7 @@ import (
 	"github.com/candypoets/nutscash/logger"
 	"github.com/candypoets/nutscash/network"
 	"github.com/candypoets/nutscash/parser"
+	"github.com/candypoets/nutscash/signer"
 	"github.com/candypoets/nutscash/types"
 	"github.com/nbd-wtf/go-nostr"
 
@@ -171,6 +174,32 @@ func jsPublishEvent(this js.Value, args []js.Value) any {
 	return nil
 }
 
+// Login with private key and verify
+func jsLoginWithPrivateKey(this js.Value, args []js.Value) any {
+	if len(args) < 1 {
+		return js.Error{Value: js.ValueOf("Private key required")}
+	}
+
+	// Get the private key from arguments
+	privateKeyHex := args[0].String()
+
+	// Import our custom signer package
+	pkSigner, err := signer.NewPrivateKeySigner(privateKeyHex)
+	if err != nil {
+		return js.Error{Value: js.ValueOf("Invalid private key: " + err.Error())}
+	}
+
+	// Update the signer for the subscription and publish managers
+	globalSubscriptionManager.Parser.Signer = pkSigner
+	globalPublishManager.Signer = pkSigner
+
+	// Return successful login info
+	return js.ValueOf(map[string]any{
+		"success": true,
+		"pubkey":  pkSigner.Pk,
+	})
+}
+
 // Register functions for JavaScript access
 func registerCallbacks() {
 	// Subscription functions
@@ -179,6 +208,10 @@ func registerCallbacks() {
 
 	// Publishing functions
 	js.Global().Set("publishEvent", js.FuncOf(jsPublishEvent))
+
+	// Login functions
+	js.Global().Set("loginWithPrivateKey", js.FuncOf(jsLoginWithPrivateKey))
+
 }
 
 func main() {

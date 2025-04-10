@@ -25,6 +25,9 @@ export const initNostrWasm = async () => {
 					},
 					publishEvent: (event: BinaryData) => {
 						return self.publishEvent(event);
+					},
+					loginWithPrivateKey: (privateKey: string) => {
+						return self.loginWithPrivateKey(privateKey);
 					}
 				});
 			};
@@ -48,7 +51,7 @@ const nostrWasm = initNostrWasm();
 
 // Handle messages from the main thread
 self.onmessage = async function (e) {
-	const { action, subscriptionId, requests, event } = e.data;
+	const { action, subscriptionId, requests, event, pk } = e.data;
 	const nostr = await nostrWasm;
 
 	try {
@@ -64,6 +67,12 @@ self.onmessage = async function (e) {
 
 			case 'UNSUBSCRIBE':
 				nostr.closeSubscription(subscriptionId);
+				break;
+
+			case 'LOGIN':
+				if (pk) {
+					nostr.loginWithPrivateKey(pk);
+				}
 				break;
 		}
 	} catch (err) {
