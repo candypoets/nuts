@@ -167,7 +167,7 @@
 		{#if headerItem && item.id == headerItem?.id}
 			<!-- Render header item -->
 			<div
-				class="block w-feed lg:m-auto py-1 px-1 max-w-full"
+				class="block w-feed lg:m-auto px-1 max-w-full"
 				transition:fly={{ y: 200, duration: 300 }}
 				id="header"
 			>
@@ -178,7 +178,7 @@
 			{@const post = item[0]}
 			{@const context = item[1]}
 			{@const visible = feed.findIndex((note) => note[0]?.id === post.id) >= start - 2}
-			<div class="block w-feed lg:m-auto py-1 px-1 max-w-full">
+			<div class="block w-feed lg:m-auto px-1 max-w-full backdrop-blur-lg">
 				<slot name="item-content" {post} {context} {visible}>
 					<Note note={post} {context} {visible} />
 				</slot>
