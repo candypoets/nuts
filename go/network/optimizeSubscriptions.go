@@ -21,6 +21,9 @@ func OptimizeSubscriptions(requests []types.Request) []Sub {
 		return []Sub{}
 	}
 
+	var subscriptions []Sub
+	var optimizableRequests []types.Request
+
 	// make sure each request has at least one relay, if not apply default relay
 	for i := range requests {
 		// strip out any relays that are localhost or local IP addresses
@@ -31,12 +34,27 @@ func OptimizeSubscriptions(requests []types.Request) []Sub {
 		if requests[i].Relays == nil || len(requests[i].Relays) == 0 {
 			requests[i].Relays = config.DefaultRelays
 		}
+
+		// Create individual subscriptions for NoOptimize requests
+		if requests[i].NoOptimize {
+			// Convert the request to a subscription directly
+			filter := requests[i].ToFilter()
+
+			subscription := Sub{
+				Relays:  requests[i].Relays,
+				Filters: []nostr.Filter{filter},
+			}
+			subscriptions = append(subscriptions, subscription)
+		} else {
+			// Collect requests that can be optimized
+			optimizableRequests = append(optimizableRequests, requests[i])
+		}
 	}
 
 	// Step 1: Group requests by their relay sets
 	relaySetToRequests := make(map[string][]types.Request)
 
-	for _, request := range requests {
+	for _, request := range optimizableRequests {
 		if request.Relays == nil || len(request.Relays) == 0 {
 			continue // ignore requests without relays
 		}
@@ -137,9 +155,6 @@ func OptimizeSubscriptions(requests []types.Request) []Sub {
 
 		finalRelaySetToFilters[relayKeyStr] = append(finalRelaySetToFilters[relayKeyStr], filter)
 	}
-
-	// Step 4: Create optimized subscriptions
-	var subscriptions []Sub
 
 	for relayKeyStr, filters := range finalRelaySetToFilters {
 		var relays []string

@@ -20,6 +20,7 @@ type Request struct {
 	Search     string           `json:"search,omitempty" msgpack:"search,omitempty"`
 	Relays     []string         `json:"relays" msgpack:"relays"`
 	CacheFirst bool             `json:"cacheFirst,omitempty" msgpack:"cacheFirst,omitempty"`
+	NoOptimize bool             `json:"noOptimize,omitempty" msgpack:"noOptimize,omitempty"`
 }
 
 // ToFilter converts a Request to a nostr.Filter

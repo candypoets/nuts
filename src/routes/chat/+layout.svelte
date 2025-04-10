@@ -1,89 +1,145 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
-	import { page } from '$app/stores';
+	import _ from 'lodash';
 	import type { NostrEvent } from 'nostr-tools';
-	import ProfileModal from 'src/routes/_profile/index.svelte';
-	import { db, key } from 'src/stores/db';
+	import { isKind1, isKind4, type AnyKind, type Kind3Parsed, type Kind4Parsed } from 'src/parsers';
+	import { key } from 'src/stores/db';
+	import type { SubscribeKind } from 'src/wasm/manager';
+	import type { ParsedEvent } from 'src/workers/nipworker';
+	import { getContext, onMount } from 'svelte';
 	import { spring } from 'svelte/motion';
-	import PictureProfile from '../explore/post/picture-profile.svelte';
-	import User from '../explore/user.svelte';
+	import type { Writable } from 'svelte/store';
+	import Avatar from 'src/routes/explore/avatar.svelte';
+	import Feed from 'src/routes/explore/feed.svelte';
+	import User from 'src/routes/explore/user.svelte';
+	import { formatDistanceToNow } from 'date-fns';
 
 	let profileOpen: boolean = false;
+	let feedRequests: any[] = [];
 
 	let messages: NostrEvent[] = [];
 
-	let contacts: { [key: string]: NostrEvent } = {};
-	// find all the different authors in the dms collection
-	$db.dms
-		.orderBy('created_at')
-		.toArray()
-		.then((dms) => {
-			dms.forEach((dm) => {
-				const sender = dm.tags.find((tag) => tag[0] === 'p')?.[1];
-				if (dm.pubkey == $key?.pub && sender == $key?.pub) return;
-				contacts[dm.pubkey] = dm;
-				if (sender) {
-					contacts[sender] = dm;
-				}
-			});
-		});
-
-	$: filteredContacts = Object.keys(contacts)
-		.sort((a, b) => contacts[b].created_at - contacts[a].created_at)
-		.filter((c) => c != $key.pub);
-
-	$: console.log(messages, Object.keys(contacts));
-
 	const translateX = spring(0);
 
-	$: {
-		if ($page.params.pubkey) {
-			$translateX = -500;
+	let followList: Writable<Kind3Parsed> = getContext('followList');
+
+	function updateFeed(
+		feed: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][],
+		events: ParsedEvent<AnyKind>[],
+		eventKind: SubscribeKind
+	): [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][] {
+		const [event, ...context] = events;
+		if (!event || !event.parsed || !isKind4(event)) return feed;
+		// Add new events to our feed for processing
+		let updatedFeed: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][];
+
+		if (eventKind === 'CACHED_EVENT') {
+			// For cached events, just add them to the feed
+			updatedFeed = [...feed, [event, _.uniqBy(context, 'id')]];
+		} else if (eventKind === 'FETCHED_EVENT') {
+			// For fetched events, add them in timestamp order
+			if (feed.length === 0 || event.created_at >= feed[0][0].created_at) {
+				updatedFeed = [[event, _.uniqBy(context, 'id')], ...feed];
+			} else {
+				// Add and sort by timestamp
+				updatedFeed = [...feed, [event, _.uniqBy(context, 'id')]].sort(
+					(a, b) => b[0].created_at - a[0].created_at
+				);
+			}
 		} else {
-			$translateX = 0;
+			return feed;
 		}
+		const processedFeed = processMessages(updatedFeed);
+
+		// Process the updated feed into grouped notifications
+		return processedFeed;
+	}
+
+	function processMessages(messages: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][]) {
+		let contacts: { [key: string]: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]] } = {};
+		messages.forEach((m) => {
+			const dm = m[0];
+			const sender = dm.tags.find((tag) => tag[0] === 'p')?.[1];
+			if (dm.pubkey == $key?.pub && sender == $key?.pub) return;
+			const chat = dm.pubkey == $key?.pub ? sender : dm.pubkey;
+			if (chat && !contacts[chat]) {
+				contacts[chat] = m;
+			}
+		});
+		return Object.values(contacts);
+	}
+
+	$: {
+		if ($followList && $followList.length && $key?.pub) {
+			feedRequests = $followList.flatMap((c) => [
+				{
+					kinds: [4],
+					tags: { '#p': [$key.pub] },
+					authors: [c.pubkey],
+					limit: 20,
+					noOptimize: true
+				},
+				{
+					kinds: [4],
+					tags: { '#p': [c.pubkey] },
+					authors: [$key.pub],
+					limit: 20,
+					noOptimize: true
+				}
+			]);
+		}
+	}
+
+	function correspondant(post: ParsedEvent<Kind4Parsed>) {
+		const recipient = post.parsed?.recipient;
+		return recipient == $key.pub ? post.pubkey : (recipient as string);
 	}
 </script>
 
-<div class="px-4 lg:px-0 lg:w-full w-full m-auto p-2 lg:mt-0 bg-basic z-10" id="top">
-	<div class="flex justify-between items-start lg:w-1/3 lg:m-auto lg:relative">
-		<h1 class="text-2xl font-semibold">Chat</h1>
-	</div>
-</div>
-<div
-	class="lg:h-auto lg:pt-0 overflow-scroll scrollbar-hide h-screen px-2"
-	on:click={() => goto('/chat')}
->
-	<div class="lg:w-1/4 lg:m-50 transition-all" class:lg:m-25={$page.params.pubkey}>
-		{#each filteredContacts as contact}
-			<a
-				href={'/chat/' + contact}
-				class="flex mb-4 gap-2 overflow-x-hidden w-full hover:bg-base-200 py-2 px-4 cursor-pointer"
-			>
-				<div class="w-10 flex-shrink-0">
-					<PictureProfile pubkey={contact} className="!w-10 !h-10" />
-				</div>
-				<div class="flex-grow-0 max-w-full">
-					<div class="flex justify-between">
-						<User npub={contact} link={false} />
-						{new Date(contacts[contact].created_at * 1000).toLocaleDateString()}
+<Feed subscriptionID={`chat`} requests={feedRequests} {updateFeed} headerItem={{ id: 'header' }}>
+	<svelte:fragment slot="sticky-header">
+		<div id="top">
+			<div class="flex justify-between w-feed lg:m-auto h-16 items-center">
+				<h1 class="text-2xl font-semibold">Chat</h1>
+			</div>
+		</div>
+	</svelte:fragment>
+	<svelte:fragment slot="header-content">
+		<div id="top">
+			<div class="flex justify-between w-feed lg:m-auto h-16 items-center">
+				<h1 class="text-2xl font-semibold">Chat</h1>
+			</div>
+		</div>
+	</svelte:fragment>
+	<svelte:fragment slot="item-content" let:post let:context let:visible>
+		<a
+			href={'/chat/' + post.pubkey}
+			class="flex gap-2 h-28 overflow-hidden hover:bg-base-200 p-4 cursor-pointer w-feed"
+		>
+			<div class="flex-shrink-0">
+				<Avatar pubkey={correspondant(post)} {context} size="xl" />
+			</div>
+			<div class="max-w-full">
+				<div class="flex justify-between">
+					<User pubkey={correspondant(post)} link={false} {context} />
+					<div class="text-xs font-bold text-gray-700 shrink-0">
+						{formatDistanceToNow(post.created_at * 1000, { addSuffix: true })}
 					</div>
-					<div class="text-xs break-words max-h-12 overflow-hidden">
-						<span>
-							{#if contacts[contact].pubkey == $key.pub}vous:
-							{/if}
-							{contacts[contact].content}
-						</span>
-					</div>
 				</div>
-			</a>
-		{/each}
-	</div>
-</div>
+				<div class="text-xs lg:text-base break-words overflow-hidden max-w-full">
+					<span>
+						{#if post.pubkey == $key?.pub}<span class="text-primary">you:</span>
+						{/if}
+						{post.parsed?.decryptedContent}
+					</span>
+				</div>
+			</div>
+		</a>
+	</svelte:fragment>
+</Feed>
 
 <slot />
 
-<ProfileModal bind:open={profileOpen} />
+<!-- <ProfileModal bind:open={profileOpen} /> -->
 
 <style>
 	.max-w-full {
