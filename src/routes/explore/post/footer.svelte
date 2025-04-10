@@ -3,7 +3,11 @@
 	import EmojiPickerContent from 'src/comp/EmojiPickerContent.svelte';
 	import { getContext, onMount } from 'svelte';
 
+	import { kinds, type EventTemplate } from 'nostr-tools';
+	import { signAndSend } from 'src/actions/relay';
+	import { replying } from 'src/controller/editor';
 	import { getRelaysFromNote } from 'src/lib/getRelaysFromNote';
+	import { now } from 'src/lib/period';
 	import {
 		isKind1,
 		isKind17,
@@ -13,19 +17,14 @@
 		type Kind1Parsed,
 		type Kind7Parsed
 	} from 'src/parsers';
-	import { replyPost } from 'src/stores';
+	import { key } from 'src/stores/db';
+	import { signer } from 'src/stores/signer';
 	import { nostrManager } from 'src/wasm/manager';
 	import type { NIP01Parsed } from 'src/workers/nip01';
 	import type { NIP10Parsed } from 'src/workers/nip10';
 	import type { NIP25Parsed } from 'src/workers/nip25';
 	import type { ParsedEvent } from 'src/workers/nipworker';
 	import type { Writable } from 'svelte/store';
-	import { signer } from 'src/stores/signer';
-	import { key } from 'src/stores/db';
-	import { kinds, type EventTemplate } from 'nostr-tools';
-	import { now } from 'src/lib/period';
-	import { signAndSend } from 'src/actions/relay';
-	import { replying } from 'src/controller/editor';
 
 	export let note: ParsedEvent<any>;
 	export let visible: boolean;
@@ -156,7 +155,7 @@
 					{#if emoji.startsWith('http')}
 						<img src={emoji} alt={emoji} class="w-4 h-4 inline-block" />
 					{:else if !!emoji && emoji != 'undefined'}
-						{emoji}
+						<span class="max-w-4 inline-block overflow-hidden">{emoji}</span>
 					{/if}
 				{/each}
 			</div>
