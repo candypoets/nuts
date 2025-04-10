@@ -6,7 +6,7 @@
 	import { isKind1, isKind6, isKind7, type AnyKind } from 'src/parsers';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import { key } from 'src/stores/db';
-	import type { EventKind } from 'src/wasm/manager';
+	import type { SubscribeKind } from 'src/wasm/manager';
 	import type { ParsedEvent } from 'src/workers/nipworker';
 	import { onMount } from 'svelte';
 	import Mentions from './mentions.svelte';
@@ -21,7 +21,7 @@
 	function updateFeed(
 		feed: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][],
 		events: ParsedEvent<AnyKind>[],
-		eventKind: EventKind
+		eventKind: SubscribeKind
 	): [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][] {
 		const [event, ...context] = events;
 		if (!event || !event.parsed) return feed;
