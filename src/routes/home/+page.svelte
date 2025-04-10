@@ -1,17 +1,11 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
 	import QrScanner from 'src/comp/QRScanner.svelte';
-	import { scanning, selectedTransaction } from 'src/stores';
+
 	import { onMount } from 'svelte';
 	import { mints } from '../../stores/mints';
 
-	import AddFriendModal from './add-friend-modal.svelte';
-	import AddModal from './add-modal.svelte';
-	import SendModal from './send/send-modal.svelte';
 	import Transactions from './transactions/index.svelte';
-	import Layer from 'src/comp/drawers/Layer.svelte';
-	import { formatAmount } from 'src/actions/wallet';
-	import TransactionModal from './transaction-modal.svelte';
 
 	let active = 'base';
 	let encodedToken = '';
@@ -42,24 +36,22 @@
 			window.removeEventListener('keydown', keyDown);
 		};
 	});
-
-	$: open = !!$selectedTransaction;
 </script>
 
-<div class="flex gap-2 px-4 pb-4 mt-4 lg:w-1/3 lg:m-auto" class:shadow-md={top > 0}>
-	<div class="text-center flex-grow">
+<div class="flex lg:gap-8 gap-4 px-4 py-4 w-feed lg:m-auto" class:shadow-md={top > 0}>
+	<div class="text-center">
 		<button class="btn w-14 h-14 btn-primary btn-circle" on:click={() => (addOpen = true)}>
 			<Icon icon="teenyicons:add-outline" class="text-2xl" />
 		</button>
 		<div class="text-sm mt-1 font-semibold">Receive</div>
 	</div>
-	<div class="text-center flex-grow">
+	<div class="text-center">
 		<button class="btn w-14 h-14 btn-primary btn-circle" on:click={() => (sendOpen = true)}>
 			<Icon icon="ph:arrow-right-thin" class="w-8 h-8" />
 		</button>
 		<div class="text-sm mt-1 font-semibold">Send</div>
 	</div>
-	<div class="text-center flex-grow">
+	<div class="text-center">
 		<!-- <button class="btn w-14 h-14 btn-circle btn-outline" on:click={() => (addFriend = true)}>
 			<Icon icon="carbon:user" class="w-8 h-8" />
 		</button> -->
@@ -72,15 +64,3 @@
 </div>
 
 <Transactions bind:top />
-
-<AddModal bind:open={addOpen} />
-
-<SendModal bind:open={sendOpen} />
-
-<Layer bind:open={addFriend}>
-	<AddFriendModal bind:open={addFriend} />
-</Layer>
-
-<Layer bind:open onClose={() => ($selectedTransaction = null)}>
-	<TransactionModal />
-</Layer>

@@ -1,48 +1,46 @@
 <script lang="ts">
-	import { decodePrivKey, formatAmount } from 'src/actions/wallet';
-
 	import Icon from '@iconify/svelte';
+	import { schnorr } from '@noble/curves/secp256k1';
+	import { bytesToHex } from '@noble/hashes/utils';
+	import { kinds, nip19 } from 'nostr-tools';
+	import { decodePrivKey } from 'src/actions/wallet';
+	import AccountsCarousel from 'src/comp/AccountsCarousel.svelte';
 	import ProfileModal from 'src/routes/_profile/index.svelte';
 	import {
 		accountModalOpen,
 		lightningInvoice,
 		meltModalOpen,
-		satsLoading,
-		scannedPubkey
+		scannedPubkey,
+		selectedTransaction
 	} from 'src/stores';
-
-	import { checkProofsSpent } from 'src/actions/wallet';
-	import { activeAccount, key, keysCache, proofs, settings } from 'src/stores/db';
+	import { activeAccount, key, keysCache } from 'src/stores/db';
 	import { profile } from 'src/stores/profile';
-	import { balance } from 'src/stores/wallet';
+	import { pool } from 'src/stores/relays';
 	import AccountModal from './account-modal.svelte';
 	import MeltModal from './melt-modal.svelte';
 	import QrModal from './qr-modal.svelte';
-	import User from 'src/routes/explore/user.svelte';
-	import { onMount } from 'svelte';
-	import { ADDRESS_ZERO } from 'src/stores/constants';
-	import { bytesToHex } from '@noble/hashes/utils';
-	import { schnorr } from '@noble/curves/secp256k1';
-	import { pool } from 'src/stores/relays';
-	import { kinds, nip19 } from 'nostr-tools';
+	import AddModal from './add-modal.svelte';
+	import SendModal from './send/send-modal.svelte';
+	import Layer from 'src/comp/drawers/Layer.svelte';
+	import AddFriendModal from './add-friend-modal.svelte';
+	import TransactionModal from './transaction-modal.svelte';
 
 	let profileOpen: boolean = false;
 	let qrOpen: boolean = false;
 	let isRefresh = false;
 
+	let addOpen: boolean = false;
+	let sendOpen: boolean = false;
+	let addFriend: boolean = false;
+
 	let isViewing = false;
 
 	let scrollY: number;
-	let accounts: HTMLElement;
 	let privateKey: string;
 	let loading = false;
 	let extensionError = false;
 
 	// let scrolling = false;
-
-	onMount(() => {
-		accounts.scrollTo({ left: $activeAccount * accounts.offsetWidth });
-	});
 
 	async function handleLogin() {
 		// Handle login logic here
@@ -83,17 +81,19 @@
 		abortController.abort();
 	}
 
+	$: open = !!$selectedTransaction;
+
 	// $: console.log('loginError', loginError);
 	$: isError = Array.from($keysCache.values())[$activeAccount]?.pub != $key?.pub;
 </script>
 
 <div
-	class="relative w-full lg:w-1/3 place-content-center m-auto px-4 py-2 pb-3 lg:pt-12 bg-basic z-10 backdrop"
+	class="relative w-feed place-content-center m-auto bg-basic z-10 backdrop"
 	class:shadow-md={scrollY > 0}
 	id="top"
 >
-	<div class="flex w-full justify-between items-start">
-		<h1 class="text-2xl mb-4 font-semibold">Home</h1>
+	<div class="flex justify-between w-feed lg:m-auto h-16 items-center">
+		<h1 class="text-2xl font-semibold">Home</h1>
 		<div class="flex gap-2 items-center">
 			<div on:click={() => (isViewing = !isViewing)}>
 				<Icon icon={isViewing ? 'ph:eye-closed' : 'ph:eye'} class="text-2xl" />
@@ -104,74 +104,7 @@
 			</div>
 		</div>
 	</div>
-	<div
-		class="flex gap-2 overflow-x-scroll items-stretch scrollbar-hide snap-x snap-mandatory scroll-smooth"
-		bind:this={accounts}
-		on:wheel={(e) => {
-			$activeAccount = Math.round(accounts.scrollLeft / accounts.clientWidth);
-		}}
-		on:touchmove={(e) => {
-			$activeAccount = Math.round(accounts.scrollLeft / accounts.clientWidth);
-		}}
-	>
-		{#each Array.from($keysCache.values()) as k, index}
-			{@const isError =
-				$activeAccount == index &&
-				Array.from($keysCache.values())[$activeAccount]?.pub != $key?.pub}
-			<div
-				class="w-11/12 shrink-0 p-4 bg-primary-content bg-opacity-50 rounded-xl py-6 overflow-hidden snap-always"
-				class:snap-start={index == 0}
-				class:snap-center={index != 0}
-				class:bg-error-content={isError}
-			>
-				<div class="flex w-full justify-between items-center mb-4">
-					<!-- <div class="text-lg font-semibold">{$profile.name || 'Main Account'}</div> -->
-					<User npub={k.pub} link={false} />
-					<div
-						on:click={async () => {
-							// console.log($proofsCache, $spentProofs, $pendingProofs);
-							isRefresh = true;
-							// console.log('checking', allProofs);
-							await checkProofsSpent($proofs);
-							isRefresh = false;
-						}}
-					>
-						<Icon icon="mdi:reload" class={'text-2xl ' + (isRefresh ? 'animate-spin' : '')} />
-					</div>
-				</div>
-
-				<strong class="text-3xl" class:blur-md={isViewing || isError}>
-					{#if $satsLoading}
-						<Icon icon="mdi:loading" class="animate-spin text-2xl inline" /> sats
-					{:else}
-						{formatAmount($balance, $settings?.unit, true)}
-					{/if}
-				</strong>
-			</div>
-		{/each}
-		<div
-			class="w-11/12 shrink-0 p-4 bg-secondary-content bg-opacity-50 rounded-xl py-6 overflow-hidden snap-end snap-always cursor-pointer"
-		>
-			<div class="flex w-full justify-between items-center mb-4">
-				<div class="text-lg font-semibold">New account</div>
-				<div
-					on:click={async () => {
-						// console.log($proofsCache, $spentProofs, $pendingProofs);
-						isRefresh = true;
-						// console.log('checking', allProofs);
-						await checkProofsSpent($proofs);
-						isRefresh = false;
-					}}
-				>
-					<!-- <Icon icon="mdi:reload" class={'text-2xl ' + (isRefresh ? 'animate-spin' : '')} /> -->
-				</div>
-			</div>
-
-			<p class="text-sm" class:blur-md={isViewing}>
-				Create a new account to receive ecash and navigate nostr. <br />
-			</p>
-		</div>
-	</div>
+	<AccountsCarousel {isViewing} />
 </div>
 {#if isError}
 	<div class="p-4 lg:w-1/3 lg:m-auto">
@@ -250,3 +183,15 @@
 <AccountModal bind:open={$accountModalOpen} npub={$scannedPubkey} />
 
 <QrModal bind:open={qrOpen} />
+
+<AddModal bind:open={addOpen} />
+
+<SendModal bind:open={sendOpen} />
+
+<Layer bind:open={addFriend}>
+	<AddFriendModal bind:open={addFriend} />
+</Layer>
+
+<Layer bind:open onClose={() => ($selectedTransaction = null)}>
+	<TransactionModal />
+</Layer>

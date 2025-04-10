@@ -23,7 +23,7 @@
 	$: items = Object.entries(map).reduce((acc, cur) => [...(acc || []), cur[0], ...map[cur[0]]], []);
 </script>
 
-{#if !$history.length && !dismiss}
+<!-- {#if !$history.length && !dismiss}
 	<div class="bg-info lg:w-1/3 lg:m-auto p-4 m-4 rounded-lg">
 		<strong>Low balance in your account</strong>
 		<div class="text-xs">
@@ -34,12 +34,12 @@
 			<button class="btn btn-sm" on:click={() => (open = true)}> Add Money </button>
 		</div>
 	</div>
-{:else}
-	<div class="w-full home-height">
-		<VirtualList {items} bind:top let:item getItemId={(item) => item.date || item}>
-			<Transaction {item} />
-		</VirtualList>
-		<!-- {#each Object.entries(map) as [date, items]}
+{:else} -->
+<div class="w-full m-auto">
+	<VirtualList {items} bind:top let:item getItemId={(item) => item.date || item}>
+		<Transaction {item} />
+	</VirtualList>
+	<!-- {#each Object.entries(map) as [date, items]}
 					<strong class="text-sm px-4 pt-4">{date}</strong>
 					<div class="mx-4 mt-2 rounded-lg border mb-4">
 						<table class="table table-compact w-full">
@@ -51,8 +51,9 @@
 						</table>
 					</div>
 				{/each} -->
-	</div>
-{/if}
+</div>
+
+<!-- {/if} -->
 
 <style>
 	.home-height {

@@ -4,9 +4,9 @@
 	export let item: string | any;
 </script>
 
-<div class="lg:w-1/3 lg:m-auto">
+<div class="w-feed lg:m-auto">
 	{#if typeof item == 'string'}
-		<div class="px-4">{item}</div>
+		<div class="px-4 text-sm font-bold border-t pt-4">{item}</div>
 	{:else}
 		<Row {item} />
 	{/if}

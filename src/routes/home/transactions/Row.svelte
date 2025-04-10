@@ -15,9 +15,9 @@
 
 <div
 	on:click={() => ($selectedTransaction = item)}
-	class="cursor-pointer last:border-none h-14 flex items-center justify-between mx-4"
+	class="cursor-pointer last:border-none h-14 flex gap-3 lg:gap-6 items-center justify-between mx-4"
 >
-	<div class="w-16 flex justify-center"><HistoryIcon {item} /></div>
+	<div class="w-8 flex justify-center"><HistoryIcon {item} /></div>
 	<div class="flex-grow"><HistoryLabel {item} /></div>
 	<div class="text-right">
 		{#if item.amount > 0}
