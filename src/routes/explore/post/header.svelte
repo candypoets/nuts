@@ -12,6 +12,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { now } from 'src/lib/period';
+	import { formatDistanceToNow } from 'date-fns';
 
 	export let note: ParsedEvent<NIP10Parsed>;
 	export let context: ParsedEvent<AnyKind>[] = [];
@@ -94,15 +95,7 @@
 						</a>
 						<Icon icon="bitcoin-icons:verify-filled" class="inline text-lg text-primary" />
 						<p class="text-xs opacity-50 ml-2">
-							{#if Date.now() / 1000 - note?.created_at < 60}
-								{Math.floor(Date.now() / 1000 - note?.created_at)}s
-							{:else if Date.now() / 1000 - note?.created_at < 3600}
-								{Math.floor((Date.now() / 1000 - note?.created_at) / 60)}m
-							{:else if Date.now() / 1000 - note?.created_at < 86400}
-								{Math.floor((Date.now() / 1000 - note?.created_at) / 3600)}h
-							{:else}
-								{Math.floor((Date.now() / 1000 - note?.created_at) / 86400)}d
-							{/if}
+							{formatDistanceToNow(note.created_at, { addSuffix: true })}
 						</p>
 					</div>
 					{#if author?.nip05}
