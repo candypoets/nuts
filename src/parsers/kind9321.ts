@@ -2,7 +2,7 @@ import type { Proof } from '@cashu/cashu-ts';
 import type { NostrEvent } from 'nostr-tools';
 import type { Request } from 'src/workers/utils';
 
-export type Kind9321 = {
+export type Kind9321Parsed = {
 	amount: number;
 	recipient: string;
 	eventId?: string; // event being zapped if any
@@ -14,7 +14,7 @@ export type Kind9321 = {
 export async function parseKind9321(
 	event: NostrEvent,
 	EOSERequests?: Request[]
-): Promise<Kind9321 | null> {
+): Promise<Kind9321Parsed | null> {
 	// Extract required tags
 	const proofTags = event.tags.filter((tag) => tag[0] === 'proof' && tag.length >= 2);
 	const mintTag = event.tags.find((tag) => tag[0] === 'u' && tag.length >= 2);

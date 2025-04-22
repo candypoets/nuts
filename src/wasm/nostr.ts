@@ -23,8 +23,8 @@ export const initNostrWasm = async () => {
 					closeSubscription: (subscriptionId: string) => {
 						return self.closeSubscription(subscriptionId);
 					},
-					publishEvent: (event: BinaryData) => {
-						return self.publishEvent(event);
+					publishEvent: (publishId: string, event: BinaryData) => {
+						return self.publishEvent(publishId, event);
 					},
 					loginWithPrivateKey: (privateKey: string) => {
 						return self.loginWithPrivateKey(privateKey);
@@ -51,14 +51,14 @@ const nostrWasm = initNostrWasm();
 
 // Handle messages from the main thread
 self.onmessage = async function (e) {
-	const { action, subscriptionId, requests, event, pk } = e.data;
+	const { action, subscriptionId, publishId, requests, event, pk } = e.data;
 	const nostr = await nostrWasm;
 
 	try {
 		switch (action) {
 			case 'PUBLISH':
 				console.log('nostr.publishEvent(event);');
-				nostr.publishEvent(event);
+				nostr.publishEvent(publishId, event);
 				break;
 
 			case 'SUBSCRIBE':

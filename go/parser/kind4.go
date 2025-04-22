@@ -95,3 +95,26 @@ func (p *Parser) ParseKind4(event nostr.Event) (*Kind4Parsed, *[]types.Request, 
 
 	return parsed, &requests, nil
 }
+
+func (p *Parser) PrepareKind4(event *nostr.Event) error {
+	recipient := ""
+	for _, tag := range event.Tags {
+		if len(tag) >= 2 && tag[0] == "p" {
+			recipient = tag[1]
+			break
+		}
+	}
+
+	encrypted, err := p.Signer.NIP04Encrypt(recipient, event.Content)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt event content: %w", err)
+	}
+	event.Content = encrypted
+
+	err = p.Signer.SignEvent(event)
+
+	if err != nil {
+		return fmt.Errorf("failed to sign event: %w", err)
+	}
+	return nil
+}

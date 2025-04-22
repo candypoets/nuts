@@ -88,6 +88,7 @@ export const prepareEvent = (partialEvent: EventTemplate | NostrEvent): EventTem
 	delete partialEvent.pubkey;
 	delete partialEvent.parsed;
 	delete partialEvent.requests;
+	delete partialEvent.sig;
 	delete partialEvent['Symbol(verified)'];
 
 	return partialEvent;

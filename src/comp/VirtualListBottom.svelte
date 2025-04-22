@@ -177,7 +177,7 @@
 	bind:this={viewport}
 	bind:offsetHeight={viewport_height}
 	on:scroll={handle_scroll}
-	class="pt-44 pb-32 lg:pt-20 scrollbar-hide {className}"
+	class="scrollbar-hide {className}"
 	style="height: {height}; max-height: 100vh; transform: rotateZ(180deg);"
 	on:wheel={reverseScroll}
 >

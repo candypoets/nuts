@@ -4,15 +4,14 @@
 	import Icon from '@iconify/svelte';
 	import _ from 'lodash';
 	import { signAndSend } from 'src/actions/relay';
+	import { kind0, kind3 } from 'src/controller/nostr';
 	import { ago, DAY, now } from 'src/lib/period';
-	import { isKind0, type AnyKind, type Contact, type Kind0Parsed } from 'src/parsers';
+	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/parsers';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import { signer } from 'src/stores/signer';
 	import { nostrManager, type RelayStatus } from 'src/wasm/manager';
-	import type { NIP02Parsed } from 'src/workers/nip02';
 	import type { ParsedEvent } from 'src/workers/nipworker';
-	import { getContext, onMount } from 'svelte';
-	import type { Writable } from 'svelte/store';
+	import { onMount } from 'svelte';
 
 	// Get pubkey from URL parameter
 	export let pubkey: string;
@@ -24,11 +23,6 @@
 	let timeout: NodeJS.Timeout | undefined;
 
 	let sub: () => void;
-
-	let followList: Writable<NIP02Parsed> = getContext('followList');
-
-	$: profile = getContext<Writable<Kind0Parsed>>('profile');
-	$: followList = getContext<Writable<Contact[]>>('followList');
 
 	function handleEvents(events: ParsedEvent<AnyKind>[]) {
 		const [event] = events;
@@ -91,8 +85,8 @@
 	}
 
 	function updateFollowList() {
-		if (!$profile) return;
-		if ($followList.length == 0) return console.error('empty follow list');
+		if (!$kind0) return;
+		if ($kind3?.parsed?.length == 0) return console.error('empty follow list');
 		signAndSend(
 			$signer,
 			{
@@ -100,11 +94,13 @@
 				created_at: now(),
 				tags: _.uniqBy(
 					[
-						...$followList.map((c) => ['p', c.pubkey, c.relays?.[0] || '']),
+						...($kind3?.parsed || []).map((c) => ['p', c.pubkey, c.relays?.[0] || '']),
 						['p', pubkey, headerItem.parsed?.relays?.[0] || '']
 					],
 					(c) => c[1]
-				).filter((c) => ($followList.some((c) => c.pubkey === pubkey) ? c[1] !== pubkey : true)),
+				).filter((c) =>
+					($kind3?.parsed || []).some((c) => c.pubkey === pubkey) ? c[1] !== pubkey : true
+				),
 				content: ''
 			},
 			(status: RelayStatus) => {
@@ -128,7 +124,7 @@
 			<span />
 		</div>
 	</svelte:fragment>
-	<svelte:fragment slot="header-content" let:item let:visible>
+	<svelte:fragment slot="header-content" let:item>
 		<div class="w-feed border-b border-base-200 h-16 flex items-center justify-between shadow-sm">
 			<button on:click={goBack} class="p-1 rounded-full hover:bg-base-200 mr-4">
 				<Icon icon="mdi:arrow-left" class="text-xl" />
@@ -136,84 +132,84 @@
 			<h1 class="text-lg font-semibold">Profile</h1>
 			<span class="w-10" />
 		</div>
-		{#if item.id != 'header'}
-			{@const p = item.parsed}
-			<div
-				class="transition-all duration-300 bg-basic w-feed mx-auto will-change-transform"
-				class:relative={visible}
-				class:shadow-md={!visible}
-				class:z-20={!visible}
-				class:top-0={!visible}
-				class:left-0={!visible}
-				class:right-0={!visible}
-			>
-				<!-- Banner image (only shown when header is visible) -->
-				{#if p.banner}
-					<div class="relative w-full banner-container rounded-2xl">
-						<!-- Banner image -->
+		<!-- {#if item.id != headerItem.id} -->
+		{@const p = item.parsed}
+		<div
+			class="transition-all duration-300 bg-basic w-feed mx-auto will-change-transform"
+			class:relative={visible}
+			class:shadow-md={!visible}
+			class:z-20={!visible}
+			class:top-0={!visible}
+			class:left-0={!visible}
+			class:right-0={!visible}
+		>
+			<!-- Banner image (only shown when header is visible) -->
+			{#if p?.banner}
+				<div class="relative w-full banner-container rounded-2xl">
+					<!-- Banner image -->
 
-						<div
-							class="w-full h-52 bg-cover bg-center absolute top-0 left-0 right-0"
-							style="background-image: url('{p.banner}');"
-						></div>
+					<div
+						class="w-full h-52 bg-cover bg-center absolute top-0 left-0 right-0"
+						style="background-image: url('{p?.banner}');"
+					></div>
 
-						<!-- Gradient overlay that fades out the banner towards the bottom -->
-						<div class="absolute top-0 left-0 right-0 bottom-0 banner-fade-overlay"></div>
+					<!-- Gradient overlay that fades out the banner towards the bottom -->
+					<div class="absolute top-0 left-0 right-0 bottom-0 banner-fade-overlay"></div>
 
-						<!-- Placeholder to maintain height -->
-						<div class="h-52 w-full"></div>
+					<!-- Placeholder to maintain height -->
+					<div class="h-52 w-full"></div>
+				</div>
+			{/if}
+			<!-- Content adjusts size/layout based on visible state -->
+			<div class="px-4 my-6">
+				<div class="flex items-center gap-3 mb-4">
+					<div class="absolute right-4 top-20" class:top-4={!p?.banner}>
+						<button
+							class="z-10 btn btn-wide btn-nav text-xl bg-opacity-80"
+							on:click={updateFollowList}
+						>
+							{#if $kind3?.parsed?.some((f) => f.pubkey === pubkey)}
+								<Icon icon="mdi:account-check" />
+								Unfollow
+							{:else}
+								<Icon icon="mdi:account-plus" />
+								Follow
+							{/if}</button
+						>
+						<br />
+
+						<button class="z-10 btn btn-wide btn-nav text-xl bg-opacity-80 mt-4">
+							<Icon icon="ion:flash" />
+							Zap
+						</button>
 					</div>
+					<img
+						src={p?.picture || '/ns-naked.svg'}
+						alt={p?.name || 'Profile'}
+						class:-mt-64={p?.banner}
+						class:!relative={!p?.banner}
+						class="w-32 h-32 rounded-full border absolute object-cover"
+					/>
+					<div>
+						<h2 class="text-xl font-bold">{p?.name || 'Unnamed'}</h2>
+						<!-- {#if visible} -->
+						<p class="text-gray-600">@{p?.nip05 || pubkey.substring(0, 8)}</p>
+						<!-- {/if} -->
+					</div>
+				</div>
+
+				{#if p?.about}
+					<p class="text-gray-800 mb-4 opacity-1">{@html p?.about}</p>
 				{/if}
-				<!-- Content adjusts size/layout based on visible state -->
-				<div class="px-4 my-6">
-					<div class="flex items-center gap-3 mb-4">
-						<div class="absolute right-4 top-20" class:top-4={!p.banner}>
-							<button
-								class="z-10 btn btn-wide btn-nav text-xl bg-opacity-80"
-								on:click={updateFollowList}
-							>
-								{#if $followList?.some((f) => f.pubkey === pubkey)}
-									<Icon icon="mdi:account-check" />
-									Unfollow
-								{:else}
-									<Icon icon="mdi:account-plus" />
-									Follow
-								{/if}</button
-							>
-							<br />
-
-							<button class="z-10 btn btn-wide btn-nav text-xl bg-opacity-80 mt-4">
-								<Icon icon="ion:flash" />
-								Zap
-							</button>
-						</div>
-						<img
-							src={p.picture || '/ns-naked.svg'}
-							alt={p.name || 'Profile'}
-							class:-mt-64={p.banner}
-							class:!relative={!p.banner}
-							class="w-32 h-32 rounded-full border absolute object-cover"
-						/>
-						<div>
-							<h2 class="text-xl font-bold">{p.name || 'Unnamed'}</h2>
-							{#if visible}
-								<p class="text-gray-600">@{p.nip05 || pubkey.substring(0, 8)}</p>
-							{/if}
-						</div>
-					</div>
-
-					{#if p.about}
-						<p class="text-gray-800 mb-4 opacity-1" class:opacity-0={!visible}>{@html p.about}</p>
-					{/if}
-				</div>
-
-				<div class="tabs tabs-bordered">
-					<a class="tab tab-active">Posts</a>
-					<a class="tab">Follows</a>
-				</div>
-				<!-- <h3 class="text-lg font-medium mb-4 px-4">Posts</h3> -->
 			</div>
-		{/if}
+
+			<div class="tabs tabs-bordered">
+				<a class="tab tab-active">Posts</a>
+				<a class="tab">Follows</a>
+			</div>
+			<!-- <h3 class="text-lg font-medium mb-4 px-4">Posts</h3> -->
+		</div>
+		<!-- {/if} -->
 	</svelte:fragment>
 </Feed>
 

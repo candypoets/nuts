@@ -133,7 +133,7 @@ func (rcm *RelayConnectionManager) GetRelay(url string) (*nostr.Relay, error) {
 
 	// Start connection attempt in background
 	// Pass the connection object itself or just the URL; URL is simpler.
-	go rcm.connectToRelay(url)
+	go rcm.ConnectToRelay(url)
 
 	rcm.log.Debug().Str("relay", url).Msg("Started connection goroutine, now waiting for result...")
 
@@ -164,8 +164,8 @@ func (rcm *RelayConnectionManager) GetRelay(url string) (*nostr.Relay, error) {
 	}
 }
 
-// connectToRelay attempts to connect to a relay and updates the connection status
-func (rcm *RelayConnectionManager) connectToRelay(url string) {
+// ConnectToRelay attempts to connect to a relay and updates the connection status
+func (rcm *RelayConnectionManager) ConnectToRelay(url string) {
 	rcm.log.Debug().Str("relay", url).Msg("Starting connectToRelay goroutine")
 
 	// Create a context with timeout for the connection attempt

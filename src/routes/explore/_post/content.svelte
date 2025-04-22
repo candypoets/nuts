@@ -8,7 +8,7 @@
 	import type { ParsedEvent } from 'src/workers/nipworker';
 	import type { AnyKind } from 'src/parsers';
 
-	export let parsedContent: ContentBlock[];
+	export let parsedContent: ContentBlock[] = [];
 	export let context: ParsedEvent<AnyKind>[] = [];
 	export let depth = 0;
 	export let visible: boolean = false;
@@ -17,9 +17,10 @@
 </script>
 
 <div
-	class={!depth
+	class={(!depth
 		? 'w-post'
-		: 'w-post-' + depth + ' text-sm text-wrap whitespace-normal break-words relative'}
+		: 'w-post-' + depth + ' text-sm text-wrap whitespace-normal break-words relative ') +
+		($$props.class || '')}
 >
 	{#each parsedContent as parsed, index}
 		{#if parsed.type == 'text'}
@@ -53,7 +54,13 @@
 					</div>
 				</a>
 			{:else}
-				<a class="text-purple-600" href={parsed.data?.href || ''}>
+				<a
+					class="text-purple-600"
+					on:click|stopPropagation
+					href={parsed.data?.href || ''}
+					target="_blank"
+					rel="noopener noreferrer"
+				>
 					{parsed.text}
 				</a>
 			{/if}

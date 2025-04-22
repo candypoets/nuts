@@ -21,8 +21,6 @@
 	let loading = true;
 	let feedRequests: any[] = [];
 
-	let followList: Writable<NIP02Parsed> = getContext('followList');
-
 	// Function to handle navigation back
 	function goBack() {
 		// Try to go back in history if possible

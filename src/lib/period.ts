@@ -4,6 +4,8 @@ export const now = () => Math.floor(Date.now() / 1000);
 
 export const ago = (seconds: number) => now() - seconds;
 
+export const MONTH = 31 * 86400;
+export const WEEK = 7 * 86400;
 export const DAY = 86400;
 export const HOUR = 3600;
 export const MINUTE = 60;

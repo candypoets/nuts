@@ -8,7 +8,7 @@
 	import { isKind1, type AnyKind } from 'src/parsers';
 	import type { ParsedEvent } from 'src/workers/nipworker';
 	import User from '../explore/user.svelte';
-	import Content from '../explore/post/content.svelte';
+	import Content from '../explore/_post/content.svelte';
 	import { key } from 'src/stores/db';
 
 	export let post: ProcessedNotification;

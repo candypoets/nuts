@@ -2,7 +2,7 @@
 	import Icon from '@iconify/svelte';
 	import { type HistoryData } from 'src/model/data/HistoryData';
 	import { HistoryItemType, type HistoryItem } from 'src/model/historyItem';
-	import PictureProfile from 'src/routes/explore/post/picture-profile.svelte';
+	import PictureProfile from 'src/routes/explore/_post/picture-profile.svelte';
 	import { getContact } from 'src/stores/contacts';
 
 	export let item: HistoryItem<HistoryData>;

@@ -28,17 +28,19 @@ func (p *Parser) ParseKind1(event nostr.Event) (*Kind1Parsed, *[]types.Request, 
 
 	parsed := &Kind1Parsed{}
 
-	// Check if the event author is in the db
-	// _, authorExists := p.DB.GetProfile(event.PubKey)
-
-	// if !authorExists {
 	requests = append(requests, types.Request{
 		Kinds:      []int{0},
 		Authors:    []string{event.PubKey},
 		CacheFirst: true,
 		Relays:     p.GetRelays(event),
 	})
-	// }
+
+	requests = append(requests, types.Request{
+		Kinds:      []int{10002},
+		Authors:    []string{event.PubKey},
+		CacheFirst: true,
+		Relays:     p.GetRelays(event),
+	})
 
 	parsedRefs := nip27.ParseReferences(event)
 

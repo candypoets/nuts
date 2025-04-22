@@ -99,7 +99,7 @@ func Initialize() {
 
 	// Initialize managers
 	globalSubscriptionManager = network.NewSubscriptionManager(nostrDb, nostrParser, globalRelayManager, subscriptionCallback)
-	globalPublishManager = network.NewPublishManager(nostrDb, globalRelayManager, publishCallback, defaultRelays)
+	globalPublishManager = network.NewPublishManager(nostrDb, nostrParser, globalRelayManager, publishCallback, defaultRelays)
 
 	registerCallbacks()
 
@@ -149,11 +149,12 @@ func jsCloseSubscription(this js.Value, args []js.Value) any {
 }
 
 func jsPublishEvent(this js.Value, args []js.Value) any {
-	if len(args) < 1 {
+	if len(args) < 2 {
 		return js.Error{Value: js.ValueOf("Not enough arguments")}
 	}
 
-	binaryData := args[0]
+	publishID := args[0].String()
+	binaryData := args[1]
 
 	// Convert JS Uint8Array to Go []byte
 	length := binaryData.Length()
@@ -167,7 +168,7 @@ func jsPublishEvent(this js.Value, args []js.Value) any {
 	}
 
 	// Publish the event using the manager
-	if err := globalPublishManager.PublishEvent(event); err != nil {
+	if err := globalPublishManager.PublishEvent(publishID, event); err != nil {
 		return js.Error{Value: js.ValueOf("Failed to publish event: " + err.Error())}
 	}
 

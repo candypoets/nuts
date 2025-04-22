@@ -1,11 +1,12 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
 	import EmojiPickerContent from 'src/comp/EmojiPickerContent.svelte';
-	import { getContext, onMount } from 'svelte';
+	import { onMount } from 'svelte';
 
 	import { kinds, type EventTemplate } from 'nostr-tools';
 	import { signAndSend } from 'src/actions/relay';
 	import { replying } from 'src/controller/editor';
+	import { kind0 } from 'src/controller/nostr';
 	import { getRelaysFromNote } from 'src/lib/getRelaysFromNote';
 	import { now } from 'src/lib/period';
 	import {
@@ -20,16 +21,12 @@
 	import { key } from 'src/stores/db';
 	import { signer } from 'src/stores/signer';
 	import { nostrManager } from 'src/wasm/manager';
-	import type { NIP01Parsed } from 'src/workers/nip01';
 	import type { NIP10Parsed } from 'src/workers/nip10';
 	import type { NIP25Parsed } from 'src/workers/nip25';
 	import type { ParsedEvent } from 'src/workers/nipworker';
-	import type { Writable } from 'svelte/store';
 
 	export let note: ParsedEvent<any>;
 	export let visible: boolean;
-
-	let profile: Writable<NIP01Parsed | null> = getContext('profile');
 
 	$: relays = getRelaysFromNote(note);
 
@@ -47,7 +44,7 @@
 
 	const handleReactions = (event: ParsedEvent<Kind7Parsed>) => {
 		if (!event.parsed || mapReactions[event.id]) return;
-		if (event.pubkey == $profile?.pubkey) liked = true;
+		if (event.pubkey == $kind0?.pubkey) liked = true;
 		mapReactions[event.id] = event;
 		if (event.parsed?.emoji) {
 			mapEmoticons[event.parsed?.emoji.url] = (mapEmoticons[event.parsed?.emoji.url] || 0) + 1;
@@ -60,7 +57,7 @@
 
 	async function handleReplies(event: ParsedEvent<Kind1Parsed>) {
 		if (mapReplies[event.id]) return;
-		if (event.pubkey == $profile?.pubkey) replied = true;
+		if (event.pubkey == $kind0?.pubkey) replied = true;
 		mapReplies[event.id] = event;
 		replies = Object.values(mapReplies);
 	}
@@ -130,14 +127,12 @@
 	$: visible ? subscribe() : unsubscribe();
 </script>
 
-<!-- <div class="flex items-center w-full mt-1 pb-1"> -->
-<!-- <div class="min-w-8" /> -->
 <div class="flex-grow flex px-2 w-full h-6 pl-10">
 	<div class="flex items-center gap-1 cursor-pointer w-full">
 		{#if visible}
 			<div
 				class="flex items-center space-x-1 hover:font-bold hover:text-black hover:-mt-1 transition-all"
-				class:text-red-600={!!replied}
+				class:text-primary={!!replied}
 				class:font-semibold={!!replied}
 				on:click={() => ($replying = true)}
 			>

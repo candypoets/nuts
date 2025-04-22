@@ -4,7 +4,7 @@
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import { nostrManager } from 'src/wasm/manager';
 	import type { ParsedEvent } from 'src/workers/nipworker';
-	import Content from '../explore/post/content.svelte';
+	import Content from '../explore/_post/content.svelte';
 	import User from '../explore/user.svelte';
 	import { formatTime, type ProcessedNotification } from './notifications';
 	import { onMount } from 'svelte';

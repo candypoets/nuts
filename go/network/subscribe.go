@@ -300,6 +300,13 @@ func (sm *SubscriptionManager) ProcessSubscriptionRequests(
 						Str("subscription_id", subscriptionID).
 						Err(err).
 						Msg("Error subscribing to relay")
+					// if strings.Contains(err.Error(), "not connected to") {
+					// 	sm.log.Info().
+					// 		Str("relay", relay).
+					// 		Str("subscription_id", subscriptionID).
+					// 		Msg("Attempting to reconnect to relay")
+					// 	sm.relayManager.ConnectToRelay(relay)
+					// }
 					sm.relayManager.ReleaseRelay(relay)
 					return
 				}

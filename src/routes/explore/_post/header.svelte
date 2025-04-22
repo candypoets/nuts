@@ -1,18 +1,17 @@
 <script lang="ts">
-	import Icon from '@iconify/svelte';
-	import { key } from 'src/stores/db';
-	import { getContext, onMount } from 'svelte';
-	import { signAndSend } from 'src/actions/relay';
-	import { signer } from 'src/stores/signer';
-	import type { NIP10Parsed } from 'src/workers/nip10';
-	import type { Writable } from 'svelte/store';
-	import type { ParsedEvent } from 'src/workers/nipworker';
-	import _ from 'lodash';
-	import type { AnyKind, Contact, Kind0Parsed } from 'src/parsers';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { now } from 'src/lib/period';
+	import Icon from '@iconify/svelte';
 	import { formatDistanceToNow } from 'date-fns';
+	import _ from 'lodash';
+	import { signAndSend } from 'src/actions/relay';
+	import { kind0, kind3 } from 'src/controller/nostr';
+	import { now } from 'src/lib/period';
+	import type { AnyKind, Kind0Parsed } from 'src/parsers';
+	import { key } from 'src/stores/db';
+	import { signer } from 'src/stores/signer';
+	import type { NIP10Parsed } from 'src/workers/nip10';
+	import type { ParsedEvent } from 'src/workers/nipworker';
 
 	export let note: ParsedEvent<NIP10Parsed>;
 	export let context: ParsedEvent<AnyKind>[] = [];
@@ -21,9 +20,6 @@
 	export let oneline: boolean = true;
 
 	let author: Kind0Parsed | undefined;
-
-	$: profile = getContext<Writable<Kind0Parsed>>('profile');
-	$: followList = getContext<Writable<Contact[]>>('followList');
 
 	$: {
 		if (!author) {
@@ -44,19 +40,21 @@
 	}
 
 	function updateFollowList() {
-		if (!$profile || !author) return;
+		if (!$kind0 || !author) return;
 		signAndSend($signer, {
 			kind: 3,
 			pubkey: $key?.pub,
 			created_at: now(),
 			tags: _.uniqBy(
 				[
-					...$followList.map((c) => [['p', c.pubkey, c.relays?.[0]]]),
+					...($kind3?.parsed || []).map((c) => [['p', c.pubkey, c.relays?.[0]]]),
 					[['p', author.pubkey, author.relays?.[0]]]
 				],
 				(c) => c[0][1]
 			).filter((c) =>
-				$followList.some((c) => c.pubkey === author?.pubkey) ? c[0][1] !== author?.pubkey : true
+				($kind3?.parsed || []).some((c) => c.pubkey === author?.pubkey)
+					? c[0][1] !== author?.pubkey
+					: true
 			),
 			content: ''
 		});
@@ -80,7 +78,7 @@
 			{#if oneline}
 				<a on:click|stopPropagation|preventDefault={go} class="hover:underline cursor-pointer">
 					<div class="whitespace-nowrap overflow-hidden text-ellipsis font-semibold">
-						{author?.name}
+						{author?.name || note?.pubkey?.slice(0, 15) + '...'}
 					</div>
 				</a>
 				{#if author?.nip05}
@@ -91,7 +89,9 @@
 				<div class="flex-grow">
 					<div class="flex items-center">
 						<a on:click|stopPropagation|preventDefault={go} class="hover:underline cursor-pointer">
-							<div class="whitespace-nowrap overflow-hidden text-ellipsis">{author?.name}</div>
+							<div class="whitespace-nowrap overflow-hidden text-ellipsis">
+								{author?.name || note.pubkey.slice(0, 15) + '...'}
+							</div>
 						</a>
 						<Icon icon="bitcoin-icons:verify-filled" class="inline text-lg text-primary" />
 						<p class="text-xs opacity-50 ml-2">
@@ -103,23 +103,15 @@
 					{/if}
 				</div>
 			{/if}
-			{#if oneline}
+			{#if oneline && note?.created_at}
 				<p class="text-xs opacity-50 ml-2">
-					{#if Date.now() / 1000 - note?.created_at < 60}
-						{Math.floor(Date.now() / 1000 - note?.created_at)}s
-					{:else if Date.now() / 1000 - note?.created_at < 3600}
-						{Math.floor((Date.now() / 1000 - note?.created_at) / 60)}m
-					{:else if Date.now() / 1000 - note?.created_at < 86400}
-						{Math.floor((Date.now() / 1000 - note?.created_at) / 3600)}h
-					{:else}
-						{Math.floor((Date.now() / 1000 - note?.created_at) / 86400)}d
-					{/if}
+					{formatDistanceToNow((note?.created_at || 0) * 1000, { addSuffix: true })}
 				</p>
 			{/if}
 			{#if !oneline}
 				<div class="flex-grow text-right w-full pr-4">
 					<button class="btn btn-primary btn-xs" on:click={updateFollowList}>
-						{!$followList.some((c) => c.pubkey === note?.pubkey) ? 'Follow' : 'Unfollow'}
+						{!($kind3?.parsed || []).some((c) => c.pubkey === note?.pubkey) ? 'Follow' : 'Unfollow'}
 					</button>
 				</div>
 			{/if}

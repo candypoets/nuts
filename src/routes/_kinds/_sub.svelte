@@ -5,6 +5,7 @@
 	import { cubicOut, elasticOut } from 'svelte/easing';
 	import { tweened } from 'svelte/motion';
 	import { fly } from 'svelte/transition';
+	import Kind4 from './kind4.svelte';
 
 	export let path: string;
 	export let visible: boolean;
@@ -46,8 +47,10 @@
 	>
 		{#if path.includes('nprofile')}
 			<Kind0 pubkey={path.split(':')?.[1]} {visible} />
-		{:else}
+		{:else if path.includes('nevent')}
 			<Kind1 postId={path.split(':')?.[1]} {visible} />
+		{:else if path.includes('kind4')}
+			<Kind4 pubkey={path.split(':')?.[1]} {visible} />
 		{/if}
 	</div>
 </div>

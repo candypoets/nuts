@@ -1,5 +1,5 @@
 import * as msgpack from '@msgpack/msgpack';
-import type { Filter, NostrEvent } from 'nostr-tools';
+import type { EventTemplate, Filter, NostrEvent } from 'nostr-tools';
 import type { AnyKind } from 'src/parsers';
 import NostrWorker from 'src/wasm/nostr?worker';
 import type { ParsedEvent } from 'src/workers/nipworker';
@@ -38,6 +38,8 @@ export type RelayStatus = {
 export type Request = Filter & {
 	relays: string[];
 	cacheFirst?: boolean;
+	noOptimize?: boolean;
+	limit?: number;
 };
 
 interface SubscriptionOptions {
@@ -59,7 +61,7 @@ interface PublishMessage {
 }
 
 interface Publish {
-	callback: PublishCallback;
+	callback?: PublishCallback;
 }
 
 interface Subscription {
@@ -134,13 +136,8 @@ export class NostrManager {
 		}
 	}
 
-	publish(event: NostrEvent, callback: (status: RelayStatus) => void) {
-		// Check if the event is signed already
-		if (!event.sig) {
-			throw new Error('Event must be signed before publishing');
-		}
-
-		this.publishes.set(event.id, {
+	publish(publishId: string, event: EventTemplate, callback?: (status: RelayStatus) => void) {
+		this.publishes.set(publishId, {
 			callback
 		});
 
@@ -150,6 +147,7 @@ export class NostrManager {
 		// Send the publish request to the worker
 		this.worker.postMessage({
 			action: 'PUBLISH',
+			publishId,
 			event: binaryData
 		});
 	}
@@ -236,8 +234,8 @@ export class NostrManager {
 
 		const decodedEvent = msgpack.decode(eventData) as RelayStatus;
 
-		subscribe && subscribe.callback(decodedEvent, eventKind);
-		subscribeAll && subscribeAll.callback(decodedEvent, publishId);
+		subscribe && subscribe.callback?.(decodedEvent, eventKind);
+		subscribeAll && subscribeAll.callback?.(decodedEvent, publishId);
 	}
 
 	// Clean up resources

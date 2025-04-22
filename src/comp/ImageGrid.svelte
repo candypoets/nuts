@@ -38,6 +38,7 @@
 				muted
 				autoplay
 				loop
+				loading="lazy"
 			/>
 		{:else}
 			<img
@@ -50,6 +51,7 @@
 				)}
 				on:click|preventDefault|stopPropagation={() => (zoomed = i)}
 				src={link.src.toString()}
+				loading="lazy"
 			/>
 		{/if}
 	{/each}

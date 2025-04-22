@@ -24,8 +24,6 @@
 	let feedRequests: any[] = [];
 	let timeout: NodeJS.Timeout | undefined;
 
-	let followList: Writable<NIP02Parsed> = getContext('followList');
-
 	function goBack() {
 		// Get current path
 		const currentPath = $page.url.pathname;
@@ -53,7 +51,7 @@
 			// only show replies to root posts
 			if (event?.parsed?.reply?.id && event.parsed?.reply?.id != postId) return feed;
 			if (
-				(!event?.parsed?.reply.id || event?.parsed?.reply?.id == event?.parsed?.root?.id) &&
+				(!event?.parsed?.reply?.id || event?.parsed?.reply?.id == event?.parsed?.root?.id) &&
 				event.parsed?.root?.id != postId
 			)
 				return feed;
@@ -95,8 +93,8 @@
 							feedRequests = [
 								{
 									kinds: [1],
-									tags: { '#e': [postId] },
-									since: ago(30 * DAY)
+									tags: { '#e': [postId] }
+									// since: ago(30 * DAY)
 								}
 							];
 						}
@@ -141,9 +139,9 @@
 			<h1 class="text-lg font-semibold">Post</h1>
 			<span class="w-10" />
 		</div>
-		{#if item.id != 'header'}
-			<Note note={item} {context} visible={true} zaps />
-		{/if}
+		<!-- {#if headerItem} -->
+		<Note note={headerItem} {context} visible={true} zaps />
+		<!-- {/if} -->
 		<Reply parent={item} {context} />
 	</svelte.fragment>
 	<svelte.fragment slot="item-content" let:post let:context let:visible>

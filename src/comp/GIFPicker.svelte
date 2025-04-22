@@ -79,6 +79,7 @@
 	class="absolute z-50 w-80 {position === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'}"
 	bind:this={pickerElement}
 	transition:fly={{ y: position === 'top' ? 10 : -10, duration: 150 }}
+	style="transform: translateY(-25rem) translateX(-12rem);"
 >
 	<div
 		class="fixed z-50 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-lg"

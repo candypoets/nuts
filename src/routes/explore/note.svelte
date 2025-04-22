@@ -1,11 +1,11 @@
 <script lang="ts">
-	import Header from './post/header.svelte';
-	import Content from './post/content.svelte';
-	import Footer from './post/footer.svelte';
+	import Header from './_post/header.svelte';
+	import Content from './_post/content.svelte';
+	import Footer from './_post/footer.svelte';
 	import { goto } from '$app/navigation';
 	import type { ParsedEvent } from 'src/workers/nipworker';
 	import type { AnyKind, Kind1Parsed } from 'src/parsers';
-	import Zap from './post/zap.svelte';
+	import Zap from './_post/zap.svelte';
 	import _ from 'lodash';
 	import { nostrManager } from 'src/wasm/manager';
 	import { page } from '$app/stores';
@@ -100,7 +100,7 @@
 			</div>
 		</div>
 		{#if footer && !depth}
-			<Footer bind:replies {note} visible />
+			<Footer bind:replies {note} {visible} />
 		{/if}
 		{#if leading}
 			<div

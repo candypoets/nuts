@@ -13,7 +13,7 @@ export const signAndSend = async (
 	}
 	event = await signer?.signEvent(event);
 
-	nostrManager.publish(event as NostrEvent, callback || (() => {}));
+	nostrManager.publish(event.kind + event.content, event as NostrEvent, callback || (() => {}));
 };
 
 export const checkNostrRelay = (url: string): Promise<boolean> => {

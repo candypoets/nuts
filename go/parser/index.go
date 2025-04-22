@@ -37,6 +37,9 @@ func (p *Parser) GetRelays(event nostr.Event) []string {
 	}
 
 	if len(relays) == 0 {
+		if event.Kind == 10002 || event.Kind == 0 {
+			return []string{"wss://purplepag.es"}
+		}
 		return p.DefaultRelays
 	}
 
@@ -88,6 +91,20 @@ func (p *Parser) Parse(event nostr.Event) (types.ParsedEvent, error) {
 			Parsed:   parsed,
 			Requests: requests,
 		}, err
+	case 7374:
+		parsed, requests, err := p.ParseKind7374(event)
+		return types.ParsedEvent{
+			Event:    event,
+			Parsed:   parsed,
+			Requests: requests,
+		}, err
+	case 7375:
+		parsed, requests, err := p.ParseKind7375(event)
+		return types.ParsedEvent{
+			Event:    event,
+			Parsed:   parsed,
+			Requests: requests,
+		}, err
 	case 7376:
 		parsed, requests, err := p.ParseKind7376(event)
 		return types.ParsedEvent{
@@ -123,11 +140,42 @@ func (p *Parser) Parse(event nostr.Event) (types.ParsedEvent, error) {
 			Parsed:   parsed,
 			Requests: requests,
 		}, err
+	case 17375:
+		parsed, requests, err := p.ParseKind17375(event)
+		return types.ParsedEvent{
+			Event:    event,
+			Parsed:   parsed,
+			Requests: requests,
+		}, err
 	default:
 		return types.ParsedEvent{
 			Event:    event,
 			Parsed:   nil,
 			Requests: nil,
 		}, fmt.Errorf("no parser available for kind %d", event.Kind)
+	}
+}
+
+func (p *Parser) Prepare(event *nostr.Event) error {
+	switch event.Kind {
+	case 4:
+		return p.PrepareKind4(event)
+	case 7374:
+		return p.PrepareKind7374(event)
+	case 7375:
+		return p.PrepareKind7375(event)
+	case 7376:
+		return p.PrepareKind7376(event)
+	case 9321:
+		return p.PrepareKind9321(event)
+	case 10019:
+		return p.PrepareKind10019(event)
+	case 17375:
+		return p.PrepareKind17375(event)
+	default:
+		if event.Sig == "" {
+			return p.Signer.SignEvent(event)
+		}
+		return nil
 	}
 }

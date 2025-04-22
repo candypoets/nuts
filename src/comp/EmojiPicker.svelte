@@ -51,6 +51,7 @@
 <div
 	class="absolute {position === 'top' ? 'bottom-12' : 'top-12'} z-50"
 	transition:fly={{ y: 10, duration: 150 }}
+	style="transform: translateY(-20rem) translateX(-16rem);"
 >
 	{#if emojiPickerLoaded}
 		<emoji-picker bind:this={emojiPickerRef} class="emoji-picker fixed z-50"></emoji-picker>

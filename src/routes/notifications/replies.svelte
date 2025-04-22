@@ -7,7 +7,7 @@
 	import type { ParsedEvent } from 'src/workers/nipworker';
 	import User from '../explore/user.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
-	import Content from '../explore/post/content.svelte';
+	import Content from '../explore/_post/content.svelte';
 	import { key } from 'src/stores/db';
 
 	export let post: ProcessedNotification;

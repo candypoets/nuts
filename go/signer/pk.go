@@ -1,8 +1,6 @@
 package signer
 
 import (
-	"encoding/hex"
-
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/nbd-wtf/go-nostr/nip04"
 	"github.com/nbd-wtf/go-nostr/nip44"
@@ -52,7 +50,7 @@ func (s *PrivateKeySigner) SignEvent(event *nostr.Event) error {
 // NIP04Encrypt encrypts a message for a recipient using NIP-04
 func (s *PrivateKeySigner) NIP04Encrypt(recipientPubKey, plaintext string) (string, error) {
 	// Convert hex private key to bytes
-	skBytes, err := hex.DecodeString(s.Sk)
+	skBytes, err := nip04.ComputeSharedSecret(recipientPubKey, s.Sk)
 	if err != nil {
 		return "", err
 	}

@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
+	import _ from 'lodash';
 	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/parsers';
-	import { nostrManager, type EventKind } from 'src/wasm/manager';
+	import { nostrManager, type SubscribeKind } from 'src/wasm/manager';
 	import type { ParsedEvent } from 'src/workers/nipworker';
-	import { onDestroy } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 
 	export let pubkey: string;
 	export let link: boolean = true;
@@ -12,6 +13,7 @@
 	export let context: ParsedEvent<AnyKind>[];
 	export let query = true;
 
+	let id: number;
 	let user: Kind0Parsed | undefined;
 	let sub: () => void;
 
@@ -21,9 +23,9 @@
 				?.parsed as Kind0Parsed | undefined;
 			if (!user && query) {
 				sub = nostrManager.subscribe(
-					'user_' + pubkey,
+					'user_' + id,
 					[{ kinds: [0], authors: [pubkey], limit: 1, cacheFirst: true, relays }],
-					(events: ParsedEvent<AnyKind>[], type: EventKind) => {
+					(events: ParsedEvent<AnyKind>[], type: SubscribeKind) => {
 						const [event, ...context] = events;
 						if (isKind0(event)) {
 							user = event.parsed as Kind0Parsed;
@@ -34,10 +36,13 @@
 		}
 	}
 
-	onDestroy(() => {
-		if (sub) {
-			sub();
-		}
+	$: {
+		if (user && !!sub) sub();
+	}
+
+	onMount(() => {
+		id = _.random(10000);
+		return () => sub?.();
 	});
 
 	function go() {

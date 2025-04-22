@@ -105,25 +105,24 @@
 		let reply = {
 			...parent,
 			created_at: now(),
-			content
+			content: content.trim()
 		} as EventTemplate;
 
 		reply = prepareEvent(reply);
 
-		reply = await signEvent($signer, reply);
-
 		onSubmit(reply as NostrEvent);
 
-		nostrManager.publish(reply as NostrEvent, (status: RelayStatus) => {
-			console.log(status.relay, status.message);
+		console.log('reply', reply);
+
+		nostrManager.publish('1' + reply.content, reply as NostrEvent, (status: RelayStatus) => {
+			// as soon as a status come back, signing is done
+			$editor.commands.clearContent();
+			isExpanded = false;
+			showEmojiPicker = false;
+			showGifPicker = false;
+
+			isSubmitting = false;
 		});
-
-		$editor.commands.clearContent();
-		isExpanded = false;
-		showEmojiPicker = false;
-		showGifPicker = false;
-
-		isSubmitting = false;
 	}
 
 	function handleKeyDown(event) {

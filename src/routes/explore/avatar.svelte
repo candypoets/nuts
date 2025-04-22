@@ -1,8 +1,9 @@
 <script lang="ts">
+	import _ from 'lodash';
 	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/parsers';
 	import { nostrManager, type SubscribeKind } from 'src/wasm/manager';
 	import type { ParsedEvent } from 'src/workers/nipworker';
-	import { onDestroy } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 
 	// The pubkey/npub of the user
 	export let pubkey: string = '';
@@ -13,6 +14,7 @@
 	export let context: ParsedEvent<AnyKind>[] = [];
 	export let query = true;
 
+	let id: number;
 	let profile: Kind0Parsed | undefined;
 	let imageUrl: string | undefined;
 	let imageLoaded = false;
@@ -38,7 +40,7 @@
 			imageUrl = profile?.picture;
 			if (!profile && query) {
 				sub = nostrManager.subscribe(
-					'avatar_' + pubkey + size,
+					'avatar_' + id,
 					[{ kinds: [0], authors: [pubkey], limit: 1, cacheFirst: true, relays: [] }],
 					(events: ParsedEvent<AnyKind>[], type: SubscribeKind) => {
 						const [event, ...context] = events;
@@ -50,6 +52,10 @@
 				);
 			}
 		}
+	}
+
+	$: {
+		if (profile && !!sub) sub();
 	}
 
 	// Handle image load success
@@ -64,8 +70,9 @@
 		imageUrl = '/ns-naked.svg';
 	}
 
-	onDestroy(() => {
-		sub?.();
+	onMount(() => {
+		id = _.random(10000);
+		return () => sub?.();
 	});
 </script>
 

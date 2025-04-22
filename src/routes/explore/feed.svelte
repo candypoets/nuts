@@ -1,9 +1,9 @@
 <script lang="ts">
 	import _ from 'lodash';
 	import VirtualList from 'src/comp/VirtualList.svelte';
+	import VirtualListBottom from 'src/comp/VirtualListBottom.svelte';
 	import { now } from 'src/lib/period';
 	import { isKind1, type AnyKind, type Kind1Parsed } from 'src/parsers';
-	import { posting } from 'src/stores';
 	import { nostrManager, type SubscribeKind } from 'src/wasm/manager';
 	import type { ParsedEvent } from 'src/workers/nipworker';
 	import { onMount } from 'svelte';
@@ -11,6 +11,7 @@
 	import Note from './note.svelte';
 
 	// Props
+	export let bottom = false;
 	export let subscriptionID: string;
 	export let headerItem: ParsedEvent<AnyKind> | undefined = undefined;
 	export let requests: any[] = [];
@@ -22,7 +23,7 @@
 		  ) => [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][])
 		| undefined = undefined;
 
-	let feed: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
+	export let feed: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
 	let cachedFeed: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
 	let fetchedFeed: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
 	// used in order to throttle fast incoming events
@@ -38,11 +39,6 @@
 
 	let viewport: HTMLElement;
 	let top: number = 0;
-	let oldTop = 0;
-
-	let topper: HTMLElement;
-	let footer: HTMLElement;
-	let fadein = false;
 
 	let eose = false;
 	let eoce = false;
@@ -70,6 +66,7 @@
 		const [event, ...context] = events;
 		if (!event?.parsed) return;
 		if (updateFeed) {
+			console.log('updateFeed', events[0]);
 			if (!eoce) {
 				cachedFeed = updateFeed(cachedFeed, events, eventKind);
 			} else if (!eose) {
@@ -101,7 +98,7 @@
 				eose = false;
 				cachedFeed = [];
 				sub = nostrManager.subscribe(subscriptionID, requests, handleEvents);
-			}, 100);
+			}, 300);
 		}
 	}
 
@@ -124,13 +121,7 @@
 	});
 </script>
 
-<div
-	class="lg:pt-0 overflow-scroll scrollbar-hide h-full m-auto !pt-0"
-	on:click={() => {
-		$posting = false;
-		// goto('/explore');
-	}}
->
+<div class="lg:pt-0 overflow-scroll scrollbar-hide h-full m-auto !pt-0">
 	<div class="absolute top-6 w-full z-40" transition:fly={{ y: -50, duration: 300 }}>
 		{#if newPosts.length}
 			<div
@@ -155,7 +146,13 @@
 			</div>
 		</div>
 	{/if}
-	<VirtualList
+	<div class="absolute z-10 w-full">
+		<div class="w-feed m-auto">
+			<slot name="fixed-header" {start} />
+		</div>
+	</div>
+	<svelte:component
+		this={bottom ? VirtualListBottom : VirtualList}
 		items={combinedItems}
 		bind:start
 		bind:end
@@ -167,7 +164,7 @@
 		{#if headerItem && item.id == headerItem?.id}
 			<!-- Render header item -->
 			<div
-				class="block w-feed lg:m-auto px-1 max-w-full"
+				class="block w-feed lg:m-auto px-1 max-w-full min-h-20"
 				transition:fly={{ y: 200, duration: 300 }}
 				id="header"
 			>
@@ -207,5 +204,5 @@
 				{/each}
 			</div>
 		{/if}
-	</VirtualList>
+	</svelte:component>
 </div>

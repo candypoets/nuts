@@ -73,13 +73,14 @@ type PublishManager struct {
 }
 
 // NewPublishManager creates a new publish manager
-func NewPublishManager(database *db.NostrDB, relayManager *RelayConnectionManager, callback js.Func, defaultRelays []string) *PublishManager {
+func NewPublishManager(database *db.NostrDB, parser *parser.Parser, relayManager *RelayConnectionManager, callback js.Func, defaultRelays []string) *PublishManager {
 	componentLogger := logger.WithComponent("publish")
 
 	return &PublishManager{
 		operations:    make(map[string]*PublishOperation),
 		relayManager:  relayManager,
 		database:      database,
+		parser:        parser,
 		log:           componentLogger,
 		callback:      callback,
 		defaultRelays: defaultRelays,
@@ -87,18 +88,24 @@ func NewPublishManager(database *db.NostrDB, relayManager *RelayConnectionManage
 }
 
 // PublishEvent initiates the process of publishing an event
-func (pm *PublishManager) PublishEvent(event nostr.Event) error {
+func (pm *PublishManager) PublishEvent(publishId string, event nostr.Event) error {
 	pm.log.Info().
-		Str("event_id", event.ID).
+		Str("publish_id", publishId).
 		Int("kind", event.Kind).
 		Str("pubkey", event.PubKey).
 		Msg("Publishing event")
 	pm.mutex.Lock()
 	defer pm.mutex.Unlock()
 
+	err := pm.parser.Prepare(&event)
+
+	if err != nil {
+		return fmt.Errorf("failed to prepare event: %w", err)
+	}
+
 	// Check if we already have an operation with this ID
-	if _, exists := pm.operations[event.ID]; exists {
-		return fmt.Errorf("publish operation with ID %s already exists", event.ID)
+	if _, exists := pm.operations[publishId]; exists {
+		return fmt.Errorf("publish operation with ID %s already exists", publishId)
 	}
 
 	// Create timeout context
@@ -108,7 +115,7 @@ func (pm *PublishManager) PublishEvent(event nostr.Event) error {
 	relays, err := pm.determineTargetRelays(ctx, event)
 	if err != nil {
 		pm.log.Warn().
-			Str("event_id", event.ID).
+			Str("publishID", publishId).
 			Err(err).
 			Msg("Failed to determine target relays, canceling operation")
 		cancel()
@@ -117,7 +124,7 @@ func (pm *PublishManager) PublishEvent(event nostr.Event) error {
 
 	if len(relays) == 0 {
 		pm.log.Debug().
-			Str("event_id", event.ID).
+			Str("publishID", publishId).
 			Msg("No specific relays determined, falling back to default relays")
 		// Fall back to default relays if no specific ones were determined
 		relays = pm.defaultRelays
@@ -125,7 +132,7 @@ func (pm *PublishManager) PublishEvent(event nostr.Event) error {
 
 	// Log which relays will be used for this publish operation
 	pm.log.Debug().
-		Str("event_id", event.ID).
+		Str("publishID", publishId).
 		Strs("relays", relays).
 		Msg("Selected relays for publishing")
 
@@ -144,11 +151,11 @@ func (pm *PublishManager) PublishEvent(event nostr.Event) error {
 	}
 
 	// Store the operation
-	pm.operations[event.ID] = operation
+	pm.operations[publishId] = operation
 
 	// Start publishing to each relay in separate goroutines
 	for _, relay := range relays {
-		go pm.publishToRelay(relay, event, ctx)
+		go pm.publishToRelay(publishId, relay, event, ctx)
 	}
 
 	return nil
@@ -409,20 +416,20 @@ func (pm *PublishManager) findNIP65(ctx context.Context, pubkey string) (*parser
 }
 
 // publishToRelay publishes an event to a specific relay
-func (pm *PublishManager) publishToRelay(relayURL string, event nostr.Event, ctx context.Context) {
+func (pm *PublishManager) publishToRelay(publishId string, relayURL string, event nostr.Event, ctx context.Context) {
 	// Log that we're starting to publish to this relay
 	pm.log.Debug().
-		Str("event_id", event.ID).
+		Str("publish_id", publishId).
 		Str("relay", relayURL).
 		Msg("Publishing event to relay")
 
 	// Update status to "sending"
-	pm.updateRelayStatus(event.ID, relayURL, StatusSent, "Sending event to relay")
+	pm.updateRelayStatus(publishId, relayURL, StatusSent, "Sending event to relay")
 
 	// Get or establish a connection to the relay
 	relay, err := pm.relayManager.GetRelay(relayURL)
 	if err != nil {
-		pm.updateRelayStatus(event.ID, relayURL, StatusConnError, fmt.Sprintf("Failed to connect: %v", err))
+		pm.updateRelayStatus(publishId, relayURL, StatusConnError, fmt.Sprintf("Failed to connect: %v", err))
 		return
 	}
 
@@ -434,12 +441,12 @@ func (pm *PublishManager) publishToRelay(relayURL string, event nostr.Event, ctx
 
 	err = relay.Publish(publishCtx, event)
 	if err != nil {
-		pm.updateRelayStatus(event.ID, relayURL, StatusFailed, fmt.Sprintf("Publish error: %v", err))
+		pm.updateRelayStatus(publishId, relayURL, StatusFailed, fmt.Sprintf("Publish error: %v", err))
 		return
 	}
 
 	// Update status based on relay response
-	pm.updateRelayStatus(event.ID, relayURL, StatusSuccess, "Event published successfully")
+	pm.updateRelayStatus(publishId, relayURL, StatusSuccess, "Event published successfully")
 }
 
 // updateRelayStatus updates the status of a relay for a publish operation

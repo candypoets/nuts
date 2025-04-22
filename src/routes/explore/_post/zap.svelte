@@ -1,31 +1,19 @@
 <script lang="ts">
 	import _ from 'lodash';
-	import { handler } from 'src/handlers';
-	import NIP57Worker from 'src/workers/nip57?worker';
-	import NIP61Worker from 'src/workers/nip61?worker';
-	import type { Nip57Params, NIP57Parsed } from 'src/workers/nip57';
-	import type { Nip61Params, NIP61Parsed } from 'src/workers/nip61';
-	import type { ParsedEvent } from 'src/workers/nipworker';
-	import { getContext, onMount } from 'svelte';
-	import type { Writable } from 'svelte/store';
-	import Avatar from '../avatar.svelte';
-	import {
-		isKind9321,
-		isKind9735,
-		type AnyKind,
-		type Kind0Parsed,
-		type Kind9321,
-		type Kind9735Parsed
-	} from 'src/parsers';
-	import { nostrManager } from 'src/wasm/manager';
+	import { kind0 } from 'src/controller/nostr';
 	import { getRelaysFromNote } from 'src/lib/getRelaysFromNote';
+	import { isKind9321, isKind9735, type AnyKind, type Kind9735Parsed } from 'src/parsers';
+	import { nostrManager } from 'src/wasm/manager';
+	import type { NIP57Parsed } from 'src/workers/nip57';
+	import type { NIP61Parsed } from 'src/workers/nip61';
+	import type { ParsedEvent } from 'src/workers/nipworker';
+	import { onMount } from 'svelte';
+	import Avatar from '../avatar.svelte';
 
 	export let note: ParsedEvent<any>;
 	export let visible: boolean;
 
 	let timeout: NodeJS.Timeout | undefined;
-
-	let profile: Writable<Kind0Parsed | null> = getContext('profile');
 
 	let zaps: ParsedEvent<NIP57Parsed>[] = [];
 	let nuts: ParsedEvent<NIP61Parsed>[] = [];
@@ -33,13 +21,14 @@
 	let biggestZap: ParsedEvent<NIP57Parsed>;
 	let totalZapAmount = 0;
 	let totalNutAmount = 0;
+	let sub: () => void;
 
 	$: relays = getRelaysFromNote(note);
 
 	async function subscribe() {
 		timeout = setTimeout(() => {
 			if (visible) {
-				nostrManager.subscribe(
+				sub = nostrManager.subscribe(
 					note.id + 'zaps',
 					[
 						{
@@ -67,7 +56,7 @@
 	function handleNuts(event: ParsedEvent<Kind9321>) {
 		console.log('A NUT', event);
 		if (!event.parsed) return;
-		if (event.pubkey == $profile?.pubkey) zapped = true;
+		if (event.pubkey == $kind0?.pubkey) zapped = true;
 		if (nuts.some((n) => n.id == event.id)) return;
 		totalNutAmount += event.parsed.amount;
 
@@ -78,7 +67,7 @@
 
 	function handleZaps(event: ParsedEvent<Kind9735Parsed>) {
 		if (!event.parsed) return;
-		if (event.pubkey == $profile?.pubkey) zapped = true;
+		if (event.pubkey == $kind0?.pubkey) zapped = true;
 		if (zaps.some((z) => z.id == event.id)) return;
 		totalZapAmount += event.parsed.amount;
 		biggestZap = event.parsed.amount > (biggestZap?.parsed?.amount || 0) ? event : biggestZap;
@@ -90,7 +79,7 @@
 		if (timeout) {
 			clearTimeout(timeout);
 			timeout = undefined;
-			nostrManager.unsubscribe(note.id + 'zaps');
+			sub?.();
 		}
 	}
 
