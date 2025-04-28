@@ -1,0 +1,16 @@
+[
+	{
+		"id": 1,
+		"url": "https://8333.space:3338",
+		"info": "{\"name\": \"Cashu test mint\", \"pubkey\": \"03e3d23e1b66eadaf15ce0d640a908e8ba1984baed34ab98c547aab4cf4249440d\", \"version\": \"Nutshell/0.16.5\", \"description\": \"This mint is for testing and development purposes only. Do not use this mint as a default mint in your application! Please use it with caution and only with very small amounts. Your Cashu client could have bugs. Accidents and bugs can lead to loss of funds for which we are not responsible for.\", \"description_long\": null, \"contact\": [], \"motd\": null, \"icon_url\": \"https://raw.githubusercontent.com/cashubtc/cashu.me/refs/heads/main/public/icons/icon-256x256.png\", \"time\": 1745399333, \"nuts\": {\"4\": {\"methods\": [{\"method\": \"bolt11\", \"unit\": \"sat\", \"min_amount\": 0, \"max_amount\": 100000, \"description\": true}], \"disabled\": false}, \"5\": {\"methods\": [{\"method\": \"bolt11\", \"unit\": \"sat\", \"min_amount\": 0, \"max_amount\": 50000}], \"disabled\": false}, \"7\": {\"supported\": true}, \"8\": {\"supported\": true}, \"9\": {\"supported\": true}, \"10\": {\"supported\": true}, \"11\": {\"supported\": true}, \"12\": {\"supported\": true}, \"14\": {\"supported\": true}, \"20\": {\"supported\": true}, \"17\": {\"supported\": [{\"method\": \"bolt11\", \"unit\": \"sat\", \"commands\": [\"bolt11_melt_quote\", \"proof_state\"]}]}, \"19\": {\"cached_endpoints\": [{\"method\": \"POST\", \"path\": \"/v1/mint/bolt11\"}, {\"method\": \"POST\", \"path\": \"/v1/melt/bolt11\"}, {\"method\": \"POST\", \"path\": \"/v1/swap\"}], \"ttl\": 604800}}}",
+		"name": "Cashu test mint",
+		"balance": 102,
+		"sum_donations": 4012,
+		"updated_at": "2025-04-23T09:09:02",
+		"next_update": "2025-04-22T10:45:49.391922",
+		"state": "OK",
+		"n_errors": 97,
+		"n_mints": 1038,
+		"n_melts": 1068
+	}
+]

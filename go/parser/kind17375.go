@@ -43,26 +43,25 @@ func (p *Parser) ParseKind17375(event nostr.Event) (*Kind17375Parsed, *[]types.R
 						switch tag[0] {
 						case "mint":
 							parsed.Mints = append(parsed.Mints, tag[1])
-						case "privkey":
-							parsed.P2PKPrivKey = tag[1]
 						}
 					}
 				}
 			}
 		}
-	}
 
-	// Also check for unencrypted mint tags in the event
-	for _, tag := range event.Tags {
-		if len(tag) >= 2 && tag[0] == "mint" {
-			// Only add if not already in the list
-			found := slices.Contains(parsed.Mints, tag[1])
-			if !found {
-				parsed.Mints = append(parsed.Mints, tag[1])
+		// Also check for unencrypted mint tags in the event
+		for _, tag := range event.Tags {
+			if len(tag) >= 2 && tag[0] == "mint" {
+				// Only add if not already in the list
+				found := slices.Contains(parsed.Mints, tag[1])
+				if !found {
+					parsed.Mints = append(parsed.Mints, tag[1])
+				}
 			}
 		}
-	}
 
+		return parsed, nil, nil
+	}
 	return parsed, nil, nil
 }
 

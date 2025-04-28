@@ -11,6 +11,7 @@ import (
 	"syscall/js"
 	"time"
 
+	"github.com/candypoets/nutscash/cashu"
 	"github.com/candypoets/nutscash/db"
 	"github.com/candypoets/nutscash/logger"
 	"github.com/candypoets/nutscash/network"
@@ -100,6 +101,8 @@ func Initialize() {
 	// Initialize managers
 	globalSubscriptionManager = network.NewSubscriptionManager(nostrDb, nostrParser, globalRelayManager, subscriptionCallback)
 	globalPublishManager = network.NewPublishManager(nostrDb, nostrParser, globalRelayManager, publishCallback, defaultRelays)
+
+	cashu.Initialize()
 
 	registerCallbacks()
 

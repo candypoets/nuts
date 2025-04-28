@@ -905,6 +905,26 @@ func (db *NostrDB) QueryEvents(filter nostr.Filter) ([]types.ParsedEvent, error)
 	return result, nil
 }
 
+// QueryEvent retrieves the most recent event that matches the given filter
+func (db *NostrDB) QueryEvent(filter nostr.Filter) (types.ParsedEvent, bool) {
+	// Set limit to 1 to optimize the query if possible, but still handle multiple results
+	// as QueryEvents sorts by created_at descending.
+	filter.Limit = 1
+
+	events, err := db.QueryEvents(filter)
+	if err != nil {
+		return types.ParsedEvent{}, false
+	}
+
+	if len(events) == 0 {
+		// No event found matching the filter
+		return types.ParsedEvent{}, false
+	}
+
+	// Since QueryEvents sorts by CreatedAt descending, the first event is the most recent.
+	return events[0], true
+}
+
 // GetEvent retrieves a single event by ID
 func (db *NostrDB) GetEvent(id string) (types.ParsedEvent, bool) {
 	db.RLock()

@@ -5,21 +5,24 @@ import (
 	"fmt"
 	"strings"
 
+	wallet "github.com/candypoets/nutscash/cashu"
 	"github.com/candypoets/nutscash/types"
+	"github.com/elnosh/gonuts/cashu"
 	"github.com/nbd-wtf/go-nostr"
 )
 
 // Kind9321Parsed represents parsed data from a kind 9321 event (nutzap)
 type Kind9321Parsed struct {
-	Amount       int                `json:"amount" msgpack:"amount"`
-	Recipient    string             `json:"recipient" msgpack:"recipient"`
-	EventID      string             `json:"eventId,omitempty" msgpack:"eventId,omitempty"`       // event being zapped if any
-	MintURL      string             `json:"mintUrl" msgpack:"mintUrl"`                           // mint for the proofs
-	Redeemed     bool               `json:"redeemed" msgpack:"redeemed"`                         // Whether the zap has been redeemed
-	Proofs       []types.ProofUnion `json:"proofs" msgpack:"proofs"`                             // Using ProofUnion to handle both Proof and ProofV4
-	Comment      string             `json:"comment,omitempty" msgpack:"comment,omitempty"`       // Optional comment from the sender
-	IsP2PKLocked bool               `json:"isP2PKLocked" msgpack:"isP2PKLocked"`                 // Whether the proofs are properly P2PK-locked
-	P2PKPubkey   string             `json:"p2pkPubkey,omitempty" msgpack:"p2pkPubkey,omitempty"` // The P2PK pubkey detected in the proofs
+	Amount        int                `json:"amount" msgpack:"amount"`
+	Recipient     string             `json:"recipient" msgpack:"recipient"`
+	EventID       string             `json:"eventId,omitempty" msgpack:"eventId,omitempty"`       // event being zapped if any
+	MintURL       string             `json:"mintUrl" msgpack:"mintUrl"`                           // mint for the proofs
+	Redeemed      bool               `json:"redeemed" msgpack:"redeemed"`                         // Whether the zap has been redeemed
+	Proofs        []types.ProofUnion `json:"proofs" msgpack:"proofs"`                             // Using ProofUnion to handle both Proof and ProofV4
+	UnspentProofs []cashu.Proof      `json:"unspentProofs" msgpack:"unspentProofs"`               // Unspent proofs from the zap
+	Comment       string             `json:"comment,omitempty" msgpack:"comment,omitempty"`       // Optional comment from the sender
+	IsP2PKLocked  bool               `json:"isP2PKLocked" msgpack:"isP2PKLocked"`                 // Whether the proofs are properly P2PK-locked
+	P2PKPubkey    string             `json:"p2pkPubkey,omitempty" msgpack:"p2pkPubkey,omitempty"` // The P2PK pubkey detected in the proofs
 }
 
 // ParseKind9321 parses a kind 9321 event (nutzap)
@@ -58,6 +61,12 @@ func (p *Parser) ParseKind9321(event nostr.Event) (*Kind9321Parsed, *[]types.Req
 					Relays:     p.GetRelays(event),
 				})
 				// try to find receipt event from the recipient
+				var relays []string
+				walletRelays, exist := p.DB.QueryEvent(nostr.Filter{Kinds: []int{10019}, Authors: []string{event.PubKey}})
+				walletRelaysParsed, ok := walletRelays.Parsed.(*Kind10019Parsed)
+				if exist && ok {
+					relays = append(relays, walletRelaysParsed.ReadRelays...)
+				}
 				requests = append(requests, types.Request{
 					Kinds: []int{7376},
 					Tags: map[string][]string{
@@ -66,8 +75,9 @@ func (p *Parser) ParseKind9321(event nostr.Event) (*Kind9321Parsed, *[]types.Req
 					Authors:    []string{recipientTag[1]},
 					Limit:      1,
 					CacheFirst: true,
-					Relays:     p.GetRelays(event),
+					Relays:     relays,
 				})
+
 			} else if tag[0] == "e" && eventTag == nil {
 				eventTag = tag
 				requests = append(requests, types.Request{
@@ -102,8 +112,21 @@ func (p *Parser) ParseKind9321(event nostr.Event) (*Kind9321Parsed, *[]types.Req
 
 		// Get amount based on proof type
 		var amount int
-		if proof, ok := proofUnion.GetProof().(map[string]interface{}); ok {
-			if amt, exists := proof["amount"]; exists {
+		var secretStr string
+
+		// Get the actual proof data (could be Proof or ProofV4)
+		actualProof := proofUnion.GetProof() // Assume this method returns the underlying proof interface{}
+
+		switch p := actualProof.(type) {
+		case cashu.Proof: // Handle V3 Proof type
+			amount = int(p.Amount) // Cast uint64 to int
+			secretStr = p.Secret
+		case cashu.ProofV4: // Handle V4 Proof type
+			amount = int(p.Amount) // Cast uint64 to int
+			secretStr = p.Secret   // Assuming V4 also has Amount and Secret fields with these names
+		case map[string]any: // Fallback if GetProof returns a map (e.g., if ProofUnion wasn't fully hydrated)
+			fmt.Println("GetProof returned map[string]interface{}, attempting map access")
+			if amt, exists := p["amount"]; exists {
 				switch v := amt.(type) {
 				case float64:
 					amount = int(v)
@@ -112,48 +135,83 @@ func (p *Parser) ParseKind9321(event nostr.Event) (*Kind9321Parsed, *[]types.Req
 				case json.Number:
 					if intVal, err := v.Int64(); err == nil {
 						amount = int(intVal)
+					} else {
+						fmt.Printf("Fallback: Failed to convert json.Number amount: %v\n", err)
 					}
+				default:
+					fmt.Printf("Fallback: Unexpected type for amount: %T\n", v)
+				}
+			} else {
+				fmt.Printf("Fallback: Proof map does not contain 'amount' key.\n")
+			}
+			// Attempt to get secret from map as well
+			if secret, exists := p["secret"]; exists {
+				if s, ok := secret.(string); ok {
+					secretStr = s
 				}
 			}
+		default:
+			// Handle unexpected type from GetProof()
+			fmt.Printf("Unexpected proof type from GetProof(): %T\n", p)
 		}
 
 		total += amount
 		proofs = append(proofs, proofUnion)
 
-		// Check if this is a P2PK-locked proof
-		// This requires examining the Secret field which varies by proof version
-		if proof, ok := proofUnion.GetProof().(map[string]interface{}); ok {
-			if secret, exists := proof["secret"]; exists && secret != nil {
-				secretStr, ok := secret.(string)
-				if ok && strings.Contains(secretStr, "P2PK") {
-					isP2PKLocked = true
+		// Check if this proof is P2PK-locked using the extracted secretStr
+		if secretStr != "" && strings.Contains(secretStr, "P2PK") {
+			isP2PKLocked = true // Mark zap as P2PK if at least one proof is
 
-					// Try to extract the pubkey
-					var secretData []interface{}
-					if err := json.Unmarshal([]byte(secretStr), &secretData); err == nil {
-						if len(secretData) >= 2 {
+			// Try to extract the pubkey only if we haven't found one yet for the whole zap
+			if p2pkPubkey == "" {
+				var secretData []interface{}
+				// Use json.Unmarshal on the secret string
+				if err := json.Unmarshal([]byte(secretStr), &secretData); err == nil {
+					// Expected format: ["P2PK", {"data": "<pubkey>", ...}]
+					if len(secretData) >= 2 {
+						if label, ok := secretData[0].(string); ok && label == "P2PK" {
 							if dataMap, ok := secretData[1].(map[string]interface{}); ok {
 								if dataStr, ok := dataMap["data"].(string); ok {
-									p2pkPubkey = dataStr
+									p2pkPubkey = dataStr // Store the first valid pubkey found
 								}
 							}
 						}
 					}
+				} else {
+					fmt.Printf("Failed to unmarshal P2PK secret string '%s': %v\n", secretStr, err)
 				}
+			}
+		}
+	} // End of loop over proofTags
+	pubkey, _ := p.Signer.GetPublicKey()
+	var unspentProofs []cashu.Proof
+	if recipientTag[1] == pubkey {
+		if p2pkPubkey != "" {
+			wallet := wallet.Manager.Wallets[p2pkPubkey]
+			if wallet != nil {
+				var convertedProofs []cashu.Proof
+				for _, p := range proofs {
+					proof, ok := p.AsProof()
+					if ok {
+						convertedProofs = append(convertedProofs, proof)
+					}
+				}
+				unspentProofs, _ = wallet.CheckProofState(mintTag[1], convertedProofs)
 			}
 		}
 	}
 
 	// Create the parsed result
 	result := &Kind9321Parsed{
-		Amount:       total,
-		Recipient:    recipientTag[1],
-		MintURL:      mintTag[1],
-		Proofs:       proofs,
-		Redeemed:     false, // Default to not redeemed, will check later
-		Comment:      event.Content,
-		IsP2PKLocked: isP2PKLocked,
-		P2PKPubkey:   p2pkPubkey,
+		Amount:        total,
+		Recipient:     recipientTag[1],
+		MintURL:       mintTag[1],
+		Proofs:        proofs,
+		UnspentProofs: unspentProofs,
+		Redeemed:      false, // Default to not redeemed, will check later
+		Comment:       event.Content,
+		IsP2PKLocked:  isP2PKLocked,
+		P2PKPubkey:    p2pkPubkey,
 	}
 
 	// Add eventId if present

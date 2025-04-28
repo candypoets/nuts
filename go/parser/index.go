@@ -25,10 +25,6 @@ func NewParser(db *db.NostrDB, defaultRelays []string) *Parser {
 }
 
 func (p *Parser) GetRelays(event nostr.Event) []string {
-	if len(event.Tags) == 0 {
-		return p.DefaultRelays
-	}
-
 	var relays []string
 	for _, tag := range event.Tags {
 		if tag[0] == "r" {
@@ -36,10 +32,11 @@ func (p *Parser) GetRelays(event nostr.Event) []string {
 		}
 	}
 
+	if event.Kind == 10002 || event.Kind == 0 || event.Kind == 10019 {
+		relays = append(relays, "wss://purplepag.es")
+	}
+
 	if len(relays) == 0 {
-		if event.Kind == 10002 || event.Kind == 0 {
-			return []string{"wss://purplepag.es"}
-		}
 		return p.DefaultRelays
 	}
 
