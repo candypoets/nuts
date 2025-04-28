@@ -1,16 +1,10 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import { liveQuery } from 'dexie';
-	import SubLayer from 'src/comp/drawers/SubLayer.svelte';
-	import { db, key, settings, type Setting } from 'src/stores/db';
-	import { profile } from 'src/stores/profile';
-	import { onMount } from 'svelte';
+	import { settings } from 'src/stores/db';
 	export let subopen: boolean = false;
-
-	$: console.log('zap', $settings);
 </script>
 
-<SubLayer bind:open={subopen}>
+<div class="h-full bg-basic pt-4">
 	<div class="flex justify-between mb-12 px-4">
 		<div class="w-1/4" on:click={() => (subopen = false)}>
 			<Icon icon="iconamoon:arrow-down-2-light" class="w-6 h-6" />
@@ -49,4 +43,4 @@
 			}}
 		/>
 	</div>
-</SubLayer>
+</div>

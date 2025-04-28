@@ -115,7 +115,7 @@
 
 		onSubmit(post as NostrEvent);
 
-		nostrManager.publish(post as NostrEvent, (status: RelayStatus) => {
+		nostrManager.publish('post', post as NostrEvent, (status: RelayStatus) => {
 			console.log(status.relay, status.message);
 		});
 
@@ -205,7 +205,9 @@
 <svelte:window on:click={handleClickOutside} />
 
 <div
-	class="w-full rounded-lg transition-all duration-200 {isExpanded ? 'shadow-md' : 'shadow-sm'}"
+	class="w-feed m-auto rounded-lg transition-all duration-200 {isExpanded
+		? 'shadow-md'
+		: 'shadow-sm'}"
 	bind:this={editorContainer}
 >
 	<div class="p-3">

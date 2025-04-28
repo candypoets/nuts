@@ -12,6 +12,7 @@
 	import { nostrManager, type RelayStatus } from 'src/wasm/manager';
 	import type { ParsedEvent } from 'src/workers/nipworker';
 	import { onMount } from 'svelte';
+	import { go } from '../modals/modal';
 
 	// Get pubkey from URL parameter
 	export let pubkey: string;
@@ -124,7 +125,7 @@
 			<span />
 		</div>
 	</svelte:fragment>
-	<svelte:fragment slot="header-content" let:item>
+	<svelte:fragment slot="header">
 		<div class="w-feed border-b border-base-200 h-16 flex items-center justify-between shadow-sm">
 			<button on:click={goBack} class="p-1 rounded-full hover:bg-base-200 mr-4">
 				<Icon icon="mdi:arrow-left" class="text-xl" />
@@ -133,7 +134,7 @@
 			<span class="w-10" />
 		</div>
 		<!-- {#if item.id != headerItem.id} -->
-		{@const p = item.parsed}
+		{@const p = headerItem.parsed}
 		<div
 			class="transition-all duration-300 bg-basic w-feed mx-auto will-change-transform"
 			class:relative={visible}
@@ -178,7 +179,10 @@
 						>
 						<br />
 
-						<button class="z-10 btn btn-wide btn-nav text-xl bg-opacity-80 mt-4">
+						<button
+							class="z-10 btn btn-wide btn-nav text-xl bg-opacity-80 mt-4"
+							on:click={() => go('ecash:' + pubkey)}
+						>
 							<Icon icon="ion:flash" />
 							Zap
 						</button>

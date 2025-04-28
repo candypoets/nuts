@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { mint } from '../../actions/walletActions';
 	import { mints } from '../../stores/mints';
 	import Minting from '../mint/Minting.svelte';
 	import Receiving from './Receiving.svelte';

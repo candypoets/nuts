@@ -86,6 +86,7 @@
 				// the first event is from the sub, everything else is contextual
 				const event = events[0];
 				if (!event) return;
+				console.log('root eventkind', event.kind);
 				if (event.parsed) {
 					if (isKind10002(event) && event.created_at > ($kind10002?.created_at || 0))
 						$kind10002 = event;
@@ -252,7 +253,7 @@
 	<Alert />
 	{#if $key?.pub || !!$activeAccount}
 		<div
-			class="flex gap-2 overflow-x-hidden relative will-change-scroll"
+			class="flex gap-2 overflow-hidden relative will-change-scroll"
 			bind:this={scroller}
 			on:touchmove={(e) => {
 				$xPosition = scroller.scrollLeft;
@@ -301,13 +302,11 @@
 				}}
 			>
 				<div class="w-full h-full relative overflow-hidden">
-					<Explore>
-						<slot />
-					</Explore>
+					<Explore />
 				</div>
 			</div>
 
-			<div
+			<!-- <div
 				class="carousel-item w-[100vw] h-full will-change-transform"
 				style="transform: translateZ({transform2 * 10}px) rotateY({(1 - transform2) *
 					(2 - currentIndex) *
@@ -322,11 +321,9 @@
 				}}
 			>
 				<div class="w-full h-screen relative overflow-hidden">
-					<Chat>
-						<!-- <slot /> -->
-					</Chat>
+					<Chat/>
 				</div>
-			</div>
+			</div> -->
 		</div>
 
 		<!-- Bottom Navigation -->

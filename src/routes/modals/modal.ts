@@ -1,0 +1,50 @@
+import { goto } from '$app/navigation';
+import { page } from '$app/stores';
+import { get, writable } from 'svelte/store';
+
+export const pathOptions = [
+	'receive',
+	'send',
+	'scan',
+	'qr',
+	'ecash',
+	'lightning',
+	'minting',
+	'melt',
+	'tapcash',
+	'profile',
+	'zaps',
+	'keys',
+	'wallet',
+	'relays',
+	'logout'
+];
+
+export function goBack() {
+	// Get current path
+	const currentPath = get(page).url.pathname;
+
+	const rootPath = currentPath.split('/')[1];
+
+	// Find the last "/" and get everything before it
+	const lastSlashIndex = currentPath.lastIndexOf('/');
+
+	if (lastSlashIndex > 0) {
+		// Navigate to the parent path (everything before last slash)
+		const parentPath = currentPath.substring(0, lastSlashIndex);
+		goto(parentPath);
+	} else {
+		// If no slash or at root, go to explore page
+		goto(rootPath);
+	}
+}
+
+export function go(eventPath: string) {
+	const currentPath = get(page).url.pathname;
+
+	// Check if the current URL already ends with the profile we're trying to navigate to
+	if (!currentPath.endsWith(eventPath)) {
+		console.log(`Navigating to ${currentPath}/${eventPath}`);
+		goto(`${currentPath}/${eventPath}`);
+	}
+}

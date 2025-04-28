@@ -7,11 +7,13 @@
 	import { signAndSend } from 'src/actions/relay';
 	import { kind0, kind3 } from 'src/controller/nostr';
 	import { now } from 'src/lib/period';
-	import type { AnyKind, Kind0Parsed } from 'src/parsers';
+	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/parsers';
 	import { key } from 'src/stores/db';
 	import { signer } from 'src/stores/signer';
+	import { nostrManager, type SubscribeKind } from 'src/wasm/manager';
 	import type { NIP10Parsed } from 'src/workers/nip10';
 	import type { ParsedEvent } from 'src/workers/nipworker';
+	import { onMount } from 'svelte';
 
 	export let note: ParsedEvent<NIP10Parsed>;
 	export let context: ParsedEvent<AnyKind>[] = [];
@@ -20,14 +22,29 @@
 	export let oneline: boolean = true;
 
 	let author: Kind0Parsed | undefined;
+	let sub: () => void;
 
-	$: {
+	onMount(() => {
 		if (!author) {
 			author = context.find((c) => c.pubkey === note.pubkey && c.kind == 0)?.parsed as
 				| Kind0Parsed
 				| undefined;
+			if (!author) {
+				sub = nostrManager.subscribe(
+					'header_' + note.pubkey + '_' + _.random(10000),
+					[{ kinds: [0], authors: [note.pubkey], limit: 1, cacheFirst: true, relays: [] }],
+					(events: ParsedEvent<AnyKind>[], type: SubscribeKind) => {
+						const [event, ...context] = events;
+						if (isKind0(event)) {
+							author = event.parsed as Kind0Parsed;
+							sub();
+						}
+					}
+				);
+			}
 		}
-	}
+		return () => sub?.();
+	});
 
 	function go() {
 		const currentPath = $page.url.pathname;

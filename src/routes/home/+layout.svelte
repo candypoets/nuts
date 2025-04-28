@@ -2,45 +2,22 @@
 	import Icon from '@iconify/svelte';
 	import { schnorr } from '@noble/curves/secp256k1';
 	import { bytesToHex } from '@noble/hashes/utils';
+	import _ from 'lodash';
 	import { kinds, nip19 } from 'nostr-tools';
 	import { decodePrivKey } from 'src/actions/wallet';
-	import AccountsCarousel from 'src/comp/AccountsCarousel.svelte';
-	import Layer from 'src/comp/drawers/Layer.svelte';
-	import QrScanner from 'src/comp/QRScanner.svelte';
-	import { kind10002, kind10019 } from 'src/controller/nostr';
-	import ProfileModal from 'src/routes/_profile/index.svelte';
-	import {
-		accountModalOpen,
-		lightningInvoice,
-		meltModalOpen,
-		scannedPubkey,
-		selectedTransaction
-	} from 'src/stores';
+	import Pager from 'src/comp/Pager.svelte';
+	import { kind10002, kind10019, kind17375, kinds7375 } from 'src/controller/nostr';
+	import { isKind17375, isKind7375, isKind9321, type AnyKind } from 'src/parsers';
 	import { activeAccount, key, keysCache } from 'src/stores/db';
 	import { profile } from 'src/stores/profile';
 	import { pool } from 'src/stores/relays';
-	import Feed from '../explore/feed.svelte';
-	import AccountModal from './account-modal.svelte';
-	import AddFriendModal from './add-friend-modal.svelte';
-	import AddModal from './add-modal.svelte';
-	import MeltModal from './melt-modal.svelte';
-	import QrModal from './qr-modal.svelte';
-	import SendModal from './send/send-modal.svelte';
-	import TransactionModal from './transaction-modal.svelte';
-	import type { ParsedEvent } from 'src/workers/nipworker';
-	import { isKind17375, type AnyKind, type Kind17375Parsed } from 'src/parsers';
 	import type { SubscribeKind } from 'src/wasm/manager';
-	import _ from 'lodash';
+	import type { ParsedEvent } from 'src/workers/nipworker';
+	import Feed from '../explore/feed.svelte';
 	import Kind9321 from '../kinds/kind9321.svelte';
-	import Pager from 'src/comp/Pager.svelte';
-
-	let profileOpen: boolean = false;
-	let qrOpen: boolean = false;
-	let isRefresh = false;
-
-	let addOpen: boolean = false;
-	let sendOpen: boolean = false;
-	let addFriend: boolean = false;
+	import Modal from '../modals/index.svelte';
+	import { go } from '../modals/modal';
+	import MintCard from './components/mintcard.svelte';
 
 	let isViewing = false;
 
@@ -48,8 +25,6 @@
 	let privateKey: string;
 	let loading = false;
 	let extensionError = false;
-
-	let kind17375: ParsedEvent<Kind17375Parsed>;
 
 	// let scrolling = false;
 	//
@@ -78,11 +53,26 @@
 	): [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][] {
 		const [event, ...context] = events;
 		if (!event || !event.parsed) return feed;
+
 		// Add new events to our feed for processing
 		let updatedFeed: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][];
 
-		if (isKind17375(event)) kind17375 = event;
-
+		if (isKind17375(event)) {
+			// Only update if the store is empty or the event is more recent
+			if (!$kind17375 || event.created_at > $kind17375.created_at) {
+				$kind17375 = event;
+			}
+			return feed;
+		}
+		if (isKind7375(event) && event?.parsed?.mintUrl) {
+			const existingEvent = $kinds7375[event?.parsed?.mintUrl];
+			// Only update if no existing event or the event is more recent
+			if (!existingEvent || event.created_at > existingEvent.created_at) {
+				$kinds7375[event?.parsed?.mintUrl] = event;
+			}
+			return feed;
+		}
+		if (!isKind9321(event)) return feed;
 		if (eventKind === 'CACHED_EVENT') {
 			// For cached events, just add them to the feed
 			updatedFeed = [...feed, [event, _.uniqBy(context, 'id')]];
@@ -141,20 +131,15 @@
 		abortController.abort();
 	}
 
-	$: open = !!$selectedTransaction;
-
 	// $: console.log('loginError', loginError);
 	$: isError = Array.from($keysCache.values())[$activeAccount]?.pub != $key?.pub;
+
+	$: console.log('7375', $kinds7375);
 </script>
 
 <Pager rootPath="/home">
-	<Feed
-		subscriptionID="home"
-		requests={feedRequests}
-		{updateFeed}
-		headerItem={{ id: 'home-header' }}
-	>
-		<svelte:fragment slot="header-content" let:item let:visible>
+	<Feed subscriptionID="home" requests={feedRequests} {updateFeed}>
+		<svelte:fragment slot="header">
 			<div
 				class="relative w-feed place-content-center m-auto bg-basic z-10 backdrop"
 				class:shadow-md={scrollY > 0}
@@ -166,36 +151,63 @@
 						<div on:click={() => (isViewing = !isViewing)}>
 							<Icon icon={isViewing ? 'ph:eye-closed' : 'ph:eye'} class="text-2xl" />
 						</div>
-						<button on:click={() => (qrOpen = true)}
+						<button on:click|stopPropagation={() => go('qr')}
 							><Icon icon="ph:qr-code" class="text-2xl" /></button
 						>
-						<div on:click={() => (profileOpen = true)} class="cursor-pointer">
+						<div on:click|stopPropagation={() => go('profile')} class="cursor-pointer">
 							<img src={$profile?.picture || '/ns-naked.svg'} class="w-8 h-8 border rounded-full" />
 						</div>
 					</div>
 				</div>
-				<AccountsCarousel {isViewing} />
+				{#if $kind17375}
+					<div
+						class="flex gap-2 items-stretch overflow-x-scroll scrollbar-hide snap-x snap-mandatory scroll-smooth"
+					>
+						{#each $kind17375?.parsed?.mints || [] as mint}
+							<MintCard {mint} kind7375={$kinds7375[mint]} />
+						{/each}
+					</div>
+				{:else}
+					<div class="w-full p-4 rounded-lg mb-4 bg-base-200">
+						<div class="flex items-center justify-between">
+							<div>
+								<h3 class="font-semibold text-lg">Setup Your Wallet</h3>
+								<p class="text-sm text-secondary-content">Configure your wallet to get started</p>
+							</div>
+							<button class="btn btn-primary" on:click|stopPropagation={() => go('wallet')}>
+								<Icon icon="ph:wallet-bold" class="mr-2" />
+								Setup Wallet
+							</button>
+						</div>
+					</div>
+				{/if}
 			</div>
 			<div class="flex lg:gap-8 gap-4 px-4 py-4 w-feed lg:m-auto">
 				<div class="text-center">
-					<button class="btn w-14 h-14 btn-primary btn-circle" on:click={() => (addOpen = true)}>
+					<button
+						class="btn w-14 h-14 btn-primary btn-circle"
+						on:click|stopPropagation={() => go('receive')}
+					>
 						<Icon icon="teenyicons:add-outline" class="text-2xl" />
 					</button>
 					<div class="text-sm mt-1 font-semibold">Receive</div>
 				</div>
 				<div class="text-center">
-					<button class="btn w-14 h-14 btn-primary btn-circle" on:click={() => (sendOpen = true)}>
+					<button
+						class="btn w-14 h-14 btn-primary btn-circle"
+						on:click|stopPropagation={() => go('send')}
+					>
 						<Icon icon="ph:arrow-right-thin" class="w-8 h-8" />
 					</button>
 					<div class="text-sm mt-1 font-semibold">Send</div>
 				</div>
 				<div class="text-center">
-					<!-- <button class="btn w-14 h-14 btn-circle btn-outline" on:click={() => (addFriend = true)}>
-			<Icon icon="carbon:user" class="w-8 h-8" />
-		</button> -->
-					<button class="btn w-14 h-14 btn-outline btn-circle">
-						<QrScanner />
-					</button>
+					<a
+						class="btn w-14 h-14 btn-outline btn-circle"
+						on:click|stopPropagation={() => go('scan')}
+					>
+						<Icon icon="teenyicons:scan-solid" class="text-2xl" />
+					</a>
 					<div class="text-sm mt-1 font-semibold">Scan</div>
 				</div>
 				<div class="flex-grow w-1/4" />
@@ -258,7 +270,6 @@
 								npub: nip19.npubEncode(pubKey)
 							});
 							$activeAccount = Array.from($keysCache.values()).findIndex((k) => k.pub == pubKey);
-							console.log('clicked', $activeAccount);
 						}}
 					>
 						{#if !extensionError}
@@ -270,30 +281,13 @@
 				</div>
 			{/if}
 		</svelte:fragment>
-		<svelte:fragment slot="item-content" let:post let:context let:visible>
+		<div slot="item-content" let:post let:context let:visible>
 			{#if post.kind == 9321}
 				<Kind9321 zap={post} {context} />
 			{/if}
-		</svelte:fragment>
+		</div>
+		<!-- <svelte:fragment slot="item-content" let:post let:context let:visible>
+		</svelte:fragment> -->
 	</Feed>
 </Pager>
-
-<ProfileModal bind:open={profileOpen} />
-
-<MeltModal bind:open={$meltModalOpen} invoice={$lightningInvoice} />
-
-<AccountModal bind:open={$accountModalOpen} npub={$scannedPubkey} />
-
-<QrModal bind:open={qrOpen} />
-
-<AddModal bind:open={addOpen} />
-
-<SendModal bind:open={sendOpen} />
-
-<Layer bind:open={addFriend}>
-	<AddFriendModal bind:open={addFriend} />
-</Layer>
-
-<Layer bind:open onClose={() => ($selectedTransaction = null)}>
-	<TransactionModal />
-</Layer>
+<Modal />

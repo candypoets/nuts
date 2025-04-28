@@ -3,15 +3,12 @@
 	import { page } from '$app/stores';
 	import Icon from '@iconify/svelte';
 	import _ from 'lodash';
-	import { ago, DAY } from 'src/lib/period';
 	import { isKind1, type AnyKind, type Kind1Parsed } from 'src/parsers';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import Note from 'src/routes/explore/note.svelte';
 	import { nostrManager, type SubscribeKind } from 'src/wasm/manager';
-	import type { NIP02Parsed } from 'src/workers/nip02';
 	import type { ParsedEvent } from 'src/workers/nipworker';
-	import { getContext, onMount } from 'svelte';
-	import type { Writable } from 'svelte/store';
+	import { onMount } from 'svelte';
 	import Reply from '../explore/reply.svelte';
 
 	export let postId: string;
@@ -131,7 +128,7 @@
 			<span />
 		</div>
 	</svelte:fragment>
-	<svelte.fragment slot="header-content" let:item>
+	<svelte.fragment slot="header">
 		<div class="w-feed border-b border-base-200 h-16 flex items-center justify-between shadow-sm">
 			<button on:click={goBack} class="p-1 rounded-full hover:bg-base-200 mr-4">
 				<Icon icon="mdi:arrow-left" class="text-xl" />
@@ -142,7 +139,7 @@
 		<!-- {#if headerItem} -->
 		<Note note={headerItem} {context} visible={true} zaps />
 		<!-- {/if} -->
-		<Reply parent={item} {context} />
+		<Reply parent={headerItem} {context} />
 	</svelte.fragment>
 	<svelte.fragment slot="item-content" let:post let:context let:visible>
 		<Note

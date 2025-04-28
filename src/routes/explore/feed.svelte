@@ -3,7 +3,7 @@
 	import VirtualList from 'src/comp/VirtualList.svelte';
 	import VirtualListBottom from 'src/comp/VirtualListBottom.svelte';
 	import { now } from 'src/lib/period';
-	import { isKind1, type AnyKind, type Kind1Parsed } from 'src/parsers';
+	import { isKind, isKind1, type AnyKind, type Kind1Parsed } from 'src/parsers';
 	import { nostrManager, type SubscribeKind } from 'src/wasm/manager';
 	import type { ParsedEvent } from 'src/workers/nipworker';
 	import { onMount } from 'svelte';
@@ -22,8 +22,8 @@
 				eventKind: SubscribeKind
 		  ) => [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][])
 		| undefined = undefined;
-
 	export let feed: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
+	export let itemKind: number | undefined = undefined;
 	let cachedFeed: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
 	let fetchedFeed: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
 	// used in order to throttle fast incoming events
@@ -44,7 +44,9 @@
 	let eoce = false;
 	let loading = true;
 	// Combined feed including the header item if provided
-	$: combinedItems = headerItem ? [headerItem, ...feed] : feed;
+	$: combinedItems = feed;
+
+	$: isItemKind = itemKind != undefined ? isKind(itemKind) : isKind1;
 
 	// In a separate function to avoid infinite loops in the reactive block
 	const handleEvents = (events: ParsedEvent<AnyKind>[], eventKind: SubscribeKind) => {
@@ -66,7 +68,6 @@
 		const [event, ...context] = events;
 		if (!event?.parsed) return;
 		if (updateFeed) {
-			console.log('updateFeed', events[0]);
 			if (!eoce) {
 				cachedFeed = updateFeed(cachedFeed, events, eventKind);
 			} else if (!eose) {
@@ -76,7 +77,8 @@
 			}
 			return;
 		}
-		if (isKind1(event)) {
+		if (isItemKind?.(event)) {
+			console.log(itemKind, event.kind);
 			// only show replies to root posts
 			if (event?.parsed?.reply?.id && event?.parsed?.root?.id != event?.parsed?.reply?.id) return;
 			// check if the event is already in the feed
@@ -121,7 +123,7 @@
 	});
 </script>
 
-<div class="lg:pt-0 overflow-scroll scrollbar-hide h-full m-auto !pt-0">
+<div class={'lg:pt-0 overflow-scroll scrollbar-hide h-full m-auto !pt-0 ' + $$props.class}>
 	<div class="absolute top-6 w-full z-40" transition:fly={{ y: -50, duration: 300 }}>
 		{#if newPosts.length}
 			<div
@@ -158,29 +160,26 @@
 		bind:end
 		bind:viewport
 		bind:top
-		getItemId={(item) => (headerItem && item.index == 0 ? 'header-item' : item.data[0]?.id)}
+		getItemId={(item) => item.data[0]?.id}
 		let:item
 	>
-		{#if headerItem && item.id == headerItem?.id}
-			<!-- Render header item -->
-			<div
-				class="block w-feed lg:m-auto px-1 max-w-full min-h-20"
-				transition:fly={{ y: 200, duration: 300 }}
-				id="header"
+		<svelte:fragment slot="header">
+			<slot name="header" visible />
+		</svelte:fragment>
+		<div class="block w-feed lg:m-auto px-1 max-w-full">
+			<slot
+				name="item-content"
+				post={item[0]}
+				context={item[1]}
+				visible={feed.findIndex((note) => note[0]?.id === item[0].id) >= start - 2}
 			>
-				<!-- Render custom header content -->
-				<slot name="header-content" {item} />
-			</div>
-		{:else}
-			{@const post = item[0]}
-			{@const context = item[1]}
-			{@const visible = feed.findIndex((note) => note[0]?.id === post.id) >= start - 2}
-			<div class="block w-feed lg:m-auto px-1 max-w-full backdrop-blur-lg">
-				<slot name="item-content" {post} {context} {visible}>
-					<Note note={post} {context} {visible} />
-				</slot>
-			</div>
-		{/if}
+				<Note
+					note={item[0]}
+					context={item[1]}
+					visible={feed.findIndex((note) => note[0]?.id === item[0].id) >= start - 2}
+				/>
+			</slot>
+		</div>
 		{#if loading}
 			<div
 				class="lg:pt-0 overflow-scroll scrollbar-hide container-height lg:container-height m-auto w-feed !pt-0"

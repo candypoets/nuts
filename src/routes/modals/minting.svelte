@@ -12,8 +12,6 @@
 	import { alert } from 'src/stores';
 	import Alert from 'src/comp/Alert.svelte';
 
-	export let active;
-	export let isMinting: boolean;
 	export let doMint = false;
 	let amount: number | undefined = 200;
 	let mintingHash = '';
@@ -26,11 +24,6 @@
 		amount;
 		if (!/^[0-9]*$/.test(amount)) {
 			amount = undefined;
-		}
-		if (amount) {
-			isMinting = true;
-		} else {
-			isMinting = false;
 		}
 	}
 
@@ -46,16 +39,16 @@
 		}
 	};
 
-	onMount(() => {
-		if (browser) {
-			if (
-				/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
-			) {
-				return;
-			}
-			document.getElementById('mint-req-amt')?.focus();
-		}
-	});
+	// onMount(() => {
+	// 	if (browser) {
+	// 		if (
+	// 			/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+	// 		) {
+	// 			return;
+	// 		}
+	// 		document.getElementById('mint-req-amt')?.focus();
+	// 	}
+	// });
 
 	const mintRequest = async () => {
 		try {
@@ -112,9 +105,9 @@
 	}
 </script>
 
-<div class="flex justify-center">
+<div class="pt-4 bg-basic h-full border rounded-xl">
 	<Alert />
-	<p class="font-bold text-xl absolute top-2">Receive</p>
+	<p class="font-bold text-xl text-center">Topup</p>
 	{#if isLoading}
 		<div class=" h-full flex items-center justify-center gap-5 flex-col">
 			<p>Creating lightning invoice...</p>
@@ -128,15 +121,6 @@
 					</p>
 					<p class="text-2xl font-bold">sats</p>
 				</div>
-				<!-- <div class="flex items-center justify-center gap-1">
-					<p class="font-bold">at</p>
-					<div class="flex gap-1">
-						<p class="font-bold">Custodian</p>
-						<p class="break-all">
-							{$mint?.mintURL}
-						</p>
-					</div>
-				</div> -->
 			</div>
 			<div class="w-full flex items-center justify-center mt-24">
 				<div class="flex items-center justify-center flex-col">
@@ -181,23 +165,15 @@
 					<div class="btn btn-disabled btn-xs loading btn-square" />
 				{/if}
 			</div>
-			<!-- <div class="flex gap-2">
-				<button class="btn btn-outline" on:click={resetState}>Cancel</button>
-				<button
-					class="btn btn-outline btn-error"
-					on:click={() => {
-						// abortMint();
-						resetState();
-					}}>delete invoice</button
-				>
-			</div> -->
 		</div>
 	{:else}
 		<div class="pt-8">
 			<!-- have an invisible focusable element that focus first -->
 			<a autofocus tabindex={-1} />
-			<MintSelector />
-			<div class="">
+			<div class="m-auto lg:w-1/3">
+				<MintSelector />
+			</div>
+			<!-- <div class="">
 				<div class="flex items-end gap-4 m-auto w-1/2 h-44">
 					<input
 						id="mint-req-amt"
@@ -216,7 +192,25 @@
 				</div>
 				<p class="font-bold text-xl text-center text-base-300">SATs</p>
 
-				<!-- <p class="">Create a Lightning invoice to top up this wallet.</p> -->
+			</div> -->
+			<div class="h-52 flex flex-col items-center">
+				<input
+					autofocus
+					id="send-amt"
+					placeholder="0"
+					type="text"
+					inputmode="decimal"
+					bind:value={amount}
+					class="mt-10 text-7xl focus:outline-none text-center max-w-xs rounded-xl"
+					on:keydown={(e) => {
+						if (e.key === 'Enter') {
+							e.preventDefault();
+							mintRequest();
+						}
+					}}
+				/>
+				<p />
+				<p class="font-bold text-xl">Sats</p>
 			</div>
 
 			<div class="flex join justify-center">

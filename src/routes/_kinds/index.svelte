@@ -8,17 +8,20 @@
 
 	export let subs: string[] = [];
 
+	export let modals: string[] = [];
+
+	const subPaths = ['nprofile', 'nevent', 'kind4'];
+
 	$: {
 		if ($page.url.pathname.startsWith(rootPath)) {
 			subs = $page.url.pathname
 				.split('/')
 				.slice(2)
-				.filter((sub) => sub !== '');
+				.filter((sub) => subPaths.some((path) => sub.includes(path)));
 		}
 	}
-	$: console.log('rootPath', rootPath, subs);
 </script>
 
 {#each subs as sub, index}
-	<Sub path={sub} {visible} depth={subs.length - 1 - index} />
+	<Sub path={sub} {visible} depth={subs.length - 1 - index} modalDepth={modals.length} />
 {/each}

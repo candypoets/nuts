@@ -1,6 +1,5 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import SubLayer from 'src/comp/drawers/SubLayer.svelte';
 	import { key } from 'src/stores/db';
 	import { profile } from 'src/stores/profile';
 	export let subopen: boolean = false;
@@ -15,7 +14,7 @@
 	}
 </script>
 
-<SubLayer bind:open={subopen}>
+<div class="h-full bg-basic pt-4">
 	<div class="flex justify-between mb-12 px-4">
 		<div class="w-1/4" on:click={() => (subopen = false)}>
 			<Icon icon="iconamoon:arrow-down-2-light" class="w-6 h-6" />
@@ -29,10 +28,10 @@
 			<div class="w-1/5">
 				<img src={$profile.picture || '/ns-naked.svg'} class="w-10 h-10 border-2 rounded-full" />
 			</div>
-			<div class="text-wrap whitespace-normal break-words w-4/5 text-xs">{$key.pub}</div>
+			<div class="text-wrap whitespace-normal break-words w-4/5 text-xs">{$key?.pub || ''}</div>
 		</div>
-		<button class="btn btn-primary w-full" on:click={() => copyToClipboard($key.pub)}>
-			{#if copied != $key.pub}
+		<button class="btn btn-primary w-full" on:click={() => copyToClipboard($key?.pub || '')}>
+			{#if copied != $key?.pub}
 				<Icon icon="clarity:paste-line" />Copy public key
 			{:else}
 				<Icon icon="clarity:check-line" />Copied
@@ -51,7 +50,7 @@
 			</div>
 		</div>
 		<button class="btn btn-warning w-full" on:click={() => copyToClipboard($key?.nsec || '')}>
-			{#if copied != $key.nsec}
+			{#if copied != $key?.nsec}
 				<Icon icon="clarity:paste-line" />Copy private key
 			{:else}
 				<Icon icon="clarity:check-line" />Copied
@@ -61,4 +60,4 @@
 			Warning: Keep your private key secret. Anyone with your private key can access your account.
 		</div>
 	</div>
-</SubLayer>
+</div>

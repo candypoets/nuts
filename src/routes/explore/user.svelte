@@ -10,29 +10,14 @@
 	export let pubkey: string;
 	export let link: boolean = true;
 	export let relays: string[] = [];
-	export let context: ParsedEvent<AnyKind>[];
+	export let context: ParsedEvent<AnyKind>[] = [];
 	export let query = true;
 
-	let id: number;
 	let user: Kind0Parsed | undefined;
 	let sub: () => void;
 
 	$: {
 		if (!user && pubkey) {
-			user = (context || []).find((event) => event.kind === 0 && event.pubkey === pubkey)
-				?.parsed as Kind0Parsed | undefined;
-			if (!user && query) {
-				sub = nostrManager.subscribe(
-					'user_' + id,
-					[{ kinds: [0], authors: [pubkey], limit: 1, cacheFirst: true, relays }],
-					(events: ParsedEvent<AnyKind>[], type: SubscribeKind) => {
-						const [event, ...context] = events;
-						if (isKind0(event)) {
-							user = event.parsed as Kind0Parsed;
-						}
-					}
-				);
-			}
 		}
 	}
 
@@ -41,7 +26,22 @@
 	}
 
 	onMount(() => {
-		id = _.random(10000);
+		user = (context || []).find((event) => event.kind === 0 && event.pubkey === pubkey)?.parsed as
+			| Kind0Parsed
+			| undefined;
+		if (!user && query) {
+			sub = nostrManager.subscribe(
+				'user_' + pubkey + '_' + _.random(10000),
+				[{ kinds: [0], authors: [pubkey], limit: 1, cacheFirst: true, relays }],
+				(events: ParsedEvent<AnyKind>[], type: SubscribeKind) => {
+					const [event, ...context] = events;
+					if (isKind0(event)) {
+						user = event.parsed as Kind0Parsed;
+						sub();
+					}
+				}
+			);
+		}
 		return () => sub?.();
 	});
 

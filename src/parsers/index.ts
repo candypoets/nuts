@@ -14,6 +14,7 @@ import { parseKind17375, type Kind17375Parsed } from './kind17375';
 import { parseKind7374, type Kind7374Parsed } from './kind7374';
 import { parseKind7375, type Kind7375Parsed } from './kind7375';
 import type { ParsedEvent } from 'src/workers/nipworker';
+import type { Kind7376Parsed } from './kind7376';
 
 export * from './kind0';
 export * from './kind1';
@@ -54,6 +55,43 @@ export const isKind7374 = (event: NostrEvent): event is ParsedEvent<Kind7374Pars
 	event?.kind === 7374;
 export const isKind7375 = (event: NostrEvent): event is ParsedEvent<Kind7375Parsed> =>
 	event?.kind === 7375;
+export const isKind7376 = (event: NostrEvent): event is ParsedEvent<Kind7376Parsed> =>
+	event?.kind === 7376;
+
+export const isKind = (kind: number) => {
+	switch (kind) {
+		case 0:
+			return isKind0;
+		case 1:
+			return isKind1;
+		case 3:
+			return isKind3;
+		case 4:
+			return isKind4;
+		case 6:
+			return isKind6;
+		case 7:
+			return isKind7;
+		case 17:
+			return isKind17;
+		case 9735:
+			return isKind9735;
+		case 9321:
+			return isKind9321;
+		case 10002:
+			return isKind10002;
+		case 10019:
+			return isKind10019;
+		case 17375:
+			return isKind17375;
+		case 7374:
+			return isKind7374;
+		case 7375:
+			return isKind7375;
+		default:
+			return null;
+	}
+};
 
 export type AnyKind =
 	| Kind0Parsed

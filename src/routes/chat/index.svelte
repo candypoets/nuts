@@ -125,12 +125,7 @@
          transform-style: preserve-3d; perspective: 1000px;"
 	on:click={() => goto('/chat')}
 >
-	<Feed
-		subscriptionID={`chat`}
-		requests={feedRequests}
-		{updateFeed}
-		headerItem={{ id: 'chat-header' }}
-	>
+	<Feed subscriptionID={`chat`} requests={feedRequests} {updateFeed}>
 		<svelte:fragment slot="sticky-header">
 			<div id="top">
 				<div class="flex justify-between w-feed lg:m-auto h-16 items-center">
@@ -138,7 +133,7 @@
 				</div>
 			</div>
 		</svelte:fragment>
-		<svelte:fragment slot="header-content">
+		<svelte:fragment slot="header">
 			<div class="flex justify-between w-feed lg:m-auto h-16 items-center">
 				<h1 class="text-2xl font-semibold">Chat</h1>
 			</div>

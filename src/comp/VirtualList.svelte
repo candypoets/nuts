@@ -20,6 +20,7 @@
 	let rows;
 	export let viewport;
 	let contents;
+	let header;
 	let viewport_height = 0;
 	let visible;
 	let mounted;
@@ -159,6 +160,9 @@
 		bind:this={contents}
 		style="top: {top}px; padding-bottom: {bottom > 100 ? bottom : 100}px;"
 	>
+		<svelte-virtual-list-row>
+			<slot name="header" />
+		</svelte-virtual-list-row>
 		{#each visible as row (getItemId(row))}
 			<svelte-virtual-list-row>
 				<slot item={row.data}>Missing template</slot>

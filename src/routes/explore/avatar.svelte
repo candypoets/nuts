@@ -34,29 +34,12 @@
 	// Try to fetch profile from IndexedDB when pubkey changes or DB is initialized
 	$: {
 		if (!profile) {
-			profile = context.find((c) => c.pubkey === pubkey && c.kind == 0)?.parsed as
-				| Kind0Parsed
-				| undefined;
-			imageUrl = profile?.picture;
-			if (!profile && query) {
-				sub = nostrManager.subscribe(
-					'avatar_' + id,
-					[{ kinds: [0], authors: [pubkey], limit: 1, cacheFirst: true, relays: [] }],
-					(events: ParsedEvent<AnyKind>[], type: SubscribeKind) => {
-						const [event, ...context] = events;
-						if (isKind0(event)) {
-							profile = event.parsed as Kind0Parsed;
-							imageUrl = profile?.picture;
-						}
-					}
-				);
-			}
 		}
 	}
 
-	$: {
-		if (profile && !!sub) sub();
-	}
+	// $: {
+	// 	if (profile && !!sub) sub();
+	// }
 
 	// Handle image load success
 	function handleImageLoad() {
@@ -71,7 +54,25 @@
 	}
 
 	onMount(() => {
-		id = _.random(10000);
+		profile = context.find((c) => c.pubkey === pubkey && c.kind == 0)?.parsed as
+			| Kind0Parsed
+			| undefined;
+		imageUrl = profile?.picture;
+		if (!profile && query) {
+			sub = nostrManager.subscribe(
+				'avatar_' + pubkey + '_' + _.random(10000),
+				[{ kinds: [0], authors: [pubkey], limit: 1, cacheFirst: true, relays: [] }],
+				(events: ParsedEvent<AnyKind>[], type: SubscribeKind) => {
+					const [event, ...context] = events;
+					if (isKind0(event)) {
+						profile = event.parsed as Kind0Parsed;
+						imageUrl = profile?.picture;
+						sub();
+					}
+				}
+			);
+		}
+
 		return () => sub?.();
 	});
 </script>

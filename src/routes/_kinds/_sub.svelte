@@ -2,14 +2,15 @@
 	import { viewport } from 'src/lib';
 	import Kind0 from 'src/routes/_kinds/kind0.svelte';
 	import Kind1 from 'src/routes/_kinds/kind1.svelte';
+	import Kind4 from 'src/routes/_kinds/kind4.svelte';
 	import { cubicOut, elasticOut } from 'svelte/easing';
 	import { tweened } from 'svelte/motion';
 	import { fly } from 'svelte/transition';
-	import Kind4 from './kind4.svelte';
 
 	export let path: string;
 	export let visible: boolean;
 	export let depth: number = 0;
+	export let modalDepth: number = 0;
 
 	let element: HTMLElement;
 
@@ -29,10 +30,31 @@
 		easing: cubicOut
 	});
 
+	const modalDepthTranslation = tweened(0, {
+		duration: 400,
+		easing: cubicOut
+	});
+
+	const modalDepthScale = tweened(1, {
+		duration: 400,
+		easing: cubicOut
+	});
+
+	const modalDepthOpacity = tweened(1, {
+		duration: 400,
+		easing: cubicOut
+	});
+
 	// Update the tweened value when depth changes
 	$: depthTranslation.set(depth * 30); // 10px per depth level (adjust as needed)
 	$: depthScale.set(Math.max(0.85, 1 - depth * 0.05)); // Reduce scale by 5% per depth level, min 85%
 	$: depthOpacity.set(Math.max(0.3, 1 - depth * 0.3)); // Reduce opacity by 20% per depth level, min 50%
+
+	// Update the tweened value when modalDepth changes
+	$: modalDepthTranslation.set(modalDepth * 30); // 10px per modalDepth level
+	$: modalDepthScale.set(Math.max(0.85, 1 - modalDepth * 0.05)); // Reduce scale by 5% per modalDepth level, min 85%
+
+	$: scale = $modalDepthScale * $depthScale;
 </script>
 
 <div
@@ -43,7 +65,7 @@
 >
 	<div
 		class="border border-base-300 bg-base-100 bg-opacity-70 backdrop-blur h-full rounded-xl"
-		style="transform: translateX({-$depthTranslation}px) scale({$depthScale}); opacity: {$depthOpacity};"
+		style="transform: translateX({-$depthTranslation}px) translateY(-{$modalDepthTranslation}px) scale({scale}); opacity: {$depthOpacity};"
 	>
 		{#if path.includes('nprofile')}
 			<Kind0 pubkey={path.split(':')?.[1]} {visible} />

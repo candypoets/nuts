@@ -1,7 +1,4 @@
 <script lang="ts">
-	import Icon from '@iconify/svelte';
-	import QrScanner from 'src/comp/QRScanner.svelte';
-
 	import { onMount } from 'svelte';
 	import { mints } from '../../stores/mints';
 

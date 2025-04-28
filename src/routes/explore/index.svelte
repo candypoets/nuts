@@ -23,7 +23,7 @@
 </script>
 
 <Pager rootPath="/explore">
-	<Feed subscriptionID="main_feed" requests={feedRequests} headerItem={{ id: 'header' }}>
+	<Feed subscriptionID="main_feed" requests={feedRequests}>
 		<svelte:fragment slot="sticky-header">
 			<div
 				id={$page.url.pathname === '/explore' ? 'top' : undefined}
@@ -43,9 +43,9 @@
 				</div>
 			</div>
 		</svelte:fragment>
-		<svelte.fragment slot="header-content" let:item>
-			<div id={$page.url.pathname === '/explore' ? 'top' : undefined}>
-				<div class="flex justify-between w-feed lg:m-auto h-16 items-center">
+		<svelte.fragment slot="header">
+			<div class=" relative" id={$page.url.pathname === '/explore' ? 'top' : undefined}>
+				<div class="w-feed lg:m-auto flex justify-between h-16 items-center">
 					<h1 class="text-2xl font-semibold">Explore</h1>
 					<div class="flex gap-2 items-center">
 						<span class="text font-semibold">{$balance} Sats</span>
