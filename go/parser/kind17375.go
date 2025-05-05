@@ -43,6 +43,10 @@ func (p *Parser) ParseKind17375(event nostr.Event) (*Kind17375Parsed, *[]types.R
 						switch tag[0] {
 						case "mint":
 							parsed.Mints = append(parsed.Mints, tag[1])
+							break
+						case "privkey":
+							parsed.P2PKPrivKey = tag[1]
+							break
 						}
 					}
 				}

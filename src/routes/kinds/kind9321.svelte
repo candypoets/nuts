@@ -1,15 +1,16 @@
 <script lang="ts">
-	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
-	import { onMount } from 'svelte';
-	import { isKind7376, type AnyKind, type Kind9321Parsed } from 'src/parsers';
-	import { key } from 'src/stores/db';
-	import type { ParsedEvent } from 'src/workers/nipworker';
-	import Avatar from '../explore/avatar.svelte';
-	import User from '../explore/user.svelte';
-	import type { Kind7376Parsed } from 'src/parsers/kind7376';
-	import { nostrManager, type SubscribeKind } from 'src/wasm/manager';
+	import { page } from '$app/stores';
 	import Icon from '@iconify/svelte';
+	import { onMount } from 'svelte';
+
+	import { isKind7376, type AnyKind, type Kind9321Parsed } from 'src/parsers';
+	import type { Kind7376Parsed } from 'src/parsers/kind7376';
+	import Avatar from 'src/routes/explore/avatar.svelte';
+	import User from 'src/routes/explore/user.svelte';
+	import { key } from 'src/stores/db';
+	import { nostrManager } from 'src/wasm/manager';
+	import type { ParsedEvent } from 'src/workers/nipworker';
 
 	export let zap: ParsedEvent<Kind9321Parsed>;
 	export let context: ParsedEvent<AnyKind>[];
