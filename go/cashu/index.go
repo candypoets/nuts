@@ -10,20 +10,31 @@ import (
 	"strconv"
 	"sync"
 	"syscall/js"
+	"time"
 
 	"github.com/btcsuite/btcd/btcec/v2"
+	"github.com/candypoets/nutscash/logger"
 	"github.com/elnosh/gonuts/cashu"
+	"github.com/elnosh/gonuts/cashu/nuts/nut04"
+	"github.com/elnosh/gonuts/cashu/nuts/nut05"
 	"github.com/elnosh/gonuts/cashu/nuts/nut11"
+	"github.com/elnosh/gonuts/cashu/nuts/nut17"
 	"github.com/elnosh/gonuts/wallet"
 	"github.com/elnosh/gonuts/wallet/storage"
+	"github.com/elnosh/gonuts/wallet/submanager"
 	"github.com/nbd-wtf/go-nostr"
+	"github.com/rs/zerolog"
 )
 
 // walletManager holds the active wallets and manages access to them.
 type walletManager struct {
-	Wallets  map[string]*wallet.Wallet
-	mu       sync.RWMutex
-	callback js.Func
+	Wallets           map[string]*wallet.Wallet
+	activeWallet      *wallet.Wallet
+	mu                sync.RWMutex
+	callback          js.Func
+	log               zerolog.Logger
+	mintSubscriptions map[string]*submanager.SubscriptionManager
+	pollIndex         int
 }
 
 // Global instance of the wallet Manager.
@@ -32,9 +43,10 @@ var Manager = &walletManager{}
 
 // NewWallet creates a new wallet instance, initializes the wallets map if necessary,
 // stores the new wallet in the map using its secret as the key, and returns the created wallet.
-func NewWallet(secret string, mint string) (*wallet.Wallet, error) {
+func newWallet(secret string, mints []string) (*wallet.Wallet, error) {
 	Manager.mu.Lock()
 	defer Manager.mu.Unlock()
+
 	// Initialize map if it's nil (lazy initialization)
 	if Manager.Wallets == nil {
 		Manager.Wallets = make(map[string]*wallet.Wallet)
@@ -51,14 +63,26 @@ func NewWallet(secret string, mint string) (*wallet.Wallet, error) {
 	}
 
 	config := wallet.Config{
-		CurrentMintURL: mint,
+		CurrentMintURL: mints[0],
+		Secret:         secret,
+		DB:             db,
 	}
 
 	// Create a new wallet instance
 	newWallet, err := wallet.LoadWallet(config)
+
+	// Add remaining mints to the wallet
+	if len(mints) > 1 {
+		for i := 1; i < len(mints); i++ {
+			if _, err := newWallet.AddMint(mints[i]); err != nil {
+				return nil, fmt.Errorf("failed to add mint %s: %w", mints[i], err)
+			}
+		}
+	}
+
 	if err != nil {
 		// Ensure db is closed if LoadWallet fails
-		db.Close()
+		// db.Close()
 		return nil, fmt.Errorf("failed to load wallet: %w", err)
 	}
 
@@ -69,13 +93,13 @@ func NewWallet(secret string, mint string) (*wallet.Wallet, error) {
 	return newWallet, nil
 }
 
-// Initialize sets up the JS bridge for the wallet functions
+// Initialize sets up the JS bridge for the wallet functions and poll for mint and balances
 func Initialize() {
 	// Register the global wallet function handler
 	js.Global().Set("callWalletMethod", js.FuncOf(Manager.callWallet))
 
 	// Register function to create a new wallet
-	js.Global().Set("createCashuWallet", js.FuncOf(createWallet))
+	js.Global().Set("createCashuWallet", js.FuncOf(Manager.createWallet))
 
 	// Subscription callback
 	Manager.callback = js.FuncOf(func(this js.Value, args []js.Value) any {
@@ -91,28 +115,298 @@ func Initialize() {
 		js.Global().Get("self").Call("postMessage", walletData)
 		return nil
 	})
+	Manager.log = logger.WithComponent("wallet_manager")
+
+	Manager.pollBalance()
+	Manager.pollQuotes()
+}
+
+func (m *walletManager) subscribe(w *wallet.Wallet) {
+	// Subscribe to quote updates
+	mintQuotes := w.GetMintQuotes()
+	meltQuotes := w.GetMeltQuotes()
+
+	// Close any existing mint subscriptions
+	if m.mintSubscriptions == nil {
+		m.mintSubscriptions = make(map[string]*submanager.SubscriptionManager)
+	} else {
+		for mint, sm := range m.mintSubscriptions {
+			m.log.Debug().
+				Str("mint", mint).
+				Msg("Closing existing mint subscription")
+			sm.Close()
+		}
+		// Recreate the map to start fresh
+		m.mintSubscriptions = make(map[string]*submanager.SubscriptionManager)
+	}
+
+	m.log.Debug().
+		Int("mintQuotes", len(mintQuotes)).
+		Int("meltQuotes", len(meltQuotes)).
+		Msg("Wallet subscribing to quote updates")
+
+	// Subscribe to all known mints from wallet
+	for _, mint := range w.TrustedMints() {
+		if _, exists := m.mintSubscriptions[mint]; !exists {
+			m.log.Debug().Str("mint", mint).Msg("Subscribing to mint updates")
+			var err error
+			m.mintSubscriptions[mint], err = submanager.NewSubscriptionManager(mint)
+			if err != nil {
+				m.log.Error().
+					Str("mint", mint).
+					Err(err).
+					Msg("Failed to create subscription manager")
+				continue
+			}
+			var quotes []string
+			// Loop over all mint quotes and subscribe to those belonging to this mint
+			for _, quote := range mintQuotes {
+				if quote.Mint == mint {
+					quotes = append(quotes, quote.Mint)
+				}
+			}
+			if len(quotes) > 0 {
+				s, err := m.mintSubscriptions[mint].Subscribe(nut17.Bolt11MintQuote, quotes)
+				if err != nil {
+					continue
+				}
+				go func() {
+					for {
+						notification, err := s.Read()
+						if err != nil {
+							m.log.Error().
+								Str("mint", mint).
+								Err(err).
+								Msg("Error reading subscription update")
+							break
+						}
+						m.log.Debug().
+							Str("mint", mint).
+							Interface("notification", notification).
+							Msg("Received notification from mint")
+						v, err := resultToJSValue(notification.Params.Payload)
+						if err == nil {
+							Manager.callback.Invoke("mintquote_update", v)
+						}
+					}
+				}()
+			}
+		}
+	}
+}
+
+// pollBalance periodically checks the wallet balance by mints and notifies JS
+func (m *walletManager) pollBalance() {
+	go func() {
+		// Use a ticker for periodic checks
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop() // Ensure the ticker is stopped when the goroutine exits
+
+		for range ticker.C {
+			if m.activeWallet != nil {
+				// Get the current balance breakdown by mints
+				balanceByMints := m.activeWallet.GetBalanceByMints()
+
+				// Convert the Go map to a JS-compatible value
+				jsData, err := resultToJSValue(balanceByMints)
+				if err != nil {
+					m.log.Error().Err(err).Msg("Failed to convert balance data to JS value for wallet_update")
+					continue // Skip this iteration on conversion error
+				}
+
+				// Send the update back to JavaScript via the global callback
+				Manager.callback.Invoke("wallet_update", jsData)
+			}
+		}
+	}()
+}
+
+// pollQuotes periodically checks the status of mint and melt quotes
+// Polling frequency reduces as quotes ages
+func (m *walletManager) pollQuotes() {
+	go func() {
+		// Use a ticker for periodic checks
+		ticker := time.NewTicker(1 * time.Second)
+		defer ticker.Stop() // Ensure the ticker is stopped when the goroutine exits
+
+		for range ticker.C {
+			if m.activeWallet != nil {
+				// Used to track active checks
+				type quoteType string
+				const (
+					mintQuoteType quoteType = "mint"
+					meltQuoteType quoteType = "melt"
+				)
+
+				// Collect all quotes that need checking
+				mintQuotes := m.activeWallet.GetMintQuotes()
+				meltQuotes := m.activeWallet.GetMeltQuotes()
+				// Create goroutines to check each quote
+				var wg sync.WaitGroup
+
+				// Define a reusable function for checking quote states
+				checkQuote := func(id string, mint string, qType quoteType) {
+					defer wg.Done()
+
+					var (
+						stateStr  string = "pending"
+						err       error
+						isPaid    bool
+						isExpired bool
+						isSettled bool
+					)
+
+					m.log.Debug().
+						Str("quoteId", id).
+						Str("mint", mint).
+						Str("type", string(qType)).
+						Msg("Checking quote status")
+
+					// Check the appropriate quote state based on type
+					if qType == mintQuoteType {
+						// Check mint quote state
+						var quoteState *nut04.PostMintQuoteBolt11Response
+						quoteState, err = m.activeWallet.MintQuoteState(id)
+						if err == nil && quoteState != nil {
+							// Check the paid and expired states based on the actual response structure
+							if quoteState.State == nut04.Paid {
+								isPaid = true
+								stateStr = "paid"
+							}
+						}
+					} else {
+						// Check melt quote state
+						var quoteState *nut05.PostMeltQuoteBolt11Response
+						quoteState, err = m.activeWallet.CheckMeltQuoteState(id)
+						if err == nil && quoteState != nil {
+							// Check states based on the actual response structure
+							if quoteState.State == nut05.Paid {
+								isPaid = true
+								stateStr = "paid"
+							}
+						}
+					}
+
+					if err != nil {
+						m.log.Error().
+							Str("quoteId", id).
+							Err(err).
+							Str("type", string(qType)).
+							Msg("Error checking quote state")
+						return
+					}
+
+					// If the state has changed, notify via callback
+					if isPaid || isExpired || isSettled {
+						data := map[string]any{
+							"quoteId": id,
+							"state":   stateStr,
+							"mint":    mint,
+							"type":    string(qType),
+						}
+
+						jsData, err := resultToJSValue(data)
+						if err == nil {
+							Manager.callback.Invoke("quote_update", jsData)
+						}
+					}
+				}
+
+				// Check mint quotes
+				for _, quote := range mintQuotes {
+					createdAt := time.Unix(int64(quote.CreatedAt), 0)
+					age := time.Since(createdAt)
+					if m.pollIndex == 0 {
+						wg.Add(1)
+						fmt.Println("wallet_manager: Checking mint quote with pollIndex 0")
+
+						go checkQuote(quote.QuoteId, quote.Mint, mintQuoteType)
+						continue
+					}
+					if age > 60*time.Minute {
+						continue // Don't check quotes more than an hour old
+					} else if age > 15*time.Minute && m.pollIndex%20 != 0 {
+						continue // Check every 20th iteration for 15-60 minute old quotes
+					} else if age > 5*time.Minute && m.pollIndex%10 != 0 {
+						continue // Check every 10th iteration for 5-15 minute old quotes
+					} else if age > 2*time.Minute && m.pollIndex%5 != 0 {
+						continue // Check every 5th iteration for 2-5 minute old quotes
+					}
+					// For age < 2 minutes, check every iteration (no continue statement)
+					wg.Add(1)
+					go checkQuote(quote.QuoteId, quote.Mint, mintQuoteType)
+				}
+
+				// Check melt quotes
+				for _, quote := range meltQuotes {
+					// Only check quotes that are not in paid state
+					createdAt := time.Unix(int64(quote.CreatedAt), 0)
+					age := time.Since(createdAt)
+					if m.pollIndex == 0 {
+						wg.Add(1)
+						go checkQuote(quote.QuoteId, quote.Mint, meltQuoteType)
+						continue
+					}
+					if age > 60*time.Minute {
+						continue // Don't check quotes more than an hour old
+					} else if age > 15*time.Minute && m.pollIndex%20 != 0 {
+						continue // Check every 20th iteration for 15-60 minute old quotes
+					} else if age > 5*time.Minute && m.pollIndex%10 != 0 {
+						continue // Check every 10th iteration for 5-15 minute old quotes
+					} else if age > 2*time.Minute && m.pollIndex%5 != 0 {
+						continue // Check every 5th iteration for 2-5 minute old quotes
+					}
+					// For age < 2 minutes, check every iteration (no continue statement)
+					wg.Add(1)
+					go checkQuote(quote.QuoteId, quote.Mint, meltQuoteType)
+				}
+
+				wg.Wait()
+				m.pollIndex++
+			}
+		}
+	}()
 }
 
 // createWallet is the JS bridge function to create a new wallet (synchronous)
-func createWallet(this js.Value, args []js.Value) any {
-	if len(args) < 2 {
-		return createJSError("createWallet requires secret and mint URL parameters")
-	}
+func (m *walletManager) createWallet(this js.Value, args []js.Value) any {
+	go func() {
+		m.log.Debug().
+			Str("mint", args[1].String()).
+			Msg("Creating new wallet")
 
-	secret := args[0].String()
-	mintURL := args[1].String()
+		secret := args[0].String()
+		mintURLs := make([]string, 0)
+		if !args[1].IsUndefined() && !args[1].IsNull() {
+			mintURLsArray := args[1]
+			length := mintURLsArray.Length()
+			for i := 0; i < length; i++ {
+				mintURL := mintURLsArray.Index(i).String()
+				// Ensure mintURL does not have a trailing slash
+				if len(mintURL) > 0 && mintURL[len(mintURL)-1] == '/' {
+					mintURL = mintURL[:len(mintURL)-1]
+				}
+				mintURLs = append(mintURLs, mintURL)
+			}
+		}
 
-	_, err := NewWallet(secret, mintURL)
-	if err != nil {
-		// Use the error returned by NewWallet
-		return createJSError(fmt.Sprintf("Failed to create wallet: %v", err))
-	}
+		wallet, err := newWallet(secret, mintURLs)
 
-	// Return only success and the key used to access the wallet later
-	return js.ValueOf(map[string]any{
-		"success":   true,
-		"walletKey": secret,
-	})
+		if err != nil {
+			m.log.Error().
+				Err(err).
+				Msg("Failed to create wallet")
+		} else {
+			// Log successful wallet creation
+			m.log.Info().
+				Msg("Wallet successfully created")
+			// subscribe to wallet mint/melt quotes update
+			m.activeWallet = wallet
+			m.pollIndex = 0
+		}
+	}()
+
+	return nil
 }
 
 // callWalletMethod is the main JS bridge function to call any method on the wallet asynchronously.
@@ -126,6 +420,13 @@ func (m *walletManager) callWallet(this js.Value, args []js.Value) any {
 	callId := args[0].String() // Convert callId to string for logging/use
 	walletKey := args[1].String()
 	methodName := args[2].String()
+
+	// Debug logging for method calls
+	m.log.Debug().
+		Str("callId", callId).
+		Str("walletKey", walletKey).
+		Str("method", methodName).
+		Msg("Wallet method call")
 
 	// Extract method-specific parameters
 	params := args[3:]
@@ -181,6 +482,10 @@ func (m *walletManager) callWallet(this js.Value, args []js.Value) any {
 			}
 			amount := uint64(params[0].Int())
 			mint := params[1].String()
+			// Ensure mint URL has no trailing slash
+			if len(mint) > 0 && mint[len(mint)-1] == '/' {
+				mint = mint[:len(mint)-1]
+			}
 			result, err = wal.RequestMint(amount, mint)
 
 		case "MintQuoteState":
@@ -192,6 +497,7 @@ func (m *walletManager) callWallet(this js.Value, args []js.Value) any {
 			result, err = wal.MintQuoteState(quoteId)
 
 		case "MintTokens":
+			fmt.Println("wallet_manager: MintTokens called - callId:", callId, "params:", len(params), "quoteId:", params[0].String())
 			if len(params) < 1 {
 				err = fmt.Errorf("MintTokens requires quoteId (string) parameter")
 				break
@@ -550,7 +856,7 @@ func resultToJSValue(data any) (js.Value, error) {
 	// Add cases for other common specific types if necessary
 	// Example: []string
 	case []string:
-		jsArray := make([]interface{}, len(v))
+		jsArray := make([]any, len(v))
 		for i, s := range v {
 			jsArray[i] = s
 		}
@@ -577,15 +883,4 @@ func resultToJSValue(data any) (js.Value, error) {
 		// We might want to check if 'parsed' is an error object from JS parse, but typically it throws.
 		return parsed, nil
 	}
-}
-
-// jsonToJSValue - DEPRECATED alias for backward compatibility if used elsewhere.
-// Prefers resultToJSValue for new code.
-func jsonToJSValue(data any) js.Value {
-	val, err := resultToJSValue(data)
-	if err != nil {
-		// Maintain old behavior: return JS Error object directly on conversion failure
-		return createJSError(err.Error())
-	}
-	return val
 }

@@ -1,4 +1,3 @@
-import nostrWorker from './nostrWorker';
 import NostrWorker from 'src/wasm/nostr?worker';
 
 export type WalletBalance = {

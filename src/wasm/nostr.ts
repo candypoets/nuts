@@ -1,7 +1,5 @@
 import { openDB } from 'idb';
-import { schnorr } from '@noble/curves/secp256k1';
 import './wasm_exec.js'; // Path to wasm_exec.js
-import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 
 // Initialize WASM and export it as a promise
 export const initNostrWasm = async () => {

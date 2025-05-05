@@ -2,7 +2,6 @@ import * as msgpack from '@msgpack/msgpack';
 import type { EventTemplate, Filter } from 'nostr-tools';
 import type { AnyKind } from 'src/parsers';
 import NostrWorker from 'src/wasm/nostr?worker';
-import nostrWorker from './nostrWorker';
 
 import type { ParsedEvent } from 'src/workers/nipworker';
 
