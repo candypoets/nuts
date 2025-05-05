@@ -7,8 +7,6 @@
 	import Theme from 'src/comp/Theme.svelte';
 	import { pwaInfo } from 'virtual:pwa-info';
 	import Landing from './+page.svelte';
-	import Chat from './chat/index.svelte';
-	import Explore from './explore/index.svelte';
 	import HomeLayout from './home/+layout.svelte';
 	import HomePage from './home/+page.svelte';
 	import Login from './login.svelte';
@@ -17,11 +15,7 @@
 	import { kind0, kind10002, kind10019, kind3 } from 'src/controller/nostr';
 	import { viewport } from 'src/lib';
 	import { isKind0, isKind10002, isKind10019, isKind3, type AnyKind } from 'src/parsers';
-	import { activeAccount, initialize, key } from 'src/stores/db';
-	import { claimInvoicesSub } from 'src/stores/invoices';
-	import { mint, mints } from 'src/stores/mints';
-	import { dmSub } from 'src/stores/nuts';
-	import { claimPendingSub, proofSpentSub } from 'src/stores/proofs';
+	import { activeAccount, key } from 'src/stores/db';
 	import type { Request } from 'src/wasm/manager';
 	import { nostrManager, type SubscribeKind } from 'src/wasm/manager';
 	import type { NIP01Parsed } from 'src/workers/nip01';
@@ -30,6 +24,9 @@
 	import { onMount, setContext } from 'svelte';
 	import { spring } from 'svelte/motion';
 	import { writable, type Writable } from 'svelte/store';
+	import { cashuManager } from 'src/wasm/cashu';
+	import { go } from './modals/modal';
+	import { mints } from 'src/controller/wallet';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
 
@@ -132,24 +129,19 @@
 	// Watch for route changes
 	onMount(() => {
 		setViewport();
-		if (!$mint) $mint = $mints[0];
-		const initializer = initialize.subscribe((n) => n);
-		// const nostrEvent = nostrEventSub.subscribe((n) => n);
-		const dms = dmSub.subscribe((n) => n);
-		// const nutZaps = nutzapSub.subscribe((n) => n);
-		const claimPending = claimPendingSub.subscribe((n) => n);
-		const proofSpent = proofSpentSub().subscribe((n) => n);
-		const claimInvoices = claimInvoicesSub().subscribe((n) => n);
-		// const following = followingSub.subscribe((n) => n);
+		let mintSub = cashuManager.subscribe('quote_update', async ({ quoteId, state, mint }) => {
+			if (state == 'paid') {
+				const amount = await cashuManager.mintTokens(quoteId);
+				$mints.then((mints) => {
+					const mintName = mints.find((m) => m.url == mint)?.name?.trim();
+					go(`minted:${mintName}:${amount}`);
+				});
+			}
+		});
 		return () => {
-			initializer();
-			// nostrEvent();
-			dms();
-			claimPending();
-			proofSpent();
-			claimInvoices();
 			relaySub && relaySub();
 			profileSub && profileSub();
+			mintSub();
 		};
 	});
 
@@ -286,7 +278,7 @@
 			</div>
 
 			<!-- Explore Section -->
-			<div
+			<!-- <div
 				class="carousel-item w-[100vw] h-full will-change-transform"
 				class:z-10={currentIndex == 1}
 				style="transform: translateZ({transform1 * 10}px) rotateY({(1 - transform1) *
@@ -304,7 +296,7 @@
 				<div class="w-full h-full relative overflow-hidden">
 					<Explore />
 				</div>
-			</div>
+			</div> -->
 
 			<!-- <div
 				class="carousel-item w-[100vw] h-full will-change-transform"
