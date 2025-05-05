@@ -1,14 +1,14 @@
-import './wasm_exec.js'; // Path to wasm_exec.js
 import { openDB } from 'idb';
-import * as msgpack from '@msgpack/msgpack';
-import { get } from 'svelte/store';
-import { signer } from 'src/stores/signer.js';
-import type { NostrEvent } from 'nostr-tools';
+import { schnorr } from '@noble/curves/secp256k1';
+import './wasm_exec.js'; // Path to wasm_exec.js
+import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 
 // Initialize WASM and export it as a promise
 export const initNostrWasm = async () => {
 	const go = new Go();
 	self.openDB = openDB;
+
+	// dbPromise.then((db) => console.log('wallet', db));
 	return await new Promise(async (resolve, reject) => {
 		try {
 			// Define the initialization callback
@@ -25,6 +25,12 @@ export const initNostrWasm = async () => {
 					},
 					publishEvent: (publishId: string, event: BinaryData) => {
 						return self.publishEvent(publishId, event);
+					},
+					callWallet: (requestId: string, walletKey: string, method: string, params: any[]) => {
+						return self.callWalletMethod(requestId, walletKey, method, ...params);
+					},
+					createWallet: (secret: string, mintURL: string) => {
+						return self.createCashuWallet(secret, mintURL);
 					},
 					loginWithPrivateKey: (privateKey: string) => {
 						return self.loginWithPrivateKey(privateKey);
@@ -53,11 +59,9 @@ const nostrWasm = initNostrWasm();
 self.onmessage = async function (e) {
 	const { action, subscriptionId, publishId, requests, event, pk } = e.data;
 	const nostr = await nostrWasm;
-
 	try {
 		switch (action) {
 			case 'PUBLISH':
-				console.log('nostr.publishEvent(event);');
 				nostr.publishEvent(publishId, event);
 				break;
 
@@ -74,6 +78,14 @@ self.onmessage = async function (e) {
 					nostr.loginWithPrivateKey(pk);
 				}
 				break;
+			case 'WALLET':
+				const { requestId, params, walletKey, method } = e.data;
+				nostr.callWallet(requestId, walletKey, method, params);
+				break;
+			case 'CREATE_WALLET':
+				const { secret, mintURLs } = e.data;
+				nostr.createWallet(secret, mintURLs);
+				break;
 		}
 	} catch (err) {
 		console.error(err);
@@ -83,24 +95,5 @@ self.onmessage = async function (e) {
 			action: action,
 			subscriptionId: subscriptionId
 		});
-	}
-};
-
-self.signNostrEventSync = function (eventData: Uint8Array): Uint8Array | null {
-	try {
-		// Decode the event data from MessagePack
-		const event = msgpack.decode(new Uint8Array(eventData)) as NostrEvent;
-
-		const signedEvent = get(signer)?.signEvent(event);
-
-		// Encode the signed event back to MessagePack
-		const signedEventData = msgpack.encode(signedEvent);
-
-		// Return the signed event data as a Uint8Array
-		return new Uint8Array(signedEventData);
-	} catch (error) {
-		console.error('Error signing event:', error);
-		// Return null to indicate an error
-		return null;
 	}
 };
