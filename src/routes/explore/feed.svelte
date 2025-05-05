@@ -1,13 +1,14 @@
 <script lang="ts">
 	import _ from 'lodash';
+	import { onMount } from 'svelte';
+	import { fly } from 'svelte/transition';
+
 	import VirtualList from 'src/comp/VirtualList.svelte';
 	import VirtualListBottom from 'src/comp/VirtualListBottom.svelte';
 	import { now } from 'src/lib/period';
 	import { isKind, isKind1, type AnyKind, type Kind1Parsed } from 'src/parsers';
 	import { nostrManager, type SubscribeKind } from 'src/wasm/manager';
 	import type { ParsedEvent } from 'src/workers/nipworker';
-	import { onMount } from 'svelte';
-	import { fly } from 'svelte/transition';
 	import Note from './note.svelte';
 
 	// Props
@@ -123,7 +124,9 @@
 	});
 </script>
 
-<div class={'lg:pt-0 overflow-scroll scrollbar-hide h-full m-auto !pt-0 ' + $$props.class}>
+<div
+	class={'lg:pt-0 overflow-scroll scrollbar-hide h-full min-h-screen m-auto !pt-0 ' + $$props.class}
+>
 	<div class="absolute top-6 w-full z-40" transition:fly={{ y: -50, duration: 300 }}>
 		{#if newPosts.length}
 			<div
@@ -163,10 +166,10 @@
 		getItemId={(item) => item.data[0]?.id}
 		let:item
 	>
-		<svelte:fragment slot="header">
-			<slot name="header" visible />
+		<svelte:fragment slot="feed-header">
+			<slot name="header" visible>Missing Template</slot>
 		</svelte:fragment>
-		<div class="block w-feed lg:m-auto px-1 max-w-full">
+		<div class="block w-feed m-auto px-1 max-w-full">
 			<slot
 				name="item-content"
 				post={item[0]}
