@@ -4,20 +4,24 @@
 	import { bytesToHex } from '@noble/hashes/utils';
 	import _ from 'lodash';
 	import { kinds, nip19 } from 'nostr-tools';
+
 	import { decodePrivKey } from 'src/actions/wallet';
 	import Pager from 'src/comp/Pager.svelte';
 	import { kind10002, kind10019, kind17375, kinds7375 } from 'src/controller/nostr';
+	import { activeMintUrl, balanceByMint, mints } from 'src/controller/wallet';
 	import { isKind17375, isKind7375, isKind9321, type AnyKind } from 'src/parsers';
+	import Feed from 'src/routes/explore/feed.svelte';
+	import MintCard from 'src/routes/home/components/mintcard.svelte';
+	import Kind9321 from 'src/routes/kinds/kind9321.svelte';
+	import Modal from 'src/routes/modals/index.svelte';
+	import { go } from 'src/routes/modals/modal';
 	import { activeAccount, key, keysCache } from 'src/stores/db';
 	import { profile } from 'src/stores/profile';
 	import { pool } from 'src/stores/relays';
-	import type { SubscribeKind } from 'src/wasm/manager';
+	import { cashuManager } from 'src/wasm/cashu';
+	import { nostrManager, type SubscribeKind } from 'src/wasm/manager';
 	import type { ParsedEvent } from 'src/workers/nipworker';
-	import Feed from '../explore/feed.svelte';
-	import Kind9321 from '../kinds/kind9321.svelte';
-	import Modal from '../modals/index.svelte';
-	import { go } from '../modals/modal';
-	import MintCard from './components/mintcard.svelte';
+	import { onMount } from 'svelte';
 
 	let isViewing = false;
 
@@ -26,16 +30,13 @@
 	let loading = false;
 	let extensionError = false;
 
-	// let scrolling = false;
-	//
-
 	$: walletRelays = $kind10019
 		? $kind10019?.parsed?.readRelays
 		: $kind10002?.parsed?.filter((r) => r.read).map((r) => r.url) || [];
 
 	$: feedRequests = [
 		{
-			kinds: [7375, 7374, 7376, 9321, 17375],
+			kinds: [7374, 7376, 9321],
 			authors: [$key?.pub],
 			relays: walletRelays
 		},
@@ -45,6 +46,35 @@
 			relays: walletRelays
 		}
 	];
+
+	$: walletSub =
+		walletRelays &&
+		nostrManager.subscribe(
+			'active_wallet',
+			[{ kinds: [7375, 17375], authors: [$key?.pub], relays: walletRelays }],
+			(events: ParsedEvent<unknown>[]) => {
+				const [event, ...context] = events;
+				if (!event || !event.parsed) return;
+				if (isKind17375(event)) {
+					// Only update if the store is empty or the event is more recent
+					if (!$kind17375 || event.created_at > $kind17375.created_at) {
+						$kind17375 = event;
+						$activeMintUrl = event.parsed.mints?.[0];
+						console.log('Active wallet updated', event);
+					}
+					if (event?.parsed?.p2pkPrivKey) {
+						cashuManager.createWallet(event?.parsed?.p2pkPrivKey, event?.parsed?.mints);
+					}
+				}
+				if (isKind7375(event) && event?.parsed?.mintUrl) {
+					const existingEvent = $kinds7375[event?.parsed?.mintUrl];
+					// Only update if no existing event or the event is more recent
+					if (!existingEvent || event.created_at > existingEvent.created_at) {
+						$kinds7375[event?.parsed?.mintUrl] = event;
+					}
+				}
+			}
+		);
 
 	function updateFeed(
 		feed: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][],
@@ -57,21 +87,6 @@
 		// Add new events to our feed for processing
 		let updatedFeed: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][];
 
-		if (isKind17375(event)) {
-			// Only update if the store is empty or the event is more recent
-			if (!$kind17375 || event.created_at > $kind17375.created_at) {
-				$kind17375 = event;
-			}
-			return feed;
-		}
-		if (isKind7375(event) && event?.parsed?.mintUrl) {
-			const existingEvent = $kinds7375[event?.parsed?.mintUrl];
-			// Only update if no existing event or the event is more recent
-			if (!existingEvent || event.created_at > existingEvent.created_at) {
-				$kinds7375[event?.parsed?.mintUrl] = event;
-			}
-			return feed;
-		}
 		if (!isKind9321(event)) return feed;
 		if (eventKind === 'CACHED_EVENT') {
 			// For cached events, just add them to the feed
@@ -131,10 +146,14 @@
 		abortController.abort();
 	}
 
-	// $: console.log('loginError', loginError);
 	$: isError = Array.from($keysCache.values())[$activeAccount]?.pub != $key?.pub;
 
-	$: console.log('7375', $kinds7375);
+	onMount(() => {
+		cashuManager.subscribe('wallet_update', (result: { [key: string]: number }) => {
+			// console.log('balanceByMint', result);
+			$balanceByMint = result;
+		});
+	});
 </script>
 
 <Pager rootPath="/home">
@@ -159,30 +178,32 @@
 						</div>
 					</div>
 				</div>
-				{#if $kind17375}
-					<div
-						class="flex gap-2 items-stretch overflow-x-scroll scrollbar-hide snap-x snap-mandatory scroll-smooth"
-					>
-						{#each $kind17375?.parsed?.mints || [] as mint}
-							<MintCard {mint} kind7375={$kinds7375[mint]} />
-						{/each}
-					</div>
-				{:else}
-					<div class="w-full p-4 rounded-lg mb-4 bg-base-200">
-						<div class="flex items-center justify-between">
-							<div>
-								<h3 class="font-semibold text-lg">Setup Your Wallet</h3>
-								<p class="text-sm text-secondary-content">Configure your wallet to get started</p>
-							</div>
-							<button class="btn btn-primary" on:click|stopPropagation={() => go('wallet')}>
-								<Icon icon="ph:wallet-bold" class="mr-2" />
-								Setup Wallet
-							</button>
+				{#await $mints then mints}
+					{#if mints.length}
+						<div
+							class="flex gap-2 items-stretch overflow-x-scroll scrollbar-hide snap-x snap-mandatory scroll-smooth"
+						>
+							{#each mints || [] as mint}
+								<MintCard {mint} />
+							{/each}
 						</div>
-					</div>
-				{/if}
+					{:else}
+						<div class="w-full p-4 rounded-lg mb-4 bg-base-200">
+							<div class="flex items-center justify-between">
+								<div>
+									<h3 class="font-semibold text-lg">Setup Your Wallet</h3>
+									<p class="text-sm text-secondary-content">Configure your wallet to get started</p>
+								</div>
+								<button class="btn btn-primary" on:click|stopPropagation={() => go('wallet')}>
+									<Icon icon="ph:wallet-bold" class="mr-2" />
+									Setup Wallet
+								</button>
+							</div>
+						</div>
+					{/if}
+				{/await}
 			</div>
-			<div class="flex lg:gap-8 gap-4 px-4 py-4 w-feed lg:m-auto">
+			<div class="flex lg:gap-8 gap-4 px-4 py-4 w-feed m-auto">
 				<div class="text-center">
 					<button
 						class="btn w-14 h-14 btn-primary btn-circle"
@@ -213,7 +234,7 @@
 				<div class="flex-grow w-1/4" />
 			</div>
 			{#if isError}
-				<div class="py-4 w-feed lg:m-auto">
+				<div class="py-4 w-feed m-auto">
 					<div class="bg-secondary-content p-4 rounded-lg">
 						<div class="text-center">
 							<Icon icon="ph:warning" class="text-5xl inline" />
@@ -231,7 +252,7 @@
 					<!-- <slot /> -->
 				</div>
 			{:else}
-				<div class="w-feed lg:m-auto h-auto lg:pt-0 px-4">
+				<div class="w-feed m-auto h-auto lg:pt-0 px-4">
 					<div class="mt-4">Log in with your nsec</div>
 					<form class="mt-4" on:submit|preventDefault={handleLogin}>
 						<div class="join w-full border">
