@@ -80,7 +80,7 @@
 	{headerItem}
 	{updateFeed}
 >
-	<svelte:fragment slot="header-content">
+	<svelte:fragment slot="header">
 		<div>
 			<div class="px-4 pt-4 flex justify-between">
 				<div on:click={goBack}>

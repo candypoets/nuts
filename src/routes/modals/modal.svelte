@@ -20,6 +20,7 @@
 	import { tweened } from 'svelte/motion';
 	import { fly } from 'svelte/transition';
 	import { goBack } from './modal';
+	import Minted from './minted.svelte';
 
 	export let path: string;
 	export let visible: boolean;
@@ -76,6 +77,8 @@
 			<Lightning invoice={path.split(':')?.[1]} {visible} />
 		{:else if path.includes('minting')}
 			<Minting {visible} />
+		{:else if path.includes('minted')}
+			<Minted mint={path.split(':')?.[1]} amount={path.split(':')?.[2]} />
 		{:else if path.includes('melt')}
 			<Melt invoice={path.split(':')?.[1]} {visible} />
 		{:else if path.includes('tapcash')}

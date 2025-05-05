@@ -1,6 +1,4 @@
 <script lang="ts">
-	import { browser } from '$app/environment';
-
 	import { settings } from 'src/stores/db';
 	import { onMount } from 'svelte';
 

@@ -1,24 +1,24 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
-	import { CashuMint } from '@cashu/cashu-ts';
 	import Icon from '@iconify/svelte';
-	import { liveQuery } from 'dexie';
-	import { db } from 'src/stores/db';
-	import { onMount } from 'svelte';
-	import { QRCodeImage } from 'svelte-qrcode-image';
-	import { mint } from 'src/stores/mints';
-	import MintSelector from 'src/comp/MintSelector.svelte';
 	import { formatAmount } from 'src/actions/wallet';
-	import { alert } from 'src/stores';
 	import Alert from 'src/comp/Alert.svelte';
+	import MintSelector from 'src/comp/MintSelector.svelte';
+	import { activeMintUrl } from 'src/controller/wallet';
+	import { alert } from 'src/stores';
+	import { cashuManager } from 'src/wasm/cashu';
+	import { QRCodeImage } from 'svelte-qrcode-image';
 
 	export let doMint = false;
 	let amount: number | undefined = 200;
+	let isPaid = false;
 	let mintingHash = '';
 	let qrCode: string | undefined;
 	let isLoading: boolean = false;
 	let isPolling: boolean = false;
 	let memo = '';
+
+	let scrollContainer: HTMLElement;
 
 	$: {
 		amount;
@@ -39,69 +39,39 @@
 		}
 	};
 
-	// onMount(() => {
-	// 	if (browser) {
-	// 		if (
-	// 			/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
-	// 		) {
-	// 			return;
-	// 		}
-	// 		document.getElementById('mint-req-amt')?.focus();
-	// 	}
-	// });
-
-	const mintRequest = async () => {
-		try {
-			if (!$mint?.mintURL) {
-				// toast('warning', 'No mint selected', 'Could not create invoice');
-				return;
-			}
-			if (!amount) {
-				// toast('warning', 'No amount provided', 'Could not create invoice');
-				return;
-			}
-			if (isNaN(amount) || amount <= 0) {
-				// toast('warning', 'amount must be a number greater than 0', 'Could not create invoice');
-				return;
-			}
-			// isComplete = false;
-			isLoading = true;
-			const cashuMint = new CashuMint($mint?.mintURL);
-			const mintQuote = await cashuMint.mintQuote({ amount: amount ?? 0, unit: 'sat' });
-			mintingHash = mintQuote.quote;
-			qrCode = mintQuote.request;
-			console.log('add invoice');
-			$db.invoices.add({
-				...mintQuote,
-				date: Math.round(Date.now() / 1000),
-				mint: $mint?.mintURL
-			});
-			doMint = true;
-			// mintTokens();
-		} catch (error) {
-			console.error(error);
-		} finally {
-			isLoading = false;
-		}
-	};
-
-	const resetState = () => {
-		amount = undefined;
-		qrCode = undefined;
-
-		memo = '';
-	};
-	$: exist = liveQuery(() => $db.invoices.get(mintingHash));
-
-	$: isPaid = mintingHash && !$exist;
-	$: console.log(isPaid, $exist);
-
 	function copyToClipboard(event: MouseEvent) {
 		event.preventDefault(); // Prevent the default link behavior
 
 		navigator.clipboard.writeText(qrCode ?? '');
 		console.log('hello');
 		$alert = 'copied to clipboard!';
+	}
+
+	function handleCreateInvoice() {
+		console.log('Create Lightning Invoice');
+		$activeMintUrl &&
+			cashuManager.requestMint(Number(amount), $activeMintUrl).then((quote) => {
+				doMint = true;
+				qrCode = quote.request;
+				scrollTo('right');
+				console.log('quote', quote);
+			});
+	}
+
+	function scrollTo(side: 'left' | 'right') {
+		if (scrollContainer) {
+			if (side == 'left') {
+				scrollContainer.scrollTo({
+					left: 0,
+					behavior: 'smooth'
+				});
+			} else {
+				scrollContainer.scrollTo({
+					left: scrollContainer.clientWidth,
+					behavior: 'smooth'
+				});
+			}
+		}
 	}
 </script>
 
@@ -112,117 +82,169 @@
 		<div class=" h-full flex items-center justify-center gap-5 flex-col">
 			<p>Creating lightning invoice...</p>
 		</div>
-	{:else if doMint}
-		<div class="">
-			<div class="">
-				<div class="flex items-center justify-center gap-1 m-auto">
-					<p class="text-2xl">
-						{formatAmount(amount ?? 0, 'sat', false)}
-					</p>
-					<p class="text-2xl font-bold">sats</p>
-				</div>
-			</div>
-			<div class="w-full flex items-center justify-center mt-24">
-				<div class="flex items-center justify-center flex-col">
-					<div class="border-warning border rounded-md p-2" class:!border-success={isPaid}>
-						{#if isPaid}
-							<Icon
-								icon="streamline:ok-hand"
-								style="width: 275px; height: 275px;"
-								class="text-success"
-							/>
-						{:else}
-							<a
-								class="cursor-pointer"
-								href="lightning:{qrCode}"
-								on:click={(e) => copyToClipboard(e)}
-							>
-								<QRCodeImage text={qrCode} displayHeight={275} displayWidth={275} margin={1} />
-							</a>
-						{/if}
+	{:else}
+		<!-- Create the scroll container -->
+		<div
+			bind:this={scrollContainer}
+			class="flex w-full overflow-x-auto scroll-smooth snap-x snap-mandatory h-full"
+		>
+			<!-- Screen 1: Input -->
+			<div id="input-screen" class="w-full flex-shrink-0 snap-start h-full overflow-y-auto">
+				<div class="pt-8">
+					<!-- have an invisible focusable element that focus first -->
+					<span tabindex="-1"></span>
+					<!-- Using span to avoid a11y issues with empty link -->
+					<div class="m-auto lg:w-1/3">
+						<MintSelector />
+					</div>
+					<div class="h-52 flex flex-col items-center">
+						<input
+							autofocus
+							id="send-amt"
+							placeholder="0"
+							type="text"
+							inputmode="decimal"
+							bind:value={amount}
+							class="mt-10 text-7xl focus:outline-none text-center max-w-xs rounded-xl"
+							on:keydown={(e) => {
+								if (e.key === 'Enter') {
+									e.preventDefault();
+									if (Number(amount) > 0 && $activeMintUrl) {
+										handleCreateInvoice(); // Use combined handler
+									}
+								}
+							}}
+						/>
+						<p />
+						<p class="font-bold text-xl">Sats</p>
+					</div>
+
+					<div class="flex join justify-center">
+						<button
+							class="btn btn-warning flex gap-1 mt-40"
+							disabled={isLoading || !$activeMintUrl || !amount || Number(amount) <= 0}
+							class:loading={isLoading}
+							on:click={handleCreateInvoice}
+						>
+							{#if isLoading}
+								<span>Creating...</span>
+							{:else}
+								<p>Create Lightning Invoice</p>
+							{/if}
+						</button>
 					</div>
 				</div>
 			</div>
-			<div class="flex pt-4 w-full px-2 mt-12">
-				<input
-					type="text"
-					class="input input-warning w-full"
-					id="invoice-input"
-					readonly
-					value={qrCode}
-				/>
-			</div>
-			<div class=" pt-3 px-2">
-				<input
-					type="text"
-					class="bg-base-200 rounded-lg p-1 px-3 focus:outline-none w-80"
-					placeholder="memo (internal)"
-					bind:value={memo}
-				/>
-			</div>
-			<div class="h-8">
-				{#if isPolling}
-					<div class="btn btn-disabled btn-xs loading btn-square" />
-				{/if}
-			</div>
-		</div>
-	{:else}
-		<div class="pt-8">
-			<!-- have an invisible focusable element that focus first -->
-			<a autofocus tabindex={-1} />
-			<div class="m-auto lg:w-1/3">
-				<MintSelector />
-			</div>
-			<!-- <div class="">
-				<div class="flex items-end gap-4 m-auto w-1/2 h-44">
-					<input
-						id="mint-req-amt"
-						placeholder="0"
-						type="text"
-						inputmode="decimal"
-						bind:value={amount}
-						on:keydown={(e) => {
-							if (e.key === 'Enter') {
-								e.preventDefault();
-								mintRequest();
-							}
-						}}
-						class="text-3xl max-w-xs outline-none font-bold w-full text-center"
-					/>
+
+			<!-- Screen 2: Invoice/Minting -->
+			<div id="invoice-screen" class="w-full flex-shrink-0 snap-start h-full overflow-y-auto">
+				<div class="container mx-auto px-4 py-6">
+					<!-- Back Button -->
+					<button class="btn btn-ghost btn-sm mb-4" on:click={() => scrollTo('left')}>
+						<Icon icon="heroicons:arrow-left" class="w-5 h-5" />
+						Back
+					</button>
+
+					<div class="mb-8">
+						<div
+							class="flex items-center justify-center gap-2 bg-base-200 py-3 rounded-lg shadow-sm max-w-md mx-auto"
+						>
+							<p class="text-3xl">
+								{formatAmount(amount ?? 0, 'sat', false)}
+							</p>
+							<p class="text-3xl font-bold">sats</p>
+						</div>
+					</div>
+
+					<div class="flex flex-col items-center justify-center mb-8">
+						<div
+							class={`border-4 rounded-xl p-3 shadow-lg ${
+								isPaid ? 'border-success' : 'border-warning'
+							}`}
+						>
+							{#if isPaid}
+								<div class="flex justify-center items-center p-2">
+									<Icon
+										icon="streamline:ok-hand"
+										style="width: 275px; height: 275px;"
+										class="text-success"
+									/>
+								</div>
+							{:else if qrCode}
+								<a
+									class="cursor-pointer block hover:opacity-90 transition-opacity"
+									href="lightning:{qrCode}"
+									on:click={(e) => copyToClipboard(e)}
+								>
+									<QRCodeImage
+										text={'lightning:' + qrCode}
+										displayHeight={275}
+										displayWidth={275}
+										margin={1}
+									/>
+								</a>
+							{:else}
+								<!-- Placeholder while QR is loading -->
+								<div
+									class="w-[275px] h-[275px] flex items-center justify-center bg-base-200 rounded-lg"
+								>
+									<span class="loading loading-spinner text-warning"></span>
+								</div>
+							{/if}
+						</div>
+
+						<div class="text-sm text-center mt-2 text-base-content/70">
+							{#if isPaid}
+								Payment received!
+							{:else if qrCode}
+								Tap/click QR code to copy
+							{:else}
+								Generating QR Code...
+							{/if}
+						</div>
+					</div>
+
+					<div class="space-y-4 max-w-md mx-auto">
+						<div class="relative">
+							<input
+								type="text"
+								class="input input-bordered input-warning w-full pr-10"
+								id="invoice-input"
+								readonly
+								value={qrCode ?? 'Generating...'}
+								disabled={!qrCode}
+							/>
+							<button
+								class="absolute right-2 top-1/2 -translate-y-1/2 btn btn-sm btn-ghost"
+								on:click={copyInvoice}
+								disabled={!qrCode}
+							>
+								<Icon icon="heroicons:clipboard" class="w-5 h-5" />
+							</button>
+						</div>
+
+						<div class="w-full">
+							<input
+								type="text"
+								class="input input-bordered w-full focus:outline-warning focus:border-warning"
+								placeholder="Memo (internal)"
+								bind:value={memo}
+							/>
+						</div>
+
+						<div class="h-8 flex justify-center">
+							{#if isPolling}
+								<div class="flex items-center gap-2">
+									<div class="btn btn-disabled btn-sm loading btn-circle"></div>
+									<span class="text-sm text-base-content/70">Checking payment status...</span>
+								</div>
+							{:else if isPaid}
+								<!-- Optional: Show success message after polling -->
+								<span class="text-success font-semibold">Payment Confirmed!</span>
+							{/if}
+						</div>
+					</div>
 				</div>
-				<p class="font-bold text-xl text-center text-base-300">SATs</p>
-
-			</div> -->
-			<div class="h-52 flex flex-col items-center">
-				<input
-					autofocus
-					id="send-amt"
-					placeholder="0"
-					type="text"
-					inputmode="decimal"
-					bind:value={amount}
-					class="mt-10 text-7xl focus:outline-none text-center max-w-xs rounded-xl"
-					on:keydown={(e) => {
-						if (e.key === 'Enter') {
-							e.preventDefault();
-							mintRequest();
-						}
-					}}
-				/>
-				<p />
-				<p class="font-bold text-xl">Sats</p>
-			</div>
-
-			<div class="flex join justify-center">
-				<button
-					class="btn btn-warning flex gap-1 mt-40"
-					on:click={() => {
-						mintRequest();
-					}}
-				>
-					<p>Create Lightning Invoice</p>
-				</button>
-				<!-- else content here -->
 			</div>
 		</div>
 	{/if}

@@ -8,6 +8,7 @@
 	let visible = true;
 
 	export let modals: string[] = [];
+	export let depth = 0;
 
 	$: {
 		if ($page.url.pathname.startsWith(rootPath)) {
@@ -15,6 +16,8 @@
 				.split('/')
 				.slice(2)
 				.filter((sub) => pathOptions.some((option) => sub.split(':')[0] == option));
+
+			depth = modals.filter((m) => !m.startsWith('minted')).length;
 		}
 	}
 </script>
