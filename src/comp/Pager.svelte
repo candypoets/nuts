@@ -12,6 +12,8 @@
 	let subs: string[] = [];
 	let modals: string[] = [];
 
+	let depth = 0;
+
 	$: subTweened = tweened(0, {
 		duration: 400,
 		easing: cubicOut
@@ -51,7 +53,7 @@
 	});
 
 	// Update the modal tweened value when depth changes
-	$: modalDepth.set(modals.length * 30); // 10px per depth level
+	$: modalDepth.set(depth * 30); // 10px per depth level
 
 	// Update the tweened value when depth changes
 	$: subDepth.set(subs.length * 30); // 10px per depth level
@@ -70,4 +72,4 @@
 
 <Kind {rootPath} bind:subs {modals} />
 
-<Modal {rootPath} bind:modals />
+<Modal {rootPath} bind:modals bind:depth />
