@@ -128,7 +128,7 @@
 			<span />
 		</div>
 	</svelte:fragment>
-	<svelte.fragment slot="header">
+	<svelte:fragment slot="header">
 		<div class="w-feed border-b border-base-200 h-16 flex items-center justify-between shadow-sm">
 			<button on:click={goBack} class="p-1 rounded-full hover:bg-base-200 mr-4">
 				<Icon icon="mdi:arrow-left" class="text-xl" />
@@ -136,12 +136,10 @@
 			<h1 class="text-lg font-semibold">Post</h1>
 			<span class="w-10" />
 		</div>
-		<!-- {#if headerItem} -->
 		<Note note={headerItem} {context} visible={true} zaps />
-		<!-- {/if} -->
 		<Reply parent={headerItem} {context} />
-	</svelte.fragment>
-	<svelte.fragment slot="item-content" let:post let:context let:visible>
+	</svelte:fragment>
+	<svelte:fragment slot="item-content" let:post let:context let:visible>
 		<Note
 			note={post}
 			{context}
@@ -150,5 +148,5 @@
 			showReplies={(replies) => replies.filter((r) => r.pubkey == headerItem?.pubkey)}
 			zaps
 		/>
-	</svelte.fragment>
+	</svelte:fragment>
 </Feed>
