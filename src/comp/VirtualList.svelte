@@ -161,7 +161,7 @@
 		style="top: {top}px; padding-bottom: {bottom > 100 ? bottom : 100}px;"
 	>
 		<svelte-virtual-list-row>
-			<slot name="header" />
+			<slot name="feed-header" />
 		</svelte-virtual-list-row>
 		{#each visible as row (getItemId(row))}
 			<svelte-virtual-list-row>
