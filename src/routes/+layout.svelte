@@ -26,7 +26,7 @@
 	import { writable, type Writable } from 'svelte/store';
 	import { cashuManager } from 'src/wasm/cashu';
 	import { go } from './modals/modal';
-	import { mints } from 'src/controller/wallet';
+	import { mints, saveNuts } from 'src/controller/wallet';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
 
@@ -132,6 +132,8 @@
 		let mintSub = cashuManager.subscribe('quote_update', async ({ quoteId, state, mint }) => {
 			if (state == 'paid') {
 				const amount = await cashuManager.mintTokens(quoteId);
+				const mintProofs = await cashuManager.getProofsFromMint(mint);
+				saveNuts(mint, mintProofs);
 				$mints.then((mints) => {
 					const mintName = mints.find((m) => m.url == mint)?.name?.trim();
 					go(`minted:${mintName}:${amount}`);
