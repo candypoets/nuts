@@ -15,6 +15,7 @@ import (
 type Kind17375Parsed struct {
 	Mints       []string `json:"mints" msgpack:"mints"`                                 // List of mint URLs
 	P2PKPrivKey string   `json:"p2pkPrivKey,omitempty" msgpack:"p2pkPrivKey,omitempty"` // Private key for P2PK ecash (if decrypted)
+	P2PKPubKey  string   `json:"p2pkPubKey,omitempty" msgpack:"p2pkPubKey,omitempty"`   // Public key for P2PK ecash (derived from private key)
 	Decrypted   bool     `json:"decrypted" msgpack:"decrypted"`                         // Whether content was successfully decrypted
 }
 
@@ -46,6 +47,13 @@ func (p *Parser) ParseKind17375(event nostr.Event) (*Kind17375Parsed, *[]types.R
 							break
 						case "privkey":
 							parsed.P2PKPrivKey = tag[1]
+							// Derive public key from private key if available
+							if parsed.P2PKPrivKey != "" {
+								pubKey, err := nostr.GetPublicKey(parsed.P2PKPrivKey)
+								if err == nil {
+									parsed.P2PKPubKey = pubKey
+								}
+							}
 							break
 						}
 					}
