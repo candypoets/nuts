@@ -1,3 +1,4 @@
+import type { ProofUnion } from 'src/parsers';
 import NostrWorker from 'src/wasm/nostr?worker';
 
 export type WalletBalance = {
@@ -56,7 +57,6 @@ export class CashuManager {
 		// Use existing worker from window/global space
 		// This assumes the worker is already initialized in main.go
 		this.worker.onmessage = (event) => {
-			console.log('event cashu', event);
 			if (!event.data || !event.data.requestID) return;
 
 			const { requestID, data } = event.data;
@@ -139,6 +139,10 @@ export class CashuManager {
 
 	async getBalanceByMints(): Promise<Record<string, number>> {
 		return this.callWalletMethod<Record<string, number>>('GetBalanceByMints');
+	}
+
+	async getProofsFromMint(mintURL: string): Promise<ProofUnion[]> {
+		return this.callWalletMethod<ProofUnion[]>('GetProofsFromMint', mintURL);
 	}
 
 	async getPendingBalance(): Promise<number> {
@@ -254,7 +258,9 @@ export class CashuManager {
 	}
 
 	// Proof State Methods
-	async checkProofState(mintURL: string, proofsJson: string): Promise<any> {
+	async checkProofState(mintURL: string, proofs: ProofUnion[]): Promise<any> {
+		// Convert the proofs to a JSON string
+		const proofsJson = JSON.stringify(proofs);
 		return this.callWalletMethod<any>('CheckProofState', mintURL, proofsJson);
 	}
 
