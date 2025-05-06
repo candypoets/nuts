@@ -8,7 +8,13 @@
 	import { decodePrivKey } from 'src/actions/wallet';
 	import Pager from 'src/comp/Pager.svelte';
 	import { kind10002, kind10019, kind17375, kinds7375 } from 'src/controller/nostr';
-	import { activeMintUrl, balanceByMint, mints } from 'src/controller/wallet';
+	import {
+		activeMintUrl,
+		balanceByMint,
+		deletedKind7375Ids,
+		mints,
+		walletLoaded
+	} from 'src/controller/wallet';
 	import { isKind17375, isKind7375, isKind9321, type AnyKind } from 'src/parsers';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import MintCard from 'src/routes/home/components/mintcard.svelte';
@@ -52,7 +58,10 @@
 		nostrManager.subscribe(
 			'active_wallet',
 			[{ kinds: [7375, 17375], authors: [$key?.pub], relays: walletRelays }],
-			(events: ParsedEvent<unknown>[]) => {
+			(events: ParsedEvent<unknown>[], eventKind: SubscribeKind) => {
+				if (eventKind == 'EOSE') {
+					walletLoaded.resolve(true);
+				}
 				const [event, ...context] = events;
 				if (!event || !event.parsed) return;
 				if (isKind17375(event)) {
@@ -67,11 +76,10 @@
 					}
 				}
 				if (isKind7375(event) && event?.parsed?.mintUrl) {
-					const existingEvent = $kinds7375[event?.parsed?.mintUrl];
-					// Only update if no existing event or the event is more recent
-					if (!existingEvent || event.created_at > existingEvent.created_at) {
-						$kinds7375[event?.parsed?.mintUrl] = event;
+					if (event?.parsed?.deletedIds?.length) {
+						$deletedKind7375Ids = $deletedKind7375Ids.concat(event?.parsed?.deletedIds);
 					}
+					$kinds7375 = $kinds7375.concat(event);
 				}
 			}
 		);
@@ -150,7 +158,6 @@
 
 	onMount(() => {
 		cashuManager.subscribe('wallet_update', (result: { [key: string]: number }) => {
-			// console.log('balanceByMint', result);
 			$balanceByMint = result;
 		});
 	});
