@@ -196,7 +196,7 @@ func (p *Parser) ParseKind9321(event nostr.Event) (*Kind9321Parsed, *[]types.Req
 						convertedProofs = append(convertedProofs, proof)
 					}
 				}
-				unspentProofs, _ = wallet.CheckProofState(mintTag[1], convertedProofs)
+				unspentProofs, _ = wallet.CheckProofState(mintTag[1], convertedProofs, false)
 			}
 		}
 	}
