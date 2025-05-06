@@ -471,6 +471,13 @@ func (m *walletManager) callWallet(this js.Value, args []js.Value) any {
 		case "GetBalanceByMints":
 			result = wal.GetBalanceByMints() // Returns map[string]uint64
 
+		case "GetProofsFromMint":
+			if len(params) < 1 {
+				err = fmt.Errorf("GetProofsFromMint requires mintUrl (string) parameter")
+				break
+			}
+			result = wal.GetProofsFromMint(params[0].String())
+
 		case "PendingBalance":
 			result = wal.PendingBalance() // Returns uint64
 
@@ -726,7 +733,7 @@ func (m *walletManager) callWallet(this js.Value, args []js.Value) any {
 				break
 			}
 
-			result, err = wal.CheckProofState(mintURL, proofs)
+			result, err = wal.CheckProofState(mintURL, proofs, true)
 
 		case "RemoveSpentProofs":
 			err = wal.RemoveSpentProofs()
