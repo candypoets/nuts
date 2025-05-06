@@ -19,4 +19,4 @@ export const kind10019: Writable<ParsedEvent<Kind10019Parsed> | undefined> = wri
 
 export const kind17375: Writable<ParsedEvent<Kind17375Parsed> | undefined> = writable();
 
-export const kinds7375: Writable<{ [url: string]: ParsedEvent<Kind7375Parsed> }> = writable({});
+export const kinds7375: Writable<ParsedEvent<Kind7375Parsed>[]> = writable([]);
