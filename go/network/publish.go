@@ -5,7 +5,6 @@ package network
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sync"
 	"syscall/js"
@@ -73,17 +72,17 @@ type PublishManager struct {
 }
 
 // NewPublishManager creates a new publish manager
-func NewPublishManager(database *db.NostrDB, parser *parser.Parser, relayManager *RelayConnectionManager, callback js.Func, defaultRelays []string) *PublishManager {
+func NewPublishManager(database *db.NostrDB, parser *parser.Parser, relayManager *RelayConnectionManager, callback js.Func) *PublishManager {
 	componentLogger := logger.WithComponent("publish")
-
+	indexRelays := []string{"wss://purplepag.es", "wss://nos.lol", "wss://nostr.wine", "wss://relay.nostr.band"}
 	return &PublishManager{
-		operations:    make(map[string]*PublishOperation),
-		relayManager:  relayManager,
-		database:      database,
-		parser:        parser,
-		log:           componentLogger,
-		callback:      callback,
-		defaultRelays: defaultRelays,
+		operations:   make(map[string]*PublishOperation),
+		relayManager: relayManager,
+		database:     database,
+		parser:       parser,
+		log:          componentLogger,
+		callback:     callback,
+		indexRelays:  indexRelays,
 	}
 }
 
@@ -127,7 +126,7 @@ func (pm *PublishManager) PublishEvent(publishId string, event nostr.Event) erro
 			Str("publishID", publishId).
 			Msg("No specific relays determined, falling back to default relays")
 		// Fall back to default relays if no specific ones were determined
-		relays = pm.defaultRelays
+		relays = pm.indexRelays
 	}
 
 	// Log which relays will be used for this publish operation
@@ -166,58 +165,80 @@ func (pm *PublishManager) determineTargetRelays(ctx context.Context, event nostr
 	// Track unique relays
 	relaySet := make(map[string]bool)
 
-	// Add author's write relays from NIP-65
-	authorRelays, err := pm.findNIP65(ctx, event.PubKey)
-	if err != nil {
-		pm.log.Warn().
-			Str("pubkey", event.PubKey).
-			Err(err).
-			Msg("Failed to get author's write relays")
-	}
-	if authorRelays != nil {
-		for _, relay := range *authorRelays {
-			if relay.Write {
-				relaySet[relay.URL] = true
-			}
-		}
-	}
+	// get all pubkeys for which we need
+	writePubkeys := make([]string, 0)
+	readPubkeys := make([]string, 0)
 
-	// Extract all mentioned pubkeys from event tags
-	mentionedPubkeys := make([]string, 0)
+	// Always add the event author's pubkey as a write pubkey
+	writePubkeys = append(writePubkeys, event.PubKey)
 
 	// Skip extracting mentioned pubkeys for kind 3 (contact list) events
 	if event.Kind != 3 && event.Kind < 10000 {
 		for _, tag := range event.Tags {
 			if len(tag) >= 2 && tag[0] == "p" {
-				mentionedPubkeys = append(mentionedPubkeys, tag[1])
+				readPubkeys = append(readPubkeys, tag[1])
 			}
 		}
 	}
 
 	// Get relays for all mentioned pubkeys
-	for _, pubkey := range mentionedPubkeys {
-		// Skip if it's the author's pubkey (already processed)
-		if pubkey == event.PubKey {
-			continue
-		}
+	var wg sync.WaitGroup
+	relaySetMutex := sync.Mutex{}
 
-		pubkeyRelays, err := pm.findNIP65(ctx, pubkey)
-		if err != nil {
-			pm.log.Debug().
-				Str("pubkey", pubkey).
-				Err(err).
-				Msg("Failed to get relays for mentioned pubkey")
-			continue
-		}
+	for _, pubkey := range readPubkeys {
+		wg.Add(1)
+		go func(pk string) {
+			defer wg.Done()
 
-		if pubkeyRelays != nil {
-			for _, relay := range *pubkeyRelays {
-				if relay.Read {
-					relaySet[relay.URL] = true
-				}
+			pubkeyRelays, err := pm.findNIP65(ctx, pk)
+			if err != nil {
+				pm.log.Debug().
+					Str("pubkey", pk).
+					Err(err).
+					Msg("Failed to get relays for mentioned pubkey")
+				return
 			}
-		}
+
+			if pubkeyRelays != nil {
+				relaySetMutex.Lock()
+				for _, relay := range *pubkeyRelays {
+					if relay.Read {
+						relaySet[relay.URL] = true
+					}
+				}
+				relaySetMutex.Unlock()
+			}
+		}(pubkey)
 	}
+
+	for _, pubkey := range writePubkeys {
+		wg.Add(1)
+		go func(pk string) {
+			defer wg.Done()
+
+			pubkeyRelays, err := pm.findNIP65(ctx, pk)
+			if err != nil {
+				pm.log.Debug().
+					Str("pubkey", pk).
+					Err(err).
+					Msg("Failed to get relays for author pubkey")
+				return
+			}
+
+			if pubkeyRelays != nil {
+				relaySetMutex.Lock()
+				for _, relay := range *pubkeyRelays {
+					if relay.Write {
+						relaySet[relay.URL] = true
+					}
+				}
+				relaySetMutex.Unlock()
+			}
+		}(pubkey)
+	}
+
+	// Wait for all goroutines to complete
+	wg.Wait()
 
 	// Convert the set to a slice
 	relays := make([]string, 0, len(relaySet))
@@ -240,55 +261,49 @@ func (pm *PublishManager) findNIP65(ctx context.Context, pubkey string) (*parser
 	}
 
 	// Query the database
-	events, err := pm.database.QueryEvents(filter)
-	if err == nil && len(events) > 0 {
+	event, ok := pm.database.QueryEvent(filter)
+	if ok {
 		pm.log.Debug().
 			Str("pubkey", pubkey).
-			Int("count", len(events)).
+			Str("parsed", fmt.Sprintf("%+v", event)).
 			Msg("Found potential NIP-65 event(s) in database")
-		// Check if the event has been parsed already
-		jsonData, err := json.Marshal(events[0].Parsed)
-		if err != nil {
-			pm.log.Error().Err(err).Msg("Failed to marshal parsed data to JSON")
-			return nil, err
-		}
 
-		// Then unmarshal it into a Kind10002Parsed slice
-		var relayList parser.Kind10002Parsed
-		if err := json.Unmarshal(jsonData, &relayList); err != nil {
-			pm.log.Error().Err(err).Msg("Failed to unmarshal JSON to Kind10002Parsed")
-			return nil, err
+		parsed, err := pm.parser.Parse(event.Event)
+		relayList, ok := parsed.Parsed.(*parser.Kind10002Parsed)
+		if err != nil || !ok || relayList == nil {
+			pm.log.Error().
+				Str("pubkey", pubkey).
+				Err(err).
+				Msg("Failed to parse NIP-65 event")
+			return nil, fmt.Errorf("error parsing NIP-65 event: %w", err)
 		}
 
 		// Now relayList should contain your properly typed data
 		pm.log.Debug().
 			Str("pubkey", pubkey).
-			Int("relay_count", len(relayList)).
-			Interface("relay_list", relayList).
+			Int("relay_count", len(*relayList)).
 			Msg("Successfully converted NIP-65 relay list")
 
-		return &relayList, nil
+		return relayList, nil
 	}
 
-	// Use default relays to fetch the metadata
-	relaysToQuery := pm.defaultRelays
 	// If not found in database or parsing failed, fetch from network
 	pm.log.Debug().
 		Str("pubkey", pubkey).
-		Strs("relays", relaysToQuery).
+		Strs("relays", pm.indexRelays).
 		Msg("No valid NIP-65 event found in database, fetching from network")
 
 	// Create a timeout context for this query
 	queryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 
 	// Channel to collect events from goroutines
-	eventChan := make(chan *nostr.Event, len(relaysToQuery))
+	eventChan := make(chan *nostr.Event, len(pm.indexRelays))
 
 	// WaitGroup to track all goroutines
 	var wg sync.WaitGroup
 
 	// Launch a goroutine for each relay
-	for _, relayURL := range relaysToQuery {
+	for _, relayURL := range pm.indexRelays {
 		wg.Add(1)
 		go func(url string) {
 			// Log the start of the subscription
@@ -400,7 +415,7 @@ func (pm *PublishManager) findNIP65(ctx context.Context, pubkey string) (*parser
 
 	pm.database.AddEvent(parsedEvent)
 
-	relayList, ok := events[0].Parsed.(*parser.Kind10002Parsed)
+	relayList, ok := parsedEvent.Parsed.(*parser.Kind10002Parsed)
 	if ok && relayList != nil {
 		pm.log.Debug().
 			Str("pubkey", pubkey).
