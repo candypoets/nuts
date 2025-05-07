@@ -2,6 +2,7 @@ package network
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -19,6 +20,23 @@ const (
 	RelayStatusConnected
 	RelayStatusFailed
 )
+
+// String makes RelayConnectionStatus implement fmt.Stringer for easier logging
+func (s RelayConnectionStatus) String() string {
+	switch s {
+	case RelayStatusDisconnected:
+		return "Disconnected"
+	case RelayStatusConnecting:
+		return "Connecting"
+	case RelayStatusConnected:
+		return "Connected"
+	case RelayStatusFailed:
+		return "Failed"
+	default:
+		// Use fmt.Sprintf to avoid direct dependency if Stringer is the only use
+		return fmt.Sprintf("UnknownStatus(%d)", int(s))
+	}
+}
 
 // RelayConnection represents a connection to a relay
 type RelayConnection struct {
@@ -226,6 +244,73 @@ func (rcm *RelayConnectionManager) ConnectToRelay(url string) {
 	}
 }
 
+// MarkRelayAsClosed explicitly sets a relay's status to Disconnected.
+// This is typically called when an external event (e.g., relay server closes WebSocket,
+// or a read/write error on the connection) indicates the connection is lost.
+// It signals any goroutines waiting in GetRelay for this connection that the
+// current connection attempt (if any) has effectively failed or the existing connection is gone.
+// Subsequent GetRelay calls for this URL will attempt to reconnect.
+func (rcm *RelayConnectionManager) MarkRelayAsClosed(url string, reason error) {
+	url = nostr.NormalizeURL(url)
+	rcm.log.Debug().Str("relay", url).Err(reason).Msg("MarkRelayAsClosed: Called")
+
+	rcm.connectionsMutex.Lock()
+	defer rcm.connectionsMutex.Unlock()
+
+	conn, exists := rcm.connections[url]
+	if !exists {
+		rcm.log.Warn().Str("relay", url).Msg("MarkRelayAsClosed: Attempted to mark non-existent relay connection as closed")
+		return
+	}
+
+	// If the connection is already in a terminal non-connected state (Failed or Disconnected),
+	// we might just update the error if a new one is provided. No major state change or broadcast needed
+	// unless it was stuck in Connecting.
+	if conn.Status == RelayStatusFailed || conn.Status == RelayStatusDisconnected {
+		rcm.log.Debug().Str("relay", url).Str("current_status", conn.Status.String()).Msg("MarkRelayAsClosed: Relay already in a terminal non-connected state. Updating error if provided.")
+		if reason != nil {
+			conn.lastError = reason // Update error if a new, potentially more specific, one is provided
+		}
+		// conn.LastUsed = time.Now() // Optionally update LastUsed to reflect this "event"
+		return
+	}
+
+	rcm.log.Info().Str("relay", url).Err(reason).Str("previous_status", conn.Status.String()).Msg("MarkRelayAsClosed: Marking relay as Disconnected")
+
+	// Close the underlying nostr.Relay object if it exists
+	if conn.Relay != nil {
+		// nostr.Relay.Close() should be safe to call multiple times / on an already closing connection
+		errClose := conn.Relay.Close()
+		if errClose != nil {
+			// Log error during close but proceed with marking as disconnected
+			rcm.log.Warn().Str("relay", url).Err(errClose).Msg("MarkRelayAsClosed: Error closing underlying relay connection")
+		}
+		conn.Relay = nil
+	}
+
+	conn.Status = RelayStatusDisconnected
+	conn.ErrorCount++ // Increment error count, as this is an unexpected failure/closure.
+	// GetRelay resets this when it initiates a fresh connection attempt.
+	if reason != nil {
+		conn.lastError = reason
+	} else {
+		conn.lastError = ErrRelayClosedExternally // Use a default error if no specific reason is given
+	}
+	conn.LastUsed = time.Now() // Update LastUsed to reflect this event and potentially affect idle cleanup timing.
+
+	// Signal any goroutines that might be waiting in GetRelay (i.e., in conn.cond.Wait()).
+	// This is crucial if conn.Status was RelayStatusConnecting when this method was called.
+	// If it was RelayStatusConnected, no goroutines *should* be waiting on this cond for *this* connection
+	// to establish, but broadcasting is harmless and covers edge cases.
+	if conn.cond != nil {
+		rcm.log.Debug().Str("relay", url).Msg("MarkRelayAsClosed: Broadcasting connection closure signal to waiters")
+		conn.cond.Broadcast()
+	} else {
+		// This is unexpected for an existing connection entry created by GetRelay.
+		rcm.log.Error().Str("relay", url).Msg("MarkRelayAsClosed: Condition variable was nil. This might indicate a bug in connection entry initialization.")
+	}
+}
+
 // ReleaseRelay decrements the subscriber count and potentially closes the connection
 func (rcm *RelayConnectionManager) ReleaseRelay(url string) {
 	url = nostr.NormalizeURL(url)
@@ -302,8 +387,9 @@ func (rcm *RelayConnectionManager) GetConnectionCount() int {
 
 // Errors
 var (
-	ErrConnectionFailed  = &connectionError{"relay connection failed"}
-	ErrConnectionTimeout = &connectionError{"relay connection timed out"}
+	ErrConnectionFailed      = &connectionError{"relay connection failed"}
+	ErrConnectionTimeout     = &connectionError{"relay connection timed out"}
+	ErrRelayClosedExternally = &connectionError{"relay connection closed externally"}
 )
 
 type connectionError struct {

@@ -242,11 +242,7 @@ func (sm *SubscriptionManager) ProcessLocalRequests(
 	return filteredRequests
 }
 
-// Recursively handles a set of subscription requests.
-// It recursively processes subscriptions at different depths. Depending on the requests returned
-// by the different event parsing
-// At depth 0, subscriptions remain open for real-time updates.
-// At greater depths, subscriptions close after EOSE.
+// handle a subscription request
 func (sm *SubscriptionManager) ProcessSubscriptionRequests(
 	subscriptionID string,
 	ctx context.Context,
@@ -265,7 +261,7 @@ func (sm *SubscriptionManager) ProcessSubscriptionRequests(
 	var wg sync.WaitGroup
 
 	// Optimize subscription requests
-	optimizedRequests := OptimizeSubscriptions(requests)
+	optimizedRequests := sm.OptimizeSubscriptions(requests)
 
 	for _, req := range optimizedRequests {
 		relays := req.Relays
@@ -300,13 +296,13 @@ func (sm *SubscriptionManager) ProcessSubscriptionRequests(
 						Str("subscription_id", subscriptionID).
 						Err(err).
 						Msg("Error subscribing to relay")
-					// if strings.Contains(err.Error(), "not connected to") {
-					// 	sm.log.Info().
-					// 		Str("relay", relay).
-					// 		Str("subscription_id", subscriptionID).
-					// 		Msg("Attempting to reconnect to relay")
-					// 	sm.relayManager.ConnectToRelay(relay)
-					// }
+					if strings.Contains(err.Error(), "not connected to") {
+						sm.log.Info().
+							Str("relay", relay).
+							Str("subscription_id", subscriptionID).
+							Msg("Attempting to reconnect to relay")
+						sm.relayManager.MarkRelayAsClosed(relay, err)
+					}
 					sm.relayManager.ReleaseRelay(relay)
 					return
 				}
