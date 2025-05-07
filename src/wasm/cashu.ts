@@ -174,8 +174,8 @@ export class CashuManager {
 		pubkeyHex: string,
 		tags: P2PKTags | null,
 		includeFees: boolean
-	): Promise<string> {
-		return this.callWalletMethod<string>(
+	): Promise<ProofUnion[]> {
+		return this.callWalletMethod<ProofUnion[]>(
 			'SendToPubkey',
 			amount,
 			mintURL,
