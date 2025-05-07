@@ -15,6 +15,7 @@
 		mints,
 		walletLoaded
 	} from 'src/controller/wallet';
+	import { DAY } from 'src/lib/period';
 	import { isKind17375, isKind7375, isKind9321, type AnyKind } from 'src/parsers';
 	import { normalizeMintURL } from 'src/parsers/utils';
 	import Feed from 'src/routes/explore/feed.svelte';
@@ -90,19 +91,25 @@
 		eventKind: SubscribeKind
 	): [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][] {
 		const [event, ...context] = events;
+		const lastEvent = feed?.[feed.length - 1]?.[0];
 		if (!event || !event.parsed) return feed;
 
 		// Add new events to our feed for processing
 		let updatedFeed: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][];
 
 		if (!isKind9321(event)) return feed;
+		if (lastEvent?.created_at > event?.created_at + DAY) {
+			if (lastEvent) {
+				lastEvent.isFirst = true;
+			}
+		}
 		if (eventKind === 'CACHED_EVENT') {
 			// For cached events, just add them to the feed
 			updatedFeed = [...feed, [event, _.uniqBy(context, 'id')]];
 		} else if (eventKind === 'FETCHED_EVENT') {
 			// For fetched events, add them in timestamp order
 			if (feed.length === 0 || event.created_at >= feed[0][0].created_at) {
-				updatedFeed = [...feed, [event, _.uniqBy(context, 'id')]];
+				updatedFeed = [[event, _.uniqBy(context, 'id')], ...feed];
 			} else {
 				// Add and sort by timestamp
 				updatedFeed = [...feed, [event, _.uniqBy(context, 'id')]].sort(
