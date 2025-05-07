@@ -16,6 +16,7 @@
 		walletLoaded
 	} from 'src/controller/wallet';
 	import { isKind17375, isKind7375, isKind9321, type AnyKind } from 'src/parsers';
+	import { normalizeMintURL } from 'src/parsers/utils';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import MintCard from 'src/routes/home/components/mintcard.svelte';
 	import Kind9321 from 'src/routes/kinds/kind9321.svelte';
@@ -68,8 +69,7 @@
 					// Only update if the store is empty or the event is more recent
 					if (!$kind17375 || event.created_at > $kind17375.created_at) {
 						$kind17375 = event;
-						$activeMintUrl = event.parsed.mints?.[0];
-						console.log('Active wallet updated', event);
+						$activeMintUrl = normalizeMintURL(event.parsed.mints?.[0]);
 					}
 					if (event?.parsed?.p2pkPrivKey) {
 						cashuManager.createWallet(event?.parsed?.p2pkPrivKey, event?.parsed?.mints);
