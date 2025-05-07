@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/candypoets/nutscash/config"
+	"github.com/candypoets/nutscash/parser"
 	"github.com/candypoets/nutscash/types"
 	"github.com/nbd-wtf/go-nostr"
 )
@@ -15,8 +16,49 @@ type Sub struct {
 	Filters []nostr.Filter
 }
 
+func (sm *SubscriptionManager) findNIP65Relays(request types.Request) []string {
+	// if the request has just one author, try to find the 10002 event locally
+	if len(request.Authors) < 10 {
+		relays := make(map[string]bool)
+		for _, author := range request.Authors {
+			event, ok := sm.database.QueryEvent(nostr.Filter{Kinds: []int{10002}, Authors: []string{author}})
+			if !ok {
+				continue
+			}
+
+			parsed, err := sm.Parser.Parse(event.Event)
+
+			if err != nil {
+				continue
+			}
+
+			relayList, ok := parsed.Parsed.(*parser.Kind10002Parsed)
+			if !ok {
+				continue
+			}
+
+			// Only add write relays to our collection
+			for _, relay := range *relayList {
+				if relay.Write {
+					relays[relay.URL] = true
+				}
+			}
+		}
+
+		// Convert the map to a slice of relays
+		keys := make([]string, 0, len(relays))
+		for relay := range relays {
+			keys = append(keys, relay)
+		}
+
+		return keys
+	}
+	return []string{}
+
+}
+
 // OptimizeSubscriptions optimizes a list of requests into subscriptions
-func OptimizeSubscriptions(requests []types.Request) []Sub {
+func (sm *SubscriptionManager) OptimizeSubscriptions(requests []types.Request) []Sub {
 	if len(requests) == 0 {
 		return []Sub{}
 	}
@@ -32,7 +74,12 @@ func OptimizeSubscriptions(requests []types.Request) []Sub {
 			requests[i].Relays = cleanRelays
 		}
 		if requests[i].Relays == nil || len(requests[i].Relays) == 0 {
-			requests[i].Relays = config.DefaultRelays
+			nip65s := sm.findNIP65Relays(requests[i])
+			if len(nip65s) > 0 {
+				requests[i].Relays = nip65s
+			} else {
+				requests[i].Relays = config.DefaultRelays
+			}
 		}
 
 		// Create individual subscriptions for NoOptimize requests
