@@ -1,34 +1,24 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
 	import { mints, balanceByMint, activeMintUrl, mint } from 'src/controller/wallet';
-
-	const formatMintText = (url: string) => {
-		if (url.length <= 20) {
-			return url;
-		}
-		const first10 = url.substring(0, 10);
-		const last10 = url.substring(url.length - 10, url.length);
-		return `${first10}...${last10}`;
-	};
+	import Mintcard from 'src/routes/home/components/mintcard.svelte';
 </script>
 
 <button class="dropdown dropdown-bottom w-full my-2">
 	<!-- svelte-ignore a11y-no-noninteractive-tabindex -->
 	<!-- svelte-ignore a11y-label-has-associated-control -->
 	<label tabindex="0" class="join-item w-full">
-		<div class="flex items-center justify-between gap-1 w-full px-4">
-			<div class="rounded-full bg-success w-4 h-4 p-0.5">
-				<Icon class="text-white" icon="mdi:check" width="100%" height="100%"></Icon>
-			</div>
-			<p class="max-w-xs text-xs flex-grow">
-				{#await $mint then m}
+		{#await $mint then m}
+			<div class="flex items-center gap-1 w-full px-4">
+				<!-- <div> -->
+				<Icon icon="mdi:chevron-down" class="w-6 h-6 text-gray-400" />
+				<!-- </div> -->
+				<Mintcard mint={m} size="sm" />
+				<!-- <p class="max-w-xs text-xs flex-grow">
 					{m?.name ?? '----'}
-				{/await}
-			</p>
-			<div>
-				<Icon icon="mdi:chevron-down" class="w-6 h-6" />
+				</p> -->
 			</div>
-		</div>
+		{/await}
 	</label>
 
 	<!-- svelte-ignore a11y-no-noninteractive-tabindex -->

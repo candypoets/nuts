@@ -3,6 +3,7 @@
 	import type { Mint } from 'src/parsers/mint';
 
 	export let mint: Mint;
+	export let size = 'lg';
 
 	$: balance = $balanceByMint[mint.url] || 0;
 
@@ -32,7 +33,7 @@
 	}
 </script>
 
-<div class="w-72 max-w-md mx-auto shrink-0 snap-always">
+<div class="w-40 max-w-md mx-auto shrink-0 snap-always" class:w-72={size == 'lg'}>
 	<div
 		class="rounded-xl shadow-lg p-4 text-white relative overflow-hidden"
 		style="background-image: linear-gradient(to left, {generateColorFromUrl(
@@ -41,10 +42,11 @@
 		)}, {generateColorFromUrl(mint.name, 0.8)});"
 	>
 		<!-- Credit card chip design -->
-		<div class="flex gap-2 items-start justify-between">
+		<div class="flex gap-2 items-start justify-between" class:!items-center={size == 'xs'}>
 			<h2 class="font-bold tracking-wider -mt-1">
 				{mint.name ? mint.name.replace(/mint/gi, '').replace(/cashu/gi, '') : 'Unknown Mint'}
 			</h2>
+
 			<div
 				class="w-3 h-3 rounded-full relative overflow-hidden"
 				class:bg-green-500={mint.state == 'OK'}
@@ -54,49 +56,53 @@
 				<div class="absolute inset-0 bg-white opacity-50 animate-pulse"></div>
 			</div>
 		</div>
-
-		<!-- Mint details -->
-		<div class="mt-2">
-			<!-- Stats cards with improved layout -->
-			<div class="flex flex-wrap justify-between gap-2">
-				<div class="bg-gray-700/30 rounded-lg p-3 flex-1 backdrop-blur-sm">
-					<p class="text-xs uppercase text-indigo-200 font-semibold">Balance</p>
-					<p class="font-mono text-xl mt-1">
-						{balance || '0'} <span class="text-sm -ml-2">sats</span>
-					</p>
-				</div>
-
-				<div class="bg-gray-700/30 rounded-lg p-3 flex-1 backdrop-blur-sm">
-					<p class="text-xs uppercase text-indigo-200 font-semibold">Health</p>
-					<div class="mt-2 relative h-6 w-full bg-gray-200 rounded-full">
-						{#if errorRatio !== 'N/A'}
-							{@const ratio = parseFloat(errorRatio)}
-							{@const percentage = Math.min((1 - ratio) * 100, 100)}
-							{@const colorClass =
-								ratio < 0.02 ? 'bg-green-500' : ratio < 0.05 ? 'bg-yellow-500' : 'bg-red-500'}
-							<div
-								class="absolute top-0 left-0 h-full rounded-full {colorClass} flex items-center justify-center"
-								style="width: {percentage}%"
-							>
-								<span class="text-xs font-bold text-white px-1">{percentage}%</span>
-							</div>
-						{:else}
-							<div class="h-full w-full flex items-center justify-center text-gray-500">N/A</div>
-						{/if}
+		{#if size == 'sm'}
+			<p class="text-sm text-left">{balance} sats</p>
+		{/if}
+		{#if size == 'lg'}
+			<!-- Mint details -->
+			<div class="mt-2">
+				<!-- Stats cards with improved layout -->
+				<div class="flex flex-wrap justify-between gap-2">
+					<div class="bg-gray-700/30 rounded-lg p-3 flex-1 backdrop-blur-sm">
+						<p class="text-xs uppercase text-indigo-200 font-semibold">Balance</p>
+						<p class="font-mono text-xl mt-1">
+							{balance || '0'} <span class="text-sm -ml-2">sats</span>
+						</p>
 					</div>
-				</div>
 
-				<!-- <div class="bg-indigo-700/30 rounded-lg p-3 flex-1 backdrop-blur-sm">
+					<div class="bg-gray-700/30 rounded-lg p-3 flex-1 backdrop-blur-sm">
+						<p class="text-xs uppercase text-indigo-200 font-semibold">Health</p>
+						<div class="mt-2 relative h-6 w-full bg-gray-200 rounded-full">
+							{#if errorRatio !== 'N/A'}
+								{@const ratio = parseFloat(errorRatio)}
+								{@const percentage = Math.min((1 - ratio) * 100, 100)}
+								{@const colorClass =
+									ratio < 0.02 ? 'bg-green-500' : ratio < 0.05 ? 'bg-yellow-500' : 'bg-red-500'}
+								<div
+									class="absolute top-0 left-0 h-full rounded-full {colorClass} flex items-center justify-center"
+									style="width: {percentage}%"
+								>
+									<span class="text-xs font-bold text-white px-1">{percentage}%</span>
+								</div>
+							{:else}
+								<div class="h-full w-full flex items-center justify-center text-gray-500">N/A</div>
+							{/if}
+						</div>
+					</div>
+
+					<!-- <div class="bg-indigo-700/30 rounded-lg p-3 flex-1 backdrop-blur-sm">
 						<p class="text-xs uppercase text-indigo-200 font-semibold">Errors/Mints</p>
 						<p class="font-mono text-xl mt-1">{mint.n_errors || 0}/{mint.n_mints || 0}</p>
 					</div> -->
 
-				<!-- <div class="bg-indigo-700/30 rounded-lg p-3 flex-1 backdrop-blur-sm">
+					<!-- <div class="bg-indigo-700/30 rounded-lg p-3 flex-1 backdrop-blur-sm">
 						<p class="text-xs uppercase text-indigo-200 font-semibold">Ratio</p>
 						<p class="font-mono text-xl mt-1">{errorRatio}</p>
 					</div> -->
+				</div>
 			</div>
-		</div>
+		{/if}
 
 		<!-- Credit card-like pattern -->
 		<!-- Dynamic pattern based on mint name -->
