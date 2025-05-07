@@ -100,8 +100,8 @@ func Initialize() {
 
 	// Initialize managers
 	globalSubscriptionManager = network.NewSubscriptionManager(nostrDb, nostrParser, globalRelayManager, subscriptionCallback)
-	globalPublishManager = network.NewPublishManager(nostrDb, nostrParser, globalRelayManager, publishCallback, defaultRelays)
-
+	globalPublishManager = network.NewPublishManager(nostrDb, nostrParser, globalRelayManager, publishCallback)
+	network.NewZapManager(nostrParser, []string{})
 	cashu.Initialize()
 
 	registerCallbacks()
