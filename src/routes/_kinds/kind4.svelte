@@ -36,7 +36,6 @@
 			firstEvent = feed?.[1]?.[0];
 		}
 		if (isKind4(event)) {
-			console.log('updateFeed', firstEvent, lastEvent, event, sent);
 			if (lastEvent?.pubkey != event.pubkey) {
 				if (lastEvent) {
 					lastEvent.isFirst = true;
@@ -47,7 +46,6 @@
 				event.incoming = true;
 			}
 			if (event.created_at == sent?.created_at) {
-				console.log('updateFeed sent');
 				sent = undefined;
 				if (firstEvent) firstEvent.isLast = false;
 				event.isLast = true;
@@ -57,7 +55,6 @@
 				return [...feed, [event, ...context]];
 			} else {
 				if (firstEvent) firstEvent.isLast = false;
-				console.log('updateFeed incoming');
 				return [[event, ...context], ...feed];
 			}
 		} else {
