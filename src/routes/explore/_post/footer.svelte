@@ -106,7 +106,10 @@
 
 		const event: EventTemplate = {
 			kind: kinds.Reaction,
-			tags: [['e', note.id]],
+			tags: [
+				['e', note.id],
+				['p', note.pubkey]
+			],
 			content: emoji,
 			created_at: now()
 		};
