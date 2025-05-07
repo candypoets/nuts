@@ -61,15 +61,15 @@ type PublishSummary struct {
 
 // PublishManager handles publishing events to relays
 type PublishManager struct {
-	Signer        signer.Signer
-	database      *db.NostrDB
-	parser        *parser.Parser
-	mutex         sync.Mutex
-	operations    map[string]*PublishOperation
-	relayManager  *RelayConnectionManager
-	log           zerolog.Logger
-	callback      js.Func
-	defaultRelays []string
+	Signer       signer.Signer
+	database     *db.NostrDB
+	parser       *parser.Parser
+	mutex        sync.Mutex
+	operations   map[string]*PublishOperation
+	relayManager *RelayConnectionManager
+	log          zerolog.Logger
+	callback     js.Func
+	indexRelays  []string
 }
 
 // NewPublishManager creates a new publish manager
