@@ -11,6 +11,8 @@
 	import { key } from 'src/stores/db';
 	import { nostrManager } from 'src/wasm/manager';
 	import type { ParsedEvent } from 'src/workers/nipworker';
+	import { formatDistanceToNow, formatDate, format, formatISO } from 'date-fns';
+	import { DAY, now } from 'src/lib/period';
 
 	export let zap: ParsedEvent<Kind9321Parsed>;
 	export let context: ParsedEvent<AnyKind>[];
@@ -20,7 +22,14 @@
 
 	function go() {
 		const currentPath = $page.url.pathname;
-		const eventPath = `nevent:${zap?.parsed?.eventId}`;
+		let eventPath = '';
+		if (zap?.parsed?.eventId) {
+			eventPath = `nevent:${zap?.parsed?.eventId}`;
+		} else {
+			eventPath = `nprofile:${
+				zap?.parsed?.recipient == $key?.pub ? zap?.pubkey : zap?.parsed?.recipient
+			}`;
+		}
 
 		// Check if the current URL already ends with the profile we're trying to navigate to
 		if (!currentPath.endsWith(eventPath)) {
@@ -69,6 +78,17 @@
 	});
 </script>
 
+{#if zap.isFirst}
+	<strong class="text-gray-600">
+		{#if zap.created_at > new Date().setHours(0, 0, 0, 0) / 1000}
+			TODAY
+		{:else if zap.created_at > new Date().setHours(0, 0, 0, 0) / 1000 - DAY}
+			Yesterday
+		{:else}
+			{formatDate(new Date(zap.created_at * 1000), 'dd-MM-yyyy')}
+		{/if}
+	</strong>
+{/if}
 <!-- Added role, tabindex and keydown for accessibility -->
 <div
 	class="bg-base-200 p-4 rounded-lg my-2 cursor-pointer hover:bg-base-300"
