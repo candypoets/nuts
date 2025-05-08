@@ -1,18 +1,27 @@
 <script lang="ts">
-	import TokenIcon from 'src/comp/TokenIcon.svelte';
-	import { browser } from '$app/environment';
-	import { sendMessage } from 'src/actions/chat';
-	import { formatAmount, saveNuts, send } from 'src/actions/wallet';
-	import { db, key, proofsCache, settings, Status } from 'src/stores/db';
-	import { mintInfos, totalAmountAvailable } from 'src/stores/mints';
-	import { balance, wallets } from 'src/stores/wallet';
-	import { onMount } from 'svelte';
 	import Icon from '@iconify/svelte';
-	import type { Contact } from 'src/model/contact';
-	import { signer } from 'src/stores/signer';
+	import MintSelector from 'src/comp/MintSelector.svelte';
+	import { mintInfos } from 'src/stores/mints';
 	import Avatar from '../explore/avatar.svelte';
-	import { goBack } from './modal';
 	import User from '../explore/user.svelte';
+	import { goBack } from './modal';
+	import { onMount } from 'svelte';
+	import { nostrManager, type SubscribeKind } from 'src/wasm/manager';
+	import type { ParsedEvent } from 'src/workers/nipworker';
+	import {
+		isKind10002,
+		isKind10019,
+		isKind17375,
+		type AnyKind,
+		type Kind10019Parsed
+	} from 'src/parsers';
+	import { activeMintUrl, balanceByMint } from 'src/controller/wallet';
+	import { fly } from 'svelte/transition';
+	import type { EventTemplate } from 'nostr-tools';
+	import { cashuManager } from 'src/wasm/cashu';
+	import { key } from 'src/stores/db';
+	import { normalizeMintURL } from 'src/parsers/utils';
+	import { now } from 'src/lib/period';
 
 	// export let active: string;
 	export let pubkey: string;
@@ -24,59 +33,92 @@
 	// let fees: 0;
 	let processing = '';
 
+	let wallet: Kind10019Parsed;
+
+	let zap = true;
+	let receiptRelays: string[] = [];
+
 	$: {
 		if (!/^[0-9]*$/.test(amount)) {
 			amount = '';
 		}
 	}
 
-	// onMount(() => {
-	// 	if (browser) {
-	// 		if (
-	// 			/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
-	// 		) {
-	// 			return;
-	// 		}
-	// 		document.getElementById('send-amt')?.focus();
-	// 	}
-	// });
+	$: balance = $balanceByMint[$activeMintUrl || ''];
+
+	onMount(() => {
+		nostrManager.subscribe(
+			'wallet_' + pubkey,
+			[
+				{ kinds: [10002], authors: [pubkey], cacheFirst: true, relays: [] },
+				{ kinds: [10019], authors: [pubkey], cacheFirst: true, relays: [] }
+			],
+			(events: ParsedEvent<AnyKind>[], eventKind: SubscribeKind) => {
+				const [event, ...context] = events;
+				if (isKind10019(event)) {
+					console.log('ecash wallet', event);
+					wallet = event?.parsed;
+					zap = false;
+				}
+				if (isKind10002(event)) {
+					receiptRelays = event.parsed?.map((r) => r.read && r.url).filter(Boolean) || [];
+				}
+			}
+		);
+	});
 
 	const sendEcash = async () => {
-		try {
-			processing = 'Creating Token';
-			const res = await send($wallets, amount as number, memo);
-			processing = 'Sending Token';
-			if (!res.sends.length) return;
-			await sendMessage($signer, pubkey, res.encodedToken)
-				.then(async () => {
-					console.info(
-						'return change',
-						res.returnChanges.reduce((a, b) => a + b.amount, 0)
+		console.log('sendEcash', wallet);
+		if ($activeMintUrl) {
+			try {
+				if (wallet && !zap) {
+					const isMintSupported = wallet.trustedMints?.some(
+						(tm) => normalizeMintURL(tm.url) == $activeMintUrl
 					);
-					// add the change to the proofs table
-					if (res.returnChanges.length) {
-						proofsCache.bulkPut(res.returnChanges.map((p) => ({ ...p, status: Status.Confirmed })));
-						proofsCache.bulkPut(res.sends.map((p) => ({ ...p, status: Status.Spent })));
-						await saveNuts($signer, res.returnChanges, $key?.pub);
-					}
-				})
-				.catch(async (e) => {
-					// keep the sent proofs for yourself as renewed proofs
-					proofsCache.bulkPut(res.sends.map((p) => ({ ...p, status: Status.Confirmed })));
-					// add the returnchange to the proofs table
-					proofsCache.bulkPut(res.returnChanges.map((p) => ({ ...p, status: Status.Confirmed })));
+					const proofsToSend = await cashuManager.sendToPubkey(
+						Number(amount) || 0,
+						$activeMintUrl || '',
+						'02' + wallet.p2pkPubkey || '',
+						null,
+						true
+					);
+					console.log(isMintSupported, proofsToSend, wallet);
+					const nutszap: EventTemplate = {
+						kind: 9321,
+						content: memo,
+						pubkey: $key?.pub,
+						created_at: now(),
+						tags: [
+							...proofsToSend.map((proof) => ['proof', JSON.stringify(proof)]),
+							['u', $activeMintUrl || ''],
 
-					await saveNuts($signer, [...res.returnChanges, ...res.sends], $key?.pub);
-					console.error(e);
-				});
-
-			processing = 'Token Sent';
-			setTimeout(() => {
-				processing = '';
-			}, 2000);
-		} catch (e) {
-			processing = '';
-			console.error(e);
+							['p', pubkey]
+						]
+					};
+					nostrManager.publish('nutszap_' + pubkey, nutszap);
+				} else {
+					const zapRequest: EventTemplate = {
+						kind: 9734,
+						content: memo,
+						pubkey: $key?.pub || '',
+						created_at: now(),
+						tags: [
+							['e', ''],
+							['p', pubkey],
+							['amount', (Number(amount) * 1000).toString()],
+							['relays', ...receiptRelays.map((r) => r)],
+							['lnurl', '']
+						]
+					};
+					const invoice = await nostrManager.zap('zap_' + pubkey, zapRequest);
+					console.log('zap invoice', invoice);
+					const meltQuote = await cashuManager.requestMeltQuote(invoice, $activeMintUrl);
+					console.log('meltQuote', meltQuote);
+					await cashuManager.melt(meltQuote.quote);
+				}
+			} catch (e) {
+				console.error(e);
+			}
 		}
 	};
 </script>
@@ -87,20 +129,14 @@
 			<div on:click={goBack}>
 				<Icon icon="mdi:close" class="w-6 h-6" />
 			</div>
-			<strong> Send Ecash </strong>
+
 			<div />
 		</div>
 		<div>
 			<div class="p-4">
 				<div class="flex gap-4 items-center">
 					<div class="w-1/2 text-center">
-						<strong class="text-xs">Main Account</strong>
-						<div class="flex gap-1 items-center justify-center">
-							<TokenIcon />
-							<p class="font-bold">
-								{formatAmount($balance, $settings?.unit)}
-							</p>
-						</div>
+						<MintSelector />
 					</div>
 					<div class="flex justify-center">
 						<Icon icon="mdi:arrow-right" class="text-5xl text-gray-400" />
@@ -116,10 +152,6 @@
 		</div>
 		<div>
 			<div class="w-full gap-3">
-				<!-- <div class="z-10">
-				<MintSelector bind:mint />
-			</div> -->
-
 				<div class="h-52 flex flex-col items-center">
 					<input
 						autofocus
@@ -142,20 +174,54 @@
 			</div>
 
 			<div class="px-4 w-full mt-36">
-				<button
-					class=" btn w-full btn-primary"
-					disabled={!amount || !Number(amount) || amount > $mintInfos.totalAmountAvailable}
-					on:click={() => sendEcash()}
-				>
-					{#if Number(amount) > $balance}
-						Not enough funds
-					{:else if !!processing}
-						{processing}
-					{:else}
-						Send
-					{/if}
-				</button>
+				<div class="join w-full">
+					<label class="swap join-item border">
+						<input type="checkbox" bind:checked={zap} />
+						<div class="swap-on px-4">
+							<Icon icon="emojione-v1:lightning-mood" class="text-2xl" />
+						</div>
+						<div class="swap-off px-4"><Icon icon="openmoji:peanuts" class="text-2xl" /></div>
+					</label>
+					<input
+						type="text"
+						class="input input-bordered w-full join-item"
+						placeholder="Add a memo"
+						bind:value={memo}
+					/>
+
+					<button
+						class="btn btn-primary join-item"
+						disabled={!amount || !Number(amount) || amount > balance}
+						on:click={sendEcash}
+					>
+						{#if Number(amount) > balance}
+							Not enough funds
+						{:else if !!processing}
+							{processing}
+						{:else}
+							<div class="flex items-center gap-2">
+								<span class="capitalize w-40 lg:w-auto">Send</span>
+							</div>
+						{/if}
+					</button>
+				</div>
 			</div>
+			{#if !zap && !wallet}
+				<div class="px-4 w-full mt-4" transition:fly>
+					<div class="alert alert-info shadow-lg">
+						<Icon
+							icon="mdi:information-slab-circle-outline"
+							class="stroke-current shrink-0 w-6 h-6"
+						/>
+						<div>
+							<div class="text-sm">
+								This user has not setted up an ecash wallet yet. The ecash will definitely arrive,
+								but their notification experience might be a bit more low-key.
+							</div>
+						</div>
+					</div>
+				</div>
+			{/if}
 		</div>
 	</div>
 </div>
