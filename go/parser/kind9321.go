@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	wallet "github.com/candypoets/nutscash/cashu"
 	"github.com/candypoets/nutscash/types"
 	"github.com/elnosh/gonuts/cashu"
 	"github.com/nbd-wtf/go-nostr"
@@ -13,16 +12,15 @@ import (
 
 // Kind9321Parsed represents parsed data from a kind 9321 event (nutzap)
 type Kind9321Parsed struct {
-	Amount        int                `json:"amount" msgpack:"amount"`
-	Recipient     string             `json:"recipient" msgpack:"recipient"`
-	EventID       string             `json:"eventId,omitempty" msgpack:"eventId,omitempty"`       // event being zapped if any
-	MintURL       string             `json:"mintUrl" msgpack:"mintUrl"`                           // mint for the proofs
-	Redeemed      bool               `json:"redeemed" msgpack:"redeemed"`                         // Whether the zap has been redeemed
-	Proofs        []types.ProofUnion `json:"proofs" msgpack:"proofs"`                             // Using ProofUnion to handle both Proof and ProofV4
-	UnspentProofs []cashu.Proof      `json:"unspentProofs" msgpack:"unspentProofs"`               // Unspent proofs from the zap
-	Comment       string             `json:"comment,omitempty" msgpack:"comment,omitempty"`       // Optional comment from the sender
-	IsP2PKLocked  bool               `json:"isP2PKLocked" msgpack:"isP2PKLocked"`                 // Whether the proofs are properly P2PK-locked
-	P2PKPubkey    string             `json:"p2pkPubkey,omitempty" msgpack:"p2pkPubkey,omitempty"` // The P2PK pubkey detected in the proofs
+	Amount       int                `json:"amount" msgpack:"amount"`
+	Recipient    string             `json:"recipient" msgpack:"recipient"`
+	EventID      string             `json:"eventId,omitempty" msgpack:"eventId,omitempty"`       // event being zapped if any
+	MintURL      string             `json:"mintUrl" msgpack:"mintUrl"`                           // mint for the proofs
+	Redeemed     bool               `json:"redeemed" msgpack:"redeemed"`                         // Whether the zap has been redeemed
+	Proofs       []types.ProofUnion `json:"proofs" msgpack:"proofs"`                             // Using ProofUnion to handle both Proof and ProofV4
+	Comment      string             `json:"comment,omitempty" msgpack:"comment,omitempty"`       // Optional comment from the sender
+	IsP2PKLocked bool               `json:"isP2PKLocked" msgpack:"isP2PKLocked"`                 // Whether the proofs are properly P2PK-locked
+	P2PKPubkey   string             `json:"p2pkPubkey,omitempty" msgpack:"p2pkPubkey,omitempty"` // The P2PK pubkey detected in the proofs
 }
 
 // ParseKind9321 parses a kind 9321 event (nutzap)
@@ -182,36 +180,18 @@ func (p *Parser) ParseKind9321(event nostr.Event) (*Kind9321Parsed, *[]types.Req
 				}
 			}
 		}
-	} // End of loop over proofTags
-	pubkey, _ := p.Signer.GetPublicKey()
-	var unspentProofs []cashu.Proof
-	if recipientTag[1] == pubkey {
-		if p2pkPubkey != "" {
-			wallet := wallet.Manager.Wallets[p2pkPubkey]
-			if wallet != nil {
-				var convertedProofs []cashu.Proof
-				for _, p := range proofs {
-					proof, ok := p.AsProof()
-					if ok {
-						convertedProofs = append(convertedProofs, proof)
-					}
-				}
-				unspentProofs, _ = wallet.CheckProofState(mintTag[1], convertedProofs, false)
-			}
-		}
 	}
 
 	// Create the parsed result
 	result := &Kind9321Parsed{
-		Amount:        total,
-		Recipient:     recipientTag[1],
-		MintURL:       mintTag[1],
-		Proofs:        proofs,
-		UnspentProofs: unspentProofs,
-		Redeemed:      false, // Default to not redeemed, will check later
-		Comment:       event.Content,
-		IsP2PKLocked:  isP2PKLocked,
-		P2PKPubkey:    p2pkPubkey,
+		Amount:       total,
+		Recipient:    recipientTag[1],
+		MintURL:      mintTag[1],
+		Proofs:       proofs,
+		Redeemed:     false, // Default to not redeemed, will check later
+		Comment:      event.Content,
+		IsP2PKLocked: isP2PKLocked,
+		P2PKPubkey:   p2pkPubkey,
 	}
 
 	// Add eventId if present
