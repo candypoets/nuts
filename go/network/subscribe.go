@@ -34,10 +34,42 @@ type SubscriptionManager struct {
 	callback      js.Func
 }
 
+// Subscription tracks a subscription
+type Subscription struct {
+	ID            string
+	Pool          *nostr.SimplePool
+	Ctx           context.Context
+	CancelFunc    context.CancelFunc
+	Subscriptions []*nostr.Subscription
+	Sent          map[string]*[]types.ParsedEvent
+}
+
+var sm = &SubscriptionManager{}
+
 // NewSubscriptionManager creates a new subscription manager
-func NewSubscriptionManager(database *db.NostrDB, parser *parser.Parser, relayManager *RelayConnectionManager, callback js.Func) *SubscriptionManager {
+func NewSubscriptionManager(database *db.NostrDB, parser *parser.Parser, relayManager *RelayConnectionManager) *SubscriptionManager {
 	// Get a contextualized logger
 	componentLogger := logger.WithComponent("subscriptions")
+
+	// Subscription callback
+	callback := js.FuncOf(func(this js.Value, args []js.Value) any {
+		// args[0] = event type
+		// args[1] = subscription ID
+		// args[2] = event data
+		eventData := map[string]any{
+			"type":           args[0].String(),
+			"subscriptionId": args[1].String(),
+		}
+
+		// Add event data if available
+		if len(args) >= 3 {
+			eventData["eventData"] = args[2]
+		}
+
+		// Post message back to JavaScript
+		js.Global().Get("self").Call("postMessage", eventData)
+		return nil
+	})
 
 	sm := &SubscriptionManager{
 		subscriptions: make(map[string]*Subscription),
@@ -48,6 +80,10 @@ func NewSubscriptionManager(database *db.NostrDB, parser *parser.Parser, relayMa
 		log:           componentLogger,
 		callback:      callback,
 	}
+
+	js.Global().Set("openSubscription", js.FuncOf(sm.jsOpenSubscription))
+
+	js.Global().Set("closeSubscription", js.FuncOf(sm.jsCloseSubscription))
 
 	go func() {
 		for {
@@ -62,14 +98,31 @@ func NewSubscriptionManager(database *db.NostrDB, parser *parser.Parser, relayMa
 	return sm
 }
 
-// Subscription tracks a subscription
-type Subscription struct {
-	ID            string
-	Pool          *nostr.SimplePool
-	Ctx           context.Context
-	CancelFunc    context.CancelFunc
-	Subscriptions []*nostr.Subscription
-	Sent          map[string]*[]types.ParsedEvent
+func (sm *SubscriptionManager) jsOpenSubscription(this js.Value, args []js.Value) any {
+	if len(args) < 2 {
+		return js.Error{Value: js.ValueOf("Not enough arguments")}
+	}
+
+	subscriptionID := args[0].String()
+	binaryData := args[1]
+
+	// Convert JS Uint8Array to Go []byte
+	length := binaryData.Length()
+	goBytes := make([]byte, length)
+	js.CopyBytesToGo(goBytes, binaryData)
+
+	// Deserialize the binary data
+	var requests []types.Request
+	if err := msgpack.Unmarshal(goBytes, &requests); err != nil {
+		return js.Error{Value: js.ValueOf("Failed to parse binary data: " + err.Error())}
+	}
+
+	// Open subscription using the manager
+	if err := sm.OpenSubscription(subscriptionID, requests); err != nil {
+		return js.Error{Value: js.ValueOf("Failed to open subscription: " + err.Error())}
+	}
+
+	return js.ValueOf(true)
 }
 
 // openSubscriptions starts a new subscription
@@ -111,6 +164,16 @@ func (sm *SubscriptionManager) OpenSubscription(subscriptionID string, requests 
 		Str("subscription_id", subscriptionID).
 		Int("request_count", len(requests)).
 		Msg("Opened subscription successfully")
+	return nil
+}
+
+func (sm *SubscriptionManager) jsCloseSubscription(this js.Value, args []js.Value) any {
+	if len(args) < 1 {
+		return js.Error{Value: js.ValueOf("Subscription ID required")}
+	}
+
+	subscriptionID := args[0].String()
+	sm.CloseSubscription(subscriptionID)
 	return nil
 }
 

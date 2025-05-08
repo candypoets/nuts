@@ -13,7 +13,6 @@ import (
 	"github.com/candypoets/nutscash/db"
 	"github.com/candypoets/nutscash/logger"
 	"github.com/candypoets/nutscash/parser"
-	"github.com/candypoets/nutscash/signer"
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/rs/zerolog"
 	"github.com/vmihailenco/msgpack/v5"
@@ -60,7 +59,6 @@ type PublishSummary struct {
 
 // PublishManager handles publishing events to relays
 type PublishManager struct {
-	Signer       signer.Signer
 	database     *db.NostrDB
 	parser       *parser.Parser
 	mutex        sync.Mutex
@@ -71,11 +69,33 @@ type PublishManager struct {
 	indexRelays  []string
 }
 
+var pm = &PublishManager{}
+
 // NewPublishManager creates a new publish manager
-func NewPublishManager(database *db.NostrDB, parser *parser.Parser, relayManager *RelayConnectionManager, callback js.Func) *PublishManager {
+func NewPublishManager(database *db.NostrDB, parser *parser.Parser, relayManager *RelayConnectionManager) *PublishManager {
 	componentLogger := logger.WithComponent("publish")
+
+	callback := js.FuncOf(func(this js.Value, args []js.Value) any {
+		// args[0] = event type
+		// args[1] = event data
+		eventData := map[string]any{
+			"type":      args[0].String(),
+			"publishId": args[1].String(),
+		}
+
+		// Add event data if available
+		if len(args) >= 3 {
+			eventData["eventData"] = args[2]
+		}
+
+		// Post message back to JavaScript
+		js.Global().Get("self").Call("postMessage", eventData)
+		return nil
+	})
+
 	indexRelays := []string{"wss://purplepag.es", "wss://nos.lol", "wss://nostr.wine", "wss://relay.nostr.band"}
-	return &PublishManager{
+
+	pm := &PublishManager{
 		operations:   make(map[string]*PublishOperation),
 		relayManager: relayManager,
 		database:     database,
@@ -84,6 +104,35 @@ func NewPublishManager(database *db.NostrDB, parser *parser.Parser, relayManager
 		callback:     callback,
 		indexRelays:  indexRelays,
 	}
+
+	js.Global().Set("publishEvent", js.FuncOf(pm.jsPublishEvent))
+
+	return pm
+}
+
+func (pm *PublishManager) jsPublishEvent(this js.Value, args []js.Value) any {
+	if len(args) < 2 {
+		return js.Error{Value: js.ValueOf("Not enough arguments")}
+	}
+
+	publishID := args[0].String()
+	binaryData := args[1]
+
+	// Convert JS Uint8Array to Go []byte
+	length := binaryData.Length()
+	goBytes := make([]byte, length)
+	js.CopyBytesToGo(goBytes, binaryData)
+
+	// Deserialize the binary data
+	var event nostr.Event
+	if err := msgpack.Unmarshal(goBytes, &event); err != nil {
+		return js.Error{Value: js.ValueOf("Failed to parse binary data: " + err.Error())}
+	}
+
+	// Publish the event using the manager
+	go pm.PublishEvent(publishID, event)
+
+	return nil
 }
 
 // PublishEvent initiates the process of publishing an event
