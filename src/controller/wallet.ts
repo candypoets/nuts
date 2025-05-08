@@ -9,6 +9,7 @@ import type { EventTemplate } from 'nostr-tools';
 import { now } from 'src/lib/period';
 import { nostrManager } from 'src/wasm/manager';
 import { cashuManager } from 'src/wasm/cashu';
+import { normalizeMintURL } from 'src/parsers/utils';
 
 async function fetchMintData(mint: string): Promise<Mint> {
 	try {
@@ -47,9 +48,7 @@ export const mint = derived([mints, activeMintUrl], ([$mints, $activeMintUrl]) =
 	return $mints.then((mints) => {
 		if (!$activeMintUrl || mints.length === 0) return null;
 		return mints.find(
-			(mint) =>
-				normalizeURL(mint.url || '').replace(/\/$/, '') ===
-				normalizeURL($activeMintUrl).replace(/\/$/, '')
+			(mint) => normalizeMintURL(mint.url || '') === normalizeMintURL($activeMintUrl)
 		);
 	});
 });
@@ -215,9 +214,7 @@ export async function saveNuts(mintUrl: string, nutsToSave: ProofUnion[]) {
 		created_at: now()
 	};
 
-	console.log(event, eventsToDelete, currentProofs, nutsToSave);
-
-	// nostrManager.publish('saveNuts', event);
+	nostrManager.publish('saveNuts', event);
 }
 
 export const walletLoaded = (() => {

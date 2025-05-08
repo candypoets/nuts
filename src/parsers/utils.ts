@@ -1,4 +1,5 @@
 import type { NostrEvent } from 'nostr-tools';
+import { normalizeURL } from 'nostr-tools/utils';
 
 /**
  * Extract emoji information from event
@@ -25,4 +26,8 @@ export function parseEmojiContent(
 	}
 
 	return undefined;
+}
+
+export function normalizeMintURL(mintUrl: string) {
+	return normalizeURL(mintUrl).replace(/\/$/, '');
 }
