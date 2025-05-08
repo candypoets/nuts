@@ -26,8 +26,6 @@ import (
 )
 
 const (
-	ZapCallbackInvoice  = "ZAP_INVOICE_RECEIVED"
-	ZapCallbackError    = "ZAP_ERROR"
 	DefaultZapRelaysTag = "wss://relay.damus.io,wss://relay.primal.net,wss://nos.lol"
 	LNURLRequestTimeout = 20 * time.Second // Increased slightly for potentially slower LNURL servers
 	NostrProfileTimeout = 10 * time.Second
@@ -57,64 +55,74 @@ var customClient = &http.Client{
 	Timeout: LNURLRequestTimeout,
 }
 
-var zapManager = &ZapManager{}
+var zm = &ZapManager{}
 
 // NewZapManager creates a new ZapManager
-func NewZapManager(p *parser.Parser, defaultRelays []string) {
-	// Register the global wallet function handler
-	js.Global().Set("zap", js.FuncOf(zapManager.InitiateZap))
-
+func NewZapManager(p *parser.Parser, db *db.NostrDB, defaultRelays []string) {
 	// Subscription callback
-	zapManager.callback = js.FuncOf(func(this js.Value, args []js.Value) any {
+	zm.callback = js.FuncOf(func(this js.Value, args []js.Value) any {
 		if len(args) == 0 {
-			fmt.Println("Warning: manager.callback called with no arguments.")
+			fmt.Println("Warning: zapmanager.callback called with no arguments.")
 			return nil
 		}
-		walletData := map[string]any{
-			"requestID": args[0].String(),
-			"data":      args[1],
+		zapData := map[string]any{
+			"type":    "ZAP",
+			"zapId":   args[0].String(),
+			"payload": args[1].String(),
 		}
 		// Post message back to JavaScript
-		js.Global().Get("self").Call("postMessage", walletData)
+		js.Global().Get("self").Call("postMessage", zapData)
 		return nil
 	})
 
-	zapManager.log = logger.WithComponent("zap_manager")
+	zm.log = logger.WithComponent("zap_manager")
 	if len(defaultRelays) == 0 {
 		defaultRelays = []string{"wss://purplepag.es", "wss://relay.nostr.band", "wss://nos.lol"}
 	}
 
 	lnurl.Client = customClient // Set the global client used by go-lnurl
-	zapManager.indexRelays = defaultRelays
+	zm.indexRelays = defaultRelays
+	zm.parser = p
+	zm.database = db
+
+	// Register the global wallet function handler
+	js.Global().Set("zap", js.FuncOf(zm.jsZap))
 }
 
-func (zm *ZapManager) InitiateZap(this js.Value, args []js.Value) any {
+func (zm *ZapManager) jsZap(this js.Value, args []js.Value) any {
+	zm.log.Debug().Msg("Starting jsZap function")
 	// Ensure we have the required parameters
 	if len(args) < 2 {
 		zm.log.Error().Msg("Not enough arguments for zap function")
 		return js.ValueOf("error: missing required parameters")
 	}
 
-	// Extract zapID from first argument
-	zapID := args[0].String()
+	// Extract zapId from first argument
+	zapId := args[0].String()
 
 	// Parse the nostr event template from the second argument
 	var template nostr.Event
 	eventJSON := args[1].String()
 	if err := json.Unmarshal([]byte(eventJSON), &template); err != nil {
 		zm.log.Error().Err(err).Msg("Failed to parse zap request event JSON")
-		zm.sendCallback(zapID, fmt.Sprintf("Failed to parse zap request: %v", err))
+		zm.sendCallback(zapId, fmt.Sprintf("Failed to parse zap request: %v", err))
 		return js.ValueOf("error: invalid event format")
 	}
 
 	// Process the zap request asynchronously
-	go zm.Zap(zapID, template)
+	go zm.Zap(zapId, template)
 
 	// Return immediately to avoid blocking JS
 	return js.ValueOf(true)
 }
 
-func (zm *ZapManager) Zap(zapID string, template nostr.Event) {
+func (zm *ZapManager) Zap(zapId string, template nostr.Event) {
+	zm.log.Debug().
+		Str("zapId", zapId).
+		Interface("template", template).
+		Interface("parser", zm.parser != nil).
+		Msg("Zap request received")
+
 	parsed, _, err := zm.parser.ParseKind9734(template)
 	if err != nil {
 		zm.log.Error().Err(err).Msg("Failed to parse zap event")
@@ -124,44 +132,52 @@ func (zm *ZapManager) Zap(zapID string, template nostr.Event) {
 	lnURL, err := zm.getLNURL(parsed.Recipient)
 	if err != nil {
 		zm.log.Error().Err(err).Str("recipient", parsed.Recipient).Msg("Failed to get LNURL from recipient")
-		zm.sendCallback(zapID, fmt.Sprintf("Failed to get lightning address from recipient: %v", err))
+		zm.sendCallback(zapId, fmt.Sprintf("Failed to get lightning address from recipient: %v", err))
 		return
 	}
+
+	zm.log.Debug().
+		Str("zapId", zapId).
+		Str("lnURL", lnURL).
+		Msg("Using LNURL for zap payment")
 
 	// Make initial LNURL request using lnurl.HandleLNURL to get callback URL etc.
 	// lnurl.HandleLNURL can take a bech32 lnurl or a direct https lnurl.
 	// It will also make the HTTP call internally using lnurl.Client.
-	tag, lnurlParamsResponse, err := lnurl.HandleLNURL(lnURL)
+	_, lnurlParamsResponse, err := lnurl.HandleLNURL("https://proxy.nuts.cash/?url=" + lnURL)
+	if err != nil {
+		// If the initial LNURL request failed with https, try with http
+		if strings.HasPrefix(lnURL, "https://") {
+			httpURL := "http://" + strings.TrimPrefix(lnURL, "https://")
+			zm.log.Debug().Str("httpURL", httpURL).Msg("Trying HTTP fallback for LNURL")
+
+			_, lnurlParamsResponse, err = lnurl.HandleLNURL("https://proxy.nuts.cash/?url=" + httpURL)
+		}
+	}
 	if err != nil {
 		// Check if the error is an LNURLErrorResponse
 		if lnurlErr, ok := err.(lnurl.LNURLErrorResponse); ok {
 			zm.log.Error().Err(lnurlErr).Str("reason", lnurlErr.Reason).Str("rawLNURL", lnURL).Msg("LNURL service error on initial fetch")
-			zm.sendCallback(zapID, fmt.Sprintf("Lightning service error: %s", lnurlErr.Reason))
+			zm.sendCallback(zapId, fmt.Sprintf("Lightning service error: %s", lnurlErr.Reason))
 		} else {
 			zm.log.Error().Err(err).Str("rawLNURL", lnURL).Msg("Failed to handle LNURL")
-			zm.sendCallback(zapID, "Failed to process Lightning Address/LNURL: "+err.Error())
+			zm.sendCallback(zapId, "Failed to process Lightning Address/LNURL: "+err.Error())
 		}
-		return
-	}
-
-	if tag != "payRequest" {
-		zm.log.Error().Str("tag", tag).Msg("LNURL is not a payRequest")
-		zm.sendCallback(zapID, "Lightning Address/LNURL is not for payments (tag: "+tag+").")
 		return
 	}
 
 	payParams, ok := lnurlParamsResponse.(lnurl.LNURLPayParams)
 	if !ok {
 		zm.log.Error().Msg("Failed to type assert LNURLParams to LNURLPayParams")
-		zm.sendCallback(zapID, "Internal error: Unexpected LNURL parameter type.")
+		zm.sendCallback(zapId, "Internal error: Unexpected LNURL parameter type.")
 		return
 	}
-	zm.log.Debug().Str("zapID", zapID).Str("callback", payParams.Callback).Msg("Got LNURL pay params")
+	zm.log.Debug().Str("zapID", zapId).Str("callback", payParams.Callback).Msg("Got LNURL pay params")
 
 	err = zm.parser.Signer.SignEvent(&template)
 	if err != nil {
 		zm.log.Error().Err(err).Msg("Failed to sign zap request event")
-		zm.sendCallback(zapID, fmt.Sprintf("Failed to sign zap request: %v", err))
+		zm.sendCallback(zapId, fmt.Sprintf("Failed to sign zap request: %v", err))
 		return
 	}
 	// Make LNURL callback request to get the invoice
@@ -170,12 +186,12 @@ func (zm *ZapManager) Zap(zapID string, template nostr.Event) {
 	invoice, err := zm.fetchInvoice(context.Background(), payParams, parsed.AmountMillisats, template)
 	if err != nil {
 		zm.log.Error().Err(err).Msg("Failed to fetch invoice from LNURL callback")
-		zm.sendCallback(zapID, "Failed to get invoice: "+err.Error())
+		zm.sendCallback(zapId, "Failed to get invoice: "+err.Error())
 		return
 	}
 
-	zm.log.Info().Str("zapID", zapID).Msg("Successfully fetched Bolt11 invoice")
-	zm.sendCallback(zapID, invoice)
+	zm.log.Info().Str("zapID", zapId).Msg("Successfully fetched Bolt11 invoice")
+	zm.sendCallback(zapId, invoice)
 }
 
 // getLNURL gets either a bech32 LNURL or a direct HTTPS LNURL from profile
@@ -226,6 +242,7 @@ func (zm *ZapManager) fetchInvoice(ctx context.Context, payParams lnurl.LNURLPay
 	if payParams.CommentAllowed > 0 && zapRequestEvent.Content != "" { // Some servers might pick up the comment query param too
 		query.Set("comment", zapRequestEvent.Content)
 	}
+
 	callbackURL.RawQuery = query.Encode()
 
 	zm.log.Debug().Str("url", callbackURL.String()).Msg("Calling LNURL callback for invoice")
@@ -233,15 +250,15 @@ func (zm *ZapManager) fetchInvoice(ctx context.Context, payParams lnurl.LNURLPay
 	reqCtx, cancel := context.WithTimeout(ctx, LNURLRequestTimeout) // Use operation's context for cancellation
 	defer cancel()
 
-	// Use the global lnurl.Client which we configured, or zm.httpClient
 	req, err := http.NewRequestWithContext(reqCtx, "GET", callbackURL.String(), nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request for LNURL callback: %w", err)
 	}
 
-	resp, err := lnurl.Client.Do(req) // Use the client configured for go-lnurl
+	// Use the global lnurl.Client which we configured, or zm.httpClient
+	resp, err := lnurl.Client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("LNURL callback request failed: %w", err)
+		return "", fmt.Errorf("failed to make LNURL callback request: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -251,12 +268,30 @@ func (zm *ZapManager) fetchInvoice(ctx context.Context, payParams lnurl.LNURLPay
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		zm.log.Error().Int("status", resp.StatusCode).Str("body", string(body)).Msg("LNURL callback error response")
-		var errResp lnurl.LNURLErrorResponse
-		if json.Unmarshal(body, &errResp) == nil && errResp.Status == "ERROR" {
-			return "", fmt.Errorf("LNURL service error: %s (status %d)", errResp.Reason, resp.StatusCode)
+		// try again removing https
+		if strings.HasPrefix(callbackURL.String(), "https://") {
+			httpURL := "http://" + strings.TrimPrefix(callbackURL.String(), "https://")
+
+			req, err = http.NewRequestWithContext(reqCtx, "GET", "https://proxy.nuts.cash/?url="+httpURL, nil)
+			resp, err = lnurl.Client.Do(req) // Us e the client configured for go-lnurl
+			if err != nil {
+				return "", fmt.Errorf("failed to make LNURL callback request (http fallback): %w", err)
+			}
+			defer resp.Body.Close()
+
+			body, err = io.ReadAll(resp.Body)
+			if err != nil {
+				return "", fmt.Errorf("failed to read LNURL callback response body (http fallback): %w", err)
+			}
 		}
-		return "", fmt.Errorf("LNURL callback failed with status %d: %s", resp.StatusCode, string(body))
+		if resp.StatusCode != http.StatusOK {
+			zm.log.Error().Int("status", resp.StatusCode).Str("body", string(body)).Msg("LNURL callback error response")
+			var errResp lnurl.LNURLErrorResponse
+			if json.Unmarshal(body, &errResp) == nil && errResp.Status == "ERROR" {
+				return "", fmt.Errorf("LNURL service error: %s (status %d)", errResp.Reason, resp.StatusCode)
+			}
+			return "", fmt.Errorf("LNURL callback failed with status %d: %s", resp.StatusCode, string(body))
+		}
 	}
 
 	var invoiceResponse lnurl.LNURLPayValues // go-lnurl uses LNURLPayValues for the invoice response
@@ -282,5 +317,5 @@ func (zm *ZapManager) fetchInvoice(ctx context.Context, payParams lnurl.LNURLPay
 // --- Helper methods for JS callback and string conversions (remain the same) ---
 // payload is either the invoice or the error
 func (zm *ZapManager) sendCallback(zapID, payload string) {
-	zm.callback.Invoke(ZapCallbackInvoice, zapID, payload)
+	zm.callback.Invoke(zapID, payload)
 }

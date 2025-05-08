@@ -57,7 +57,7 @@ func Initialize() {
 	// Initialize managers
 	network.NewSubscriptionManager(nostrDb, nostrParser, relayManager)
 	network.NewPublishManager(nostrDb, nostrParser, relayManager)
-	network.NewZapManager(nostrParser, []string{})
+	network.NewZapManager(nostrParser, nostrDb, []string{})
 	cashu.NewWalletManager()
 
 	js.Global().Set("loginWithPrivateKey", js.FuncOf(jsLoginWithPrivateKey))
