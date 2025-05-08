@@ -56,7 +56,6 @@
 			(events: ParsedEvent<AnyKind>[], eventKind: SubscribeKind) => {
 				const [event, ...context] = events;
 				if (isKind10019(event)) {
-					console.log('ecash wallet', event);
 					wallet = event?.parsed;
 					zap = false;
 				}

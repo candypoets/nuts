@@ -9,6 +9,8 @@
 	import Tapcash from 'src/routes/modals/tapcash.svelte';
 	import Topup from 'src/routes/modals/topup.svelte';
 	import Minting from 'src/routes/modals/minting.svelte';
+	import Minted from 'src/routes/modals/minted.svelte';
+	import Melted from 'src/routes/modals/melted.svelte';
 	import Scan from 'src/routes/modals/scan.svelte';
 	import Keys from 'src/routes/modals/_profile/keys.svelte';
 	import Zaps from 'src/routes/modals/_profile/zaps.svelte';
@@ -20,7 +22,6 @@
 	import { tweened } from 'svelte/motion';
 	import { fly } from 'svelte/transition';
 	import { goBack } from './modal';
-	import Minted from './minted.svelte';
 
 	export let path: string;
 	export let visible: boolean;
@@ -79,7 +80,9 @@
 			<Minting {visible} />
 		{:else if path.includes('minted')}
 			<Minted mint={path.split(':')?.[1]} amount={path.split(':')?.[2]} />
-		{:else if path.includes('melt')}
+		{:else if path.includes('melted')}
+			<Melted mint={path.split(':')?.[1]} amount={path.split(':')?.[2]} {visible} />
+		{:else if path.startsWith('melt')}
 			<Melt invoice={path.split(':')?.[1]} {visible} />
 		{:else if path.includes('tapcash')}
 			<Tapcash {visible} />

@@ -9,6 +9,8 @@
 	import Landing from './+page.svelte';
 	import HomeLayout from './home/+layout.svelte';
 	import HomePage from './home/+page.svelte';
+
+	import Explore from 'src/routes/explore/index.svelte';
 	import Login from './login.svelte';
 
 	import { goto } from '$app/navigation';
@@ -129,15 +131,27 @@
 	// Watch for route changes
 	onMount(() => {
 		setViewport();
-		let mintSub = cashuManager.subscribe('quote_update', async ({ quoteId, state, mint }) => {
-			if (state == 'paid') {
-				const amount = await cashuManager.mintTokens(quoteId);
-				const mintProofs = await cashuManager.getProofsFromMint(mint);
-				saveNuts(mint, mintProofs);
-				$mints.then((mints) => {
-					const mintName = mints.find((m) => m.url == mint)?.name?.trim();
-					go(`minted:${mintName}:${amount}`);
-				});
+		let mintSub = cashuManager.subscribe('quote_update', async ({ quoteId, state, mint, type }) => {
+			if (type == 'mint') {
+				if (state == 'paid') {
+					const amount = await cashuManager.mintTokens(quoteId);
+					const mintProofs = await cashuManager.getProofsFromMint(mint);
+					saveNuts(mint, mintProofs);
+					$mints.then((mints) => {
+						const mintName = mints.find((m) => m.url == mint)?.name?.trim();
+						go(`minted:${mintName}:${amount}`);
+					});
+				}
+			} else {
+				if (state == 'paid') {
+					const meltProofs = await cashuManager.getProofsFromMint(mint);
+					const meltQuote = await cashuManager.checkMeltQuoteState(quoteId);
+					saveNuts(mint, meltProofs);
+					$mints.then((mints) => {
+						const mintName = mints.find((m) => m.url == mint)?.name?.trim();
+						go(`melted:${mintName}:${meltQuote.amount}`);
+					});
+				}
 			}
 		});
 		return () => {
@@ -280,7 +294,7 @@
 			</div>
 
 			<!-- Explore Section -->
-			<!-- <div
+			<div
 				class="carousel-item w-[100vw] h-full will-change-transform"
 				class:z-10={currentIndex == 1}
 				style="transform: translateZ({transform1 * 10}px) rotateY({(1 - transform1) *
@@ -298,7 +312,7 @@
 				<div class="w-full h-full relative overflow-hidden">
 					<Explore />
 				</div>
-			</div> -->
+			</div>
 
 			<!-- <div
 				class="carousel-item w-[100vw] h-full will-change-transform"

@@ -71,9 +71,15 @@ interface Subscription {
 	options: SubscriptionOptions;
 }
 
+interface Zap {
+	id: string;
+	callback: any;
+}
+
 export class NostrManager {
 	private worker: Worker;
 	private subscriptions: Map<string, Subscription> = new Map();
+	private zaps: Map<string, (result: string) => void> = new Map();
 	private publishes: Map<string, Publish> = new Map();
 
 	constructor() {
@@ -89,6 +95,12 @@ export class NostrManager {
 			if (event.data.type === 'PUBLISH_STATUS') {
 				this.onPublishEvent(event.data);
 				return;
+			} else if (event.data.type === 'ZAP') {
+				const cb = this.zaps.get(event.data.zapId);
+				if (cb) {
+					cb(event.data.payload);
+					this.zaps.delete(event.data.zapId);
+				}
 			}
 
 			this.onSubscribeEvent(event.data);
@@ -203,6 +215,33 @@ export class NostrManager {
 
 		// Remove from our subscriptions
 		this.subscriptions.delete(subscriptionId);
+	}
+
+	// get a zap invoice
+	async zap(zapId: string, template: EventTemplate): Promise<string> {
+		console.log('zap');
+		return new Promise<string>((resolve, reject) => {
+			// Register the callback
+			this.zaps.set(zapId, (result: string) => {
+				if (!result.startsWith('ln')) {
+					reject(result);
+				} else {
+					resolve(result);
+				}
+			});
+
+			// Call the wallet method via the global function
+			try {
+				this.worker.postMessage({
+					action: 'ZAP',
+					zapId,
+					template: JSON.stringify(template)
+				});
+			} catch (err) {
+				this.zaps.delete(zapId); // Clean up
+				reject(new Error(`Failed to get zap invoice ${zapId}: ${err}`));
+			}
+		});
 	}
 
 	loginWithPrivateKey(pk: string): void {

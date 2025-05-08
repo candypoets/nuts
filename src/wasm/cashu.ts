@@ -23,15 +23,20 @@ export type MintQuote = {
 };
 
 export type MeltQuote = {
-	id: string;
-	amount: number;
-	fee: number;
+	quote: string;
 	request: string;
-	paid: boolean;
-	created: number;
-	mint: string;
-	// Other fields as needed
+	amount: number;
+	unit: string;
+	feeReserve: number;
+	state: State;
+	expiry: number;
+	preimage?: string;
+	change?: BlindedSignatures;
 };
+
+// We need to reference these types but they're not defined in the snippet
+type State = string; // Assuming State is a string enum
+type BlindedSignatures = any; // Using any as a placeholder for cashu.BlindedSignatures
 
 export type P2PKTags = {
 	sigflag?: string;

@@ -213,6 +213,9 @@ func (wm *WalletManager) pollQuotes() {
 
 				// Check melt quotes
 				for _, quote := range meltQuotes {
+					if quote.State == nut05.Paid {
+						continue
+					}
 					// Only check quotes that are not in paid state
 					createdAt := time.Unix(int64(quote.CreatedAt), 0)
 					age := time.Since(createdAt)
@@ -230,6 +233,7 @@ func (wm *WalletManager) pollQuotes() {
 					} else if age > 2*time.Minute && wm.pollIndex%5 != 0 {
 						continue // Check every 5th iteration for 2-5 minute old quotes
 					}
+
 					// For age < 2 minutes, check every iteration (no continue statement)
 					wg.Add(1)
 					go checkQuote(quote.QuoteId, quote.Mint, meltQuoteType)

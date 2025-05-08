@@ -1,5 +1,6 @@
 import { openDB } from 'idb';
 import './wasm_exec.js'; // Path to wasm_exec.js
+import type { EventTemplate } from 'nostr-tools';
 
 // Initialize WASM and export it as a promise
 export const initNostrWasm = async () => {
@@ -29,6 +30,9 @@ export const initNostrWasm = async () => {
 					},
 					createWallet: (secret: string, mintURL: string) => {
 						return self.createCashuWallet(secret, mintURL);
+					},
+					zap: (zapId: string, template: EventTemplate) => {
+						return self.zap(zapId, template);
 					},
 					loginWithPrivateKey: (privateKey: string) => {
 						return self.loginWithPrivateKey(privateKey);
@@ -79,6 +83,11 @@ self.onmessage = async function (e) {
 			case 'WALLET':
 				const { requestId, params, walletKey, method } = e.data;
 				nostr.callWallet(requestId, walletKey, method, params);
+				break;
+			case 'ZAP':
+				const { zapId, template } = e.data;
+				console.log('ZAP', template);
+				nostr.zap(zapId, template);
 				break;
 			case 'CREATE_WALLET':
 				const { secret, mintURLs } = e.data;
