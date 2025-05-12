@@ -5,8 +5,8 @@
 	import Icon from '@iconify/svelte';
 	import { fly } from 'svelte/transition';
 	import type { Readable } from 'svelte/store';
-	import EmojiPicker from 'src/comp/EmojiPicker.svelte';
-	import GifPicker from 'src/comp/GIFPicker.svelte';
+	import EmojiPicker from 'src/components/EmojiPicker.svelte';
+	import GifPicker from 'src/components/GIFPicker.svelte';
 	import { prepareEvent } from 'src/editor/utils';
 	import type { EventTemplate, NostrEvent } from 'nostr-tools';
 	import { now } from 'src/lib/period';

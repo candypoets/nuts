@@ -1,6 +1,6 @@
 <script lang="ts">
 	import cx from 'classnames';
-	import ImageZoom from 'src/comp/ImageZoom.svelte';
+	import ImageZoom from 'src/components/ImageZoom.svelte';
 
 	export let links: { src: string; type?: 'image' | 'video' }[];
 

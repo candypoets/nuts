@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
 	import type { EventTemplate, NostrEvent } from 'nostr-tools';
-	import GifPicker from 'src/comp/GIFPicker.svelte';
+	import GifPicker from 'src/components/GIFPicker.svelte';
 	import { replying } from 'src/controller/editor';
 	import { extensions } from 'src/editor';
 	import { prepareEvent } from 'src/editor/utils';

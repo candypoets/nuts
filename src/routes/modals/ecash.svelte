@@ -2,7 +2,7 @@
 	import Icon from '@iconify/svelte';
 	import type { EventTemplate } from 'nostr-tools';
 
-	import MintSelector from 'src/comp/MintSelector.svelte';
+	import MintSelector from 'src/components/MintSelector.svelte';
 	import { activeMintUrl, balanceByMint } from 'src/controller/wallet';
 	import { now } from 'src/lib/period';
 	import { isKind10002, isKind10019, type AnyKind, type Kind10019Parsed } from 'src/parsers';

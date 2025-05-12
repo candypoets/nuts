@@ -4,7 +4,7 @@
 	import _ from 'lodash';
 	import type { EventTemplate } from 'nostr-tools';
 
-	import Editor from 'src/comp/Editor.svelte';
+	import Editor from 'src/components/Editor.svelte';
 	import { now } from 'src/lib/period';
 	import { isKind4, type AnyKind, type Kind1Parsed } from 'src/parsers';
 	import Message from 'src/routes/_kinds/message.svelte';

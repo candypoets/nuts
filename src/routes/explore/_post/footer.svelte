@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import EmojiPickerContent from 'src/comp/EmojiPickerContent.svelte';
+	import EmojiPickerContent from 'src/components/EmojiPickerContent.svelte';
 	import { onMount } from 'svelte';
 
 	import { kinds, type EventTemplate } from 'nostr-tools';

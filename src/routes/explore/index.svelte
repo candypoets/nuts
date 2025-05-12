@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 
-	import Pager from 'src/comp/Pager.svelte';
+	import Pager from 'src/components/Pager.svelte';
 	import { kind0, kind3 } from 'src/controller/nostr';
 	import { balance } from 'src/controller/wallet';
 	import { ago, DAY } from 'src/lib/period';

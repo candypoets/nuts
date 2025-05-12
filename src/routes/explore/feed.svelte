@@ -3,8 +3,8 @@
 	import { onMount } from 'svelte';
 	import { fly } from 'svelte/transition';
 
-	import VirtualList from 'src/comp/VirtualList.svelte';
-	import VirtualListBottom from 'src/comp/VirtualListBottom.svelte';
+	import VirtualList from 'src/components/VirtualList.svelte';
+	import VirtualListBottom from 'src/components/VirtualListBottom.svelte';
 	import { now } from 'src/lib/period';
 	import { isKind, isKind1, type AnyKind, type Kind1Parsed } from 'src/parsers';
 	import { nostrManager, type SubscribeKind } from 'src/wasm/manager';

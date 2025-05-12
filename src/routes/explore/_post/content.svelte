@@ -4,7 +4,7 @@
 	import Cashu from './cashu.svelte';
 	import _ from 'lodash';
 	import type { ContentBlock } from 'src/workers/utils';
-	import ImageGrid from 'src/comp/ImageGrid.svelte';
+	import ImageGrid from 'src/components/ImageGrid.svelte';
 	import type { ParsedEvent } from 'src/workers/nipworker';
 	import type { AnyKind } from 'src/parsers';
 

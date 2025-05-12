@@ -2,8 +2,8 @@
 	import { browser } from '$app/environment';
 	import Icon from '@iconify/svelte';
 
-	import Alert from 'src/comp/Alert.svelte';
-	import MintSelector from 'src/comp/MintSelector.svelte';
+	import Alert from 'src/components/Alert.svelte';
+	import MintSelector from 'src/components/MintSelector.svelte';
 	import { activeMintUrl } from 'src/controller/wallet';
 	import { formatAmount } from 'src/lib/wallet';
 	import { cashuManager } from 'src/wasm/cashu';

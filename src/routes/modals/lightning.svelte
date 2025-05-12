@@ -3,7 +3,7 @@
 
 	import { decode } from '@gandlaf21/bolt11-decode';
 	import Icon from '@iconify/svelte';
-	import TokenIcon from 'src/comp/TokenIcon.svelte';
+	import TokenIcon from 'src/components/TokenIcon.svelte';
 	import { goBack } from './modal';
 	import { formatAmount, getInvoiceFromLNURL, isValidLNURL } from 'src/lib/wallet';
 	import { balance } from 'src/controller/wallet';

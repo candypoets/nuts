@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
 
-	import Theme from 'src/comp/Theme.svelte';
+	import Theme from 'src/components/Theme.svelte';
 	import { go, goBack } from 'src/routes/modals/modal';
 	import { kind0 } from 'src/controller/nostr';
 

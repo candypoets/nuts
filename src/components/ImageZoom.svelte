@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { fade } from 'svelte/transition';
-	import Carousel from 'src/comp/Carousel.svelte';
+	import Carousel from 'src/components/Carousel.svelte';
 
 	export let links: { src: string; type?: 'image' | 'video' }[];
 	export let zoomed: number | undefined;

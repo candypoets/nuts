@@ -7,7 +7,7 @@
 	import { onMount } from 'svelte';
 
 	import { decodePrivKey } from 'src/lib/wallet';
-	import Pager from 'src/comp/Pager.svelte';
+	import Pager from 'src/components/Pager.svelte';
 	import { kind0, kind10002, kind10019, kind17375, kind3, kinds7375 } from 'src/controller/nostr';
 	import {
 		activeMintUrl,

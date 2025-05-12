@@ -8,9 +8,9 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 
-	import Alert from 'src/comp/Alert.svelte';
-	import Statuses from 'src/comp/Statuses.svelte';
-	import Theme from 'src/comp/Theme.svelte';
+	import Alert from 'src/components/Alert.svelte';
+	import Statuses from 'src/components/Statuses.svelte';
+	import Theme from 'src/components/Theme.svelte';
 	import { kind0, kind10002, kind10019, kind3 } from 'src/controller/nostr';
 	import { mints, saveNuts } from 'src/controller/wallet';
 	import { viewport } from 'src/lib';

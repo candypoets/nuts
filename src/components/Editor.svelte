@@ -4,8 +4,8 @@
 	import { Editor, EditorContent, createEditor } from 'svelte-tiptap';
 	import Icon from '@iconify/svelte';
 	import { type Readable } from 'svelte/store';
-	import EmojiPicker from 'src/comp/EmojiPicker.svelte';
-	import GifPicker from 'src/comp/GIFPicker.svelte';
+	import EmojiPicker from 'src/components/EmojiPicker.svelte';
+	import GifPicker from 'src/components/GIFPicker.svelte';
 
 	// Props
 	export let placeholder = 'Write a message...';
