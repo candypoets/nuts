@@ -1,8 +1,9 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
+
 	import Theme from 'src/comp/Theme.svelte';
-	import { profile } from 'src/stores/profile';
-	import { go, goBack } from '../modal';
+	import { go, goBack } from 'src/routes/modals/modal';
+	import { kind0 } from 'src/controller/nostr';
 
 	let search: string;
 	// export let encodedToken: string = '';
@@ -16,7 +17,7 @@
 			</div>
 		</div>
 		<div class="flex justify-between">
-			<h2 class="text-xl font-bold px-4 pt-4">{$profile.name || 'Profile'}</h2>
+			<h2 class="text-xl font-bold px-4 pt-4">{$kind0?.parsed?.name || 'Profile'}</h2>
 			<Theme />
 		</div>
 	</div>

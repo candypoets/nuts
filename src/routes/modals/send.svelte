@@ -1,15 +1,14 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import type { Contact } from 'src/model/contact';
-	import { mints } from 'src/stores/mints';
-	import type { Request, SubscribeKind } from 'src/wasm/manager';
-
 	import _ from 'lodash';
+
 	import { kind3 } from 'src/controller/nostr';
+	import type { Contact } from 'src/model/contact';
 	import type { AnyKind, Kind0Parsed } from 'src/parsers';
 	import Feed from 'src/routes/explore/feed.svelte';
+	import { go, goBack } from 'src/routes/modals/modal';
+	import type { Request, SubscribeKind } from 'src/wasm/manager';
 	import type { ParsedEvent } from 'src/workers/nipworker';
-	import { go, goBack } from './modal';
 
 	let active: string;
 	let search: string;
@@ -28,15 +27,6 @@
 	let scannedNpub: string;
 
 	export let subopen: boolean = false;
-
-	let mint = $mints[0];
-
-	let isToken = false;
-	let isMinting = false;
-	let doMint = false;
-	let activeR: string;
-
-	let activeMint = $mints[0];
 
 	let headerItem: ParsedEvent<Kind0Parsed> = { id: 'header' };
 

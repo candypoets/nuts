@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import { activeAccount, db, key, keysCache } from 'src/stores/db';
+	import { key } from 'src/stores';
+
 	export let subopen: boolean = false;
 </script>
 
@@ -21,9 +22,7 @@
 			<button
 				class="btn btn-primary"
 				on:click={async () => {
-					keysCache.delete($key?.pub);
-					await $db.delete();
-					$activeAccount = 0;
+					$key = {};
 				}}
 			>
 				Log Out

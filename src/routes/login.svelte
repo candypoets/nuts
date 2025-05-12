@@ -2,14 +2,15 @@
 	import Icon from '@iconify/svelte';
 	import { schnorr } from '@noble/curves/secp256k1';
 	import { bytesToHex } from '@noble/hashes/utils';
-	import type { NostrEvent } from '@nostrify/nostrify';
-	import { kinds, nip19, type UnsignedEvent } from 'nostr-tools';
-	import { decodePrivKey } from 'src/actions/wallet';
-	import { activeAccount, keyDB, keysCache } from 'src/stores/db';
-	import { pool } from 'src/stores/relays';
-	import { signer } from 'src/stores/signer';
+	import { kinds, nip19, type EventTemplate } from 'nostr-tools';
 	import { onMount } from 'svelte';
-	import { get } from 'svelte/store';
+
+	import { now } from 'src/lib/period';
+	import { decodePrivKey } from 'src/lib/wallet';
+	import { isKind0, type AnyKind } from 'src/parsers';
+	import { key } from 'src/stores';
+	import { nostrManager, type SubscribeKind } from 'src/wasm/manager';
+	import type { ParsedEvent } from 'src/workers/nipworker';
 
 	let privateKey = '';
 	let name = '';
@@ -25,7 +26,6 @@
 	$: {
 		if (extensionError) {
 			setTimeout(() => {
-				console.log('ok');
 				extensionError = false;
 			}, 5000);
 		}
@@ -41,33 +41,25 @@
 		const pubkey = bytesToHex(schnorr.getPublicKey(pk));
 		const privkey = bytesToHex(pk);
 
-		const abortController = new AbortController();
-		// abortController = new AbortController();
-
 		loading = true;
-		const messages = get(pool).req([{ kinds: [kinds.Metadata], authors: [pubkey], limit: 1 }], {
-			signal: abortController.signal
-		});
 
-		for await (const message of messages) {
-			if (message[0] === 'CLOSED') break;
-			if (message[0] !== 'EVENT') continue;
-			loading = false;
-			try {
-				keysCache.put({
-					pub: pubkey,
-					priv: privkey,
-					npub: nip19.npubEncode(pubkey),
-					nsec: nip19.nsecEncode(pk)
-				});
-				$activeAccount = Array.from($keysCache.values()).findIndex((k) => k.pub == pubkey);
-			} catch (error) {
-				console.warn(error);
+		const loginSub = nostrManager.subscribe(
+			'login_' + pubkey,
+			[{ kinds: [kinds.Metadata], authors: [pubkey], limit: 1, relays: [] }],
+			(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) => {
+				const [event, ...context] = events;
+				if (isKind0(event)) {
+					loading = false;
+					$key = {
+						pub: pubkey,
+						priv: privkey,
+						npub: nip19.npubEncode(pubkey),
+						nsec: nip19.nsecEncode(pk)
+					};
+					loginSub();
+				}
 			}
-			break;
-		}
-
-		abortController.abort();
+		);
 	}
 
 	async function handleSignup() {
@@ -78,16 +70,14 @@
 		// Handle signup logic here
 		// console.log('Signing up with details:', userName, profilePicture, bio);
 
-		keysCache.put({
+		$key = {
 			pub: pubkey,
 			priv: privkey,
 			npub: nip19.npubEncode(pubkey),
 			nsec: nip19.nsecEncode(priv)
-		});
+		};
 
-		$activeAccount = Array.from($keysCache.values()).findIndex((k) => k.pub == pubkey);
-
-		let event: UnsignedEvent = {
+		let event: EventTemplate = {
 			kind: 0,
 			tags: [],
 			content: JSON.stringify({
@@ -95,17 +85,10 @@
 				about,
 				picture
 			}),
-			created_at: Math.floor(Date.now() / 1000),
-			pubkey: pubkey
+			created_at: now()
 		};
-		// there should be no such thing as window.nostr for a signup, but ok
-		if (window.nostr.nip04) {
-			event = await window.nostr.signEvent(event);
-		} else {
-			event = await get(signer)?.signEvent(event);
-		}
 
-		get(pool).event(event as NostrEvent);
+		nostrManager.publish('signup', event);
 	}
 
 	onMount(async () => {
@@ -134,7 +117,7 @@
 				To give <strong>nuts.cash</strong> full access to your Nostr identity, enter your Nostr private
 				key below.
 			</p>
-
+			{loading}
 			<form class="px-8 mt-8" on:submit|preventDefault={handleLogin}>
 				<div class="join w-full">
 					<div class="btn join-item btn-link"><Icon icon="ri:key-fill" /></div>
@@ -151,7 +134,7 @@
 					</button>
 				</div>
 			</form>
-			<button
+			<!-- <button
 				class="btn btn-outline mt-4 m-auto block"
 				class:btn-error={extensionError}
 				on:click={async () => {
@@ -160,6 +143,7 @@
 						extensionError = true;
 						return;
 					}
+					$keys
 					keysCache.put({
 						pub: pubKey,
 						npub: nip19.npubEncode(pubKey)
@@ -173,7 +157,7 @@
 				{:else}
 					Extension not found
 				{/if}
-			</button>
+			</button> -->
 			<p class="mx-8 text-xs text-center mt-8 p-4 rounded-lg bg-slate-100 text-slate-500">
 				Note that sharing your private key directly is not recommended, instead you should use a
 				compatible browser extension to securely store your key.

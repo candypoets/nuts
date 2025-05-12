@@ -1,11 +1,8 @@
 <script lang="ts">
-	import Icon from '@iconify/svelte';
-	import Row from 'src/routes/home/transactions/Row.svelte';
-	import { type HistoryData } from 'src/model/data/HistoryData';
-	import { type HistoryItem, HistoryItemType } from 'src/model/historyItem';
-	import { writable, type Writable } from 'svelte/store';
-	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
+	import Icon from '@iconify/svelte';
+	import { writable, type Writable } from 'svelte/store';
 
 	let showMenu = false;
 	let scrollY: Writable<number> = writable(0);
@@ -28,26 +25,26 @@
 
 	let progress = 0;
 
-	let items: HistoryItem<HistoryData>[] = [
-		{
-			type: HistoryItemType.SEND,
-			date: Math.floor(Date.now() / 1000) - 86400,
-			amount: 50,
-			data: { to: '49c3f0ee826a80010c75a66a3e2fb75324302a6969ad62f1e557a6b6dc667777' }
-		},
-		{
-			type: HistoryItemType.SEND,
-			date: Math.floor(Date.now() / 1000) - 86400,
-			amount: 50,
-			data: { to: '49c3f0ee826a80010c75a66a3e2fb75324302a6969ad62f1e557a6b6dc667777' }
-		},
-		{
-			type: HistoryItemType.RECEIVE_NOSTR,
-			date: new Date().setDate(new Date().getDate() - 1) / 1000,
-			amount: 50,
-			data: { from: '6a72db8ef3f3b9ee5ecd808ed6d0631d1e4dda5c5dadf07887104d33957eba48' }
-		}
-	];
+	// let items: HistoryItem<HistoryData>[] = [
+	// 	{
+	// 		type: HistoryItemType.SEND,
+	// 		date: Math.floor(Date.now() / 1000) - 86400,
+	// 		amount: 50,
+	// 		data: { to: '49c3f0ee826a80010c75a66a3e2fb75324302a6969ad62f1e557a6b6dc667777' }
+	// 	},
+	// 	{
+	// 		type: HistoryItemType.SEND,
+	// 		date: Math.floor(Date.now() / 1000) - 86400,
+	// 		amount: 50,
+	// 		data: { to: '49c3f0ee826a80010c75a66a3e2fb75324302a6969ad62f1e557a6b6dc667777' }
+	// 	},
+	// 	{
+	// 		type: HistoryItemType.RECEIVE_NOSTR,
+	// 		date: new Date().setDate(new Date().getDate() - 1) / 1000,
+	// 		amount: 50,
+	// 		data: { from: '6a72db8ef3f3b9ee5ecd808ed6d0631d1e4dda5c5dadf07887104d33957eba48' }
+	// 	}
+	// ];
 </script>
 
 <svelte:window bind:scrollY={$scrollY} />
@@ -135,9 +132,9 @@
 								<div class="mx-4 mt-2 rounded-lg border mb-4">
 									<table class="table w-64">
 										<tbody class="max-h-1 overflow-y-scroll scrollbar-hide bg-basic">
-											{#each items.slice(0, -1) as item}
+											<!-- {#each items.slice(0, -1) as item}
 												<Row {item} />
-											{/each}
+											{/each} -->
 											<!-- svelte-ignore a11y-click-events-have-key-events -->
 										</tbody>
 									</table>
@@ -147,9 +144,9 @@
 									<div class="mx-4 mt-2 rounded-lg border mb-4">
 										<table class="table w-64">
 											<tbody class="max-h-1 overflow-y-scroll scrollbar-hide bg-basic">
-												{#each items.slice(-1) as item}
+												<!-- {#each items.slice(-1) as item}
 													<Row {item} />
-												{/each}
+												{/each} -->
 											</tbody>
 										</table>
 									</div>
@@ -198,130 +195,6 @@
 			</div>
 		</div>
 	</section>
-
-	<!-- Mission Section -->
-
-	<!-- <section id="mission" class="py-20 px-4">
-		<div class="flex flex-col w-full md:flex-row gap-16 px-8 md:px-32 pb-16">
-			<div class="flex flex-col gap-4 w-full h-full bg-gray-100 rounded-lg px-4 py-4">
-				<p>
-					1. Send Sats to anyone you are friend with on Nostr. Search for a name and send in
-					milliseconds.
-				</p>
-				<div class="w-full h-full rounded-lg bg-white overflow-hidden">
-					<img class="object-cover" src="/screenshot_nuts.png" alt="screen1" />
-				</div>
-			</div>
-			<div class="flex flex-col gap-4 w-full h-full bg-gray-100 rounded-lg px-4 py-4">
-				<p>
-					2. Share a QR code or a @username and get paid on a restaurant bill or anything else in a
-					breeze.
-				</p>
-				<div class="w-full h-full rounded-lg bg-white overflow-hidden">
-					<img class="object-cover" src="/screenshot_nuts.png" alt="screen1" />
-				</div>
-			</div>
-			<div class="flex flex-col gap-4 w-full h-full bg-gray-100 rounded-lg px-4 py-4">
-				<p>
-					3. Add Sats to your wallet from any lightning wallet in milliseconds and without any
-					wallet address.
-				</p>
-				<div class="w-full h-full rounded-lg bg-white overflow-hidden">
-					<img class="object-cover" src="/screenshot_nuts.png" alt="screen1" />
-				</div>
-			</div>
-		</div>
-		<div class="container h-screen mx-auto place-content-center">
-			<h2 class="text-xl md:text-5xl font-bold mb-8 text-center text-teal-800">Our Mission</h2>
-			<p class="text-md max-w-3xl mx-auto text-center text-gray-600">
-				We believe in a world where people and small businesses can trade freely, with
-				micro-payments without unnecessary restrictions or surveillance.
-			</p>
-		</div>
-	</section> -->
-
-	<!-- Features Section -->
-	<!-- <section id="features" class="py-20 px-4 bg-teal-50">
-		<div class="container mx-auto">
-			<h2 class="text-3xl md:text-5xl font-bold mb-12 text-center text-teal-800">Key Features</h2>
-			<div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-				<div class="text-center">
-					<svg
-						class="w-10 h-10 mx-auto mb-4 text-teal-400"
-						fill="none"
-						stroke="currentColor"
-						viewBox="0 0 24 24"
-						xmlns="http://www.w3.org/2000/svg"
-					>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="2"
-							d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-						></path>
-					</svg>
-					<h3 class="text-xl font-semibold mb-2 text-gray-800">Privacy First</h3>
-					<p class="text-gray-600">Your data stays on your device, encrypted and secure.</p>
-				</div>
-				<div class="text-center">
-					<svg
-						class="w-10 h-10 mx-auto mb-4 text-teal-400"
-						fill="none"
-						stroke="currentColor"
-						viewBox="0 0 24 24"
-						xmlns="http://www.w3.org/2000/svg"
-					>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="2"
-							d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-						></path>
-					</svg>
-					<h3 class="text-xl font-semibold mb-2 text-gray-800">Peer-to-Peer</h3>
-					<p class="text-gray-600">Connect directly with other users, no intermediaries.</p>
-				</div>
-				<div class="text-center">
-					<svg
-						class="w-10 h-10 mx-auto mb-4 text-teal-400"
-						fill="none"
-						stroke="currentColor"
-						viewBox="0 0 24 24"
-						xmlns="http://www.w3.org/2000/svg"
-					>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="2"
-							d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
-						></path>
-					</svg>
-					<h3 class="text-xl font-semibold mb-2 text-gray-800">Free to Use</h3>
-					<p class="text-gray-600">No fees, no commissions. Trade freely without costs.</p>
-				</div>
-			</div>
-		</div>
-	</section> -->
-
-	<!-- Download Section -->
-
-	<!-- <section id="download" class="py-20 px-4 bg-white items-center">
-		<div class="container mx-auto text-center">
-			<h2 class="text-lg md:text-2xl font-bold mb-8 text-teal-900">Join the free world.</h2>
-			<p class="text-lg w-full">
-				Start paying and being paid in Sats in a wallet you control not a wallet that controls you.
-				We are operating on top of Nostr with feeds you control that can never be shut. And it works
-				with any Nostr client across the web.
-			</p>
-		</div>
-	</section> -->
-
-	<!-- Footer -->
-	<!-- <footer class="bg-white py-4">
-		<div class="container mx-auto px-4 text-center text-gray-300">
-			<p>&copy; 2024 Cash Nuts. All rights reserved.</p>
-		</div>
-	</footer> -->
 </main>
 
 <style>

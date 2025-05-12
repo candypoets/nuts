@@ -1,43 +1,32 @@
 <script lang="ts">
+	import 'src/app.css';
+
+	import { onMount } from 'svelte';
+	import { spring } from 'svelte/motion';
+	import { pwaInfo } from 'virtual:pwa-info';
+
+	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import '../app.css';
 
 	import Alert from 'src/comp/Alert.svelte';
 	import Statuses from 'src/comp/Statuses.svelte';
 	import Theme from 'src/comp/Theme.svelte';
-	import { pwaInfo } from 'virtual:pwa-info';
-	import Landing from './+page.svelte';
-	import HomeLayout from './home/+layout.svelte';
-	import HomePage from './home/+page.svelte';
-
-	import Explore from 'src/routes/explore/index.svelte';
-	import Login from './login.svelte';
-
-	import { goto } from '$app/navigation';
 	import { kind0, kind10002, kind10019, kind3 } from 'src/controller/nostr';
+	import { mints, saveNuts } from 'src/controller/wallet';
 	import { viewport } from 'src/lib';
 	import { isKind0, isKind10002, isKind10019, isKind3, type AnyKind } from 'src/parsers';
-	import { activeAccount, key } from 'src/stores/db';
+	import Landing from 'src/routes/+page.svelte';
+	import Explore from 'src/routes/explore/index.svelte';
+	import Home from 'src/routes/home/+layout.svelte';
+	import Login from 'src/routes/login.svelte';
+	import { go } from 'src/routes/modals/modal';
+	import { cashuManager } from 'src/wasm/cashu';
 	import type { Request } from 'src/wasm/manager';
 	import { nostrManager, type SubscribeKind } from 'src/wasm/manager';
-	import type { NIP01Parsed } from 'src/workers/nip01';
-	import type { NIP02Parsed } from 'src/workers/nip02';
 	import type { ParsedEvent } from 'src/workers/nipworker';
-	import { onMount, setContext } from 'svelte';
-	import { spring } from 'svelte/motion';
-	import { writable, type Writable } from 'svelte/store';
-	import { cashuManager } from 'src/wasm/cashu';
-	import { go } from './modals/modal';
-	import { mints, saveNuts } from 'src/controller/wallet';
+	import { key } from 'src/stores';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
-
-	let profile: Writable<NIP01Parsed> = writable();
-	setContext('profile', profile);
-	let followList: Writable<NIP02Parsed> = writable([]);
-	setContext('followList', followList);
-	let outboxList: Writable<NIP02Parsed> = writable([]);
-	setContext('outboxList', outboxList);
 
 	// Carousel configuration
 	let scroller: HTMLElement;
@@ -259,7 +248,7 @@
 {#if !homepage}
 	<Statuses />
 	<Alert />
-	{#if $key?.pub || !!$activeAccount}
+	{#if $key?.pub}
 		<div
 			class="flex gap-2 overflow-hidden relative will-change-scroll"
 			bind:this={scroller}
@@ -286,9 +275,7 @@
 			>
 				<div class="w-full relative overflow-hidden">
 					{#key 'home'}
-						<svelte:component this={HomeLayout}>
-							<svelte:component this={HomePage} />
-						</svelte:component>
+						<svelte:component this={Home}></svelte:component>
 					{/key}
 				</div>
 			</div>

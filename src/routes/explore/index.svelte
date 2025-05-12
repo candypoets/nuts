@@ -1,12 +1,12 @@
 <script lang="ts">
-	import { balance } from 'src/stores/wallet';
-	import Post from './post.svelte';
-
 	import { page } from '$app/stores';
+
 	import Pager from 'src/comp/Pager.svelte';
 	import { kind0, kind3 } from 'src/controller/nostr';
+	import { balance } from 'src/controller/wallet';
 	import { ago, DAY } from 'src/lib/period';
 	import Feed from 'src/routes/explore/feed.svelte';
+	import Post from 'src/routes/explore/post.svelte';
 
 	let feedRequests: any[] = [];
 

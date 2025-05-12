@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
 	import Icon from '@iconify/svelte';
-	import { formatAmount } from 'src/actions/wallet';
+
 	import Alert from 'src/comp/Alert.svelte';
 	import MintSelector from 'src/comp/MintSelector.svelte';
 	import { activeMintUrl } from 'src/controller/wallet';
-	import { alert } from 'src/stores';
+	import { formatAmount } from 'src/lib/wallet';
 	import { cashuManager } from 'src/wasm/cashu';
 	import { QRCodeImage } from 'svelte-qrcode-image';
 
@@ -43,18 +43,16 @@
 		event.preventDefault(); // Prevent the default link behavior
 
 		navigator.clipboard.writeText(qrCode ?? '');
-		console.log('hello');
-		$alert = 'copied to clipboard!';
+
+		// $alert = 'copied to clipboard!';
 	}
 
 	function handleCreateInvoice() {
-		console.log('Create Lightning Invoice');
 		$activeMintUrl &&
 			cashuManager.requestMint(Number(amount), $activeMintUrl).then((quote) => {
 				doMint = true;
 				qrCode = quote.request;
 				scrollTo('right');
-				console.log('quote', quote);
 			});
 	}
 
@@ -94,7 +92,7 @@
 					<!-- have an invisible focusable element that focus first -->
 					<span tabindex="-1"></span>
 					<!-- Using span to avoid a11y issues with empty link -->
-					<div class="m-auto lg:w-1/3">
+					<div class="m-auto lg:w-1/3 max-w-xs">
 						<MintSelector />
 					</div>
 					<div class="h-52 flex flex-col items-center">

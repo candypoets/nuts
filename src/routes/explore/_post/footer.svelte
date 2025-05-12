@@ -4,7 +4,6 @@
 	import { onMount } from 'svelte';
 
 	import { kinds, type EventTemplate } from 'nostr-tools';
-	import { signAndSend } from 'src/actions/relay';
 	import { replying } from 'src/controller/editor';
 	import { kind0 } from 'src/controller/nostr';
 	import { getRelaysFromNote } from 'src/lib/getRelaysFromNote';
@@ -18,8 +17,7 @@
 		type Kind1Parsed,
 		type Kind7Parsed
 	} from 'src/parsers';
-	import { key } from 'src/stores/db';
-	import { signer } from 'src/stores/signer';
+	import { key } from 'src/stores';
 	import { nostrManager } from 'src/wasm/manager';
 	import type { NIP10Parsed } from 'src/workers/nip10';
 	import type { NIP25Parsed } from 'src/workers/nip25';
@@ -98,12 +96,7 @@
 	}
 
 	function sendReaction(emoji: string) {
-		// Renamed from handleSelect for clarity in parent scope
-		if (!$signer || !$key?.pub) {
-			console.error('Signer or public key not available.');
-			return;
-		}
-
+		if (!$key.pub) return;
 		const event: EventTemplate = {
 			kind: kinds.Reaction,
 			tags: [
@@ -114,11 +107,7 @@
 			created_at: now()
 		};
 
-		signAndSend($signer, event, (status) => {
-			console.log('Reaction status:', status.relay, status.message);
-			// Assuming reactions prop updates automatically via subscription
-		});
-		// No need to hide tippy here - the child component does that
+		nostrManager.publish('reaction_' + note.id, event);
 	}
 
 	onMount(() => {

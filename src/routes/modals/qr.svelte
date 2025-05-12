@@ -1,8 +1,9 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import { key } from 'src/stores/db';
 	import { QRCodeImage } from 'svelte-qrcode-image';
-	import { goBack } from './modal';
+
+	import { goBack } from 'src/routes/modals/modal';
+	import { key } from 'src/stores';
 </script>
 
 <div class="fixed top-0 w-full flex items-center justify-center z-10 mobile-height bg-basic">

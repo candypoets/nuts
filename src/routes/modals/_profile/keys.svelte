@@ -1,7 +1,6 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import { key } from 'src/stores/db';
-	import { profile } from 'src/stores/profile';
+	import { key } from 'src/stores';
 	export let subopen: boolean = false;
 
 	let copied = '';
@@ -26,7 +25,10 @@
 		<div class="">Your public key</div>
 		<div class="flex p-4 bg-base-200 my-4 rounded-lg items-center">
 			<div class="w-1/5">
-				<img src={$profile.picture || '/ns-naked.svg'} class="w-10 h-10 border-2 rounded-full" />
+				<img
+					src={$kind0?.parsed?.picture || '/ns-naked.svg'}
+					class="w-10 h-10 border-2 rounded-full"
+				/>
 			</div>
 			<div class="text-wrap whitespace-normal break-words w-4/5 text-xs">{$key?.pub || ''}</div>
 		</div>

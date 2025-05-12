@@ -1,6 +1,5 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import { db, dbRelays } from 'src/stores/db';
 
 	export let subopen: boolean = false;
 	let newRelayUrl = '';
@@ -45,7 +44,7 @@
 			{/if}
 		</div>
 		<div class="">
-			{#each $dbRelays as relay, index}
+			<!-- {#each $dbRelays as relay, index}
 				<div class="flex justify-between items-center border-b last:border-none py-4">
 					<span>{relay.url}</span>
 					<input
@@ -55,7 +54,7 @@
 						on:click={() => db.relays.put({ ...relay, enabled: !relay.enabled })}
 					/>
 				</div>
-			{/each}
+			{/each} -->
 		</div>
 	</div>
 </div>

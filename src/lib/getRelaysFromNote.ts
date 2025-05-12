@@ -1,8 +1,4 @@
-import _ from 'lodash';
 import type { NostrEvent } from 'nostr-tools';
-import { nostrDb, queryEvents } from 'src/db';
-import type { Kind10002Parsed } from 'src/parsers';
-import type { ParsedEvent } from 'src/workers/nipworker';
 
 export function getRelaysFromNote(note: NostrEvent): string[] {
 	let relays: string[] = [];

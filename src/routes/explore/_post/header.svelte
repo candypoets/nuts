@@ -4,16 +4,12 @@
 	import Icon from '@iconify/svelte';
 	import { formatDistanceToNow } from 'date-fns';
 	import _ from 'lodash';
-	import { signAndSend } from 'src/actions/relay';
-	import { kind0, kind3 } from 'src/controller/nostr';
-	import { now } from 'src/lib/period';
+	import { onMount } from 'svelte';
+
 	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/parsers';
-	import { key } from 'src/stores/db';
-	import { signer } from 'src/stores/signer';
 	import { nostrManager, type SubscribeKind } from 'src/wasm/manager';
 	import type { NIP10Parsed } from 'src/workers/nip10';
 	import type { ParsedEvent } from 'src/workers/nipworker';
-	import { onMount } from 'svelte';
 
 	export let note: ParsedEvent<NIP10Parsed>;
 	export let context: ParsedEvent<AnyKind>[] = [];
@@ -54,27 +50,6 @@
 		if (!currentPath.endsWith(profilePath)) {
 			goto(`${currentPath}/${profilePath}`);
 		}
-	}
-
-	function updateFollowList() {
-		if (!$kind0 || !author) return;
-		signAndSend($signer, {
-			kind: 3,
-			pubkey: $key?.pub,
-			created_at: now(),
-			tags: _.uniqBy(
-				[
-					...($kind3?.parsed || []).map((c) => [['p', c.pubkey, c.relays?.[0]]]),
-					[['p', author.pubkey, author.relays?.[0]]]
-				],
-				(c) => c[0][1]
-			).filter((c) =>
-				($kind3?.parsed || []).some((c) => c.pubkey === author?.pubkey)
-					? c[0][1] !== author?.pubkey
-					: true
-			),
-			content: ''
-		});
 	}
 </script>
 
@@ -125,15 +100,6 @@
 					{formatDistanceToNow((note?.created_at || 0) * 1000, { addSuffix: true })}
 				</p>
 			{/if}
-			{#if !oneline}
-				<div class="flex-grow text-right w-full pr-4">
-					<button class="btn btn-primary btn-xs" on:click={updateFollowList}>
-						{!($kind3?.parsed || []).some((c) => c.pubkey === note?.pubkey) ? 'Follow' : 'Unfollow'}
-					</button>
-				</div>
-			{/if}
 		</div>
-		<!-- {:catch}
-     <div>unknown</div> -->
 	</div>
 </div>

@@ -2,7 +2,8 @@
 	import { page } from '$app/stores';
 	import Icon from '@iconify/svelte';
 	import _ from 'lodash';
-	import type { EventTemplate, NostrEvent } from 'nostr-tools';
+	import type { EventTemplate } from 'nostr-tools';
+
 	import Editor from 'src/comp/Editor.svelte';
 	import { now } from 'src/lib/period';
 	import { isKind4, type AnyKind, type Kind1Parsed } from 'src/parsers';
@@ -10,7 +11,7 @@
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import User from 'src/routes/explore/user.svelte';
-	import { key } from 'src/stores/db';
+	import { key } from 'src/stores';
 	import { nostrManager, type RelayStatus, type SubscribeKind } from 'src/wasm/manager';
 	import type { ParsedEvent } from 'src/workers/nipworker';
 	import { parseContent } from 'src/workers/utils';
@@ -107,7 +108,7 @@
 			if (firstEvent) {
 				firstEvent.isLast = false;
 			}
-			console.log(firstEvent);
+
 			feed = [[sent], ...feed];
 
 			nostrManager.publish('4' + content, event, (status: RelayStatus) => {

@@ -1,14 +1,13 @@
 <script lang="ts">
-	import Icon from '@iconify/svelte';
 	import { Html5Qrcode, type QrcodeErrorCallback, type QrcodeSuccessCallback } from 'html5-qrcode';
-	import { isLightningInvoice, isNostr, isNpub, isValidLNURL } from 'src/actions/wallet';
+	import { isLightningInvoice, isNostr, isNpub, isValidLNURL } from 'src/lib/wallet';
 	import {} from 'src/stores';
 
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { nip19 } from 'nostr-tools';
-	import { go } from './modal';
 	import { onMount } from 'svelte';
+	import { go } from './modal';
 
 	export let open = false;
 

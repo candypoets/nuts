@@ -1,23 +1,12 @@
 <script lang="ts">
-	import { settings } from 'src/stores/db';
 	import { onMount } from 'svelte';
 
 	import { decode } from '@gandlaf21/bolt11-decode';
 	import Icon from '@iconify/svelte';
-	import {
-		formatAmount,
-		getInvoiceFromLNURL,
-		getMeltQuote,
-		isValidLNURL,
-		melt,
-		mint as mintToken,
-		type Melt
-	} from 'src/actions/wallet';
 	import TokenIcon from 'src/comp/TokenIcon.svelte';
-	import { amountAvailable, mint } from 'src/stores/mints';
-	import { signer } from 'src/stores/signer';
-	import { balance, wallets } from 'src/stores/wallet';
 	import { goBack } from './modal';
+	import { formatAmount, getInvoiceFromLNURL, isValidLNURL } from 'src/lib/wallet';
+	import { balance } from 'src/controller/wallet';
 
 	export let invoice: string;
 
@@ -42,18 +31,7 @@
 
 	$: invoiceMemo = decoded?.sections?.find((s) => s.name == 'description')?.value || '';
 
-	$: mintbalance = amountAvailable($mint);
-
-	$: w = $wallets.filter((w) => w.amount > 10);
-
 	onMount(() => {
-		const keyDown = (e: KeyboardEvent) => {
-			if (e.key === 'E') {
-				isSend = true;
-			} else if (e.key === 'L') {
-				isSend = false;
-			}
-		};
 		window.addEventListener('keydown', keyDown);
 
 		return () => {
@@ -79,23 +57,9 @@
 	// 	}
 	// });
 
-	async function send(melts: Melt[]) {
-		ongoingPayment = true;
-		let i = 0;
-		for (const m of melts) {
-			await melt($signer, m.wallet, m.meltQuote, m.amount);
-			if (m.mintQuote) {
-				const nextMelt = melts[i + 1];
-				await mintToken($signer, nextMelt.wallet.wallet, m.mintQuote);
-			}
-			i++;
-		}
-		invoice = '';
-		ongoingPayment = false;
-	}
-
 	async function generateInvoice() {
 		const res = await getInvoiceFromLNURL(invoice, amount || 0);
+
 		invoice = res.pr;
 	}
 </script>
@@ -114,7 +78,7 @@
 		<TokenIcon />
 
 		<p class="font-bold">
-			{formatAmount($balance, $settings.unit)}
+			{formatAmount($balance, 'sats')}
 		</p>
 		<p>available</p>
 	</div>
@@ -156,35 +120,17 @@
 				</div>
 			{/if}
 		</div>
-		{#await getMeltQuote(w, invoice)}
-			<button class="btn btn-primary btn-disabled btn-wide m-auto block mt-10"
-				><div class="loading" /></button
-			>
-		{:then melts}
-			<ul class="mx-8 mt-8 list-disc">
-				{#each melts as m, index}
-					<li class="font-bold text-sm">
-						{m.meltQuote.amount - (melts[index - 1]?.meltQuote?.amount || 0)} + {m.meltQuote
-							.fee_reserve} sats from
-						{m.wallet.mintURL}
-					</li>
 
-					<!-- <p class="font-bold">{m.memo || 'no description'}</p> -->
-				{/each}
-			</ul>
-
-			<button
-				class="btn btn-primary btn-wide m-auto block mt-10"
-				disabled={!melts.length || ongoingPayment || (invoiceAmount || 0) < 10}
-				on:click={() => send(melts)}
-				>{#if ongoingPayment}<div class="loading" />{:else}
-					{(invoiceAmount || 0) < 10 ? 'At Least 10 Sats' : 'Pay'}
-				{/if}</button
-			>
-			<p class="text-xs w-2/3 m-auto text-center mt-4">
-				Fees are reserved based on a conservative estimate of Lightning fees. Unused amounts will be
-				returned to your wallet.
-			</p>
-		{/await}
+		<button
+			class="btn btn-primary btn-wide m-auto block mt-10"
+			disabled={ongoingPayment || (invoiceAmount || 0) < 10}
+			>{#if ongoingPayment}<div class="loading" />{:else}
+				{(invoiceAmount || 0) < 10 ? 'At Least 10 Sats' : 'Pay'}
+			{/if}</button
+		>
+		<p class="text-xs w-2/3 m-auto text-center mt-4">
+			Fees are reserved based on a conservative estimate of Lightning fees. Unused amounts will be
+			returned to your wallet.
+		</p>
 	{/if}
 </div>

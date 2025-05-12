@@ -7,10 +7,7 @@ import NEvent from './nevent.svelte';
 import NProfile from './nprofile.svelte';
 import Tweet from './tweet.svelte';
 import Video from './video.svelte';
-import Tag from './tag.svelte';
-import { signEvent } from 'src/actions/wallet';
-import { signer } from 'src/stores/signer';
-import { get } from 'svelte/store';
+
 import { NostrMention } from './mention';
 
 export const extensions = [
@@ -30,7 +27,7 @@ export const extensions = [
 			sign: async (event) => {
 				// if ('nostr' in window) {
 				// const nostr = window.nostr;
-				return await signEvent(get(signer), event);
+				// return await signEvent(get(signer), event);
 				// }
 			},
 			onDrop() {

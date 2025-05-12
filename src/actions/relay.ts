@@ -1,21 +1,3 @@
-import type { NSecSigner } from '@nostrify/nostrify';
-import type { NostrEvent, UnsignedEvent } from 'nostr-tools';
-import { nostrManager, type RelayStatus } from 'src/wasm/manager';
-
-export const signAndSend = async (
-	signer: NSecSigner,
-	event: UnsignedEvent,
-	callback?: (status: RelayStatus) => void
-) => {
-	if (!signer) {
-		console.warn('No signer found to publish event');
-		return;
-	}
-	event = await signer?.signEvent(event);
-
-	nostrManager.publish(event.kind + event.content, event as NostrEvent, callback || (() => {}));
-};
-
 export const checkNostrRelay = (url: string): Promise<boolean> => {
 	return new Promise((resolve) => {
 		const ws = new WebSocket(url);

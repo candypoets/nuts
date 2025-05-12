@@ -3,12 +3,10 @@
 	import { page } from '$app/stores';
 	import Icon from '@iconify/svelte';
 	import _ from 'lodash';
-	import { signAndSend } from 'src/actions/relay';
 	import { kind0, kind3 } from 'src/controller/nostr';
 	import { ago, DAY, now } from 'src/lib/period';
 	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/parsers';
 	import Feed from 'src/routes/explore/feed.svelte';
-	import { signer } from 'src/stores/signer';
 	import { nostrManager, type RelayStatus } from 'src/wasm/manager';
 	import type { ParsedEvent } from 'src/workers/nipworker';
 	import { onMount } from 'svelte';
@@ -88,26 +86,23 @@
 	function updateFollowList() {
 		if (!$kind0) return;
 		if ($kind3?.parsed?.length == 0) return console.error('empty follow list');
-		signAndSend(
-			$signer,
-			{
-				kind: 3,
-				created_at: now(),
-				tags: _.uniqBy(
-					[
-						...($kind3?.parsed || []).map((c) => ['p', c.pubkey, c.relays?.[0] || '']),
-						['p', pubkey, headerItem.parsed?.relays?.[0] || '']
-					],
-					(c) => c[1]
-				).filter((c) =>
-					($kind3?.parsed || []).some((c) => c.pubkey === pubkey) ? c[1] !== pubkey : true
-				),
-				content: ''
-			},
-			(status: RelayStatus) => {
-				console.log(status.relay, status.message, status.status);
-			}
-		);
+
+		const template = {
+			kind: 3,
+			created_at: now(),
+			tags: _.uniqBy(
+				[
+					...($kind3?.parsed || []).map((c) => ['p', c.pubkey, c.relays?.[0] || '']),
+					['p', pubkey, headerItem.parsed?.relays?.[0] || '']
+				],
+				(c) => c[1]
+			).filter((c) =>
+				($kind3?.parsed || []).some((c) => c.pubkey === pubkey) ? c[1] !== pubkey : true
+			),
+			content: ''
+		};
+
+		nostrManager.publish('follow_' + pubkey, template);
 	}
 
 	$: visible ? subscribe() : unsubscribe();

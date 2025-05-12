@@ -1,21 +1,19 @@
 <script lang="ts">
-	import { onDestroy, onMount } from 'svelte';
-	import { extensions } from 'src/editor';
-	import { Editor, EditorContent, createEditor } from 'svelte-tiptap';
 	import Icon from '@iconify/svelte';
-	import { fly } from 'svelte/transition';
-	import type { Readable } from 'svelte/store';
+	import type { EventTemplate, NostrEvent } from 'nostr-tools';
 	import GifPicker from 'src/comp/GIFPicker.svelte';
-	import { prepareEvent } from 'src/editor/utils';
-	import type { ParsedEvent } from 'src/workers/nipworker';
-	import type { AnyKind, Kind1Parsed } from 'src/parsers';
-	import User from './user.svelte';
-	import type { EventTemplate, NostrEvent, Relay } from 'nostr-tools';
-	import { signEvent } from 'src/actions/wallet';
-	import { now } from 'src/lib/period';
-	import { signer } from 'src/stores/signer';
-	import { nostrManager, type RelayStatus } from 'src/wasm/manager';
 	import { replying } from 'src/controller/editor';
+	import { extensions } from 'src/editor';
+	import { prepareEvent } from 'src/editor/utils';
+	import { now } from 'src/lib/period';
+	import type { AnyKind, Kind1Parsed } from 'src/parsers';
+	import { nostrManager, type RelayStatus } from 'src/wasm/manager';
+	import type { ParsedEvent } from 'src/workers/nipworker';
+	import { onDestroy, onMount } from 'svelte';
+	import { Editor, EditorContent, createEditor } from 'svelte-tiptap';
+	import type { Readable } from 'svelte/store';
+	import { fly } from 'svelte/transition';
+	import User from './user.svelte';
 
 	export let placeholder = 'Write your reply...';
 	export let initialContent = '';
@@ -97,7 +95,7 @@
 	}
 
 	async function handleSubmit() {
-		if (!$signer || !editorReady || isSubmitting || !$editor.getText().trim()) return;
+		if (!editorReady || isSubmitting || !$editor.getText().trim()) return;
 		console.log('submitting', $editor.commands);
 		isSubmitting = true;
 		const content = $editor.getText();
@@ -125,7 +123,7 @@
 		});
 	}
 
-	function handleKeyDown(event) {
+	function handleKeyDown(event: KeyboardEvent) {
 		// Submit on Ctrl+Enter or Cmd+Enter
 		if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
 			event.preventDefault();

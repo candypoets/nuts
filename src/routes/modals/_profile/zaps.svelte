@@ -1,6 +1,5 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import { settings } from 'src/stores/db';
 	export let subopen: boolean = false;
 </script>
 

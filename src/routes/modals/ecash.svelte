@@ -1,27 +1,20 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
+	import type { EventTemplate } from 'nostr-tools';
+
 	import MintSelector from 'src/comp/MintSelector.svelte';
-	import { mintInfos } from 'src/stores/mints';
-	import Avatar from '../explore/avatar.svelte';
-	import User from '../explore/user.svelte';
-	import { goBack } from './modal';
-	import { onMount } from 'svelte';
+	import { activeMintUrl, balanceByMint } from 'src/controller/wallet';
+	import { now } from 'src/lib/period';
+	import { isKind10002, isKind10019, type AnyKind, type Kind10019Parsed } from 'src/parsers';
+	import { normalizeMintURL } from 'src/parsers/utils';
+	import Avatar from 'src/routes/explore/avatar.svelte';
+	import User from 'src/routes/explore/user.svelte';
+	import { goBack } from 'src/routes/modals/modal';
+	import { cashuManager } from 'src/wasm/cashu';
 	import { nostrManager, type SubscribeKind } from 'src/wasm/manager';
 	import type { ParsedEvent } from 'src/workers/nipworker';
-	import {
-		isKind10002,
-		isKind10019,
-		isKind17375,
-		type AnyKind,
-		type Kind10019Parsed
-	} from 'src/parsers';
-	import { activeMintUrl, balanceByMint } from 'src/controller/wallet';
+	import { onMount } from 'svelte';
 	import { fly } from 'svelte/transition';
-	import type { EventTemplate } from 'nostr-tools';
-	import { cashuManager } from 'src/wasm/cashu';
-	import { key } from 'src/stores/db';
-	import { normalizeMintURL } from 'src/parsers/utils';
-	import { now } from 'src/lib/period';
 
 	// export let active: string;
 	export let pubkey: string;

@@ -9,9 +9,7 @@
 	import GifPicker from 'src/comp/GIFPicker.svelte';
 	import { prepareEvent } from 'src/editor/utils';
 	import type { EventTemplate, NostrEvent } from 'nostr-tools';
-	import { signEvent } from 'src/actions/wallet';
 	import { now } from 'src/lib/period';
-	import { signer } from 'src/stores/signer';
 	import { nostrManager, type RelayStatus } from 'src/wasm/manager';
 	import { composing } from 'src/controller/editor';
 
@@ -98,7 +96,7 @@
 	}
 
 	async function handleSubmit() {
-		if (!$signer || !editorReady || isSubmitting || !$editor.getText().trim()) return;
+		if (!editorReady || isSubmitting || !$editor.getText().trim()) return;
 		isSubmitting = true;
 		const content = $editor.getText();
 
@@ -110,8 +108,6 @@
 		};
 
 		post = prepareEvent(post);
-
-		post = await signEvent($signer, post);
 
 		onSubmit(post as NostrEvent);
 

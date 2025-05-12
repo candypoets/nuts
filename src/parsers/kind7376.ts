@@ -1,5 +1,3 @@
-import type { NostrEvent } from 'nostr-tools';
-
 export type HistoryTag = {
 	name: string;
 	value: string;
@@ -17,10 +15,3 @@ export type Kind7376Parsed = {
 	tags?: HistoryTag[]; // All decrypted tags
 	decrypted: boolean; // Whether content was successfully decrypted
 };
-
-export async function parseKind7376(
-	event: NostrEvent,
-	EOSERequests: Request[]
-): Promise<Kind7376Parsed | null> {
-	return null;
-}

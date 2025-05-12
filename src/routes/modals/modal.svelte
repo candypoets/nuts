@@ -65,39 +65,39 @@
 		on:click|stopPropagation
 	>
 		{#if path.includes('receive')}
-			<Topup {visible} />
+			<Topup />
 		{:else if path.includes('send')}
-			<Send {visible} />
+			<Send />
 		{:else if path.includes('scan')}
-			<Scan {visible} />
+			<Scan />
 		{:else if path.includes('qr')}
-			<QR {visible} />
+			<QR />
 		{:else if path.includes('ecash')}
-			<Ecash pubkey={path.split(':')?.[1]} {visible} />
+			<Ecash pubkey={path.split(':')?.[1]} />
 		{:else if path.includes('lightning')}
-			<Lightning invoice={path.split(':')?.[1]} {visible} />
+			<Lightning invoice={path.split(':')?.[1]} />
 		{:else if path.includes('minting')}
-			<Minting {visible} />
+			<Minting />
 		{:else if path.includes('minted')}
 			<Minted mint={path.split(':')?.[1]} amount={path.split(':')?.[2]} />
 		{:else if path.includes('melted')}
-			<Melted mint={path.split(':')?.[1]} amount={path.split(':')?.[2]} {visible} />
+			<Melted mint={path.split(':')?.[1]} amount={path.split(':')?.[2]} />
 		{:else if path.startsWith('melt')}
-			<Melt invoice={path.split(':')?.[1]} {visible} />
+			<Melt invoice={path.split(':')?.[1]} />
 		{:else if path.includes('tapcash')}
-			<Tapcash {visible} />
+			<Tapcash />
 		{:else if path.includes('profile')}
-			<Profile {visible} />
+			<Profile />
 		{:else if path.includes('zaps')}
-			<Zaps {visible} />
+			<Zaps />
 		{:else if path.includes('keys')}
-			<Keys {visible} />
+			<Keys />
 		{:else if path.includes('wallet')}
-			<Wallet {visible} />
+			<Wallet />
 		{:else if path.includes('relays')}
-			<Relays {visible} />
+			<Relays />
 		{:else if path.includes('logout')}
-			<Logout {visible} />
+			<Logout />
 		{/if}
 	</div>
 </div>

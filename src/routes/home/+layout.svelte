@@ -3,11 +3,12 @@
 	import { schnorr } from '@noble/curves/secp256k1';
 	import { bytesToHex } from '@noble/hashes/utils';
 	import _ from 'lodash';
-	import { kinds, nip19 } from 'nostr-tools';
+	import { nip19 } from 'nostr-tools';
+	import { onMount } from 'svelte';
 
-	import { decodePrivKey } from 'src/actions/wallet';
+	import { decodePrivKey } from 'src/lib/wallet';
 	import Pager from 'src/comp/Pager.svelte';
-	import { kind10002, kind10019, kind17375, kinds7375 } from 'src/controller/nostr';
+	import { kind0, kind10002, kind10019, kind17375, kind3, kinds7375 } from 'src/controller/nostr';
 	import {
 		activeMintUrl,
 		balanceByMint,
@@ -16,20 +17,25 @@
 		walletLoaded
 	} from 'src/controller/wallet';
 	import { DAY } from 'src/lib/period';
-	import { isKind17375, isKind7375, isKind9321, type AnyKind } from 'src/parsers';
+	import {
+		isKind0,
+		isKind10002,
+		isKind17375,
+		isKind3,
+		isKind7375,
+		isKind9321,
+		type AnyKind
+	} from 'src/parsers';
 	import { normalizeMintURL } from 'src/parsers/utils';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import MintCard from 'src/routes/home/components/mintcard.svelte';
 	import Kind9321 from 'src/routes/kinds/kind9321.svelte';
 	import Modal from 'src/routes/modals/index.svelte';
 	import { go } from 'src/routes/modals/modal';
-	import { activeAccount, key, keysCache } from 'src/stores/db';
-	import { profile } from 'src/stores/profile';
-	import { pool } from 'src/stores/relays';
 	import { cashuManager } from 'src/wasm/cashu';
 	import { nostrManager, type SubscribeKind } from 'src/wasm/manager';
 	import type { ParsedEvent } from 'src/workers/nipworker';
-	import { onMount } from 'svelte';
+	import { key } from 'src/stores/key';
 
 	let isViewing = false;
 
@@ -132,36 +138,47 @@
 		const pubkey = bytesToHex(schnorr.getPublicKey(pk));
 		const privkey = bytesToHex(pk);
 
-		const abortController = new AbortController();
-		// abortController = new AbortController();
-
 		loading = true;
-		const messages = $pool.req([{ kinds: [kinds.Metadata], authors: [pubkey], limit: 1 }], {
-			signal: abortController.signal
-		});
 
-		for await (const message of messages) {
-			if (message[0] === 'CLOSED') break;
-			if (message[0] !== 'EVENT') continue;
-			loading = false;
-			try {
-				keysCache.put({
-					pub: pubkey,
-					priv: privkey,
-					npub: nip19.npubEncode(pubkey),
-					nsec: nip19.nsecEncode(pk)
-				});
-				$activeAccount = Array.from($keysCache.values()).findIndex((k) => k.pub == pubkey);
-			} catch (error) {
-				console.warn(error);
+		const login = nostrManager.subscribe(
+			'login_' + pubkey,
+			[
+				{
+					kinds: [0, 3, 10002],
+					authors: [pubkey],
+					cacheFirst: true,
+					relays: []
+				}
+			],
+			(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) => {
+				const [event, ...context] = events;
+				if (kind == 'EOSE') {
+					loading = false;
+					login();
+				}
+				if (isKind0(event)) {
+					$kind0 = event;
+					loading = false;
+					try {
+						$key = {
+							pub: pubkey,
+							priv: privkey,
+							npub: nip19.npubEncode(pubkey),
+							nsec: nip19.nsecEncode(pk)
+						};
+					} catch (error) {
+						console.warn(error);
+					}
+				}
+				if (isKind3(event)) {
+					$kind3 = event;
+				}
+				if (isKind10002(event)) {
+					$kind10002 = event;
+				}
 			}
-			break;
-		}
-		privateKey = '';
-		abortController.abort();
+		);
 	}
-
-	$: isError = Array.from($keysCache.values())[$activeAccount]?.pub != $key?.pub;
 
 	onMount(() => {
 		cashuManager.subscribe('wallet_update', (result: { [key: string]: number }) => {
@@ -188,7 +205,10 @@
 							><Icon icon="ph:qr-code" class="text-2xl" /></button
 						>
 						<div on:click|stopPropagation={() => go('profile')} class="cursor-pointer">
-							<img src={$profile?.picture || '/ns-naked.svg'} class="w-8 h-8 border rounded-full" />
+							<img
+								src={$kind0?.parsed?.picture || '/ns-naked.svg'}
+								class="w-8 h-8 border rounded-full"
+							/>
 						</div>
 					</div>
 				</div>
@@ -247,18 +267,7 @@
 				</div>
 				<div class="flex-grow w-1/4" />
 			</div>
-			{#if isError}
-				<div class="py-4 w-feed m-auto">
-					<div class="bg-secondary-content p-4 rounded-lg">
-						<div class="text-center">
-							<Icon icon="ph:warning" class="text-5xl inline" />
-						</div>
-						<br />
-						<p class="text-center">Your browser extension is not pointing to this account</p>
-						<p class="text-center">change it to view this account.</p>
-					</div>
-				</div>
-			{:else if $key}
+			{#if $key}
 				<div
 					class="h-auto lg:pt-0 overflow-scroll scrollbar-hide"
 					on:scroll={(e) => (scrollY = e?.target?.scrollTop)}
@@ -300,11 +309,10 @@
 								return;
 							}
 							if (pubKey == $key?.pub) return;
-							keysCache.put({
+							$key = {
 								pub: pubKey,
 								npub: nip19.npubEncode(pubKey)
-							});
-							$activeAccount = Array.from($keysCache.values()).findIndex((k) => k.pub == pubKey);
+							};
 						}}
 					>
 						{#if !extensionError}

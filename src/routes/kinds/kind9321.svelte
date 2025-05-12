@@ -4,15 +4,15 @@
 	import Icon from '@iconify/svelte';
 	import { onMount } from 'svelte';
 
+	import { formatDate } from 'date-fns';
+	import { DAY } from 'src/lib/period';
 	import { isKind7376, type AnyKind, type Kind9321Parsed } from 'src/parsers';
 	import type { Kind7376Parsed } from 'src/parsers/kind7376';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import User from 'src/routes/explore/user.svelte';
-	import { key } from 'src/stores/db';
+	import { key } from 'src/stores';
 	import { nostrManager } from 'src/wasm/manager';
 	import type { ParsedEvent } from 'src/workers/nipworker';
-	import { formatDistanceToNow, formatDate, format, formatISO } from 'date-fns';
-	import { DAY, now } from 'src/lib/period';
 
 	export let zap: ParsedEvent<Kind9321Parsed>;
 	export let context: ParsedEvent<AnyKind>[];
