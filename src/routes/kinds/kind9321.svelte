@@ -10,7 +10,7 @@
 	import type { Kind7376Parsed } from 'src/parsers/kind7376';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import User from 'src/routes/explore/user.svelte';
-	import { key } from 'src/stores';
+	import { key } from 'src/controller';
 	import { nostrManager } from 'src/wasm/manager';
 	import type { ParsedEvent } from 'src/workers/nipworker';
 

@@ -24,7 +24,7 @@
 	import type { Request } from 'src/wasm/manager';
 	import { nostrManager, type SubscribeKind } from 'src/wasm/manager';
 	import type { ParsedEvent } from 'src/workers/nipworker';
-	import { key } from 'src/stores';
+	import { key } from 'src/controller';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
 

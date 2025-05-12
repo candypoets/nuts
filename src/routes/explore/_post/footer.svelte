@@ -17,7 +17,7 @@
 		type Kind1Parsed,
 		type Kind7Parsed
 	} from 'src/parsers';
-	import { key } from 'src/stores';
+	import { key } from 'src/controller';
 	import { nostrManager } from 'src/wasm/manager';
 	import type { NIP10Parsed } from 'src/workers/nip10';
 	import type { NIP25Parsed } from 'src/workers/nip25';

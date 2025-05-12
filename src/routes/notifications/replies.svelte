@@ -8,7 +8,7 @@
 	import User from '../explore/user.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import Content from '../explore/_post/content.svelte';
-	import { key } from 'src/stores/db';
+	import { key } from 'src/controller/db';
 
 	export let post: ProcessedNotification;
 	export let visible: boolean;

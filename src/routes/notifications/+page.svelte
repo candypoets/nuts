@@ -5,7 +5,7 @@
 	import { ago, DAY } from 'src/lib/period';
 	import { isKind1, isKind6, isKind7, type AnyKind } from 'src/parsers';
 	import Feed from 'src/routes/explore/feed.svelte';
-	import { key } from 'src/stores/db';
+	import { key } from 'src/controller/db';
 	import type { SubscribeKind } from 'src/wasm/manager';
 	import type { ParsedEvent } from 'src/workers/nipworker';
 	import { onMount } from 'svelte';

@@ -1,5 +1,4 @@
 <script lang="ts">
-	// import { alert } from 'src/stores';
 	import { fly } from 'svelte/transition';
 
 	// $: if ($alert) {

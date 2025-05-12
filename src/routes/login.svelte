@@ -8,7 +8,7 @@
 	import { now } from 'src/lib/period';
 	import { decodePrivKey } from 'src/lib/wallet';
 	import { isKind0, type AnyKind } from 'src/parsers';
-	import { key } from 'src/stores';
+	import { key } from 'src/controller';
 	import { nostrManager, type SubscribeKind } from 'src/wasm/manager';
 	import type { ParsedEvent } from 'src/workers/nipworker';
 

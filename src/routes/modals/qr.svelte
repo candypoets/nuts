@@ -3,7 +3,7 @@
 	import { QRCodeImage } from 'svelte-qrcode-image';
 
 	import { goBack } from 'src/routes/modals/modal';
-	import { key } from 'src/stores';
+	import { key } from 'src/controller';
 </script>
 
 <div class="fixed top-0 w-full flex items-center justify-center z-10 mobile-height bg-basic">

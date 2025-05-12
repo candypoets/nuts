@@ -11,7 +11,7 @@
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import User from 'src/routes/explore/user.svelte';
-	import { key } from 'src/stores';
+	import { key } from 'src/controller';
 	import { nostrManager, type RelayStatus, type SubscribeKind } from 'src/wasm/manager';
 	import type { ParsedEvent } from 'src/workers/nipworker';
 	import { parseContent } from 'src/workers/utils';

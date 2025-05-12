@@ -35,7 +35,7 @@
 	import { cashuManager } from 'src/wasm/cashu';
 	import { nostrManager, type SubscribeKind } from 'src/wasm/manager';
 	import type { ParsedEvent } from 'src/workers/nipworker';
-	import { key } from 'src/stores/key';
+	import { key } from 'src/controller/key';
 
 	let isViewing = false;
 

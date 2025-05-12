@@ -1,11 +1,11 @@
 import { kinds, nip04 } from 'nostr-tools';
 import type { Event, UnsignedEvent } from 'nostr-tools';
 import { get } from 'svelte/store';
-import { signEvent } from './wallet';
-import { getConvertedPubKey } from 'src/stores/wallet';
-import { pool } from 'src/stores/relays';
+import { signEvent } from '../lib/wallet';
+import { getConvertedPubKey } from 'src/controller/wallet';
+import { pool } from 'src/controller/relays';
 
-import { key } from 'src/stores/db';
+import { key } from 'src/controller/db';
 import type { NSecSigner } from '@nostrify/nostrify';
 
 // export const getEncryptedContent = async (

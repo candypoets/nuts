@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Html5Qrcode, type QrcodeErrorCallback, type QrcodeSuccessCallback } from 'html5-qrcode';
 	import { isLightningInvoice, isNostr, isNpub, isValidLNURL } from 'src/lib/wallet';
-	import {} from 'src/stores';
+	import {} from 'src/controller';
 
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
