@@ -45,7 +45,6 @@
 	function handleEvents(events: ParsedEvent<AnyKind>[]) {
 		const [event] = events;
 		if (!event?.parsed) return;
-		// console.log('note events', note?.id, randomId, events, context);
 		context = _.uniqBy([...context, ...events], 'id');
 	}
 

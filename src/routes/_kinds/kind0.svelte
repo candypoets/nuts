@@ -17,8 +17,8 @@
 	export let visible: boolean;
 
 	let loading = true;
+	let headerItem: ParsedEvent<Kind0Parsed> | undefined;
 	let feedRequests: any[] = [];
-	let headerItem: ParsedEvent<Kind0Parsed> = { id: 'header' };
 	let timeout: NodeJS.Timeout | undefined;
 
 	let sub: () => void;
@@ -93,7 +93,7 @@
 			tags: _.uniqBy(
 				[
 					...($kind3?.parsed || []).map((c) => ['p', c.pubkey, c.relays?.[0] || '']),
-					['p', pubkey, headerItem.parsed?.relays?.[0] || '']
+					['p', pubkey, headerItem?.parsed?.relays?.[0] || '']
 				],
 				(c) => c[1]
 			).filter((c) =>
@@ -108,7 +108,7 @@
 	$: visible ? subscribe() : unsubscribe();
 </script>
 
-<Feed subscriptionID={'kind0_feed_' + pubkey} requests={feedRequests} {headerItem}>
+<Feed subscriptionID={'kind0_feed_' + pubkey} requests={feedRequests}>
 	<svelte:fragment slot="sticky-header">
 		<div
 			class="px-4 py-3 flex items-center justify-between backdrop-blur bg-base-100 bg-opacity-90"
@@ -129,7 +129,7 @@
 			<span class="w-10" />
 		</div>
 		<!-- {#if item.id != headerItem.id} -->
-		{@const p = headerItem.parsed}
+		{@const p = headerItem?.parsed}
 		<div
 			class="transition-all duration-300 bg-basic w-feed mx-auto will-change-transform"
 			class:relative={visible}

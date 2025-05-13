@@ -15,7 +15,7 @@
 	export let visible: boolean;
 	export let depth: number = 0;
 
-	let headerItem: ParsedEvent<Kind1Parsed> | undefined = { id: 'header' };
+	let headerItem: ParsedEvent<Kind1Parsed> | undefined;
 	let context: ParsedEvent<AnyKind>[] | undefined;
 	let loading = true;
 	let feedRequests: any[] = [];
@@ -136,8 +136,10 @@
 			<h1 class="text-lg font-semibold">Post</h1>
 			<span class="w-10" />
 		</div>
-		<Note note={headerItem} {context} visible={true} zaps />
-		<Reply parent={headerItem} {context} />
+		{#if headerItem}
+			<Note note={headerItem} {context} visible={true} zaps />
+			<Reply parent={headerItem} {context} />
+		{/if}
 	</svelte:fragment>
 	<svelte:fragment slot="item-content" let:post let:context let:visible>
 		<Note

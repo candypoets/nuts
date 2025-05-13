@@ -14,7 +14,6 @@
 	// Props
 	export let bottom = false;
 	export let subscriptionID: string;
-	export let headerItem: ParsedEvent<AnyKind> | undefined = undefined;
 	export let requests: any[] = [];
 	export let updateFeed:
 		| ((
@@ -55,8 +54,8 @@
 			loading = false;
 			eose = true;
 			feed = _.uniqBy([...fetchedFeed, ...feed], (item) => item[0].id)
-				.slice(0, 100)
-				.sort((a, b) => b[0].created_at - a[0].created_at);
+				.sort((a, b) => b[0].created_at - a[0].created_at)
+				.slice(0, 100);
 			fetchedFeed = [];
 			return;
 		}

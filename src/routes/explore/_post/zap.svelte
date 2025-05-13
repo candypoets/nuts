@@ -52,7 +52,6 @@
 	};
 
 	function handleNuts(event: ParsedEvent<Kind9321Parsed>) {
-		console.log('A NUT', event);
 		if (!event.parsed) return;
 		if (event.pubkey == $kind0?.pubkey) zapped = true;
 		if (nuts.some((n) => n.id == event.id)) return;
@@ -104,7 +103,7 @@
 					{zaps.length === 1 ? 'zap' : 'zaps'} · {totalZapAmount.toLocaleString()} sats
 				</div>
 				<div class="flex -space-x-2 items-center">
-					{#each zaps.slice(0, 5) as zap, i}
+					{#each zaps.slice(0, 5) as zap, i (zap.id)}
 						<Avatar pubkey={zap?.parsed?.sender} />
 					{/each}
 
