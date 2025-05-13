@@ -3,11 +3,11 @@
 	import { page } from '$app/stores';
 	import Icon from '@iconify/svelte';
 	import _ from 'lodash';
-	import { isKind1, type AnyKind, type Kind1Parsed } from 'src/parsers';
+	import { isKind1, type AnyKind, type Kind1Parsed } from 'src/types';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import Note from 'src/routes/explore/note.svelte';
-	import { nostrManager, type SubscribeKind } from 'src/wasm/manager';
-	import type { ParsedEvent } from 'src/workers/nipworker';
+	import { nostrManager, type SubscribeKind } from 'src/model/nostr';
+	import type { ParsedEvent } from 'src/types';
 	import { onMount } from 'svelte';
 	import Reply from '../explore/reply.svelte';
 

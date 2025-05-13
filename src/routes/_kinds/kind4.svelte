@@ -6,15 +6,15 @@
 
 	import Editor from 'src/components/Editor.svelte';
 	import { now } from 'src/lib/period';
-	import { isKind4, type AnyKind, type Kind1Parsed } from 'src/parsers';
+	import { isKind4, type AnyKind, type Kind1Parsed } from 'src/types';
 	import Message from 'src/routes/_kinds/message.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import User from 'src/routes/explore/user.svelte';
 	import { key } from 'src/controller';
-	import { nostrManager, type RelayStatus, type SubscribeKind } from 'src/wasm/manager';
-	import type { ParsedEvent } from 'src/workers/nipworker';
-	import { parseContent } from 'src/workers/utils';
+	import { nostrManager, type RelayStatus, type SubscribeKind } from 'src/model/nostr';
+	import type { ParsedEvent } from 'src/types';
+	import { parseContent } from 'src/lib';
 
 	// in a chat, pubkey is the other person's pubkey
 	export let pubkey: string;

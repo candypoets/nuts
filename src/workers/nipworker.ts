@@ -7,7 +7,7 @@ import type { WorkerMessage, WorkerMessageKind } from 'src/handlers';
 import type { Request, Subscription } from 'src/workers/utils';
 
 import { optimizeSubscriptions } from './utils/optimizeSubscriptions';
-import { parseEvent } from 'src/parsers';
+import { parseEvent } from 'src/types';
 
 // Define a subscription configuration
 export type SubscriptionConfig = {
@@ -38,11 +38,7 @@ export type WorkerConfig<T, P = any> = {
 	defaultRelays?: string[];
 };
 
-export type ParsedEvent<T> = NostrEvent & {
-	parsed?: T | null;
-	requests?: Request[];
-	relays?: string[];
-};
+
 
 export function createNipWorker<T, P = any>(config: WorkerConfig<T, P>) {
 	// Initialize state

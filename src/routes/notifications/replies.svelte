@@ -2,9 +2,9 @@
 	import Icon from '@iconify/svelte';
 	import { formatTime, type ProcessedNotification } from './notifications';
 	import { onMount } from 'svelte';
-	import { nostrManager } from 'src/wasm/manager';
-	import { isKind1, type AnyKind } from 'src/parsers';
-	import type { ParsedEvent } from 'src/workers/nipworker';
+	import { nostrManager } from 'src/model/nostr';
+	import { isKind1, type AnyKind } from 'src/types';
+	import type { ParsedEvent } from 'src/types';
 	import User from '../explore/user.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import Content from '../explore/_post/content.svelte';

@@ -6,9 +6,9 @@
 	import { extensions } from 'src/editor';
 	import { prepareEvent } from 'src/editor/utils';
 	import { now } from 'src/lib/period';
-	import type { AnyKind, Kind1Parsed } from 'src/parsers';
-	import { nostrManager, type RelayStatus } from 'src/wasm/manager';
-	import type { ParsedEvent } from 'src/workers/nipworker';
+	import type { AnyKind, Kind1Parsed } from 'src/types';
+	import { nostrManager, type RelayStatus } from 'src/model/nostr';
+	import type { ParsedEvent } from 'src/types';
 	import { onDestroy, onMount } from 'svelte';
 	import { Editor, EditorContent, createEditor } from 'svelte-tiptap';
 	import type { Readable } from 'svelte/store';

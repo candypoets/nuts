@@ -2,17 +2,16 @@
 	import { goto } from '$app/navigation';
 	import Icon from '@iconify/svelte';
 	import _ from 'lodash';
-	import { ago, DAY } from 'src/lib/period';
-	import { isKind1, isKind6, isKind7, type AnyKind } from 'src/parsers';
+	import { key } from 'src/controller';
+	import type { SubscribeKind } from 'src/model/nostr';
+	import { type AnyKind } from 'src/types';
 	import Feed from 'src/routes/explore/feed.svelte';
-	import { key } from 'src/controller/db';
-	import type { SubscribeKind } from 'src/wasm/manager';
-	import type { ParsedEvent } from 'src/workers/nipworker';
+	import type { ParsedEvent } from 'src/types';
 	import { onMount } from 'svelte';
 	import Mentions from './mentions.svelte';
-	import Replies from './replies.svelte';
 	import { processNotifications } from './notifications';
 	import Reactions from './reactions.svelte';
+	import Replies from './replies.svelte';
 
 	let loading = true;
 	let notificationsData = [];

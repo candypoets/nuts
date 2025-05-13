@@ -6,12 +6,11 @@
 	import _ from 'lodash';
 	import { onMount } from 'svelte';
 
-	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/parsers';
-	import { nostrManager, type SubscribeKind } from 'src/wasm/manager';
-	import type { NIP10Parsed } from 'src/workers/nip10';
-	import type { ParsedEvent } from 'src/workers/nipworker';
+	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/types';
+	import { nostrManager, type SubscribeKind } from 'src/model/nostr';
+	import type { Kind1Parsed, ParsedEvent } from 'src/types';
 
-	export let note: ParsedEvent<NIP10Parsed>;
+	export let note: ParsedEvent<Kind1Parsed>;
 	export let context: ParsedEvent<AnyKind>[] = [];
 	export let depth = 0;
 

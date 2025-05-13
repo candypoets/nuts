@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, createEventDispatcher } from 'svelte';
 	import { spring, tweened } from 'svelte/motion';
-	import { PublishStatus } from 'src/wasm/manager';
+	import { PublishStatus } from 'src/model/nostr';
 	import { cubicOut } from 'svelte/easing';
 
 	// Component props

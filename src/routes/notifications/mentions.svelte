@@ -1,9 +1,9 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import { type AnyKind } from 'src/parsers';
+	import { type AnyKind } from 'src/types';
 	import Avatar from 'src/routes/explore/avatar.svelte';
-	import { nostrManager } from 'src/wasm/manager';
-	import type { ParsedEvent } from 'src/workers/nipworker';
+	import { nostrManager } from 'src/model/nostr';
+	import type { ParsedEvent } from 'src/types';
 	import Content from '../explore/_post/content.svelte';
 	import User from '../explore/user.svelte';
 	import { formatTime, type ProcessedNotification } from './notifications';

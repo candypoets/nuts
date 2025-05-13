@@ -7,10 +7,10 @@
 
 	import { now } from 'src/lib/period';
 	import { decodePrivKey } from 'src/lib/wallet';
-	import { isKind0, type AnyKind } from 'src/parsers';
+	import { isKind0, type AnyKind } from 'src/types';
 	import { key } from 'src/controller';
-	import { nostrManager, type SubscribeKind } from 'src/wasm/manager';
-	import type { ParsedEvent } from 'src/workers/nipworker';
+	import { nostrManager, type SubscribeKind } from 'src/model/nostr';
+	import type { ParsedEvent } from 'src/types';
 
 	let privateKey = '';
 	let name = '';

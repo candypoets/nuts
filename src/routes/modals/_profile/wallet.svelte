@@ -2,13 +2,13 @@
 	import Icon from '@iconify/svelte';
 	import _ from 'lodash';
 	import { normalizeURL } from 'nostr-tools/utils';
-	import { isMintUrlValid } from 'src/actions/mint';
+	import { isMintUrlValid } from 'src/lib/mint';
 	import { kind17375 } from 'src/controller/nostr';
 	import { onMount } from 'svelte';
 	import { generateSecretKey, getPublicKey, type EventTemplate } from 'nostr-tools';
 	import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 	import { now } from 'src/lib/period';
-	import { nostrManager, type RelayStatus } from 'src/wasm/manager';
+	import { nostrManager, type RelayStatus } from 'src/model/nostr';
 
 	let newMintUrl = '';
 	let loading = false;

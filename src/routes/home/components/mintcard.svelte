@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { balanceByMint } from 'src/controller/wallet';
-	import type { Mint } from 'src/parsers/mint';
+	import type { Mint } from 'src/types/mint';
 
 	export let mint: Mint;
 	export let size = 'lg';

@@ -1,15 +1,15 @@
-import { get, writable } from 'svelte/store';
-import { kind17375, kinds7375 } from './nostr';
-import { derived } from 'svelte/store';
-import { normalizeURL } from 'nostr-tools/utils';
-import type { Mint } from 'src/parsers/mint';
-import type { ParsedEvent } from 'src/workers/nipworker';
-import type { Kind17375Parsed, Kind7375Parsed, ProofUnion } from 'src/parsers';
 import type { EventTemplate } from 'nostr-tools';
+import { normalizeURL } from 'nostr-tools/utils';
+import { derived, get, writable } from 'svelte/store';
+
 import { now } from 'src/lib/period';
-import { nostrManager } from 'src/wasm/manager';
-import { cashuManager } from 'src/wasm/cashu';
-import { normalizeMintURL } from 'src/parsers/utils';
+import { cashuManager } from 'src/model/cashu';
+import { nostrManager } from 'src/model/nostr';
+import type { Kind7375Parsed, ProofUnion } from 'src/types';
+import type { Mint } from 'src/types/mint';
+import { normalizeMintURL } from 'src/lib/utils';
+import type { ParsedEvent } from 'src/types';
+import { kind17375, kinds7375 } from 'src/controller/nostr';
 
 async function fetchMintData(mint: string): Promise<Mint> {
 	try {

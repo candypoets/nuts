@@ -4,14 +4,14 @@
 	import _ from 'lodash';
 	import { kind10002, kind3 } from 'src/controller/nostr';
 	import { viewport } from 'src/lib';
-	import { isKind4, type AnyKind, type Kind4Parsed } from 'src/parsers';
+	import { isKind4, type AnyKind, type Kind4Parsed } from 'src/types';
 	import Kind from 'src/routes/_kinds/index.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import User from 'src/routes/explore/user.svelte';
 	import { key } from 'src/controller';
-	import type { Request, SubscribeKind } from 'src/wasm/manager';
-	import type { ParsedEvent } from 'src/workers/nipworker';
+	import type { Request, SubscribeKind } from 'src/model/nostr';
+	import type { ParsedEvent } from 'src/types';
 	import { cubicOut } from 'svelte/easing';
 	import { tweened } from 'svelte/motion';
 	import Content from '../explore/_post/content.svelte';

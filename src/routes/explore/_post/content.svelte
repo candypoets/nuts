@@ -5,8 +5,8 @@
 	import _ from 'lodash';
 	import type { ContentBlock } from 'src/workers/utils';
 	import ImageGrid from 'src/components/ImageGrid.svelte';
-	import type { ParsedEvent } from 'src/workers/nipworker';
-	import type { AnyKind } from 'src/parsers';
+	import type { ParsedEvent } from 'src/types';
+	import type { AnyKind } from 'src/types';
 
 	export let parsedContent: ContentBlock[] = [];
 	export let context: ParsedEvent<AnyKind>[] = [];

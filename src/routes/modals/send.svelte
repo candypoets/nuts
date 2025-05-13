@@ -4,11 +4,11 @@
 
 	import { kind3 } from 'src/controller/nostr';
 	import type { Contact } from 'src/model/contact';
-	import type { AnyKind, Kind0Parsed } from 'src/parsers';
+	import type { AnyKind, Kind0Parsed } from 'src/types';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import { go, goBack } from 'src/routes/modals/modal';
-	import type { Request, SubscribeKind } from 'src/wasm/manager';
-	import type { ParsedEvent } from 'src/workers/nipworker';
+	import type { Request, SubscribeKind } from 'src/model/nostr';
+	import type { ParsedEvent } from 'src/types';
 
 	let active: string;
 	let search: string;

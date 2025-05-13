@@ -1,8 +1,8 @@
 <script lang="ts">
 	import _ from 'lodash';
-	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/parsers';
-	import { nostrManager, type SubscribeKind } from 'src/wasm/manager';
-	import type { ParsedEvent } from 'src/workers/nipworker';
+	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/types';
+	import { nostrManager, type SubscribeKind } from 'src/model/nostr';
+	import type { ParsedEvent } from 'src/types';
 	import { onDestroy, onMount } from 'svelte';
 
 	// The pubkey/npub of the user

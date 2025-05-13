@@ -5,16 +5,17 @@
 	import MintSelector from 'src/components/MintSelector.svelte';
 	import { activeMintUrl, balanceByMint } from 'src/controller/wallet';
 	import { now } from 'src/lib/period';
-	import { isKind10002, isKind10019, type AnyKind, type Kind10019Parsed } from 'src/parsers';
-	import { normalizeMintURL } from 'src/parsers/utils';
+	import { isKind10002, isKind10019, type AnyKind, type Kind10019Parsed } from 'src/types';
+	import { normalizeMintURL } from 'src/lib/utils';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import User from 'src/routes/explore/user.svelte';
 	import { goBack } from 'src/routes/modals/modal';
-	import { cashuManager } from 'src/wasm/cashu';
-	import { nostrManager, type SubscribeKind } from 'src/wasm/manager';
-	import type { ParsedEvent } from 'src/workers/nipworker';
+	import { cashuManager } from 'src/model/cashu';
+	import { nostrManager, type SubscribeKind } from 'src/model/nostr';
+	import type { ParsedEvent } from 'src/types';
 	import { onMount } from 'svelte';
 	import { fly } from 'svelte/transition';
+	import { key } from 'src/controller';
 
 	// export let active: string;
 	export let pubkey: string;

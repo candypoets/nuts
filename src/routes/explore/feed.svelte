@@ -6,9 +6,9 @@
 	import VirtualList from 'src/components/VirtualList.svelte';
 	import VirtualListBottom from 'src/components/VirtualListBottom.svelte';
 	import { now } from 'src/lib/period';
-	import { isKind, isKind1, type AnyKind, type Kind1Parsed } from 'src/parsers';
-	import { nostrManager, type SubscribeKind } from 'src/wasm/manager';
-	import type { ParsedEvent } from 'src/workers/nipworker';
+	import { isKind, isKind1, type AnyKind, type Kind1Parsed } from 'src/types';
+	import { nostrManager, type SubscribeKind } from 'src/model/nostr';
+	import type { ParsedEvent } from 'src/types';
 	import Note from './note.svelte';
 
 	// Props

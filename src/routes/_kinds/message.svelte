@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Content from 'src/routes/explore/_post/content.svelte';
-	import type { AnyKind, Kind4Parsed } from 'src/parsers';
-	import type { ParsedEvent } from 'src/workers/nipworker';
+	import type { AnyKind, Kind4Parsed } from 'src/types';
+	import type { ParsedEvent } from 'src/types';
 	import User from '../explore/user.svelte';
 	import { formatDistanceToNow } from 'date-fns';
 	import Avatar from '../explore/avatar.svelte';

@@ -319,6 +319,76 @@ func (db *NostrDB) SaveEventsToPersistentStorage(events []types.ParsedEvent) err
 	}
 }
 
+func openNostrDB(dbName string, version int) js.Value {
+
+	console := js.Global().Get("console") // For logging
+
+	var upgradeCallback js.Func
+	upgradeCallback = js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+		// Arguments from 'idb' upgrade: db, oldVersion, newVersion, transaction, event
+		dbJS := args[0] // This is an IDBPDatabase object from the 'idb' library
+		// oldVersionJS := args[1] // The old database version (integer)
+		// newVersionJS := args[2] // The new database version (integer)
+		transactionJS := args[3] // This is an IDBPTransaction for the upgrade
+		// eventJS := args[4]      // The raw IDBVersionChangeEvent (rarely needed with idb)
+
+		console.Call("log", "[Go openNostrDB] 'upgrade' callback invoked by JavaScript openDB. DB:", dbJS)
+
+		var eventStore js.Value // This will be an IDBPObjectStore
+		// Check if the 'events' object store already exists using IDBPDatabase.objectStoreNames
+		if dbJS.Get("objectStoreNames").Call("contains", "events").Bool() {
+			// If it exists, get it via the upgrade transaction
+			eventStore = transactionJS.Call("objectStore", "events")
+			console.Call("log", "[Go openNostrDB] 'events' object store already exists, obtained via transaction.")
+		} else {
+			// If it doesn't exist, create it on the IDBPDatabase
+			storeOptions := js.ValueOf(map[string]interface{}{
+				"keyPath": "id", // Standard IndexedDB options
+			})
+			eventStore = dbJS.Call("createObjectStore", "events", storeOptions)
+			console.Call("log", "[Go openNostrDB] 'events' object store created.")
+		}
+
+		// Helper to create an index if it doesn't exist on an IDBPObjectStore
+		createIndexIfNotExists := func(store js.Value, indexName, keyPath string, options map[string]interface{}) {
+			if store.IsUndefined() || store.IsNull() {
+				console.Call("error", "[Go openNostrDB] createIndex: store is invalid for index", indexName)
+				return
+			}
+			// IDBPObjectStore has 'indexNames' (a DOMStringList) and 'createIndex'
+			if !store.Get("indexNames").Call("contains", indexName).Bool() {
+				jsOptions := js.ValueOf(options)
+				store.Call("createIndex", indexName, keyPath, jsOptions)
+				console.Call("log", fmt.Sprintf("[Go openNostrDB] Index '%s' on keyPath '%s' created.", indexName, keyPath))
+			} else {
+				console.Call("log", fmt.Sprintf("[Go openNostrDB] Index '%s' already exists.", indexName))
+			}
+		}
+
+		// Create all necessary indexes on the eventStore
+		createIndexIfNotExists(eventStore, "kind", "kind", map[string]interface{}{"unique": false})
+		createIndexIfNotExists(eventStore, "pubkey", "pubkey", map[string]interface{}{"unique": false})
+		createIndexIfNotExists(eventStore, "created_at", "created_at", map[string]interface{}{"unique": false})
+
+		tagIndexOptions := map[string]interface{}{"unique": false, "multiEntry": true}
+		createIndexIfNotExists(eventStore, "e_tags", "e_tags", tagIndexOptions)
+		createIndexIfNotExists(eventStore, "p_tags", "p_tags", tagIndexOptions)
+		createIndexIfNotExists(eventStore, "a_tags", "a_tags", tagIndexOptions)
+		createIndexIfNotExists(eventStore, "d_tags", "d_tags", tagIndexOptions)
+
+		console.Call("log", "[Go openNostrDB] 'upgrade' callback finished successfully.")
+		return nil // Standard for js.FuncOf callbacks not returning a value to JS
+	})
+
+	optionsObject := js.ValueOf(map[string]interface{}{
+		"upgrade": upgradeCallback,
+	})
+
+	request := js.Global().Get("openDB").Invoke(dbName, version, optionsObject)
+
+	return request
+}
+
 // LoadFromPersistentStorage loads pre-processed events from IndexedDB to the in-memory database
 func (db *NostrDB) LoadFromPersistentStorage(source string) error {
 	db.Lock()
@@ -347,15 +417,15 @@ func (db *NostrDB) LoadFromPersistentStorage(source string) error {
 		console := global.Get("console")
 
 		// Open the database
-		openDBPromise := global.Get("openDB").Invoke("nostr-local-relay", 1)
+		openDBPromise := openNostrDB("nostr-local-relay", 1)
 
 		openDBPromise.Call("then", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 			db := args[0]
-
+			console.Call("log", "Database object:", db)
 			// Open a transaction and get the object store
 			tx := db.Call("transaction", js.ValueOf([]interface{}{"events"}), js.ValueOf("readonly"))
 			store := tx.Call("objectStore", js.ValueOf("events"))
-
+			console.Call("log", "Store object:", store, store.Call("count"))
 			// Get the count first to allocate memory
 			store.Call("count").Call("then", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 				count := args[0].Int()

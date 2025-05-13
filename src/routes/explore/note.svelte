@@ -3,11 +3,11 @@
 	import Content from './_post/content.svelte';
 	import Footer from './_post/footer.svelte';
 	import { goto } from '$app/navigation';
-	import type { ParsedEvent } from 'src/workers/nipworker';
-	import type { AnyKind, Kind1Parsed } from 'src/parsers';
+	import type { ParsedEvent } from 'src/types';
+	import type { AnyKind, Kind1Parsed } from 'src/types';
 	import Zap from './_post/zap.svelte';
 	import _ from 'lodash';
-	import { nostrManager } from 'src/wasm/manager';
+	import { nostrManager } from 'src/model/nostr';
 	import { page } from '$app/stores';
 
 	export let noteId: string | undefined = undefined;

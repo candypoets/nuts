@@ -25,16 +25,16 @@
 		isKind7375,
 		isKind9321,
 		type AnyKind
-	} from 'src/parsers';
-	import { normalizeMintURL } from 'src/parsers/utils';
+	} from 'src/types';
+	import { normalizeMintURL } from 'src/lib/utils';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import MintCard from 'src/routes/home/components/mintcard.svelte';
 	import Kind9321 from 'src/routes/kinds/kind9321.svelte';
 	import Modal from 'src/routes/modals/index.svelte';
 	import { go } from 'src/routes/modals/modal';
-	import { cashuManager } from 'src/wasm/cashu';
-	import { nostrManager, type SubscribeKind } from 'src/wasm/manager';
-	import type { ParsedEvent } from 'src/workers/nipworker';
+	import { cashuManager } from 'src/model/cashu';
+	import { nostrManager, type SubscribeKind } from 'src/model/nostr';
+	import type { ParsedEvent } from 'src/types';
 	import { key } from 'src/controller/key';
 
 	let isViewing = false;

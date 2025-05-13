@@ -1,9 +1,9 @@
 import * as msgpack from '@msgpack/msgpack';
 import type { EventTemplate, Filter } from 'nostr-tools';
-import type { AnyKind } from 'src/parsers';
+import type { AnyKind } from 'src/types';
 import nostrWorker from 'src/model/nostr/index?worker';
 
-import type { ParsedEvent } from 'src/workers/nipworker';
+import type { ParsedEvent } from 'src/types';
 
 export type SubscribeKind = 'CACHED_EVENT' | 'FETCHED_EVENT' | 'EOSE' | 'EOCE';
 export type PublishKind = 'PUBLISH_STATUS';

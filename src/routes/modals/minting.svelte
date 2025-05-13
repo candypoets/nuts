@@ -6,7 +6,7 @@
 	import MintSelector from 'src/components/MintSelector.svelte';
 	import { activeMintUrl } from 'src/controller/wallet';
 	import { formatAmount } from 'src/lib/wallet';
-	import { cashuManager } from 'src/wasm/cashu';
+	import { cashuManager } from 'src/model/cashu';
 	import { QRCodeImage } from 'svelte-qrcode-image';
 
 	export let doMint = false;

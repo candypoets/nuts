@@ -1,9 +1,9 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import EmojiPickerContent from 'src/components/EmojiPickerContent.svelte';
 	import { onMount } from 'svelte';
-
 	import { kinds, type EventTemplate } from 'nostr-tools';
+
+	import EmojiPickerContent from 'src/components/EmojiPickerContent.svelte';
 	import { replying } from 'src/controller/editor';
 	import { kind0 } from 'src/controller/nostr';
 	import { getRelaysFromNote } from 'src/lib/getRelaysFromNote';
@@ -16,27 +16,25 @@
 		type AnyKind,
 		type Kind1Parsed,
 		type Kind7Parsed
-	} from 'src/parsers';
+	} from 'src/types';
 	import { key } from 'src/controller';
-	import { nostrManager } from 'src/wasm/manager';
-	import type { NIP10Parsed } from 'src/workers/nip10';
-	import type { NIP25Parsed } from 'src/workers/nip25';
-	import type { ParsedEvent } from 'src/workers/nipworker';
+	import { nostrManager } from 'src/model/nostr';
+	import type { ParsedEvent } from 'src/types';
 
 	export let note: ParsedEvent<any>;
 	export let visible: boolean;
 
 	$: relays = getRelaysFromNote(note);
 
-	let reactions: ParsedEvent<NIP25Parsed>[] = [];
+	let reactions: ParsedEvent<Kind7Parsed>[] = [];
 	// replies are exported back to the parent, if the parent decides to show some
-	export let replies: ParsedEvent<NIP10Parsed>[] = [];
+	export let replies: ParsedEvent<Kind1Parsed>[] = [];
 	let liked = false;
 	let replied = false;
 	let timeout: NodeJS.Timeout | undefined;
 	let triggerElement: HTMLElement;
-	const mapReactions: Record<string, ParsedEvent<NIP25Parsed>> = {};
-	const mapReplies: Record<string, ParsedEvent<NIP10Parsed>> = {};
+	const mapReactions: Record<string, ParsedEvent<Kind7Parsed>> = {};
+	const mapReplies: Record<string, ParsedEvent<Kind1Parsed>> = {};
 	const mapEmoticons: Record<string, number> = {};
 	const commonEmoticons = ['👍', '❤️', '😂', '🔥', '😍', '🙏', '💯', '🤔', '🫂', '🚀'];
 

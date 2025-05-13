@@ -1,4 +1,5 @@
 import type { NostrEvent } from 'nostr-tools';
+
 import { type Kind0Parsed } from './kind0';
 import { type Kind1Parsed } from './kind1';
 import { type Kind3Parsed } from './kind3';
@@ -7,13 +8,11 @@ import { type Kind7Parsed } from './kind7';
 import { type Kind17Parsed } from './kind17';
 import { type Kind9735Parsed } from './kind9735';
 import { type Kind9321Parsed } from './kind9321';
-
 import { type Kind10002Parsed } from './kind10002';
 import { type Kind10019Parsed } from './kind10019';
 import { type Kind17375Parsed } from './kind17375';
 import { type Kind7374Parsed } from './kind7374';
 import { type Kind7375Parsed } from './kind7375';
-import type { ParsedEvent } from 'src/workers/nipworker';
 import type { Kind7376Parsed } from './kind7376';
 
 export * from './kind0';
@@ -93,6 +92,12 @@ export const isKind = (kind: number) => {
 	}
 };
 
+export type ParsedEvent<T> = NostrEvent & {
+	parsed?: T | null;
+	requests?: Request[];
+	relays?: string[];
+};
+
 export type AnyKind =
 	| Kind0Parsed
 	| Kind1Parsed
@@ -101,7 +106,7 @@ export type AnyKind =
 	| Kind7Parsed
 	| Kind17Parsed
 	| Kind9735Parsed
-	| Kind1Parsed // For Kind9321 which seems to use Kind1Parsed
+	| Kind9321Parsed // For Kind9321 which seems to use Kind1Parsed
 	| Kind10002Parsed
 	| Kind10019Parsed
 	| Kind17375Parsed

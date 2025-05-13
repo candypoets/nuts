@@ -5,10 +5,10 @@
 	import _ from 'lodash';
 	import { kind0, kind3 } from 'src/controller/nostr';
 	import { ago, DAY, now } from 'src/lib/period';
-	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/parsers';
+	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/types';
 	import Feed from 'src/routes/explore/feed.svelte';
-	import { nostrManager, type RelayStatus } from 'src/wasm/manager';
-	import type { ParsedEvent } from 'src/workers/nipworker';
+	import { nostrManager, type RelayStatus } from 'src/model/nostr';
+	import type { ParsedEvent } from 'src/types';
 	import { onMount } from 'svelte';
 	import { go } from '../modals/modal';
 

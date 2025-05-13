@@ -3,9 +3,9 @@
 	import _ from 'lodash';
 	import { nip19 } from 'nostr-tools';
 	import { SEARCH_RELAYS } from 'src/lib/env';
-	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/parsers';
-	import { nostrManager, type EventKind } from 'src/wasm/manager';
-	import type { ParsedEvent } from 'src/workers/nipworker';
+	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/types';
+	import { nostrManager, type EventKind } from 'src/model/nostr';
+	import type { ParsedEvent } from 'src/types';
 	import { onDestroy } from 'svelte';
 
 	// Props from the mention suggestion plugin

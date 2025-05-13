@@ -2,11 +2,9 @@
 	import _ from 'lodash';
 	import { kind0 } from 'src/controller/nostr';
 	import { getRelaysFromNote } from 'src/lib/getRelaysFromNote';
-	import { isKind9321, isKind9735, type AnyKind, type Kind9735Parsed } from 'src/parsers';
-	import { nostrManager } from 'src/wasm/manager';
-	import type { NIP57Parsed } from 'src/workers/nip57';
-	import type { NIP61Parsed } from 'src/workers/nip61';
-	import type { ParsedEvent } from 'src/workers/nipworker';
+	import { nostrManager } from 'src/model/nostr';
+	import type { Kind9321Parsed, ParsedEvent } from 'src/types';
+	import { isKind9321, isKind9735, type AnyKind, type Kind9735Parsed } from 'src/types';
 	import { onMount } from 'svelte';
 	import Avatar from '../avatar.svelte';
 
@@ -15,10 +13,10 @@
 
 	let timeout: NodeJS.Timeout | undefined;
 
-	let zaps: ParsedEvent<NIP57Parsed>[] = [];
-	let nuts: ParsedEvent<NIP61Parsed>[] = [];
+	let zaps: ParsedEvent<Kind9735Parsed>[] = [];
+	let nuts: ParsedEvent<Kind9321Parsed>[] = [];
 	let zapped = false;
-	let biggestZap: ParsedEvent<NIP57Parsed>;
+	let biggestZap: ParsedEvent<Kind9735Parsed>;
 	let totalZapAmount = 0;
 	let totalNutAmount = 0;
 	let sub: () => void;
@@ -53,7 +51,7 @@
 		}
 	};
 
-	function handleNuts(event: ParsedEvent<Kind9321>) {
+	function handleNuts(event: ParsedEvent<Kind9321Parsed>) {
 		console.log('A NUT', event);
 		if (!event.parsed) return;
 		if (event.pubkey == $kind0?.pubkey) zapped = true;

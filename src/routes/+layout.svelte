@@ -14,16 +14,16 @@
 	import { kind0, kind10002, kind10019, kind3 } from 'src/controller/nostr';
 	import { mints, saveNuts } from 'src/controller/wallet';
 	import { viewport } from 'src/lib';
-	import { isKind0, isKind10002, isKind10019, isKind3, type AnyKind } from 'src/parsers';
+	import { isKind0, isKind10002, isKind10019, isKind3, type AnyKind } from 'src/types';
 	import Landing from 'src/routes/+page.svelte';
 	import Explore from 'src/routes/explore/index.svelte';
 	import Home from 'src/routes/home/+layout.svelte';
 	import Login from 'src/routes/login.svelte';
 	import { go } from 'src/routes/modals/modal';
-	import { cashuManager } from 'src/wasm/cashu';
-	import type { Request } from 'src/wasm/manager';
-	import { nostrManager, type SubscribeKind } from 'src/wasm/manager';
-	import type { ParsedEvent } from 'src/workers/nipworker';
+	import { cashuManager } from 'src/model/cashu';
+	import type { Request } from 'src/model/nostr';
+	import { nostrManager, type SubscribeKind } from 'src/model/nostr';
+	import type { ParsedEvent } from 'src/types';
 	import { key } from 'src/controller';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';

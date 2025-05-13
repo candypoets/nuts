@@ -4,9 +4,9 @@ import type {
 	Kind10019Parsed,
 	Kind3Parsed,
 	Kind7375Parsed
-} from 'src/parsers';
-import type { Kind17375Parsed } from 'src/parsers/kind17375';
-import type { ParsedEvent } from 'src/workers/nipworker';
+} from 'src/types';
+import type { Kind17375Parsed } from 'src/types/kind17375';
+import type { ParsedEvent } from 'src/types';
 import { writable, type Writable } from 'svelte/store';
 
 export const kind0: Writable<ParsedEvent<Kind0Parsed> | undefined> = writable();
