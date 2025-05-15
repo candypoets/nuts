@@ -9,6 +9,7 @@ import Tweet from './tweet.svelte';
 import Video from './video.svelte';
 
 import { NostrMention } from './mention';
+import { nostrManager } from 'src/model/nostr';
 
 export const extensions = [
 	StarterKit,
@@ -22,13 +23,14 @@ export const extensions = [
 			defaultUploadUrl: 'https://nostr.build',
 			defaultUploadType: 'nip96' // or blossom
 		},
+
 		fileUpload: {
 			immediateUpload: true, // It will automatically upload when a file is added to the editor, if false, call `editor.commands.uploadFiles()` manually
 			sign: async (event) => {
-				// if ('nostr' in window) {
-				// const nostr = window.nostr;
-				// return await signEvent(get(signer), event);
-				// }
+				console.log('sign', event);
+				const signed = await nostrManager.signEvent(event);
+				console.log('signed', signed);
+				return signed;
 			},
 			onDrop() {
 				// File added to the editor
@@ -42,7 +44,7 @@ export const extensions = [
 			nevent: { addNodeView: () => SvelteNodeViewRenderer(NEvent) },
 			naddr: { addNodeView: () => SvelteNodeViewRenderer(NAddr) },
 			image: { addNodeView: () => SvelteNodeViewRenderer(Image) },
-			video: { addNodeView: () => SvelteNodeViewRenderer(Video) },
+			video: { addNodeView: () => SvelteNodeViewRenderer(Image) },
 			tweet: { addNodeView: () => SvelteNodeViewRenderer(Tweet) }
 		}
 	})
