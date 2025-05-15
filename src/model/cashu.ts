@@ -1,4 +1,4 @@
-import type { ProofUnion } from 'src/parsers';
+import type { ProofUnion } from 'src/types';
 import cashuWorker from 'src/model/cashu/index?worker';
 
 export type WalletBalance = {
