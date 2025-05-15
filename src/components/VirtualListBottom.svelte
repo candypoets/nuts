@@ -185,6 +185,9 @@
 		bind:this={contents}
 		style="top: {top}px; padding-bottom: {bottom > 100 ? bottom : 100}px;"
 	>
+		<svelte-virtual-list-row style="transform: rotateZ(180deg);">
+			<slot name="feed-header" />
+		</svelte-virtual-list-row>
 		{#each visible as row (getItemId(row))}
 			<svelte-virtual-list-row style="transform: rotateZ(180deg);">
 				<slot item={row.data}>Missing template</slot>
