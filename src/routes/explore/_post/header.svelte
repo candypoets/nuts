@@ -30,6 +30,7 @@
 					[{ kinds: [0], authors: [note.pubkey], limit: 1, cacheFirst: true, relays: [] }],
 					(events: ParsedEvent<AnyKind>[], type: SubscribeKind) => {
 						const [event, ...context] = events;
+						if (type == 'EOSE') sub();
 						if (isKind0(event)) {
 							author = event.parsed as Kind0Parsed;
 							sub();

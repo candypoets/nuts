@@ -212,7 +212,7 @@
 <svelte:window on:click={handleClickOutside} />
 
 <div
-	class="reply-editor w-full rounded-lg transition-all duration-200 {isExpanded
+	class="reply-editor w-feed rounded-lg transition-all duration-200 {isExpanded
 		? 'shadow-md'
 		: 'shadow-sm'}"
 	bind:this={editorContainer}
@@ -227,7 +227,7 @@
 		<!-- Editor container -->
 		<div
 			class="min-h-[40px] rounded-md dark:bg-gray-800 relative transition-all duration-200"
-			on:keydown={handleKeyDown}
+			on:keydown|stopPropagation={handleKeyDown}
 			on:focus={handleEditorFocus}
 			tabindex="-1"
 		>

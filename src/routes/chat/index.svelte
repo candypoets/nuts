@@ -74,8 +74,7 @@
 					kinds: [4],
 					tags: { '#p': [$key.pub] },
 					authors: $kind3?.parsed.map((c) => c.pubkey).filter((p) => p != $key?.pub),
-					// since: ago(6 * MONTH),
-					limit: 2500,
+					limit: 1000, // only load the last 1000 msgs received
 					relays: $kind10002?.parsed?.filter((r) => r.read).map((r) => r.url) || [],
 					noOptimize: true
 				},
@@ -84,10 +83,32 @@
 					tags: { '#p': $kind3?.parsed.map((c) => c.pubkey).filter((p) => p != $key?.pub) },
 					authors: [$key.pub],
 					relays: $kind10002?.parsed?.filter((r) => r.write).map((r) => r.url) || [],
-					limit: 2500,
+					limit: 1000, // only load the last 1000 msgs received
 					noOptimize: true
 				}
 			];
+			// feedRequests = $kind3?.parsed
+			// 	.map((c) => c.pubkey)
+			// 	.filter((p) => p != $key?.pub)
+			// 	.flatMap((contact) => [
+			// 		{
+			// 			kinds: [4],
+			// 			tags: { '#p': [$key.pub] },
+			// 			authors: [contact],
+			// 			// since: ago(6 * MONTH),
+			// 			limit: 1,
+			// 			relays: $kind10002?.parsed?.filter((r) => r.read).map((r) => r.url) || [],
+			// 			noOptimize: true
+			// 		},
+			// 		{
+			// 			kinds: [4],
+			// 			tags: { '#p': [contact] },
+			// 			authors: [$key.pub],
+			// 			relays: $kind10002?.parsed?.filter((r) => r.write).map((r) => r.url) || [],
+			// 			limit: 1,
+			// 			noOptimize: true
+			// 		}
+			// 	]);
 		}
 	}
 
@@ -117,6 +138,8 @@
 
 	// Update the tweened value when depth changes
 	$: depthTranslation.set(subs.length * 30);
+
+	$: console.log(feedRequests);
 </script>
 
 <div
@@ -134,7 +157,7 @@
 			</div>
 		</svelte:fragment>
 		<svelte:fragment slot="header">
-			<div class="flex justify-between w-feed lg:m-auto h-16 items-center">
+			<div class="flex justify-between w-feed m-auto h-16 items-center">
 				<h1 class="text-2xl font-semibold">Chat</h1>
 			</div>
 		</svelte:fragment>
@@ -146,7 +169,7 @@
 				<div class="flex-shrink-0">
 					<Avatar pubkey={correspondant(post)} {context} size="xl" />
 				</div>
-				<div class="w-full">
+				<div class="flex-grow">
 					<div class="flex justify-between">
 						<User pubkey={correspondant(post)} link={false} {context} />
 						<div class="text-xs font-bold text-gray-700 shrink-0">
@@ -154,10 +177,14 @@
 						</div>
 					</div>
 					<div class="text-xs lg:text-base break-words overflow-hidden max-w-full">
-						<span>
+						<span class="flex gap-1">
 							{#if post.pubkey == $key?.pub}<span class="text-primary">you:</span>
 							{/if}
-							<Content parsedContent={post.parsed?.parsedContent || []} {context} />
+							<Content
+								parsedContent={post.parsed?.parsedContent || []}
+								{context}
+								class="!w-auto flex-grow"
+							/>
 						</span>
 					</div>
 				</div>

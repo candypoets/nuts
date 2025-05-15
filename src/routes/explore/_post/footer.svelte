@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import { onMount } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import { kinds, type EventTemplate } from 'nostr-tools';
 
 	import EmojiPickerContent from 'src/components/EmojiPickerContent.svelte';
@@ -108,11 +108,7 @@
 		nostrManager.publish('reaction_' + note.id, event);
 	}
 
-	onMount(() => {
-		return () => {
-			unsubscribe();
-		};
-	});
+	onDestroy(unsubscribe);
 
 	$: visible ? subscribe() : unsubscribe();
 </script>

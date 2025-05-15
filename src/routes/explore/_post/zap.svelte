@@ -5,7 +5,7 @@
 	import { nostrManager } from 'src/model/nostr';
 	import type { Kind9321Parsed, ParsedEvent } from 'src/types';
 	import { isKind9321, isKind9735, type AnyKind, type Kind9735Parsed } from 'src/types';
-	import { onMount } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import Avatar from '../avatar.svelte';
 
 	export let note: ParsedEvent<any>;
@@ -80,11 +80,7 @@
 		}
 	}
 
-	onMount(() => {
-		return () => {
-			unsubscribe();
-		};
-	});
+	onDestroy(unsubscribe);
 
 	$: visible ? subscribe() : unsubscribe();
 </script>

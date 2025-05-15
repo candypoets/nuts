@@ -4,8 +4,6 @@
 
 	export let rootPath = '/explore';
 
-	let visible = true;
-
 	export let subs: string[] = [];
 
 	export let modals: string[] = [];
@@ -23,5 +21,10 @@
 </script>
 
 {#each subs as sub, index}
-	<Sub path={sub} {visible} depth={subs.length - 1 - index} modalDepth={modals.length} />
+	<Sub
+		path={sub}
+		visible={index == subs.length - 1}
+		depth={subs.length - 1 - index}
+		modalDepth={modals.length}
+	/>
 {/each}

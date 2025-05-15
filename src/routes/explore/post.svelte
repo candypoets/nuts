@@ -210,7 +210,7 @@
 		<!-- Editor container -->
 		<div
 			class="min-h-[60px] rounded-md dark:bg-gray-800 relative transition-all duration-200"
-			on:keydown={handleKeyDown}
+			on:keydown|stopPropagation={handleKeyDown}
 			on:click={handleEditorContainerClick}
 			tabindex="-1"
 		>

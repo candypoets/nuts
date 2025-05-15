@@ -11,13 +11,14 @@
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import User from 'src/routes/explore/user.svelte';
-	import { key } from 'src/controller';
+	import { key, kind10002 } from 'src/controller';
 	import { nostrManager, type RelayStatus, type SubscribeKind } from 'src/model/nostr';
 	import type { ParsedEvent } from 'src/types';
 	import { parseContent } from 'src/lib';
 
 	// in a chat, pubkey is the other person's pubkey
 	export let pubkey: string;
+	export let visible: boolean;
 
 	let feedRequests: any[] = [];
 	let message: string = '';
@@ -68,16 +69,18 @@
 			feedRequests = [
 				{
 					kinds: [4],
-					tags: { '#p': [pubkey] },
-					authors: [$key?.pub],
+					tags: { '#p': [$key?.pub] },
+					authors: [pubkey],
 					limit: 200,
+					relays: $kind10002?.parsed?.filter((r) => r.read).map((r) => r.url) || [],
 					noOptimize: true
 				},
 				{
 					kinds: [4],
-					tags: { '#p': [$key?.pub] },
-					authors: [pubkey],
+					tags: { '#p': [pubkey] },
+					authors: [$key?.pub],
 					limit: 200,
+					relays: $kind10002?.parsed?.filter((r) => r.write).map((r) => r.url) || [],
 					noOptimize: true
 				}
 			];
@@ -123,10 +126,10 @@
 <Feed
 	subscriptionID={'kind4_' + $page.params.pubkey}
 	requests={feedRequests}
-	headerItem={{ id: 'kind4-header' }}
 	{updateFeed}
+	{visible}
 	bottom={true}
-	bind:feed
+	className="w-feed"
 >
 	<svelte:fragment slot="fixed-header">
 		<div
@@ -143,7 +146,7 @@
 			{/key}
 			<div />
 		</div>
-		<div class="fixed bottom-2 w-feed px-2 pr-5">
+		<div class="fixed bottom-0 w-feed px-2 py-4 pr-5 backdrop-blur-xl">
 			<Editor
 				placeholder="Message..."
 				initialContent=""
@@ -152,6 +155,9 @@
 				onSubmit={handleMessageSubmit}
 			/>
 		</div>
+	</svelte:fragment>
+	<svelte:fragment slot="header">
+		<div class="h-24" />
 	</svelte:fragment>
 	<svelte:fragment slot="item-content" let:post let:context let:visible>
 		<Message message={post} {context} />

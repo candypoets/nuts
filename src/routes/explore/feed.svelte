@@ -24,6 +24,8 @@
 		| undefined = undefined;
 	export let feed: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
 	export let itemKind: number | undefined = undefined;
+	export let visible: boolean = true;
+
 	let cachedFeed: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
 	let fetchedFeed: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
 	// used in order to throttle fast incoming events
@@ -93,14 +95,22 @@
 		}
 	};
 
-	$: {
-		if (requests && requests.length) {
-			timeout = setTimeout(() => {
+	function subscribe() {
+		timeout = setTimeout(() => {
+			if (visible) {
 				eoce = false;
 				eose = false;
 				cachedFeed = [];
 				sub = nostrManager.subscribe(subscriptionID, requests, handleEvents);
-			}, 300);
+			}
+		}, 300);
+	}
+
+	function unsubscribe() {
+		if (timeout) {
+			clearTimeout(timeout);
+			timeout = undefined;
+			sub?.();
 		}
 	}
 
@@ -116,11 +126,12 @@
 			}
 		}, 2000);
 		return () => {
-			sub?.();
-			clearTimeout(timeout);
+			unsubscribe();
 			clearInterval(interval);
 		};
 	});
+
+	$: visible && requests && requests.length ? subscribe() : unsubscribe();
 </script>
 
 <div
@@ -173,12 +184,12 @@
 				name="item-content"
 				post={item[0]}
 				context={item[1]}
-				visible={feed.findIndex((note) => note[0]?.id === item[0].id) >= start - 2}
+				visible={visible && feed.findIndex((note) => note[0]?.id === item[0].id) >= start - 2}
 			>
 				<Note
 					note={item[0]}
 					context={item[1]}
-					visible={feed.findIndex((note) => note[0]?.id === item[0].id) >= start - 2}
+					visible={visible && feed.findIndex((note) => note[0]?.id === item[0].id) >= start - 2}
 				/>
 			</slot>
 		</div>

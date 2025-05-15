@@ -8,7 +8,7 @@
 	import Note from 'src/routes/explore/note.svelte';
 	import { nostrManager, type SubscribeKind } from 'src/model/nostr';
 	import type { ParsedEvent } from 'src/types';
-	import { onMount } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import Reply from '../explore/reply.svelte';
 
 	export let postId: string;
@@ -109,14 +109,18 @@
 		}
 	}
 
-	onMount(() => {
-		return () => unsubscribe();
-	});
+	onDestroy(unsubscribe);
 
 	$: visible ? subscribe() : unsubscribe();
 </script>
 
-<Feed subscriptionID={'kind1_feed_' + postId} requests={feedRequests} {headerItem} {updateFeed}>
+<Feed
+	subscriptionID={'kind1_feed_' + postId}
+	requests={feedRequests}
+	{headerItem}
+	{updateFeed}
+	{visible}
+>
 	<svelte:fragment slot="sticky-header">
 		<div
 			class="px-4 py-3 flex items-center justify-between backdrop-blur bg-base-100 bg-opacity-90"
@@ -137,7 +141,7 @@
 			<span class="w-10" />
 		</div>
 		{#if headerItem}
-			<Note note={headerItem} {context} visible={true} zaps />
+			<Note note={headerItem} {context} {visible} zaps />
 			<Reply parent={headerItem} {context} />
 		{/if}
 	</svelte:fragment>

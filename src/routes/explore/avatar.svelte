@@ -1,9 +1,9 @@
 <script lang="ts">
 	import _ from 'lodash';
-	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/types';
 	import { nostrManager, type SubscribeKind } from 'src/model/nostr';
 	import type { ParsedEvent } from 'src/types';
-	import { onDestroy, onMount } from 'svelte';
+	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/types';
+	import { onMount } from 'svelte';
 
 	// The pubkey/npub of the user
 	export let pubkey: string = '';
@@ -14,11 +14,8 @@
 	export let context: ParsedEvent<AnyKind>[] = [];
 	export let query = true;
 
-	let id: number;
 	let profile: Kind0Parsed | undefined;
 	let imageUrl: string | undefined;
-	let imageLoaded = false;
-	let imageError = false;
 
 	let sub: () => void;
 
@@ -30,28 +27,6 @@
 		lg: 'w-10 h-10',
 		xl: 'w-12 h-12'
 	};
-
-	// Try to fetch profile from IndexedDB when pubkey changes or DB is initialized
-	$: {
-		if (!profile) {
-		}
-	}
-
-	// $: {
-	// 	if (profile && !!sub) sub();
-	// }
-
-	// Handle image load success
-	function handleImageLoad() {
-		imageLoaded = true;
-		imageError = false;
-	}
-
-	// Handle image load error
-	function handleImageError() {
-		imageError = true;
-		imageUrl = '/ns-naked.svg';
-	}
 
 	onMount(() => {
 		profile = context.find((c) => c.pubkey === pubkey && c.kind == 0)?.parsed as
@@ -82,13 +57,7 @@
 	class={`${sizeClasses[size]} rounded-full overflow-hidden bg-gray-200 flex-shrink-0 ${customClass}`}
 >
 	{#if imageUrl}
-		<img
-			src={imageUrl}
-			alt="Profile"
-			class="w-full h-full object-cover"
-			on:load={handleImageLoad}
-			on:error={handleImageError}
-		/>
+		<img src={imageUrl} alt="Profile" class="w-full h-full object-cover" />
 	{:else}
 		<!-- Placeholder while loading -->
 		<div class="w-full h-full bg-gray-300 shimmer"></div>

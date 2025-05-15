@@ -9,7 +9,7 @@
 	import Feed from 'src/routes/explore/feed.svelte';
 	import { nostrManager, type RelayStatus } from 'src/model/nostr';
 	import type { ParsedEvent } from 'src/types';
-	import { onMount } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import { go } from '../modals/modal';
 
 	// Get pubkey from URL parameter
@@ -33,8 +33,7 @@
 				{
 					kinds: [1],
 					authors: [pubkey],
-					limit: 500,
-					since: ago(30 * DAY)
+					limit: 500
 				}
 			];
 		}
@@ -58,12 +57,10 @@
 		}
 	}
 
-	onMount(() => {
-		return sub;
-	});
+	onDestroy(unsubscribe);
 
 	function subscribe() {
-		timeout = setTimeout(async () => {
+		timeout = setTimeout(() => {
 			if (visible) {
 				feedRequests = [];
 				sub = nostrManager.subscribe(
@@ -79,7 +76,7 @@
 		if (timeout) {
 			clearTimeout(timeout);
 			timeout = undefined;
-			nostrManager.unsubscribe('kind0_' + pubkey);
+			sub?.();
 		}
 	}
 
@@ -108,7 +105,7 @@
 	$: visible ? subscribe() : unsubscribe();
 </script>
 
-<Feed subscriptionID={'kind0_feed_' + pubkey} requests={feedRequests}>
+<Feed subscriptionID={'kind0_feed_' + pubkey} requests={feedRequests} {visible}>
 	<svelte:fragment slot="sticky-header">
 		<div
 			class="px-4 py-3 flex items-center justify-between backdrop-blur bg-base-100 bg-opacity-90"
@@ -213,33 +210,10 @@
 </Feed>
 
 <style>
-	.fixed {
-		position: fixed;
-	}
-
-	.relative {
-		position: relative;
-	}
-
-	.will-change-transform {
-		will-change: transform;
-	}
-
 	.banner-container {
 		position: relative;
 		overflow: hidden;
 	}
-
-	/* .banner-fade-overlay {
-		background: linear-gradient(
-			to bottom,
-			transparent 0%,
-			transparent 30%,
-			rgba(255, 255, 255, 0.65) 70%,
-			rgba(255, 255, 255, 0.9) 85%,
-			white 100%
-		);
-	} */
 
 	.banner-content {
 		position: relative;

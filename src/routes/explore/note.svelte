@@ -9,6 +9,7 @@
 	import _ from 'lodash';
 	import { nostrManager } from 'src/model/nostr';
 	import { page } from '$app/stores';
+	import { onDestroy } from 'svelte';
 
 	export let noteId: string | undefined = undefined;
 	export let context: ParsedEvent<AnyKind>[] = [];
@@ -76,6 +77,8 @@
 			goto(`${currentPath}/${eventPath}`);
 		}
 	}
+
+	onDestroy(unsubscribe);
 </script>
 
 {#if note?.parsed?.reply && !(note.parsed.mentions || []).some((m) => m.id == note?.parsed?.reply?.id) && !depth && showRoot}

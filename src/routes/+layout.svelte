@@ -18,6 +18,7 @@
 	import Landing from 'src/routes/+page.svelte';
 	import Explore from 'src/routes/explore/index.svelte';
 	import Home from 'src/routes/home/+layout.svelte';
+	import Chat from 'src/routes/chat/index.svelte';
 	import Login from 'src/routes/login.svelte';
 	import { go } from 'src/routes/modals/modal';
 	import { cashuManager } from 'src/model/cashu';
@@ -25,6 +26,7 @@
 	import { nostrManager, type SubscribeKind } from 'src/model/nostr';
 	import type { ParsedEvent } from 'src/types';
 	import { key } from 'src/controller';
+	import Debug from 'src/components/Debug.svelte';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
 
@@ -48,7 +50,7 @@
 		scroller.scrollLeft = $scrollPosition;
 	}
 
-	$: $key && $key.priv && nostrManager.loginWithPrivateKey($key.priv);
+	$: $key && $key.priv && nostrManager.setSigner('privkey', $key.priv);
 
 	$: relaySub =
 		$key &&
@@ -245,6 +247,8 @@
 	{@html webManifestLink}
 </svelte:head>
 
+<Debug />
+
 {#if !homepage}
 	<Statuses />
 	<Alert />
@@ -254,7 +258,6 @@
 			bind:this={scroller}
 			on:touchmove={(e) => {
 				$xPosition = scroller.scrollLeft;
-				// $activeAccount = Math.round(accounts.scrollLeft / accounts.clientWidth);
 			}}
 			style="transform-style: preserve-3d; perspective: 1000px;"
 		>
@@ -301,7 +304,7 @@
 				</div>
 			</div>
 
-			<!-- <div
+			<div
 				class="carousel-item w-[100vw] h-full will-change-transform"
 				style="transform: translateZ({transform2 * 10}px) rotateY({(1 - transform2) *
 					(2 - currentIndex) *
@@ -316,9 +319,9 @@
 				}}
 			>
 				<div class="w-full h-screen relative overflow-hidden">
-					<Chat/>
+					<Chat />
 				</div>
-			</div> -->
+			</div>
 		</div>
 
 		<!-- Bottom Navigation -->
