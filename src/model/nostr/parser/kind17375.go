@@ -30,9 +30,9 @@ func (p *Parser) ParseKind17375(event nostr.Event) (*Kind17375Parsed, *[]types.R
 	}
 
 	// Try to decrypt the content if signer is available
-	if p.Signer != nil {
-		pubkey, _ := p.Signer.GetPublicKey()
-		decrypted, err := p.Signer.NIP44Decrypt(pubkey, event.Content)
+	if p.Signer.Current != nil {
+		pubkey, _ := p.Signer.Current.GetPublicKey()
+		decrypted, err := p.Signer.Current.NIP44Decrypt(pubkey, event.Content)
 		if err == nil && decrypted != "" {
 			var tags [][]string
 			if err := json.Unmarshal([]byte(decrypted), &tags); err == nil {
@@ -128,14 +128,20 @@ func (p *Parser) PrepareKind17375(event *nostr.Event) error {
 		return fmt.Errorf("failed to marshal tags: %w", err)
 	}
 
-	pubkey, _ := p.Signer.GetPublicKey()
+	currentSigner := p.Signer.Current
 
-	encrypted, err := p.Signer.NIP44Encrypt(pubkey, string(tagsJSON))
+	if currentSigner == nil {
+		return fmt.Errorf("no signer available to encrypt wallet data")
+	}
+
+	pubkey, _ := currentSigner.GetPublicKey()
+
+	encrypted, err := currentSigner.NIP44Encrypt(pubkey, string(tagsJSON))
 	if err != nil {
 		return fmt.Errorf("failed to encrypt tags: %w", err)
 	}
 	event.Content = encrypted
 
 	// Sign the event
-	return p.Signer.SignEvent(event)
+	return currentSigner.SignEvent(event)
 }

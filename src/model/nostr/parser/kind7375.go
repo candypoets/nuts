@@ -36,18 +36,22 @@ func (p *Parser) ParseKind7375(event nostr.Event) (*Kind7375Parsed, *[]types.Req
 		Decrypted: false,
 	}
 
-	// Try to decrypt the content if signer is available
-	if p.Signer != nil {
-		pubkey, _ := p.Signer.GetPublicKey()
-		decrypted, err := p.Signer.NIP44Decrypt(pubkey, event.Content)
-		if err == nil && decrypted != "" {
-			var content TokenContent
-			if err := json.Unmarshal([]byte(decrypted), &content); err == nil {
-				parsed.MintURL = content.Mint
-				parsed.Proofs = content.Proofs
-				parsed.DeletedIDs = content.Del
-				parsed.Decrypted = true
-			}
+	currentSigner := p.Signer.Current
+
+	// Return early if no signer is available
+	if currentSigner == nil {
+		return parsed, nil, fmt.Errorf("no signer available to decrypt token content")
+	}
+
+	pubkey, _ := currentSigner.GetPublicKey()
+	decrypted, err := currentSigner.NIP44Decrypt(pubkey, event.Content)
+	if err == nil && decrypted != "" {
+		var content TokenContent
+		if err := json.Unmarshal([]byte(decrypted), &content); err == nil {
+			parsed.MintURL = content.Mint
+			parsed.Proofs = content.Proofs
+			parsed.DeletedIDs = content.Del
+			parsed.Decrypted = true
 		}
 	}
 
@@ -80,14 +84,17 @@ func (p *Parser) PrepareKind7375(event *nostr.Event) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal token content: %w", err)
 	}
-	pubkey, _ := p.Signer.GetPublicKey()
 
-	encrypted, err := p.Signer.NIP44Encrypt(pubkey, string(contentJSON))
+	currentSigner := p.Signer.Current
+
+	pubkey, _ := currentSigner.GetPublicKey()
+
+	encrypted, err := currentSigner.NIP44Encrypt(pubkey, string(contentJSON))
 	if err != nil {
 		return fmt.Errorf("failed to encrypt token content: %w", err)
 	}
 	event.Content = encrypted
 
 	// Sign the event
-	return p.Signer.SignEvent(event)
+	return currentSigner.SignEvent(event)
 }

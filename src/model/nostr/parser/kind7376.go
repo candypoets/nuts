@@ -56,70 +56,75 @@ func (p *Parser) ParseKind7376(event nostr.Event) (*Kind7376Parsed, *[]types.Req
 		}
 	}
 
+	currentSigner := p.Signer.Current
+
+	// Return early if there's no signer
+	if currentSigner == nil {
+		return nil, &requests, fmt.Errorf("no signer available for decryption")
+	}
+
 	// Try to decrypt the content if signer is available
-	if p.Signer != nil {
-		pubkey, _ := p.Signer.GetPublicKey()
-		decrypted, err := p.Signer.NIP44Decrypt(pubkey, event.Content)
-		if err == nil && decrypted != "" {
-			var tags [][]string
-			if err := json.Unmarshal([]byte(decrypted), &tags); err == nil {
-				parsed.Decrypted = true
-				parsed.Tags = make([]HistoryTag, 0, len(tags))
+	pubkey, _ := currentSigner.GetPublicKey()
+	decrypted, err := currentSigner.NIP44Decrypt(pubkey, event.Content)
+	if err == nil && decrypted != "" {
+		var tags [][]string
+		if err := json.Unmarshal([]byte(decrypted), &tags); err == nil {
+			parsed.Decrypted = true
+			parsed.Tags = make([]HistoryTag, 0, len(tags))
 
-				// Process decrypted tags
-				for _, tag := range tags {
-					if len(tag) >= 2 {
-						historyTag := HistoryTag{
-							Name:  tag[0],
-							Value: tag[1],
+			// Process decrypted tags
+			for _, tag := range tags {
+				if len(tag) >= 2 {
+					historyTag := HistoryTag{
+						Name:  tag[0],
+						Value: tag[1],
+					}
+
+					if len(tag) >= 3 {
+						historyTag.Relay = tag[2]
+					}
+
+					if len(tag) >= 4 {
+						historyTag.Marker = tag[3]
+					}
+
+					parsed.Tags = append(parsed.Tags, historyTag)
+
+					// Extract specific tag values
+					switch tag[0] {
+					case "direction":
+						parsed.Direction = tag[1]
+					case "amount":
+						if amt, err := strconv.Atoi(tag[1]); err == nil {
+							parsed.Amount = amt
 						}
-
-						if len(tag) >= 3 {
-							historyTag.Relay = tag[2]
-						}
-
+					case "e":
 						if len(tag) >= 4 {
-							historyTag.Marker = tag[3]
-						}
-
-						parsed.Tags = append(parsed.Tags, historyTag)
-
-						// Extract specific tag values
-						switch tag[0] {
-						case "direction":
-							parsed.Direction = tag[1]
-						case "amount":
-							if amt, err := strconv.Atoi(tag[1]); err == nil {
-								parsed.Amount = amt
-							}
-						case "e":
-							if len(tag) >= 4 {
-								switch tag[3] {
-								case "created":
-									parsed.CreatedEvents = append(parsed.CreatedEvents, tag[1])
-									requests = append(requests, types.Request{
-										Kinds:      []int{7375},
-										IDs:        []string{tag[1]},
-										CacheFirst: true,
-										Relays:     p.GetRelays(event),
-									})
-								case "destroyed":
-									parsed.DestroyedEvents = append(parsed.DestroyedEvents, tag[1])
-									requests = append(requests, types.Request{
-										Kinds:      []int{7375},
-										IDs:        []string{tag[1]},
-										CacheFirst: true,
-										Relays:     p.GetRelays(event),
-									})
-								case "redeemed":
-									parsed.RedeemedEvents = append(parsed.RedeemedEvents, tag[1])
-									requests = append(requests, types.Request{
-										Kinds:      []int{7375},
-										IDs:        []string{tag[1]},
-										CacheFirst: true,
-										Relays:     p.GetRelays(event),
-									})
-								}
+							switch tag[3] {
+							case "created":
+								parsed.CreatedEvents = append(parsed.CreatedEvents, tag[1])
+								requests = append(requests, types.Request{
+									Kinds:      []int{7375},
+									IDs:        []string{tag[1]},
+									CacheFirst: true,
+									Relays:     p.GetRelays(event),
+								})
+							case "destroyed":
+								parsed.DestroyedEvents = append(parsed.DestroyedEvents, tag[1])
+								requests = append(requests, types.Request{
+									Kinds:      []int{7375},
+									IDs:        []string{tag[1]},
+									CacheFirst: true,
+									Relays:     p.GetRelays(event),
+								})
+							case "redeemed":
+								parsed.RedeemedEvents = append(parsed.RedeemedEvents, tag[1])
+								requests = append(requests, types.Request{
+									Kinds:      []int{7375},
+									IDs:        []string{tag[1]},
+									CacheFirst: true,
+									Relays:     p.GetRelays(event),
+								})
 							}
 						}
 					}
@@ -168,14 +173,20 @@ func (p *Parser) PrepareKind7376(event *nostr.Event) error {
 		return fmt.Errorf("failed to marshal tags: %w", err)
 	}
 
-	pubkey, _ := p.Signer.GetPublicKey()
+	currentSigner := p.Signer.Current
 
-	encrypted, err := p.Signer.NIP44Encrypt(pubkey, string(tagsJSON))
+	if currentSigner == nil {
+		return fmt.Errorf("no signer available for encryption")
+	}
+
+	pubkey, _ := currentSigner.GetPublicKey()
+
+	encrypted, err := currentSigner.NIP44Encrypt(pubkey, string(tagsJSON))
 	if err != nil {
 		return fmt.Errorf("failed to encrypt tags: %w", err)
 	}
 	event.Content = encrypted
 
 	// Sign the event
-	return p.Signer.SignEvent(event)
+	return currentSigner.SignEvent(event)
 }

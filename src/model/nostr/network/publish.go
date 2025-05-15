@@ -148,6 +148,10 @@ func (pm *PublishManager) PublishEvent(publishId string, event nostr.Event) erro
 	err := pm.parser.Prepare(&event)
 
 	if err != nil {
+		pm.log.Error().
+			Str("publish_id", publishId).
+			Err(err).
+			Msg("Failed to prepare event")
 		return fmt.Errorf("failed to prepare event: %w", err)
 	}
 

@@ -12,14 +12,15 @@ import (
 // Parser is a unified parser for different kinds of Nostr events
 type Parser struct {
 	DB            *db.NostrDB // Database connection
-	Signer        signer.Signer
+	Signer        *signer.SignerManager
 	DefaultRelays []string // Default relays to use if none are specified in the event
 }
 
 // NewParser creates a new Parser instance with the given database
-func NewParser(db *db.NostrDB, defaultRelays []string) *Parser {
+func NewParser(db *db.NostrDB, signerManager *signer.SignerManager, defaultRelays []string) *Parser {
 	return &Parser{
 		DB:            db,
+		Signer:        signerManager,
 		DefaultRelays: defaultRelays,
 	}
 }
@@ -171,7 +172,17 @@ func (p *Parser) Prepare(event *nostr.Event) error {
 		return p.PrepareKind17375(event)
 	default:
 		if event.Sig == "" {
-			return p.Signer.SignEvent(event)
+			currentSigner := p.Signer.Current
+
+			if currentSigner == nil {
+				return fmt.Errorf("no current signer available")
+			}
+
+			err := currentSigner.SignEvent(event)
+
+			if err != nil {
+				return err
+			}
 		}
 		return nil
 	}

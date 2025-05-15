@@ -3,6 +3,14 @@ import type { EventTemplate } from 'nostr-tools';
 
 import 'src/model/wasm_exec.js'; // Path to wasm_exec.js
 
+export type SignerType = string;
+
+// Enum-like object for SignerType
+export const SignerTypes = {
+	PK: 'privkey' as SignerType
+	// SignerTypeNone: "none" as SignerType
+} as const;
+
 // Initialize WASM and export it as a promise
 export const initNostrWasm = async () => {
 	const go = new Go();
@@ -28,8 +36,14 @@ export const initNostrWasm = async () => {
 					zap: (zapId: string, template: EventTemplate) => {
 						return self.zap(zapId, template);
 					},
-					loginWithPrivateKey: (privateKey: string) => {
-						return self.loginWithPrivateKey(privateKey);
+					setSigner: (type: SignerType, privateKey: string) => {
+						return self.setSigner(type, privateKey);
+					},
+					signEvent: (event: EventTemplate) => {
+						return self.signEvent(event);
+					},
+					getPublicKey: () => {
+						return self.getPublicKey();
 					}
 				});
 			};
@@ -77,6 +91,18 @@ self.onmessage = async function (e) {
 			case 'ZAP':
 				const { zapId, template } = e.data;
 				nostr.zap(zapId, template);
+				break;
+			case 'SET_SIGNER':
+				const { type, pk } = e.data;
+				console.log('SET_SIGNER', type, pk);
+				nostr.setSigner(type, pk);
+				break;
+			case 'SIGN_EVENT':
+				console.log('SIGN_EVENT', e.data.event);
+				nostr.signEvent(e.data.event);
+				break;
+			case 'GET_PUBKEY':
+				nostr.getPublicKey();
 				break;
 		}
 	} catch (err) {

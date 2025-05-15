@@ -1,9 +1,10 @@
 import * as msgpack from '@msgpack/msgpack';
-import type { EventTemplate, Filter } from 'nostr-tools';
+import type { EventTemplate, Filter, NostrEvent } from 'nostr-tools';
 import type { AnyKind } from 'src/types';
 import nostrWorker from 'src/model/nostr/index?worker';
 
 import type { ParsedEvent } from 'src/types';
+import { debug } from 'src/controller/debug';
 
 export type SubscribeKind = 'CACHED_EVENT' | 'FETCHED_EVENT' | 'EOSE' | 'EOCE';
 export type PublishKind = 'PUBLISH_STATUS';
@@ -80,6 +81,7 @@ export class NostrManager {
 	private worker: Worker;
 	private subscriptions: Map<string, Subscription> = new Map();
 	private zaps: Map<string, (result: string) => void> = new Map();
+	private signers: Map<string, (result: string | NostrEvent) => void> = new Map();
 	private publishes: Map<string, Publish> = new Map();
 
 	constructor() {
@@ -101,6 +103,16 @@ export class NostrManager {
 					cb(event.data.payload);
 					this.zaps.delete(event.data.zapId);
 				}
+			} else if (event.data.type == 'SIGNED') {
+				const payload = msgpack.decode(event.data.payload) as NostrEvent;
+				const cb = this.signers.get(payload?.content);
+				if (cb) {
+					console.log(payload);
+					cb(payload);
+					this.signers.delete(payload.content);
+				}
+			} else if (event.data.type == 'DEBUG') {
+				debug.set(event.data);
 			}
 
 			this.onSubscribeEvent(event.data);
@@ -219,7 +231,6 @@ export class NostrManager {
 
 	// get a zap invoice
 	async zap(zapId: string, template: EventTemplate): Promise<string> {
-		console.log('zap');
 		return new Promise<string>((resolve, reject) => {
 			// Register the callback
 			this.zaps.set(zapId, (result: string) => {
@@ -244,10 +255,33 @@ export class NostrManager {
 		});
 	}
 
-	loginWithPrivateKey(pk: string): void {
+	setSigner(type: string, pk: string): void {
+		console.log('setsigner', type, pk);
 		this.worker.postMessage({
-			action: 'LOGIN',
+			action: 'SET_SIGNER',
+			type,
 			pk
+		});
+	}
+
+	async signEvent(event: EventTemplate): Promise<NostrEvent> {
+		return new Promise<NostrEvent>((resolve, reject) => {
+			// Register the callback
+			this.signers.set(event.content, (result: NostrEvent | string) => {
+				resolve(result as NostrEvent);
+			});
+
+			const binaryData = msgpack.encode(event);
+
+			try {
+				this.worker.postMessage({
+					action: 'SIGN_EVENT',
+					event: binaryData
+				});
+			} catch (err) {
+				this.signers.delete(event.content); // Clean up
+				reject(new Error(`Failed to get sign event ${event.content} ${err}`));
+			}
 		});
 	}
 

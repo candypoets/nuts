@@ -20,7 +20,7 @@ func Initialize(debugMode bool) {
 	if DebugMode {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	} else {
-		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+		zerolog.SetGlobalLevel(zerolog.ErrorLevel)
 	}
 
 	// Configure console writer for browser environment

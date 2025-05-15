@@ -67,7 +67,7 @@ func (p *Parser) ParseKind4(event nostr.Event) (*Kind4Parsed, *[]types.Request, 
 	// Try to decrypt the message
 	if p.Signer != nil {
 		var pubkey string
-		pk, _ := p.Signer.GetPublicKey()
+		pk, _ := p.Signer.Current.GetPublicKey()
 		println(fmt.Sprintf("Decrypting message with pk %s, from %s: %s\n", pk, event.PubKey, event.Content))
 		if pk != "" {
 			if pk == event.PubKey {
@@ -75,7 +75,7 @@ func (p *Parser) ParseKind4(event nostr.Event) (*Kind4Parsed, *[]types.Request, 
 			} else {
 				pubkey = event.PubKey
 			}
-			decrypted, err := p.Signer.NIP04Decrypt(pubkey, event.Content)
+			decrypted, err := p.Signer.Current.NIP04Decrypt(pubkey, event.Content)
 			if err != nil {
 				println(fmt.Sprintf("Error decrypting message: %s", err))
 			}
@@ -105,13 +105,19 @@ func (p *Parser) PrepareKind4(event *nostr.Event) error {
 		}
 	}
 
-	encrypted, err := p.Signer.NIP04Encrypt(recipient, event.Content)
+	currentSigner := p.Signer.Current
+
+	if currentSigner == nil {
+		return fmt.Errorf("no signer available to encrypt message")
+	}
+
+	encrypted, err := currentSigner.NIP04Encrypt(recipient, event.Content)
 	if err != nil {
 		return fmt.Errorf("failed to encrypt event content: %w", err)
 	}
 	event.Content = encrypted
 
-	err = p.Signer.SignEvent(event)
+	err = currentSigner.SignEvent(event)
 
 	if err != nil {
 		return fmt.Errorf("failed to sign event: %w", err)

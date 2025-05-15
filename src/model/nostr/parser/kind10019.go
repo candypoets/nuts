@@ -93,5 +93,7 @@ func (p *Parser) PrepareKind10019(event *nostr.Event) error {
 	}
 
 	// Sign the event
-	return p.Signer.SignEvent(event)
+	p.Signer.SignEvent(event)
+
+	return nil
 }

@@ -223,10 +223,6 @@ func (sm *SubscriptionManager) ProcessLocalRequests(
 			sm.subscriptions[subscriptionID].Sent[event.ID] = &[]types.ParsedEvent{event}
 		}
 		sm.mutex.Unlock()
-		// set an hardcoded limit to the number of events to process
-		if len(events) > 100 {
-			events = events[:100]
-		}
 	}
 
 	if ctx.Err() != nil {

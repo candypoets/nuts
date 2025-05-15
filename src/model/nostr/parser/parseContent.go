@@ -142,10 +142,35 @@ func ParseContent(content string) ([]ContentBlock, error) {
 		},
 		{
 			Type:  "nostr",
-			Regex: regexp2.MustCompile(`(?i)nostr:([a-z0-9]+)`, regexp2.None),
+			Regex: regexp2.MustCompile(`(?i)(nostr:([a-z0-9]+)|n(event|prof|pub|addr|note)1[a-z0-9]+)`, regexp2.None),
 			ProcessMatch: func(match []string) (ContentBlock, error) {
 				entity := match[1]
 
+				// Handle nostr: protocol format
+				if strings.HasPrefix(strings.ToLower(entity), "nostr:") {
+					// Extract the identifier after nostr:
+					identifier := strings.TrimPrefix(strings.ToLower(entity), "nostr:")
+
+					// Try to decode the identifier
+					prefix, data, err := nip19.Decode(identifier)
+					if err != nil {
+						return ContentBlock{
+							Type: "text",
+							Text: match[0],
+						}, nil
+					}
+
+					return ContentBlock{
+						Type: prefix,
+						Text: match[0],
+						Data: map[string]interface{}{
+							"decoded": data,
+							"bech32":  identifier,
+						},
+					}, nil
+				}
+
+				// Handle nprofile/npub/nevent/etc format
 				prefix, data, err := nip19.Decode(entity)
 				if err != nil {
 					// If we can't decode, treat as text
@@ -275,8 +300,8 @@ func ParseContent(content string) ([]ContentBlock, error) {
 
 	for _, block := range blocks {
 		if len(combinedBlocks) > 0 &&
-		   block.Type == "text" &&
-		   combinedBlocks[len(combinedBlocks)-1].Type == "text" {
+			block.Type == "text" &&
+			combinedBlocks[len(combinedBlocks)-1].Type == "text" {
 			// Combine with previous text block
 			lastIdx := len(combinedBlocks) - 1
 			combinedBlocks[lastIdx].Text += block.Text
