@@ -1,0 +1,79 @@
+# .rules file for NutsCash Project
+
+## General Project Understanding:
+
+- **Project Goal:** NutsCash is a web application (likely a PWA) for managing eCash tokens within the Nostr network. It aims to provide a user-friendly interface for sending, receiving, and storing eCash proofs directly integrated with Nostr accounts.
+
+- **Key Technologies:** Svelte, TypeScript,  nostr-tools, @cashu/cashu-ts, IndexedDB (for local storage), Web Workers, and potentially Tailwind CSS.
+
+## Code Style and Structure:
+
+- **Svelte:** Adheres to standard Svelte component structure (`<script>`, `HTML`, `<style>`).
+- **TypeScript:** Strict typing is heavily used. Pay attention to type definitions in the `/src/types` directory.
+- **Tailwind CSS:** Uses Tailwind CSS classes for styling. Infer styles from class names.  Example: `bg-primary`, `text-lg`, `rounded-xl`.
+- **Components:**  Components are generally located in `/src/components` and follow a consistent naming convention (e.g., `Alert.svelte`, `Carousel.svelte`).
+- **Routes:** SvelteKit routing is used. Files in `/src/routes` define routes. `+layout.svelte` and `+page.svelte` files control layout and page content.
+- **Modals:** Modals are implemented as separate routes in `/src/routes/modals` and have their own specific layout.
+
+## Nostr Specific Details:
+
+- **nostr-tools:**  The `nostr-tools` library is the primary means for interacting with the Nostr protocol. Look for functions like `nostr.getPublicKey()`, `nostr.signEvent()`, `nip19.npubEncode()`, and `nip10.parse()` when dealing with Nostr events.
+- **Event Kinds:** Pay close attention to the different Nostr `kind` values.  See `/src/types/index.ts` for type guards like `isKind0`, `isKind1`, etc.
+    -   `0`: Metadata events (user profiles)
+    -   `1`: Text notes (posts)
+    -   `3`: Contact lists (follows)
+    -   `4`: Direct messages
+    -   `6`: Reposts
+    -   `7`: Reactions (likes, upvotes, etc.)
+    -   `10002`: Relay list metadata (NIP-65)
+    -   `10019`: nuts.cash User settings, including their trusted mints and pubkey
+	-   `7374`: nuts.cash quote
+	-   `7375`: nuts.cash proofs
+	-   `7376`: nuts.cash payment history
+    -   `9735`: Zap receipts (lightning payments) - NIP-57
+	-   `9321`: nutzaps
+    -   `17375`: nuts.cash encrypted wallet event
+- **Event Parsing:** See the `/src/model/nostr/parser` directory. Different kinds of events require specialized parsing logic. The main logic is located in `src/types/index.ts`.
+- **Tags:** Be mindful of Nostr tag conventions (arrays of strings, first element indicating the tag type).
+
+## Cashu Specific Details:
+
+- **@cashu/cashu-ts:** This library handles the eCash (Chaumian blinding) functionality.  Key concepts are mints, proofs, tokens, and balances.
+- **Mints:** Understand that Mints are the servers that issue and redeem eCash.  See `/src/types/mint.ts` for the `Mint` type definition.
+- **Proofs:** These represent the actual eCash tokens. They are cryptographic commitments to a certain amount of value.  See `src/types/proof.ts`
+- **Wallets:** Wallet instances and operations are handled by a WebWorker located at `/src/model/cashu/index.ts` with a Go runtime implementing the ecash functionalities. See `/src/model/nostr/index.ts` for the other WASM handling Nostr related actions.
+- **Operations:**  Familiarize yourself with the main wallet operations:
+    -   **Minting:** Getting new eCash tokens from a mint.
+    -   **Sending:**  Transferring eCash tokens to another user.
+    -   **Receiving:** Accepting incoming eCash tokens.
+    -   **Melting:** Redeeming eCash tokens for Lightning payments (or other withdrawals).
+
+## Data Storage and Persistence:
+
+-   **IndexedDB:** IndexedDB is used for persistent local storage of Nostr events, wallet data, and other application state.
+-   **Web Workers:** Web Workers handle computationally intensive tasks (cryptography, database interactions) off the main thread to maintain UI responsiveness.
+
+## Important Files and Directories:
+
+-   `src/app.css`: Global CSS styles, including Tailwind directives.
+-   `src/app.html`: Main HTML layout file.
+-   `src/components/`: Reusable Svelte components.
+-   `src/controller/`: Centralized state management and logic (Svelte stores). Includes wallet, key management, Nostr event handling, and debug information.
+-   `src/editor/`:  Files related to the Tiptap editor integration for composing Nostr content.
+-   `src/lib/`: Utility functions, helper classes, and constants.
+-   `src/model/`: Data models, data access logic, and backend integrations (Cashu, Nostr).
+-   `src/routes/`: SvelteKit routes defining the application's pages and API endpoints.
+-   `src/types/`: TypeScript type definitions for various data structures used throughout the project.
+-   `static/`: Static assets (fonts, images, WASM files).
+
+## Interaction Patterns
+
+- **Event-Driven**: Lots of actions rely on events in the Nostr network
+- **Worker Communication**: Web Workers communicate with the main thread using `postMessage` and `onmessage`.
+
+## Security Considerations
+
+- **Private Key Handling:** Pay close attention to the code that handles private keys (in the  `src/controller/key.ts` and  `src/model/nostr/signer` directories). Look for secure storage practices and encryption where appropriate.
+- **Nostr NIPs**: Project implements NIP44 and might use other NIPs like NIP-04. Check implementations.
+- **General crypto**: Code has a webassembly component for intensive crypto operations.
+- **Data validation:** The app performs several validations on both backend and frontend.
