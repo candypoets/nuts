@@ -25,7 +25,9 @@ module.exports = {
 					'secondary-content': '#c1cad6',
 					'base-100': '#f9fafb',
 					'base-200': '#f2f2f3',
+					'base-300': '#dddcdc',
 					'error-content': '#d9c2c2',
+					accent: '#6d28d9',
 					neutral: '#2a323c',
 					info: '#00b5ff',
 					success: '#00a96e',
@@ -38,47 +40,16 @@ module.exports = {
 					secondary: '#D926AA',
 					'secondary-content': '#c1cad6',
 					'base-100': '#131716',
+					'base-300': '#1f2937',
+					'text-gray-500': '#9b9ea4',
+					accent: '#c19bfd',
 					neutral: '#2a323c',
 					info: '#00b5ff',
 					success: '#00a96e',
 					warning: '#ffbe00',
 					error: '#ff5861'
 				}
-				// light: {
-				// 	primary: '#5C2EDD',
-				// 	secondary: '#D926AA',
-				// 	'base-100': '#1d232a',
-				// 	neutral: '#2a323c',
-				// 	info: '#00b5ff',
-				// 	success: '#00a96e',
-				// 	warning: '#ffbe00',
-				// 	error: '#ff5861'
-				// }
-				// matrix: {
-				// 	primary: '#020',
-				// 	secondary: '#040',
-				// 	'base-100': '#000',
-				// 	neutral: '#EFE',
-				// 	info: '#00b5ff',
-				// 	success: '#00a96e',
-				// 	warning: '#ffbe00',
-				// 	error: '#ff5861',
-				// 	fontFamily: 'm6x'
-				// }
 			}
-
-			// 'emerald',
-			// 'synthwave',
-			// 'cyberpunk',
-			// 'valentine',
-			// 'halloween',
-			// 'forest',
-			// 'lofi',
-			// 'wireframe',
-			// 'black',
-			// 'business',
-			// 'acid',
-			// 'winter'
 		]
 	},
 	content: ['./src/**/*.{html,js,svelte,ts}'],

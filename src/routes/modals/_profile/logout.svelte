@@ -6,7 +6,7 @@
 </script>
 
 <div class="h-full py-4 flex items-center">
-	<div class="border rounded-xl h-full w-feed lg:h-auto bg-basic py-4">
+	<div class="border rounded-xl h-full w-feed lg:h-auto bg-base-300 bg-opacity-85 py-4">
 		<div class="px-4">
 			<div on:click={() => (subopen = false)}>
 				<Icon icon="mdi:close" class="w-6 h-6" />

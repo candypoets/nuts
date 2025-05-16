@@ -188,10 +188,10 @@
 </script>
 
 <Pager rootPath="/home">
-	<Feed subscriptionID="home" requests={feedRequests} {updateFeed}>
+	<Feed subscriptionID="home" requests={feedRequests} {updateFeed} backdrop>
 		<svelte:fragment slot="header">
 			<div
-				class="relative w-feed place-content-center m-auto bg-basic z-10 backdrop"
+				class="relative w-feed place-content-center m-auto z-10 backdrop"
 				class:shadow-md={scrollY > 0}
 				id="top"
 			>
@@ -218,7 +218,7 @@
 							class="flex gap-2 items-stretch overflow-x-scroll scrollbar-hide snap-x snap-mandatory scroll-smooth"
 						>
 							{#each mints || [] as mint}
-								<MintCard {mint} />
+								<MintCard {mint} navigate />
 							{/each}
 						</div>
 					{:else}

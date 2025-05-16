@@ -94,7 +94,7 @@
 		{#if zaps.length > 0}
 			<!-- Other zappers with overlapping profile pictures -->
 			<div class="flex items-center flex-grow gap-1">
-				<div class="text-xs text-gray-500 items-center">
+				<div class="text-xs items-center">
 					{zaps.length}
 					{zaps.length === 1 ? 'zap' : 'zaps'} · {totalZapAmount.toLocaleString()} sats
 				</div>

@@ -20,7 +20,7 @@
 	import Home from 'src/routes/home/+layout.svelte';
 	import Chat from 'src/routes/chat/index.svelte';
 	import Login from 'src/routes/login.svelte';
-	import { go } from 'src/routes/modals/modal';
+	import { go, goBack } from 'src/routes/modals/modal';
 	import { cashuManager } from 'src/model/cashu';
 	import type { Request } from 'src/model/nostr';
 	import { nostrManager, type SubscribeKind } from 'src/model/nostr';
@@ -179,12 +179,12 @@
 
 	// Handle keyboard navigation (Alt + Left/Right)
 	function handleKeydown(e: KeyboardEvent) {
-		if (e.altKey) {
-			if (e.key === 'ArrowLeft' && currentIndex > 0) {
-				moveToIndex(currentIndex - 1);
-			} else if (e.key === 'ArrowRight' && currentIndex < pages.length - 1) {
-				moveToIndex(currentIndex + 1);
-			}
+		if (e.key == 'Escape') {
+			goBack();
+		} else if (e.key === 'ArrowLeft' && currentIndex > 0) {
+			moveToIndex(currentIndex - 1);
+		} else if (e.key === 'ArrowRight' && currentIndex < pages.length - 1) {
+			moveToIndex(currentIndex + 1);
 		}
 	}
 

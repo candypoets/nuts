@@ -148,7 +148,7 @@
          transform-style: preserve-3d; perspective: 1000px;"
 	on:click={() => goto('/chat')}
 >
-	<Feed subscriptionID={`chat`} requests={feedRequests} {updateFeed}>
+	<Feed subscriptionID={`chat`} requests={feedRequests} {updateFeed} backdrop>
 		<svelte:fragment slot="sticky-header">
 			<div id="top">
 				<div class="flex justify-between w-feed lg:m-auto h-16 items-center">

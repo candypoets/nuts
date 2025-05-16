@@ -65,7 +65,7 @@
 
 		// Use a timeout to ensure the focus happens after the current execution context
 		editorFocusTimeout = setTimeout(() => {
-			$editor.commands.focus('end');
+			$editor.commands.focus();
 			isExpanded = true;
 		}, 10);
 	}

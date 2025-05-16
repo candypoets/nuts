@@ -5,11 +5,12 @@
 
 	import VirtualList from 'src/components/VirtualList.svelte';
 	import VirtualListBottom from 'src/components/VirtualListBottom.svelte';
-	import { now } from 'src/lib/period';
+	import { ago, DAY, now } from 'src/lib/period';
 	import { isKind, isKind1, type AnyKind, type Kind1Parsed } from 'src/types';
 	import { nostrManager, type SubscribeKind } from 'src/model/nostr';
 	import type { ParsedEvent } from 'src/types';
 	import Note from './note.svelte';
+	import { formatDate } from 'date-fns';
 
 	// Props
 	export let bottom = false;
@@ -25,6 +26,7 @@
 	export let feed: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
 	export let itemKind: number | undefined = undefined;
 	export let visible: boolean = true;
+	export let backdrop: boolean = false;
 
 	let cachedFeed: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
 	let fetchedFeed: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
@@ -51,19 +53,19 @@
 	$: isItemKind = itemKind != undefined ? isKind(itemKind) : isKind1;
 
 	// In a separate function to avoid infinite loops in the reactive block
-	const handleEvents = (events: ParsedEvent<AnyKind>[], eventKind: SubscribeKind) => {
+	const handleEvents = (events: ParsedEvent<AnyKind>[], eventKind: SubscribeKind, page = 0) => {
 		if (eventKind == 'EOSE' && !eose) {
 			loading = false;
 			eose = true;
 			feed = _.uniqBy([...fetchedFeed, ...feed], (item) => item[0].id)
 				.sort((a, b) => b[0].created_at - a[0].created_at)
-				.slice(0, 100);
+				.slice(0, (page + 1) * 100);
 			fetchedFeed = [];
 			return;
 		}
 		if (eventKind == 'EOCE' && !eoce) {
 			eoce = true;
-			feed = cachedFeed.slice(0, 100);
+			feed = [...feed, ...cachedFeed.slice(0, 100)];
 			cachedFeed = [];
 			return;
 		}
@@ -75,12 +77,13 @@
 			} else if (!eose) {
 				fetchedFeed = updateFeed(fetchedFeed, events, eventKind);
 			} else {
-				feed = updateFeed(feed, events, eventKind);
+				if (!page) {
+					feed = updateFeed(feed, events, eventKind);
+				}
 			}
 			return;
 		}
 		if (isItemKind?.(event)) {
-			console.log(itemKind, event.kind);
 			// only show replies to root posts
 			if (event?.parsed?.reply?.id && event?.parsed?.root?.id != event?.parsed?.reply?.id) return;
 			// check if the event is already in the feed
@@ -90,7 +93,9 @@
 			} else if (!eose) {
 				fetchedFeed = [[event, _.uniqBy(context, 'id')], ...fetchedFeed];
 			} else {
-				bufferFeed.push([event, _.uniqBy(context, 'id')]);
+				if (!page) {
+					bufferFeed.push([event, _.uniqBy(context, 'id')]);
+				}
 			}
 		}
 	};
@@ -120,7 +125,7 @@
 			if (now() - lastBufferDump > 2 && !!bufferFeed.length) {
 				feed = [...feed, ...bufferFeed]
 					.sort((a, b) => b[0].created_at - a[0].created_at)
-					.slice(0, 100);
+					.slice(0, (lastPageFetch + 1) * 100);
 				bufferFeed = [];
 				lastBufferDump = now();
 			}
@@ -130,6 +135,40 @@
 			clearInterval(interval);
 		};
 	});
+
+	$: page = Math.floor(end / 100);
+
+	let lastPageFetch = 0;
+
+	$: {
+		if (end % 100 > 80) {
+			if (lastPageFetch <= page) {
+				lastPageFetch++;
+				// loading = true;
+				eose = false;
+				eoce = false;
+				// get the last item in the feed
+				const lastEvent = feed[feed.length - 1][0];
+				// get the next page results from the cache
+				const pageSub = nostrManager.subscribe(
+					subscriptionID + page,
+					requests.map((r) => ({
+						...r,
+
+						until: lastEvent.created_at,
+						since: lastEvent.created_at - (r?.since ? now() - r.since : 30 * DAY)
+					})),
+					(events: ParsedEvent<AnyKind>[], eventKind: SubscribeKind) => {
+						handleEvents(events, eventKind, lastPageFetch);
+						if (eventKind == 'EOSE') {
+							// stop the sub on EOSE
+							pageSub();
+						}
+					}
+				);
+			}
+		}
+	}
 
 	$: visible && requests && requests.length ? subscribe() : unsubscribe();
 </script>
@@ -175,6 +214,7 @@
 		bind:top
 		getItemId={(item) => item.data[0]?.id}
 		let:item
+		{backdrop}
 	>
 		<svelte:fragment slot="feed-header">
 			<slot name="header" visible>Missing Template</slot>

@@ -23,12 +23,9 @@
 </script>
 
 <Pager rootPath="/explore">
-	<Feed subscriptionID="main_feed" requests={feedRequests}>
+	<Feed subscriptionID="main_feed" requests={feedRequests} backdrop>
 		<svelte:fragment slot="sticky-header">
-			<div
-				id={$page.url.pathname === '/explore' ? 'top' : undefined}
-				class="backdrop-blur bg-base-100 bg-opacity-90"
-			>
+			<div id={$page.url.pathname === '/explore' ? 'top' : undefined} class="backdrop-blur -px-2">
 				<div class="flex justify-between w-feed lg:m-auto h-16 items-center">
 					<h1 class="text-2xl font-semibold">Explore</h1>
 					<div class="flex gap-2 items-center">

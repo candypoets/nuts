@@ -211,7 +211,7 @@
 	}
 </script>
 
-<div class="h-full bg-basic pt-4">
+<div class="h-full bg-base-300 bg-opacity-85 pt-4">
 	<div class="flex justify-between mb-12 px-4">
 		<button class="w-1/4" aria-label="Return to previous screen">
 			<Icon icon="iconamoon:arrow-down-2-light" class="w-6 h-6" />

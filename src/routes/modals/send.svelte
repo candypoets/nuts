@@ -63,7 +63,7 @@
 
 <!-- <ScanLN bind:invoice={scannedNpub} /> -->
 <Feed
-	class="bg-basic"
+	class="bg-base-300 bg-opacity-85"
 	subscriptionID="contacts"
 	requests={feedRequests}
 	itemKind={0}

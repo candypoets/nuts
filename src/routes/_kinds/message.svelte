@@ -31,7 +31,7 @@
 		</div>
 	{/if}
 	<div
-		class="chat-bubble chat-bubble-primary bg-gray-300 text-base-content rounded-2xl"
+		class="chat-bubble chat-bubble-primary bg-base-300 text-base-content rounded-2xl"
 		class:overflow-hidden={!message.isLast}
 		class:!rounded-l-md={!message.isFirst && message.incoming}
 		class:!rounded-r-md={!message.isFirst && !message.incoming}

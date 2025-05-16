@@ -1,4 +1,5 @@
 <script>
+	import _ from 'lodash';
 	import { onMount, tick } from 'svelte';
 
 	// props
@@ -8,6 +9,7 @@
 	export let className = '';
 
 	export let getItemId;
+	export let backdrop;
 
 	let foo;
 
@@ -29,7 +31,7 @@
 	let bottom = 0;
 	let average_height;
 
-	$: visible = items.slice(0, end).map((data, i) => {
+	$: visible = _.uniqBy(items.slice(0, end), (item) => item[0]?.id).map((data, i) => {
 		return { index: i + start, data };
 	});
 
@@ -159,6 +161,7 @@
 	<svelte-virtual-list-contents
 		bind:this={contents}
 		style="top: {top}px; padding-bottom: {bottom > 100 ? bottom : 100}px;"
+		class={backdrop && 'bg-base-300 bg-opacity-85 w-feed-container mx-auto min-h-screen rounded-xl'}
 	>
 		<svelte-virtual-list-row>
 			<slot name="feed-header" />

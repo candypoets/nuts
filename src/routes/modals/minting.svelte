@@ -73,7 +73,7 @@
 	}
 </script>
 
-<div class="pt-4 bg-basic h-full border rounded-xl">
+<div class="pt-4 bg-base-300 bg-opacity-85 h-full border rounded-xl">
 	<Alert />
 	<p class="font-bold text-xl text-center">Topup</p>
 	{#if isLoading}

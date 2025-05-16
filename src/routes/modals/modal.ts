@@ -36,7 +36,7 @@ export function goBack() {
 		const parentPath = currentPath.substring(0, lastSlashIndex);
 		goto(parentPath);
 	} else {
-		// If no slash or at root, go to explore page
+		// If no slash or at root, go to root
 		goto(rootPath);
 	}
 }

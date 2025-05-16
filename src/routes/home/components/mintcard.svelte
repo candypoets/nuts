@@ -1,9 +1,11 @@
 <script lang="ts">
-	import { balanceByMint } from 'src/controller/wallet';
+	import { activeMintUrl, balanceByMint } from 'src/controller/wallet';
+	import { go } from 'src/routes/modals/modal';
 	import type { Mint } from 'src/types/mint';
 
 	export let mint: Mint;
 	export let size = 'lg';
+	export let navigate = false;
 
 	$: balance = $balanceByMint[mint.url] || 0;
 
@@ -31,9 +33,20 @@
 
 		return `hsla(${h}, ${s}%, ${l}%, ${opacity})`;
 	}
+
+	function goto() {
+		if (!navigate) return;
+		$activeMintUrl = mint.url;
+		go('minting');
+	}
 </script>
 
-<div class="w-40 max-w-md mx-auto shrink-0 snap-always" class:w-72={size == 'lg'}>
+<div
+	class="w-40 max-w-md mx-auto shrink-0 snap-always"
+	class:w-72={size == 'lg'}
+	class:cursor-pointer={navigate}
+	on:click|stopPropagation={goto}
+>
 	<div
 		class="rounded-xl shadow-lg p-4 text-white relative overflow-hidden"
 		style="background-image: linear-gradient(to left, {generateColorFromUrl(

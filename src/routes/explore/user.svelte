@@ -58,7 +58,7 @@
 
 {#if link}
 	<a
-		class="text-violet-700 whitespace-nowrap hover:underline"
+		class="text-accent whitespace-nowrap hover:underline"
 		on:click|stopPropagation|preventDefault={go}
 		>@{user?.name?.trim() || pubkey?.slice(0, 15) + '...'}</a
 	>

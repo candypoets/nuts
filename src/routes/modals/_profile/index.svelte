@@ -9,8 +9,8 @@
 	// export let encodedToken: string = '';
 </script>
 
-<div class="h-full bg-basic lg:pt-4">
-	<div class="w-feed bg-basic">
+<div class="h-full lg:pt-4">
+	<div class="w-feed bg-base-300 bg-opacity-85">
 		<div class="px-4 flex justify-between">
 			<div on:click={goBack}>
 				<Icon icon="mingcute:down-line" class="text-xl" />

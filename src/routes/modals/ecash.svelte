@@ -117,8 +117,8 @@
 </script>
 
 <div class="flex items-center h-full">
-	<div class="bg-basic border rounded-xl p-4 w-feed h-full lg:h-auto">
-		<div class="px-4 py-4 flex justify-between h-0 bg-basic">
+	<div class="bg-base-300 bg-opacity-85 border rounded-xl p-4 w-feed h-full lg:h-auto">
+		<div class="px-4 py-4 flex justify-between h-0">
 			<div on:click={goBack}>
 				<Icon icon="mdi:close" class="w-6 h-6" />
 			</div>
@@ -168,7 +168,7 @@
 
 			<div class="px-4 w-full mt-36">
 				<div class="join w-full">
-					<label class="swap join-item border">
+					<label class="swap join-item border bg-base-300">
 						<input type="checkbox" bind:checked={zap} />
 						<div class="swap-on px-4">
 							<Icon icon="emojione-v1:lightning-mood" class="text-2xl" />
@@ -177,13 +177,13 @@
 					</label>
 					<input
 						type="text"
-						class="input input-bordered w-full join-item"
+						class="input w-full join-item"
 						placeholder="Add a memo"
 						bind:value={memo}
 					/>
 
 					<button
-						class="btn btn-primary join-item"
+						class="btn btn-primary join-item border"
 						disabled={!amount || !Number(amount) || amount > balance}
 						on:click={sendEcash}
 					>
@@ -193,7 +193,7 @@
 							{processing}
 						{:else}
 							<div class="flex items-center gap-2">
-								<span class="capitalize w-40 lg:w-auto">Send</span>
+								<span class="capitalize w-40 lg:w-auto text-white">Send</span>
 							</div>
 						{/if}
 					</button>

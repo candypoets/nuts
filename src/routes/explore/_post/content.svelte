@@ -55,7 +55,7 @@
 				</a>
 			{:else}
 				<a
-					class="text-purple-600"
+					class="text-accent"
 					on:click|stopPropagation
 					href={parsed.data?.href || ''}
 					target="_blank"

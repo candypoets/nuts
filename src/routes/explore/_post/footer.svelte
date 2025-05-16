@@ -29,7 +29,7 @@
 	let reactions: ParsedEvent<Kind7Parsed>[] = [];
 	// replies are exported back to the parent, if the parent decides to show some
 	export let replies: ParsedEvent<Kind1Parsed>[] = [];
-	let liked = false;
+	let liked = '';
 	let replied = false;
 	let timeout: NodeJS.Timeout | undefined;
 	let triggerElement: HTMLElement;
@@ -40,7 +40,14 @@
 
 	const handleReactions = (event: ParsedEvent<Kind7Parsed>) => {
 		if (!event.parsed || mapReactions[event.id]) return;
-		if (event.pubkey == $kind0?.pubkey) liked = true;
+		if (event.pubkey == $kind0?.pubkey) {
+			if (event.parsed?.emoji) {
+				liked = event.parsed?.emoji.url;
+			} else if (event.parsed?.type == ReactionType.CUSTOM) {
+				liked = event.content;
+			}
+			return;
+		}
 		mapReactions[event.id] = event;
 		if (event.parsed?.emoji) {
 			mapEmoticons[event.parsed?.emoji.url] = (mapEmoticons[event.parsed?.emoji.url] || 0) + 1;
@@ -114,16 +121,42 @@
 </script>
 
 <div class="flex-grow flex px-2 w-full h-6 pl-10">
-	<div class="flex items-center gap-1 cursor-pointer w-full">
+	<div class="flex items-center gap-2 cursor-pointer w-full">
 		{#if visible}
 			<div
 				class="flex items-center space-x-1 hover:font-bold hover:text-black hover:-mt-1 transition-all"
 				class:text-primary={!!replied}
 				class:font-semibold={!!replied}
 				on:click={() => ($replying = true)}
+				role="button"
+				tabindex="0"
+				on:keydown={(e) => e.key === 'Enter' && ($replying = true)}
 			>
 				<Icon icon="iconamoon:comment-light" class="text-xl" />
 				<span>{replies?.length || ''}</span>
+			</div>
+
+			<!-- Repost Button -->
+			<div
+				class="flex items-center space-x-1 hover:font-bold hover:text-black hover:-mt-1 transition-all"
+				role="button"
+				tabindex="0"
+				on:click={() => {}}
+				on:keydown={(e) => e.key === 'Enter' && {}}
+			>
+				<Icon icon="ph:repeat" class="text-2xl" />
+			</div>
+
+			<!-- Zap Button -->
+			<div
+				class="flex items-center space-x-1 hover:font-bold hover:text-black hover:-mt-1 transition-all"
+				role="button"
+				tabindex="0"
+				on:click={() => {}}
+				on:keydown={(e) => e.key === 'Enter' && {}}
+			>
+				<Icon icon="material-symbols-light:bolt-outline-rounded" class="text-3xl" />
+				<span></span>
 			</div>
 		{/if}
 	</div>
@@ -144,15 +177,23 @@
 				<!-- Trigger Area - Bind this element -->
 				<div
 					bind:this={triggerElement}
-					class="reaction-trigger flex items-center space-x-1 hover:text-black hover:-mt-1 transition-all cursor-pointer"
-					class:text-blue-600={liked}
+					class="reaction-trigger flex items-center space-x-1 hover:text-accent hover:-mt-1 transition-all cursor-pointer"
+					class:text-accent={liked}
 					class:font-semibold={liked}
 					title={liked ? 'You reacted' : 'React to this post'}
 					aria-label="React to post"
 					on:click|stopPropagation
 				>
 					<span>{reactions?.length || ''}</span>
-					<Icon icon="icon-park-outline:like" class="text-xl pointer-events-none" />
+					{#if liked}
+						{#if liked.startsWith('http')}
+							<img src={liked} alt={liked} class="w-4 h-4 inline-block" />
+						{:else if !!liked && liked != 'undefined'}
+							<span class="max-w-6 inline-block overflow-hidden text-xl">{liked}</span>
+						{/if}
+					{:else}
+						<Icon icon="icon-park-outline:like" class="text-xl pointer-events-none" />
+					{/if}
 				</div>
 
 				{#if triggerElement}

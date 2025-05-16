@@ -128,7 +128,7 @@
 		<!-- {#if item.id != headerItem.id} -->
 		{@const p = headerItem?.parsed}
 		<div
-			class="transition-all duration-300 bg-basic w-feed mx-auto will-change-transform"
+			class="transition-all duration-300 w-feed mx-auto will-change-transform"
 			class:relative={visible}
 			class:shadow-md={!visible}
 			class:z-20={!visible}
@@ -158,7 +158,7 @@
 				<div class="flex items-center gap-3 mb-4">
 					<div class="absolute right-4 top-20" class:top-4={!p?.banner}>
 						<button
-							class="z-10 btn btn-wide btn-nav text-xl bg-opacity-80"
+							class="z-10 btn btn-wide border border-white btn-nav text-xl bg-opacity-80"
 							on:click={updateFollowList}
 						>
 							{#if $kind3?.parsed?.some((f) => f.pubkey === pubkey)}
@@ -172,7 +172,7 @@
 						<br />
 
 						<button
-							class="z-10 btn btn-wide btn-nav text-xl bg-opacity-80 mt-4"
+							class="z-10 btn btn-wide border border-white btn-nav text-xl bg-opacity-80 mt-4"
 							on:click={() => go('ecash:' + pubkey)}
 						>
 							<Icon icon="ion:flash" />
@@ -195,7 +195,7 @@
 				</div>
 
 				{#if p?.about}
-					<p class="text-gray-800 mb-4 opacity-1">{@html p?.about}</p>
+					<p class="mb-4 opacity-1">{@html p?.about}</p>
 				{/if}
 			</div>
 

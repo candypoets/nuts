@@ -79,7 +79,7 @@
 </script>
 
 {#if zap.isFirst}
-	<strong class="text-gray-600">
+	<strong class="text-base mt-2 block">
 		{#if zap.created_at > new Date().setHours(0, 0, 0, 0) / 1000}
 			TODAY
 		{:else if zap.created_at > new Date().setHours(0, 0, 0, 0) / 1000 - DAY}
@@ -91,7 +91,9 @@
 {/if}
 <!-- Added role, tabindex and keydown for accessibility -->
 <div
-	class="bg-base-200 p-4 rounded-lg my-2 cursor-pointer hover:bg-base-300"
+	class="p-4 cursor-pointer border-x border-b"
+	class:border-t={zap.isFirst}
+	class:rounded-t-lg={zap.isFirst}
 	on:click|stopPropagation={go}
 	on:keydown={(e) => e.key === 'Enter' && go()}
 	role="link"

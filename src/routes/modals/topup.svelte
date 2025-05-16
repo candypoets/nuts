@@ -4,7 +4,7 @@
 </script>
 
 <div class="h-full lg:py-8 pt-4">
-	<div class="bg-basic lg:border lg:rounded-xl h-full">
+	<div class="bg-base-300 lg:border lg:rounded-xl h-full">
 		<div class="p-4">
 			<div on:click={goBack}>
 				<Icon icon="mdi:close" class="w-6 h-6" />
