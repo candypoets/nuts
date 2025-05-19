@@ -14,7 +14,7 @@
 	import Avatar from 'src/routes/explore/avatar.svelte';
 
 	// if the note is a repost, this is the reposter pubkey
-	export let repost: string = undefined;
+	export let repost: string | undefined = undefined;
 	export let noteId: string | undefined = undefined;
 	export let context: ParsedEvent<AnyKind>[] = [];
 	export let note: ParsedEvent<Kind1Parsed> | undefined = undefined;
