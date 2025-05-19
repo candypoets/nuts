@@ -127,7 +127,7 @@
 
 <div class="flex items-center h-screen">
 	<div
-		class="bg-base-300 bg-opacity-85 border rounded-xl p-4 w-feed max-h-[90vh] lg:h-auto overflow-scroll scroll-auto"
+		class="bg-base-300 bg-opacity-85 border rounded-xl p-4 w-feed max-h-[90vh] lg:h-auto overflow-scroll scroll-auto backdrop-blur-sm"
 		style="-webkit-overflow-scrolling: touch;"
 		bind:this={scroller}
 	>
