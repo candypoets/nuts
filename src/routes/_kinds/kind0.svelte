@@ -65,7 +65,20 @@
 				feedRequests = [];
 				sub = nostrManager.subscribe(
 					'kind0_' + pubkey,
-					[{ kinds: [0], authors: [pubkey], limit: 1, relays: [], cacheFirst: true }],
+					[
+						{
+							kinds: [0],
+							authors: [pubkey],
+							limit: 1,
+							relays: [
+								'wss://user.kindpag.es',
+								'wss://relay.nos.social',
+								'wss://purplepag.es',
+								'wss://relay.nostr.band'
+							],
+							cacheFirst: true
+						}
+					],
 					handleEvents
 				);
 			}
