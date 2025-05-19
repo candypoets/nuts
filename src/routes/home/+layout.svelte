@@ -240,7 +240,7 @@
 			<div class="flex lg:gap-8 gap-4 px-4 py-4 w-feed m-auto">
 				<div class="text-center">
 					<button
-						class="btn w-14 h-14 btn-primary btn-circle"
+						class="btn w-14 h-14 btn-primary btn-circle text-base-100"
 						on:click|stopPropagation={() => go('receive')}
 					>
 						<Icon icon="teenyicons:add-outline" class="text-2xl" />
@@ -249,10 +249,10 @@
 				</div>
 				<div class="text-center">
 					<button
-						class="btn w-14 h-14 btn-primary btn-circle"
+						class="btn w-14 h-14 btn-primary btn-circle text-base-100"
 						on:click|stopPropagation={() => go('send')}
 					>
-						<Icon icon="ph:arrow-right-thin" class="w-8 h-8" />
+						<Icon icon="ph:arrow-right" class="w-8 h-8" />
 					</button>
 					<div class="text-sm mt-1 font-semibold">Send</div>
 				</div>

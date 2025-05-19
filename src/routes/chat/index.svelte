@@ -164,7 +164,7 @@
 		<svelte:fragment slot="item-content" let:post let:context let:visible>
 			<a
 				href={'/chat/' + 'kind4:' + correspondant(post)}
-				class="flex gap-2 h-28 overflow-hidden hover:bg-base-200 p-4 cursor-pointer w-feed"
+				class="flex gap-2 h-28 overflow-hidden hover:bg-base-200 p-4 cursor-pointer w-feed border-b border-base-200"
 			>
 				<div class="flex-shrink-0">
 					<Avatar pubkey={correspondant(post)} {context} size="xl" />
