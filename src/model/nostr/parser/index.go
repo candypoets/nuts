@@ -75,6 +75,13 @@ func (p *Parser) Parse(event nostr.Event) (types.ParsedEvent, error) {
 			Parsed:   parsed,
 			Requests: requests,
 		}, err
+	case 6:
+		parsed, requests, err := p.ParseKind6(event)
+		return types.ParsedEvent{
+			Event:    event,
+			Parsed:   parsed,
+			Requests: requests,
+		}, err
 	case 7:
 		parsed, requests, err := p.ParseKind7(event)
 		return types.ParsedEvent{

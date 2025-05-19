@@ -11,15 +11,18 @@
 	import {
 		isKind1,
 		isKind17,
+		isKind6,
 		isKind7,
 		ReactionType,
 		type AnyKind,
 		type Kind1Parsed,
+		type Kind6Parsed,
 		type Kind7Parsed
 	} from 'src/types';
 	import { key } from 'src/controller';
 	import { nostrManager } from 'src/model/nostr';
 	import type { ParsedEvent } from 'src/types';
+	import { go } from 'src/routes/modals/modal';
 
 	export let note: ParsedEvent<any>;
 	export let visible: boolean;
@@ -29,12 +32,15 @@
 	let reactions: ParsedEvent<Kind7Parsed>[] = [];
 	// replies are exported back to the parent, if the parent decides to show some
 	export let replies: ParsedEvent<Kind1Parsed>[] = [];
+	let reposts: ParsedEvent<Kind6Parsed>[] = [];
 	let liked = '';
 	let replied = false;
+	let reposted = false;
 	let timeout: NodeJS.Timeout | undefined;
 	let triggerElement: HTMLElement;
 	const mapReactions: Record<string, ParsedEvent<Kind7Parsed>> = {};
 	const mapReplies: Record<string, ParsedEvent<Kind1Parsed>> = {};
+	const mapReposts: Record<string, ParsedEvent<Kind6Parsed>> = {};
 	const mapEmoticons: Record<string, number> = {};
 	const commonEmoticons = ['👍', '❤️', '😂', '🔥', '😍', '🙏', '💯', '🤔', '🫂', '🚀'];
 
@@ -65,12 +71,21 @@
 		replies = Object.values(mapReplies);
 	}
 
+	function handleReposts(event: ParsedEvent<Kind6Parsed>) {
+		if (mapReposts[event.id]) return;
+		if (event.pubkey == $kind0?.pubkey) reposted = true;
+		mapReposts[event.id] = event;
+		reposts = Object.values(mapReposts);
+	}
+
 	const handleEvents = (events: ParsedEvent<AnyKind>[]) => {
 		const event = events[0];
 		if (isKind7(event) || isKind17(event)) {
 			handleReactions(event);
 		} else if (isKind1(event)) {
 			handleReplies(event);
+		} else if (isKind6(event)) {
+			handleReposts(event);
 		}
 	};
 
@@ -81,7 +96,7 @@
 					note.id + 'footer',
 					[
 						{
-							kinds: [1, 7, 17],
+							kinds: [1, 6, 7, 17],
 							tags: { '#e': [note.id] },
 							relays: relays || note.relays || []
 						}
@@ -115,6 +130,21 @@
 		nostrManager.publish('reaction_' + note.id, event);
 	}
 
+	function sendRepost() {
+		if (!$key.pub) return;
+		const event: EventTemplate = {
+			kind: kinds.Repost,
+			tags: [
+				['e', note.id],
+				['p', note.pubkey]
+			],
+			content: JSON.stringify(note),
+			created_at: now()
+		};
+
+		nostrManager.publish('repost_' + note.id, event);
+	}
+
 	onDestroy(unsubscribe);
 
 	$: visible ? subscribe() : unsubscribe();
@@ -124,13 +154,12 @@
 	<div class="flex items-center gap-2 cursor-pointer w-full">
 		{#if visible}
 			<div
-				class="flex items-center space-x-1 hover:font-bold hover:text-black hover:-mt-1 transition-all"
+				class="flex items-center space-x-1 hover:font-bold hover:text-accent hover:-mt-1 transition-all"
 				class:text-primary={!!replied}
 				class:font-semibold={!!replied}
 				on:click={() => ($replying = true)}
 				role="button"
 				tabindex="0"
-				on:keydown={(e) => e.key === 'Enter' && ($replying = true)}
 			>
 				<Icon icon="iconamoon:comment-light" class="text-xl" />
 				<span>{replies?.length || ''}</span>
@@ -138,22 +167,28 @@
 
 			<!-- Repost Button -->
 			<div
-				class="flex items-center space-x-1 hover:font-bold hover:text-black hover:-mt-1 transition-all"
+				class="flex items-center space-x-1 hover:font-bold hover:text-accent hover:-mt-1 transition-all"
+				class:text-primary={!!reposted}
+				class:font-semibold={!!reposted}
+				class:hover:text-primary={!!reposted}
+				class:hover:mt-0={!!reposted}
+				class:cursor-default={!!reposted}
 				role="button"
 				tabindex="0"
-				on:click={() => {}}
-				on:keydown={(e) => e.key === 'Enter' && {}}
+				on:click|stopPropagation={() => !reposted && sendRepost()}
 			>
 				<Icon icon="ph:repeat" class="text-2xl" />
+				<span>{reposts?.length || ''}</span>
 			</div>
 
 			<!-- Zap Button -->
 			<div
-				class="flex items-center space-x-1 hover:font-bold hover:text-black hover:-mt-1 transition-all"
+				class="flex items-center space-x-1 hover:font-bold hover:text-accent hover:-mt-1 transition-all"
 				role="button"
 				tabindex="0"
-				on:click={() => {}}
-				on:keydown={(e) => e.key === 'Enter' && {}}
+				on:click|stopPropagation={() => {
+					go('ecash:' + note.pubkey + ':' + note.id);
+				}}
 			>
 				<Icon icon="material-symbols-light:bolt-outline-rounded" class="text-3xl" />
 				<span></span>

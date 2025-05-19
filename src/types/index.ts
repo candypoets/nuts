@@ -4,6 +4,7 @@ import { type Kind0Parsed } from './kind0';
 import { type Kind1Parsed } from './kind1';
 import { type Kind3Parsed } from './kind3';
 import { type Kind4Parsed } from './kind4';
+import { type Kind6Parsed } from './kind6';
 import { type Kind7Parsed } from './kind7';
 import { type Kind17Parsed } from './kind17';
 import { type Kind9735Parsed } from './kind9735';
@@ -19,6 +20,7 @@ export * from './kind0';
 export * from './kind1';
 export * from './kind3';
 export * from './kind4';
+export * from './kind6';
 export * from './kind7';
 export * from './kind17';
 export * from './kind9735';
@@ -36,7 +38,7 @@ export const isKind0 = (event: NostrEvent): event is ParsedEvent<Kind0Parsed> =>
 export const isKind1 = (event: NostrEvent): event is ParsedEvent<Kind1Parsed> => event?.kind === 1;
 export const isKind3 = (event: NostrEvent): event is ParsedEvent<Kind3Parsed> => event?.kind === 3;
 export const isKind4 = (event: NostrEvent): event is ParsedEvent<Kind4Parsed> => event?.kind === 4;
-export const isKind6 = (event: NostrEvent): event is ParsedEvent<any> => event?.kind === 6;
+export const isKind6 = (event: NostrEvent): event is ParsedEvent<Kind6Parsed> => event?.kind === 6;
 export const isKind7 = (event: NostrEvent): event is ParsedEvent<Kind7Parsed> => event?.kind === 7;
 export const isKind17 = (event: NostrEvent): event is ParsedEvent<Kind17Parsed> =>
 	event?.kind === 17;
@@ -103,6 +105,7 @@ export type AnyKind =
 	| Kind1Parsed
 	| Kind3Parsed
 	| Kind4Parsed
+	| Kind6Parsed
 	| Kind7Parsed
 	| Kind17Parsed
 	| Kind9735Parsed

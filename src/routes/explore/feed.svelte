@@ -6,11 +6,12 @@
 	import VirtualList from 'src/components/VirtualList.svelte';
 	import VirtualListBottom from 'src/components/VirtualListBottom.svelte';
 	import { ago, DAY, now } from 'src/lib/period';
-	import { isKind, isKind1, type AnyKind, type Kind1Parsed } from 'src/types';
+	import { isKind, isKind1, isKind6, type AnyKind, type Kind1Parsed } from 'src/types';
 	import { nostrManager, type SubscribeKind } from 'src/model/nostr';
 	import type { ParsedEvent } from 'src/types';
 	import Note from './note.svelte';
 	import { formatDate } from 'date-fns';
+	import type { NostrEvent } from 'nostr-tools';
 
 	// Props
 	export let bottom = false;
@@ -24,7 +25,7 @@
 		  ) => [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][])
 		| undefined = undefined;
 	export let feed: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
-	export let itemKind: number | undefined = undefined;
+	export let kinds: number[] | undefined = undefined;
 	export let visible: boolean = true;
 	export let backdrop: boolean = false;
 
@@ -32,7 +33,7 @@
 	let fetchedFeed: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
 	// used in order to throttle fast incoming events
 	let bufferFeed: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
-	let newPosts: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
+	let newPosts: number = 0;
 	let timeout: NodeJS.Timeout | undefined;
 	let sub: () => void | undefined;
 
@@ -50,7 +51,9 @@
 	// Combined feed including the header item if provided
 	$: combinedItems = feed;
 
-	$: isItemKind = itemKind != undefined ? isKind(itemKind) : isKind1;
+	function isCorrectKind(event: NostrEvent) {
+		return kinds != undefined ? kinds.some((k) => isKind(k)?.(event)) : isKind1;
+	}
 
 	// In a separate function to avoid infinite loops in the reactive block
 	const handleEvents = (events: ParsedEvent<AnyKind>[], eventKind: SubscribeKind, page = 0) => {
@@ -83,7 +86,7 @@
 			}
 			return;
 		}
-		if (isItemKind?.(event)) {
+		if (isCorrectKind(event)) {
 			// only show replies to root posts
 			if (event?.parsed?.reply?.id && event?.parsed?.root?.id != event?.parsed?.reply?.id) return;
 			// check if the event is already in the feed
@@ -119,15 +122,21 @@
 		}
 	}
 
+	function setBufferFeed() {
+		newPosts = start > bufferFeed.length ? bufferFeed.length : start;
+		feed = [...feed, ...bufferFeed]
+			.sort((a, b) => b[0].created_at - a[0].created_at)
+			.slice(0, (lastPageFetch + 1) * 100);
+		bufferFeed = [];
+
+		lastBufferDump = now();
+	}
+
 	onMount(() => {
 		const interval = setInterval(() => {
 			if (loading) loading = false;
 			if (now() - lastBufferDump > 2 && !!bufferFeed.length) {
-				feed = [...feed, ...bufferFeed]
-					.sort((a, b) => b[0].created_at - a[0].created_at)
-					.slice(0, (lastPageFetch + 1) * 100);
-				bufferFeed = [];
-				lastBufferDump = now();
+				setBufferFeed();
 			}
 		}, 2000);
 		return () => {
@@ -140,11 +149,12 @@
 
 	let lastPageFetch = 0;
 
+	// pagination
 	$: {
 		if (end % 100 > 80) {
 			if (lastPageFetch <= page) {
 				lastPageFetch++;
-				// loading = true;
+
 				eose = false;
 				eoce = false;
 				// get the last item in the feed
@@ -170,33 +180,23 @@
 		}
 	}
 
+	function decreaseNewPosts() {
+		newPosts--;
+	}
+
+	$: start < newPosts && decreaseNewPosts();
+
 	$: visible && requests && requests.length ? subscribe() : unsubscribe();
 </script>
 
 <div
 	class={'lg:pt-0 overflow-scroll scrollbar-hide h-full min-h-screen m-auto !pt-0 ' + $$props.class}
 >
-	<div class="absolute top-6 w-full z-40" transition:fly={{ y: -50, duration: 300 }}>
-		{#if newPosts.length}
-			<div
-				class="flex justify-center cursor-pointer"
-				on:click={() => {
-					viewport.scrollTo({ top: 0, behavior: 'smooth' });
-					feed = _.uniqBy([...newPosts, ...feed], 'id');
-					newPosts = [];
-				}}
-			>
-				<div class="bg-primary text-white text-sm py-1 px-2 rounded-lg">
-					{newPosts.length} new posts
-				</div>
-			</div>
-		{/if}
-	</div>
 	{#if start >= 1}
 		<!-- Fixed header (only visible when scrolled) -->
 		<div class="absolute z-10 w-full">
 			<div class="w-feed m-auto" on:click={() => viewport.scrollTo({ top: 0, behavior: 'smooth' })}>
-				<slot name="sticky-header" visible={true} scrolled={true} />
+				<slot name="sticky-header" visible={true} scrolled={true} {newPosts} />
 			</div>
 		</div>
 	{/if}
@@ -216,6 +216,7 @@
 		let:item
 		{backdrop}
 	>
+		{@const repost = isKind6(item[0]) && item[0].pubkey}
 		<svelte:fragment slot="feed-header">
 			<slot name="header" visible>Missing Template</slot>
 		</svelte:fragment>
@@ -227,9 +228,10 @@
 				visible={visible && feed.findIndex((note) => note[0]?.id === item[0].id) >= start - 2}
 			>
 				<Note
-					note={item[0]}
+					note={repost ? item[0]?.parsed.repostedEvent : item[0]}
 					context={item[1]}
 					visible={visible && feed.findIndex((note) => note[0]?.id === item[0].id) >= start - 2}
+					{repost}
 				/>
 			</slot>
 		</div>
