@@ -42,6 +42,15 @@
 		return () => sub?.();
 	});
 
+	$: {
+		if (!author) {
+			author = context.find((c) => c.pubkey === note.pubkey && c.kind == 0)?.parsed as
+				| Kind0Parsed
+				| undefined;
+			sub?.();
+		}
+	}
+
 	function go() {
 		const currentPath = $page.url.pathname;
 		const profilePath = `nprofile:${note.pubkey}`;
