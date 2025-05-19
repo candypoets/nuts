@@ -32,14 +32,14 @@ func (p *Parser) ParseKind1(event nostr.Event) (*Kind1Parsed, *[]types.Request, 
 		Kinds:      []int{0},
 		Authors:    []string{event.PubKey},
 		CacheFirst: true,
-		Relays:     p.GetRelays(event),
+		Relays:     p.GetRelays(0, event.PubKey),
 	})
 
 	requests = append(requests, types.Request{
 		Kinds:      []int{10002},
 		Authors:    []string{event.PubKey},
 		CacheFirst: true,
-		Relays:     p.GetRelays(event),
+		Relays:     p.GetRelays(10002, event.PubKey),
 	})
 
 	parsedRefs := nip27.ParseReferences(event)
@@ -57,7 +57,7 @@ func (p *Parser) ParseKind1(event nostr.Event) (*Kind1Parsed, *[]types.Request, 
 				Kinds:      []int{0},
 				CacheFirst: true,
 				Limit:      1,
-				Relays:     pointer.Relays,
+				Relays:     append(pointer.Relays, p.GetRelays(0, pointer.PublicKey)...),
 			})
 
 		case nostr.EventPointer:
@@ -80,7 +80,7 @@ func (p *Parser) ParseKind1(event nostr.Event) (*Kind1Parsed, *[]types.Request, 
 				Tags:       map[string][]string{"#d": {pointer.Identifier}},
 				Limit:      1,
 				CacheFirst: true,
-				Relays:     pointer.Relays,
+				Relays:     append(pointer.Relays, p.GetRelays(pointer.Kind, pointer.PublicKey)...),
 			})
 		default:
 			println(fmt.Printf("Unknown pointer type: %T\n", pointer))

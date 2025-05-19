@@ -43,7 +43,7 @@ func (p *Parser) ParseKind9734(event nostr.Event) (*Kind9734Parsed, *[]types.Req
 					Kinds:      []int{0},
 					Authors:    []string{tag[1]},
 					CacheFirst: true,
-					Relays:     p.GetRelays(event),
+					Relays:     p.GetRelays(0, tag[1]),
 				})
 			}
 		case "e":

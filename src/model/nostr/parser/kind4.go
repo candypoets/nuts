@@ -46,14 +46,14 @@ func (p *Parser) ParseKind4(event nostr.Event) (*Kind4Parsed, *[]types.Request, 
 		Kinds:      []int{0},
 		Authors:    []string{event.PubKey},
 		CacheFirst: true,
-		Relays:     p.GetRelays(event),
+		Relays:     p.GetRelays(0, event.PubKey),
 	})
 
 	requests = append(requests, types.Request{
 		Kinds:      []int{0},
 		Authors:    []string{recipient},
 		CacheFirst: true,
-		Relays:     p.GetRelays(event),
+		Relays:     p.GetRelays(0, recipient),
 	})
 
 	// Create a consistent chat ID by sorting the pubkeys

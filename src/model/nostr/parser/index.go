@@ -2,6 +2,7 @@ package parser
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/candypoets/nutscash/nostr/db"
 	"github.com/candypoets/nutscash/nostr/signer"
@@ -14,31 +15,73 @@ type Parser struct {
 	DB            *db.NostrDB // Database connection
 	Signer        *signer.SignerManager
 	DefaultRelays []string // Default relays to use if none are specified in the event
+	IndexerRelays []string
 }
 
 // NewParser creates a new Parser instance with the given database
-func NewParser(db *db.NostrDB, signerManager *signer.SignerManager, defaultRelays []string) *Parser {
+func NewParser(db *db.NostrDB, signerManager *signer.SignerManager, defaultRelays []string, indexerRelays []string) *Parser {
 	return &Parser{
 		DB:            db,
 		Signer:        signerManager,
 		DefaultRelays: defaultRelays,
+		IndexerRelays: indexerRelays,
 	}
 }
 
-func (p *Parser) GetRelays(event nostr.Event) []string {
+func (p *Parser) GetRelayHint(event nostr.Event) []string {
 	var relays []string
 	for _, tag := range event.Tags {
 		if tag[0] == "r" {
 			relays = append(relays, tag[1])
 		}
 	}
+	return relays
+}
 
-	if event.Kind == 10002 || event.Kind == 0 || event.Kind == 10019 {
-		relays = append(relays, "wss://purplepag.es")
+func (p *Parser) GetRelays(kind int, pubkey string, write ...bool) []string {
+	var relays []string
+
+	if kind == 10002 || kind == 0 || kind == 10019 {
+		if len(p.IndexerRelays) > 0 {
+			indexerRelay := p.IndexerRelays[0]
+			if len(p.IndexerRelays) > 1 {
+				randomIndex := int(time.Now().UnixNano() % int64(len(p.IndexerRelays)))
+				indexerRelay = p.IndexerRelays[randomIndex]
+			}
+			relays = append(relays, indexerRelay)
+		}
+	} else {
+		nip65, exist := p.DB.QueryEvent(nostr.Filter{Kinds: []int{10002}, Authors: []string{pubkey}})
+		if exist {
+			parsed, _ := p.Parse(nip65.Event)
+			relayList, ok := parsed.Parsed.(*Kind10002Parsed)
+			if ok {
+				for _, relay := range *relayList {
+					if len(write) > 0 {
+						if relay.Write == true {
+							relays = append(relays, relay.URL)
+						}
+					} else {
+						if relay.Read == true {
+							relays = append(relays, relay.URL)
+						}
+					}
+				}
+			}
+		} else {
+			if len(p.DefaultRelays) > 0 {
+				defaultRelay := p.DefaultRelays[0]
+				if len(p.DefaultRelays) > 1 {
+					randomIndex := int(time.Now().UnixNano() % int64(len(p.DefaultRelays)))
+					defaultRelay = p.DefaultRelays[randomIndex]
+				}
+				relays = append(relays, defaultRelay)
+			}
+		}
 	}
 
-	if len(relays) == 0 {
-		return p.DefaultRelays
+	if len(relays) < 3 {
+		// TODO add a random relay from the relayManager
 	}
 
 	return relays

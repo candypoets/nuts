@@ -36,7 +36,7 @@ func (p *Parser) ParseKind9321(event nostr.Event) (*Kind9321Parsed, *[]types.Req
 		Kinds:      []int{0},
 		Authors:    []string{event.PubKey},
 		CacheFirst: true,
-		Relays:     p.GetRelays(event),
+		Relays:     p.GetRelays(0, event.PubKey),
 	})
 
 	// Extract required tags
@@ -56,15 +56,8 @@ func (p *Parser) ParseKind9321(event nostr.Event) (*Kind9321Parsed, *[]types.Req
 					Kinds:      []int{0},
 					Authors:    []string{recipientTag[1]},
 					CacheFirst: true,
-					Relays:     p.GetRelays(event),
+					Relays:     p.GetRelays(0, recipientTag[1]),
 				})
-				// try to find receipt event from the recipient
-				var relays []string
-				walletRelays, exist := p.DB.QueryEvent(nostr.Filter{Kinds: []int{10019}, Authors: []string{event.PubKey}})
-				walletRelaysParsed, ok := walletRelays.Parsed.(*Kind10019Parsed)
-				if exist && ok {
-					relays = append(relays, walletRelaysParsed.ReadRelays...)
-				}
 				requests = append(requests, types.Request{
 					Kinds: []int{7376},
 					Tags: map[string][]string{
@@ -73,7 +66,7 @@ func (p *Parser) ParseKind9321(event nostr.Event) (*Kind9321Parsed, *[]types.Req
 					Authors:    []string{recipientTag[1]},
 					Limit:      1,
 					CacheFirst: true,
-					Relays:     relays,
+					Relays:     p.GetRelays(7376, recipientTag[1]),
 				})
 
 			} else if tag[0] == "e" && eventTag == nil {
@@ -82,7 +75,7 @@ func (p *Parser) ParseKind9321(event nostr.Event) (*Kind9321Parsed, *[]types.Req
 					Kinds:      []int{1},
 					IDs:        []string{eventTag[1]},
 					CacheFirst: true,
-					Relays:     p.GetRelays(event),
+					Relays:     p.GetRelays(1, ""),
 				})
 			}
 		}

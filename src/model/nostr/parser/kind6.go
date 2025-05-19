@@ -25,7 +25,7 @@ func (p *Parser) ParseKind6(event nostr.Event) (*Kind6Parsed, *[]types.Request, 
 		Kinds:      []int{0},
 		Authors:    []string{event.PubKey},
 		CacheFirst: true,
-		Relays:     p.GetRelays(event),
+		Relays:     p.GetRelays(0, event.PubKey),
 	})
 
 	// Find the e tag for the reposted event (should be the last one if multiple)
@@ -44,7 +44,7 @@ func (p *Parser) ParseKind6(event nostr.Event) (*Kind6Parsed, *[]types.Request, 
 
 	// Try to parse the reposted event from content
 	var repostedEvent *types.ParsedEvent
-	
+
 	if event.Content != "" {
 		var parsedEvent nostr.Event
 		err := json.Unmarshal([]byte(event.Content), &parsedEvent)
@@ -58,7 +58,7 @@ func (p *Parser) ParseKind6(event nostr.Event) (*Kind6Parsed, *[]types.Request, 
 					Parsed:   parsedContent,
 					Requests: nil,
 				}
-				
+
 				// Add all requests from kind1 parsing
 				if parsedRequests != nil {
 					requests = append(requests, *parsedRequests...)
@@ -72,7 +72,7 @@ func (p *Parser) ParseKind6(event nostr.Event) (*Kind6Parsed, *[]types.Request, 
 		requests = append(requests, types.Request{
 			IDs:        []string{eventID},
 			CacheFirst: true,
-			Relays:     append(p.GetRelays(event), relayHint),
+			Relays:     append(p.GetRelays(1, ""), relayHint),
 		})
 	}
 

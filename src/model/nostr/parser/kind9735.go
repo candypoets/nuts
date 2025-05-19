@@ -52,7 +52,7 @@ func (p *Parser) ParseKind9735(event nostr.Event) (*Kind9735Parsed, *[]types.Req
 		Kinds:      []int{0},
 		Authors:    []string{event.PubKey},
 		CacheFirst: true,
-		Relays:     p.GetRelays(event),
+		Relays:     p.GetRelays(0, event.PubKey),
 	})
 
 	// Extract tags
@@ -137,8 +137,6 @@ func (p *Parser) ParseKind9735(event nostr.Event) (*Kind9735Parsed, *[]types.Req
 
 	if relaysTagInRequest != nil && len(relaysTagInRequest) > 1 {
 		zapperRelayHints = relaysTagInRequest[1:]
-	} else {
-		zapperRelayHints = p.GetRelays(event)
 	}
 
 	// try to find the zapper profile
@@ -147,7 +145,7 @@ func (p *Parser) ParseKind9735(event nostr.Event) (*Kind9735Parsed, *[]types.Req
 		Authors:    []string{event.PubKey},
 		Limit:      1,
 		CacheFirst: true,
-		Relays:     zapperRelayHints,
+		Relays:     append(p.GetRelays(0, event.PubKey), zapperRelayHints...),
 	})
 
 	// Create the parsed zap receipt

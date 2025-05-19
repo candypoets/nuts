@@ -27,7 +27,8 @@ var (
 	subManager  *network.SubscriptionManager
 )
 
-var defaultRelays = []string{"wss://relay.damus.io", "wss://relay.nostr.band", "wss://purplepag.es"}
+var defaultRelays = []string{"wss://relay.snort.social", "wss://relay.damus.io", "wss://relay.primal.net"}
+var indexerRelays = []string{"wss://user.kindpag.es", "wss://relay.nos.social", "wss://purplepag.es", "wss://relay.nostr.band"}
 
 func trackGoroutines(m *runtime.MemStats) {
 	runtime.ReadMemStats(m)
@@ -57,7 +58,7 @@ func Initialize() {
 	logger.Initialize(false)
 	nostrDb := db.InitNostrDB()
 	signerManager := signer.NewSignerManager()
-	nostrParser = parser.NewParser(nostrDb, signerManager, defaultRelays)
+	nostrParser = parser.NewParser(nostrDb, signerManager, defaultRelays, indexerRelays)
 	relayManager := network.NewRelayConnectionManager(10*time.Second, 3)
 	// Initialize managers
 	subManager = network.NewSubscriptionManager(nostrDb, nostrParser, relayManager)

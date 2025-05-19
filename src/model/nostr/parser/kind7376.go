@@ -51,7 +51,7 @@ func (p *Parser) ParseKind7376(event nostr.Event) (*Kind7376Parsed, *[]types.Req
 				Kinds:      []int{7375},
 				IDs:        []string{tag[1]},
 				CacheFirst: true,
-				Relays:     p.GetRelays(event),
+				Relays:     p.GetRelays(7375, event.PubKey),
 			})
 		}
 	}
@@ -107,7 +107,7 @@ func (p *Parser) ParseKind7376(event nostr.Event) (*Kind7376Parsed, *[]types.Req
 									Kinds:      []int{7375},
 									IDs:        []string{tag[1]},
 									CacheFirst: true,
-									Relays:     p.GetRelays(event),
+									Relays:     p.GetRelays(7375, event.PubKey),
 								})
 							case "destroyed":
 								parsed.DestroyedEvents = append(parsed.DestroyedEvents, tag[1])
@@ -115,7 +115,7 @@ func (p *Parser) ParseKind7376(event nostr.Event) (*Kind7376Parsed, *[]types.Req
 									Kinds:      []int{7375},
 									IDs:        []string{tag[1]},
 									CacheFirst: true,
-									Relays:     p.GetRelays(event),
+									Relays:     p.GetRelays(7375, event.PubKey),
 								})
 							case "redeemed":
 								parsed.RedeemedEvents = append(parsed.RedeemedEvents, tag[1])
@@ -123,7 +123,7 @@ func (p *Parser) ParseKind7376(event nostr.Event) (*Kind7376Parsed, *[]types.Req
 									Kinds:      []int{7375},
 									IDs:        []string{tag[1]},
 									CacheFirst: true,
-									Relays:     p.GetRelays(event),
+									Relays:     p.GetRelays(7375, event.PubKey),
 								})
 							}
 						}

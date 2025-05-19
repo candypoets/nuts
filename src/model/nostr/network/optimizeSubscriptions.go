@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/candypoets/nutscash/nostr/config"
-	"github.com/candypoets/nutscash/nostr/parser"
 	"github.com/candypoets/nutscash/nostr/types"
 	"github.com/nbd-wtf/go-nostr"
 )
@@ -19,39 +18,25 @@ type Sub struct {
 func (sm *SubscriptionManager) findNIP65Relays(request types.Request) []string {
 	// if the request has just one author, try to find the 10002 event locally
 	if len(request.Authors) < 10 {
-		relays := make(map[string]bool)
+		relays := []string{}
 		for _, author := range request.Authors {
-			event, ok := sm.database.QueryEvent(nostr.Filter{Kinds: []int{10002}, Authors: []string{author}})
-			if !ok {
-				continue
-			}
-
-			parsed, err := sm.Parser.Parse(event.Event)
-
-			if err != nil {
-				continue
-			}
-
-			relayList, ok := parsed.Parsed.(*parser.Kind10002Parsed)
-			if !ok {
-				continue
-			}
-
-			// Only add write relays to our collection
-			for _, relay := range *relayList {
-				if relay.Write {
-					relays[relay.URL] = true
-				}
-			}
+			relays = append(relays, sm.Parser.GetRelays(request.Kinds[0], author, true)...)
 		}
 
-		// Convert the map to a slice of relays
-		keys := make([]string, 0, len(relays))
-		for relay := range relays {
-			keys = append(keys, relay)
+		// Deduplicate relays
+		dedupRelays := make(map[string]bool)
+		for _, relay := range relays {
+			dedupRelays[relay] = true
 		}
 
-		return keys
+		uniqueRelays := []string{}
+		for relay := range dedupRelays {
+			uniqueRelays = append(uniqueRelays, relay)
+		}
+
+		if len(uniqueRelays) > 0 {
+			return uniqueRelays
+		}
 	}
 	return []string{}
 

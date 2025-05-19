@@ -59,6 +59,30 @@ type RelayConnectionManager struct {
 	maxRetries       int
 }
 
+// PickRandomRelay randomly selects a relay from the connected relays
+// Returns nil if no connected relays are available
+func (rcm *RelayConnectionManager) PickRandomRelay() *nostr.Relay {
+	rcm.connectionsMutex.RLock()
+	defer rcm.connectionsMutex.RUnlock()
+
+	// Collect all connected relays
+	var connectedRelays []*nostr.Relay
+	for _, conn := range rcm.connections {
+		if conn.Status == RelayStatusConnected && conn.Relay != nil {
+			connectedRelays = append(connectedRelays, conn.Relay)
+		}
+	}
+
+	// Check if we have any connected relays
+	if len(connectedRelays) == 0 {
+		return nil
+	}
+
+	// Pick a random relay using the standard library's random
+	randomIndex := time.Now().UnixNano() % int64(len(connectedRelays))
+	return connectedRelays[int(randomIndex)]
+}
+
 // NewRelayConnectionManager creates a new relay connection manager
 func NewRelayConnectionManager(connectTimeout time.Duration, maxRetries int) *RelayConnectionManager {
 	return &RelayConnectionManager{
