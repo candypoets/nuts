@@ -6,6 +6,11 @@
 
 - **Key Technologies:** Svelte, TypeScript,  nostr-tools, @cashu/cashu-ts, IndexedDB (for local storage), Web Workers, and potentially Tailwind CSS.
 
+
+## MCP Servers:
+
+- **nostr-book:** This is currently the only MCP (Message Classification Protocol) server available. It provides LLM context about Nostr NIPs (Nostr Implementation Possibilities), event kinds, and general rules used within the Nostr ecosystem. This helps in proper interpretation and processing of Nostr events within the application.
+
 ## Code Style and Structure:
 
 - **Svelte:** Adheres to standard Svelte component structure (`<script>`, `HTML`, `<style>`).
@@ -35,6 +40,12 @@
     -   `17375`: nuts.cash encrypted wallet event
 - **Event Parsing:** See the `/src/model/nostr/parser` directory. Different kinds of events require specialized parsing logic. The main logic is located in `src/types/index.ts`.
 - **Tags:** Be mindful of Nostr tag conventions (arrays of strings, first element indicating the tag type).
+- **Tag handling:** Look for tag-related functions in `/src/model/nostr/tags.ts`. Common tags include `e` (event reference), `p` (profile reference), `t` (topic/hashtag), and custom application-specific tags.
+
+## Type Management:
+
+- **Go-TypeScript Alignment:** An important rule is to always have the Go and TypeScript types aligned. Go is considered the source of truth for types, and TypeScript should copy Go types, not the other way around. If a type is missing in TypeScript, it should be added to match its Go counterpart.
+- **Type Definitions:** The `/src/types` directory contains all the TypeScript interface and type definitions used throughout the application.
 
 ## Cashu Specific Details:
 
