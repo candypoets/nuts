@@ -31,14 +31,14 @@
 
 	$: invoiceMemo = decoded?.sections?.find((s) => s.name == 'description')?.value || '';
 
-	onMount(() => {
-		window.addEventListener('keydown', keyDown);
+	// onMount(() => {
+	// 	window.addEventListener('keydown', keyDown);
 
-		return () => {
-			// this function is called when the component is destroyed
-			window.removeEventListener('keydown', keyDown);
-		};
-	});
+	// 	return () => {
+	// 		// this function is called when the component is destroyed
+	// 		window.removeEventListener('keydown', keyDown);
+	// 	};
+	// });
 
 	$: {
 		if (!/^[0-9]*$/.test(amount)) {
@@ -64,7 +64,7 @@
 	}
 </script>
 
-<div class="h-full bg-base-300 bg-opacity-85">
+<div class="h-full bg-base-300 bg-opacity-95">
 	<div class="p-4 flex justify-between">
 		<div on:click={goBack} aria-label="Close" role="button" tabindex="-1" autofocus>
 			<Icon icon="mdi:close" class="w-6 h-6" />
