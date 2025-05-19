@@ -189,7 +189,7 @@
 					<div>
 						<h2 class="text-xl font-bold">{p?.name || 'Unnamed'}</h2>
 						<!-- {#if visible} -->
-						<p class="text-gray-600">@{p?.nip05 || pubkey.substring(0, 8)}</p>
+						<p class="text-primary">@{p?.nip05 || pubkey.substring(0, 8)}</p>
 						<!-- {/if} -->
 					</div>
 				</div>
