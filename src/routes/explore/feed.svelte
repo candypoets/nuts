@@ -1,17 +1,15 @@
 <script lang="ts">
 	import _ from 'lodash';
 	import { onMount } from 'svelte';
-	import { fly } from 'svelte/transition';
 
+	import type { NostrEvent } from 'nostr-tools';
 	import VirtualList from 'src/components/VirtualList.svelte';
 	import VirtualListBottom from 'src/components/VirtualListBottom.svelte';
-	import { ago, DAY, now } from 'src/lib/period';
-	import { isKind, isKind1, isKind6, type AnyKind, type Kind1Parsed } from 'src/types';
+	import { DAY, now } from 'src/lib/period';
 	import { nostrManager, type SubscribeKind } from 'src/model/nostr';
 	import type { ParsedEvent } from 'src/types';
+	import { isKind, isKind1, isKind6, type AnyKind, type Kind1Parsed } from 'src/types';
 	import Note from './note.svelte';
-	import { formatDate } from 'date-fns';
-	import type { NostrEvent } from 'nostr-tools';
 
 	// Props
 	export let bottom = false;
