@@ -66,7 +66,7 @@
 	out:fly={{ x: element.offsetWidth, duration: 300, opacity: 1, easing: elasticOut }}
 >
 	<div
-		class="border bg-base-300 bg-opacity-80 border-base-300 h-full rounded-xl overflow-hidden px-2"
+		class="border bg-base-300 bg-opacity-80 border-base-300 h-full rounded-xl overflow-hidden px-2 backdrop-blur-sm"
 		style="transform: translateX({-$depthTranslation}px) translateY(-{$modalDepthTranslation}px) scale({scale}); opacity: {$depthOpacity};"
 	>
 		{#if path.includes('nprofile')}
