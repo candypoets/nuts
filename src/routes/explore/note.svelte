@@ -1,16 +1,20 @@
 <script lang="ts">
-	import Header from './_post/header.svelte';
-	import Content from './_post/content.svelte';
-	import Footer from './_post/footer.svelte';
-	import { goto } from '$app/navigation';
-	import type { ParsedEvent } from 'src/types';
-	import type { AnyKind, Kind1Parsed } from 'src/types';
-	import Zap from './_post/zap.svelte';
 	import _ from 'lodash';
-	import { nostrManager } from 'src/model/nostr';
-	import { page } from '$app/stores';
 	import { onDestroy } from 'svelte';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 
+	import { nostrManager } from 'src/model/nostr';
+	import type { AnyKind, Kind1Parsed } from 'src/types';
+	import { type ParsedEvent } from 'src/types';
+	import Content from 'src/routes/explore/_post/content.svelte';
+	import Footer from 'src/routes/explore/_post/footer.svelte';
+	import Header from 'src/routes/explore/_post/header.svelte';
+	import Zap from 'src/routes/explore/_post/zap.svelte';
+	import Avatar from 'src/routes/explore/avatar.svelte';
+
+	// if the note is a repost, this is the reposter pubkey
+	export let repost: string = undefined;
 	export let noteId: string | undefined = undefined;
 	export let context: ParsedEvent<AnyKind>[] = [];
 	export let note: ParsedEvent<Kind1Parsed> | undefined = undefined;
@@ -84,6 +88,7 @@
 {#if note?.parsed?.reply && !(note.parsed.mentions || []).some((m) => m.id == note?.parsed?.reply?.id) && !depth && showRoot}
 	<svelte:self noteId={note.parsed.reply.id} {context} {visible} zaps leading />
 {/if}
+
 <div class="py-2 rounded-2xl relative cursor-pointer" on:click|stopPropagation={go}>
 	{#if note}
 		{#if zaps && !depth}
@@ -91,6 +96,11 @@
 		{/if}
 		{#if leading || visibleReplies.length}
 			<div class="absolute border-gray-400 border-opacity-50 left-4 h-full border-r-2" />
+		{/if}
+		{#if repost}
+			<div class="translate-x-1">
+				<Avatar pubkey={repost} {context} size="sm" />
+			</div>
 		{/if}
 		<Header {note} {context} {depth} />
 		<div class="flex gap-2">
