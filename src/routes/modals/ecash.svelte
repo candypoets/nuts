@@ -5,27 +5,32 @@
 	import MintSelector from 'src/components/MintSelector.svelte';
 	import { activeMintUrl, balanceByMint } from 'src/controller/wallet';
 	import { now } from 'src/lib/period';
-	import { isKind10002, isKind10019, type AnyKind, type Kind10019Parsed } from 'src/types';
+	import { isKind1, isKind10002, isKind10019, type AnyKind, type Kind10019Parsed } from 'src/types';
 	import { normalizeMintURL } from 'src/lib/utils';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import User from 'src/routes/explore/user.svelte';
 	import { goBack } from 'src/routes/modals/modal';
 	import { cashuManager } from 'src/model/cashu';
-	import { nostrManager, type SubscribeKind } from 'src/model/nostr';
-	import type { ParsedEvent } from 'src/types';
-	import { onMount } from 'svelte';
+	import { nostrManager, type Request, type SubscribeKind } from 'src/model/nostr';
+	import type { Kind1Parsed, ParsedEvent } from 'src/types';
+	import { onMount, tick } from 'svelte';
 	import { fly } from 'svelte/transition';
 	import { key } from 'src/controller';
+	import Note from '../explore/note.svelte';
+	import Kind1 from '../_kinds/kind1.svelte';
 
 	// export let active: string;
 	export let pubkey: string;
+	export let noteId: string;
 	let memo: string = '';
 
 	let amount: number | undefined = undefined;
+	let note: ParsedEvent<Kind1Parsed>;
 
 	// let invoice: string;
 	// let fees: 0;
 	let processing = '';
+	let scroller: HTMLElement;
 
 	let wallet: Kind10019Parsed;
 
@@ -41,12 +46,14 @@
 	$: balance = $balanceByMint[$activeMintUrl || ''];
 
 	onMount(() => {
+		const requests: Request[] = [
+			{ kinds: [10002], authors: [pubkey], cacheFirst: true, relays: [] },
+			{ kinds: [10019], authors: [pubkey], cacheFirst: true, relays: [] }
+		];
+		if (noteId) requests.push({ kinds: [1], ids: [noteId], cacheFirst: true, relays: [] });
 		nostrManager.subscribe(
 			'wallet_' + pubkey,
-			[
-				{ kinds: [10002], authors: [pubkey], cacheFirst: true, relays: [] },
-				{ kinds: [10019], authors: [pubkey], cacheFirst: true, relays: [] }
-			],
+			requests,
 			(events: ParsedEvent<AnyKind>[], eventKind: SubscribeKind) => {
 				const [event, ...context] = events;
 				if (isKind10019(event)) {
@@ -56,12 +63,15 @@
 				if (isKind10002(event)) {
 					receiptRelays = event.parsed?.map((r) => r.read && r.url).filter(Boolean) || [];
 				}
+				if (isKind1(event)) {
+					note = event;
+					tick().then((_) => scroller.scrollTo({ top: 10000 }));
+				}
 			}
 		);
 	});
 
 	const sendEcash = async () => {
-		console.log('sendEcash', wallet);
 		if ($activeMintUrl) {
 			try {
 				if (wallet && !zap) {
@@ -84,8 +94,7 @@
 						tags: [
 							...proofsToSend.map((proof) => ['proof', JSON.stringify(proof)]),
 							['u', $activeMintUrl || ''],
-
-							['p', pubkey]
+							['e'][('p', pubkey)]
 						]
 					};
 					nostrManager.publish('nutszap_' + pubkey, nutszap);
@@ -116,21 +125,25 @@
 	};
 </script>
 
-<div class="flex items-center h-full">
-	<div class="bg-base-300 bg-opacity-85 border rounded-xl p-4 w-feed h-full lg:h-auto">
-		<div class="px-4 py-4 flex justify-between h-0">
-			<div on:click={goBack}>
-				<Icon icon="mdi:close" class="w-6 h-6" />
-			</div>
-
-			<div />
-		</div>
+<div class="flex items-center h-screen">
+	<div
+		class="bg-base-300 bg-opacity-85 border rounded-xl p-4 w-feed max-h-[90vh] lg:h-auto overflow-scroll scroll-auto"
+		style="-webkit-overflow-scrolling: touch;"
+		bind:this={scroller}
+	>
 		<div>
+			{#if note}
+				<div class="">
+					<Note {note} context={[]} footer={false} showRoot={false} visible />
+				</div>
+			{/if}
+			<div class="mx-8 mt-4 border-b border-gray-600"></div>
 			<div class="p-4">
 				<div class="flex gap-4 items-center">
 					<div class="w-1/2 text-center">
 						<MintSelector />
 					</div>
+
 					<div class="flex justify-center">
 						<Icon icon="mdi:arrow-right" class="text-5xl text-gray-400" />
 					</div>
