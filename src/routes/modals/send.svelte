@@ -55,8 +55,8 @@
 			$kind3?.parsed?.map((p) => ({
 				kinds: [0],
 				authors: [p.pubkey],
-				relays: ['wss://purplepag.es'],
-				cacheFirst: true
+				cacheFirst: true,
+				relays: []
 			})) || [];
 	}
 </script>
