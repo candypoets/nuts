@@ -8,7 +8,7 @@
 
 	export let modals: string[] = [];
 
-	const subPaths = ['nprofile', 'nevent', 'kind4'];
+	const subPaths = ['nprofile', 'nevent', 'kind4', 'notifications'];
 
 	$: {
 		if ($page.url.pathname.startsWith(rootPath)) {

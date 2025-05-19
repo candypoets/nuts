@@ -9,7 +9,7 @@
 	import type { ParsedEvent } from 'src/types';
 	import User from '../explore/user.svelte';
 	import Content from '../explore/_post/content.svelte';
-	import { key } from 'src/controller/db';
+	import { key } from 'src/controller';
 
 	export let post: ProcessedNotification;
 	export let visible: boolean;
@@ -78,9 +78,7 @@
 	$: visible ? subscribe() : unsubscribe();
 </script>
 
-<div
-	class="bg-white rounded-lg shadow-sm border border-gray-100 p-4 mb-2 hover:bg-gray-50 transition-colors"
->
+<div class="border-b border-gray-100 p-4 mb-2 transition-colors">
 	<div class="flex items-start gap-3">
 		<!-- Icon -->
 		<div class="bg-red-100 p-2 rounded-full flex-shrink-0">
@@ -91,7 +89,7 @@
 		<div class="flex-grow">
 			<!-- Header with like count -->
 			<div class="flex justify-between items-center mb-2">
-				<div class="font-medium text-gray-800">
+				<div class="font-medium">
 					{post.parsed.events.length}
 					{#if originalPost && originalPost.pubkey !== $key?.pub}
 						{post.parsed.events.length === 1 ? 'person' : 'people'} liked a post you were mentioned in
@@ -133,7 +131,7 @@
 				</div>
 
 				{#if post.parsed.events.length > 0 && !expanded}
-					<div class="text-sm text-gray-600">
+					<div class="text-sm">
 						{#if post.parsed.events.length <= 3}
 							<span>
 								{#each post.parsed.events as event, i}

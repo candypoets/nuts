@@ -73,7 +73,7 @@
 		{:else if path.includes('qr')}
 			<QR />
 		{:else if path.includes('ecash')}
-			<Ecash pubkey={path.split(':')?.[1]} />
+			<Ecash pubkey={path.split(':')?.[1]} noteId={path.split(':')?.[2]} />
 		{:else if path.includes('lightning')}
 			<Lightning invoice={path.split(':')?.[1]} />
 		{:else if path.includes('minting')}

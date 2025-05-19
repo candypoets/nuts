@@ -60,9 +60,7 @@
 	$: visible ? subscribe() : unsubscribe();
 </script>
 
-<div
-	class="bg-white rounded-lg shadow-sm border border-gray-100 p-4 mb-4 hover:bg-gray-50 transition-colors"
->
+<div class="border-b shadow-sm border border-gray-100 p-4 mb-4 transition-colors">
 	<div class="flex items-start gap-3">
 		<!-- Icon -->
 		<div class="bg-purple-100 p-2 rounded-full flex-shrink-0">
