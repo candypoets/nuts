@@ -18,7 +18,13 @@
 
 	let loading = true;
 	let headerItem: ParsedEvent<Kind0Parsed> | undefined;
-	let feedRequests: any[] = [];
+	let feedRequests: any[] = [
+		{
+			kinds: [1],
+			authors: [pubkey],
+			limit: 500
+		}
+	];
 	let timeout: NodeJS.Timeout | undefined;
 
 	let sub: () => void;
@@ -29,13 +35,6 @@
 		if (isKind0(event)) {
 			loading = false;
 			headerItem = event;
-			feedRequests = [
-				{
-					kinds: [1],
-					authors: [pubkey],
-					limit: 500
-				}
-			];
 		}
 	}
 
@@ -62,7 +61,7 @@
 	function subscribe() {
 		timeout = setTimeout(() => {
 			if (visible) {
-				feedRequests = [];
+				// feedRequests = [];
 				sub = nostrManager.subscribe(
 					'kind0_' + pubkey,
 					[
@@ -70,12 +69,14 @@
 							kinds: [0],
 							authors: [pubkey],
 							limit: 1,
-							relays: [
-								'wss://user.kindpag.es',
-								'wss://relay.nos.social',
-								'wss://purplepag.es',
-								'wss://relay.nostr.band'
-							],
+							relays: [],
+							cacheFirst: true
+						},
+						{
+							kinds: [10002],
+							authors: [pubkey],
+							limit: 1,
+							relays: [],
 							cacheFirst: true
 						}
 					],
@@ -120,9 +121,7 @@
 
 <Feed subscriptionID={'kind0_feed_' + pubkey} requests={feedRequests} {visible}>
 	<svelte:fragment slot="sticky-header">
-		<div
-			class="px-4 py-3 flex items-center justify-between backdrop-blur bg-base-100 bg-opacity-90"
-		>
+		<div class="px-4 py-3 flex items-center justify-between backdrop-blur-md">
 			<button on:click={goBack} class="p-1 rounded-full hover:bg-base-200 mr-4">
 				<Icon icon="mdi:arrow-left" class="text-xl" />
 			</button>

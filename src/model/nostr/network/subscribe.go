@@ -15,6 +15,7 @@ import (
 	"github.com/candypoets/nutscash/nostr/db"
 	"github.com/candypoets/nutscash/nostr/logger"
 	"github.com/candypoets/nutscash/nostr/parser"
+	"github.com/candypoets/nutscash/nostr/relays"
 	"github.com/candypoets/nutscash/nostr/types"
 	"github.com/rs/zerolog"
 
@@ -29,7 +30,7 @@ type SubscriptionManager struct {
 	mutex         sync.Mutex
 	subscriptions map[string]*Subscription
 	stagedEvents  []types.ParsedEvent // keep a list of events to save to indexdb
-	relayManager  *RelayConnectionManager
+	relayManager  *relays.RelayConnectionManager
 	log           zerolog.Logger
 	callback      js.Func
 }
@@ -47,7 +48,7 @@ type Subscription struct {
 var sm = &SubscriptionManager{}
 
 // NewSubscriptionManager creates a new subscription manager
-func NewSubscriptionManager(database *db.NostrDB, parser *parser.Parser, relayManager *RelayConnectionManager) *SubscriptionManager {
+func NewSubscriptionManager(database *db.NostrDB, parser *parser.Parser, relayManager *relays.RelayConnectionManager) *SubscriptionManager {
 	// Get a contextualized logger
 	componentLogger := logger.WithComponent("subscriptions")
 
@@ -234,6 +235,8 @@ func (sm *SubscriptionManager) ProcessLocalRequests(
 		if ctx.Err() != nil {
 			return filteredRequests
 		}
+		// store the relay hint if present
+		sm.Parser.GetRelayHint(event.Event)
 		rootID := event.ID
 		if len(root) > 0 {
 			rootID = root[0]
@@ -398,6 +401,8 @@ func (sm *SubscriptionManager) ProcessSubscriptionRequests(
 							sm.subscriptions[subscriptionID].Sent[ev.ID] = &[]types.ParsedEvent{types.ParsedEvent{Event: *ev}}
 							sm.mutex.Unlock()
 
+							// store the relay hint if present
+							sm.Parser.GetRelayHint(*ev)
 							// Process the event
 							parsedEvent, err := sm.Parser.Parse(*ev)
 							if err != nil {

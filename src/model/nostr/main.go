@@ -14,6 +14,7 @@ import (
 	"github.com/candypoets/nutscash/nostr/logger"
 	"github.com/candypoets/nutscash/nostr/network"
 	"github.com/candypoets/nutscash/nostr/parser"
+	"github.com/candypoets/nutscash/nostr/relays"
 	"github.com/candypoets/nutscash/nostr/signer"
 )
 
@@ -58,8 +59,8 @@ func Initialize() {
 	logger.Initialize(false)
 	nostrDb := db.InitNostrDB()
 	signerManager := signer.NewSignerManager()
-	nostrParser = parser.NewParser(nostrDb, signerManager, defaultRelays, indexerRelays)
-	relayManager := network.NewRelayConnectionManager(10*time.Second, 3)
+	relayManager := relays.NewRelayConnectionManager(10*time.Second, 3)
+	nostrParser = parser.NewParser(nostrDb, signerManager, relayManager, defaultRelays, indexerRelays)
 	// Initialize managers
 	subManager = network.NewSubscriptionManager(nostrDb, nostrParser, relayManager)
 	network.NewPublishManager(nostrDb, nostrParser, relayManager)

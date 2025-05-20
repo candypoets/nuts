@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/candypoets/nutscash/nostr/db"
+	"github.com/candypoets/nutscash/nostr/relays"
 	"github.com/candypoets/nutscash/nostr/signer"
 	"github.com/candypoets/nutscash/nostr/types"
 	"github.com/nbd-wtf/go-nostr"
@@ -14,32 +15,70 @@ import (
 type Parser struct {
 	DB            *db.NostrDB // Database connection
 	Signer        *signer.SignerManager
+	RelayManager  *relays.RelayConnectionManager
 	DefaultRelays []string // Default relays to use if none are specified in the event
 	IndexerRelays []string
+	RelayHints    map[string][]string // Maps pubkey to relay hints
 }
 
 // NewParser creates a new Parser instance with the given database
-func NewParser(db *db.NostrDB, signerManager *signer.SignerManager, defaultRelays []string, indexerRelays []string) *Parser {
+func NewParser(db *db.NostrDB, signerManager *signer.SignerManager, relayManager *relays.RelayConnectionManager, defaultRelays []string, indexerRelays []string) *Parser {
 	return &Parser{
 		DB:            db,
 		Signer:        signerManager,
+		RelayManager:  relayManager,
 		DefaultRelays: defaultRelays,
 		IndexerRelays: indexerRelays,
 	}
 }
 
 func (p *Parser) GetRelayHint(event nostr.Event) []string {
-	var relays []string
+	var relayHints []string
 	for _, tag := range event.Tags {
 		if tag[0] == "r" {
-			relays = append(relays, tag[1])
+			relayHints = append(relayHints, tag[1])
 		}
 	}
-	return relays
+	if len(relayHints) > 0 {
+		if p.RelayHints == nil {
+			p.RelayHints = make(map[string][]string)
+		}
+
+		// Get existing hints for this pubkey
+		existing, _ := p.RelayHints[event.PubKey]
+
+		// Create a map to keep track of unique relays
+		uniqueRelays := make(map[string]struct{})
+
+		// Add existing relays to the uniqueRelays map
+		for _, relay := range existing {
+			uniqueRelays[relay] = struct{}{}
+		}
+
+		// Add new relays if they're unique
+		for _, relay := range relayHints {
+			uniqueRelays[relay] = struct{}{}
+		}
+
+		// Convert unique map back to slice
+		updatedRelays := make([]string, 0, len(uniqueRelays))
+		for relay := range uniqueRelays {
+			updatedRelays = append(updatedRelays, relay)
+		}
+
+		// Update the relay hints
+		p.RelayHints[event.PubKey] = updatedRelays
+	}
+	return relays.CleanRelays(relayHints)
 }
 
 func (p *Parser) GetRelays(kind int, pubkey string, write ...bool) []string {
 	var relays []string
+
+	// Check if there are any relay hints for this pubkey
+	if hints, ok := p.RelayHints[pubkey]; ok && len(hints) > 0 {
+		relays = append(relays, hints...)
+	}
 
 	if kind == 10002 || kind == 0 || kind == 10019 {
 		if len(p.IndexerRelays) > 0 {
@@ -81,7 +120,10 @@ func (p *Parser) GetRelays(kind int, pubkey string, write ...bool) []string {
 	}
 
 	if len(relays) < 3 {
-		// TODO add a random relay from the relayManager
+		relay := p.RelayManager.PickRandomRelay()
+		if relay != nil {
+			relays = append(relays, relay.URL)
+		}
 	}
 
 	return relays

@@ -13,6 +13,7 @@ import (
 	"github.com/candypoets/nutscash/nostr/db"
 	"github.com/candypoets/nutscash/nostr/logger"
 	"github.com/candypoets/nutscash/nostr/parser"
+	"github.com/candypoets/nutscash/nostr/relays"
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/rs/zerolog"
 	"github.com/vmihailenco/msgpack/v5"
@@ -63,7 +64,7 @@ type PublishManager struct {
 	parser       *parser.Parser
 	mutex        sync.Mutex
 	operations   map[string]*PublishOperation
-	relayManager *RelayConnectionManager
+	relayManager *relays.RelayConnectionManager
 	log          zerolog.Logger
 	callback     js.Func
 	indexRelays  []string
@@ -72,7 +73,7 @@ type PublishManager struct {
 var pm = &PublishManager{}
 
 // NewPublishManager creates a new publish manager
-func NewPublishManager(database *db.NostrDB, parser *parser.Parser, relayManager *RelayConnectionManager) *PublishManager {
+func NewPublishManager(database *db.NostrDB, parser *parser.Parser, relayManager *relays.RelayConnectionManager) *PublishManager {
 	componentLogger := logger.WithComponent("publish")
 
 	callback := js.FuncOf(func(this js.Value, args []js.Value) any {
