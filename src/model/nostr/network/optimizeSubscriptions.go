@@ -18,7 +18,7 @@ type Sub struct {
 
 func (sm *SubscriptionManager) findNIP65Relays(request types.Request) []string {
 	// if the request has just one author, try to find the 10002 event locally
-	if len(request.Authors) < 10 {
+	if len(request.Authors) <= 50 {
 		relays := []string{}
 		for _, author := range request.Authors {
 			relays = append(relays, sm.Parser.GetRelays(request.Kinds[0], author, true)...)

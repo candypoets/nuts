@@ -1,35 +1,38 @@
 <script lang="ts">
 	import { fade } from 'svelte/transition';
 	import Carousel from 'src/components/Carousel.svelte';
+	import ImageZoomContext from 'src/components/ImageZoomContext.svelte';
+	import type { AnyKind, ParsedEvent, Kind1Parsed } from 'src/types';
+	import { context, links, note, zoomed } from 'src/controller/image';
 
-	export let links: { src: string; type?: 'image' | 'video' }[];
-	export let zoomed: number | undefined;
+	// Toggle for showing the context sidebar
+	let showContext: boolean = true;
 </script>
 
-{#if zoomed !== undefined}
+{#if $zoomed !== undefined}
 	<div
-		class="z-50 fixed left-0 top-0 h-full w-full overflow-auto bg-black"
+		class="z-50 fixed left-0 top-0 h-full w-full overflow-auto bg-black flex"
 		transition:fade={{ duration: 200 }}
-		on:click|preventDefault|stopPropagation={() => (zoomed = undefined)}
+		on:click|preventDefault|stopPropagation={() => ($zoomed = undefined)}
 	>
 		<Carousel
 			keyboardShortcut
-			items={links}
-			currentIndex={zoomed}
+			items={$links}
+			currentIndex={$zoomed}
 			let:item
-			onClose={() => (zoomed = undefined)}
+			onClose={() => ($zoomed = undefined)}
 		>
 			{#if item.type === 'image'}
 				<img
 					class="m-auto h-full max-w-full rounded-lg object-contain"
-					style="max-width: 80%;"
+					style={showContext ? 'max-width: 75%;' : 'max-width: 80%;'}
 					src={item?.src}
 					on:click={(e) => e.stopPropagation()}
 				/>
 			{:else}
 				<video
 					class="m-auto h-full max-w-full rounded-lg object-contain"
-					style="max-width: 80%;"
+					style={showContext ? 'max-width: 75%;' : 'max-width: 80%;'}
 					src={item?.src}
 					on:click={(e) => e.stopPropagation()}
 					autoplay
@@ -37,5 +40,12 @@
 				/>
 			{/if}
 		</Carousel>
+
+		<ImageZoomContext
+			bind:showContext
+			note={$note}
+			context={$context}
+			visible={$zoomed !== undefined}
+		/>
 	</div>
 {/if}

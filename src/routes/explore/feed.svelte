@@ -1,6 +1,7 @@
 <script lang="ts">
 	import _ from 'lodash';
 	import { onMount } from 'svelte';
+	import Fuse from 'fuse.js';
 
 	import type { NostrEvent } from 'nostr-tools';
 	import VirtualList from 'src/components/VirtualList.svelte';
@@ -10,6 +11,7 @@
 	import type { ParsedEvent } from 'src/types';
 	import { isKind, isKind1, isKind6, type AnyKind, type Kind1Parsed } from 'src/types';
 	import Note from './note.svelte';
+	import { slide } from 'svelte/transition';
 
 	// Props
 	export let bottom = false;
@@ -26,6 +28,9 @@
 	export let kinds: number[] | undefined = undefined;
 	export let visible: boolean = true;
 	export let backdrop: boolean = false;
+	export let search: string = '';
+	export let fuseKeys: string[] = [];
+	export let initialItems: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][] = [];
 
 	let cachedFeed: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
 	let fetchedFeed: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
@@ -34,6 +39,8 @@
 	let newPosts: number = 0;
 	let timeout: NodeJS.Timeout | undefined;
 	let sub: () => void | undefined;
+	let fuse: Fuse<any>;
+	let filteredFeed: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][] = [];
 
 	let start = 0;
 	let end = 0;
@@ -41,13 +48,21 @@
 	let lastBufferDump = 0;
 
 	let viewport: HTMLElement;
-	let top: number = 0;
+	let down = true; // is the virtualScrool going down
 
 	let eose = false;
 	let eoce = false;
 	let loading = true;
-	// Combined feed including the header item if provided
-	$: combinedItems = feed;
+
+	function makeFuse() {
+		if (fuseKeys.length > 0 && feed.length > 0) {
+			fuse = new Fuse<any>(feed, {
+				keys: fuseKeys,
+				threshold: 0.4,
+				includeScore: true
+			});
+		}
+	}
 
 	function isCorrectKind(event: NostrEvent) {
 		return kinds != undefined ? kinds.some((k) => isKind(k)?.(event)) : isKind1;
@@ -55,24 +70,28 @@
 
 	// In a separate function to avoid infinite loops in the reactive block
 	const handleEvents = (events: ParsedEvent<AnyKind>[], eventKind: SubscribeKind, page = 0) => {
-		if (eventKind == 'EOSE' && !eose) {
-			loading = false;
-			eose = true;
-			feed = _.uniqBy([...fetchedFeed, ...feed], (item) => item[0].id)
-				.sort((a, b) => b[0].created_at - a[0].created_at)
-				.slice(0, (page + 1) * 100);
-			fetchedFeed = [];
+		if (eventKind == 'EOSE') {
+			if (events.remainingConnections / events.totalConnections <= 0.5 && eose == false) {
+				loading = false;
+				eose = true;
+				feed = _.uniqBy([...fetchedFeed, ...feed], (item) => item[0].id)
+					.sort((a, b) => b[0].created_at - a[0].created_at)
+					.slice(0, (page + 1) * 100);
+				makeFuse();
+				fetchedFeed = [];
+			}
 			return;
 		}
 		if (eventKind == 'EOCE' && !eoce) {
 			eoce = true;
-			feed = [...feed, ...cachedFeed.slice(0, 100)];
+			feed = [...initialItems, ...cachedFeed.slice(0, 100)];
 			cachedFeed = [];
+			makeFuse();
 			return;
 		}
 		const [event, ...context] = events;
 		if (!event?.parsed) return;
-		if (updateFeed) {
+		if (updateFeed && isCorrectKind(event)) {
 			if (!eoce) {
 				cachedFeed = updateFeed(cachedFeed, events, eventKind);
 			} else if (!eose) {
@@ -80,6 +99,7 @@
 			} else {
 				if (!page) {
 					feed = updateFeed(feed, events, eventKind);
+					makeFuse();
 				}
 			}
 			return;
@@ -107,6 +127,7 @@
 				eoce = false;
 				eose = false;
 				cachedFeed = [];
+
 				sub = nostrManager.subscribe(subscriptionID, requests, handleEvents);
 			}
 		}, 300);
@@ -128,6 +149,8 @@
 		bufferFeed = [];
 
 		lastBufferDump = now();
+
+		makeFuse();
 	}
 
 	onMount(() => {
@@ -136,7 +159,18 @@
 			if (now() - lastBufferDump > 2 && !!bufferFeed.length) {
 				setBufferFeed();
 			}
-		}, 2000);
+		}, 1000);
+
+		// document.addEventListener('visibilitychange', () => {
+		// 	if (document.visibilityState === 'visible') {
+		// 		if (visible && requests && requests.length) {
+		// 			subscribe();
+		// 		}
+		// 	} else {
+		// 		unsubscribe();
+		// 	}
+		// });
+
 		return () => {
 			unsubscribe();
 			clearInterval(interval);
@@ -162,7 +196,6 @@
 					subscriptionID + page,
 					requests.map((r) => ({
 						...r,
-
 						until: lastEvent.created_at,
 						since: lastEvent.created_at - (r?.since ? now() - r.since : 30 * DAY)
 					})),
@@ -185,6 +218,19 @@
 	$: start < newPosts && decreaseNewPosts();
 
 	$: visible && requests && requests.length ? subscribe() : unsubscribe();
+
+	// Filter feed based on search query
+	$: {
+		if (search && fuse) {
+			const results = fuse.search(search);
+			filteredFeed = results.map((result) => result.item) as [
+				ParsedEvent<AnyKind>,
+				ParsedEvent<AnyKind>[]
+			][];
+		} else {
+			filteredFeed = feed as [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][];
+		}
+	}
 </script>
 
 <div
@@ -192,11 +238,16 @@
 >
 	{#if start >= 1}
 		<!-- Fixed header (only visible when scrolled) -->
-		<div class="absolute z-10 w-full">
-			<div class="w-feed m-auto" on:click={() => viewport.scrollTo({ top: 0, behavior: 'smooth' })}>
-				<slot name="sticky-header" visible={true} scrolled={true} {newPosts} />
+		{#if !down}
+			<div class="absolute z-10 w-full" out:slide|local>
+				<div
+					class="w-feed m-auto"
+					on:click={() => viewport.scrollTo({ top: 0, behavior: 'smooth' })}
+				>
+					<slot name="sticky-header" visible={true} scrolled={true} {newPosts} />
+				</div>
 			</div>
-		</div>
+		{/if}
 	{/if}
 	<div class="absolute z-10 w-full">
 		<div class="w-feed m-auto">
@@ -205,14 +256,15 @@
 	</div>
 	<svelte:component
 		this={bottom ? VirtualListBottom : VirtualList}
-		items={combinedItems}
+		items={search ? filteredFeed : feed}
 		bind:start
 		bind:end
 		bind:viewport
-		bind:top
+		bind:down
 		getItemId={(item) => item.data[0]?.id}
 		let:item
 		{backdrop}
+		{loading}
 	>
 		{@const repost = isKind6(item[0]) && item[0].pubkey}
 		<svelte:fragment slot="feed-header">
@@ -233,28 +285,5 @@
 				/>
 			</slot>
 		</div>
-		{#if loading}
-			<div
-				class="lg:pt-0 overflow-scroll scrollbar-hide container-height lg:container-height m-auto w-feed !pt-0"
-			>
-				{#each Array(8) as _}
-					<div class="lg:hover:bg-base-200 rounded-md pt-2 px-1 mb-4 first:pt-16">
-						<div class="flex items-center mb-2">
-							<div class="w-10 h-10 rounded-full shimmer"></div>
-							<div class="ml-2 flex-grow">
-								<div class="h-4 rounded w-1/4 shimmer"></div>
-								<div class="h-3 rounded w-1/3 mt-1 shimmer"></div>
-							</div>
-						</div>
-						<div class="h-16 rounded shimmer"></div>
-						<div class="flex justify-between mt-2">
-							<div class="h-4 rounded w-1/6 shimmer"></div>
-							<div class="h-4 rounded w-1/6 shimmer"></div>
-							<div class="h-4 rounded w-1/6 shimmer"></div>
-						</div>
-					</div>
-				{/each}
-			</div>
-		{/if}
 	</svelte:component>
 </div>

@@ -3,23 +3,29 @@
 	import User from '../user.svelte';
 	import Cashu from './cashu.svelte';
 	import _ from 'lodash';
-	import type { ContentBlock } from 'src/workers/utils';
-	import ImageGrid from 'src/components/ImageGrid.svelte';
-	import type { ParsedEvent } from 'src/types';
-	import type { AnyKind } from 'src/types';
 
-	export let parsedContent: ContentBlock[] = [];
+	import ImageGrid from 'src/components/ImageGrid.svelte';
+	import type { Kind1Parsed, Kind4Parsed, ParsedEvent } from 'src/types';
+	import type { AnyKind } from 'src/types';
+	import { getContext } from 'svelte';
+
+	export let note: ParsedEvent<Kind1Parsed | Kind4Parsed>;
 	export let context: ParsedEvent<AnyKind>[] = [];
 	export let depth = 0;
 	export let visible: boolean = false;
 	export let showMedia = true;
 	export let showQuote = true;
+
+	let imageContext = getContext('imageContext');
+
+	$: parsedContent = note?.parsed?.parsedContent || [];
 </script>
 
 <div
+	class:max-w-72={imageContext}
 	class={(!depth
 		? 'w-post'
-		: 'w-post-' + depth + ' text-sm text-wrap whitespace-normal break-words relative ') +
+		: 'w-post-' + depth + ' text-sm text-wrap whitespace-normal break-words relative') +
 		($$props.class || '')}
 >
 	{#each parsedContent as parsed, index}
@@ -39,6 +45,8 @@
 				<a
 					href={parsed.data?.href}
 					target="_blank"
+					on:click|stopPropagation
+					rel="noopener noreferrer"
 					class="w-full rounded-xl border mt-1 block cursor-pointer"
 				>
 					{#if parsed.data?.preview?.images[0]}
@@ -84,13 +92,13 @@
 		{:else if parsed.type == 'cashu'}
 			<Cashu cashu={parsed.text} />
 		{:else if parsed.type == 'image' && showMedia}
-			<ImageGrid links={[{ src: parsed.text, type: 'image' }]} />
+			<ImageGrid {note} links={[{ src: parsed.text, type: 'image' }]} />
 			<!-- <img class="lg:min-w-88 rounded-md" src={parsed.text} alt={parsed.text} /> -->
 		{:else if parsed.type == 'video' && showMedia}
-			<ImageGrid links={[{ src: parsed.text, type: 'video' }]} />
+			<ImageGrid {note} links={[{ src: parsed.text, type: 'video' }]} />
 			<!-- <video class="w-full rounded-md" src={parsed.text} autoplay muted></video> -->
 		{:else if parsed.type == 'mediaGrid' && showMedia}
-			<ImageGrid links={parsed.data?.items || []} />
+			<ImageGrid {note} links={parsed.data?.items || []} />
 		{/if}
 	{/each}
 	<!-- <div class="w-full" on:click={(e) => e.stopPropagation()}>

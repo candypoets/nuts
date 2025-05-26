@@ -69,6 +69,7 @@
 			(events: ParsedEvent<unknown>[], eventKind: SubscribeKind) => {
 				if (eventKind == 'EOSE') {
 					walletLoaded.resolve(true);
+					return;
 				}
 				const [event, ...context] = events;
 				if (!event || !event.parsed) return;

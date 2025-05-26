@@ -38,11 +38,11 @@ export default defineConfig({
 				name: 'Nuts.cash',
 				short_name: 'Nuts',
 				description: 'The nostr cashu wallet',
-				theme_color: '#fbf9fa',
+				theme_color: 'transparent',
 				start_url: '/home',
-				display: 'fullscreen',
+				display: 'standalone',
 				orientation: 'portrait',
-				background_color: '#fbf9fa',
+				background_color: 'transparent',
 				lang: 'en',
 				categories: ['finance', 'utility']
 				// permissions: ['camera']

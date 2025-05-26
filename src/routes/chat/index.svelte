@@ -180,11 +180,7 @@
 						<span class="flex gap-1">
 							{#if post.pubkey == $key?.pub}<span class="text-primary">you:</span>
 							{/if}
-							<Content
-								parsedContent={post.parsed?.parsedContent || []}
-								{context}
-								class="!w-auto flex-grow"
-							/>
+							<Content note={post} {context} class="!w-auto flex-grow" />
 						</span>
 					</div>
 				</div>

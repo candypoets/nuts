@@ -7,7 +7,7 @@
 	import { ago, DAY, now } from 'src/lib/period';
 	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/types';
 	import Feed from 'src/routes/explore/feed.svelte';
-	import { nostrManager, type RelayStatus } from 'src/model/nostr';
+	import { nostrManager, type RelayStatus, type SubscribeKind } from 'src/model/nostr';
 	import type { ParsedEvent } from 'src/types';
 	import { onDestroy, onMount } from 'svelte';
 	import { go } from '../modals/modal';
@@ -29,7 +29,10 @@
 
 	let sub: () => void;
 
-	function handleEvents(events: ParsedEvent<AnyKind>[]) {
+	function handleEvents(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) {
+		if (kind == 'EOSE') {
+			return;
+		}
 		const [event] = events;
 		if (!event?.parsed) return;
 		if (isKind0(event)) {

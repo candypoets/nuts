@@ -88,3 +88,6 @@
 - **Nostr NIPs**: Project implements NIP44 and might use other NIPs like NIP-04. Check implementations.
 - **General crypto**: Code has a webassembly component for intensive crypto operations.
 - **Data validation:** The app performs several validations on both backend and frontend.
+
+## Vibe coding
+When the agent is done with its task, do not check for error or typescript syntax, just deliver as is, I'll make the fixes.

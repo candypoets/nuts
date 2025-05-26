@@ -8,7 +8,7 @@
 	import Note from 'src/routes/explore/note.svelte';
 	import { nostrManager, type SubscribeKind } from 'src/model/nostr';
 	import type { ParsedEvent } from 'src/types';
-	import { onDestroy, onMount } from 'svelte';
+	import { getContext, onDestroy, onMount } from 'svelte';
 	import Reply from '../explore/reply.svelte';
 
 	export let postId: string;
@@ -43,6 +43,7 @@
 		events: ParsedEvent<AnyKind>[],
 		eventKind: SubscribeKind
 	): [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][] {
+		if (eventKind == 'EOSE') return feed;
 		const [event, ...context] = events;
 		if (isKind1(event)) {
 			// only show replies to root posts
@@ -78,7 +79,8 @@
 				nostrManager.subscribe(
 					'kind1_' + postId,
 					[{ kinds: [1], ids: [postId], limit: 1, relays: [], cacheFirst: true }],
-					(events: ParsedEvent<AnyKind>[]) => {
+					(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) => {
+						if (kind == 'EOSE') return;
 						const [event, ...rest] = events;
 						if (!event?.parsed) return;
 						if (isKind1(event)) {
@@ -109,6 +111,8 @@
 		}
 	}
 
+	let imageContext = getContext('imageContext');
+
 	onDestroy(unsubscribe);
 
 	$: visible ? subscribe() : unsubscribe();
@@ -122,6 +126,7 @@
 	{visible}
 >
 	<svelte:fragment slot="sticky-header">
+		<!-- {#if !imageContext} -->
 		<div
 			class="px-4 py-3 flex items-center justify-between backdrop-blur bg-base-100 bg-opacity-90"
 		>
@@ -131,15 +136,20 @@
 			<h1 class="text-lg font-semibold">Post</h1>
 			<span />
 		</div>
+		<!-- {:else}
+			<span />
+		{/if} -->
 	</svelte:fragment>
 	<svelte:fragment slot="header">
-		<div class="w-feed border-b border-base-200 h-16 flex items-center justify-between shadow-sm">
-			<button on:click={goBack} class="p-1 rounded-full hover:bg-base-200 mr-4">
-				<Icon icon="mdi:arrow-left" class="text-xl" />
-			</button>
-			<h1 class="text-lg font-semibold">Post</h1>
-			<span class="w-10" />
-		</div>
+		{#if !imageContext}
+			<div class="w-feed border-b border-base-200 h-16 flex items-center justify-between shadow-sm">
+				<button on:click={goBack} class="p-1 rounded-full hover:bg-base-200 mr-4">
+					<Icon icon="mdi:arrow-left" class="text-xl" />
+				</button>
+				<h1 class="text-lg font-semibold">Post</h1>
+				<span class="w-10" />
+			</div>
+		{/if}
 		{#if headerItem}
 			<Note note={headerItem} {context} {visible} zaps />
 			<Reply parent={headerItem} {context} />

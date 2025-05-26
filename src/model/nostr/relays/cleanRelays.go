@@ -17,6 +17,11 @@ func CleanRelays(relays []string) []string {
 			continue
 		}
 
+		// Skip if the URL starts with http:// or https://
+		if strings.HasPrefix(strings.ToLower(relay), "http://") || strings.HasPrefix(strings.ToLower(relay), "https://") {
+			continue
+		}
+
 		originalRelay := relay
 		relay = strings.TrimPrefix(relay, "wss://")
 		relay = strings.TrimPrefix(relay, "ws://")

@@ -9,8 +9,8 @@
 	// export let encodedToken: string = '';
 </script>
 
-<div class="h-full lg:pt-4">
-	<div class="w-feed bg-base-300 bg-opacity-85">
+<div class="h-full bg-base-300 bg-opacity-85 lg:pt-4">
+	<div class="w-feed">
 		<div class="px-4 flex justify-between">
 			<div on:click={goBack}>
 				<Icon icon="mingcute:down-line" class="text-xl" />
@@ -78,14 +78,6 @@
 				<div class="flex-grow">
 					<strong>Wallet</strong>
 					<p class="text-xs">Your wallet preferences</p>
-				</div>
-				<Icon icon="carbon:arrow-right" class="w-16 h-6" />
-			</div>
-			<div class="flex items-center justify-around py-2" on:click={() => go('zaps')}>
-				<Icon icon="arcticons:zip-zap" class="w-16 h-6" />
-				<div class="flex-grow">
-					<strong>Zaps</strong>
-					<p class="text-xs">Your default zap setting</p>
 				</div>
 				<Icon icon="carbon:arrow-right" class="w-16 h-6" />
 			</div>

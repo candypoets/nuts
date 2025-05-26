@@ -40,7 +40,7 @@
 		class:!rounded-br-md={message.isFirst && !message.incoming}
 		class:!rounded-bl-md={message.isFirst && message.incoming}
 	>
-		<Content parsedContent={message.parsed?.parsedContent || []} class="!w-auto" />
+		<Content note={message} class="!w-auto" />
 	</div>
 	{#if !message.incoming && message.isLast}
 		<div class="chat-footer opacity-50">{message.status || status}</div>

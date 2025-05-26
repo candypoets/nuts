@@ -1,8 +1,9 @@
-import { nip19 } from 'nostr-tools';
+import { nip19, type Nostr, type NostrEvent } from 'nostr-tools';
 
 import { bech32 } from 'bech32';
 
 import { hexToBytes } from '@noble/hashes/utils';
+import type { Kind0Parsed, ParsedEvent } from 'src/types';
 
 export function decodePrivKey(value: string): Uint8Array {
 	let pk;
@@ -43,27 +44,87 @@ export function isNostr(content: string): boolean {
 	return npubRegex.test(content);
 }
 
+/**
+ * Extracts LNURL from a user profile
+ * @param {any} profile - User profile containing Lightning Address or LNURL
+ * @returns {string | null} - Returns the LNURL if found, null otherwise
+ */
+export function GetLNURLFromProfile(profile: ParsedEvent<Kind0Parsed>): string | null {
+	if (!profile || !profile.content) {
+		return null;
+	}
+
+	// Parse the content if it's a string
+	const content = profile.parsed;
+
+	// First check if LUD06 (direct LNURL) is available
+	if (content?.lud06) {
+		return content.lud06;
+	}
+
+	// Check for Lightning Address (LUD16)
+	if (content?.lud16) {
+		const addressParts = content.lud16.split('@');
+		if (addressParts.length === 2) {
+			return `https://${addressParts[1]}/.well-known/lnurlp/${addressParts[0]}`;
+		}
+	}
+
+	return null;
+}
+
+export const getInvoiceFromProfile = async (
+	profile: ParsedEvent<Kind0Parsed>,
+	amount: number,
+	event: NostrEvent
+): Promise<{ pr: string; lnurl: string; maxSendable: number; minSendable: number }> => {
+	if (!profile.content) {
+		throw new Error('Profile has no content');
+	}
+
+	// Parse the content if it's a string
+	const content =
+		typeof profile.content === 'string' ? JSON.parse(profile.content) : profile.content;
+
+	// Prefer LUD16 (Lightning Address) if available
+	if (content.lud16) {
+		const res = await getInvoiceFromAddress(content.lud16, amount);
+		return res;
+	}
+
+	// Fall back to LUD06 (LNURL)
+	if (content.lud06) {
+		const res = await getInvoiceFromLNURL(content.lud06, amount);
+		return { ...res, lnurl: content.lud06 };
+	}
+
+	throw new Error('Profile has no Lightning Address (LUD16) or LNURL (LUD06)');
+};
+
 export const getInvoiceFromAddress = async (
 	address: string,
-	amount: number
-): Promise<{ pr: string; maxSendable: number; minSendable: number }> => {
+	amount: number,
+	event?: NostrEvent
+): Promise<{ pr: string; maxSendable: number; minSendable: number; lnurl: string }> => {
 	const addressParts = address.split('@');
 	const endpoint = `https://${addressParts[1]}/.well-known/lnurlp/${addressParts[0]}`;
-	return await LNURLLookup(endpoint, amount);
+	const result = await LNURLLookup(endpoint, amount, event);
+	return { ...result, lnurl: endpoint };
 };
 
 export const getInvoiceFromLNURL = async (
 	LNURL: string,
-	amount: number
+	amount: number,
+	event?: NostrEvent
 ): Promise<{ pr: string; maxSendable: number; minSendable: number }> => {
 	const { prefix: hrp, words: dataPart } = bech32.decode(LNURL, 2000);
 	const requestByteArray = bech32.fromWords(dataPart);
 
 	const endpoint = new TextDecoder().decode(Uint8Array.from(requestByteArray));
-	return await LNURLLookup(endpoint, amount);
+	return await LNURLLookup(endpoint, amount, event);
 };
 
-const LNURLLookup = async (endpoint: string, amount: number) => {
+const LNURLLookup = async (endpoint: string, amount: number, event?: NostrEvent) => {
 	const { callback, maxSendable, minSendable } = (await (await fetch(endpoint)).json()) as {
 		callback: string;
 		maxSendable: number;
@@ -72,7 +133,11 @@ const LNURLLookup = async (endpoint: string, amount: number) => {
 	if (!callback) {
 		throw new Error('No callback url found.');
 	}
-	const cb = callback + (callback.includes('?') ? `&` : `?`) + `amount=${amount * 1000}`;
+	let cb = callback + (callback.includes('?') ? `&` : `?`) + `amount=${amount * 1000}`;
+	if (event) {
+		cb += `nostr=${JSON.stringify(event)}`;
+		cb += `comment=${event.content}`;
+	}
 	const { pr } = (await (await fetch(cb)).json()) as { pr: string };
 	return { pr, maxSendable, minSendable };
 };

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Icon from '@iconify/svelte';
 	import { onMount } from 'svelte';
 
 	export let items: any[] = [];
@@ -47,6 +48,8 @@
 			behavior: 'instant'
 		});
 	});
+
+	$: scrollToIndex(currentIndex);
 </script>
 
 <div
@@ -78,7 +81,7 @@
 		<div class="absolute bottom-4 flex w-full items-center justify-center gap-1">
 			{#each items as _, index (index)}
 				<button
-					class="border-primary h-2 w-2 rounded-full border"
+					class="border-base-content h-2 w-2 rounded-full border"
 					class:bg-white={index === currentIndex}
 					on:click={() => scrollToIndex(index)}
 				/>
@@ -88,22 +91,22 @@
 			class="absolute inset-y-0 left-0 flex items-center opacity-0 transition-opacity group-hover:opacity-100"
 		>
 			<button
-				class="bg-primary rounded-full p-2 text-white"
+				class="rounded-full p-2 text-white"
 				class:opacity-0={currentIndex == 0}
 				on:click|stopPropagation={() => scrollToIndex(Math.max(currentIndex - 1, 0))}
 			>
-				<i class="fas fa-chevron-left text-2xl"></i>
+				<Icon icon="mdi:chevron-left" class="text-2xl text-white" />
 			</button>
 		</div>
 		<div
 			class="absolute inset-y-0 right-0 flex items-center opacity-0 transition-opacity group-hover:opacity-100"
 		>
 			<button
-				class="bg-primary rounded-full p-2 text-white"
+				class="rounded-full p-2 text-white"
 				class:opacity-0={currentIndex == items.length - 1}
 				on:click|stopPropagation={() => scrollToIndex(Math.min(currentIndex + 1, items.length - 1))}
 			>
-				<i class="fas fa-chevron-right text-2xl"></i>
+				<Icon icon="mdi:chevron-right" class="text-2xl text-white" />
 			</button>
 		</div>
 	{/if}

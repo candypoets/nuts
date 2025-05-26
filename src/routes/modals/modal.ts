@@ -8,6 +8,7 @@ export const pathOptions = [
 	'scan',
 	'qr',
 	'ecash',
+	'followlists',
 	'lightning',
 	'minting',
 	'minted',

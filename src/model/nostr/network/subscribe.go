@@ -174,7 +174,7 @@ func (sm *SubscriptionManager) jsCloseSubscription(this js.Value, args []js.Valu
 	}
 
 	subscriptionID := args[0].String()
-	sm.CloseSubscription(subscriptionID)
+	go sm.CloseSubscription(subscriptionID)
 	return nil
 }
 
@@ -184,9 +184,9 @@ func (sm *SubscriptionManager) CloseSubscription(subscriptionID string) {
 		Str("subscription_id", subscriptionID).
 		Int("goroutines", runtime.NumGoroutine()).
 		Msg("Closing subscription")
+
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
-
 	if sub, exists := sm.subscriptions[subscriptionID]; exists {
 		// Cancel the context to close all subscriptions
 		sub.CancelFunc()
@@ -321,7 +321,8 @@ func (sm *SubscriptionManager) ProcessSubscriptionRequests(
 	}
 
 	var wg sync.WaitGroup
-
+	totalConnections := 0
+	remainingConnections := 0
 	// Optimize subscription requests
 	optimizedRequests := sm.OptimizeSubscriptions(requests)
 
@@ -368,6 +369,9 @@ func (sm *SubscriptionManager) ProcessSubscriptionRequests(
 					sm.relayManager.ReleaseRelay(relay)
 					return
 				}
+
+				totalConnections++
+				remainingConnections++
 
 				innerDone := make(chan struct{})
 
@@ -418,7 +422,12 @@ func (sm *SubscriptionManager) ProcessSubscriptionRequests(
 								sm.database.AddEvent(parsedEvent)
 								// check if events should be added to the cache
 								// subscriptionids ending with "nocache" are not cached
-								sm.stagedEvents = append(sm.stagedEvents, parsedEvent)
+
+								// Only store specific event kinds
+								if parsedEvent.Kind == 0 || parsedEvent.Kind == 4 || parsedEvent.Kind == 3 || parsedEvent.Kind == 10002 ||
+									parsedEvent.Kind == 10019 || parsedEvent.Kind == 17375 {
+									sm.stagedEvents = append(sm.stagedEvents, parsedEvent)
+								}
 							}
 
 							// try to build the best context from the cache
@@ -445,20 +454,22 @@ func (sm *SubscriptionManager) ProcessSubscriptionRequests(
 							}
 
 						case <-sub.EndOfStoredEvents:
-							// Notify callback about EOSE
-							relaysPack, err := msgpack.Marshal(relays)
+							remainingConnections--
+
+							eose := types.EOSE{
+								TotalConnections:     totalConnections,
+								RemainingConnections: remainingConnections,
+							}
+							// Convert to JSON for callback
+							pack, err := msgpack.Marshal(eose)
 							if err != nil {
-								sm.log.Error().
-									Err(err).
-									Str("subscription_id", subscriptionID).
-									Msg("Error marshaling EOSE event")
-								return
+								println("Error marshaling event:", err.Error())
+								continue
 							}
 							// Create a JavaScript Uint8Array to hold the MessagePack data
-							uint8Array := js.Global().Get("Uint8Array").New(len(relaysPack))
-
+							uint8Array := js.Global().Get("Uint8Array").New(len(pack))
 							// Copy the Go bytes to the JavaScript Uint8Array
-							js.CopyBytesToJS(uint8Array, relaysPack)
+							js.CopyBytesToJS(uint8Array, pack)
 
 							sm.callback.Invoke("EOSE", subscriptionID, uint8Array)
 

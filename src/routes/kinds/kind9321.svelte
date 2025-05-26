@@ -11,7 +11,7 @@
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import User from 'src/routes/explore/user.svelte';
 	import { key } from 'src/controller';
-	import { nostrManager } from 'src/model/nostr';
+	import { nostrManager, type SubscribeKind } from 'src/model/nostr';
 	import type { ParsedEvent } from 'src/types';
 
 	export let zap: ParsedEvent<Kind9321Parsed>;
@@ -63,7 +63,10 @@
 						relays: zap.relays || [] // Use relays from original zap if possible
 					}
 				],
-				(events: ParsedEvent<AnyKind>[]) => {
+				(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) => {
+					if (kind == 'EOSE') {
+						return;
+					}
 					// Removed unused 'type' and 'context' parameters
 					const [event, ...context] = events;
 					if (isKind7376(event)) {

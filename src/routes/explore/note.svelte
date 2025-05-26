@@ -1,10 +1,10 @@
 <script lang="ts">
 	import _ from 'lodash';
-	import { onDestroy } from 'svelte';
+	import { getContext, onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 
-	import { nostrManager } from 'src/model/nostr';
+	import { nostrManager, type SubscribeKind } from 'src/model/nostr';
 	import type { AnyKind, Kind1Parsed } from 'src/types';
 	import { type ParsedEvent } from 'src/types';
 	import Content from 'src/routes/explore/_post/content.svelte';
@@ -39,15 +39,21 @@
 
 	let timeout: NodeJS.Timeout | undefined;
 
+	let isImageContext = getContext('imageContext');
+
 	// let randomId = Math.floor(Math.random() * 100) + 1;
 
 	$: {
-		if (!note && noteId) {
+		if (!note && noteId && context) {
 			note = context.find((event) => event.id === noteId) as ParsedEvent<Kind1Parsed>;
 		}
 	}
 
-	function handleEvents(events: ParsedEvent<AnyKind>[]) {
+	function handleEvents(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) {
+		if (kind == 'EOSE') {
+			console.log('eose', events);
+			return;
+		}
 		const [event] = events;
 		if (!event?.parsed) return;
 		context = _.uniqBy([...context, ...events], 'id');
@@ -57,7 +63,7 @@
 		timeout = setTimeout(async () => {
 			if (note && note.requests && visible) {
 				// console.log('note requests', note.id || noteId, randomId, note.requests);
-				nostrManager.subscribe(note.id, note.requests, handleEvents);
+				nostrManager.subscribe(note.id + depth, note.requests, handleEvents);
 			}
 		}, 200);
 	}
@@ -73,8 +79,9 @@
 	$: visible && note ? subscribe() : unsubscribe();
 
 	function go() {
+		if (isImageContext) return;
 		const currentPath = $page.url.pathname;
-		const eventPath = `nevent:${note?.id}`;
+		const eventPath = `nevent:${note?.id || noteId}`;
 
 		// Check if the current URL already ends with the profile we're trying to navigate to
 		if (!currentPath.endsWith(eventPath)) {
@@ -89,7 +96,11 @@
 	<svelte:self noteId={note.parsed.reply.id} {context} {visible} zaps leading />
 {/if}
 
-<div class="py-2 rounded-2xl relative cursor-pointer" on:click|stopPropagation={go}>
+<div
+	class="py-2 rounded-2xl relative cursor-pointer"
+	on:click|stopPropagation={go}
+	class:hidden={depth > 3}
+>
 	{#if note}
 		{#if zaps && !depth}
 			<Zap {note} {visible} />
@@ -107,8 +118,8 @@
 			<!-- {#if !depth} -->
 			<div class="min-w-8" class:!min-w-4={!!depth} />
 			<!-- {/if} -->
-			<div class="-mt-2" class:!mt-0={!!depth}>
-				<Content parsedContent={note.parsed?.parsedContent || []} {context} {visible} {depth} />
+			<div class="-mt-2" class:!mt-0={!!depth || isImageContext}>
+				<Content {note} {context} {visible} {depth} />
 			</div>
 		</div>
 		{#if footer && !depth}

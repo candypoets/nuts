@@ -9,7 +9,7 @@
 	import type { AnyKind, Kind1Parsed } from 'src/types';
 	import { nostrManager, type RelayStatus } from 'src/model/nostr';
 	import type { ParsedEvent } from 'src/types';
-	import { onDestroy, onMount } from 'svelte';
+	import { getContext, onDestroy, onMount } from 'svelte';
 	import { Editor, EditorContent, createEditor } from 'svelte-tiptap';
 	import type { Readable } from 'svelte/store';
 	import { fly } from 'svelte/transition';
@@ -30,6 +30,8 @@
 	let showGifPicker = false;
 	let emojiPickerRef: HTMLElement;
 	let emojiPickerLoaded = false;
+
+	let isImageContext = getContext('imageContext');
 
 	// Tenor API key
 	const TENOR_API_KEY = 'YOUR_TENOR_API_KEY';
@@ -212,6 +214,8 @@
 <svelte:window on:click={handleClickOutside} />
 
 <div
+	class:max-w-[23rem]={isImageContext}
+	class:-ml-2={isImageContext}
 	class="reply-editor w-feed rounded-lg transition-all duration-200 {isExpanded
 		? 'shadow-md'
 		: 'shadow-sm'}"

@@ -206,7 +206,7 @@
 		: 'shadow-sm'}"
 	bind:this={editorContainer}
 >
-	<div class="p-3">
+	<div class="px-3">
 		<!-- Editor container -->
 		<div
 			class="min-h-[60px] rounded-md dark:bg-gray-800 relative transition-all duration-200"

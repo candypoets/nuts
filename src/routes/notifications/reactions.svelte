@@ -10,6 +10,7 @@
 	import User from '../explore/user.svelte';
 	import Content from '../explore/_post/content.svelte';
 	import { key } from 'src/controller';
+	import { go } from '../modals/modal';
 
 	export let post: ProcessedNotification;
 	export let visible: boolean;
@@ -18,8 +19,6 @@
 	let originalPost: ParsedEvent<AnyKind> | null = null;
 	let expanded: boolean = false;
 	let timeout: NodeJS.Timeout | undefined;
-
-	onMount(() => {});
 
 	function toggleExpanded() {
 		expanded = !expanded;
@@ -104,21 +103,19 @@
 
 			<!-- Original post summary -->
 			{#if originalPost}
-				<div class="bg-gray-50 p-3 rounded-md mb-3 text-sm text-gray-700 line-clamp-2 w-post-1">
-					<Content
-						parsedContent={originalPost.parsed?.parsedContent}
-						showMedia={false}
-						showQuote={false}
-						{context}
-					/>
-				</div>
+				<a
+					class="cursor-pointer bg-base-content p-3 rounded-md mb-3 text-sm text-primary-content line-clamp-2 w-post-1"
+					on:click={() => go(`nevent:${originalPost.id}`)}
+				>
+					<Content note={originalPost} showMedia={false} showQuote={false} depth={2} {context} />
+				</a>
 			{/if}
 			<div class="inline-flex space-x-2 items-start">
 				<!-- Author avatars -->
 				<div class="inline-flex -space-x-2 mb-3">
 					{#each post.parsed.events.slice(0, 5) as event}
 						<a href="/{event.pubkey}" class="relative z-0 hover:z-10">
-							<Avatar pubkey={event.pubkey} query={false} {context} />
+							<Avatar pubkey={event.pubkey} {context} />
 						</a>
 					{/each}
 					{#if post.parsed.events.length > 5}
@@ -136,7 +133,7 @@
 							<span>
 								{#each post.parsed.events as event, i}
 									<a href="/{event.pubkey}" class="font-medium">
-										<User pubkey={event.pubkey} link={false} {context} />
+										<User pubkey={event.pubkey} link {context} />
 									</a>
 									{#if i < post.parsed.events.length - 2}
 										,
@@ -167,7 +164,7 @@
 				<div class="mt-3 border-t pt-3">
 					{#each post.parsed.events.slice(0, 10) as event}
 						<div class="flex items-center gap-2 mb-2">
-							<Avatar pubkey={event.pubkey} query={false} {context} />
+							<Avatar pubkey={event.pubkey} {context} />
 							<div class="flex items-center gap-2">
 								<span class="font-medium text-sm">
 									<User pubkey={event.pubkey} link={false} {context} />
@@ -178,7 +175,7 @@
 					{/each}
 
 					{#if post.parsed.events.length > 10}
-						<button class="text-xs text-blue-600 hover:underline">
+						<button class="text-xs hover:underline">
 							View all {post.parsed.events.length} likes
 						</button>
 					{/if}

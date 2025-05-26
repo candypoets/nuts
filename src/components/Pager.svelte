@@ -9,7 +9,7 @@
 
 	export let rootPath: string;
 
-	let subs: string[] = [];
+	export let subs: string[] = [];
 	let modals: string[] = [];
 
 	let depth = 0;

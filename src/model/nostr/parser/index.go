@@ -73,11 +73,11 @@ func (p *Parser) GetRelayHint(event nostr.Event) []string {
 }
 
 func (p *Parser) GetRelays(kind int, pubkey string, write ...bool) []string {
-	var relays []string
+	var relaysFound []string
 
 	// Check if there are any relay hints for this pubkey
 	if hints, ok := p.RelayHints[pubkey]; ok && len(hints) > 0 {
-		relays = append(relays, hints...)
+		relaysFound = append(relaysFound, hints...)
 	}
 
 	if kind == 10002 || kind == 0 || kind == 10019 {
@@ -87,7 +87,7 @@ func (p *Parser) GetRelays(kind int, pubkey string, write ...bool) []string {
 				randomIndex := int(time.Now().UnixNano() % int64(len(p.IndexerRelays)))
 				indexerRelay = p.IndexerRelays[randomIndex]
 			}
-			relays = append(relays, indexerRelay)
+			relaysFound = append(relaysFound, indexerRelay)
 		}
 	} else {
 		nip65, exist := p.DB.QueryEvent(nostr.Filter{Kinds: []int{10002}, Authors: []string{pubkey}})
@@ -98,11 +98,11 @@ func (p *Parser) GetRelays(kind int, pubkey string, write ...bool) []string {
 				for _, relay := range *relayList {
 					if len(write) > 0 {
 						if relay.Write == true {
-							relays = append(relays, relay.URL)
+							relaysFound = append(relaysFound, relay.URL)
 						}
 					} else {
 						if relay.Read == true {
-							relays = append(relays, relay.URL)
+							relaysFound = append(relaysFound, relay.URL)
 						}
 					}
 				}
@@ -114,19 +114,21 @@ func (p *Parser) GetRelays(kind int, pubkey string, write ...bool) []string {
 					randomIndex := int(time.Now().UnixNano() % int64(len(p.DefaultRelays)))
 					defaultRelay = p.DefaultRelays[randomIndex]
 				}
-				relays = append(relays, defaultRelay)
+				relaysFound = append(relaysFound, defaultRelay)
 			}
 		}
 	}
 
-	if len(relays) < 3 {
+	relaysFound = relays.CleanRelays(relaysFound)
+
+	if len(relaysFound) < 3 {
 		relay := p.RelayManager.PickRandomRelay()
 		if relay != nil {
-			relays = append(relays, relay.URL)
+			relaysFound = append(relaysFound, relay.URL)
 		}
 	}
 
-	return relays
+	return relaysFound
 }
 
 // Parse automatically determines the correct parser based on event kind
@@ -232,6 +234,13 @@ func (p *Parser) Parse(event nostr.Event) (types.ParsedEvent, error) {
 		}, err
 	case 17375:
 		parsed, requests, err := p.ParseKind17375(event)
+		return types.ParsedEvent{
+			Event:    event,
+			Parsed:   parsed,
+			Requests: requests,
+		}, err
+	case 39089:
+		parsed, requests, err := p.ParseKind30000(event)
 		return types.ParsedEvent{
 			Event:    event,
 			Parsed:   parsed,

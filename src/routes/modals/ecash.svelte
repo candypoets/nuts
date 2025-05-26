@@ -3,21 +3,29 @@
 	import type { EventTemplate } from 'nostr-tools';
 
 	import MintSelector from 'src/components/MintSelector.svelte';
-	import { activeMintUrl, balanceByMint } from 'src/controller/wallet';
+	import { activeMintUrl, balanceByMint, mints } from 'src/controller/wallet';
 	import { now } from 'src/lib/period';
-	import { isKind1, isKind10002, isKind10019, type AnyKind, type Kind10019Parsed } from 'src/types';
+	import {
+		isKind0,
+		isKind1,
+		isKind10002,
+		isKind10019,
+		type AnyKind,
+		type Kind10019Parsed
+	} from 'src/types';
 	import { normalizeMintURL } from 'src/lib/utils';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import User from 'src/routes/explore/user.svelte';
 	import { goBack } from 'src/routes/modals/modal';
 	import { cashuManager } from 'src/model/cashu';
 	import { nostrManager, type Request, type SubscribeKind } from 'src/model/nostr';
-	import type { Kind1Parsed, ParsedEvent } from 'src/types';
+	import type { Kind0Parsed, Kind1Parsed, ParsedEvent } from 'src/types';
 	import { onMount, tick } from 'svelte';
 	import { fly } from 'svelte/transition';
 	import { key } from 'src/controller';
 	import Note from '../explore/note.svelte';
 	import Kind1 from '../_kinds/kind1.svelte';
+	import { getInvoiceFromProfile, GetLNURLFromProfile } from 'src/lib/wallet';
 
 	// export let active: string;
 	export let pubkey: string;
@@ -26,6 +34,7 @@
 
 	let amount: number | undefined = undefined;
 	let note: ParsedEvent<Kind1Parsed>;
+	let kind0: ParsedEvent<Kind0Parsed>;
 
 	// let invoice: string;
 	// let fees: 0;
@@ -37,6 +46,8 @@
 	let zap = true;
 	let receiptRelays: string[] = [];
 
+	let status = '';
+
 	$: {
 		if (!/^[0-9]*$/.test(amount)) {
 			amount = '';
@@ -47,6 +58,7 @@
 
 	onMount(() => {
 		const requests: Request[] = [
+			{ kinds: [0], authors: [pubkey], cacheFirst: true, relays: [] },
 			{ kinds: [10002], authors: [pubkey], cacheFirst: true, relays: [] },
 			{ kinds: [10019], authors: [pubkey], cacheFirst: true, relays: [] }
 		];
@@ -55,6 +67,7 @@
 			'wallet_' + pubkey,
 			requests,
 			(events: ParsedEvent<AnyKind>[], eventKind: SubscribeKind) => {
+				if (eventKind == 'EOSE') return;
 				const [event, ...context] = events;
 				if (isKind10019(event)) {
 					wallet = event?.parsed;
@@ -67,6 +80,9 @@
 					note = event;
 					tick().then((_) => scroller.scrollTo({ top: 10000 }));
 				}
+				if (isKind0(event)) {
+					kind0 = event;
+				}
 			}
 		);
 	});
@@ -78,6 +94,31 @@
 					const isMintSupported = wallet.trustedMints?.some(
 						(tm) => normalizeMintURL(tm.url) == $activeMintUrl
 					);
+					if (!isMintSupported) {
+						status = 'Finding a common mint';
+						// attempt a swap to a supported mint before sending
+						const myMints = await $mints;
+						const supportedMint = wallet.trustedMints?.find((tm) =>
+							myMints.some((m) => m.url == normalizeMintURL(tm.url))
+						);
+						if (supportedMint) {
+							status = 'Found common mint, swapping funds to: ' + supportedMint.url;
+							await cashuManager.mintSwap(Number(amount), $activeMintUrl, supportedMint.url);
+							// Switch to a mint that the recipient supports
+							$activeMintUrl = normalizeMintURL(supportedMint.url);
+						} else if (wallet.trustedMints?.[0].url) {
+							status = 'No common mint found, swapping funds to: ' + wallet.trustedMints?.[0].url;
+							await cashuManager.addMint(wallet.trustedMints?.[0].url);
+							await cashuManager.mintSwap(
+								Number(amount),
+								$activeMintUrl,
+								wallet.trustedMints?.[0].url
+							);
+						} else {
+							status = 'Recipient has no preferred mint';
+						}
+					}
+					status = 'Lock proofs to recipient pubkey';
 					const proofsToSend = await cashuManager.sendToPubkey(
 						Number(amount) || 0,
 						$activeMintUrl || '',
@@ -94,29 +135,39 @@
 						tags: [
 							...proofsToSend.map((proof) => ['proof', JSON.stringify(proof)]),
 							['u', $activeMintUrl || ''],
-							['e'][('p', pubkey)]
+							['e', noteId || ''],
+							['p', pubkey]
 						]
 					};
+					status = 'Success!! Publishing nutszap';
 					nostrManager.publish('nutszap_' + pubkey, nutszap);
+					setTimeout(() => (status = ''), 1000);
 				} else {
+					const lnurl = GetLNURLFromProfile(kind0);
 					const zapRequest: EventTemplate = {
 						kind: 9734,
 						content: memo,
 						pubkey: $key?.pub || '',
 						created_at: now(),
 						tags: [
-							['e', ''],
+							['e', noteId || ''],
 							['p', pubkey],
 							['amount', (Number(amount) * 1000).toString()],
 							['relays', ...receiptRelays.map((r) => r)],
-							['lnurl', '']
+							['lnurl', lnurl || '']
 						]
 					};
-					const invoice = await nostrManager.zap('zap_' + pubkey, zapRequest);
-					console.log('zap invoice', invoice);
-					const meltQuote = await cashuManager.requestMeltQuote(invoice, $activeMintUrl);
-					console.log('meltQuote', meltQuote);
+					status = 'Signing zap request';
+					const signed = await nostrManager.signEvent(zapRequest);
+					status = 'Generate zap invoice';
+					const { pr } = await getInvoiceFromProfile(kind0, Number(amount), signed);
+					status = 'Generate melt quote';
+					const meltQuote = await cashuManager.requestMeltQuote(pr, $activeMintUrl);
+					status = 'Sending lighning payment';
 					await cashuManager.melt(meltQuote.quote);
+					status = 'Success! Publishing zap request';
+					nostrManager.publish('zap' + pubkey, zapRequest);
+					setTimeout(() => (status = ''), 1000);
 				}
 			} catch (e) {
 				console.error(e);
@@ -159,23 +210,32 @@
 		<div>
 			<div class="w-full gap-3">
 				<div class="h-52 flex flex-col items-center">
-					<input
-						autofocus
-						id="send-amt"
-						placeholder="0"
-						type="text"
-						inputmode="decimal"
-						bind:value={amount}
-						class="mt-10 text-7xl focus:outline-none text-center max-w-xs rounded-xl"
-						on:keydown={(e) => {
-							if (!!processing) return;
-							if (e.key === 'Enter') {
-								sendEcash();
-							}
-						}}
-					/>
-					<p />
-					<p class="font-bold text-xl">Sats</p>
+					{#if !status}
+						<input
+							autofocus
+							id="send-amt"
+							placeholder="0"
+							type="text"
+							inputmode="decimal"
+							autocomplete="off"
+							bind:value={amount}
+							class="mt-10 text-7xl bg-base-content text-primary-content focus:outline-none text-center max-w-xs rounded-xl"
+							on:keydown={(e) => {
+								if (!!processing) return;
+								if (e.key === 'Enter') {
+									sendEcash();
+								}
+							}}
+						/>
+						<p />
+						<p class="font-bold text-xl">Sats</p>
+					{:else}
+						<div
+							class="mt-10 w-1/2 bg-base-content text-center text-primary-content p-4 rounded-xl"
+						>
+							{status}
+						</div>
+					{/if}
 				</div>
 			</div>
 
@@ -197,13 +257,13 @@
 
 					<button
 						class="btn btn-primary join-item border"
-						disabled={!amount || !Number(amount) || amount > balance}
+						disabled={!amount || !Number(amount) || amount > balance || !!status}
 						on:click={sendEcash}
 					>
 						{#if Number(amount) > balance}
 							Not enough funds
-						{:else if !!processing}
-							{processing}
+						{:else if !!status}
+							Sending...
 						{:else}
 							<div class="flex items-center gap-2">
 								<span class="capitalize w-40 lg:w-auto text-white">Send</span>

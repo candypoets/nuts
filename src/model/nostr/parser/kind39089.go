@@ -8,25 +8,18 @@ import (
 	"github.com/nbd-wtf/go-nostr"
 )
 
-// ListMetadata represents the metadata for a categorized people list
-type ListMetadata struct {
-	Title       string `json:"title,omitempty" msgpack:"title,omitempty"`
-	Description string `json:"description,omitempty" msgpack:"description,omitempty"`
-	Image       string `json:"image,omitempty" msgpack:"image,omitempty"`
-}
-
 // Kind30000Parsed represents a parsed categorized people list (NIP-51)
 type Kind30000Parsed struct {
-	ListIdentifier string       `json:"list_identifier" msgpack:"list_identifier"`
-	People        []string     `json:"people" msgpack:"people"`
-	Metadata      ListMetadata `json:"metadata" msgpack:"metadata"`
+	ListIdentifier string   `json:"list_identifier" msgpack:"list_identifier"`
+	People         []string `json:"people" msgpack:"people"`
+	Title          string   `json:"title,omitempty" msgpack:"title,omitempty"`
+	Description    string   `json:"description,omitempty" msgpack:"description,omitempty"`
+	Image          string   `json:"image,omitempty" msgpack:"image,omitempty"`
 }
 
 // ParseKind30000 parses a kind 30000 (categorized people list) event
 func (p *Parser) ParseKind30000(event nostr.Event) (*Kind30000Parsed, *[]types.Request, error) {
-	if event.Kind != 30000 {
-		return nil, nil, fmt.Errorf("event is not kind 30000")
-	}
+	var requests []types.Request
 
 	result := &Kind30000Parsed{
 		People: make([]string, 0),
@@ -53,11 +46,27 @@ func (p *Parser) ParseKind30000(event nostr.Event) (*Kind30000Parsed, *[]types.R
 
 	// Parse content for metadata if present
 	if event.Content != "" {
-		var metadata ListMetadata
-		if err := json.Unmarshal([]byte(event.Content), &metadata); err == nil {
-			result.Metadata = metadata
+		_ = json.Unmarshal([]byte(event.Content), &result)
+	}
+
+	// Check for title, description, or image tags
+	for _, tag := range event.Tags {
+		if len(tag) >= 2 {
+			switch tag[0] {
+			case "title":
+				result.Title = tag[1]
+			case "description":
+				result.Description = tag[1]
+			case "image":
+				result.Image = tag[1]
+			}
 		}
 	}
 
-	return result, nil, nil
+	requests = append(requests, types.Request{
+		Kinds:   []int{0, 10002}, // Kind 0 = profile metadata
+		Authors: result.People,
+	})
+
+	return result, &requests, nil
 }

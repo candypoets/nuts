@@ -13,6 +13,7 @@
 	import Reactions from './reactions.svelte';
 	import Replies from './replies.svelte';
 
+	export let visible = true;
 	let loading = true;
 	let notificationsData = [];
 	let feedRequests = [];
@@ -22,9 +23,11 @@
 		events: ParsedEvent<AnyKind>[],
 		eventKind: SubscribeKind
 	): [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][] {
+		if (eventKind == 'EOSE') return feed;
 		const [event, ...context] = events;
+		if (event.pubkey == $key?.pub) return feed;
 		if (!event || !event.parsed) return feed;
-		console.log('EVENTS NOTIF', events);
+
 		// Add new events to our feed for processing
 		let updatedFeed: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][];
 
@@ -78,7 +81,7 @@
 					{
 						kinds: [1, 7, 6],
 						tags: { '#p': [$key?.pub] },
-						limit: 40
+						limit: 100
 					}
 					// Replies to user's posts
 					// {
@@ -99,11 +102,12 @@
 	subscriptionID={`notifications`}
 	requests={feedRequests}
 	{updateFeed}
+	{visible}
 	headerItem={{ id: 'header' }}
 >
 	<svelte:fragment slot="sticky-header">
 		<div
-			class=" w-feed border-b border-base-200 px-4 py-3 h-16 flex items-center justify-between shadow-sm"
+			class=" w-feed border-b border-base-200 px-4 py-3 h-16 flex items-center justify-between backdrop-blur"
 		>
 			<button on:click={() => goto('/explore')} class="p-1 rounded-full hover:bg-base-200 mr-4">
 				<Icon icon="mdi:arrow-left" class="text-xl" />
@@ -112,7 +116,7 @@
 			<span class="w-10" />
 		</div>
 	</svelte:fragment>
-	<svelte:fragment slot="header-content">
+	<svelte:fragment slot="header">
 		<div class="w-feed border-b border-base-200 h-16 flex items-center justify-between shadow-sm">
 			<button on:click={() => goto('/explore')} class="p-1 rounded-full hover:bg-base-200 mr-4">
 				<Icon icon="mdi:arrow-left" class="text-xl" />

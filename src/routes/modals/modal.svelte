@@ -13,7 +13,6 @@
 	import Melted from 'src/routes/modals/melted.svelte';
 	import Scan from 'src/routes/modals/scan.svelte';
 	import Keys from 'src/routes/modals/_profile/keys.svelte';
-	import Zaps from 'src/routes/modals/_profile/zaps.svelte';
 	import Wallet from 'src/routes/modals/_profile/wallet.svelte';
 	import Relays from 'src/routes/modals/_profile/relays.svelte';
 	import Logout from 'src/routes/modals/_profile/logout.svelte';
@@ -22,6 +21,7 @@
 	import { tweened } from 'svelte/motion';
 	import { fly } from 'svelte/transition';
 	import { goBack } from './modal';
+	import Followlists from './followlists.svelte';
 
 	export let path: string;
 	export let visible: boolean;
@@ -74,6 +74,8 @@
 			<QR />
 		{:else if path.includes('ecash')}
 			<Ecash pubkey={path.split(':')?.[1]} noteId={path.split(':')?.[2]} />
+		{:else if path.includes('followlist')}
+			<Followlists />
 		{:else if path.includes('lightning')}
 			<Lightning invoice={path.split(':')?.[1]} />
 		{:else if path.includes('minting')}

@@ -148,9 +148,12 @@ func InitNostrDB() *NostrDB {
 	}
 
 	err := DB.LoadFromPersistentStorage("nostr-local-relay")
+
 	if err != nil {
 		fmt.Printf("Error loading from persistent storage: %v\n", err)
 	}
+
+	// go DB.ResetAndRefillPersistentStorage()
 
 	return DB
 }
@@ -389,6 +392,157 @@ func openNostrDB(dbName string, version int) js.Value {
 	return request
 }
 
+// ResetAndRefillPersistentStorage empties the IndexedDB database and refills it with
+// the 25,000 most recent events from the in-memory cache.
+func (db *NostrDB) ResetAndRefillPersistentStorage() error {
+	db.Lock()
+	defer db.Unlock()
+
+	if !db.isInitialized {
+		return fmt.Errorf("database not initialized")
+	}
+
+	fmt.Println("Resetting and refilling IndexedDB with recent events")
+
+	// Create channels for completion and errors
+	doneCh := make(chan bool)
+	errCh := make(chan error)
+
+	// Using syscall/js for WASM interop
+	go func() {
+		// Get JS global object
+		global := js.Global()
+		console := global.Get("console")
+
+		// Function to clear the database and add the most recent events
+		clearAndRepopulateFn := js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+			// Return a new Promise
+			return global.Get("Promise").New(js.FuncOf(func(this js.Value, promiseArgs []js.Value) interface{} {
+				resolve := promiseArgs[0]
+				reject := promiseArgs[1]
+
+				// Open the IndexedDB database
+				openDBPromise := openNostrDB("nostr-local-relay", 1)
+
+				// Handle database opening error
+				openDBPromise.Call("catch", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+					err := args[0]
+					reject.Invoke(err)
+					return nil
+				}))
+
+				// Handle successful database opening
+				openDBPromise.Call("then", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+					dbJS := args[0]
+
+					// 1. Clear all existing records first
+					tx := dbJS.Call("transaction", js.ValueOf([]interface{}{"events"}), js.ValueOf("readwrite"))
+					store := tx.Call("objectStore", js.ValueOf("events"))
+
+					// Clear the object store
+					clearRequest := store.Call("clear")
+
+					clearRequest.Call("then", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+						console.Call("log", "Successfully cleared all events from IndexedDB")
+
+						// 2. Get the most recent events from in-memory cache
+						// Convert all events to a slice for sorting
+						allEvents := make([]ProcessedNostrEvent, 0, len(db.eventsById))
+						for _, event := range db.eventsById {
+							allEvents = append(allEvents, event)
+						}
+
+						// 3. Sort events by timestamp (newest first)
+						// Sort in Go before sending to JavaScript
+						sort.Slice(allEvents, func(i, j int) bool {
+							return allEvents[i].CreatedAt > allEvents[j].CreatedAt // Descending order
+						})
+
+						// 4. Limit to 25,000 most recent events
+						maxEvents := 25000
+						if len(allEvents) > maxEvents {
+							allEvents = allEvents[:maxEvents]
+						}
+
+						// 5. Convert events to JSON for passing to JavaScript
+						eventsJSON, err := json.Marshal(allEvents)
+						if err != nil {
+							reject.Invoke(fmt.Sprintf("Failed to marshal events: %v", err))
+							return nil
+						}
+
+						// Parse JSON in JavaScript
+						eventsArray := global.Get("JSON").Call("parse", string(eventsJSON))
+
+						console.Call("log", fmt.Sprintf("Adding %d events to IndexedDB", len(allEvents)))
+
+						// Create a new transaction for adding events
+						txAdd := dbJS.Call("transaction", js.ValueOf([]interface{}{"events"}), js.ValueOf("readwrite"))
+						storeAdd := txAdd.Call("objectStore", js.ValueOf("events"))
+
+						// Create an array to hold all promises
+						promisesArray := global.Get("Array").New(eventsArray.Length())
+
+						// Add each event
+						for i := 0; i < eventsArray.Length(); i++ {
+							event := eventsArray.Index(i)
+							putPromise := storeAdd.Call("put", event)
+							promisesArray.SetIndex(i, putPromise)
+						}
+
+						// Use Promise.all to wait for all promises to complete
+						global.Get("Promise").Call("all", promisesArray).Call("then",
+							js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+								// All operations succeeded
+								console.Call("log", fmt.Sprintf("Successfully added %d events to IndexedDB", len(allEvents)))
+								resolve.Invoke("Success")
+								return nil
+							})).Call("catch",
+							js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+								// At least one operation failed
+								reject.Invoke(args[0])
+								return nil
+							}))
+
+						return nil
+					})).Call("catch", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+						err := args[0]
+						reject.Invoke(err)
+						return nil
+					}))
+
+					return nil
+				}))
+
+				return nil
+			}))
+		})
+		defer clearAndRepopulateFn.Release()
+
+		// Call the function and handle the result
+		clearAndRepopulateFn.Invoke().Call("then",
+			js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+				doneCh <- true
+				return nil
+			})).Call("catch",
+			js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+				err := args[0]
+				errCh <- fmt.Errorf("failed to reset and refill IndexedDB: %s", err.Get("message").String())
+				return nil
+			}))
+	}()
+
+	// Wait for completion or error
+	select {
+	case <-doneCh:
+		fmt.Println("Successfully reset and refilled IndexedDB with recent events")
+		return nil
+	case err := <-errCh:
+		fmt.Printf("Error resetting and refilling IndexedDB: %s\n", err)
+		return err
+	}
+}
+
 // LoadFromPersistentStorage loads pre-processed events from IndexedDB to the in-memory database
 func (db *NostrDB) LoadFromPersistentStorage(source string) error {
 	db.Lock()
@@ -439,34 +593,26 @@ func (db *NostrDB) LoadFromPersistentStorage(source string) error {
 					// Pre-allocate the slice with the right capacity
 					allEvents := make([]ProcessedNostrEvent, 0, length)
 
-					// Process events in batches to avoid blocking the JS thread too long
-					const batchSize = 1000
+					const batchSize = 25000
 					numBatches := (length + batchSize - 1) / batchSize
 
 					for batchNum := 0; batchNum < numBatches; batchNum++ {
 						startIdx := batchNum * batchSize
 						endIdx := min(startIdx+batchSize, length)
 
-						// Process this batch
-						for i := startIdx; i < endIdx; i++ {
-							jsEvent := events.Index(i)
+						// Process this batch all at once
+						jsEventsBatch := events.Call("slice", startIdx, endIdx)
 
-							// Convert JS object to JSON string
-							jsonStr := global.Get("JSON").Call("stringify", jsEvent).String()
-							var event ProcessedNostrEvent
-							if err := json.Unmarshal([]byte(jsonStr), &event); err != nil {
-								console.Call("error", "Error unmarshaling event:", err.Error())
-								continue
-							}
+						// Convert the entire JS array to a JSON string in one operation
+						batchJsonStr := global.Get("JSON").Call("stringify", jsEventsBatch).String()
 
-							allEvents = append(allEvents, event)
-						}
-
-						// Yield to the JavaScript event loop periodically
-						if batchNum < numBatches-1 {
-							global.Call("setTimeout", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
-								return nil
-							}), 0)
+						// Unmarshal the entire batch at once into a Go slice
+						var batchEvents []ProcessedNostrEvent
+						if err := json.Unmarshal([]byte(batchJsonStr), &batchEvents); err != nil {
+							console.Call("error", "Error unmarshaling batch of events:", err.Error())
+						} else {
+							// If successful, append all the batch events at once
+							allEvents = append(allEvents, batchEvents...)
 						}
 					}
 

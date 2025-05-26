@@ -9,6 +9,7 @@
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import Content from '../explore/_post/content.svelte';
 	import { key } from 'src/controller';
+	import { go } from '../modals/modal';
 
 	export let post: ProcessedNotification;
 	export let visible: boolean;
@@ -96,25 +97,22 @@
 					{formatTime(post.parsed.events[0].created_at)}
 				</div>
 			</div>
-
 			<!-- Original post summary -->
 			{#if originalPost}
-				<div class="bg-gray-50 p-3 rounded-md mb-3 text-sm text-gray-700 line-clamp-2 w-post-1">
+				<a
+					class="cursor-pointer bg-base-content p-3 rounded-md mb-3 text-sm text-primary-content line-clamp-2 w-post-1"
+					on:click={() => go(`nevent:${originalPost.id}`)}
+				>
 					<!-- {originalPost.content.slice(0, 100)}... -->
-					<Content
-						parsedContent={originalPost.parsed?.parsedContent}
-						showMedia={false}
-						showQuote={false}
-						{context}
-					/>
-				</div>
+					<Content note={originalPost} showMedia={false} showQuote={false} depth={1} {context} />
+				</a>
 			{/if}
 
 			<!-- Author avatars -->
 			<div class="flex -space-x-2 mb-3">
 				{#each post.parsed.events.slice(0, 5) as event}
 					<a href="/{event.pubkey}" class="relative z-0 hover:z-10">
-						<Avatar pubkey={event.pubkey} query={false} {context} />
+						<Avatar pubkey={event.pubkey} {context} />
 					</a>
 				{/each}
 				{#if post.parsed.events.length > 5}
@@ -147,15 +145,15 @@
 									<span class="font-medium text-sm">
 										<User pubkey={event.pubkey} link={false} {context} />
 									</span>
-									<span class="text-xs text-gray-500">{formatTime(event.created_at)}</span>
+									<span class="text-xs">{formatTime(event.created_at)}</span>
 								</div>
-								<p class="text-sm text-gray-700">{event.content}</p>
+								<p class="text-sm">{event.content}</p>
 							</div>
 						</div>
 					{/each}
 
 					{#if post.parsed.events.length > 6}
-						<button class="text-xs text-blue-600 hover:underline">
+						<button class="text-xs hover:underline">
 							View all {post.parsed.events.length} replies
 						</button>
 					{/if}
@@ -165,7 +163,7 @@
 			<!-- Toggle button -->
 			{#if post.parsed.events.length > 1}
 				<button
-					class="mt-2 text-xs text-blue-600 hover:underline flex items-center gap-1"
+					class="mt-2 text-xs hover:underline flex items-center gap-1"
 					on:click={toggleExpanded}
 				>
 					{expanded ? 'Show less' : 'Show more'}

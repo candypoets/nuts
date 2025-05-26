@@ -34,6 +34,9 @@
 				'user_' + pubkey + '_' + _.random(10000),
 				[{ kinds: [0], authors: [pubkey], limit: 1, cacheFirst: true, relays }],
 				(events: ParsedEvent<AnyKind>[], type: SubscribeKind) => {
+					if (type == 'EOSE') {
+						return;
+					}
 					const [event, ...context] = events;
 					if (isKind0(event)) {
 						user = event.parsed as Kind0Parsed;

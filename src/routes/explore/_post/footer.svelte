@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import { onDestroy, onMount } from 'svelte';
+	import { getContext, onDestroy, onMount } from 'svelte';
 	import { kinds, type EventTemplate } from 'nostr-tools';
 
 	import EmojiPickerContent from 'src/components/EmojiPickerContent.svelte';
@@ -30,6 +30,8 @@
 	$: relays = getRelaysFromNote(note);
 
 	let reactions: ParsedEvent<Kind7Parsed>[] = [];
+
+	let isImageContext = getContext('imageContext');
 	// replies are exported back to the parent, if the parent decides to show some
 	export let replies: ParsedEvent<Kind1Parsed>[] = [];
 	let reposts: ParsedEvent<Kind6Parsed>[] = [];
@@ -157,7 +159,7 @@
 				class="flex items-center space-x-1 hover:font-bold hover:text-accent hover:-mt-1 transition-all"
 				class:text-primary={!!replied}
 				class:font-semibold={!!replied}
-				on:click={() => ($replying = true)}
+				on:click={() => ($replying = !isImageContext)}
 				role="button"
 				tabindex="0"
 			>

@@ -4,7 +4,7 @@
 	import Icon from '@iconify/svelte';
 	import { formatDistanceToNow } from 'date-fns';
 	import _ from 'lodash';
-	import { onMount } from 'svelte';
+	import { getContext, onMount } from 'svelte';
 
 	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/types';
 	import { nostrManager, type SubscribeKind } from 'src/model/nostr';
@@ -17,6 +17,7 @@
 	export let oneline: boolean = true;
 
 	let author: Kind0Parsed | undefined;
+	let isImageContext = getContext('imageContext');
 	let sub: () => void;
 
 	onMount(() => {
@@ -29,8 +30,11 @@
 					'header_' + note.pubkey + '_' + _.random(10000),
 					[{ kinds: [0], authors: [note.pubkey], limit: 1, cacheFirst: true, relays: [] }],
 					(events: ParsedEvent<AnyKind>[], type: SubscribeKind) => {
+						if (type == 'EOSE') {
+							console.log('eose', events);
+							return;
+						}
 						const [event, ...context] = events;
-						if (type == 'EOSE') sub();
 						if (isKind0(event)) {
 							author = event.parsed as Kind0Parsed;
 							sub();
@@ -52,6 +56,7 @@
 	}
 
 	function go() {
+		if (isImageContext) return;
 		const currentPath = $page.url.pathname;
 		const profilePath = `nprofile:${note.pubkey}`;
 
@@ -75,7 +80,7 @@
 		</a>
 	</div>
 	<div class="w-full">
-		<div class="flex items-start" class:items-center={oneline}>
+		<div class="flex items-start" class:flex-wrap={isImageContext} class:items-center={oneline}>
 			{#if oneline}
 				<a on:click|stopPropagation|preventDefault={go} class="hover:underline cursor-pointer">
 					<div class="whitespace-nowrap overflow-hidden text-ellipsis font-semibold">

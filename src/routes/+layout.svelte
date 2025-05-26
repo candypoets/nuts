@@ -27,6 +27,7 @@
 	import type { ParsedEvent } from 'src/types';
 	import { key } from 'src/controller';
 	import Debug from 'src/components/Debug.svelte';
+	import ImageZoom from 'src/components/ImageZoom.svelte';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
 
@@ -72,7 +73,10 @@
 					cacheFirst: true
 				}
 			],
-			(events: ParsedEvent<unknown>[]) => {
+			(events: ParsedEvent<unknown>[], kind: SubscribeKind) => {
+				if (kind == 'EOSE') {
+					return;
+				}
 				// the first event is from the sub, everything else is contextual
 				const event = events[0];
 				if (!event) return;
@@ -114,6 +118,7 @@
 		);
 
 	function handleProfileEvents(events: ParsedEvent<AnyKind>[], eventType: SubscribeKind) {
+		if (eventType == 'EOSE') return;
 		const [event, ...context] = events;
 		if (isKind0(event) && event.created_at > ($kind0?.created_at || 0)) $kind0 = event;
 		if (isKind3(event) && event.created_at > ($kind3?.created_at || 0)) $kind3 = event;
@@ -248,7 +253,7 @@
 </svelte:head>
 
 <Debug />
-
+<ImageZoom />
 {#if !homepage}
 	<Statuses />
 	<Alert />
@@ -327,7 +332,7 @@
 		<!-- Bottom Navigation -->
 		<!-- <MobileNav activeIndex={activePageIndex} />
 		<DesktopNav /> -->
-		<Theme />
+		<!-- <Theme /> -->
 	{:else}
 		<Login />
 	{/if}

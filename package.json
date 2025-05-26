@@ -80,6 +80,7 @@
 		"date-fns": "^4.1.0",
 		"dexie": "^4.0.8",
 		"emoji-picker-element": "^1.26.1",
+		"fuse.js": "^7.1.0",
 		"light-bolt11-decoder": "^3.2.0",
 		"lightning-invoice": "^0.2.1",
 		"link-preview-js": "^3.0.5",

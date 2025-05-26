@@ -10,6 +10,7 @@
 
 	export let getItemId;
 	export let backdrop;
+	export let loading;
 
 	let foo;
 
@@ -57,7 +58,7 @@
 				row = rows[i - start];
 			}
 
-			const row_height = (height_map[i] = itemHeight || row.offsetHeight);
+			const row_height = (height_map[i] = itemHeight || row?.offsetHeight) || 200;
 			content_height += row_height;
 			i += 1;
 		}
@@ -71,8 +72,17 @@
 		height_map.length = items.length;
 	}
 
+	let lastScrollTop = top;
+
+	export let down = true;
+
 	async function handle_scroll() {
 		const { scrollTop } = viewport;
+
+		down = scrollTop > lastScrollTop ? true : false;
+
+		lastScrollTop = scrollTop;
+
 		// console.log('scrollTop', scrollTop, items, rows);
 
 		const old_start = start;
@@ -155,8 +165,8 @@
 	bind:this={viewport}
 	bind:offsetHeight={viewport_height}
 	on:scroll={handle_scroll}
-	class={className}
-	style="height: {height}; max-height: 100vh;"
+	class={'max-h-screen ' + className || ''}
+	style="height: {height};"
 >
 	<svelte-virtual-list-contents
 		bind:this={contents}
@@ -172,6 +182,27 @@
 				<slot item={row.data}>Missing template</slot>
 			</svelte-virtual-list-row>
 		{/each}
+		{#if loading}
+			{#each Array(8) as _, index (index)}
+				<slot name="loading-item">
+					<div class="lg:hover:bg-base-200 rounded-md pt-2 px-1 mb-4 first:pt-16">
+						<div class="flex items-center mb-2">
+							<div class="w-10 h-10 rounded-full shimmer"></div>
+							<div class="ml-2 flex-grow">
+								<div class="h-4 rounded w-1/4 shimmer"></div>
+								<div class="h-3 rounded w-1/3 mt-1 shimmer"></div>
+							</div>
+						</div>
+						<div class="h-16 rounded shimmer"></div>
+						<div class="flex justify-between mt-2">
+							<div class="h-4 rounded w-1/6 shimmer"></div>
+							<div class="h-4 rounded w-1/6 shimmer"></div>
+							<div class="h-4 rounded w-1/6 shimmer"></div>
+						</div>
+					</div>
+				</slot>
+			{/each}
+		{/if}
 	</svelte-virtual-list-contents>
 </svelte-virtual-list-viewport>
 

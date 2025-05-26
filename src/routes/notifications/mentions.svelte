@@ -60,7 +60,7 @@
 	$: visible ? subscribe() : unsubscribe();
 </script>
 
-<div class="border-b shadow-sm border border-gray-100 p-4 mb-4 transition-colors">
+<div class="border-b shadow-sm border-gray-100 p-4 mb-4 transition-colors">
 	<div class="flex items-start gap-3">
 		<!-- Icon -->
 		<div class="bg-purple-100 p-2 rounded-full flex-shrink-0">
@@ -71,7 +71,7 @@
 		<div class="flex-grow">
 			<!-- Header with mention count -->
 			<div class="flex justify-between items-center mb-2">
-				<div class="font-medium text-gray-800">
+				<div class="font-medium">
 					{post.parsed.events.length === 1
 						? 'You were mentioned in a post'
 						: `You were mentioned in ${post.parsed.events.length} posts`}
@@ -82,7 +82,7 @@
 			</div>
 
 			<!-- Latest mention preview -->
-			<div class="bg-gray-50 p-3 rounded-md mb-3">
+			<div class="bg-base-100 p-3 rounded-md mb-3">
 				<div class="flex items-start gap-2 mb-1">
 					<Avatar pubkey={post.parsed.events[0].pubkey} query={false} {context} />
 					<div>
@@ -95,7 +95,7 @@
 							</span>
 						</div>
 						<p class="text-sm text-gray-700 w-post-2 overflow-hidden">
-							<Content parsedContent={post.parsed.events?.[0]?.parsed?.parsedContent} {context} />
+							<Content note={post.parsed.events?.[0]} {context} />
 						</p>
 					</div>
 				</div>
