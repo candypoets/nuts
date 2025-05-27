@@ -42,6 +42,10 @@
 					<span class="font-mono">{$debug.cpu}</span>
 				</div>
 				<div class="flex justify-between items-center text-xs">
+					<span class="text-accent">Connections:</span>
+					<span class="font-mono">{$debug.connections}</span>
+				</div>
+				<div class="flex justify-between items-center text-xs">
 					<span class="text-success">Active Subscriptions:</span>
 					<span class="font-mono">{$debug.subscriptions}</span>
 				</div>

@@ -22,7 +22,7 @@
 		{
 			kinds: [1],
 			authors: [pubkey],
-			limit: 500
+			limit: 100
 		}
 	];
 	let timeout: NodeJS.Timeout | undefined;

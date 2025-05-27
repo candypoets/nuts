@@ -527,7 +527,7 @@ func (sm *SubscriptionManager) findContext(subscriptionID string, parsedEvent ty
 			// loop over the requests, and keep only those that return no result from the cache
 			for _, request := range *subEvent.Requests {
 				events, _ := sm.database.QueryEvents(request.ToFilter())
-				if len(events) > 0 {
+				if len(events) > 0 && sm.subscriptions[subscriptionID] != nil {
 					eventSlice := append(*sm.subscriptions[subscriptionID].Sent[parsedEvent.ID], events...)
 					sm.subscriptions[subscriptionID].Sent[parsedEvent.ID] = &eventSlice
 					// Loop through all events

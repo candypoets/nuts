@@ -23,9 +23,10 @@ const debugMode = true
 
 // Global instances that will be exposed to JavaScript
 var (
-	nostrParser *parser.Parser
-	nostrSigner *signer.SignerManager
-	subManager  *network.SubscriptionManager
+	nostrParser  *parser.Parser
+	nostrSigner  *signer.SignerManager
+	subManager   *network.SubscriptionManager
+	relayManager *relays.RelayConnectionManager
 )
 
 var defaultRelays = []string{"wss://relay.snort.social", "wss://relay.damus.io", "wss://relay.primal.net"}
@@ -33,15 +34,18 @@ var indexerRelays = []string{"wss://user.kindpag.es", "wss://relay.nos.social", 
 
 func trackGoroutines(m *runtime.MemStats) {
 	runtime.ReadMemStats(m)
-	eventData := map[string]any{
-		"type":          "DEBUG",
-		"goroutines":    runtime.NumGoroutine(),
-		"cpu":           m.Alloc / 1024,
-		"subscriptions": subManager.GetActiveSubscriptionCount(),
+	if relayManager != nil {
+		eventData := map[string]any{
+			"type":          "DEBUG",
+			"goroutines":    runtime.NumGoroutine(),
+			"cpu":           m.Alloc / 1024,
+			"connections":   relayManager.GetConnectionCount(),
+			"subscriptions": subManager.GetActiveSubscriptionCount(),
+		}
+		// Post message back to JavaScript
+		js.Global().Get("self").Call("postMessage", eventData)
 	}
 
-	// Post message back to JavaScript
-	js.Global().Get("self").Call("postMessage", eventData)
 }
 
 // Call periodically to monitor
@@ -59,7 +63,7 @@ func Initialize() {
 	logger.Initialize(false)
 	nostrDb := db.InitNostrDB()
 	signerManager := signer.NewSignerManager()
-	relayManager := relays.NewRelayConnectionManager(10*time.Second, 3)
+	relayManager = relays.NewRelayConnectionManager(10*time.Second, 3)
 	nostrParser = parser.NewParser(nostrDb, signerManager, relayManager, defaultRelays, indexerRelays)
 	// Initialize managers
 	subManager = network.NewSubscriptionManager(nostrDb, nostrParser, relayManager)

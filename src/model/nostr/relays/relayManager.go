@@ -85,12 +85,20 @@ func (rcm *RelayConnectionManager) PickRandomRelay() *nostr.Relay {
 
 // NewRelayConnectionManager creates a new relay connection manager
 func NewRelayConnectionManager(connectTimeout time.Duration, maxRetries int) *RelayConnectionManager {
-	return &RelayConnectionManager{
+	rcm := &RelayConnectionManager{
 		connections:    make(map[string]*RelayConnection),
 		connectTimeout: connectTimeout,
 		maxRetries:     maxRetries,
 		log:            logger.WithComponent("relay_manager"),
 	}
+
+	go func() {
+		for {
+			time.Sleep(2 * time.Second)
+			rcm.CleanupIdleConnections(connectTimeout)
+		}
+	}()
+	return rcm
 }
 
 // GetRelay returns an existing connection or initiates a new one
@@ -355,7 +363,7 @@ func (rcm *RelayConnectionManager) ReleaseRelay(url string) {
 		conn.Subscribers = 0
 	}
 
-	// No immediate closing, CleanupIdleConnections handles that
+	// If no subscribers, close immediately
 }
 
 // CleanupIdleConnections closes connections that haven't been used recently
@@ -366,13 +374,13 @@ func (rcm *RelayConnectionManager) CleanupIdleConnections(idleTimeout time.Durat
 	now := time.Now()
 	rcm.log.Debug().Msg("Running idle connection cleanup")
 	cleanedCount := 0
+
 	for url, conn := range rcm.connections {
 		// Close connections that are idle (Connected or Failed) and have no subscribers
 		// We also clean up Failed connections eventually if they have no subscribers
-		isIdle := now.Sub(conn.LastUsed) > idleTimeout
 		canCleanup := conn.Subscribers <= 0 && (conn.Status == RelayStatusConnected || conn.Status == RelayStatusFailed)
 
-		if isIdle && canCleanup {
+		if canCleanup {
 			rcm.log.Info().Str("relay", url).Dur("idle_duration", now.Sub(conn.LastUsed)).Msg("Closing idle/unused connection")
 			if conn.Relay != nil {
 				conn.Relay.Close() // Safe to call Close multiple times or on nil
@@ -391,6 +399,7 @@ func (rcm *RelayConnectionManager) CleanupIdleConnections(idleTimeout time.Durat
 		}
 	}
 	if cleanedCount > 0 {
+		println("Cleanup idle connections", cleanedCount)
 		rcm.log.Debug().Int("cleaned_count", cleanedCount).Msg("Idle connection cleanup finished")
 	}
 }
