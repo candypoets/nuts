@@ -57,6 +57,8 @@
 
 	// Update the tweened value when depth changes
 	$: subDepth.set(subs.length * 30); // 10px per depth level
+
+	$: console.log(modals);
 </script>
 
 <div

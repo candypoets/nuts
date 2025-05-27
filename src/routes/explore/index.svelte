@@ -51,7 +51,7 @@
 		<svelte:fragment slot="sticky-header" let:newPosts>
 			<div
 				id={$page.url.pathname === '/explore' ? 'top' : undefined}
-				class="backdrop-blur border-b border-base-200"
+				class="backdrop-blur border-b border-base-200 unsafe-padding-top"
 			>
 				<div class="flex justify-between w-feed lg:m-auto h-16 items-center">
 					<h1 class="text-2xl font-semibold flex gap-2 items-center">
@@ -92,7 +92,10 @@
 			</div>
 		</svelte:fragment>
 		<svelte.fragment slot="header">
-			<div class="relative" id={$page.url.pathname === '/explore' ? 'top' : undefined}>
+			<div
+				class="relative unsafe-padding-top unsafe-padding-top"
+				id={$page.url.pathname === '/explore' ? 'top' : undefined}
+			>
 				<div class="w-feed lg:m-auto flex justify-between h-16 items-center">
 					<h1 class="text-2xl font-semibold flex gap-2 items-center">
 						<span class="cursor-pointer" on:click|stopPropagation={() => go('notifications')}>

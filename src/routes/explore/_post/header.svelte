@@ -89,7 +89,7 @@
 				</a>
 				{#if author?.nip05}
 					<Icon icon="bitcoin-icons:verify-filled" class="inline text-lg text-primary" />
-					<p class="text-xs opacity-50">{author?.nip05}</p>
+					<p class="text-xs opacity-50 lg:inline hidden">{author?.nip05}</p>
 				{/if}
 			{:else}
 				<div class="flex-grow">

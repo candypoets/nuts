@@ -11,10 +11,6 @@
 	/* --tw-border-opacity: 0.1; */
 }
 
-.hscroll-container {
-	z-index: 100;
-}
-
 @font-face {
 	font-family: 'm6x';
 	src: url('/m6x11plus.ttf') format('truetype');
@@ -46,10 +42,6 @@
 #top {
 	opacity: 1;
 	animation: all 0.5s;
-}
-
-#vaul {
-	/* view-transition-name: vaul; */
 }
 
 .bg-basic {
@@ -113,6 +105,10 @@
 
 .safe-padding-top {
 	padding-top: env(safe-area-inset-top);
+}
+
+.unsafe-padding-top {
+	padding-top: calc(env(safe-area-inset-top) - 1rem);
 }
 
 .reply-height {
@@ -225,23 +221,28 @@
 }
 
 .w-feed {
-	width: 100%;
+	width: 100vw;
+}
+
+.w-feed-container {
+	width: 100vw;
+	padding: 0 0.5rem;
 }
 
 .w-post {
-	width: calc(100% - var(--post-offset));
+	width: calc(99vw - var(--post-offset));
 }
 
 .w-post-1 {
-	width: calc(100% - (var(--post-offset) + (1 * var(--depth-offset))));
+	width: calc(99vw - (var(--post-offset) + (1 * var(--depth-offset))));
 }
 
 .w-post-2 {
-	width: calc(100% - (var(--post-offset) + (2 * var(--depth-offset))));
+	width: calc(99vw - (var(--post-offset) + (2 * var(--depth-offset))));
 }
 
 .w-post-3 {
-	width: calc(100% - (var(--post-offset) + (3 * var(--depth-offset))));
+	width: calc(99vw - (var(--post-offset) + (3 * var(--depth-offset))));
 }
 
 @media (min-width: 640px) {

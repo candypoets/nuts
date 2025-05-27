@@ -36,6 +36,15 @@
 	const pages = ['/home', '/explore', '/chat'];
 	let currentIndex = 0;
 
+	// Reactive variable for scroller width
+	$: scrollerWidth = scroller?.clientWidth + 20 || 0;
+
+	// Touch gesture variables
+	let touchStartX = 0;
+	let touchStartY = 0;
+	let isSwiping = false;
+	let startXPosition = 0;
+
 	// Create a spring store for smooth animations
 	const xPosition = spring(0, {
 		stiffness: 0.1,
@@ -161,7 +170,10 @@
 
 	function setViewport() {
 		document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
-		document.documentElement.style.setProperty('--vw', `${window.innerWidth * 0.01}px`);
+		document.documentElement.style.setProperty(
+			'--vw',
+			`${document.documentElement.clientWidth * 0.01}px`
+		);
 
 		$viewport.vw = window.innerWidth * 0.01;
 		$viewport.vh = window.innerHeight * 0.01;
@@ -202,8 +214,60 @@
 
 		goto(pages[index]);
 		// Update scroll and position stores
-		$scrollPosition = (currentIndex * scroller.offsetWidth) / 2;
-		$xPosition = currentIndex * (scroller?.offsetWidth || 0);
+		$scrollPosition = (currentIndex * scrollerWidth) / 2;
+		$xPosition = currentIndex * scrollerWidth;
+	}
+
+	function handleTouchStart(e: TouchEvent) {
+		touchStartX = e.touches[0].clientX;
+		touchStartY = e.touches[0].clientY;
+		isSwiping = false;
+		startXPosition = $xPosition;
+	}
+
+	function handleTouchMove(e: TouchEvent) {
+		if (!scroller) return;
+
+		const touchCurrentX = e.touches[0].clientX;
+		const touchCurrentY = e.touches[0].clientY;
+		const deltaX = touchCurrentX - touchStartX;
+		const deltaY = touchCurrentY - touchStartY;
+
+		// Only consider horizontal swipes (more horizontal than vertical movement)
+		if (Math.abs(deltaX) > Math.abs(deltaY)) {
+			isSwiping = true;
+			// Cancel horizontal scrolling
+			e.preventDefault();
+			// Update xPosition with swipe movement
+			xPosition.set(startXPosition - deltaX, { hard: true });
+		}
+	}
+
+	function handleTouchEnd(e: TouchEvent) {
+		if (!scroller || !isSwiping) return;
+
+		const touchEndX = e.changedTouches[0].clientX;
+		const deltaX = touchEndX - touchStartX;
+		const containerWidth = scroller.offsetWidth;
+
+		// Determine if we should move to next/previous page
+		if (Math.abs(deltaX) > containerWidth / 3) {
+			if (deltaX > 0 && currentIndex > 0) {
+				// Swipe right - go to previous page
+				moveToIndex(currentIndex - 1);
+			} else if (deltaX < 0 && currentIndex < pages.length - 1) {
+				// Swipe left - go to next page
+				moveToIndex(currentIndex + 1);
+			} else {
+				// At boundary, snap back to current position
+				xPosition.set(currentIndex * containerWidth);
+			}
+		} else {
+			// Swipe wasn't far enough, snap back to current position
+			xPosition.set(currentIndex * containerWidth);
+		}
+
+		isSwiping = false;
 	}
 
 	// Add and remove event listener
@@ -211,15 +275,15 @@
 		window.addEventListener('keydown', handleKeydown);
 		// Set up initial index based on route, but wait for scroller to be available
 		const initializePositions = () => {
-			if (!scroller || !scroller.offsetWidth) {
+			if (!scroller || !scrollerWidth) {
 				// If scroller isn't ready yet, try again in the next frame
 				window.requestAnimationFrame(initializePositions);
 				return;
 			}
 			function setPosition(index: number) {
 				currentIndex = index;
-				scrollPosition.set((currentIndex * scroller.offsetWidth) / 2, { hard: true });
-				xPosition.set(index * scroller.offsetWidth, { hard: true });
+				scrollPosition.set((currentIndex * scrollerWidth) / 2, { hard: true });
+				xPosition.set(index * scrollerWidth, { hard: true });
 			}
 
 			// Determine the index based on the current route
@@ -243,9 +307,9 @@
 		return () => window.removeEventListener('keydown', handleKeydown);
 	});
 
-	$: transform0 = getTransformRatio(0, $xPosition, scroller?.offsetWidth || 0);
-	$: transform1 = getTransformRatio(1, $xPosition, scroller?.offsetWidth || 0);
-	$: transform2 = getTransformRatio(2, $xPosition, scroller?.offsetWidth || 0);
+	$: transform0 = getTransformRatio(0, $xPosition, scrollerWidth);
+	$: transform1 = getTransformRatio(1, $xPosition, scrollerWidth);
+	$: transform2 = getTransformRatio(2, $xPosition, scrollerWidth);
 </script>
 
 <svelte:head>
@@ -261,9 +325,9 @@
 		<div
 			class="flex gap-2 overflow-hidden relative will-change-scroll"
 			bind:this={scroller}
-			on:touchmove={(e) => {
-				$xPosition = scroller.scrollLeft;
-			}}
+			on:touchstart={handleTouchStart}
+			on:touchmove={handleTouchMove}
+			on:touchend={handleTouchEnd}
 			style="transform-style: preserve-3d; perspective: 1000px;"
 		>
 			<!-- Home Section -->

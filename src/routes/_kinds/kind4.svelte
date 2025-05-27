@@ -157,7 +157,7 @@
 		</div>
 	</svelte:fragment>
 	<svelte:fragment slot="header">
-		<div class="h-24" />
+		<div class="h-24 unsafe-padding-top" />
 	</svelte:fragment>
 	<svelte:fragment slot="item-content" let:post let:context let:visible>
 		<Message message={post} {context} />

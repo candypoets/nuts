@@ -72,7 +72,7 @@
 >
 	<svelte:fragment slot="header">
 		<div>
-			<div class="px-4 pt-4 flex justify-between">
+			<div class="px-4 pt-4 flex justify-between unsafe-padding-top">
 				<div on:click={goBack}>
 					<Icon icon="mingcute:down-line" class="text-xl" />
 				</div>

@@ -52,11 +52,12 @@
 				)}
 				on:click|preventDefault|stopPropagation={() => setZoom(i)}
 				src={link.src.toString()}
-				controls
 				muted
 				autoplay
 				loop
-				loading="lazy"
+				playsinline
+				webkit-playsinline
+				disablePictureInPicture
 			/>
 		{:else}
 			<img

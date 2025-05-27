@@ -157,7 +157,7 @@
 			</div>
 		</svelte:fragment>
 		<svelte:fragment slot="header">
-			<div class="flex justify-between w-feed m-auto h-16 items-center">
+			<div class="flex unsafe-padding-top justify-between w-feed m-auto h-16 items-center">
 				<h1 class="text-2xl font-semibold">Chat</h1>
 			</div>
 		</svelte:fragment>

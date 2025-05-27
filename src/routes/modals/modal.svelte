@@ -29,6 +29,60 @@
 
 	let element: HTMLElement;
 
+	// Touch gesture variables
+	let touchStartX = 0;
+	let touchStartY = 0;
+	let isSwiping = false;
+
+	// Tweened store for smooth swipe animation
+	const swipeTranslateY = tweened(0, {
+		duration: 300,
+		easing: cubicOut
+	});
+
+	function handleTouchStart(e: TouchEvent) {
+		touchStartX = e.touches[0].clientX;
+		touchStartY = e.touches[0].clientY;
+		isSwiping = false;
+		swipeTranslateY.set(0);
+	}
+
+	function handleTouchMove(e: TouchEvent) {
+		if (!element) return;
+
+		const touchCurrentX = e.touches[0].clientX;
+		const touchCurrentY = e.touches[0].clientY;
+		const deltaX = touchCurrentX - touchStartX;
+		const deltaY = touchCurrentY - touchStartY;
+
+		// Only consider vertical swipes (more vertical than horizontal movement)
+		if (Math.abs(deltaY) > Math.abs(deltaX) && deltaY > 0) {
+			isSwiping = true;
+			// Cancel vertical scrolling
+			e.preventDefault();
+			// Apply visual feedback - move container with swipe
+			swipeTranslateY.set(Math.max(0, deltaY), { duration: 0 });
+		}
+	}
+
+	function handleTouchEnd(e: TouchEvent) {
+		if (!element || !isSwiping) return;
+
+		const touchEndY = e.changedTouches[0].clientY;
+		const deltaY = touchEndY - touchStartY;
+		const containerHeight = element.offsetHeight;
+
+		// Trigger goBack if swipe distance is more than 1/3 of container height
+		if (deltaY > containerHeight / 3) {
+			goBack();
+		} else {
+			// Gently animate back to original position
+			swipeTranslateY.set(0);
+		}
+
+		isSwiping = false;
+	}
+
 	// Create a tweened store for the depth-based translation
 	const depthTranslation = tweened(0, {
 		duration: 400,
@@ -49,6 +103,8 @@
 	$: depthTranslation.set(depth * 30); // 10px per depth level (adjust as needed)
 	$: depthScale.set(Math.max(0.85, 1 - depth * 0.05)); // Reduce scale by 5% per depth level, min 85%
 	$: depthOpacity.set(Math.max(0.3, 1 - depth * 0.3)); // Reduce opacity by 20% per depth level, min 50%
+
+	$: console.log('path', path);
 </script>
 
 <div
@@ -61,8 +117,11 @@
 >
 	<div
 		class="m-auto relative overflow-hidden w-feed h-full"
-		style="transform: translateY({-$depthTranslation}px) scale({$depthScale});"
+		style="transform: translateY({-$depthTranslation + $swipeTranslateY}px) scale({$depthScale});"
 		on:click|stopPropagation
+		on:touchstart|stopPropagation={handleTouchStart}
+		on:touchmove|stopPropagation={handleTouchMove}
+		on:touchend|stopPropagation={handleTouchEnd}
 	>
 		{#if path.includes('receive')}
 			<Topup />

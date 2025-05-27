@@ -20,8 +20,10 @@
 			depth = modals.filter((m) => !m.startsWith('minted')).length;
 		}
 	}
+
+	$: console.log('modals: ', rootPath, modals);
 </script>
 
-{#each modals as sub, index}
+{#each modals as sub, index (sub)}
 	<Modal path={sub} {visible} depth={modals.length - 1 - index} />
 {/each}
