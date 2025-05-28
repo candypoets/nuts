@@ -136,6 +136,10 @@
 	// Watch for route changes
 	onMount(() => {
 		setViewport();
+		if (localStorage.getItem('theme')) {
+			let theme = localStorage.getItem('theme');
+			document.getElementsByTagName('html')[0].setAttribute('data-theme', theme);
+		}
 		let mintSub = cashuManager.subscribe('quote_update', async ({ quoteId, state, mint, type }) => {
 			if (type == 'mint') {
 				if (state == 'paid') {

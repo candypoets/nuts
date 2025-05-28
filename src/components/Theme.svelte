@@ -6,14 +6,7 @@
 	import Icon from '@iconify/svelte';
 	let theme = 'dark';
 
-	onMount(() => {
-		if (localStorage.getItem('theme')) {
-			theme = localStorage.getItem('theme');
-			document
-				.getElementsByTagName('html')[0]
-				.setAttribute('data-theme', localStorage.getItem('theme'));
-		}
-	});
+	onMount(() => {});
 
 	$: {
 		if (browser) {
