@@ -38,8 +38,6 @@ func NewSignerManager() *SignerManager {
 	componentLogger := logger.WithComponent("signer")
 
 	callback := js.FuncOf(func(this js.Value, args []js.Value) any {
-		println("cb")
-		println("callback", args[0].String())
 		// args[0] = event type
 		// args[1] = event data (if available)
 		eventData := map[string]any{
@@ -71,27 +69,21 @@ func NewSignerManager() *SignerManager {
 
 // jsSignEvent handles signing event requests from JavaScript
 func (sm *SignerManager) jsSignEvent(this js.Value, args []js.Value) any {
-	println("signEvent")
 	if len(args) < 1 {
 		return js.Error{Value: js.ValueOf("Not enough arguments for signEvent")}
 	}
-	println("signing")
 	binaryData := args[0]
-	println("sig")
 	// Convert JS Uint8Array to Go []byte
 	length := binaryData.Length()
 	goBytes := make([]byte, length)
 	js.CopyBytesToGo(goBytes, binaryData)
 
-	println("sug")
 	// Deserialize the binary data
 	var event nostr.Event
 	if err := msgpack.Unmarshal(goBytes, &event); err != nil {
 		println("err")
 		return js.Error{Value: js.ValueOf("Failed to parse binary data: " + err.Error())}
 	}
-
-	println("sog", event.Kind)
 
 	// Sign the event using the manager
 	go sm.SignEvent(&event)
@@ -118,7 +110,6 @@ func (sm *SignerManager) jsSetSigner(this js.Value, args []js.Value) any {
 	if !args[1].IsUndefined() && !args[1].IsNull() {
 		signerData = args[1].String()
 	}
-	println("signerData", signerData)
 	// Set the signer
 	err := sm.SetSigner(signerType, signerData)
 	if err != nil {
@@ -159,7 +150,6 @@ func (sm *SignerManager) SignEvent(event *nostr.Event) error {
 
 	// Copy the Go bytes to the JavaScript Uint8Array
 	js.CopyBytesToJS(uint8Array, pack)
-	println("invoke")
 	sm.callback.Invoke("SIGNED", uint8Array)
 
 	return nil
@@ -195,7 +185,6 @@ func (sm *SignerManager) SetSigner(signerType SignerType, signerData string) err
 
 	switch signerType {
 	case SignerTypePrivKey:
-		println("setting up new signer")
 		newSigner, err = NewPrivateKeySigner(signerData)
 		if err != nil {
 			return fmt.Errorf("failed to create private key signer: %w", err)
