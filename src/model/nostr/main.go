@@ -13,6 +13,7 @@ import (
 	"github.com/candypoets/nutscash/nostr/db"
 	"github.com/candypoets/nutscash/nostr/logger"
 	"github.com/candypoets/nutscash/nostr/network"
+	"github.com/candypoets/nutscash/nostr/network/subscriptions"
 	"github.com/candypoets/nutscash/nostr/parser"
 	"github.com/candypoets/nutscash/nostr/relays"
 	"github.com/candypoets/nutscash/nostr/signer"
@@ -25,7 +26,7 @@ const debugMode = true
 var (
 	nostrParser  *parser.Parser
 	nostrSigner  *signer.SignerManager
-	subManager   *network.SubscriptionManager
+	subManager   subscriptions.SubscriptionManager
 	relayManager *relays.RelayConnectionManager
 )
 
@@ -36,11 +37,10 @@ func trackGoroutines(m *runtime.MemStats) {
 	runtime.ReadMemStats(m)
 	if relayManager != nil {
 		eventData := map[string]any{
-			"type":          "DEBUG",
-			"goroutines":    runtime.NumGoroutine(),
-			"cpu":           m.Alloc / 1024,
-			"connections":   relayManager.GetConnectionCount(),
-			"subscriptions": subManager.GetActiveSubscriptionCount(),
+			"type":        "DEBUG",
+			"goroutines":  runtime.NumGoroutine(),
+			"cpu":         m.Alloc / 1024,
+			"connections": relayManager.GetConnectionCount(),
 		}
 		// Post message back to JavaScript
 		js.Global().Get("self").Call("postMessage", eventData)
@@ -66,7 +66,7 @@ func Initialize() {
 	relayManager = relays.NewRelayConnectionManager(10*time.Second, 3)
 	nostrParser = parser.NewParser(nostrDb, signerManager, relayManager, defaultRelays, indexerRelays)
 	// Initialize managers
-	subManager = network.NewSubscriptionManager(nostrDb, nostrParser, relayManager)
+	subManager = subscriptions.NewSubscriptionManager(nostrDb, nostrParser, relayManager, subscriptions.DefaultConfig())
 	network.NewPublishManager(nostrDb, nostrParser, relayManager)
 	network.NewZapManager(nostrParser, nostrDb, []string{})
 
