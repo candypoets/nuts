@@ -15,14 +15,14 @@ import (
 type Parser struct {
 	DB            *db.NostrDB // Database connection
 	Signer        *signer.SignerManager
-	RelayManager  *relays.RelayConnectionManager
+	RelayManager  relays.RelayManager
 	DefaultRelays []string // Default relays to use if none are specified in the event
 	IndexerRelays []string
 	RelayHints    map[string][]string // Maps pubkey to relay hints
 }
 
 // NewParser creates a new Parser instance with the given database
-func NewParser(db *db.NostrDB, signerManager *signer.SignerManager, relayManager *relays.RelayConnectionManager, defaultRelays []string, indexerRelays []string) *Parser {
+func NewParser(db *db.NostrDB, signerManager *signer.SignerManager, relayManager relays.RelayManager, defaultRelays []string, indexerRelays []string) *Parser {
 	return &Parser{
 		DB:            db,
 		Signer:        signerManager,

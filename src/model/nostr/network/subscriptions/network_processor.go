@@ -5,6 +5,7 @@ package subscriptions
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -117,6 +118,23 @@ func (np *networkProcessor) processRelaySubscription(
 		case eventChan <- NetworkEvent{
 			Type:  NetworkEventTypeError,
 			Error: err,
+			Relay: relayURL,
+		}:
+		case <-ctx.Done():
+		}
+		return
+	}
+
+	// Check for nil relay connection
+	if relayConn == nil {
+		np.logger.Error().
+			Str("relay", relayURL).
+			Msg("Relay connection is nil")
+
+		select {
+		case eventChan <- NetworkEvent{
+			Type:  NetworkEventTypeError,
+			Error: fmt.Errorf("relay connection is nil for %s", relayURL),
 			Relay: relayURL,
 		}:
 		case <-ctx.Done():

@@ -27,7 +27,7 @@ var (
 	nostrParser  *parser.Parser
 	nostrSigner  *signer.SignerManager
 	subManager   subscriptions.SubscriptionManager
-	relayManager *relays.RelayConnectionManager
+	relayManager relays.RelayManager
 )
 
 var defaultRelays = []string{"wss://relay.snort.social", "wss://relay.damus.io", "wss://relay.primal.net"}

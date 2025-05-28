@@ -64,7 +64,7 @@ type PublishManager struct {
 	parser       *parser.Parser
 	mutex        sync.Mutex
 	operations   map[string]*PublishOperation
-	relayManager *relays.RelayConnectionManager
+	relayManager relays.RelayManager
 	log          zerolog.Logger
 	callback     js.Func
 	indexRelays  []string
@@ -73,7 +73,7 @@ type PublishManager struct {
 var pm = &PublishManager{}
 
 // NewPublishManager creates a new publish manager
-func NewPublishManager(database *db.NostrDB, parser *parser.Parser, relayManager *relays.RelayConnectionManager) *PublishManager {
+func NewPublishManager(database *db.NostrDB, parser *parser.Parser, relayManager relays.RelayManager) *PublishManager {
 	componentLogger := logger.WithComponent("publish")
 
 	callback := js.FuncOf(func(this js.Value, args []js.Value) any {
