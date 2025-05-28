@@ -35,7 +35,7 @@ func NewRelayConnectionManager(connectTimeout time.Duration, maxRetries int) Rel
 		maxRetries:     maxRetries,
 		log:            log,
 		cleanupStop:    make(chan struct{}),
-		cleanupTicker:  time.NewTicker(2 * time.Second),
+		cleanupTicker:  time.NewTicker(2 * time.Minute),
 	}
 
 	// Start cleanup routine

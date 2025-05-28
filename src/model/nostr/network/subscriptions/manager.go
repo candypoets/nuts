@@ -185,11 +185,13 @@ func (sm *subscriptionManager) processSubscription(subscription Subscription, re
 			Msg("Error processing local requests")
 	}
 
-	// Send cached events
-	// Mark cached events as sent
-	for _, events := range cachedEvents {
-		sm.sendCachedEvents(subscription, events)
-		subscription.MarkEventAsSent(events[0].ID, events)
+	// Send cached events in batch
+	if len(cachedEvents) > 0 {
+		sm.sendCachedEventsBatch(subscription, cachedEvents)
+		// Mark cached events as sent
+		for _, events := range cachedEvents {
+			subscription.MarkEventAsSent(events[0].ID, events)
+		}
 	}
 
 	// Send end of cached events
@@ -206,9 +208,22 @@ func (sm *subscriptionManager) processSubscription(subscription Subscription, re
 	}
 }
 
-// sendCachedEvents sends cached events to JavaScript
-func (sm *subscriptionManager) sendCachedEvents(subscription Subscription, events []types.ParsedEvent) {
-	sm.sendEventToJS(subscription.ID(), "CACHED_EVENT", &events)
+// sendCachedEventsBatch sends all cached events as a single batch to JavaScript
+func (sm *subscriptionManager) sendCachedEventsBatch(subscription Subscription, cachedEvents [][]types.ParsedEvent) {
+	// Pack all cached events into a single msgpack payload
+	pack, err := msgpack.Marshal(cachedEvents)
+	if err != nil {
+		sm.logger.Error().
+			Err(err).
+			Str("subscription_id", subscription.ID()).
+			Msg("Error marshaling cached events batch")
+		return
+	}
+
+	uint8Array := js.Global().Get("Uint8Array").New(len(pack))
+	js.CopyBytesToJS(uint8Array, pack)
+
+	sm.jsBridge.PostMessage("CACHED_EVENT", subscription.ID(), uint8Array)
 }
 
 // processNetworkSubscription handles network subscription processing

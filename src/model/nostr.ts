@@ -79,7 +79,7 @@ interface Zap {
 }
 
 export class NostrManager {
-	private worker: Worker;
+	private worker!: Worker;
 	private subscriptions: Map<string, Subscription> = new Map();
 	private zaps: Map<string, (result: string) => void> = new Map();
 	private signers: Map<string, (result: string | NostrEvent) => void> = new Map();
@@ -141,8 +141,8 @@ export class NostrManager {
 
 		switch (type) {
 			case 'CACHED_EVENT':
-				console.debug('Received cached events');
-				this.handleSubscriptionEvent(subscriptionId, eventData, 'CACHED_EVENT');
+				console.debug('Received cached events batch');
+				this.handleCachedEventsBatch(subscriptionId, eventData);
 				break;
 			case 'FETCHED_EVENT':
 				console.debug('Received fetched events');
@@ -286,6 +286,19 @@ export class NostrManager {
 		});
 	}
 
+	private handleCachedEventsBatch(subscriptionId: string, eventData: Uint8Array) {
+		const subscription = this.subscriptions.get(subscriptionId);
+		if (!subscription) return;
+
+		// Decode the entire batch once
+		const cachedEventsBatch = eventData ? (msgpack.decode(eventData) as ParsedEvent<AnyKind>[][]) : [];
+		
+		// Stream each event group one by one to the subscription
+		for (const events of cachedEventsBatch) {
+			subscription.callback(events, 'CACHED_EVENT');
+		}
+	}
+
 	private async handleSubscriptionEvent(
 		subscriptionId: string,
 		eventData: Uint8Array,
@@ -310,7 +323,7 @@ export class NostrManager {
 		const decodedEvent = msgpack.decode(eventData) as RelayStatus;
 
 		subscribe && subscribe.callback?.(decodedEvent, eventKind);
-		subscribeAll && subscribeAll.callback?.(decodedEvent, publishId);
+		subscribeAll && subscribeAll.callback?.(decodedEvent, eventKind);
 	}
 
 	// Clean up resources
