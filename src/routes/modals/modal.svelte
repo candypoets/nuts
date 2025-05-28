@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { viewport } from 'src/lib';
 	import Ecash from 'src/routes/modals/ecash.svelte';
 	import Lightning from 'src/routes/modals/lightning.svelte';
 	import Melt from 'src/routes/modals/melt.svelte';
@@ -22,6 +21,7 @@
 	import { fly } from 'svelte/transition';
 	import { goBack } from './modal';
 	import Followlists from './followlists.svelte';
+	import { viewport } from 'src/controller/viewport';
 
 	export let path: string;
 	export let visible: boolean;

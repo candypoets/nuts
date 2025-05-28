@@ -13,7 +13,6 @@
 	import Theme from 'src/components/Theme.svelte';
 	import { kind0, kind10002, kind10019, kind3 } from 'src/controller/nostr';
 	import { mints, saveNuts } from 'src/controller/wallet';
-	import { viewport } from 'src/lib';
 	import { isKind0, isKind10002, isKind10019, isKind3, type AnyKind } from 'src/types';
 	import Landing from 'src/routes/+page.svelte';
 	import Explore from 'src/routes/explore/index.svelte';
@@ -28,6 +27,7 @@
 	import { key } from 'src/controller';
 	import Debug from 'src/components/Debug.svelte';
 	import ImageZoom from 'src/components/ImageZoom.svelte';
+	import { viewport, dimensions, isMobile } from 'src/controller/viewport';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
 
@@ -136,6 +136,9 @@
 	// Watch for route changes
 	onMount(() => {
 		setViewport();
+		window.addEventListener('keydown', handleKeydown);
+		window.addEventListener('resize', setViewport);
+
 		if (localStorage.getItem('theme')) {
 			let theme = localStorage.getItem('theme');
 			document.getElementsByTagName('html')[0].setAttribute('data-theme', theme);
@@ -163,7 +166,39 @@
 				}
 			}
 		});
+
+		// Set up initial index based on route, but wait for scroller to be available
+		const initializePositions = () => {
+			if (!scroller || !scrollerWidth) {
+				// If scroller isn't ready yet, try again in the next frame
+				window.requestAnimationFrame(initializePositions);
+				return;
+			}
+			function setPosition(index: number) {
+				currentIndex = index;
+				scrollPosition.set((currentIndex * scrollerWidth) / 2, { hard: true });
+				xPosition.set(index * scrollerWidth, { hard: true });
+			}
+
+			// Determine the index based on the current route
+			if ($page.url.pathname.startsWith('/chat')) {
+				setPosition(2);
+			} else if ($page.url.pathname.startsWith('/explore')) {
+				setPosition(1);
+			} else if ($page.url.pathname.startsWith('/home')) {
+				setPosition(0);
+			}
+
+			// Update the pages array with the current pathname
+			pages[currentIndex] = $page.url.pathname;
+		};
+
+		// Start the initialization process
+		initializePositions();
+
 		return () => {
+			window.removeEventListener('keydown', handleKeydown);
+			window.removeEventListener('resize', setViewport);
 			relaySub && relaySub();
 			profileSub && profileSub();
 			mintSub();
@@ -179,8 +214,8 @@
 			`${document.documentElement.clientWidth * 0.01}px`
 		);
 
-		$viewport.vw = window.innerWidth * 0.01;
-		$viewport.vh = window.innerHeight * 0.01;
+		$dimensions.width = window.innerWidth;
+		$dimensions.height = window.innerHeight;
 	}
 
 	function getTransformRatio(index: number, x: number, elementWidth: number) {
@@ -275,41 +310,7 @@
 	}
 
 	// Add and remove event listener
-	onMount(() => {
-		window.addEventListener('keydown', handleKeydown);
-		// Set up initial index based on route, but wait for scroller to be available
-		const initializePositions = () => {
-			if (!scroller || !scrollerWidth) {
-				// If scroller isn't ready yet, try again in the next frame
-				window.requestAnimationFrame(initializePositions);
-				return;
-			}
-			function setPosition(index: number) {
-				currentIndex = index;
-				scrollPosition.set((currentIndex * scrollerWidth) / 2, { hard: true });
-				xPosition.set(index * scrollerWidth, { hard: true });
-			}
-
-			// Determine the index based on the current route
-			if ($page.url.pathname.startsWith('/chat')) {
-				setPosition(2);
-			} else if ($page.url.pathname.startsWith('/explore')) {
-				setPosition(1);
-			} else if ($page.url.pathname.startsWith('/home')) {
-				setPosition(0);
-			}
-
-			// Update the pages array with the current pathname
-			pages[currentIndex] = $page.url.pathname;
-		};
-
-		// Start the initialization process
-		initializePositions();
-
-		// Add resize listener to update viewport
-		window.addEventListener('resize', setViewport);
-		return () => window.removeEventListener('keydown', handleKeydown);
-	});
+	onMount(() => {});
 
 	$: transform0 = getTransformRatio(0, $xPosition, scrollerWidth);
 	$: transform1 = getTransformRatio(1, $xPosition, scrollerWidth);
@@ -337,9 +338,10 @@
 			<!-- Home Section -->
 			<div
 				class="carousel-item w-[100vw] will-change-transform"
-				style="transform: translateZ({transform0 * 10}px) rotateY({(1 - transform0) *
+				style="transform: translateZ({transform0 * ($isMobile ? 0 : 10)}px) rotateY({(1 -
+					($isMobile ? 0 : transform0)) *
 					(0 - currentIndex) *
-					30}deg) scale({transform0}); opacity: {transform0};"
+					30}deg) scale({$isMobile ? 1 : transform0}); opacity: {transform0};"
 				class:z-10={currentIndex == 0}
 				on:click={(e) => {
 					if (currentIndex != 0) {
@@ -360,9 +362,10 @@
 			<div
 				class="carousel-item w-[100vw] h-full will-change-transform"
 				class:z-10={currentIndex == 1}
-				style="transform: translateZ({transform1 * 10}px) rotateY({(1 - transform1) *
+				style="transform: translateZ({transform1 * ($isMobile ? 0 : 10)}px) rotateY({(1 -
+					($isMobile ? 0 : transform1)) *
 					(1 - currentIndex) *
-					30}deg) scale({transform1}); opacity: {transform1};; margin-right: -{50 *
+					30}deg) scale({$isMobile ? 1 : transform1}); opacity: {transform1};; margin-right: -{50 *
 					$viewport.vw}px; margin-left: -{50 * $viewport.vw}px"
 				on:click={(e) => {
 					if (currentIndex != 1) {
@@ -379,9 +382,10 @@
 
 			<div
 				class="carousel-item w-[100vw] h-full will-change-transform"
-				style="transform: translateZ({transform2 * 10}px) rotateY({(1 - transform2) *
+				style="transform: translateZ({transform2 * ($isMobile ? 0 : 10)}px) rotateY({(1 -
+					($isMobile ? 0 : transform2)) *
 					(2 - currentIndex) *
-					30}deg) scale({transform2}); opacity: {transform2};"
+					30}deg) scale({$isMobile ? 1 : transform1}); opacity: {transform2};"
 				class:z-10={currentIndex == 2}
 				on:click={(e) => {
 					if (currentIndex != 2) {

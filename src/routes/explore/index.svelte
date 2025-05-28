@@ -2,19 +2,15 @@
 	import { page } from '$app/stores';
 	import Icon from '@iconify/svelte';
 
+	import _ from 'lodash';
 	import Pager from 'src/components/Pager.svelte';
-	import { kind0, kind3 } from 'src/controller/nostr';
+	import { followPacks } from 'src/controller/feed';
+	import { kind0 } from 'src/controller/nostr';
 	import { balance } from 'src/controller/wallet';
-	import { ago, DAY } from 'src/lib/period';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import Post from 'src/routes/explore/post.svelte';
-	import { go } from '../modals/modal';
-	import type { AnyKind, ParsedEvent } from 'src/types';
-	import type { SubscribeKind } from 'src/model/nostr';
-	import Note from './note.svelte';
 	import MultiSelect from '../modals/components/MultiSelect.svelte';
-	import { followPacks } from 'src/controller/feed';
-	import _ from 'lodash';
+	import { go } from '../modals/modal';
 
 	let feedRequests: any[] = [];
 	let subs: string[] = [];
@@ -42,8 +38,6 @@
 			}
 		];
 	}
-
-	$: console.log('following', following, feedRequests);
 </script>
 
 <Pager rootPath="/explore" bind:subs>

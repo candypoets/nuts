@@ -6,10 +6,6 @@ export const nutKinds = {
 	NutzapInfo: 10019
 };
 
-import { writable } from 'svelte/store';
-
-export const viewport = writable({ vw: 0, vh: 0 });
-
 export function formatDate(date: Date) {
 	const today = new Date();
 	const yesterday = new Date(today);

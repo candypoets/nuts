@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { viewport } from 'src/lib';
 	import Kind0 from 'src/routes/_kinds/kind0.svelte';
 	import Kind1 from 'src/routes/_kinds/kind1.svelte';
 	import Kind4 from 'src/routes/_kinds/kind4.svelte';
@@ -9,6 +8,7 @@
 	import { cubicOut, elasticOut } from 'svelte/easing';
 	import { tweened } from 'svelte/motion';
 	import { fly } from 'svelte/transition';
+	import { viewport } from 'src/controller/viewport';
 
 	export let path: string;
 	export let visible: boolean;

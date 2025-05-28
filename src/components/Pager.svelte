@@ -3,9 +3,9 @@
 	import { cubicOut } from 'svelte/easing';
 	import { tweened } from 'svelte/motion';
 
-	import { viewport } from 'src/lib';
 	import Kind from 'src/routes/_kinds/index.svelte';
 	import Modal from 'src/routes/modals/index.svelte';
+	import { viewport } from 'src/controller/viewport';
 
 	export let rootPath: string;
 

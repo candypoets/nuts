@@ -3,7 +3,6 @@
 	import { formatDistanceToNow } from 'date-fns';
 	import _ from 'lodash';
 	import { kind10002, kind3 } from 'src/controller/nostr';
-	import { viewport } from 'src/lib';
 	import { isKind4, type AnyKind, type Kind4Parsed } from 'src/types';
 	import Kind from 'src/routes/_kinds/index.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
@@ -15,6 +14,7 @@
 	import { cubicOut } from 'svelte/easing';
 	import { tweened } from 'svelte/motion';
 	import Content from '../explore/_post/content.svelte';
+	import { viewport } from 'src/controller/viewport';
 
 	let feedRequests: Request[] = [];
 	let subs: string[] = [];
