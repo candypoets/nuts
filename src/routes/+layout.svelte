@@ -385,7 +385,7 @@
 				style="transform: translateZ({transform2 * ($isMobile ? 0 : 10)}px) rotateY({(1 -
 					($isMobile ? 0 : transform2)) *
 					(2 - currentIndex) *
-					30}deg) scale({$isMobile ? 1 : transform1}); opacity: {transform2};"
+					30}deg) scale({$isMobile ? 1 : transform2}); opacity: {transform2};"
 				class:z-10={currentIndex == 2}
 				on:click={(e) => {
 					if (currentIndex != 2) {
