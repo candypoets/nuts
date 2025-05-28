@@ -76,14 +76,12 @@
 
 	export let down = true;
 
-	async function handle_scroll() {
+	async function handle_scroll(event) {
 		const { scrollTop } = viewport;
 
-		down = scrollTop > lastScrollTop ? true : false;
+		down = event.deltaY > 0;
 
 		lastScrollTop = scrollTop;
-
-		// console.log('scrollTop', scrollTop, items, rows);
 
 		const old_start = start;
 
