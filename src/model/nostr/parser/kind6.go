@@ -22,10 +22,11 @@ func (p *Parser) ParseKind6(event nostr.Event) (*Kind6Parsed, *[]types.Request, 
 
 	// Add request for the author's metadata
 	requests = append(requests, types.Request{
-		Kinds:      []int{0},
-		Authors:    []string{event.PubKey},
-		CacheFirst: true,
-		Relays:     p.GetRelays(0, event.PubKey),
+		Kinds:       []int{0},
+		Authors:     []string{event.PubKey},
+		CacheFirst:  true,
+		CloseOnEOSE: true,
+		Relays:      p.GetRelays(0, event.PubKey),
 	})
 
 	// Find the e tag for the reposted event (should be the last one if multiple)
@@ -70,9 +71,10 @@ func (p *Parser) ParseKind6(event nostr.Event) (*Kind6Parsed, *[]types.Request, 
 	// If we couldn't parse the content or it was empty, request the original event
 	if repostedEvent == nil {
 		requests = append(requests, types.Request{
-			IDs:        []string{eventID},
-			CacheFirst: true,
-			Relays:     append(p.GetRelays(1, ""), relayHint),
+			IDs:         []string{eventID},
+			CacheFirst:  true,
+			CloseOnEOSE: true,
+			Relays:      append(p.GetRelays(1, ""), relayHint),
 		})
 	}
 

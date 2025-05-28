@@ -76,6 +76,7 @@ func (np *networkProcessor) ProcessNetworkRequests(
 					eventChan,
 					&remainingConnections,
 					&totalConnections,
+					req.CloseOnEOSE,
 				)
 			}
 		}
@@ -96,6 +97,7 @@ func (np *networkProcessor) processRelaySubscription(
 	eventChan chan<- NetworkEvent,
 	remainingConnections *int,
 	totalConnections *int,
+	closeOnEOSE bool,
 ) {
 	defer wg.Done()
 
@@ -153,7 +155,7 @@ func (np *networkProcessor) processRelaySubscription(
 	}
 
 	// Process subscription events
-	np.handleSubscriptionEvents(subCtx, sub, relayURL, eventChan, remainingConnections, totalConnections)
+	np.handleSubscriptionEvents(subCtx, sub, relayURL, eventChan, remainingConnections, totalConnections, closeOnEOSE)
 }
 
 // handleSubscriptionEvents processes events from a relay subscription
@@ -164,6 +166,7 @@ func (np *networkProcessor) handleSubscriptionEvents(
 	eventChan chan<- NetworkEvent,
 	remainingConnections *int,
 	totalConnections *int,
+	closeOnEOSE bool,
 ) {
 	defer sub.Unsub()
 
@@ -235,6 +238,15 @@ func (np *networkProcessor) handleSubscriptionEvents(
 				Relay: relayURL,
 			}:
 			case <-ctx.Done():
+				return
+			}
+
+			if closeOnEOSE {
+				np.logger.Debug().
+					Str("relay", relayURL).
+					Int("remaining", currentRemaining).
+					Int("total", currentTotal).
+					Msg("End of stored events received, closing subscription as requested")
 				return
 			}
 

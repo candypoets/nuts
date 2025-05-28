@@ -82,7 +82,7 @@ func (so *subscriptionOptimizer) OptimizeSubscriptions(requests []types.Request)
 		}
 
 		// Create individual requests for NoOptimize requests
-		if requests[i].NoOptimize {
+		if requests[i].NoOptimize || requests[i].CloseOnEOSE {
 			optimizedRequests = append(optimizedRequests, requests[i])
 		} else {
 			// Collect requests that can be optimized

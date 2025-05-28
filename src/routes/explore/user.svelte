@@ -32,7 +32,7 @@
 		if (!user && query) {
 			sub = nostrManager.subscribe(
 				'user_' + pubkey + '_' + _.random(10000),
-				[{ kinds: [0], authors: [pubkey], limit: 1, cacheFirst: true, relays }],
+				[{ kinds: [0], authors: [pubkey], limit: 1, cacheFirst: true, closeOnEOSE: true, relays }],
 				(events: ParsedEvent<AnyKind>[], type: SubscribeKind) => {
 					if (type == 'EOSE') {
 						return;

@@ -28,7 +28,16 @@
 			if (!author) {
 				sub = nostrManager.subscribe(
 					'header_' + note.pubkey + '_' + _.random(10000),
-					[{ kinds: [0], authors: [note.pubkey], limit: 1, cacheFirst: true, relays: [] }],
+					[
+						{
+							kinds: [0],
+							authors: [note.pubkey],
+							limit: 1,
+							cacheFirst: true,
+							closeOnEOSE: true,
+							relays: []
+						}
+					],
 					(events: ParsedEvent<AnyKind>[], type: SubscribeKind) => {
 						if (type == 'EOSE') {
 							console.log('eose', events);

@@ -5,7 +5,7 @@
 	import _ from 'lodash';
 	import { kind0, kind3 } from 'src/controller/nostr';
 	import { now } from 'src/lib/period';
-	import { nostrManager, type SubscribeKind } from 'src/model/nostr';
+	import { nostrManager, type Request, type SubscribeKind } from 'src/model/nostr';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import type { ParsedEvent } from 'src/types';
 	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/types';
@@ -18,11 +18,12 @@
 
 	let loading = true;
 	let headerItem: ParsedEvent<Kind0Parsed> | undefined;
-	let feedRequests: any[] = [
+	let feedRequests: Request[] = [
 		{
 			kinds: [1],
 			authors: [pubkey],
-			limit: 100
+			limit: 100,
+			relays: []
 		}
 	];
 	let timeout: NodeJS.Timeout | undefined;

@@ -43,10 +43,11 @@ func (p *Parser) ParseKind7(event nostr.Event) (*Kind7Parsed, *[]types.Request, 
 	}
 
 	requests = append(requests, types.Request{
-		Kinds:      []int{0},
-		Authors:    []string{event.PubKey},
-		CacheFirst: true,
-		Relays:     p.GetRelays(0, event.PubKey),
+		Kinds:       []int{0},
+		Authors:     []string{event.PubKey},
+		CacheFirst:  true,
+		CloseOnEOSE: true,
+		Relays:      p.GetRelays(0, event.PubKey),
 	})
 
 	// Find the e tag for the target event (should be the last one if multiple)

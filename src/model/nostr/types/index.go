@@ -10,17 +10,18 @@ import (
 // Request represents a subscription request
 type Request struct {
 	// Filter fields with both JSON and MessagePack tags
-	IDs        []string         `json:"ids,omitempty" msgpack:"ids,omitempty"`
-	Authors    []string         `json:"authors,omitempty" msgpack:"authors,omitempty"`
-	Kinds      []int            `json:"kinds,omitempty" msgpack:"kinds,omitempty"`
-	Tags       nostr.TagMap     `json:"tags,omitempty" msgpack:"tags,omitempty"`
-	Since      *nostr.Timestamp `json:"since,omitempty" msgpack:"since,omitempty"`
-	Until      *nostr.Timestamp `json:"until,omitempty" msgpack:"until,omitempty"`
-	Limit      int              `json:"limit,omitempty" msgpack:"limit,omitempty"`
-	Search     string           `json:"search,omitempty" msgpack:"search,omitempty"`
-	Relays     []string         `json:"relays" msgpack:"relays"`
-	CacheFirst bool             `json:"cacheFirst,omitempty" msgpack:"cacheFirst,omitempty"`
-	NoOptimize bool             `json:"noOptimize,omitempty" msgpack:"noOptimize,omitempty"`
+	IDs         []string         `json:"ids,omitempty" msgpack:"ids,omitempty"`
+	Authors     []string         `json:"authors,omitempty" msgpack:"authors,omitempty"`
+	Kinds       []int            `json:"kinds,omitempty" msgpack:"kinds,omitempty"`
+	Tags        nostr.TagMap     `json:"tags,omitempty" msgpack:"tags,omitempty"`
+	Since       *nostr.Timestamp `json:"since,omitempty" msgpack:"since,omitempty"`
+	Until       *nostr.Timestamp `json:"until,omitempty" msgpack:"until,omitempty"`
+	Limit       int              `json:"limit,omitempty" msgpack:"limit,omitempty"`
+	Search      string           `json:"search,omitempty" msgpack:"search,omitempty"`
+	Relays      []string         `json:"relays" msgpack:"relays"`
+	CloseOnEOSE bool             `json:"closeOnEOSE,omitempty" msgpack:"closeOnEOSE,omitempty"`
+	CacheFirst  bool             `json:"cacheFirst,omitempty" msgpack:"cacheFirst,omitempty"`
+	NoOptimize  bool             `json:"noOptimize,omitempty" msgpack:"noOptimize,omitempty"`
 }
 
 // ToFilter converts a Request to a nostr.Filter

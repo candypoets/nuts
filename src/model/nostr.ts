@@ -39,6 +39,7 @@ export type RelayStatus = {
 
 export type Request = Filter & {
 	relays: string[];
+	closeOnEOSE?: boolean;
 	cacheFirst?: boolean;
 	noOptimize?: boolean;
 	limit?: number;

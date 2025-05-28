@@ -29,17 +29,19 @@ func (p *Parser) ParseKind1(event nostr.Event) (*Kind1Parsed, *[]types.Request, 
 	parsed := &Kind1Parsed{}
 
 	requests = append(requests, types.Request{
-		Kinds:      []int{0},
-		Authors:    []string{event.PubKey},
-		CacheFirst: true,
-		Relays:     p.GetRelays(0, event.PubKey),
+		Kinds:       []int{0},
+		Authors:     []string{event.PubKey},
+		CacheFirst:  true,
+		CloseOnEOSE: true,
+		Relays:      p.GetRelays(0, event.PubKey),
 	})
 
 	requests = append(requests, types.Request{
-		Kinds:      []int{10002},
-		Authors:    []string{event.PubKey},
-		CacheFirst: true,
-		Relays:     p.GetRelays(10002, event.PubKey),
+		Kinds:       []int{10002},
+		Authors:     []string{event.PubKey},
+		CacheFirst:  true,
+		CloseOnEOSE: true,
+		Relays:      p.GetRelays(10002, event.PubKey),
 	})
 
 	parsedRefs := nip27.ParseReferences(event)
@@ -53,11 +55,12 @@ func (p *Parser) ParseKind1(event nostr.Event) (*Kind1Parsed, *[]types.Request, 
 			parsed.Quotes = append(parsed.Quotes, &pointer)
 
 			requests = append(requests, types.Request{
-				Authors:    []string{pointer.PublicKey},
-				Kinds:      []int{0},
-				CacheFirst: true,
-				Limit:      1,
-				Relays:     append(pointer.Relays, p.GetRelays(0, pointer.PublicKey)...),
+				Authors:     []string{pointer.PublicKey},
+				Kinds:       []int{0},
+				CacheFirst:  true,
+				Limit:       1,
+				CloseOnEOSE: true,
+				Relays:      append(pointer.Relays, p.GetRelays(0, pointer.PublicKey)...),
 			})
 
 		case nostr.EventPointer:
@@ -65,22 +68,24 @@ func (p *Parser) ParseKind1(event nostr.Event) (*Kind1Parsed, *[]types.Request, 
 			parsed.Mentions = append(parsed.Mentions, &pointer)
 
 			requests = append(requests, types.Request{
-				IDs:        []string{pointer.ID},
-				Limit:      1,
-				CacheFirst: true,
-				Relays:     pointer.Relays,
+				IDs:         []string{pointer.ID},
+				Limit:       1,
+				CacheFirst:  true,
+				CloseOnEOSE: true,
+				Relays:      pointer.Relays,
 			})
 
 		case nostr.EntityPointer:
 
 			// Create a direct request using the pointer attributes
 			requests = append(requests, types.Request{
-				Kinds:      []int{pointer.Kind},
-				Authors:    []string{pointer.PublicKey},
-				Tags:       map[string][]string{"#d": {pointer.Identifier}},
-				Limit:      1,
-				CacheFirst: true,
-				Relays:     append(pointer.Relays, p.GetRelays(pointer.Kind, pointer.PublicKey)...),
+				Kinds:       []int{pointer.Kind},
+				Authors:     []string{pointer.PublicKey},
+				Tags:        map[string][]string{"#d": {pointer.Identifier}},
+				Limit:       1,
+				CacheFirst:  true,
+				CloseOnEOSE: true,
+				Relays:      append(pointer.Relays, p.GetRelays(pointer.Kind, pointer.PublicKey)...),
 			})
 		default:
 			println(fmt.Printf("Unknown pointer type: %T\n", pointer))
@@ -93,20 +98,22 @@ func (p *Parser) ParseKind1(event nostr.Event) (*Kind1Parsed, *[]types.Request, 
 	parsed.Reply = nip10.GetImmediateParent(event.Tags)
 	if parsed.Reply != nil {
 		requests = append(requests, types.Request{
-			IDs:        []string{parsed.Reply.ID},
-			Limit:      1,
-			CacheFirst: true,
-			Relays:     parsed.Reply.Relays,
+			IDs:         []string{parsed.Reply.ID},
+			Limit:       1,
+			CacheFirst:  true,
+			CloseOnEOSE: true,
+			Relays:      parsed.Reply.Relays,
 		})
 	}
 
 	parsed.Root = nip10.GetThreadRoot(event.Tags)
 	if parsed.Root != nil && parsed.Root.ID != event.ID {
 		requests = append(requests, types.Request{
-			IDs:        []string{parsed.Root.ID},
-			Limit:      1,
-			CacheFirst: true,
-			Relays:     parsed.Root.Relays,
+			IDs:         []string{parsed.Root.ID},
+			Limit:       1,
+			CacheFirst:  true,
+			CloseOnEOSE: true,
+			Relays:      parsed.Root.Relays,
 		})
 	}
 

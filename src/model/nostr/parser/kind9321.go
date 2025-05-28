@@ -33,10 +33,11 @@ func (p *Parser) ParseKind9321(event nostr.Event) (*Kind9321Parsed, *[]types.Req
 
 	// get the sender profile for this zap
 	requests = append(requests, types.Request{
-		Kinds:      []int{0},
-		Authors:    []string{event.PubKey},
-		CacheFirst: true,
-		Relays:     p.GetRelays(0, event.PubKey),
+		Kinds:       []int{0},
+		Authors:     []string{event.PubKey},
+		CacheFirst:  true,
+		CloseOnEOSE: true,
+		Relays:      p.GetRelays(0, event.PubKey),
 	})
 
 	// Extract required tags
