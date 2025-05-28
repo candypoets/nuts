@@ -20,6 +20,7 @@
 	// Touch gesture variables
 	let touchStartX = 0;
 	let touchStartY = 0;
+	let touchStartTime = 0;
 	let isSwiping = false;
 
 	// Tweened store for smooth swipe animation
@@ -31,6 +32,7 @@
 	function handleTouchStart(e: TouchEvent) {
 		touchStartX = e.touches[0].clientX;
 		touchStartY = e.touches[0].clientY;
+		touchStartTime = Date.now();
 		isSwiping = false;
 		swipeTranslateX.set(0);
 	}
@@ -57,11 +59,20 @@
 		if (!element || !isSwiping) return;
 
 		const touchEndX = e.changedTouches[0].clientX;
+		const touchEndTime = Date.now();
 		const deltaX = touchEndX - touchStartX;
+		const deltaTime = touchEndTime - touchStartTime;
 		const containerWidth = element.offsetWidth;
 
+		// Calculate velocity in pixels per millisecond
+		const velocity = deltaX / deltaTime;
+
 		// Trigger goBack if swipe distance is more than 1/3 of container width
-		if (deltaX > containerWidth / 3) {
+		// OR if velocity is high enough (> 0.5 px/ms) and minimum distance (50px)
+		const distanceThreshold = deltaX > containerWidth / 3;
+		const velocityThreshold = velocity > 0.5 && deltaX > 50;
+
+		if (distanceThreshold || velocityThreshold) {
 			goBack();
 		} else {
 			// Gently animate back to original position
