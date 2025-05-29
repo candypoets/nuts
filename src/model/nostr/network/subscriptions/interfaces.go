@@ -82,6 +82,13 @@ type Subscription interface {
 	GetSentEvents() map[string]*[]types.ParsedEvent
 	MarkEventAsSent(eventID string, events []types.ParsedEvent)
 	HasEventBeenSent(eventID string) bool
+	
+	// FETCHED_EVENT batching support
+	AddToFetchedBatch(events []types.ParsedEvent)
+	GetFetchedBatch() [][]types.ParsedEvent
+	ClearFetchedBatch()
+	IsInBatchingMode() bool
+	SetBatchingMode(batching bool)
 }
 
 // SubscriptionRegistry manages active subscriptions

@@ -145,19 +145,19 @@ export class NostrManager {
 				this.handleCachedEventsBatch(subscriptionId, eventData);
 				break;
 			case 'FETCHED_EVENT':
-				console.debug('Received fetched events');
-				this.handleSubscriptionEvent(subscriptionId, eventData, 'FETCHED_EVENT');
+				console.debug('Received fetched events batch');
+				this.handleFetchedEventsBatch(subscriptionId, eventData);
 				break;
 			case 'EOSE':
 				console.debug(`End of stored events for subscription ${subscriptionId}`);
-				this.handleSubscriptionEvent(subscriptionId, eventData, 'EOSE');
+				this.handleEOSE(subscriptionId, eventData);
 				if (subscription.options.closeOnEose) {
 					this.unsubscribe(subscriptionId);
 				}
 				break;
 			case 'EOCE':
 				console.debug(`End of cached events for subscription ${subscriptionId}`);
-				this.handleSubscriptionEvent(subscriptionId, eventData, 'EOCE');
+				this.handleEOCE(subscriptionId);
 				break;
 		}
 	}
@@ -299,16 +299,34 @@ export class NostrManager {
 		}
 	}
 
-	private async handleSubscriptionEvent(
-		subscriptionId: string,
-		eventData: Uint8Array,
-		eventKind: SubscribeKind
-	) {
+	private handleFetchedEventsBatch(subscriptionId: string, eventData: Uint8Array) {
 		const subscription = this.subscriptions.get(subscriptionId);
 		if (!subscription) return;
-		const decodedEvent = eventData ? (msgpack.decode(eventData) as ParsedEvent<AnyKind>[]) : [];
-		// Call the subscription callback with the fresh event
-		subscription.callback(decodedEvent, eventKind);
+
+		// Decode the entire batch once
+		const fetchedEventsBatch = eventData ? (msgpack.decode(eventData) as ParsedEvent<AnyKind>[][]) : [];
+		
+		// Stream each event group one by one to the subscription
+		for (const events of fetchedEventsBatch) {
+			subscription.callback(events, 'FETCHED_EVENT');
+		}
+	}
+
+	private handleEOSE(subscriptionId: string, eventData: Uint8Array) {
+		const subscription = this.subscriptions.get(subscriptionId);
+		if (!subscription) return;
+		
+		// EOSE contains EOSE data, not events
+		const eoseData = eventData ? msgpack.decode(eventData) : null;
+		subscription.callback([], 'EOSE');
+	}
+
+	private handleEOCE(subscriptionId: string) {
+		const subscription = this.subscriptions.get(subscriptionId);
+		if (!subscription) return;
+		
+		// EOCE doesn't contain data
+		subscription.callback([], 'EOCE');
 	}
 
 	private handlePublishEvent(

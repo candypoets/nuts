@@ -108,6 +108,7 @@ func (np *networkProcessor) processRelaySubscription(
 
 	// Get relay connection
 	relayConn, err := np.relayManager.GetRelay(relayURL)
+
 	if err != nil {
 		np.logger.Error().
 			Str("relay", relayURL).

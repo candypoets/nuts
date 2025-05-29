@@ -226,6 +226,24 @@ func (sm *subscriptionManager) sendCachedEventsBatch(subscription Subscription, 
 	sm.jsBridge.PostMessage("CACHED_EVENT", subscription.ID(), uint8Array)
 }
 
+// sendFetchedEventsBatch sends fetched events as a batch to JavaScript
+func (sm *subscriptionManager) sendFetchedEventsBatch(subscriptionID string, fetchedEvents [][]types.ParsedEvent) {
+	// Pack all fetched events into a single msgpack payload
+	pack, err := msgpack.Marshal(fetchedEvents)
+	if err != nil {
+		sm.logger.Error().
+			Err(err).
+			Str("subscription_id", subscriptionID).
+			Msg("Error marshaling fetched events batch")
+		return
+	}
+
+	uint8Array := js.Global().Get("Uint8Array").New(len(pack))
+	js.CopyBytesToJS(uint8Array, pack)
+
+	sm.jsBridge.PostMessage("FETCHED_EVENT", subscriptionID, uint8Array)
+}
+
 // processNetworkSubscription handles network subscription processing
 func (sm *subscriptionManager) processNetworkSubscription(subscription Subscription, requests []types.Request) {
 	ctx := subscription.Context()
@@ -250,7 +268,7 @@ func (sm *subscriptionManager) processNetworkSubscription(subscription Subscript
 				sm.handleNetworkEvent(subscription, networkEvent)
 
 			case NetworkEventTypeEOSE:
-				sm.handleEOSE(subscriptionID, networkEvent)
+				sm.handleEOSE(subscription, networkEvent)
 
 			case NetworkEventTypeError:
 				sm.logger.Error().
@@ -291,14 +309,60 @@ func (sm *subscriptionManager) handleNetworkEvent(subscription Subscription, net
 
 	// Add context events to the sent events
 	allEvents := append([]types.ParsedEvent{*event}, contextEvents...)
-	subscription.MarkEventAsSent(event.ID, allEvents)
 
-	// Send to JavaScript
-	sm.sendEventToJS(subscriptionID, "FETCHED_EVENT", &allEvents)
+	// Handle batching vs real-time mode
+	if subscription.IsInBatchingMode() {
+		// Add to batch instead of sending immediately
+		subscription.AddToFetchedBatch(allEvents)
+	} else {
+		// Send individual event (wrapped in array of arrays for consistency)
+		eventBatch := [][]types.ParsedEvent{allEvents}
+		sm.sendFetchedEventsBatch(subscriptionID, eventBatch)
+	}
 }
 
 // handleEOSE processes End of Stored Events
-func (sm *subscriptionManager) handleEOSE(subscriptionID string, networkEvent NetworkEvent) {
+func (sm *subscriptionManager) handleEOSE(subscription Subscription, networkEvent NetworkEvent) {
+	subscriptionID := subscription.ID()
+
+	eose := networkEvent.EOSE
+	if eose == nil {
+		sm.logger.Warn().
+			Str("subscription_id", subscriptionID).
+			Msg("Received EOSE with no data")
+		return
+	}
+
+	sm.logger.Debug().
+		Str("subscription_id", subscriptionID).
+		Int("remaining_connections", eose.RemainingConnections).
+		Int("total_connections", eose.TotalConnections).
+		Msg("Received EOSE")
+
+	// Send current batch on each EOSE for progressive loading
+	if subscription.IsInBatchingMode() {
+		fetchedBatch := subscription.GetFetchedBatch()
+		if len(fetchedBatch) > 0 {
+			sm.sendFetchedEventsBatch(subscriptionID, fetchedBatch)
+			subscription.ClearFetchedBatch()
+
+			sm.logger.Debug().
+				Str("subscription_id", subscriptionID).
+				Int("batched_events", len(fetchedBatch)).
+				Msg("Sent batched events on EOSE")
+		}
+
+		// Switch to real-time mode when no remaining connections
+		if eose.RemainingConnections <= 0 {
+			subscription.SetBatchingMode(false)
+
+			sm.logger.Debug().
+				Str("subscription_id", subscriptionID).
+				Msg("Switched to real-time mode - all relays sent EOSE")
+		}
+	}
+
+	// Send EOSE notification
 	pack, err := msgpack.Marshal(networkEvent.EOSE)
 	if err != nil {
 		sm.logger.Error().
@@ -312,23 +376,6 @@ func (sm *subscriptionManager) handleEOSE(subscriptionID string, networkEvent Ne
 	js.CopyBytesToJS(uint8Array, pack)
 
 	sm.jsBridge.PostMessage("EOSE", subscriptionID, uint8Array)
-}
-
-// sendEventToJS sends events to JavaScript
-func (sm *subscriptionManager) sendEventToJS(subscriptionID, eventType string, events *[]types.ParsedEvent) {
-	pack, err := msgpack.Marshal(events)
-	if err != nil {
-		sm.logger.Error().
-			Err(err).
-			Str("subscription_id", subscriptionID).
-			Msg("Error marshaling events")
-		return
-	}
-
-	uint8Array := js.Global().Get("Uint8Array").New(len(pack))
-	js.CopyBytesToJS(uint8Array, pack)
-
-	sm.jsBridge.PostMessage(eventType, subscriptionID, uint8Array)
 }
 
 // startCleanupProcess starts a background cleanup process

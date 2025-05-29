@@ -19,17 +19,23 @@ type subscription struct {
 	sentEvents map[string]*[]types.ParsedEvent
 	mutex      sync.RWMutex
 	createdAt  time.Time
+	
+	// FETCHED_EVENT batching fields
+	fetchedBatch    [][]types.ParsedEvent
+	batchingMode    bool
 }
 
 // NewSubscription creates a new subscription
 func NewSubscription(id string) Subscription {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &subscription{
-		id:         id,
-		ctx:        ctx,
-		cancelFunc: cancel,
-		sentEvents: make(map[string]*[]types.ParsedEvent),
-		createdAt:  time.Now(),
+		id:              id,
+		ctx:             ctx,
+		cancelFunc:      cancel,
+		sentEvents:      make(map[string]*[]types.ParsedEvent),
+		createdAt:       time.Now(),
+		fetchedBatch:    make([][]types.ParsedEvent, 0),
+		batchingMode:    true, // Start in batching mode
 	}
 }
 
@@ -108,6 +114,51 @@ func (s *subscription) Context() context.Context {
 
 func (s *subscription) CreatedAt() time.Time {
 	return s.createdAt
+}
+
+// FETCHED_EVENT batching methods
+func (s *subscription) AddToFetchedBatch(events []types.ParsedEvent) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	
+	s.fetchedBatch = append(s.fetchedBatch, events)
+}
+
+func (s *subscription) GetFetchedBatch() [][]types.ParsedEvent {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+	
+	// Return a copy to prevent external mutation
+	result := make([][]types.ParsedEvent, len(s.fetchedBatch))
+	for i, events := range s.fetchedBatch {
+		eventsCopy := make([]types.ParsedEvent, len(events))
+		copy(eventsCopy, events)
+		result[i] = eventsCopy
+	}
+	return result
+}
+
+func (s *subscription) ClearFetchedBatch() {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	
+	s.fetchedBatch = s.fetchedBatch[:0] // Reset slice but keep capacity
+}
+
+
+
+func (s *subscription) IsInBatchingMode() bool {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+	
+	return s.batchingMode
+}
+
+func (s *subscription) SetBatchingMode(batching bool) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	
+	s.batchingMode = batching
 }
 
 // subscriptionRegistry implements the SubscriptionRegistry interface
