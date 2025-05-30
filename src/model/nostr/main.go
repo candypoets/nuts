@@ -78,7 +78,7 @@ func Initialize() {
 
 func main() {
 	// Start the monitor in your main function
-	go monitorGoroutines()
+	// go monitorGoroutines()
 	// This function is required for the wasm build
 	Initialize()
 	c := make(chan struct{})

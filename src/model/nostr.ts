@@ -5,6 +5,7 @@ import nostrWorker from 'src/model/nostr/index?worker';
 
 import type { ParsedEvent } from 'src/types';
 import { debug } from 'src/controller/debug';
+import { wasmMsgpack } from 'src/lib/wasm-msgpack-decoder';
 
 export type SubscribeKind = 'CACHED_EVENT' | 'FETCHED_EVENT' | 'EOSE' | 'EOCE';
 export type PublishKind = 'PUBLISH_STATUS';
@@ -93,10 +94,10 @@ export class NostrManager {
 	}
 
 	private setupWorkerHandlers() {
-		this.worker.onmessage = (event) => {
+		this.worker.onmessage = async (event) => {
 			if (!event.data) return;
 			if (event.data.type === 'PUBLISH_STATUS') {
-				this.onPublishEvent(event.data);
+				await this.onPublishEvent(event.data);
 				return;
 			} else if (event.data.type === 'ZAP') {
 				const cb = this.zaps.get(event.data.zapId);
@@ -105,10 +106,9 @@ export class NostrManager {
 					this.zaps.delete(event.data.zapId);
 				}
 			} else if (event.data.type == 'SIGNED') {
-				const payload = msgpack.decode(event.data.payload) as NostrEvent;
+				const payload = (await wasmMsgpack.decode(event.data.payload)) as NostrEvent;
 				const cb = this.signers.get(payload?.content);
 				if (cb) {
-					console.log(payload);
 					cb(payload);
 					this.signers.delete(payload.content);
 				}
@@ -116,11 +116,11 @@ export class NostrManager {
 				debug.set(event.data);
 			}
 
-			this.onSubscribeEvent(event.data);
+			await this.onSubscribeEvent(event.data);
 		};
 	}
 
-	private onPublishEvent(data: PublishMessage) {
+	private async onPublishEvent(data: PublishMessage) {
 		const { type, publishId, eventData } = data;
 
 		const publish = this.publishes.get(publishId);
@@ -128,12 +128,12 @@ export class NostrManager {
 
 		switch (type) {
 			case 'PUBLISH_STATUS':
-				this.handlePublishEvent(publishId, eventData, type);
+				await this.handlePublishEvent(publishId, eventData, type);
 				break;
 		}
 	}
 
-	private onSubscribeEvent(data: SubscriptionMessage) {
+	private async onSubscribeEvent(data: SubscriptionMessage) {
 		const { type, subscriptionId, eventData } = data as SubscriptionMessage;
 
 		const subscription = this.subscriptions.get(subscriptionId);
@@ -141,16 +141,13 @@ export class NostrManager {
 
 		switch (type) {
 			case 'CACHED_EVENT':
-				console.debug('Received cached events batch');
-				this.handleCachedEventsBatch(subscriptionId, eventData);
+				await this.handleCachedEventsBatch(subscriptionId, eventData);
 				break;
 			case 'FETCHED_EVENT':
-				console.debug('Received fetched events batch');
-				this.handleFetchedEventsBatch(subscriptionId, eventData);
+				await this.handleFetchedEventsBatch(subscriptionId, eventData);
 				break;
 			case 'EOSE':
-				console.debug(`End of stored events for subscription ${subscriptionId}`);
-				this.handleEOSE(subscriptionId, eventData);
+				await this.handleEOSE(subscriptionId, eventData);
 				if (subscription.options.closeOnEose) {
 					this.unsubscribe(subscriptionId);
 				}
@@ -162,20 +159,23 @@ export class NostrManager {
 		}
 	}
 
-	publish(publishId: string, event: EventTemplate, callback?: (status: RelayStatus) => void) {
+	async publish(publishId: string, event: EventTemplate, callback?: (status: RelayStatus) => void) {
 		this.publishes.set(publishId, {
 			callback
 		});
 
-		// Serialize to binary format
-		const binaryData = msgpack.encode(event);
+		// Serialize to binary format using WASM
+		const binaryData = await wasmMsgpack.encode(event);
 
-		// Send the publish request to the worker
-		this.worker.postMessage({
-			action: 'PUBLISH',
-			publishId,
-			event: binaryData
-		});
+		// Send the publish request to the worker using transferables
+		this.worker.postMessage(
+			{
+				action: 'PUBLISH',
+				publishId,
+				event: binaryData
+			},
+			[binaryData.buffer]
+		);
 	}
 	// you can add a publish callback without publishing anything and just listen to an event update
 	addPublishCallbackAll(callback: (status: RelayStatus) => void) {
@@ -202,14 +202,17 @@ export class NostrManager {
 			}
 		});
 
-		// Serialize to binary format
-		const binaryData = msgpack.encode(requests);
-
-		// Start the subscription in the worker
-		this.worker.postMessage({
-			action: 'SUBSCRIBE',
-			subscriptionId,
-			requests: binaryData
+		// Serialize to binary format using WASM
+		wasmMsgpack.encode(requests).then((binaryData) => {
+			// Start the subscription in the worker using transferables
+			this.worker.postMessage(
+				{
+					action: 'SUBSCRIBE',
+					subscriptionId,
+					requests: binaryData
+				},
+				[binaryData.buffer]
+			);
 		});
 
 		return () => this.unsubscribe(subscriptionId);
@@ -257,7 +260,6 @@ export class NostrManager {
 	}
 
 	setSigner(type: string, pk: string): void {
-		console.log('setsigner', type, pk);
 		this.worker.postMessage({
 			action: 'SET_SIGNER',
 			type,
@@ -266,19 +268,22 @@ export class NostrManager {
 	}
 
 	async signEvent(event: EventTemplate): Promise<NostrEvent> {
-		return new Promise<NostrEvent>((resolve, reject) => {
+		return new Promise<NostrEvent>(async (resolve, reject) => {
 			// Register the callback
 			this.signers.set(event.content, (result: NostrEvent | string) => {
 				resolve(result as NostrEvent);
 			});
 
-			const binaryData = msgpack.encode(event);
-
 			try {
-				this.worker.postMessage({
-					action: 'SIGN_EVENT',
-					event: binaryData
-				});
+				const binaryData = await wasmMsgpack.encode(event);
+
+				this.worker.postMessage(
+					{
+						action: 'SIGN_EVENT',
+						event: binaryData
+					},
+					[binaryData.buffer]
+				);
 			} catch (err) {
 				this.signers.delete(event.content); // Clean up
 				reject(new Error(`Failed to get sign event ${event.content} ${err}`));
@@ -286,59 +291,61 @@ export class NostrManager {
 		});
 	}
 
-	private handleCachedEventsBatch(subscriptionId: string, eventData: Uint8Array) {
+	private async handleCachedEventsBatch(subscriptionId: string, eventData: Uint8Array) {
 		const subscription = this.subscriptions.get(subscriptionId);
 		if (!subscription) return;
+		// Decode the entire batch once using WASM
+		const cachedEventsBatch = eventData
+			? ((await wasmMsgpack.decodeBatch(eventData)) as ParsedEvent<AnyKind>[][])
+			: [];
 
-		// Decode the entire batch once
-		const cachedEventsBatch = eventData ? (msgpack.decode(eventData) as ParsedEvent<AnyKind>[][]) : [];
-		
 		// Stream each event group one by one to the subscription
 		for (const events of cachedEventsBatch) {
 			subscription.callback(events, 'CACHED_EVENT');
 		}
 	}
 
-	private handleFetchedEventsBatch(subscriptionId: string, eventData: Uint8Array) {
+	private async handleFetchedEventsBatch(subscriptionId: string, eventData: Uint8Array) {
 		const subscription = this.subscriptions.get(subscriptionId);
 		if (!subscription) return;
+		// Decode the entire batch once using WASM
+		const fetchedEventsBatch = eventData
+			? ((await wasmMsgpack.decodeBatch(eventData)) as ParsedEvent<AnyKind>[][])
+			: [];
 
-		// Decode the entire batch once
-		const fetchedEventsBatch = eventData ? (msgpack.decode(eventData) as ParsedEvent<AnyKind>[][]) : [];
-		
 		// Stream each event group one by one to the subscription
 		for (const events of fetchedEventsBatch) {
 			subscription.callback(events, 'FETCHED_EVENT');
 		}
 	}
 
-	private handleEOSE(subscriptionId: string, eventData: Uint8Array) {
+	private async handleEOSE(subscriptionId: string, eventData: Uint8Array) {
 		const subscription = this.subscriptions.get(subscriptionId);
 		if (!subscription) return;
-		
+
 		// EOSE contains EOSE data, not events
-		const eoseData = eventData ? msgpack.decode(eventData) : null;
-		subscription.callback([], 'EOSE');
+		const eoseData = eventData ? await wasmMsgpack.decode(eventData) : null;
+		subscription.callback(eoseData, 'EOSE');
 	}
 
 	private handleEOCE(subscriptionId: string) {
 		const subscription = this.subscriptions.get(subscriptionId);
 		if (!subscription) return;
-		
+
 		// EOCE doesn't contain data
 		subscription.callback([], 'EOCE');
 	}
 
-	private handlePublishEvent(
+	private async handlePublishEvent(
 		publishId: string,
 		eventData: Uint8Array,
 		eventKind: PublishKind
-	): void {
+	): Promise<void> {
 		const subscribe = this.publishes.get(publishId);
 		const subscribeAll = this.publishes.get('*');
 		if (!subscribe || !subscribeAll || !eventData) return;
 
-		const decodedEvent = msgpack.decode(eventData) as RelayStatus;
+		const decodedEvent = (await wasmMsgpack.decode(eventData)) as RelayStatus;
 
 		subscribe && subscribe.callback?.(decodedEvent, eventKind);
 		subscribeAll && subscribeAll.callback?.(decodedEvent, eventKind);

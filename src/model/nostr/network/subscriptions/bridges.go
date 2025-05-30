@@ -25,18 +25,28 @@ func NewJavaScriptBridge() JavaScriptBridge {
 		// args[0] = event type
 		// args[1] = subscription ID
 		// args[2] = event data (optional)
+		eventType := args[0].String()
 		eventData := map[string]any{
-			"type":           args[0].String(),
+			"type":           eventType,
 			"subscriptionId": args[1].String(),
 		}
 
-		// Add event data if available
-		if len(args) >= 3 {
-			eventData["eventData"] = args[2]
-		}
+		// Use transferables ONLY for CACHED_EVENT and FETCHED_EVENT
+		if len(args) >= 3 && (eventType == "CACHED_EVENT" || eventType == "FETCHED_EVENT") {
+			// Extract buffer and transfer it
 
-		// Post message back to JavaScript
-		js.Global().Get("self").Call("postMessage", eventData)
+			buffer := args[2].Get("buffer")
+			eventData["eventData"] = args[2]
+			// Create array for transferables - postMessage expects an array
+			transferArray := js.ValueOf([]any{buffer})
+			js.Global().Get("self").Call("postMessage", eventData, transferArray)
+		} else {
+			// For other event types, include data normally
+			if len(args) >= 3 {
+				eventData["eventData"] = args[2]
+			}
+			js.Global().Get("self").Call("postMessage", eventData)
+		}
 		return nil
 	})
 
@@ -179,95 +189,4 @@ type StagingStats struct {
 	StagedEventsCount int
 	BatchSize         int
 	StagingInterval   time.Duration
-}
-
-// mockJavaScriptBridge is a mock implementation for testing
-type mockJavaScriptBridge struct {
-	messages []MockMessage
-	mutex    sync.RWMutex
-}
-
-// MockMessage represents a message sent to JavaScript
-type MockMessage struct {
-	EventType      string
-	SubscriptionID string
-	Data           js.Value
-	Timestamp      time.Time
-}
-
-// NewMockJavaScriptBridge creates a mock JavaScript bridge for testing
-func NewMockJavaScriptBridge() *mockJavaScriptBridge {
-	return &mockJavaScriptBridge{
-		messages: make([]MockMessage, 0),
-	}
-}
-
-// PostMessage records the message for testing
-func (mjsb *mockJavaScriptBridge) PostMessage(eventType, subscriptionID string, data js.Value) {
-	mjsb.mutex.Lock()
-	defer mjsb.mutex.Unlock()
-
-	mjsb.messages = append(mjsb.messages, MockMessage{
-		EventType:      eventType,
-		SubscriptionID: subscriptionID,
-		Data:           data,
-		Timestamp:      time.Now(),
-	})
-}
-
-// RegisterFunction is a no-op for mock
-func (mjsb *mockJavaScriptBridge) RegisterFunction(name string, fn js.Func) {
-	// No-op for testing
-}
-
-// GetMessages returns all recorded messages
-func (mjsb *mockJavaScriptBridge) GetMessages() []MockMessage {
-	mjsb.mutex.RLock()
-	defer mjsb.mutex.RUnlock()
-
-	result := make([]MockMessage, len(mjsb.messages))
-	copy(result, mjsb.messages)
-	return result
-}
-
-// GetMessageCount returns the number of messages sent
-func (mjsb *mockJavaScriptBridge) GetMessageCount() int {
-	mjsb.mutex.RLock()
-	defer mjsb.mutex.RUnlock()
-	return len(mjsb.messages)
-}
-
-// Clear removes all recorded messages
-func (mjsb *mockJavaScriptBridge) Clear() {
-	mjsb.mutex.Lock()
-	defer mjsb.mutex.Unlock()
-	mjsb.messages = mjsb.messages[:0]
-}
-
-// GetMessagesByType returns messages filtered by event type
-func (mjsb *mockJavaScriptBridge) GetMessagesByType(eventType string) []MockMessage {
-	mjsb.mutex.RLock()
-	defer mjsb.mutex.RUnlock()
-
-	var result []MockMessage
-	for _, msg := range mjsb.messages {
-		if msg.EventType == eventType {
-			result = append(result, msg)
-		}
-	}
-	return result
-}
-
-// GetMessagesBySubscription returns messages filtered by subscription ID
-func (mjsb *mockJavaScriptBridge) GetMessagesBySubscription(subscriptionID string) []MockMessage {
-	mjsb.mutex.RLock()
-	defer mjsb.mutex.RUnlock()
-
-	var result []MockMessage
-	for _, msg := range mjsb.messages {
-		if msg.SubscriptionID == subscriptionID {
-			result = append(result, msg)
-		}
-	}
-	return result
 }

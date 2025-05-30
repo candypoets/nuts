@@ -28,7 +28,7 @@
 			{
 				kinds: [1, 6, 0, 10002], // take another chance to cache 0 and 10002 events for the followlist
 				authors: follows,
-				limit: 750,
+				limit: 100,
 				relays: [
 					'wss://relay.primal.net',
 					'wss://nostr.land',

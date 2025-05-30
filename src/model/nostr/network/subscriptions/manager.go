@@ -176,6 +176,7 @@ func (sm *subscriptionManager) GetActiveSubscriptionCount() int {
 func (sm *subscriptionManager) processSubscription(subscription Subscription, requests []types.Request) {
 	ctx := subscription.Context()
 	subscriptionID := subscription.ID()
+
 	// First, process local requests (cache)
 	networkRequests, cachedEvents, err := sm.cacheProcessor.ProcessLocalRequests(ctx, requests, 0)
 	if err != nil {

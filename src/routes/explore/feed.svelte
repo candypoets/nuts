@@ -71,6 +71,7 @@
 	// In a separate function to avoid infinite loops in the reactive block
 	const handleEvents = (events: ParsedEvent<AnyKind>[], eventKind: SubscribeKind, page = 0) => {
 		if (eventKind == 'EOSE') {
+			console.log(subscriptionID, 'EOSE', events);
 			if (events.remainingConnections / events.totalConnections <= 0.5 && eose == false) {
 				loading = false;
 				eose = true;
@@ -143,7 +144,7 @@
 
 	function setBufferFeed() {
 		newPosts = start > bufferFeed.length ? bufferFeed.length : start;
-		feed = [...feed, ...bufferFeed]
+		feed = [...feed, ...fetchedFeed, ...bufferFeed]
 			.sort((a, b) => b[0].created_at - a[0].created_at)
 			.slice(0, (lastPageFetch + 1) * 100);
 		bufferFeed = [];
@@ -160,16 +161,6 @@
 				setBufferFeed();
 			}
 		}, 1000);
-
-		// document.addEventListener('visibilitychange', () => {
-		// 	if (document.visibilityState === 'visible') {
-		// 		if (visible && requests && requests.length) {
-		// 			subscribe();
-		// 		}
-		// 	} else {
-		// 		unsubscribe();
-		// 	}
-		// });
 
 		return () => {
 			unsubscribe();
@@ -231,6 +222,9 @@
 			filteredFeed = feed as [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][];
 		}
 	}
+
+	// $: console.log('cachedFeed', subscriptionID, cachedFeed);
+	// $: console.log('fetchedFeed', subscriptionID, fetchedFeed);
 </script>
 
 <div

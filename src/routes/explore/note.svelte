@@ -62,6 +62,7 @@
 	function subscribe() {
 		timeout = setTimeout(async () => {
 			if (note && note.requests && visible) {
+				console.log('subscribe', note.id + depth);
 				// console.log('note requests', note.id || noteId, randomId, note.requests);
 				nostrManager.subscribe(note.id + depth, note.requests, handleEvents);
 			}
@@ -76,7 +77,7 @@
 		}
 	}
 
-	$: visible && note ? subscribe() : unsubscribe();
+	$: visible == true ? subscribe() : unsubscribe();
 
 	function go() {
 		if (isImageContext) return;

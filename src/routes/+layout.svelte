@@ -10,7 +10,6 @@
 
 	import Alert from 'src/components/Alert.svelte';
 	import Statuses from 'src/components/Statuses.svelte';
-	import Theme from 'src/components/Theme.svelte';
 	import { kind0, kind10002, kind10019, kind3 } from 'src/controller/nostr';
 	import { mints, saveNuts } from 'src/controller/wallet';
 	import { isKind0, isKind10002, isKind10019, isKind3, type AnyKind } from 'src/types';
@@ -28,6 +27,7 @@
 	import Debug from 'src/components/Debug.svelte';
 	import ImageZoom from 'src/components/ImageZoom.svelte';
 	import { viewport, dimensions, isMobile } from 'src/controller/viewport';
+	// import 'src/lib/wasm-msgpack-decoder';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
 
