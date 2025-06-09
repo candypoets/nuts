@@ -22,6 +22,8 @@ type Request struct {
 	CloseOnEOSE bool             `json:"closeOnEOSE,omitempty" msgpack:"closeOnEOSE,omitempty"`
 	CacheFirst  bool             `json:"cacheFirst,omitempty" msgpack:"cacheFirst,omitempty"`
 	NoOptimize  bool             `json:"noOptimize,omitempty" msgpack:"noOptimize,omitempty"`
+	Count       bool             `json:"count,omitempty" msgpack:"count,omitempty"`
+	NoContext   bool             `json:"noContext,omitempty" msgpack:"noContext,omitempty"`
 }
 
 // ToFilter converts a Request to a nostr.Filter

@@ -21,7 +21,8 @@
 	let requests: Request[] = [
 		{
 			kinds: [39089],
-			limit: 1500,
+			limit: 100,
+			noContext: true,
 			relays: []
 		}
 	];

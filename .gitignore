@@ -9,3 +9,4 @@ node_modules
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 wasm-msgpack/target
+src/model/nostr-rust/target

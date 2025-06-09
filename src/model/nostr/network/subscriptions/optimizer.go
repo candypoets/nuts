@@ -81,8 +81,8 @@ func (so *subscriptionOptimizer) OptimizeSubscriptions(requests []types.Request)
 			}
 		}
 
-		// Create individual requests for NoOptimize requests
-		if requests[i].NoOptimize || requests[i].CloseOnEOSE {
+		// Create individual requests for NoOptimize, Count, and NoContext requests
+		if requests[i].NoOptimize || requests[i].CloseOnEOSE || requests[i].Count || requests[i].NoContext {
 			optimizedRequests = append(optimizedRequests, requests[i])
 		} else {
 			// Collect requests that can be optimized
@@ -250,6 +250,8 @@ func (so *subscriptionOptimizer) mergeRequests(requests []types.Request) []types
 		}
 		// Copy other non-mergeable fields
 		mergedRequest.NoOptimize = firstRequest.NoOptimize
+		mergedRequest.Count = firstRequest.Count
+		mergedRequest.NoContext = firstRequest.NoContext
 		// mergedRequest.CloseOnEose = firstRequest.CloseOnEose
 
 		// Start collecting merged values for each field

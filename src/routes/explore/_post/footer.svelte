@@ -100,6 +100,7 @@
 						{
 							kinds: [1, 6, 7, 17],
 							tags: { '#e': [note.id] },
+							noContext: true,
 							relays: relays || note.relays || []
 						}
 					],

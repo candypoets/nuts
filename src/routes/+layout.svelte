@@ -353,7 +353,7 @@
 			>
 				<div class="w-full relative overflow-hidden">
 					{#key 'home'}
-						<svelte:component this={Home}></svelte:component>
+						<Home visible={currentIndex == 0} />
 					{/key}
 				</div>
 			</div>
@@ -376,11 +376,11 @@
 				}}
 			>
 				<div class="w-full h-full relative overflow-hidden">
-					<Explore />
+					<Explore visible={currentIndex == 1} />
 				</div>
 			</div>
 
-			<div
+			<!-- <div
 				class="carousel-item w-[100vw] h-full will-change-transform"
 				style="transform: translateZ({transform2 * ($isMobile ? 0 : 10)}px) rotateY({(1 -
 					($isMobile ? 0 : transform2)) *
@@ -396,9 +396,9 @@
 				}}
 			>
 				<div class="w-full h-screen relative overflow-hidden">
-					<Chat />
+					<Chat visible={currentIndex == 2} />
 				</div>
-			</div>
+			</div> -->
 		</div>
 
 		<!-- Bottom Navigation -->

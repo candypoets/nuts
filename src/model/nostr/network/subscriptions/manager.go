@@ -177,6 +177,18 @@ func (sm *subscriptionManager) processSubscription(subscription Subscription, re
 	ctx := subscription.Context()
 	subscriptionID := subscription.ID()
 
+	// Check if this is a count-only or noContext subscription
+	hasCountRequest := false
+	hasNoContextRequest := false
+	for _, req := range requests {
+		if req.Count {
+			hasCountRequest = true
+		}
+		if req.NoContext {
+			hasNoContextRequest = true
+		}
+	}
+
 	// First, process local requests (cache)
 	networkRequests, cachedEvents, err := sm.cacheProcessor.ProcessLocalRequests(ctx, requests, 0)
 	if err != nil {
@@ -186,26 +198,250 @@ func (sm *subscriptionManager) processSubscription(subscription Subscription, re
 			Msg("Error processing local requests")
 	}
 
-	// Send cached events in batch
-	if len(cachedEvents) > 0 {
-		sm.sendCachedEventsBatch(subscription, cachedEvents)
-		// Mark cached events as sent
+	// For count requests, count the cached events instead of sending them
+	if hasCountRequest {
+		totalCount := 0
+		// Only count the first event in each group (main event, not context)
 		for _, events := range cachedEvents {
-			subscription.MarkEventAsSent(events[0].ID, events)
+			if len(events) > 0 {
+				totalCount++
+			}
+		}
+
+		// Process network requests and count those too
+		if len(networkRequests) > 0 {
+			totalCount += sm.processNetworkSubscriptionForCount(subscription, networkRequests)
+		}
+
+		// Send the total count
+		sm.sendCount(subscription, totalCount)
+	} else if hasNoContextRequest {
+		// For noContext requests, send events without context
+		if len(cachedEvents) > 0 {
+			sm.sendCachedEventsWithoutContext(subscription, cachedEvents)
+			// Mark cached events as sent
+			for _, events := range cachedEvents {
+				if len(events) > 0 {
+					subscription.MarkEventAsSent(events[0].ID, []types.ParsedEvent{events[0]})
+				}
+			}
+		}
+
+		// Send end of cached events
+		sm.jsBridge.PostMessage("EOCE", subscriptionID, js.Null())
+
+		// Check if subscription was cancelled
+		if ctx.Err() != nil {
+			return
+		}
+
+		// Process network requests if any remain
+		if len(networkRequests) > 0 {
+			sm.processNetworkSubscriptionWithoutContext(subscription, networkRequests)
+		}
+	} else {
+		// Normal event processing
+		// Send cached events in batch
+		if len(cachedEvents) > 0 {
+			sm.sendCachedEventsBatch(subscription, cachedEvents)
+			// Mark cached events as sent
+			for _, events := range cachedEvents {
+				subscription.MarkEventAsSent(events[0].ID, events)
+			}
+		}
+
+		// Send end of cached events
+		sm.jsBridge.PostMessage("EOCE", subscriptionID, js.Null())
+
+		// Check if subscription was cancelled
+		if ctx.Err() != nil {
+			return
+		}
+
+		// Process network requests if any remain
+		if len(networkRequests) > 0 {
+			sm.processNetworkSubscription(subscription, networkRequests)
 		}
 	}
+}
 
-	// Send end of cached events
-	sm.jsBridge.PostMessage("EOCE", subscriptionID, js.Null())
+// sendCount sends the total count to JavaScript
+func (sm *subscriptionManager) sendCount(subscription Subscription, totalCount int) {
+	subscriptionID := subscription.ID()
 
-	// Check if subscription was cancelled
-	if ctx.Err() != nil {
+	sm.logger.Debug().
+		Str("subscription_id", subscriptionID).
+		Int("total_count", totalCount).
+		Msg("Sending count result")
+
+	// Send count result
+	pack, err := msgpack.Marshal(totalCount)
+	if err != nil {
+		sm.logger.Error().
+			Err(err).
+			Str("subscription_id", subscriptionID).
+			Msg("Error marshaling count result")
 		return
 	}
 
-	// Process network requests if any remain
-	if len(networkRequests) > 0 {
-		sm.processNetworkSubscription(subscription, networkRequests)
+	uint8Array := js.Global().Get("Uint8Array").New(len(pack))
+	js.CopyBytesToJS(uint8Array, pack)
+
+	sm.jsBridge.PostMessage("COUNT", subscriptionID, uint8Array)
+}
+
+// sendCachedEventsWithoutContext sends cached events without context as individual events
+func (sm *subscriptionManager) sendCachedEventsWithoutContext(subscription Subscription, cachedEvents [][]types.ParsedEvent) {
+	eventsWithoutContext := make([][]types.ParsedEvent, 0, len(cachedEvents))
+
+	// Extract only the main event from each group (first event, skip context)
+	for _, events := range cachedEvents {
+		if len(events) > 0 {
+			mainEvent := events[0] // Only the main event
+			// Remove requests field for noContext responses
+			mainEvent.Requests = nil
+			eventsWithoutContext = append(eventsWithoutContext, []types.ParsedEvent{mainEvent})
+		}
+	}
+
+	if len(eventsWithoutContext) > 0 {
+		// Pack events without context into msgpack payload
+		pack, err := msgpack.Marshal(eventsWithoutContext)
+		if err != nil {
+			sm.logger.Error().
+				Err(err).
+				Str("subscription_id", subscription.ID()).
+				Msg("Error marshaling cached events without context")
+			return
+		}
+
+		uint8Array := js.Global().Get("Uint8Array").New(len(pack))
+		js.CopyBytesToJS(uint8Array, pack)
+
+		sm.jsBridge.PostMessage("CACHED_EVENT", subscription.ID(), uint8Array)
+	}
+}
+
+// processNetworkSubscriptionForCount handles network subscription processing for count requests
+func (sm *subscriptionManager) processNetworkSubscriptionForCount(subscription Subscription, requests []types.Request) int {
+	ctx := subscription.Context()
+	subscriptionID := subscription.ID()
+	totalCount := 0
+
+	// Start network processing
+	eventChan := sm.networkProcessor.ProcessNetworkRequests(ctx, requests)
+
+	// Process events from network and count them
+	for {
+		select {
+		case <-ctx.Done():
+			return totalCount
+
+		case networkEvent, more := <-eventChan:
+			if !more {
+				return totalCount
+			}
+
+			switch networkEvent.Type {
+			case NetworkEventTypeEvent:
+				// Count the event and its context
+				event := networkEvent.Event
+
+				// Check if event was already counted
+				if !subscription.HasEventBeenSent(event.ID) {
+					subscription.MarkEventAsSent(event.ID, []types.ParsedEvent{*event})
+
+					// Count only the main event, ignore context events
+					totalCount++
+				}
+
+			case NetworkEventTypeEOSE:
+				// Continue counting until all relays finish
+
+			case NetworkEventTypeError:
+				sm.logger.Error().
+					Err(networkEvent.Error).
+					Str("subscription_id", subscriptionID).
+					Str("relay", networkEvent.Relay).
+					Msg("Network event error during count")
+			}
+		}
+	}
+}
+
+// processNetworkSubscriptionWithoutContext handles network subscription processing for noContext requests
+func (sm *subscriptionManager) processNetworkSubscriptionWithoutContext(subscription Subscription, requests []types.Request) {
+	ctx := subscription.Context()
+	subscriptionID := subscription.ID()
+
+	// Start network processing
+	eventChan := sm.networkProcessor.ProcessNetworkRequests(ctx, requests)
+
+	// Process events from network
+	for {
+		select {
+		case <-ctx.Done():
+			return
+
+		case networkEvent, more := <-eventChan:
+			if !more {
+				return
+			}
+
+			switch networkEvent.Type {
+			case NetworkEventTypeEvent:
+				sm.handleNetworkEventWithoutContext(subscription, networkEvent)
+
+			case NetworkEventTypeEOSE:
+				sm.handleEOSE(subscription, networkEvent)
+
+			case NetworkEventTypeError:
+				sm.logger.Error().
+					Err(networkEvent.Error).
+					Str("subscription_id", subscriptionID).
+					Str("relay", networkEvent.Relay).
+					Msg("Network event error")
+			}
+		}
+	}
+}
+
+// handleNetworkEventWithoutContext processes a single network event without context
+func (sm *subscriptionManager) handleNetworkEventWithoutContext(subscription Subscription, networkEvent NetworkEvent) {
+	event := networkEvent.Event
+	subscriptionID := subscription.ID()
+
+	// Check if event was already sent
+	if subscription.HasEventBeenSent(event.ID) {
+		return
+	}
+
+	// Mark as sent (only the main event, no context)
+	subscription.MarkEventAsSent(event.ID, []types.ParsedEvent{*event})
+
+	// Add to database if caching is enabled
+	if sm.config.EnableCaching && !strings.HasSuffix(subscriptionID, "nocache") {
+		sm.database.AddEvent(*event)
+
+		// Stage for persistent storage if it's a cacheable event kind
+		if sm.cacheProcessor.ShouldCacheEvent(*event) {
+			sm.stagingManager.StageEvent(*event)
+		}
+	}
+
+	// Send only the main event without context and remove requests field
+	eventCopy := *event
+	eventCopy.Requests = nil
+	mainEventOnly := []types.ParsedEvent{eventCopy}
+
+	// Handle batching vs real-time mode
+	if subscription.IsInBatchingMode() {
+		// Add to batch instead of sending immediately
+		subscription.AddToFetchedBatch(mainEventOnly)
+	} else {
+		// Send individual event (wrapped in array of arrays for consistency)
+		eventBatch := [][]types.ParsedEvent{mainEventOnly}
+		sm.sendFetchedEventsBatch(subscriptionID, eventBatch)
 	}
 }
 

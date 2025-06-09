@@ -32,6 +32,7 @@
 						{
 							kinds: [9735, 9321],
 							tags: { '#e': [note.id] },
+							noContext: true,
 							since: note.created_at,
 							relays: relays || []
 						}

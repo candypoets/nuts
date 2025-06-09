@@ -7,10 +7,13 @@ import type { ParsedEvent } from 'src/types';
 import { debug } from 'src/controller/debug';
 import { wasmMsgpack } from 'src/lib/wasm-msgpack-decoder';
 
-export type SubscribeKind = 'CACHED_EVENT' | 'FETCHED_EVENT' | 'EOSE' | 'EOCE';
+export type SubscribeKind = 'CACHED_EVENT' | 'FETCHED_EVENT' | 'COUNT' | 'EOSE' | 'EOCE';
 export type PublishKind = 'PUBLISH_STATUS';
-// only the first event is from the request, all others are contextuals
-type SubscriptionCallback = (events: ParsedEvent<AnyKind>[], type: SubscribeKind) => void;
+// Callback for subscription events
+// - For 'CACHED_EVENT' and 'FETCHED_EVENT': data is ParsedEvent[] (only the first event is from the request, others are contextual)
+// - For 'COUNT': data is number representing the count of matching events
+// - For 'EOSE' and 'EOCE': data format varies
+type SubscriptionCallback = (data: ParsedEvent<AnyKind>[] | number, type: SubscribeKind) => void;
 
 type PublishCallback = (data: RelayStatus, type: PublishKind) => void;
 
@@ -44,6 +47,8 @@ export type Request = Filter & {
 	cacheFirst?: boolean;
 	noOptimize?: boolean;
 	limit?: number;
+	count?: boolean;
+	noContext?: boolean;
 };
 
 interface SubscriptionOptions {
@@ -146,6 +151,9 @@ export class NostrManager {
 			case 'FETCHED_EVENT':
 				await this.handleFetchedEventsBatch(subscriptionId, eventData);
 				break;
+			case 'COUNT':
+				await this.handleCount(subscriptionId, eventData);
+				break;
 			case 'EOSE':
 				await this.handleEOSE(subscriptionId, eventData);
 				if (subscription.options.closeOnEose) {
@@ -153,7 +161,6 @@ export class NostrManager {
 				}
 				break;
 			case 'EOCE':
-				console.debug(`End of cached events for subscription ${subscriptionId}`);
 				this.handleEOCE(subscriptionId);
 				break;
 		}
@@ -326,6 +333,15 @@ export class NostrManager {
 		// EOSE contains EOSE data, not events
 		const eoseData = eventData ? await wasmMsgpack.decode(eventData) : null;
 		subscription.callback(eoseData, 'EOSE');
+	}
+
+	private async handleCount(subscriptionId: string, eventData: Uint8Array) {
+		const subscription = this.subscriptions.get(subscriptionId);
+		if (!subscription) return;
+
+		// COUNT contains a number, not events
+		const count = eventData ? await wasmMsgpack.decode(eventData) : 0;
+		subscription.callback(count, 'COUNT');
 	}
 
 	private handleEOCE(subscriptionId: string) {

@@ -16,6 +16,8 @@
 	import Content from '../explore/_post/content.svelte';
 	import { viewport } from 'src/controller/viewport';
 
+	export let visible = true;
+
 	let feedRequests: Request[] = [];
 	let subs: string[] = [];
 
@@ -74,7 +76,7 @@
 					kinds: [4],
 					tags: { '#p': [$key.pub] },
 					authors: $kind3?.parsed.map((c) => c.pubkey).filter((p) => p != $key?.pub),
-					limit: 1000, // only load the last 1000 msgs received
+					limit: visible ? 20 : 100, // only load the last 1000 msgs received
 					relays: $kind10002?.parsed?.filter((r) => r.read).map((r) => r.url) || [],
 					noOptimize: true
 				},
@@ -82,8 +84,8 @@
 					kinds: [4],
 					tags: { '#p': $kind3?.parsed.map((c) => c.pubkey).filter((p) => p != $key?.pub) },
 					authors: [$key.pub],
+					limit: visible ? 20 : 100,
 					relays: $kind10002?.parsed?.filter((r) => r.write).map((r) => r.url) || [],
-					limit: 1000, // only load the last 1000 msgs received
 					noOptimize: true
 				}
 			];

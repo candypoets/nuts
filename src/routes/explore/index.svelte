@@ -10,7 +10,9 @@
 	import Feed from 'src/routes/explore/feed.svelte';
 	import Post from 'src/routes/explore/post.svelte';
 	import MultiSelect from '../modals/components/MultiSelect.svelte';
-	import { go } from '../modals/modal';
+	import { go } from 'src/routes/modals/modal';
+
+	export let visible = true;
 
 	let feedRequests: any[] = [];
 	let subs: string[] = [];
@@ -28,7 +30,7 @@
 			{
 				kinds: [1, 6, 0, 10002], // take another chance to cache 0 and 10002 events for the followlist
 				authors: follows,
-				limit: 100,
+				limit: visible ? 20 : 0,
 				relays: [
 					'wss://relay.primal.net',
 					'wss://nostr.land',
