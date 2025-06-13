@@ -19,7 +19,7 @@ RUSTFLAGS_WASM_CHECK = "1"
 
 [target.wasm32-unknown-unknown]
 # WASM-specific build flags for source maps
-rustflags = ["-C", "debuginfo=2", "-C", "opt-level=0"]
+rustflags = ["-C", "target-feature=+atomics,+bulk-memory,+mutable-globals"]
 
 [target.wasm32-unknown-unknown.dependencies]
 # This section can be used to override dependencies for WASM target

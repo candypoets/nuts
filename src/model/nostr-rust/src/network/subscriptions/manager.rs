@@ -6,7 +6,6 @@ use super::*;
 use crate::config::SubscriptionConfig;
 use crate::db::NostrDB;
 use crate::parser::Parser;
-use crate::relays::RelayManager;
 use crate::types::*;
 use crate::utils::spawner::TaskSpawner;
 use anyhow::Result;
@@ -27,15 +26,18 @@ pub struct SubscriptionManager {
 impl SubscriptionManager {
     pub fn new(
         database: Arc<NostrDB>,
-        relay_manager: Arc<dyn RelayManager>,
+        connection_registry: Arc<ConnectionRegistry>,
         parser: Arc<Parser>,
     ) -> Self {
-        let context =
-            SubscriptionContext::new(database.clone(), relay_manager.clone(), parser.clone());
+        let context = SubscriptionContext::new(
+            database.clone(),
+            connection_registry.clone(),
+            parser.clone(),
+        );
         let spawner = TaskSpawner::new();
         let registry = Arc::new(SubscriptionRegistry::new());
         let cache_processor = Arc::new(CacheProcessor::new(database.clone(), parser.clone()));
-        let network_processor = Arc::new(NetworkProcessor::new(relay_manager.clone()));
+        let network_processor = Arc::new(NetworkProcessor::new(connection_registry.clone()));
         let optimizer = Arc::new(SubscriptionOptimizer::new());
 
         Self {
@@ -85,10 +87,6 @@ impl SubscriptionManager {
             )
             .await;
         };
-
-        self.spawner
-            .spawn_task(subscription_id.clone(), subscription_future)
-            .map_err(|e| anyhow::anyhow!("Failed to spawn subscription task: {}", e))?;
 
         info!("Subscription {} opened successfully", subscription_id);
         Ok(())

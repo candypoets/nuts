@@ -3,7 +3,7 @@ pub mod subscriptions;
 
 use crate::db::NostrDB;
 use crate::parser::Parser;
-use crate::relays::RelayManager;
+use crate::relays::ConnectionRegistry;
 use crate::types::*;
 use anyhow::Result;
 use std::sync::Arc;
@@ -16,15 +16,18 @@ pub struct NetworkManager {
 impl NetworkManager {
     pub fn new(
         database: Arc<NostrDB>,
-        relay_manager: Arc<dyn RelayManager>,
+        connection_registry: Arc<ConnectionRegistry>,
         parser: Arc<Parser>,
     ) -> Self {
-        let publish_manager =
-            publish::PublishManager::new(database.clone(), relay_manager.clone(), parser.clone());
+        let publish_manager = publish::PublishManager::new(
+            database.clone(),
+            connection_registry.clone(),
+            parser.clone(),
+        );
 
         let subscription_manager = subscriptions::SubscriptionManager::new(
             database.clone(),
-            relay_manager.clone(),
+            connection_registry.clone(),
             parser.clone(),
         );
 

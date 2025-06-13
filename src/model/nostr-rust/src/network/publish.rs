@@ -1,6 +1,7 @@
 use crate::db::NostrDB;
 use crate::parser::Parser;
-use crate::relays::RelayManager;
+use crate::relays::connection_registry;
+use crate::relays::ConnectionRegistry;
 use crate::types::*;
 use anyhow::Result;
 use futures::future::join_all;
@@ -28,7 +29,7 @@ pub struct PublishOperation {
 
 pub struct PublishManager {
     database: Arc<NostrDB>,
-    relay_manager: Arc<dyn RelayManager>,
+    connection_registry: Arc<ConnectionRegistry>,
     parser: Arc<Parser>,
     operations: Arc<RwLock<HashMap<String, PublishOperation>>>,
     default_relays: Vec<String>,
@@ -38,7 +39,7 @@ pub struct PublishManager {
 impl PublishManager {
     pub fn new(
         database: Arc<NostrDB>,
-        relay_manager: Arc<dyn RelayManager>,
+        connection_registry: Arc<ConnectionRegistry>,
         parser: Arc<Parser>,
     ) -> Self {
         let default_relays = vec![
@@ -50,7 +51,7 @@ impl PublishManager {
 
         Self {
             database,
-            relay_manager,
+            connection_registry,
             parser,
             operations: Arc::new(RwLock::new(HashMap::new())),
             default_relays,
@@ -105,40 +106,7 @@ impl PublishManager {
             relays
         );
 
-        // Initialize the operation
-        let mut relay_status = HashMap::new();
-        for relay in &relays {
-            relay_status.insert(relay.clone(), PublishStatus::Pending);
-        }
-
-        let operation = PublishOperation {
-            id: publish_id.clone(),
-            event: prepared_event.event.clone(),
-            relay_status,
-            start_time: Instant::now(),
-            target_relays: relays.clone(),
-            cancel_tx: None,
-        };
-
-        // Store the operation
-        {
-            let mut operations = self.operations.write().await;
-            operations.insert(publish_id.clone(), operation);
-        }
-
-        // Start publishing to each relay in separate tasks
-        for relay_url in relays {
-            let publish_id_clone = publish_id.clone();
-            let relay_url_clone = relay_url.clone();
-            let event_clone = prepared_event.event.clone();
-            let manager_clone = self.clone_for_task();
-
-            wasm_bindgen_futures::spawn_local(async move {
-                manager_clone
-                    .publish_to_relay(publish_id_clone, relay_url_clone, event_clone)
-                    .await;
-            });
-        }
+        self.connection_registry.publish(event, relays);
 
         Ok(())
     }
@@ -268,181 +236,6 @@ impl PublishManager {
         }
     }
 
-    async fn publish_to_relay(&self, publish_id: String, relay_url: String, event: Event) {
-        debug!(
-            "Publishing event to relay {} for publish ID {}",
-            relay_url, publish_id
-        );
-
-        // Update status to "sent"
-        self.update_relay_status(
-            &publish_id,
-            &relay_url,
-            PublishStatus::Sent,
-            "Sending event to relay",
-        )
-        .await;
-
-        // Get or establish a connection to the relay
-        let relay = match self.relay_manager.get_relay(&relay_url).await {
-            Ok(relay) => relay,
-            Err(e) => {
-                self.update_relay_status(
-                    &publish_id,
-                    &relay_url,
-                    PublishStatus::ConnectionError,
-                    &format!("Failed to connect: {}", e),
-                )
-                .await;
-                return;
-            }
-        };
-
-        // Publish the event with timeout
-        let publish_result = select! {
-            result = relay.publish(event).fuse() => Ok(result),
-            _ = TimeoutFuture::new(30_000).fuse() => Err(anyhow::anyhow!(
-                "Publish operation timed out after 30 seconds"
-            )),
-        };
-
-        match publish_result {
-            Ok(Ok(())) => {
-                self.update_relay_status(
-                    &publish_id,
-                    &relay_url,
-                    PublishStatus::Success,
-                    "Event published successfully",
-                )
-                .await;
-            }
-            Ok(Err(e)) => {
-                self.update_relay_status(
-                    &publish_id,
-                    &relay_url,
-                    PublishStatus::Failed,
-                    &format!("Publish error: {}", e),
-                )
-                .await;
-            }
-            Err(_) => {
-                self.update_relay_status(
-                    &publish_id,
-                    &relay_url,
-                    PublishStatus::Failed,
-                    "Publish timeout",
-                )
-                .await;
-            }
-        }
-
-        // Release the relay connection
-        self.relay_manager.release_relay(&relay_url);
-    }
-
-    async fn update_relay_status(
-        &self,
-        publish_id: &str,
-        relay_url: &str,
-        status: PublishStatus,
-        message: &str,
-    ) {
-        // Update the operation status
-        let should_cleanup = {
-            let mut operations = self.operations.write().await;
-            if let Some(operation) = operations.get_mut(publish_id) {
-                operation
-                    .relay_status
-                    .insert(relay_url.to_string(), status.clone());
-
-                // Check if all relays have completed
-                self.check_all_relays_completed(operation)
-            } else {
-                warn!(
-                    "Tried to update status for non-existent publish operation: {}",
-                    publish_id
-                );
-                return;
-            }
-        };
-
-        // Create status update
-        let update = RelayStatusUpdate {
-            relay: relay_url.to_string(),
-            status,
-            message: message.to_string(),
-            timestamp: chrono::Utc::now().timestamp(),
-        };
-
-        // Notify via callback if available
-        if let Some(callback) = &self.callback {
-            self.invoke_callback(callback, "PUBLISH_STATUS", publish_id, &update);
-        }
-
-        // Cleanup if all relays completed
-        if should_cleanup {
-            self.cleanup_operation(publish_id).await;
-        }
-    }
-
-    fn check_all_relays_completed(&self, operation: &PublishOperation) -> bool {
-        for status in operation.relay_status.values() {
-            if matches!(status, PublishStatus::Pending | PublishStatus::Sent) {
-                return false;
-            }
-        }
-        true
-    }
-
-    async fn cleanup_operation(&self, publish_id: &str) {
-        let summary = {
-            let mut operations = self.operations.write().await;
-            if let Some(operation) = operations.remove(publish_id) {
-                let success_count = operation
-                    .relay_status
-                    .values()
-                    .filter(|status| matches!(status, PublishStatus::Success))
-                    .count();
-
-                Some(PublishSummary {
-                    relay_count: operation.relay_status.len(),
-                    success_count,
-                    relay_statuses: operation
-                        .relay_status
-                        .into_iter()
-                        .map(|(relay, status)| RelayStatusUpdate {
-                            relay,
-                            status,
-                            message: String::new(),
-                            timestamp: chrono::Utc::now().timestamp(),
-                        })
-                        .collect(),
-                    duration_ms: operation.start_time.elapsed().as_millis() as u64,
-                    timestamp: chrono::Utc::now().timestamp(),
-                })
-            } else {
-                None
-            }
-        };
-
-        if let Some(summary) = summary {
-            info!(
-                "Completed publish operation {} with {}/{} successful relays",
-                publish_id, summary.success_count, summary.relay_count
-            );
-
-            // Notify via callback if available
-            if let Some(callback) = &self.callback {
-                self.invoke_callback(callback, "PUBLISH_COMPLETE", publish_id, &summary);
-            }
-        }
-    }
-
-    pub async fn get_active_publish_count(&self) -> usize {
-        let operations = self.operations.read().await;
-        operations.len()
-    }
-
     pub async fn cancel_publish(&self, publish_id: &str) -> Result<()> {
         let mut operations = self.operations.write().await;
         if let Some(operation) = operations.remove(publish_id) {
@@ -488,255 +281,7 @@ impl PublishManager {
             warn!("Failed to serialize data for callback");
         }
     }
-
-    // Helper method to clone necessary components for spawned tasks
-    fn clone_for_task(&self) -> PublishManagerTask {
-        PublishManagerTask {
-            relay_manager: self.relay_manager.clone(),
-            operations: self.operations.clone(),
-            callback: self.callback.clone(),
-        }
-    }
 }
-
-// Helper struct for task spawning to avoid Send issues
-struct PublishManagerTask {
-    relay_manager: Arc<dyn RelayManager>,
-    operations: Arc<RwLock<HashMap<String, PublishOperation>>>,
-    callback: Option<js_sys::Function>,
-}
-
-impl PublishManagerTask {
-    async fn publish_to_relay(&self, publish_id: String, relay_url: String, event: Event) {
-        debug!(
-            "Publishing event to relay {} for publish ID {}",
-            relay_url, publish_id
-        );
-
-        // Update status to "sent"
-        self.update_relay_status(
-            &publish_id,
-            &relay_url,
-            PublishStatus::Sent,
-            "Sending event to relay",
-        )
-        .await;
-
-        // Get or establish a connection to the relay
-        let relay = match self.relay_manager.get_relay(&relay_url).await {
-            Ok(relay) => relay,
-            Err(e) => {
-                self.update_relay_status(
-                    &publish_id,
-                    &relay_url,
-                    PublishStatus::ConnectionError,
-                    &format!("Failed to connect: {}", e),
-                )
-                .await;
-                return;
-            }
-        };
-
-        // Publish the event with timeout
-        let publish_result = select! {
-            result = relay.publish(event).fuse() => Ok(result),
-            _ = TimeoutFuture::new(30_000).fuse() => Err(anyhow::anyhow!(
-                "Publish operation timed out after 30 seconds"
-            )),
-        };
-
-        match publish_result {
-            Ok(Ok(())) => {
-                self.update_relay_status(
-                    &publish_id,
-                    &relay_url,
-                    PublishStatus::Success,
-                    "Event published successfully",
-                )
-                .await;
-            }
-            Ok(Err(e)) => {
-                self.update_relay_status(
-                    &publish_id,
-                    &relay_url,
-                    PublishStatus::Failed,
-                    &format!("Publish error: {}", e),
-                )
-                .await;
-            }
-            Err(_) => {
-                self.update_relay_status(
-                    &publish_id,
-                    &relay_url,
-                    PublishStatus::Failed,
-                    "Publish timeout",
-                )
-                .await;
-            }
-        }
-
-        // Release the relay connection
-        self.relay_manager.release_relay(&relay_url);
-    }
-
-    async fn update_relay_status(
-        &self,
-        publish_id: &str,
-        relay_url: &str,
-        status: PublishStatus,
-        message: &str,
-    ) {
-        // Update the operation status
-        let should_cleanup = {
-            let mut operations = self.operations.write().await;
-            if let Some(operation) = operations.get_mut(publish_id) {
-                operation
-                    .relay_status
-                    .insert(relay_url.to_string(), status.clone());
-
-                // Check if all relays have completed
-                self.check_all_relays_completed(operation)
-            } else {
-                warn!(
-                    "Tried to update status for non-existent publish operation: {}",
-                    publish_id
-                );
-                return;
-            }
-        };
-
-        // Create status update
-        let update = RelayStatusUpdate {
-            relay: relay_url.to_string(),
-            status,
-            message: message.to_string(),
-            timestamp: chrono::Utc::now().timestamp(),
-        };
-
-        // Notify via callback if available
-        if let Some(callback) = &self.callback {
-            self.invoke_callback(callback, "PUBLISH_STATUS", publish_id, &update);
-        }
-
-        // Cleanup if all relays completed
-        if should_cleanup {
-            self.cleanup_operation(publish_id).await;
-        }
-    }
-
-    fn check_all_relays_completed(&self, operation: &PublishOperation) -> bool {
-        for status in operation.relay_status.values() {
-            if matches!(status, PublishStatus::Pending | PublishStatus::Sent) {
-                return false;
-            }
-        }
-        true
-    }
-
-    async fn cleanup_operation(&self, publish_id: &str) {
-        let summary = {
-            let mut operations = self.operations.write().await;
-            if let Some(operation) = operations.remove(publish_id) {
-                let success_count = operation
-                    .relay_status
-                    .values()
-                    .filter(|status| matches!(status, PublishStatus::Success))
-                    .count();
-
-                Some(PublishSummary {
-                    relay_count: operation.relay_status.len(),
-                    success_count,
-                    relay_statuses: operation
-                        .relay_status
-                        .into_iter()
-                        .map(|(relay, status)| RelayStatusUpdate {
-                            relay,
-                            status,
-                            message: String::new(),
-                            timestamp: chrono::Utc::now().timestamp(),
-                        })
-                        .collect(),
-                    duration_ms: operation.start_time.elapsed().as_millis() as u64,
-                    timestamp: chrono::Utc::now().timestamp(),
-                })
-            } else {
-                None
-            }
-        };
-
-        if let Some(summary) = summary {
-            info!(
-                "Completed publish operation {} with {}/{} successful relays",
-                publish_id, summary.success_count, summary.relay_count
-            );
-
-            // Notify via callback if available
-            if let Some(callback) = &self.callback {
-                self.invoke_callback(callback, "PUBLISH_COMPLETE", publish_id, &summary);
-            }
-        }
-    }
-
-    // Helper method to invoke JavaScript callback
-    fn invoke_callback<T: serde::Serialize>(
-        &self,
-        callback: &js_sys::Function,
-        event_type: &str,
-        publish_id: &str,
-        data: &T,
-    ) {
-        // Serialize data using msgpack (like Go implementation)
-        if let Ok(serialized) = rmp_serde::to_vec(data) {
-            // Create JavaScript Uint8Array
-            let uint8_array = Uint8Array::new_with_length(serialized.len() as u32);
-            uint8_array.copy_from(&serialized);
-
-            // Call the JavaScript callback
-            let this = JsValue::NULL;
-            let args = js_sys::Array::new();
-            args.push(&JsValue::from_str(event_type));
-            args.push(&JsValue::from_str(publish_id));
-            args.push(&uint8_array.into());
-
-            if let Err(e) = callback.apply(&this, &args) {
-                warn!("Failed to invoke callback: {:?}", e);
-            }
-        } else {
-            warn!("Failed to serialize data for callback");
-        }
-    }
-}
-
-/// JavaScript Usage Example:
-///
-/// ```javascript
-/// // Create a callback function to handle publish status updates
-/// function handlePublishStatus(eventType, publishId, uint8ArrayData) {
-///     // Decode MessagePack data (same format as Go implementation)
-///     const data = msgpack.decode(uint8ArrayData);
-///
-///     if (eventType === "PUBLISH_STATUS") {
-///         console.log(`Relay ${data.relay} status: ${data.status} - ${data.message}`);
-///     } else if (eventType === "PUBLISH_COMPLETE") {
-///         console.log(`Publish complete: ${data.success_count}/${data.relay_count} relays succeeded`);
-///         console.log(`Duration: ${data.duration_ms}ms`);
-///     }
-/// }
-///
-/// // Set the callback on the publish manager
-/// publishManager.set_callback(handlePublishStatus);
-///
-/// // Publish an event
-/// const publishId = crypto.randomUUID();
-/// await publishManager.publish_event(publishId, nostrEvent);
-/// ```
-///
-/// The callback will receive:
-/// - `eventType`: "PUBLISH_STATUS" or "PUBLISH_COMPLETE"
-/// - `publishId`: The unique ID for this publish operation
-/// - `uint8ArrayData`: MessagePack-encoded data containing:
-///   - For PUBLISH_STATUS: { relay, status, message, timestamp }
-///   - For PUBLISH_COMPLETE: { relay_count, success_count, relay_statuses, duration_ms, timestamp }
 
 #[cfg(test)]
 mod tests {

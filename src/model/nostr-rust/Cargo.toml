@@ -54,7 +54,7 @@ async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 
 # WASM-native WebSocket support
-ws_stream_wasm = "0.7"
+gloo-net = { version = "0.4", features = ["websocket"] }
 futures-util = "0.3"
 
 # WASM bindings (all targets for now to avoid conditional compilation issues)

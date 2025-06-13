@@ -20,9 +20,10 @@ pub mod utils;
 pub use db::NostrDB;
 pub use network::NetworkManager;
 pub use parser::Parser;
-pub use relays::{RelayConnectionManager, RelayManager};
 pub use signer::{PrivateKeySigner, Signer, SignerManager, SignerManagerImpl};
 pub use types::*;
+
+use crate::relays::ConnectionRegistry;
 
 // Type aliases to match Go implementation
 pub type NostrEvent = Event;
@@ -134,12 +135,11 @@ const INDEXER_RELAYS: &[&str] = &[
 // Global instances that will be exposed to JavaScript (matching Go implementation)
 static mut NOSTR_PARSER: Option<Arc<Parser>> = None;
 static mut NOSTR_SIGNER: Option<Arc<SignerManagerImpl>> = None;
-static mut RELAY_MANAGER: Option<Arc<RelayConnectionManager>> = None;
 
 #[wasm_bindgen]
 pub struct NostrClient {
     database: Arc<NostrDB>,
-    relay_manager: Arc<RelayConnectionManager>,
+    connection_registry: Arc<ConnectionRegistry>,
     parser: Arc<Parser>,
     signer_manager: Arc<SignerManagerImpl>,
     network_manager: Arc<NetworkManager>,
@@ -164,14 +164,14 @@ impl NostrClient {
             })
             .expect("Database initialization failed");
         let signer_manager = Arc::new(SignerManagerImpl::new());
-        let relay_manager = Arc::new(RelayConnectionManager::new(Duration::from_secs(10), 3));
+        let connection_registry = Arc::new(ConnectionRegistry::new());
         let parser = Arc::new(Parser::new(
             DEFAULT_RELAYS.iter().map(|s| s.to_string()).collect(),
             INDEXER_RELAYS.iter().map(|s| s.to_string()).collect(),
         ));
         let network_manager = Arc::new(NetworkManager::new(
             database.clone(),
-            relay_manager.clone() as Arc<dyn RelayManager>,
+            connection_registry.clone() as Arc<ConnectionRegistry>,
             parser.clone(),
         ));
 
@@ -179,7 +179,7 @@ impl NostrClient {
 
         Self {
             database,
-            relay_manager,
+            connection_registry,
             parser,
             signer_manager,
             network_manager,
@@ -234,43 +234,46 @@ impl NostrClient {
 
     #[wasm_bindgen(js_name = getConnectionCount)]
     pub async fn get_connection_count(&self) -> u32 {
-        self.relay_manager.get_connection_count().await as u32
+        self.connection_registry
+            .active_subscription_ids()
+            .await
+            .len() as u32
     }
 
     // Private method to start monitoring (matching Go goroutine monitoring)
     fn start_monitoring(&self) {
-        if DEBUG_MODE {
-            let relay_manager = self.relay_manager.clone();
-            wasm_bindgen_futures::spawn_local(async move {
-                loop {
-                    let connection_count = relay_manager.get_connection_count().await;
+        // if DEBUG_MODE {
+        //     let relay_manager = self.relay_manager.clone();
+        //     wasm_bindgen_futures::spawn_local(async move {
+        //         loop {
+        //             let connection_count = relay_manager.get_connection_count().await;
 
-                    let debug_data = js_sys::Object::new();
-                    js_sys::Reflect::set(
-                        &debug_data,
-                        &JsValue::from_str("type"),
-                        &JsValue::from_str("DEBUG"),
-                    )
-                    .unwrap();
-                    js_sys::Reflect::set(
-                        &debug_data,
-                        &JsValue::from_str("connections"),
-                        &JsValue::from_f64(connection_count as f64),
-                    )
-                    .unwrap();
-                    js_sys::Reflect::set(
-                        &debug_data,
-                        &JsValue::from_str("timestamp"),
-                        &JsValue::from_f64(js_sys::Date::now()),
-                    )
-                    .unwrap();
+        //             let debug_data = js_sys::Object::new();
+        //             js_sys::Reflect::set(
+        //                 &debug_data,
+        //                 &JsValue::from_str("type"),
+        //                 &JsValue::from_str("DEBUG"),
+        //             )
+        //             .unwrap();
+        //             js_sys::Reflect::set(
+        //                 &debug_data,
+        //                 &JsValue::from_str("connections"),
+        //                 &JsValue::from_f64(connection_count as f64),
+        //             )
+        //             .unwrap();
+        //             js_sys::Reflect::set(
+        //                 &debug_data,
+        //                 &JsValue::from_str("timestamp"),
+        //                 &JsValue::from_f64(js_sys::Date::now()),
+        //             )
+        //             .unwrap();
 
-                    postMessage(&debug_data.into());
+        //             postMessage(&debug_data.into());
 
-                    TimeoutFuture::new(500).await;
-                }
-            });
-        }
+        //             TimeoutFuture::new(500).await;
+        //         }
+        //     });
+        // }
     }
 }
 
