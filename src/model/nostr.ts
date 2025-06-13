@@ -1,7 +1,7 @@
 import * as msgpack from '@msgpack/msgpack';
 import type { EventTemplate, Filter, NostrEvent } from 'nostr-tools';
 import type { AnyKind } from 'src/types';
-import nostrWorker from 'src/model/nostr/index?worker';
+import nostrWorker from 'src/model/nostr-rust/index?worker';
 
 import type { ParsedEvent } from 'src/types';
 import { debug } from 'src/controller/debug';

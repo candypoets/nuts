@@ -1,0 +1,6 @@
+{
+    "rust-analyzer.diagnostics.disabled": ["inactive-code"],
+    "rust-analyzer.cargo.target": null,
+    "rust-analyzer.checkOnSave.allTargets": true,
+    "rust-analyzer.checkOnSave.extraArgs": ["--target-dir", "target/analyzer"]
+}
