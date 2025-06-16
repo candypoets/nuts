@@ -1,7 +1,7 @@
-use serde::{Deserialize, Serialize};
-use nostr::{Event, EventId, PublicKey, Timestamp, Kind, SingleLetterTag};
-use std::collections::{HashMap, HashSet};
 use crate::types::{ParsedEvent, Request};
+use nostr::{Event, EventId, Kind, PublicKey, SingleLetterTag, Timestamp};
+use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
 
 /// Represents a Nostr event with extracted tags for easier filtering
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,8 +24,8 @@ pub struct ProcessedNostrEvent {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub requests: Option<Vec<Request>>,
     /// Relay sources
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub relays: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub relays: Option<Vec<String>>,
 }
 
 impl ProcessedNostrEvent {
@@ -57,7 +57,7 @@ impl ProcessedNostrEvent {
             d_tags,
             parsed: event.parsed,
             requests: event.requests,
-            relays: event.relays,
+            relays: Some(event.relays),
         }
     }
 
@@ -67,7 +67,7 @@ impl ProcessedNostrEvent {
             event: self.event.clone(),
             parsed: self.parsed.clone(),
             requests: self.requests.clone(),
-            relays: self.relays.clone(),
+            relays: self.relays.clone().unwrap_or_default(),
         }
     }
 
@@ -168,22 +168,36 @@ impl QueryFilter {
     pub fn from_nostr_filter(filter: &nostr::Filter) -> Self {
         // Convert HashSets to Vecs
         let ids = filter.ids.as_ref().map(|set| set.iter().cloned().collect());
-        let authors = filter.authors.as_ref().map(|set| set.iter().cloned().collect());
-        let kinds = filter.kinds.as_ref().map(|set| set.iter().cloned().collect());
-        
+        let authors = filter
+            .authors
+            .as_ref()
+            .map(|set| set.iter().cloned().collect());
+        let kinds = filter
+            .kinds
+            .as_ref()
+            .map(|set| set.iter().cloned().collect());
+
         // Handle generic tags properly
         let e_tag_key = SingleLetterTag::lowercase(nostr::Alphabet::E);
         let p_tag_key = SingleLetterTag::lowercase(nostr::Alphabet::P);
         let a_tag_key = SingleLetterTag::lowercase(nostr::Alphabet::A);
         let d_tag_key = SingleLetterTag::lowercase(nostr::Alphabet::D);
-        
-        let e_tags = filter.generic_tags.get(&e_tag_key)
+
+        let e_tags = filter
+            .generic_tags
+            .get(&e_tag_key)
             .map(|set| set.iter().map(|v| v.to_string()).collect());
-        let p_tags = filter.generic_tags.get(&p_tag_key)
+        let p_tags = filter
+            .generic_tags
+            .get(&p_tag_key)
             .map(|set| set.iter().map(|v| v.to_string()).collect());
-        let a_tags = filter.generic_tags.get(&a_tag_key)
+        let a_tags = filter
+            .generic_tags
+            .get(&a_tag_key)
             .map(|set| set.iter().map(|v| v.to_string()).collect());
-        let d_tags = filter.generic_tags.get(&d_tag_key)
+        let d_tags = filter
+            .generic_tags
+            .get(&d_tag_key)
             .map(|set| set.iter().map(|v| v.to_string()).collect());
 
         Self {
@@ -239,16 +253,16 @@ pub enum DatabaseError {
 pub trait EventStorage: Send + Sync {
     /// Save events to persistent storage
     async fn save_events(&self, events: Vec<ProcessedNostrEvent>) -> Result<(), DatabaseError>;
-    
+
     /// Load all events from persistent storage
     async fn load_events(&self) -> Result<Vec<ProcessedNostrEvent>, DatabaseError>;
-    
+
     /// Clear all events from persistent storage
     async fn clear_storage(&self) -> Result<(), DatabaseError>;
-    
+
     /// Get storage statistics
     async fn get_stats(&self) -> Result<HashMap<String, serde_json::Value>, DatabaseError>;
-    
+
     /// Downcast to Any for testing purposes
     fn as_any(&self) -> &dyn std::any::Any;
 }
@@ -320,7 +334,9 @@ impl DatabaseIndexes {
 
         // Count events by author
         for (pubkey, event_ids) in &self.events_by_pubkey {
-            stats.events_by_author.insert(pubkey.clone(), event_ids.len());
+            stats
+                .events_by_author
+                .insert(pubkey.clone(), event_ids.len());
         }
 
         // Estimate memory usage (rough approximation)
@@ -362,11 +378,11 @@ pub fn intersect_event_sets(sets: Vec<&HashSet<String>>) -> HashSet<String> {
     if sets.is_empty() {
         return HashSet::new();
     }
-    
+
     if sets.len() == 1 {
         return sets[0].clone();
     }
-    
+
     let mut result = sets[0].clone();
     for set in sets.iter().skip(1) {
         result = result.intersection(set).cloned().collect();
@@ -374,7 +390,7 @@ pub fn intersect_event_sets(sets: Vec<&HashSet<String>>) -> HashSet<String> {
             break;
         }
     }
-    
+
     result
 }
 

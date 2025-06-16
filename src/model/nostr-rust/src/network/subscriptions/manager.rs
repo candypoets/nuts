@@ -11,7 +11,7 @@ use crate::parser::Parser;
 use crate::types::*;
 use crate::utils::spawner::TaskSpawner;
 use anyhow::Result;
-use js_sys::{SharedArrayBuffer, Uint8Array};
+use js_sys::{Array, SharedArrayBuffer, Uint8Array};
 use rmp_serde;
 use std::sync::Arc;
 use tokio::sync::oneshot;
@@ -175,25 +175,16 @@ impl SubscriptionManager {
             }
         };
 
-        Self::post_message("EVENT", subscription_id, &data).await;
+        Self::post_message(&data).await;
     }
 
     async fn send_cached_events(subscription_id: &str, events: &[Vec<ParsedEvent>]) {
-        let event_type = "CACHED_EVENT";
-
-        let shared_buffer = match rmp_serde::to_vec_named(&(event_type, subscription_id, events)) {
-            Ok(msgpack) => {
-                // Create SharedArrayBuffer for efficient zero-copy message passing
-                let shared_buffer = SharedArrayBuffer::new(msgpack.len() as u32);
-
-                // Create a Uint8Array view of the SharedArrayBuffer
-                let shared_array = Uint8Array::new(&shared_buffer);
-
-                // Copy data into the SharedArrayBuffer
-                shared_array.copy_from(&msgpack);
-
-                shared_buffer
-            }
+        let shared_buffer = match rmp_serde::to_vec_named(&serde_json::json!({
+            "type": "CACHED_EVENT",
+            "subscriptionId": subscription_id,
+            "eventData": events
+        })) {
+            Ok(msgpack) => msgpack,
             Err(e) => {
                 error!(
                     "Failed to serialize cached events for subscription {}: {}",
@@ -203,14 +194,7 @@ impl SubscriptionManager {
             }
         };
 
-        // Post the SharedArrayBuffer to JavaScript context
-        web_sys::js_sys::global()
-            .dyn_ref::<web_sys::DedicatedWorkerGlobalScope>()
-            .unwrap()
-            .post_message(&shared_buffer)
-            .unwrap_or_else(|e| {
-                error!("Failed to post cached events: {:?}", e);
-            });
+        Self::post_message(&shared_buffer).await;
     }
 
     async fn send_eose(subscription_id: &str) {
@@ -228,24 +212,24 @@ impl SubscriptionManager {
             }
         };
 
-        Self::post_message("EOSE", subscription_id, &data).await;
+        Self::post_message(&data).await;
     }
 
-    async fn post_message(_event_type: &str, _subscription_id: &str, data: &[u8]) {
-        // Create SharedArrayBuffer for efficient zero-copy message passing
-        let shared_buffer = SharedArrayBuffer::new(data.len() as u32);
+    async fn post_message(data: &[u8]) {
+        // Create a Uint8Array from the data
+        let uint8_array = Uint8Array::from(data);
 
-        // Create a Uint8Array view of the SharedArrayBuffer
-        let shared_array = Uint8Array::new(&shared_buffer);
+        // Get the ArrayBuffer from the Uint8Array for transferring
+        let array_buffer = uint8_array.buffer();
 
-        // Copy data into the SharedArrayBuffer
-        shared_array.copy_from(data);
+        // Create transfer array
+        let transfer_array = Array::new();
+        transfer_array.push(&array_buffer);
 
-        // Post the SharedArrayBuffer to JavaScript context
         web_sys::js_sys::global()
             .dyn_ref::<web_sys::DedicatedWorkerGlobalScope>()
             .unwrap()
-            .post_message(&shared_buffer)
+            .post_message_with_transfer(&uint8_array, &transfer_array)
             .unwrap_or_else(|e| {
                 error!("Failed to post message: {:?}", e);
             });

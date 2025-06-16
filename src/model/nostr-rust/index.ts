@@ -37,7 +37,6 @@ self.onmessage = async function (e) {
 
 	await initNostr;
 
-	console.log('new message: ', action, client);
 	if (!client) {
 		console.error('Nostr client is undefined');
 		throw new Error('Nostr client is undefined');
@@ -49,7 +48,6 @@ self.onmessage = async function (e) {
 				break;
 
 			case 'SUBSCRIBE':
-				console.log('SUBSCRIBE', subscriptionId, requests);
 				client.openSubscription(subscriptionId, requests);
 				break;
 

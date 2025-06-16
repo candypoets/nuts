@@ -79,7 +79,14 @@ impl NostrDB {
         }
 
         *is_init = true;
-        info!("NostrDB initialization complete");
+        let event_count = {
+            let indexes = self.indexes.read().await;
+            indexes.events_by_id.len()
+        };
+        info!(
+            "NostrDB initialization complete with {} events in cache",
+            event_count
+        );
         Ok(())
     }
 
@@ -501,6 +508,17 @@ impl EventDatabase for NostrDB {
 
     async fn query_events(&self, filter: Filter) -> Result<Vec<ParsedEvent>> {
         let query_filter = QueryFilter::from_nostr_filter(&filter);
+        debug!(
+                "Query filter: kinds={:?}, authors={:?}, ids={:?}, e_tags={:?}, p_tags={:?}, since={:?}, until={:?}, limit={:?}",
+                query_filter.kinds.as_ref().map(|k| k.len()),
+                query_filter.authors.as_ref().map(|a| a.len()),
+                query_filter.ids.as_ref().map(|i| i.len()),
+                query_filter.e_tags.as_ref().map(|e| e.len()),
+                query_filter.p_tags.as_ref().map(|p| p.len()),
+                query_filter.since,
+                query_filter.until,
+                query_filter.limit
+            );
         let result = self
             .query_events_internal(query_filter)
             .await

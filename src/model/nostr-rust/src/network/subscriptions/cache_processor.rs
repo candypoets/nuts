@@ -132,10 +132,12 @@ impl CacheProcessorTrait for CacheProcessor {
                     match EventDatabase::query_events(&*self.database, filter).await {
                         Ok(events) => {
                             if events.is_empty() {
+                                debug!("No cached events found for request");
                                 // No cached events, add to remaining requests
                                 remaining_requests.push(request);
-                                cached_events_batches.push(Vec::new());
+                                // cached_events_batches.push(Vec::new());
                             } else {
+                                debug!("Found {} cached events for request", events.len());
                                 // Found cached events
                                 // Process each event and build context like Go implementation
                                 let mut processed_events: Vec<Vec<ParsedEvent>> = Vec::new();
@@ -156,10 +158,7 @@ impl CacheProcessorTrait for CacheProcessor {
                                     processed_events.push(events_with_context);
                                 }
 
-                                // Flatten all events into a single batch for compatibility
-                                let all_events: Vec<ParsedEvent> =
-                                    processed_events.into_iter().flatten().collect();
-                                cached_events_batches.push(all_events);
+                                cached_events_batches.extend(processed_events);
 
                                 // Check if we need to fetch more from network
                                 if request

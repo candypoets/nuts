@@ -62,6 +62,8 @@
 
 	$: $key && $key.priv && nostrManager.setSigner('privkey', $key.priv);
 
+	$: console.log('pubkey', $key?.pub);
+
 	$: relaySub =
 		$key &&
 		$key.pub &&
@@ -69,13 +71,13 @@
 			'relays',
 			[
 				{
-					kinds: [10002, 10019],
+					kinds: [10019, 10002],
 					authors: [$key.pub],
 					relays: ['wss://relay.damus.io', 'wss://relay.nostr.band', 'wss://purplepag.es'],
 					noOptimize: true
 				},
 				{
-					kinds: [0, 3], // 0 and 3 are here if found immdiately, but refetched after
+					kinds: [3, 0], // 0 and 3 are here if found immdiately, but refetched after
 					authors: [$key.pub],
 					relays: ['wss://relay.damus.io', 'wss://relay.nostr.band', 'wss://purplepag.es'],
 					noOptimize: true,
@@ -91,8 +93,10 @@
 				if (!event) return;
 				console.log('root eventkind', event.kind);
 				if (event.parsed) {
-					if (isKind10002(event) && event.created_at > ($kind10002?.created_at || 0))
+					if (isKind10002(event) && event.created_at > ($kind10002?.created_at || 0)) {
+						console.log($kind10002, 'profile 10002');
 						$kind10002 = event;
+					}
 					if (isKind10019(event) && event.created_at > ($kind10019?.created_at || 0))
 						$kind10019 = event;
 					if (isKind0(event) && event.created_at > ($kind0?.created_at || 0)) $kind0 = event;

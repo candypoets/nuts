@@ -126,28 +126,17 @@ impl IndexedDbStorage {
                 DatabaseError::StorageError(format!("Failed to get object store: {:?}", e))
             })?;
 
-        // Convert events to JS objects and save them
+        // Convert events to JS objects and save them directly as event properties
         let mut promises = Vec::new();
 
         for event in events {
+            // Serialize the event to JSON first, then parse it back to get a JS object
             let json_str =
                 serde_json::to_string(event).map_err(|e| DatabaseError::SerializationError(e))?;
 
-            // Create a JS object with the event data
-            let js_event = Object::new();
-            Reflect::set(
-                &js_event,
-                &JsValue::from_str("id"),
-                &JsValue::from_str(&event.id()),
-            )
-            .map_err(|e| DatabaseError::StorageError(format!("Failed to set event id: {:?}", e)))?;
-            Reflect::set(
-                &js_event,
-                &JsValue::from_str("data"),
-                &JsValue::from_str(&json_str),
-            )
-            .map_err(|e| {
-                DatabaseError::StorageError(format!("Failed to set event data: {:?}", e))
+            // Parse the JSON string into a JS object
+            let js_event = js_sys::JSON::parse(&json_str).map_err(|e| {
+                DatabaseError::StorageError(format!("Failed to parse JSON: {:?}", e))
             })?;
 
             let put_args = Array::new();
@@ -196,6 +185,7 @@ impl IndexedDbStorage {
         _cursor_start: Option<String>,
     ) -> Result<Vec<ProcessedNostrEvent>, DatabaseError> {
         let db = self.open_db().await?;
+        info!("Opened database: {:?}", db);
 
         let tx_args = Array::new();
         tx_args.push(&JsValue::from_str("events"));
@@ -238,26 +228,40 @@ impl IndexedDbStorage {
             DatabaseError::StorageError(format!("GetAll operation failed: {:?}", e))
         })?;
 
+        info!(
+            "GetAll result length: {:?}",
+            result
+                .as_ref()
+                .dyn_ref::<Array>()
+                .map(|a| a.length())
+                .unwrap_or(0)
+        );
+
         let mut events = Vec::new();
 
         if let Ok(array) = result.dyn_into::<Array>() {
             for i in 0..array.length() {
                 if let Ok(item) = array.get(i).dyn_into::<Object>() {
-                    if let Ok(data_js) = Reflect::get(&item, &JsValue::from_str("data")) {
-                        if let Some(data_str) = data_js.as_string() {
-                            match serde_json::from_str::<ProcessedNostrEvent>(&data_str) {
-                                Ok(event) => events.push(event),
-                                Err(e) => error!("Failed to deserialize event: {:?}", e),
+                    // Convert the JS object directly to JSON string and then deserialize
+                    match js_sys::JSON::stringify(&item) {
+                        Ok(json_str) => {
+                            if let Some(json_string) = json_str.as_string() {
+                                match serde_json::from_str::<ProcessedNostrEvent>(&json_string) {
+                                    Ok(event) => events.push(event),
+                                    Err(e) => error!(
+                                        "Failed to deserialize event at index {}: {:?}",
+                                        i, e
+                                    ),
+                                }
                             }
                         }
+                        Err(e) => error!("Failed to stringify JS object at index {}: {:?}", i, e),
                     }
                 }
             }
         }
 
-        if self.config.debug_logging && !events.is_empty() {
-            debug!("Loaded {} events from IndexedDB", events.len());
-        }
+        debug!("Loaded {} events from IndexedDB", events.len());
 
         Ok(events)
     }
@@ -315,9 +319,9 @@ impl EventStorage for IndexedDbStorage {
     async fn load_events(&self) -> Result<Vec<ProcessedNostrEvent>, DatabaseError> {
         let events = self.load_events_batch(None).await?;
 
-        if self.config.debug_logging {
-            info!("Loaded total of {} events from IndexedDB", events.len());
-        }
+        // if self.config.debug_logging {
+        info!("Loaded total of {} events from IndexedDB", events.len());
+        // }
 
         Ok(events)
     }

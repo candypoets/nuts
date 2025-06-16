@@ -100,28 +100,39 @@ export class NostrManager {
 
 	private setupWorkerHandlers() {
 		this.worker.onmessage = async (event) => {
+			console.log('event', event);
 			if (!event.data) return;
-			if (event.data.type === 'PUBLISH_STATUS') {
-				await this.onPublishEvent(event.data);
-				return;
-			} else if (event.data.type === 'ZAP') {
-				const cb = this.zaps.get(event.data.zapId);
-				if (cb) {
-					cb(event.data.payload);
-					this.zaps.delete(event.data.zapId);
+			let decodedMessage = event.data;
+			if (event.data instanceof Uint8Array) {
+				try {
+					// Decode the MessagePack data
+					decodedMessage = await wasmMsgpack.decode(event.data);
+				} catch (error) {
+					console.error('Failed to decode transferable message:', error);
+					return;
 				}
-			} else if (event.data.type == 'SIGNED') {
-				const payload = (await wasmMsgpack.decode(event.data.payload)) as NostrEvent;
+			}
+			if (decodedMessage.type === 'PUBLISH_STATUS') {
+				await this.onPublishEvent(decodedMessage);
+				return;
+			} else if (decodedMessage.type === 'ZAP') {
+				const cb = this.zaps.get(decodedMessage.zapId);
+				if (cb) {
+					cb(decodedMessage.payload);
+					this.zaps.delete(decodedMessage.zapId);
+				}
+			} else if (decodedMessage.type == 'SIGNED') {
+				const payload = (await wasmMsgpack.decode(decodedMessage.payload)) as NostrEvent;
 				const cb = this.signers.get(payload?.content);
 				if (cb) {
 					cb(payload);
 					this.signers.delete(payload.content);
 				}
-			} else if (event.data.type == 'DEBUG') {
-				debug.set(event.data);
+			} else if (decodedMessage.type == 'DEBUG') {
+				debug.set(decodedMessage);
 			}
 
-			await this.onSubscribeEvent(event.data);
+			await this.onSubscribeEvent(decodedMessage);
 		};
 	}
 
@@ -299,15 +310,12 @@ export class NostrManager {
 	}
 
 	private async handleCachedEventsBatch(subscriptionId: string, eventData: Uint8Array) {
+		console.log('cached event', subscriptionId, eventData);
 		const subscription = this.subscriptions.get(subscriptionId);
 		if (!subscription) return;
-		// Decode the entire batch once using WASM
-		const cachedEventsBatch = eventData
-			? ((await wasmMsgpack.decodeBatch(eventData)) as ParsedEvent<AnyKind>[][])
-			: [];
 
 		// Stream each event group one by one to the subscription
-		for (const events of cachedEventsBatch) {
+		for (const events of eventData) {
 			subscription.callback(events, 'CACHED_EVENT');
 		}
 	}
