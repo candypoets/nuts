@@ -5,10 +5,14 @@ use super::interfaces::{
 use super::*;
 use crate::config::SubscriptionConfig;
 use crate::db::NostrDB;
+use crate::network::subscriptions::interfaces::CacheProcessor as CacheProcessorTrait;
+use crate::network::subscriptions::CacheProcessor;
 use crate::parser::Parser;
 use crate::types::*;
 use crate::utils::spawner::TaskSpawner;
 use anyhow::Result;
+use js_sys::{SharedArrayBuffer, Uint8Array};
+use rmp_serde;
 use std::sync::Arc;
 use tokio::sync::oneshot;
 use tracing::{debug, error, info};
@@ -62,31 +66,21 @@ impl SubscriptionManager {
             SubscriptionRegistryTrait::create(&*self.registry, subscription_id.clone()).await;
 
         // Optimize requests
-        let optimized_requests = if requests.iter().any(|r| r.no_optimize) {
-            requests
-        } else {
-            SubscriptionOptimizerTrait::optimize_subscriptions(&*self.optimizer, requests)
-        };
+        // let optimized_requests = if requests.iter().any(|r| r.no_optimize) {
+        //     requests
+        // } else {
+        //     SubscriptionOptimizerTrait::optimize_subscriptions(&*self.optimizer, requests)
+        // };
 
         // Clone necessary data for the task
         let sub_id = subscription_id.clone();
-        let cache_processor = self.cache_processor.clone();
-        let network_processor = self.network_processor.clone();
-        let registry = self.registry.clone();
-        let config = self.context.config.clone();
+        // let cache_processor = self.cache_processor.clone();
+        // let network_processor = self.network_processor.clone();
+        // let registry = self.registry.clone();
+        // let config = self.context.config.clone();
 
         // Spawn subscription processing task
-        let subscription_future = async move {
-            Self::process_subscription(
-                sub_id,
-                optimized_requests,
-                cache_processor,
-                network_processor,
-                registry,
-                config,
-            )
-            .await;
-        };
+        self.process_subscription(sub_id, requests).await;
 
         info!("Subscription {} opened successfully", subscription_id);
         Ok(())
@@ -110,25 +104,38 @@ impl SubscriptionManager {
         SubscriptionRegistryTrait::count(&*self.registry).await as u32
     }
 
-    async fn process_subscription(
-        subscription_id: String,
-        _requests: Vec<Request>,
-        _cache_processor: Arc<CacheProcessor>,
-        _network_processor: Arc<NetworkProcessor>,
-        _registry: Arc<SubscriptionRegistry>,
-        _config: SubscriptionConfig,
-    ) {
+    async fn process_subscription(&self, subscription_id: String, _requests: Vec<Request>) {
         debug!("Processing subscription: {}", subscription_id);
 
         // Get subscription from registry
         let _subscription =
-            match SubscriptionRegistryTrait::get(&*_registry, &subscription_id).await {
+            match SubscriptionRegistryTrait::get(&*self.registry, &subscription_id).await {
                 Some(sub) => sub,
                 None => {
                     error!("Subscription {} not found in registry", subscription_id);
                     return;
                 }
             };
+
+        let events = match self
+            .cache_processor
+            .process_local_requests(_requests, 3)
+            .await
+        {
+            Ok((_, events)) => events,
+            Err(e) => {
+                error!(
+                    "Failed to process local requests for subscription {}: {}",
+                    subscription_id, e
+                );
+                return;
+            }
+        };
+
+        // Send the parsed events back to the main thread
+        if !events.is_empty() {
+            Self::send_cached_events(&subscription_id, &events).await;
+        }
 
         // For now, just send EOSE to complete the subscription
         // TODO: Implement proper caching and network processing
@@ -153,12 +160,12 @@ impl SubscriptionManager {
     }
 
     async fn send_event(subscription_id: &str, event: &ParsedEvent) {
-        let data = match serde_json::to_string(&serde_json::json!({
+        let data = match rmp_serde::to_vec_named(&serde_json::json!({
             "type": "EVENT",
             "subscriptionId": subscription_id,
             "event": event
         })) {
-            Ok(json) => json,
+            Ok(msgpack) => msgpack,
             Err(e) => {
                 error!(
                     "Failed to serialize event for subscription {}: {}",
@@ -171,23 +178,22 @@ impl SubscriptionManager {
         Self::post_message("EVENT", subscription_id, &data).await;
     }
 
-    async fn send_cached_events(
-        subscription_id: &str,
-        events: &[ParsedEvent],
-        is_first_batch: bool,
-    ) {
-        let event_type = if is_first_batch {
-            "CACHED_EVENT"
-        } else {
-            "FETCHED_EVENT"
-        };
+    async fn send_cached_events(subscription_id: &str, events: &[Vec<ParsedEvent>]) {
+        let event_type = "CACHED_EVENT";
 
-        let data = match serde_json::to_string(&serde_json::json!({
-            "type": event_type,
-            "subscriptionId": subscription_id,
-            "events": events
-        })) {
-            Ok(json) => json,
+        let shared_buffer = match rmp_serde::to_vec_named(&(event_type, subscription_id, events)) {
+            Ok(msgpack) => {
+                // Create SharedArrayBuffer for efficient zero-copy message passing
+                let shared_buffer = SharedArrayBuffer::new(msgpack.len() as u32);
+
+                // Create a Uint8Array view of the SharedArrayBuffer
+                let shared_array = Uint8Array::new(&shared_buffer);
+
+                // Copy data into the SharedArrayBuffer
+                shared_array.copy_from(&msgpack);
+
+                shared_buffer
+            }
             Err(e) => {
                 error!(
                     "Failed to serialize cached events for subscription {}: {}",
@@ -197,15 +203,22 @@ impl SubscriptionManager {
             }
         };
 
-        Self::post_message(event_type, subscription_id, &data).await;
+        // Post the SharedArrayBuffer to JavaScript context
+        web_sys::js_sys::global()
+            .dyn_ref::<web_sys::DedicatedWorkerGlobalScope>()
+            .unwrap()
+            .post_message(&shared_buffer)
+            .unwrap_or_else(|e| {
+                error!("Failed to post cached events: {:?}", e);
+            });
     }
 
     async fn send_eose(subscription_id: &str) {
-        let data = match serde_json::to_string(&serde_json::json!({
+        let data = match rmp_serde::to_vec_named(&serde_json::json!({
             "type": "EOSE",
             "subscriptionId": subscription_id
         })) {
-            Ok(json) => json,
+            Ok(msgpack) => msgpack,
             Err(e) => {
                 error!(
                     "Failed to serialize EOSE for subscription {}: {}",
@@ -218,20 +231,21 @@ impl SubscriptionManager {
         Self::post_message("EOSE", subscription_id, &data).await;
     }
 
-    async fn post_message(_event_type: &str, _subscription_id: &str, data: &str) {
-        let js_data = match js_sys::JSON::parse(data) {
-            Ok(value) => value,
-            Err(e) => {
-                error!("Failed to parse JSON for message: {:?}", e);
-                return;
-            }
-        };
+    async fn post_message(_event_type: &str, _subscription_id: &str, data: &[u8]) {
+        // Create SharedArrayBuffer for efficient zero-copy message passing
+        let shared_buffer = SharedArrayBuffer::new(data.len() as u32);
 
-        // Post message to JavaScript context
+        // Create a Uint8Array view of the SharedArrayBuffer
+        let shared_array = Uint8Array::new(&shared_buffer);
+
+        // Copy data into the SharedArrayBuffer
+        shared_array.copy_from(data);
+
+        // Post the SharedArrayBuffer to JavaScript context
         web_sys::js_sys::global()
             .dyn_ref::<web_sys::DedicatedWorkerGlobalScope>()
             .unwrap()
-            .post_message(&js_data)
+            .post_message(&shared_buffer)
             .unwrap_or_else(|e| {
                 error!("Failed to post message: {:?}", e);
             });

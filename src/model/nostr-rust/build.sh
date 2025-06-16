@@ -5,9 +5,9 @@ set -e
 echo "Building with explicit source map generation..."
 
 # Clean previous builds
-echo "Cleaning previous builds..."
-rm -rf pkg/
-rm -rf target/
+# echo "Cleaning previous builds..."
+# rm -rf pkg/
+# rm -rf target/
 
 # Method 1: Try with wasm-pack profiling mode (includes debug info)
 echo "Attempting build with profiling mode..."
