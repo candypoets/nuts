@@ -56,6 +56,7 @@
 				kinds: [0],
 				authors: [p.pubkey],
 				cacheFirst: true,
+				noContext: true,
 				relays: []
 			})) || [];
 	}

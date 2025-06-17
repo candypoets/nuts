@@ -124,7 +124,7 @@
 </script>
 
 <Feed
-	subscriptionID={'kind4_' + $page.params.pubkey}
+	subscriptionID={'kind4_' + pubkey}
 	requests={feedRequests}
 	{updateFeed}
 	{visible}

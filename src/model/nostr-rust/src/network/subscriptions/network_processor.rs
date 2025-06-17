@@ -1,3 +1,5 @@
+use crate::network::subscriptions::SubscriptionContext;
+use crate::relays::utils::{normalize_relay_url, validate_relay_url};
 use crate::{
     network::subscriptions::interfaces::NetworkProcessor as NetworkProcessorTrait,
     relays::ConnectionRegistry,
@@ -8,44 +10,129 @@ use anyhow::Result;
 use async_trait::async_trait;
 use futures::future::join_all;
 use instant::Duration;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tracing::{debug, error, warn};
+use wasm_bindgen_futures::spawn_local;
 
 pub struct NetworkProcessor {
-    connection_registry: Arc<ConnectionRegistry>,
+    context: Arc<SubscriptionContext>,
     connection_timeout: Duration,
     subscription_timeout: Duration,
 }
 
 impl NetworkProcessor {
-    pub fn new(connection_registry: Arc<ConnectionRegistry>) -> Self {
+    pub fn new(context: Arc<SubscriptionContext>) -> Self {
         Self {
-            connection_registry,
+            context,
             connection_timeout: Duration::from_secs(10),
             subscription_timeout: Duration::from_secs(30),
         }
     }
 
-    async fn process_single_request(
+    pub async fn process_network_requests(
         &self,
-        request: Request,
-        event_tx: mpsc::Sender<NetworkEvent>,
+        subscription_id: String,
+        requests: Vec<Request>,
+        // event_tx: mpsc::Sender<NetworkEvent>,
     ) -> Result<()> {
         debug!(
-            "Processing network request for {} relays",
-            request.relays.len()
+            "Processing network requests for subscription {}: {} requests",
+            subscription_id,
+            requests.len()
         );
+        let relay_filters = self.group_requests_by_relay(requests)?;
+        // Subscribe to all relays using ConnectionRegistry
+        let subscription_handle = self
+            .context
+            .connection_registry
+            .subscribe(subscription_id, relay_filters)
+            .await?;
 
-        let filter = request.to_filter()?;
-
-        // self.connection_registry.subscribe()
+        // Process events from the subscription handle
+        spawn_local(async move {
+            let mut handle = subscription_handle;
+            while let Some(event) = handle.next_event().await {
+                debug!("Received event from relay: {:?}", event);
+            }
+        });
 
         Ok(())
     }
 
+    fn group_requests_by_relay(
+        &self,
+        requests: Vec<Request>,
+    ) -> Result<HashMap<String, Vec<Filter>>, anyhow::Error> {
+        let mut relay_filters_map: HashMap<String, Vec<Filter>> = HashMap::new();
+
+        for mut request in requests {
+            request = self.set_request_relay(request)?;
+            // Convert the request to a filter
+            let filter = request.to_filter()?;
+
+            // Add the filter to each relay in the request
+            for relay_url in request.relays {
+                validate_relay_url(&relay_url)?;
+                relay_filters_map
+                    .entry(normalize_relay_url(&relay_url))
+                    .or_insert_with(Vec::new)
+                    .push(filter.clone());
+            }
+        }
+
+        Ok(relay_filters_map)
+    }
+
+    fn set_request_relay(&self, mut request: Request) -> Result<Request> {
+        let filter = request.to_filter()?;
+        if request.relays.is_empty() {
+            // Use Parser.get_relays to get appropriate relays based on the request kind and pubkey
+            let pubkey = match filter.authors.as_ref() {
+                Some(authors) => {
+                    if !authors.is_empty() {
+                        authors.iter().next().unwrap().to_string()
+                    } else {
+                        String::new()
+                    }
+                }
+                None => String::new(),
+            };
+
+            let kind = match filter.kinds.as_ref() {
+                Some(kinds) => {
+                    if !kinds.is_empty() {
+                        kinds.iter().next().unwrap().as_u64()
+                    } else {
+                        0
+                    }
+                }
+                None => 0,
+            };
+
+            let relays = self.context.parser.get_relays(kind, &pubkey, None);
+
+            if relays.is_empty() {
+                warn!("No relays found for request. Using default relays.");
+                // Add default relays if Parser didn't provide any
+                let default_relays = vec![
+                    "wss://relay.damus.io".to_string(),
+                    "wss://nos.lol".to_string(),
+                    "wss://relay.primal.net".to_string(),
+                ];
+                request.relays.extend(default_relays);
+            } else {
+                debug!("Found {} relays for request", relays.len());
+                request.relays.extend(relays);
+            }
+        }
+
+        Ok(request)
+    }
+
     async fn process_relay_subscription(
-        connection_registry: Arc<ConnectionRegistry>,
+        &self,
         relay_url: String,
         filter: nostr::Filter,
         event_tx: mpsc::Sender<NetworkEvent>,
@@ -95,7 +182,7 @@ impl NetworkProcessor {
 impl Clone for NetworkProcessor {
     fn clone(&self) -> Self {
         Self {
-            connection_registry: self.connection_registry.clone(),
+            context: self.context.clone(),
             connection_timeout: self.connection_timeout,
             subscription_timeout: self.subscription_timeout,
         }

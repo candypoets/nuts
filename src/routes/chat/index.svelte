@@ -76,17 +76,17 @@
 					kinds: [4],
 					tags: { '#p': [$key.pub] },
 					authors: $kind3?.parsed.map((c) => c.pubkey).filter((p) => p != $key?.pub),
-					limit: visible ? 20 : 100, // only load the last 1000 msgs received
+					limit: 100, // only load the last 1000 msgs received
 					relays: $kind10002?.parsed?.filter((r) => r.read).map((r) => r.url) || [],
-					noOptimize: true
+					noContext: true
 				},
 				{
 					kinds: [4],
 					tags: { '#p': $kind3?.parsed.map((c) => c.pubkey).filter((p) => p != $key?.pub) },
 					authors: [$key.pub],
-					limit: visible ? 20 : 100,
+					limit: 100,
 					relays: $kind10002?.parsed?.filter((r) => r.write).map((r) => r.url) || [],
-					noOptimize: true
+					noContext: true
 				}
 			];
 			// feedRequests = $kind3?.parsed
@@ -140,8 +140,6 @@
 
 	// Update the tweened value when depth changes
 	$: depthTranslation.set(subs.length * 30);
-
-	$: console.log(feedRequests);
 </script>
 
 <div

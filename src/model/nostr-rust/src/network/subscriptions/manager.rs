@@ -19,7 +19,7 @@ use tracing::{debug, error, info};
 use wasm_bindgen::prelude::*;
 
 pub struct SubscriptionManager {
-    context: SubscriptionContext,
+    context: Arc<SubscriptionContext>,
     spawner: TaskSpawner,
     registry: Arc<SubscriptionRegistry>,
     cache_processor: Arc<CacheProcessor>,
@@ -33,15 +33,15 @@ impl SubscriptionManager {
         connection_registry: Arc<ConnectionRegistry>,
         parser: Arc<Parser>,
     ) -> Self {
-        let context = SubscriptionContext::new(
+        let context = Arc::new(SubscriptionContext::new(
             database.clone(),
             connection_registry.clone(),
             parser.clone(),
-        );
+        ));
         let spawner = TaskSpawner::new();
         let registry = Arc::new(SubscriptionRegistry::new());
         let cache_processor = Arc::new(CacheProcessor::new(database.clone(), parser.clone()));
-        let network_processor = Arc::new(NetworkProcessor::new(connection_registry.clone()));
+        let network_processor = Arc::new(NetworkProcessor::new(context.clone()));
         let optimizer = Arc::new(SubscriptionOptimizer::new());
 
         Self {
@@ -117,12 +117,12 @@ impl SubscriptionManager {
                 }
             };
 
-        let events = match self
+        let (network_requests, events) = match self
             .cache_processor
             .process_local_requests(_requests, 3)
             .await
         {
-            Ok((_, events)) => events,
+            Ok((network_requests, events)) => (network_requests, events),
             Err(e) => {
                 error!(
                     "Failed to process local requests for subscription {}: {}",
@@ -135,6 +135,15 @@ impl SubscriptionManager {
         // Send the parsed events back to the main thread
         if !events.is_empty() {
             Self::send_cached_events(&subscription_id, &events).await;
+        }
+
+        Self::send_eoce(&subscription_id).await;
+
+        // Only process network requests if there are any
+        if !network_requests.is_empty() {
+            self.network_processor
+                .process_network_requests(subscription_id.clone(), network_requests)
+                .await;
         }
 
         // For now, just send EOSE to complete the subscription
@@ -200,6 +209,24 @@ impl SubscriptionManager {
     async fn send_eose(subscription_id: &str) {
         let data = match rmp_serde::to_vec_named(&serde_json::json!({
             "type": "EOSE",
+            "subscriptionId": subscription_id
+        })) {
+            Ok(msgpack) => msgpack,
+            Err(e) => {
+                error!(
+                    "Failed to serialize EOSE for subscription {}: {}",
+                    subscription_id, e
+                );
+                return;
+            }
+        };
+
+        Self::post_message(&data).await;
+    }
+
+    async fn send_eoce(subscription_id: &str) {
+        let data = match rmp_serde::to_vec_named(&serde_json::json!({
+            "type": "EOCE",
             "subscriptionId": subscription_id
         })) {
             Ok(msgpack) => msgpack,

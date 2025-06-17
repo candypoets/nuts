@@ -283,6 +283,7 @@
 			e.preventDefault();
 			// Update xPosition with swipe movement
 			xPosition.set(startXPosition - deltaX, { hard: true });
+			$scrollPosition = startXPosition - deltaX / 2;
 		}
 	}
 

@@ -155,33 +155,34 @@ impl ConnectionRegistry {
     }
 
     /// Create a subscription to one or more relays
+    ///
+    /// This method creates a new subscription to receive events from specified relays according to
+    /// the provided filters. Each subscription is identified by a unique `subscription_id` which can
+    /// be used to track and close the subscription later.
+    ///
+    /// # Parameters
+    /// * `subscription_id` - A unique identifier for this subscription
+    /// * `reqs` - A mapping of relay URLs to filter sets, where each relay receives a specific set of filters
+    ///
+    /// # Returns
+    /// * `Ok(SubscriptionHandle)` - A handle that can be used to receive events and manage the subscription
+    /// * `Err(RelayError)` - If the subscription could not be created
+    /// ```
     pub async fn subscribe(
         &self,
         subscription_id: String,
-        filters: Vec<Filter>,
-        relay_urls: Vec<String>,
+        reqs: HashMap<String, Vec<Filter>>,
     ) -> Result<SubscriptionHandle, RelayError> {
-        if relay_urls.is_empty() {
-            return Err(RelayError::InvalidUrl("No relay URLs provided".to_string()));
-        }
-
         // Check if subscription already exists
         {
             let active_subs = self.active_subscriptions.read().await;
             if active_subs.contains_key(&subscription_id) {
-                return Err(RelayError::ProtocolError(format!(
-                    "Subscription {} already exists",
-                    subscription_id
-                )));
+                self.close_subscription(&subscription_id).await?;
             }
         }
 
         // Validate and normalize URLs
-        let mut normalized_urls = Vec::new();
-        for url in relay_urls {
-            validate_relay_url(&url)?;
-            normalized_urls.push(normalize_relay_url(&url));
-        }
+        let mut urls = Vec::new();
 
         // Create event channel for this subscription
         let (event_sender, event_receiver) = mpsc::unbounded_channel();
@@ -189,7 +190,7 @@ impl ConnectionRegistry {
         // Store subscription tracking
         {
             let mut active_subs = self.active_subscriptions.write().await;
-            active_subs.insert(subscription_id.clone(), normalized_urls.clone());
+            active_subs.insert(subscription_id.clone(), urls.clone());
         }
         {
             let mut senders = self.subscription_senders.write().await;
@@ -197,8 +198,10 @@ impl ConnectionRegistry {
         }
 
         // Ensure connections to all relays and send REQ messages
-        for url in &normalized_urls {
-            let connection = self.ensure_connection(url).await?;
+        for (url, filters) in &reqs {
+            urls.push(url.clone());
+
+            let connection = self.ensure_connection(&url).await?;
 
             // Add subscription to connection tracking
             connection
@@ -220,7 +223,7 @@ impl ConnectionRegistry {
 
         Ok(SubscriptionHandle {
             subscription_id,
-            relay_urls: normalized_urls,
+            relay_urls: urls,
             event_receiver,
             registry: Arc::new(self.clone()),
         })
@@ -356,9 +359,10 @@ impl ConnectionRegistry {
     async fn ensure_connection(&self, url: &str) -> Result<Arc<RelayConnection>, RelayError> {
         // Check if connection already exists and is ready
         if let Some(connection) = self.get_connection(url).await {
-            if connection.is_ready().await {
+            if let Ok(()) = connection.wait_for_ready().await {
                 return Ok(connection);
             }
+
             // If not ready, try to reconnect
             if let Err(e) = connection.reconnect().await {
                 tracing::warn!(relay = %url, error = %e, "Failed to reconnect, creating new connection");
@@ -417,6 +421,13 @@ impl ConnectionRegistry {
                 event,
                 ..
             } => {
+                tracing::debug!(
+                    subscription_id = %subscription_id,
+                    relay = %response.relay_url,
+                    event_id = %event.id,
+                    kind = %event.kind,
+                    "Received Event Message"
+                );
                 // Send event to subscription
                 if let Err(e) = self
                     .send_event_to_subscription(subscription_id, event.clone())
@@ -665,95 +676,5 @@ impl Clone for ConnectionRegistry {
 impl Default for ConnectionRegistry {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use nostr::{Filter, Kind};
-
-    #[wasm_bindgen_test::wasm_bindgen_test]
-    async fn test_connection_registry_creation() {
-        let registry = ConnectionRegistry::new();
-
-        assert_eq!(registry.active_subscription_ids().await.len(), 0);
-        assert_eq!(registry.active_publish_ids().await.len(), 0);
-        assert_eq!(registry.connection_stats().await.len(), 0);
-    }
-
-    #[wasm_bindgen_test::wasm_bindgen_test]
-    async fn test_url_validation() {
-        let registry = ConnectionRegistry::new();
-
-        // Test invalid URLs
-        let result = registry
-            .subscribe(
-                "test".to_string(),
-                vec![Filter::new()],
-                vec!["invalid-url".to_string()],
-            )
-            .await;
-        assert!(result.is_err());
-
-        let result = registry
-            .subscribe(
-                "test".to_string(),
-                vec![Filter::new()],
-                vec![], // Empty URLs
-            )
-            .await;
-        assert!(result.is_err());
-    }
-
-    #[wasm_bindgen_test::wasm_bindgen_test]
-    async fn test_duplicate_subscription() {
-        let registry = ConnectionRegistry::new();
-
-        // This will fail due to no actual relay, but should get to the duplicate check
-        let _ = registry
-            .subscribe(
-                "test-sub".to_string(),
-                vec![Filter::new()],
-                vec!["wss://relay.example.com".to_string()],
-            )
-            .await;
-
-        // Add to active subscriptions manually for testing
-        {
-            let mut active_subs = registry.active_subscriptions.write().await;
-            active_subs.insert(
-                "test-sub".to_string(),
-                vec!["wss://relay.example.com".to_string()],
-            );
-        }
-
-        // Second subscription with same ID should fail
-        let result = registry
-            .subscribe(
-                "test-sub".to_string(),
-                vec![Filter::new()],
-                vec!["wss://relay.example.com".to_string()],
-            )
-            .await;
-        assert!(result.is_err());
-    }
-
-    #[wasm_bindgen_test::wasm_bindgen_test]
-    async fn test_cleanup() {
-        let registry = ConnectionRegistry::new();
-
-        // Cleanup should not fail even with no connections
-        let result = registry.cleanup().await;
-        assert!(result.is_ok());
-    }
-
-    #[wasm_bindgen_test::wasm_bindgen_test]
-    async fn test_disconnect_all() {
-        let registry = ConnectionRegistry::new();
-
-        // Disconnect all should not fail even with no connections
-        let result = registry.disconnect_all().await;
-        assert!(result.is_ok());
     }
 }

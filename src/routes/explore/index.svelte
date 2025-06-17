@@ -28,9 +28,19 @@
 		}
 		feedRequests = [
 			{
-				kinds: [1, 6, 0, 10002], // take another chance to cache 0 and 10002 events for the followlist
+				kinds: [1, 6],
 				authors: follows,
-				limit: visible ? 20 : 0,
+				limit: 20,
+				relays: [
+					'wss://relay.primal.net',
+					'wss://nostr.land',
+					'wss://premium.primal.net',
+					'wss://relay.damus.io'
+				]
+			},
+			{
+				kinds: [0, 10002], // take another chance to cache 0 and 10002 events for the followlist
+				authors: follows,
 				relays: [
 					'wss://relay.primal.net',
 					'wss://nostr.land',
