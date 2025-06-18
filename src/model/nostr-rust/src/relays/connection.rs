@@ -300,7 +300,7 @@ impl RelayConnection {
             while let Some(message) = ws_stream.next().await {
                 match message {
                     Ok(Message::Text(text)) => {
-                        tracing::debug!(relay = %incoming_url, message = %text, "Received message");
+                        tracing::debug!(relay = %incoming_url, "Received message");
 
                         match RelayMessage::from_json(&text) {
                             Ok(relay_msg) => {

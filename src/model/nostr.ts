@@ -160,12 +160,14 @@ export class NostrManager {
 				await this.handleCachedEventsBatch(subscriptionId, eventData);
 				break;
 			case 'FETCHED_EVENT':
+				console.log('FETCHED_EVENT received', subscriptionId, eventData);
 				await this.handleFetchedEventsBatch(subscriptionId, eventData);
 				break;
 			case 'COUNT':
 				await this.handleCount(subscriptionId, eventData);
 				break;
 			case 'EOSE':
+				console.log('EOSE received', subscriptionId, eventData);
 				await this.handleEOSE(subscriptionId, eventData);
 				if (subscription.options.closeOnEose) {
 					this.unsubscribe(subscriptionId);
@@ -249,32 +251,6 @@ export class NostrManager {
 
 		// Remove from our subscriptions
 		this.subscriptions.delete(subscriptionId);
-	}
-
-	// get a zap invoice
-	async zap(zapId: string, template: EventTemplate): Promise<string> {
-		return new Promise<string>((resolve, reject) => {
-			// Register the callback
-			this.zaps.set(zapId, (result: string) => {
-				if (!result.startsWith('ln')) {
-					reject(result);
-				} else {
-					resolve(result);
-				}
-			});
-
-			// Call the wallet method via the global function
-			try {
-				this.worker.postMessage({
-					action: 'ZAP',
-					zapId,
-					template: JSON.stringify(template)
-				});
-			} catch (err) {
-				this.zaps.delete(zapId); // Clean up
-				reject(new Error(`Failed to get zap invoice ${zapId}: ${err}`));
-			}
-		});
 	}
 
 	setSigner(type: string, pk: string): void {

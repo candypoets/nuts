@@ -8,49 +8,40 @@ use crate::db::NostrDB;
 use crate::network::subscriptions::interfaces::CacheProcessor as CacheProcessorTrait;
 use crate::network::subscriptions::CacheProcessor;
 use crate::parser::Parser;
+use crate::relays::utils::{normalize_relay_url, validate_relay_url};
 use crate::types::*;
 use crate::utils::spawner::TaskSpawner;
 use anyhow::Result;
 use js_sys::{Array, SharedArrayBuffer, Uint8Array};
 use rmp_serde;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::oneshot;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 use wasm_bindgen::prelude::*;
+use wasm_bindgen_futures::spawn_local;
 
 pub struct SubscriptionManager {
-    context: Arc<SubscriptionContext>,
-    spawner: TaskSpawner,
+    parser: Arc<Parser>,
     registry: Arc<SubscriptionRegistry>,
     cache_processor: Arc<CacheProcessor>,
     network_processor: Arc<NetworkProcessor>,
-    optimizer: Arc<SubscriptionOptimizer>,
 }
 
 impl SubscriptionManager {
-    pub fn new(
-        database: Arc<NostrDB>,
-        connection_registry: Arc<ConnectionRegistry>,
-        parser: Arc<Parser>,
-    ) -> Self {
-        let context = Arc::new(SubscriptionContext::new(
-            database.clone(),
-            connection_registry.clone(),
-            parser.clone(),
-        ));
-        let spawner = TaskSpawner::new();
+    pub fn new(database: Arc<NostrDB>, parser: Arc<Parser>) -> Self {
+        // let database = database.clone();
+        // let parser = parser.clone();
         let registry = Arc::new(SubscriptionRegistry::new());
         let cache_processor = Arc::new(CacheProcessor::new(database.clone(), parser.clone()));
-        let network_processor = Arc::new(NetworkProcessor::new(context.clone()));
+        let network_processor = Arc::new(NetworkProcessor::new());
         let optimizer = Arc::new(SubscriptionOptimizer::new());
 
         Self {
-            context,
-            spawner,
+            parser,
             registry,
             cache_processor,
             network_processor,
-            optimizer,
         }
     }
 
@@ -90,9 +81,9 @@ impl SubscriptionManager {
         debug!("Closing subscription: {}", subscription_id);
 
         // Cancel the task via the task spawner
-        if let Err(e) = self.spawner.cancel_task(subscription_id.clone()) {
-            error!("Failed to cancel subscription {}: {}", subscription_id, e);
-        }
+        // if let Err(e) = self.spawner.cancel_task(subscription_id.clone()) {
+        //     error!("Failed to cancel subscription {}: {}", subscription_id, e);
+        // }
 
         // Remove from registry
         SubscriptionRegistryTrait::remove(&*self.registry, &subscription_id).await;
@@ -104,8 +95,15 @@ impl SubscriptionManager {
         SubscriptionRegistryTrait::count(&*self.registry).await as u32
     }
 
-    async fn process_subscription(&self, subscription_id: String, _requests: Vec<Request>) {
+    async fn process_subscription(
+        &self,
+        subscription_id: String,
+        _requests: Vec<Request>,
+    ) -> Result<()> {
         debug!("Processing subscription: {}", subscription_id);
+
+        // track unique event IDs
+        let mut sent_ids: HashSet<[u8; 32]> = HashSet::new();
 
         // Get subscription from registry
         let _subscription =
@@ -113,7 +111,7 @@ impl SubscriptionManager {
                 Some(sub) => sub,
                 None => {
                     error!("Subscription {} not found in registry", subscription_id);
-                    return;
+                    return Err(anyhow::anyhow!("Subscription not found in registry"));
                 }
             };
 
@@ -128,12 +126,18 @@ impl SubscriptionManager {
                     "Failed to process local requests for subscription {}: {}",
                     subscription_id, e
                 );
-                return;
+                return Err(anyhow::anyhow!("Failed to process local requests: {}", e));
             }
         };
 
         // Send the parsed events back to the main thread
         if !events.is_empty() {
+            // Update sent_ids with all event IDs from cached events
+            for event_batch in &events {
+                if let Some(first_event) = event_batch.first() {
+                    sent_ids.insert(first_event.event.id.to_bytes());
+                }
+            }
             Self::send_cached_events(&subscription_id, &events).await;
         }
 
@@ -141,38 +145,150 @@ impl SubscriptionManager {
 
         // Only process network requests if there are any
         if !network_requests.is_empty() {
-            self.network_processor
-                .process_network_requests(subscription_id.clone(), network_requests)
-                .await;
+            let relay_filters = self.group_requests_by_relay(network_requests.clone())?;
+            let subscription_handle = self
+                .network_processor
+                .process_network_requests(subscription_id.clone(), relay_filters.clone())
+                .await?;
+
+            // Clone the parser for use in the spawn_local task
+            let parser = self.parser.clone();
+            let sub_id = subscription_id.clone();
+            let total_connections = relay_filters.len() as i32;
+            let mut remaining_connections = total_connections;
+
+            // Process events from the subscription handle
+            spawn_local(async move {
+                let mut handle = subscription_handle;
+                while let Some(event) = handle.next_event().await {
+                    match event.event_type {
+                        NetworkEventType::Event => {
+                            debug!("Received event from relay: {:?}", event.relay);
+                            if event.event.is_some() {
+                                // Check if the event has already been sent
+                                let event = event.event.as_ref().unwrap();
+                                let id = event.id.to_bytes();
+                                if sent_ids.contains(&id) {
+                                    continue;
+                                } else {
+                                    // Add this event ID to the sent_ids set
+                                    sent_ids.insert(id);
+                                }
+                                // Parse the event using the cloned parser
+                                match parser.parse(event.clone()) {
+                                    Ok(parsed_event) => {
+                                        debug!("Successfully parsed event: {:?}", event.id);
+                                        // Send the parsed event
+                                        Self::send_event(&sub_id, &parsed_event).await;
+                                    }
+                                    Err(e) => {
+                                        warn!("Failed to parse event: {}", e);
+                                    }
+                                }
+                            }
+                        }
+                        NetworkEventType::EOSE => {
+                            remaining_connections -= 1;
+                            // Send End of Stored Events notification
+                            debug!(
+                                "Received EOSE from relay {:?} for subscription {} (Remaining: {}/{})",
+                                event.relay, sub_id, remaining_connections, total_connections
+                            );
+                            Self::send_eose(
+                                &sub_id,
+                                EOSE {
+                                    total_connections: total_connections,
+                                    remaining_connections: remaining_connections,
+                                },
+                            )
+                            .await;
+                        }
+                        NetworkEventType::Error => {
+                            warn!("Received error event from network: {:?}", event);
+                        }
+                    }
+                }
+            });
         }
 
-        // For now, just send EOSE to complete the subscription
-        // TODO: Implement proper caching and network processing
-        Self::send_eose(&subscription_id).await;
+        Ok(())
     }
 
-    async fn process_network_requests(
-        subscription_id: String,
-        _requests: Vec<Request>,
-        _network_processor: Arc<NetworkProcessor>,
-        _cancel_rx: oneshot::Receiver<()>,
-    ) {
-        debug!(
-            "Processing network requests for subscription: {}",
-            subscription_id
-        );
+    fn group_requests_by_relay(
+        &self,
+        requests: Vec<Request>,
+    ) -> Result<HashMap<String, Vec<Filter>>, anyhow::Error> {
+        let mut relay_filters_map: HashMap<String, Vec<Filter>> = HashMap::new();
 
-        // Simplified processing - just send EOSE
-        Self::send_eose(&subscription_id).await;
+        for mut request in requests {
+            request = self.set_request_relay(request)?;
+            // Convert the request to a filter
+            let filter = request.to_filter()?;
 
-        debug!("Finished processing subscription: {}", subscription_id);
+            // Add the filter to each relay in the request
+            for relay_url in request.relays {
+                validate_relay_url(&relay_url)?;
+                relay_filters_map
+                    .entry(normalize_relay_url(&relay_url))
+                    .or_insert_with(Vec::new)
+                    .push(filter.clone());
+            }
+        }
+
+        Ok(relay_filters_map)
+    }
+
+    fn set_request_relay(&self, mut request: Request) -> Result<Request> {
+        let filter = request.to_filter()?;
+        if request.relays.is_empty() {
+            // Use Parser.get_relays to get appropriate relays based on the request kind and pubkey
+            let pubkey = match filter.authors.as_ref() {
+                Some(authors) => {
+                    if !authors.is_empty() {
+                        authors.iter().next().unwrap().to_string()
+                    } else {
+                        String::new()
+                    }
+                }
+                None => String::new(),
+            };
+
+            let kind = match filter.kinds.as_ref() {
+                Some(kinds) => {
+                    if !kinds.is_empty() {
+                        kinds.iter().next().unwrap().as_u64()
+                    } else {
+                        0
+                    }
+                }
+                None => 0,
+            };
+
+            let relays = self.parser.get_relays(kind, &pubkey, None);
+
+            if relays.is_empty() {
+                warn!("No relays found for request. Using default relays.");
+                // Add default relays if Parser didn't provide any
+                let default_relays = vec![
+                    "wss://relay.damus.io".to_string(),
+                    "wss://nos.lol".to_string(),
+                    "wss://relay.primal.net".to_string(),
+                ];
+                request.relays.extend(default_relays);
+            } else {
+                debug!("Found {} relays for request", relays.len());
+                request.relays.extend(relays);
+            }
+        }
+
+        Ok(request)
     }
 
     async fn send_event(subscription_id: &str, event: &ParsedEvent) {
         let data = match rmp_serde::to_vec_named(&serde_json::json!({
-            "type": "EVENT",
+            "type": "FETCHED_EVENT",
             "subscriptionId": subscription_id,
-            "event": event
+            "eventData": event
         })) {
             Ok(msgpack) => msgpack,
             Err(e) => {
@@ -206,10 +322,11 @@ impl SubscriptionManager {
         Self::post_message(&shared_buffer).await;
     }
 
-    async fn send_eose(subscription_id: &str) {
+    async fn send_eose(subscription_id: &str, eose: EOSE) {
         let data = match rmp_serde::to_vec_named(&serde_json::json!({
             "type": "EOSE",
-            "subscriptionId": subscription_id
+            "subscriptionId": subscription_id,
+            "eventData": eose
         })) {
             Ok(msgpack) => msgpack,
             Err(e) => {

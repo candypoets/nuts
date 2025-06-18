@@ -173,7 +173,7 @@ impl Parser {
         relays_found
     }
 
-    pub fn parse(&mut self, event: Event) -> Result<ParsedEvent> {
+    pub fn parse(&self, event: Event) -> Result<ParsedEvent> {
         let kind = event.kind.as_u64();
 
         let (parsed, requests) = match kind {

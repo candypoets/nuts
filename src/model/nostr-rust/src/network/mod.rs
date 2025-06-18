@@ -25,11 +25,8 @@ impl NetworkManager {
             parser.clone(),
         );
 
-        let subscription_manager = subscriptions::SubscriptionManager::new(
-            database.clone(),
-            connection_registry.clone(),
-            parser.clone(),
-        );
+        let subscription_manager =
+            subscriptions::SubscriptionManager::new(database.clone(), parser.clone());
 
         Self {
             publish_manager,

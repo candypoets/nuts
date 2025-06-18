@@ -3,7 +3,6 @@ use nostr::nips::nip19::{self, Nip19};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContentBlock {
     #[serde(rename = "type")]
@@ -53,27 +52,30 @@ impl ContentParser {
             },
             Pattern {
                 name: "hashtag".to_string(),
-                regex: Regex::new(r"(?<![^\s\x22\x27(])(#[a-zA-Z0-9_]+)(?![a-zA-Z0-9_])").unwrap(),
+                regex: Regex::new(r"(^|[\s\x22\x27(])(#[a-zA-Z0-9_]+)").unwrap(),
                 processor: process_hashtag,
             },
             Pattern {
                 name: "image".to_string(),
-                regex: Regex::new(r"(?i)(https?://\S+\.(jpg|jpeg|png|gif|webp|svg|ico)(\?\S*)?)").unwrap(),
+                regex: Regex::new(r"(?i)(https?://\S+\.(jpg|jpeg|png|gif|webp|svg|ico)(\?\S*)?)")
+                    .unwrap(),
                 processor: process_image,
             },
             Pattern {
                 name: "video".to_string(),
-                regex: Regex::new(r"(?i)(https?://\S+\.(mp4|mov|avi|mkv|webm|m4v)(\?\S*)?)").unwrap(),
+                regex: Regex::new(r"(?i)(https?://\S+\.(mp4|mov|avi|mkv|webm|m4v)(\?\S*)?)")
+                    .unwrap(),
                 processor: process_video,
             },
             Pattern {
                 name: "nostr".to_string(),
-                regex: Regex::new(r"(?i)(nostr:([a-z0-9]+)|n(event|prof|pub|addr|note)1[a-z0-9]+)").unwrap(),
+                regex: Regex::new(r"(?i)(nostr:([a-z0-9]+)|n(event|prof|pub|addr|note)1[a-z0-9]+)")
+                    .unwrap(),
                 processor: process_nostr,
             },
             Pattern {
                 name: "link".to_string(),
-                regex: Regex::new(r"(?i)(https?://\S+)(?![\]\)])").unwrap(),
+                regex: Regex::new(r"(?i)https?://[^\s\]\)]+").unwrap(),
                 processor: process_link,
             },
         ];
@@ -126,12 +128,18 @@ impl ContentParser {
                             Ok(match_block) => new_blocks.push(match_block),
                             Err(_) => {
                                 // If we can't process the match, treat it as text
-                                new_blocks.push(ContentBlock::new("text".to_string(), m.as_str().to_string()));
+                                new_blocks.push(ContentBlock::new(
+                                    "text".to_string(),
+                                    m.as_str().to_string(),
+                                ));
                             }
                         }
                     } else {
                         // Fallback to text if regex capture fails
-                        new_blocks.push(ContentBlock::new("text".to_string(), m.as_str().to_string()));
+                        new_blocks.push(ContentBlock::new(
+                            "text".to_string(),
+                            m.as_str().to_string(),
+                        ));
                     }
 
                     last_end = m.end();
@@ -280,13 +288,18 @@ fn process_cashu(text: &str, _caps: &regex::Captures) -> Result<ContentBlock> {
 }
 
 fn process_hashtag(text: &str, caps: &regex::Captures) -> Result<ContentBlock> {
-    let hashtag = caps.get(1).map_or("", |m| m.as_str());
+    // Now we have capture groups: full match, prefix, hashtag
+    let prefix = caps.get(1).map_or("", |m| m.as_str());
+    let hashtag = caps.get(2).map_or("", |m| m.as_str());
     let tag = if hashtag.starts_with('#') {
         &hashtag[1..]
     } else {
         hashtag
     };
-    Ok(ContentBlock::new("hashtag".to_string(), text.to_string())
+
+    // Include the prefix in the text but only process the hashtag part
+    let full_text = format!("{}{}", prefix, hashtag);
+    Ok(ContentBlock::new("hashtag".to_string(), full_text)
         .with_data(serde_json::json!({ "tag": tag })))
 }
 
@@ -314,29 +327,45 @@ fn process_nostr(text: &str, _caps: &regex::Captures) -> Result<ContentBlock> {
             let (prefix, data) = match decoded {
                 Nip19::Pubkey(pk) => ("npub", serde_json::json!({ "pubkey": pk.to_string() })),
                 Nip19::Secret(sk) => ("nsec", serde_json::json!({ "secret": sk.to_string() })),
-                Nip19::EncryptedSecret(enc_sk) => ("ncryptsec", serde_json::json!({ "encrypted_secret": format!("{:?}", enc_sk) })),
+                Nip19::EncryptedSecret(enc_sk) => (
+                    "ncryptsec",
+                    serde_json::json!({ "encrypted_secret": format!("{:?}", enc_sk) }),
+                ),
                 Nip19::EventId(note) => ("note", serde_json::json!({ "id": note.to_string() })),
-                Nip19::Profile(profile) => ("nprofile", serde_json::json!({
-                    "pubkey": profile.public_key.to_string(),
-                    "relays": profile.relays
-                })),
-                Nip19::Event(event) => ("nevent", serde_json::json!({
-                    "id": event.event_id.to_string(),
-                    "author": event.author.map(|pk| pk.to_string()),
-                    "relays": event.relays
-                })),
-                Nip19::Coordinate(coord) => ("naddr", serde_json::json!({
-                    "kind": coord.kind.as_u64(),
-                    "pubkey": coord.public_key.to_string(),
-                    "identifier": coord.identifier,
-                    "relays": coord.relays
-                })),
+                Nip19::Profile(profile) => (
+                    "nprofile",
+                    serde_json::json!({
+                        "pubkey": profile.public_key.to_string(),
+                        "relays": profile.relays
+                    }),
+                ),
+                Nip19::Event(event) => (
+                    "nevent",
+                    serde_json::json!({
+                        "id": event.event_id.to_string(),
+                        "author": event.author.map(|pk| pk.to_string()),
+                        "relays": event.relays
+                    }),
+                ),
+                Nip19::Coordinate(coord) => (
+                    "naddr",
+                    serde_json::json!({
+                        "kind": coord.kind.as_u64(),
+                        "pubkey": coord.public_key.to_string(),
+                        "identifier": coord.identifier,
+                        "relays": coord.relays
+                    }),
+                ),
             };
 
-            Ok(ContentBlock::new(prefix.to_string(), text.to_string()).with_data(serde_json::json!({
-                "decoded": data,
-                "bech32": entity
-            })))
+            Ok(
+                ContentBlock::new(prefix.to_string(), text.to_string()).with_data(
+                    serde_json::json!({
+                        "decoded": data,
+                        "bech32": entity
+                    }),
+                ),
+            )
         }
         Err(_) => {
             // If we can't decode, treat as text
@@ -355,10 +384,12 @@ fn process_link(text: &str, _caps: &regex::Captures) -> Result<ContentBlock> {
     // Create a placeholder preview
     let preview = get_link_preview(&url);
 
-    Ok(ContentBlock::new("link".to_string(), text.to_string()).with_data(serde_json::json!({
-        "href": text,
-        "preview": preview
-    })))
+    Ok(
+        ContentBlock::new("link".to_string(), text.to_string()).with_data(serde_json::json!({
+            "href": text,
+            "preview": preview
+        })),
+    )
 }
 
 fn get_link_preview(url: &str) -> serde_json::Value {
@@ -421,10 +452,10 @@ mod tests {
         let content = "Hello #world!\nCheck out https://example.com";
         let result = parse_content(content).unwrap();
         assert!(result.len() >= 3);
-        
+
         let has_hashtag = result.iter().any(|b| b.block_type == "hashtag");
         let has_link = result.iter().any(|b| b.block_type == "link");
-        
+
         assert!(has_hashtag);
         assert!(has_link);
     }

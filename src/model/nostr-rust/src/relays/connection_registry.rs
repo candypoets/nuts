@@ -4,13 +4,16 @@
 //! to Nostr relays. It manages one WebSocket connection per relay URL and tracks multiple
 //! subscriptions and publishes per connection.
 
-use crate::relays::{
-    connection::RelayConnection,
-    types::{
-        ClientMessage, ConnectionStatus, PublishStatus, RelayConfig, RelayError, RelayMessage,
-        RelayResponse,
+use crate::{
+    relays::{
+        connection::RelayConnection,
+        types::{
+            ClientMessage, ConnectionStatus, PublishStatus, RelayConfig, RelayError, RelayMessage,
+            RelayResponse,
+        },
+        utils::{normalize_relay_url, validate_relay_url},
     },
-    utils::{normalize_relay_url, validate_relay_url},
+    NetworkEvent, NetworkEventType,
 };
 use futures::StreamExt;
 use nostr::{Event, EventId, Filter};
@@ -30,7 +33,7 @@ pub struct ConnectionRegistry {
     /// Active publishes tracker (event_id -> relay_urls)
     active_publishes: Arc<RwLock<HashMap<EventId, Vec<String>>>>,
     /// Event receivers for subscriptions (subscription_id -> sender)
-    subscription_senders: Arc<RwLock<HashMap<String, mpsc::UnboundedSender<Event>>>>,
+    subscription_senders: Arc<RwLock<HashMap<String, mpsc::UnboundedSender<NetworkEvent>>>>,
     /// Publish result receivers (event_id -> sender)
     publish_result_senders: Arc<RwLock<HashMap<EventId, mpsc::UnboundedSender<PublishResult>>>>,
 }
@@ -50,7 +53,7 @@ pub struct PublishResult {
 pub struct SubscriptionHandle {
     subscription_id: String,
     relay_urls: Vec<String>,
-    event_receiver: mpsc::UnboundedReceiver<Event>,
+    event_receiver: mpsc::UnboundedReceiver<NetworkEvent>,
     registry: Arc<ConnectionRegistry>,
 }
 
@@ -66,7 +69,7 @@ impl SubscriptionHandle {
     }
 
     /// Get the next event from the subscription
-    pub async fn next_event(&mut self) -> Option<Event> {
+    pub async fn next_event(&mut self) -> Option<NetworkEvent> {
         self.event_receiver.recv().await
     }
 
@@ -80,7 +83,7 @@ impl SubscriptionHandle {
 }
 
 impl futures::Stream for SubscriptionHandle {
-    type Item = Event;
+    type Item = NetworkEvent;
 
     fn poll_next(
         mut self: std::pin::Pin<&mut Self>,
@@ -403,7 +406,7 @@ impl ConnectionRegistry {
                 tracing::debug!(relay = %url_clone, "Starting message processing");
 
                 while let Some(response) = receiver.recv().await {
-                    if let Err(e) = registry.process_relay_message(response).await {
+                    if let Err(e) = registry.process_relay_message(response, url.clone()).await {
                         tracing::error!(relay = %url_clone, error = %e, "Failed to process relay message");
                     }
                 }
@@ -414,23 +417,28 @@ impl ConnectionRegistry {
     }
 
     /// Process incoming relay message
-    async fn process_relay_message(&self, response: RelayResponse) -> Result<(), RelayError> {
+    async fn process_relay_message(
+        &self,
+        response: RelayResponse,
+        url: String,
+    ) -> Result<(), RelayError> {
         match &response.message {
             RelayMessage::Event {
                 subscription_id,
                 event,
                 ..
             } => {
-                tracing::debug!(
-                    subscription_id = %subscription_id,
-                    relay = %response.relay_url,
-                    event_id = %event.id,
-                    kind = %event.kind,
-                    "Received Event Message"
-                );
                 // Send event to subscription
                 if let Err(e) = self
-                    .send_event_to_subscription(subscription_id, event.clone())
+                    .send_event_to_subscription(
+                        subscription_id,
+                        NetworkEvent {
+                            event_type: NetworkEventType::Event,
+                            event: Some(event.clone()),
+                            error: None,
+                            relay: Some(url.clone()),
+                        },
+                    )
                     .await
                 {
                     tracing::warn!(
@@ -484,7 +492,26 @@ impl ConnectionRegistry {
                     relay = %response.relay_url,
                     "Received EOSE"
                 );
-                // EOSE handling can be added here if needed
+
+                // Send event to subscription
+                if let Err(e) = self
+                    .send_event_to_subscription(
+                        subscription_id,
+                        NetworkEvent {
+                            event_type: NetworkEventType::EOSE,
+                            event: None,
+                            error: None,
+                            relay: Some(url.clone()),
+                        },
+                    )
+                    .await
+                {
+                    tracing::warn!(
+                        subscription_id = %subscription_id,
+                        error = %e,
+                        "Failed to send event to subscription"
+                    );
+                }
             }
             RelayMessage::Closed {
                 subscription_id,
@@ -519,12 +546,17 @@ impl ConnectionRegistry {
     async fn send_event_to_subscription(
         &self,
         subscription_id: &str,
-        event: Event,
+        network_event: NetworkEvent,
     ) -> Result<(), RelayError> {
         let senders = self.subscription_senders.read().await;
         if let Some(sender) = senders.get(subscription_id) {
+            tracing::debug!(
+                subscription_id = %subscription_id,
+                event_type = ?network_event.event_type,
+                "Sending event to subscription"
+            );
             sender
-                .send(event)
+                .send(network_event)
                 .map_err(|_| RelayError::ConnectionClosed)?;
         }
         Ok(())
