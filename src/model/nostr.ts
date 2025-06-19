@@ -210,6 +210,30 @@ export class NostrManager {
 			throw new Error('Subscription ID is required');
 		}
 
+		if (subscriptionId.length > 64) {
+			// console.error(`Subscription ID is too long: ${subscriptionId}`);
+			// throw new Error(`Subscription ID is too long: ${subscriptionId}`);
+			// If the subscription ID is too long, hash it to a shorter fixed length
+			const shortenId = (id: string): string => {
+				const encoder = new TextEncoder();
+				const data = encoder.encode(id);
+
+				// Simple FNV-1a hash implementation for string shortening
+				let hash = 2166136261; // FNV offset basis
+				for (let i = 0; i < data.length; i++) {
+					hash ^= data[i];
+					hash *= 16777619; // FNV prime
+				}
+
+				// Convert to hex string and take first 32 chars (128 bits)
+				return hash.toString(16).padStart(16, '0').substring(0, 32);
+			};
+
+			const shorten = shortenId(subscriptionId);
+			console.log(`Subscription ID ${subscriptionId} was too long. Using shortened ID: ${shorten}`);
+			subscriptionId = shorten;
+		}
+
 		// Store the subscription
 		this.subscriptions.set(subscriptionId, {
 			id: subscriptionId,
