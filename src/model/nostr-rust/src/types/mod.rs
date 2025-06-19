@@ -135,12 +135,6 @@ impl Request {
 
         // Handle generic tags
         for (tag_name, tag_values) in &self.tags {
-            debug!(
-                "Processing tag '{}' with length {} and {} values",
-                tag_name,
-                tag_name.len(),
-                tag_values.len()
-            );
             // Tags in Nostr filters are prefixed with '#', so we check for length 2 and extract the second character
             if tag_name.len() == 2 && tag_name.starts_with('#') && !tag_values.is_empty() {
                 // Get the second character (the actual tag identifier)
@@ -177,10 +171,6 @@ impl Request {
                                 _ => unreachable!(),
                             };
                             let single_letter_tag = SingleLetterTag::lowercase(alphabet);
-                            debug!(
-                                "Using lowercase tag '{}' with values: {:?}",
-                                single_letter_tag, tag_values
-                            );
                             filter = filter.custom_tag(single_letter_tag, tag_values.clone());
                         }
                         _ => {

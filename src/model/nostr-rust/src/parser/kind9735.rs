@@ -10,7 +10,9 @@ pub struct ZapRequest {
     pub pubkey: String,
     pub content: String,
     pub tags: Vec<Vec<String>>,
-    pub signature: String,
+    #[serde(alias = "sig")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signature: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -211,7 +213,7 @@ mod tests {
                 vec!["p".to_string(), recipient_keys.public_key().to_hex()],
                 vec!["amount".to_string(), "1000000".to_string()], // 1000 sats in millisats
             ],
-            signature: "mock_signature".to_string(),
+            signature: Some("mock_signature".to_string()),
         };
 
         let description = serde_json::to_string(&zap_request).unwrap();
@@ -328,7 +330,7 @@ mod tests {
             tags: vec![
                 vec!["p".to_string(), different_recipient.public_key().to_hex()], // Different recipient
             ],
-            signature: "mock_signature".to_string(),
+            signature: Some("mock_signature".to_string()),
         };
 
         let description = serde_json::to_string(&zap_request).unwrap();

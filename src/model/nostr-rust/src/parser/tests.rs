@@ -395,7 +395,7 @@ mod tests {
                 ["p", recipient_keys.public_key().to_hex()],
                 ["amount", "1000000"]
             ],
-            "signature": "mock_signature"
+            "sig": "mock_signature"
         });
 
         let tags = vec![
