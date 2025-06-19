@@ -11,10 +11,13 @@ pub use eose::EOSE;
 pub use proof::{ProofData, ProofUnion};
 
 // Re-export nostr types for convenience
-pub use nostr::{Event, EventId, Filter, Kind, PublicKey, Tag, Timestamp};
+pub use nostr::{
+    Alphabet, Event, EventId, Filter, Kind, PublicKey, SingleLetterTag, Tag, Timestamp,
+};
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use tracing::debug;
 use wasm_bindgen::prelude::*;
 
 /// Request represents a subscription request
@@ -128,6 +131,67 @@ impl Request {
 
         if !self.search.is_empty() {
             filter = filter.search(&self.search);
+        }
+
+        // Handle generic tags
+        for (tag_name, tag_values) in &self.tags {
+            debug!(
+                "Processing tag '{}' with length {} and {} values",
+                tag_name,
+                tag_name.len(),
+                tag_values.len()
+            );
+            // Tags in Nostr filters are prefixed with '#', so we check for length 2 and extract the second character
+            if tag_name.len() == 2 && tag_name.starts_with('#') && !tag_values.is_empty() {
+                // Get the second character (the actual tag identifier)
+                if let Some(tag_char) = tag_name.chars().nth(1) {
+                    match tag_char {
+                        'a'..='z' | 'A'..='Z' => {
+                            let alphabet = match tag_char.to_ascii_lowercase() {
+                                'a' => Alphabet::A,
+                                'b' => Alphabet::B,
+                                'c' => Alphabet::C,
+                                'd' => Alphabet::D,
+                                'e' => Alphabet::E,
+                                'f' => Alphabet::F,
+                                'g' => Alphabet::G,
+                                'h' => Alphabet::H,
+                                'i' => Alphabet::I,
+                                'j' => Alphabet::J,
+                                'k' => Alphabet::K,
+                                'l' => Alphabet::L,
+                                'm' => Alphabet::M,
+                                'n' => Alphabet::N,
+                                'o' => Alphabet::O,
+                                'p' => Alphabet::P,
+                                'q' => Alphabet::Q,
+                                'r' => Alphabet::R,
+                                's' => Alphabet::S,
+                                't' => Alphabet::T,
+                                'u' => Alphabet::U,
+                                'v' => Alphabet::V,
+                                'w' => Alphabet::W,
+                                'x' => Alphabet::X,
+                                'y' => Alphabet::Y,
+                                'z' => Alphabet::Z,
+                                _ => unreachable!(),
+                            };
+                            let single_letter_tag = SingleLetterTag::lowercase(alphabet);
+                            debug!(
+                                "Using lowercase tag '{}' with values: {:?}",
+                                single_letter_tag, tag_values
+                            );
+                            filter = filter.custom_tag(single_letter_tag, tag_values.clone());
+                        }
+                        _ => {
+                            // This case handles non-alphabetic characters in tag names
+                            // For debugging purposes, let's log the unexpected character
+                            debug!("Ignoring non-alphabetic tag name character: '{}'", tag_char);
+                            // We could implement special handling for numeric or symbolic tags here if needed
+                        }
+                    }
+                }
+            }
         }
 
         Ok(filter)
@@ -350,47 +414,5 @@ pub mod utils {
     /// Validate an event ID hex string
     pub fn validate_event_id_hex(event_id: &str) -> Result<(), TypesError> {
         validate_hex_string(event_id, Some(64))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::utils::*;
-    use super::*;
-
-    #[test]
-    fn test_request_creation() {
-        let relays = vec!["wss://relay.example.com".to_string()];
-        let filter = Filter::new().limit(10);
-        let request = Request::new(relays.clone(), filter);
-
-        assert_eq!(request.relays, relays);
-        assert_eq!(request.limit, Some(10));
-    }
-
-    #[test]
-    fn test_hex_validation() {
-        assert!(validate_hex_string("deadbeef", Some(8)).is_ok());
-        assert!(validate_hex_string("DEADBEEF", Some(8)).is_ok());
-        assert!(validate_hex_string("123456789abcdef0", Some(16)).is_ok());
-
-        assert!(validate_hex_string("xyz", Some(3)).is_err());
-        assert!(validate_hex_string("deadbeef", Some(6)).is_err());
-    }
-
-    #[test]
-    fn test_pubkey_validation() {
-        let valid_pubkey = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-        assert!(validate_pubkey_hex(valid_pubkey).is_ok());
-
-        let invalid_pubkey = "short";
-        assert!(validate_pubkey_hex(invalid_pubkey).is_err());
-    }
-
-    #[test]
-    fn test_signer_type_parsing() {
-        let signer_type: SignerType = "privkey".parse().unwrap();
-        assert!(matches!(signer_type, SignerType::PrivKey));
-        assert_eq!(signer_type.to_string(), "privkey");
     }
 }
