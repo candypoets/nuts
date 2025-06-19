@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import { getContext, onDestroy, onMount } from 'svelte';
+	import { getContext, onDestroy } from 'svelte';
 	import { kinds, type EventTemplate } from 'nostr-tools';
 
 	import EmojiPickerContent from 'src/components/EmojiPickerContent.svelte';
@@ -84,11 +84,6 @@
 	const handleEvents = (events: ParsedEvent<AnyKind>[]) => {
 		const event = events[0];
 		if (isKind7(event) || isKind17(event)) {
-			console.log(
-				'hey',
-				event.tags.flatMap((t) => t),
-				note.id
-			);
 			handleReactions(event);
 		} else if (isKind1(event)) {
 			handleReplies(event);
