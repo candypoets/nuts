@@ -48,6 +48,7 @@
 
 	const handleReactions = (event: ParsedEvent<Kind7Parsed>) => {
 		if (!event.parsed || mapReactions[event.id]) return;
+
 		if (event.pubkey == $kind0?.pubkey) {
 			if (event.parsed?.emoji) {
 				liked = event.parsed?.emoji.url;
@@ -83,6 +84,11 @@
 	const handleEvents = (events: ParsedEvent<AnyKind>[]) => {
 		const event = events[0];
 		if (isKind7(event) || isKind17(event)) {
+			console.log(
+				'hey',
+				event.tags.flatMap((t) => t),
+				note.id
+			);
 			handleReactions(event);
 		} else if (isKind1(event)) {
 			handleReplies(event);

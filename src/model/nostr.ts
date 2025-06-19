@@ -60,7 +60,7 @@ interface SubscriptionOptions {
 interface SubscriptionMessage {
 	type: SubscribeKind;
 	subscriptionId: string;
-	eventData: Uint8Array;
+	eventData: any;
 }
 
 interface PublishMessage {
@@ -160,14 +160,12 @@ export class NostrManager {
 				await this.handleCachedEventsBatch(subscriptionId, eventData);
 				break;
 			case 'FETCHED_EVENT':
-				console.log('FETCHED_EVENT received', subscriptionId, eventData);
 				await this.handleFetchedEventsBatch(subscriptionId, eventData);
 				break;
 			case 'COUNT':
 				await this.handleCount(subscriptionId, eventData);
 				break;
 			case 'EOSE':
-				console.log('EOSE received', subscriptionId, eventData);
 				await this.handleEOSE(subscriptionId, eventData);
 				if (subscription.options.closeOnEose) {
 					this.unsubscribe(subscriptionId);
@@ -286,7 +284,7 @@ export class NostrManager {
 	}
 
 	private async handleCachedEventsBatch(subscriptionId: string, eventData: Uint8Array) {
-		console.log('cached event', subscriptionId, eventData);
+		// console.log('cached event', subscriptionId, eventData);
 		const subscription = this.subscriptions.get(subscriptionId);
 		if (!subscription) return;
 
@@ -296,27 +294,18 @@ export class NostrManager {
 		}
 	}
 
-	private async handleFetchedEventsBatch(subscriptionId: string, eventData: Uint8Array) {
+	private async handleFetchedEventsBatch(subscriptionId: string, eventData: any) {
 		const subscription = this.subscriptions.get(subscriptionId);
 		if (!subscription) return;
-		// Decode the entire batch once using WASM
-		const fetchedEventsBatch = eventData
-			? ((await wasmMsgpack.decodeBatch(eventData)) as ParsedEvent<AnyKind>[][])
-			: [];
-
-		// Stream each event group one by one to the subscription
-		for (const events of fetchedEventsBatch) {
-			subscription.callback(events, 'FETCHED_EVENT');
-		}
+		// console.log('FETCHED_EVENT', subscriptionId, eventData[0]);
+		subscription.callback(eventData, 'FETCHED_EVENT');
 	}
 
-	private async handleEOSE(subscriptionId: string, eventData: Uint8Array) {
+	private async handleEOSE(subscriptionId: string, eventData: any) {
 		const subscription = this.subscriptions.get(subscriptionId);
 		if (!subscription) return;
 
-		// EOSE contains EOSE data, not events
-		const eoseData = eventData ? await wasmMsgpack.decode(eventData) : null;
-		subscription.callback(eoseData, 'EOSE');
+		subscription.callback(eventData, 'EOSE');
 	}
 
 	private async handleCount(subscriptionId: string, eventData: Uint8Array) {

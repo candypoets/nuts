@@ -4,7 +4,6 @@ use anyhow::{anyhow, Result};
 use nostr::{Event, Tag};
 use serde::{Deserialize, Serialize};
 
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContentBlock {
     #[serde(rename = "type")]
@@ -34,6 +33,7 @@ pub struct EventPointer {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Kind1Parsed {
+    #[serde(rename = "parsedContent", default)]
     pub parsed_content: Vec<ContentBlock>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub quotes: Vec<ProfilePointer>,
@@ -62,38 +62,22 @@ impl Parser {
 
         // Request profile information for the author
         requests.push(Request {
-            ids: Vec::new(),
             authors: vec![event.pubkey.to_hex()],
             kinds: vec![0],
-            tags: std::collections::HashMap::new(),
-            since: None,
-            until: None,
-            limit: None,
-            search: String::new(),
-            relays: self.get_relays(0, &event.pubkey.to_hex(), None),
+            relays: self.get_relays(0, &event.pubkey.to_hex(), &false),
             close_on_eose: true,
             cache_first: true,
-            no_optimize: false,
-            count: false,
-            no_context: false,
+            ..Default::default()
         });
 
         // Request relay list for the author
         requests.push(Request {
-            ids: Vec::new(),
             authors: vec![event.pubkey.to_hex()],
             kinds: vec![10002],
-            tags: std::collections::HashMap::new(),
-            since: None,
-            until: None,
-            limit: None,
-            search: String::new(),
-            relays: self.get_relays(10002, &event.pubkey.to_hex(), None),
+            relays: self.get_relays(10002, &event.pubkey.to_hex(), &false),
             close_on_eose: true,
             cache_first: true,
-            no_optimize: false,
-            count: false,
-            no_context: false,
+            ..Default::default()
         });
 
         // Parse references using NIP-27 (nostr: URIs and bech32 entities)
@@ -147,11 +131,14 @@ impl Parser {
         // Parse content into structured blocks
         match parse_content(&event.content) {
             Ok(content_blocks) => {
-                parsed.parsed_content = content_blocks.into_iter().map(|block| ContentBlock {
-                    block_type: block.block_type,
-                    text: block.text,
-                    data: block.data,
-                }).collect();
+                parsed.parsed_content = content_blocks
+                    .into_iter()
+                    .map(|block| ContentBlock {
+                        block_type: block.block_type,
+                        text: block.text,
+                        data: block.data,
+                    })
+                    .collect();
             }
             Err(err) => {
                 return Err(anyhow!("error parsing content: {}", err));
@@ -161,13 +148,17 @@ impl Parser {
         Ok((parsed, Some(requests)))
     }
 
-    fn extract_profile_mentions(&self, content: &str, requests: &mut Vec<Request>) -> Vec<ProfilePointer> {
+    fn extract_profile_mentions(
+        &self,
+        content: &str,
+        requests: &mut Vec<Request>,
+    ) -> Vec<ProfilePointer> {
         use regex::Regex;
         let mut quotes = Vec::new();
-        
+
         // Look for nostr:npub... or npub... patterns
         let profile_regex = Regex::new(r"(?:nostr:)?(npub1[a-z0-9]+)").unwrap();
-        
+
         for caps in profile_regex.captures_iter(content) {
             if let Some(npub) = caps.get(1) {
                 if let Ok(decoded) = nostr::nips::nip19::FromBech32::from_bech32(npub.as_str()) {
@@ -180,20 +171,13 @@ impl Parser {
 
                         // Add request for this profile
                         requests.push(Request {
-                            ids: Vec::new(),
                             authors: vec![pointer.public_key],
                             kinds: vec![0],
-                            tags: std::collections::HashMap::new(),
-                            since: None,
-                            until: None,
                             limit: Some(1),
-                            search: String::new(),
-                            relays: self.get_relays(0, &pubkey.to_string(), None),
+                            relays: self.get_relays(0, &pubkey.to_string(), &false),
                             close_on_eose: true,
                             cache_first: true,
-                            no_optimize: false,
-                            count: false,
-                            no_context: false,
+                            ..Default::default()
                         });
                     }
                 }
@@ -202,33 +186,31 @@ impl Parser {
 
         // Also look for nprofile references
         let nprofile_regex = Regex::new(r"(?:nostr:)?(nprofile1[a-z0-9]+)").unwrap();
-        
+
         for caps in nprofile_regex.captures_iter(content) {
             if let Some(nprofile) = caps.get(1) {
-                if let Ok(decoded) = nostr::nips::nip19::FromBech32::from_bech32(nprofile.as_str()) {
+                if let Ok(decoded) = nostr::nips::nip19::FromBech32::from_bech32(nprofile.as_str())
+                {
                     if let nostr::nips::nip19::Nip19::Profile(profile) = decoded {
                         let pointer = ProfilePointer {
                             public_key: profile.public_key.to_string(),
-                            relays: profile.relays.into_iter().map(|url| url.to_string()).collect(),
+                            relays: profile
+                                .relays
+                                .into_iter()
+                                .map(|url| url.to_string())
+                                .collect(),
                         };
                         quotes.push(pointer.clone());
 
                         // Add request for this profile
                         requests.push(Request {
-                            ids: Vec::new(),
                             authors: vec![pointer.public_key],
                             kinds: vec![0],
-                            tags: std::collections::HashMap::new(),
-                            since: None,
-                            until: None,
                             limit: Some(1),
-                            search: String::new(),
-                            relays: self.get_relays(0, &profile.public_key.to_string(), None),
+                            relays: self.get_relays(0, &profile.public_key.to_string(), &false),
                             close_on_eose: true,
                             cache_first: true,
-                            no_optimize: false,
-                            count: false,
-                            no_context: false,
+                            ..Default::default()
                         });
                     }
                 }
@@ -238,13 +220,17 @@ impl Parser {
         quotes
     }
 
-    fn extract_event_mentions(&self, content: &str, requests: &mut Vec<Request>) -> Vec<EventPointer> {
+    fn extract_event_mentions(
+        &self,
+        content: &str,
+        requests: &mut Vec<Request>,
+    ) -> Vec<EventPointer> {
         use regex::Regex;
         let mut mentions = Vec::new();
-        
+
         // Look for nostr:note... or note... patterns
         let note_regex = Regex::new(r"(?:nostr:)?(note1[a-z0-9]+)").unwrap();
-        
+
         for caps in note_regex.captures_iter(content) {
             if let Some(note) = caps.get(1) {
                 if let Ok(decoded) = nostr::nips::nip19::FromBech32::from_bech32(note.as_str()) {
@@ -281,14 +267,18 @@ impl Parser {
 
         // Also look for nevent references
         let nevent_regex = Regex::new(r"(?:nostr:)?(nevent1[a-z0-9]+)").unwrap();
-        
+
         for caps in nevent_regex.captures_iter(content) {
             if let Some(nevent) = caps.get(1) {
                 if let Ok(decoded) = nostr::nips::nip19::FromBech32::from_bech32(nevent.as_str()) {
                     if let nostr::nips::nip19::Nip19::Event(event) = decoded {
                         let pointer = EventPointer {
                             id: event.event_id.to_string(),
-                            relays: event.relays.into_iter().map(|url| url.to_string()).collect(),
+                            relays: event
+                                .relays
+                                .into_iter()
+                                .map(|url| url.to_string())
+                                .collect(),
                             author: event.author.map(|pk| pk.to_string()),
                             kind: None,
                         };
@@ -328,7 +318,7 @@ impl Parser {
             let tag_vec = tag.as_vec();
             if tag_vec.len() >= 2 && tag_vec[0] == "e" {
                 last_e_tag = Some(tag);
-                
+
                 // Check if this has a 'reply' marker
                 if tag_vec.len() >= 4 && tag_vec[3] == "reply" {
                     reply_tag = Some(tag);
@@ -338,7 +328,7 @@ impl Parser {
 
         let chosen_tag = reply_tag.or(last_e_tag)?;
         let tag_vec = chosen_tag.as_vec();
-        
+
         if tag_vec.len() >= 2 {
             Some(EventPointer {
                 id: tag_vec[1].clone(),
@@ -366,7 +356,7 @@ impl Parser {
                 if first_e_tag.is_none() {
                     first_e_tag = Some(tag);
                 }
-                
+
                 // Check if this has a 'root' marker
                 if tag_vec.len() >= 4 && tag_vec[3] == "root" {
                     root_tag = Some(tag);
@@ -377,7 +367,7 @@ impl Parser {
 
         let chosen_tag = root_tag.or(first_e_tag)?;
         let tag_vec = chosen_tag.as_vec();
-        
+
         if tag_vec.len() >= 2 {
             Some(EventPointer {
                 id: tag_vec[1].clone(),
@@ -404,14 +394,14 @@ mod tests {
     fn test_parse_kind_1_basic() {
         let keys = Keys::generate();
         let content = "Hello, Nostr world!";
-        
+
         let event = EventBuilder::new(Kind::TextNote, content, Vec::new())
             .to_event(&keys)
             .unwrap();
-        
+
         let parser = Parser::default();
         let (parsed, requests) = parser.parse_kind_1(&event).unwrap();
-        
+
         assert_eq!(parsed.parsed_content.len(), 1);
         assert_eq!(parsed.parsed_content[0].block_type, "text");
         assert_eq!(parsed.parsed_content[0].text, content);
@@ -425,18 +415,22 @@ mod tests {
         let content = "This is a reply";
         let reply_event_id = "1234567890abcdef1234567890abcdef12345678";
         let relay_url = "wss://relay.example.com";
-        
-        let tags = vec![
-            Tag::parse(vec!["e".to_string(), reply_event_id.to_string(), relay_url.to_string(), "reply".to_string()]).unwrap(),
-        ];
-        
+
+        let tags = vec![Tag::parse(vec![
+            "e".to_string(),
+            reply_event_id.to_string(),
+            relay_url.to_string(),
+            "reply".to_string(),
+        ])
+        .unwrap()];
+
         let event = EventBuilder::new(Kind::TextNote, content, tags)
             .to_event(&keys)
             .unwrap();
-        
+
         let parser = Parser::default();
         let (parsed, _) = parser.parse_kind_1(&event).unwrap();
-        
+
         assert!(parsed.reply.is_some());
         let reply = parsed.reply.unwrap();
         assert_eq!(reply.id, reply_event_id);
@@ -449,18 +443,22 @@ mod tests {
         let content = "This is part of a thread";
         let root_event_id = "abcdef1234567890abcdef1234567890abcdef12";
         let relay_url = "wss://relay.example.com";
-        
-        let tags = vec![
-            Tag::parse(vec!["e".to_string(), root_event_id.to_string(), relay_url.to_string(), "root".to_string()]).unwrap(),
-        ];
-        
+
+        let tags = vec![Tag::parse(vec![
+            "e".to_string(),
+            root_event_id.to_string(),
+            relay_url.to_string(),
+            "root".to_string(),
+        ])
+        .unwrap()];
+
         let event = EventBuilder::new(Kind::TextNote, content, tags)
             .to_event(&keys)
             .unwrap();
-        
+
         let parser = Parser::default();
         let (parsed, _) = parser.parse_kind_1(&event).unwrap();
-        
+
         assert!(parsed.root.is_some());
         let root = parsed.root.unwrap();
         assert_eq!(root.id, root_event_id);
@@ -470,14 +468,14 @@ mod tests {
     #[test]
     fn test_parse_wrong_kind() {
         let keys = Keys::generate();
-        
+
         let event = EventBuilder::new(Kind::Metadata, "{}", Vec::new())
             .to_event(&keys)
             .unwrap();
-        
+
         let parser = Parser::default();
         let result = parser.parse_kind_1(&event);
-        
+
         assert!(result.is_err());
     }
 
@@ -485,17 +483,20 @@ mod tests {
     fn test_parse_kind_1_with_hashtags() {
         let keys = Keys::generate();
         let content = "I love #bitcoin and #nostr!";
-        
+
         let event = EventBuilder::new(Kind::TextNote, content, Vec::new())
             .to_event(&keys)
             .unwrap();
-        
+
         let parser = Parser::default();
         let (parsed, _) = parser.parse_kind_1(&event).unwrap();
-        
+
         // Should have parsed hashtags in content
         assert!(parsed.parsed_content.len() > 1);
-        let has_hashtag = parsed.parsed_content.iter().any(|block| block.block_type == "hashtag");
+        let has_hashtag = parsed
+            .parsed_content
+            .iter()
+            .any(|block| block.block_type == "hashtag");
         assert!(has_hashtag);
     }
 }

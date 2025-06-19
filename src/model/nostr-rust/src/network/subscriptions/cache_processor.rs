@@ -20,7 +20,7 @@ impl CacheProcessor {
         Self { database, parser }
     }
 
-    async fn find_context_events_simple(
+    pub async fn find_context_events_simple(
         &self,
         event: &ParsedEvent,
         max_depth: usize,

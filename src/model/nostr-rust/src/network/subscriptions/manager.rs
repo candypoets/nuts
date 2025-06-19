@@ -1,22 +1,17 @@
-use super::interfaces::{
-    SubscriptionOptimizer as SubscriptionOptimizerTrait,
-    SubscriptionRegistry as SubscriptionRegistryTrait,
-};
+use super::interfaces::SubscriptionRegistry as SubscriptionRegistryTrait;
 use super::*;
-use crate::config::SubscriptionConfig;
 use crate::db::NostrDB;
 use crate::network::subscriptions::interfaces::CacheProcessor as CacheProcessorTrait;
 use crate::network::subscriptions::CacheProcessor;
 use crate::parser::Parser;
+use crate::relays::connection_registry;
 use crate::relays::utils::{normalize_relay_url, validate_relay_url};
 use crate::types::*;
-use crate::utils::spawner::TaskSpawner;
 use anyhow::Result;
-use js_sys::{Array, SharedArrayBuffer, Uint8Array};
+use js_sys::{Array, Uint8Array};
 use rmp_serde;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use tokio::sync::oneshot;
 use tracing::{debug, error, info, warn};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
@@ -25,23 +20,19 @@ pub struct SubscriptionManager {
     parser: Arc<Parser>,
     registry: Arc<SubscriptionRegistry>,
     cache_processor: Arc<CacheProcessor>,
-    network_processor: Arc<NetworkProcessor>,
+    connection_registry: ConnectionRegistry,
 }
 
 impl SubscriptionManager {
     pub fn new(database: Arc<NostrDB>, parser: Arc<Parser>) -> Self {
-        // let database = database.clone();
-        // let parser = parser.clone();
         let registry = Arc::new(SubscriptionRegistry::new());
         let cache_processor = Arc::new(CacheProcessor::new(database.clone(), parser.clone()));
-        let network_processor = Arc::new(NetworkProcessor::new());
-        let optimizer = Arc::new(SubscriptionOptimizer::new());
 
         Self {
             parser,
             registry,
             cache_processor,
-            network_processor,
+            connection_registry: ConnectionRegistry::new(),
         }
     }
 
@@ -50,45 +41,53 @@ impl SubscriptionManager {
         subscription_id: String,
         requests: Vec<Request>,
     ) -> Result<()> {
-        debug!("Opening subscription: {}", subscription_id);
+        debug!(
+            "Opening subscription: {} with {} requests{}",
+            subscription_id,
+            requests.len(),
+            if requests.len() == 1 {
+                format!(" with filter: {:?}", requests[0].tags)
+            } else {
+                String::new()
+            }
+        );
 
-        // Create subscription
-        let _subscription =
-            SubscriptionRegistryTrait::create(&*self.registry, subscription_id.clone()).await;
-
-        // Optimize requests
-        // let optimized_requests = if requests.iter().any(|r| r.no_optimize) {
-        //     requests
-        // } else {
-        //     SubscriptionOptimizerTrait::optimize_subscriptions(&*self.optimizer, requests)
-        // };
-
-        // Clone necessary data for the task
-        let sub_id = subscription_id.clone();
-        // let cache_processor = self.cache_processor.clone();
-        // let network_processor = self.network_processor.clone();
-        // let registry = self.registry.clone();
-        // let config = self.context.config.clone();
+        // Check if subscription already exists, close it if it does
+        if SubscriptionRegistryTrait::get(&*self.registry, &subscription_id)
+            .await
+            .is_some()
+        {
+            debug!(
+                "Subscription {} already exists, closing it first",
+                subscription_id
+            );
+            self.close_subscription(&subscription_id).await?;
+        } else {
+            // Create subscription
+            let _subscription =
+                SubscriptionRegistryTrait::create(&*self.registry, subscription_id.clone()).await;
+        }
 
         // Spawn subscription processing task
-        self.process_subscription(sub_id, requests).await;
+        self.process_subscription(&subscription_id, requests)
+            .await?;
 
         info!("Subscription {} opened successfully", subscription_id);
         Ok(())
     }
 
-    pub async fn close_subscription(&self, subscription_id: String) {
+    pub async fn close_subscription(&self, subscription_id: &String) -> Result<()> {
         debug!("Closing subscription: {}", subscription_id);
 
-        // Cancel the task via the task spawner
-        // if let Err(e) = self.spawner.cancel_task(subscription_id.clone()) {
-        //     error!("Failed to cancel subscription {}: {}", subscription_id, e);
-        // }
-
+        self.connection_registry
+            .close_subscription(subscription_id)
+            .await?;
         // Remove from registry
-        SubscriptionRegistryTrait::remove(&*self.registry, &subscription_id).await;
+        SubscriptionRegistryTrait::remove(&*self.registry, subscription_id).await;
 
         info!("Subscription {} closed", subscription_id);
+
+        Ok(())
     }
 
     pub async fn get_active_subscription_count(&self) -> u32 {
@@ -97,7 +96,7 @@ impl SubscriptionManager {
 
     async fn process_subscription(
         &self,
-        subscription_id: String,
+        subscription_id: &String,
         _requests: Vec<Request>,
     ) -> Result<()> {
         debug!("Processing subscription: {}", subscription_id);
@@ -147,12 +146,13 @@ impl SubscriptionManager {
         if !network_requests.is_empty() {
             let relay_filters = self.group_requests_by_relay(network_requests.clone())?;
             let subscription_handle = self
-                .network_processor
-                .process_network_requests(subscription_id.clone(), relay_filters.clone())
+                .connection_registry
+                .subscribe(subscription_id.clone(), relay_filters.clone())
                 .await?;
 
             // Clone the parser for use in the spawn_local task
             let parser = self.parser.clone();
+            let cache_processor = self.cache_processor.clone();
             let sub_id = subscription_id.clone();
             let total_connections = relay_filters.len() as i32;
             let mut remaining_connections = total_connections;
@@ -170,16 +170,20 @@ impl SubscriptionManager {
                                 let id = event.id.to_bytes();
                                 if sent_ids.contains(&id) {
                                     continue;
-                                } else {
-                                    // Add this event ID to the sent_ids set
-                                    sent_ids.insert(id);
                                 }
+                                sent_ids.insert(id);
+
                                 // Parse the event using the cloned parser
                                 match parser.parse(event.clone()) {
                                     Ok(parsed_event) => {
                                         debug!("Successfully parsed event: {:?}", event.id);
                                         // Send the parsed event
-                                        Self::send_event(&sub_id, &parsed_event).await;
+                                        let mut events_with_context = vec![parsed_event.clone()];
+                                        let context_events = cache_processor
+                                            .find_context_events_simple(&parsed_event, 3)
+                                            .await;
+                                        events_with_context.extend(context_events);
+                                        Self::send_event(&sub_id, &events_with_context).await;
                                     }
                                     Err(e) => {
                                         warn!("Failed to parse event: {}", e);
@@ -264,7 +268,7 @@ impl SubscriptionManager {
                 None => 0,
             };
 
-            let relays = self.parser.get_relays(kind, &pubkey, None);
+            let relays = self.parser.get_relays(kind, &pubkey, &false);
 
             if relays.is_empty() {
                 warn!("No relays found for request. Using default relays.");
@@ -284,11 +288,11 @@ impl SubscriptionManager {
         Ok(request)
     }
 
-    async fn send_event(subscription_id: &str, event: &ParsedEvent) {
+    async fn send_event(subscription_id: &str, event_data: &Vec<ParsedEvent>) {
         let data = match rmp_serde::to_vec_named(&serde_json::json!({
             "type": "FETCHED_EVENT",
             "subscriptionId": subscription_id,
-            "eventData": event
+            "eventData": event_data
         })) {
             Ok(msgpack) => msgpack,
             Err(e) => {

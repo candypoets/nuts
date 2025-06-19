@@ -49,7 +49,7 @@ impl Parser {
             until: None,
             limit: None,
             search: String::new(),
-            relays: self.get_relays(0, &event.pubkey.to_hex(), None),
+            relays: self.get_relays(0, &event.pubkey.to_hex(), &false),
             close_on_eose: true,
             cache_first: true,
             no_optimize: false,
@@ -78,41 +78,25 @@ impl Parser {
                             recipient_tag = Some(tag_vec.to_vec());
                             // Get recipient profile
                             requests.push(Request {
-                                ids: Vec::new(),
                                 authors: vec![tag_vec[1].clone()],
                                 kinds: vec![0],
-                                tags: std::collections::HashMap::new(),
-                                since: None,
-                                until: None,
-                                limit: None,
-                                search: String::new(),
-                                relays: self.get_relays(0, &tag_vec[1], None),
-                                close_on_eose: false,
+                                relays: self.get_relays(0, &tag_vec[1], &false),
                                 cache_first: true,
-                                no_optimize: false,
-                                count: false,
-                                no_context: false,
+                                ..Default::default()
                             });
-                            
+
                             // Check for spending history events
                             let mut spending_tags = std::collections::HashMap::new();
                             spending_tags.insert("#e".to_string(), vec![event.id.to_hex()]);
-                            
+
                             requests.push(Request {
-                                ids: Vec::new(),
                                 authors: vec![tag_vec[1].clone()],
                                 kinds: vec![7376],
                                 tags: spending_tags,
-                                since: None,
-                                until: None,
                                 limit: Some(1),
-                                search: String::new(),
-                                relays: self.get_relays(7376, &tag_vec[1], None),
-                                close_on_eose: false,
+                                relays: self.get_relays(7376, &tag_vec[1], &false),
                                 cache_first: true,
-                                no_optimize: false,
-                                count: false,
-                                no_context: false,
+                                ..Default::default()
                             });
                         }
                     }
@@ -121,19 +105,10 @@ impl Parser {
                             event_tag = Some(tag_vec.to_vec());
                             requests.push(Request {
                                 ids: vec![tag_vec[1].clone()],
-                                authors: Vec::new(),
                                 kinds: vec![1],
-                                tags: std::collections::HashMap::new(),
-                                since: None,
-                                until: None,
-                                limit: None,
-                                search: String::new(),
-                                relays: self.get_relays(1, "", None),
-                                close_on_eose: false,
+                                relays: self.get_relays(1, "", &false),
                                 cache_first: true,
-                                no_optimize: false,
-                                count: false,
-                                no_context: false,
+                                ..Default::default()
                             });
                         }
                     }
@@ -163,7 +138,7 @@ impl Parser {
                 if let Some(amount) = proof_data.get("amount").and_then(|a| a.as_i64()) {
                     total += amount as i32;
                 }
-                
+
                 // Check for P2PK locking
                 if let Some(secret) = proof_data.get("secret").and_then(|s| s.as_str()) {
                     if secret.contains("P2PK") {
@@ -173,7 +148,9 @@ impl Parser {
                             if let Some(array) = secret_data.as_array() {
                                 if array.len() >= 2 && array[0].as_str() == Some("P2PK") {
                                     if let Some(data_obj) = array[1].as_object() {
-                                        if let Some(pubkey_str) = data_obj.get("data").and_then(|d| d.as_str()) {
+                                        if let Some(pubkey_str) =
+                                            data_obj.get("data").and_then(|d| d.as_str())
+                                        {
                                             if p2pk_pubkey.is_none() {
                                                 p2pk_pubkey = Some(pubkey_str.to_string());
                                             }
@@ -184,7 +161,7 @@ impl Parser {
                         }
                     }
                 }
-                
+
                 proofs.push(ProofUnion { data: proof_data });
             }
         }
@@ -195,7 +172,11 @@ impl Parser {
             mint_url,
             proofs,
             redeemed: false, // Default to not redeemed, will check later
-            comment: if event.content.is_empty() { None } else { Some(event.content.clone()) },
+            comment: if event.content.is_empty() {
+                None
+            } else {
+                Some(event.content.clone())
+            },
             is_p2pk_locked,
             p2pk_pubkey,
             event_id: event_tag.map(|tag| tag[1].clone()),
@@ -255,20 +236,24 @@ mod tests {
         let recipient_keys = Keys::generate();
         let mint_url = "https://mint.example.com";
         let proof_json = r#"{"amount":100,"secret":"test_secret","C":"test_C","id":"test_id"}"#;
-        
+
         let tags = vec![
             Tag::parse(vec!["proof".to_string(), proof_json.to_string()]).unwrap(),
             Tag::parse(vec!["u".to_string(), mint_url.to_string()]).unwrap(),
-            Tag::parse(vec!["p".to_string(), recipient_keys.public_key().to_string()]).unwrap(),
+            Tag::parse(vec![
+                "p".to_string(),
+                recipient_keys.public_key().to_string(),
+            ])
+            .unwrap(),
         ];
-        
+
         let event = EventBuilder::new(Kind::Custom(9321), "Test nutzap", tags)
             .to_event(&keys)
             .unwrap();
-        
+
         let parser = Parser::default();
         let (parsed, requests) = parser.parse_kind_9321(&event).unwrap();
-        
+
         assert_eq!(parsed.amount, 100);
         assert_eq!(parsed.recipient, recipient_keys.public_key().to_hex());
         assert_eq!(parsed.mint_url, mint_url);
@@ -282,21 +267,28 @@ mod tests {
     fn test_parse_kind_9321_missing_required_tags() {
         let keys = Keys::generate();
         let recipient_keys = Keys::generate();
-        
+
         let tags = vec![
-            Tag::parse(vec!["p".to_string(), recipient_keys.public_key().to_string()]).unwrap(),
+            Tag::parse(vec![
+                "p".to_string(),
+                recipient_keys.public_key().to_string(),
+            ])
+            .unwrap(),
             // Missing proof and mint tags
         ];
-        
+
         let event = EventBuilder::new(Kind::Custom(9321), "Test nutzap", tags)
             .to_event(&keys)
             .unwrap();
-        
+
         let parser = Parser::default();
         let result = parser.parse_kind_9321(&event);
-        
+
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("missing required tags"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("missing required tags"));
     }
 
     #[test]
@@ -305,35 +297,42 @@ mod tests {
         let recipient_keys = Keys::generate();
         let mint_url = "https://mint.example.com";
         let proof_json = r#"{"amount":100,"secret":"test_secret"}"#;
-        
+
         let tags = vec![
             Tag::parse(vec!["proof".to_string(), proof_json.to_string()]).unwrap(),
             Tag::parse(vec!["u".to_string(), mint_url.to_string()]).unwrap(),
-            Tag::parse(vec!["p".to_string(), recipient_keys.public_key().to_string()]).unwrap(),
+            Tag::parse(vec![
+                "p".to_string(),
+                recipient_keys.public_key().to_string(),
+            ])
+            .unwrap(),
         ];
-        
+
         let mut event = EventBuilder::new(Kind::Custom(9321), "Test nutzap", tags)
             .to_event(&keys)
             .unwrap();
-        
+
         let parser = Parser::default();
         let result = parser.prepare_kind_9321(&mut event);
-        
+
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("signing not implemented"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("signing not implemented"));
     }
 
     #[test]
     fn test_parse_wrong_kind() {
         let keys = Keys::generate();
-        
+
         let event = EventBuilder::new(Kind::TextNote, "test", Vec::new())
             .to_event(&keys)
             .unwrap();
-        
+
         let parser = Parser::default();
         let result = parser.parse_kind_9321(&event);
-        
+
         assert!(result.is_err());
     }
 }

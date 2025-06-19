@@ -46,7 +46,7 @@ impl NetworkManager {
 
     pub async fn close_subscription(&self, subscription_id: String) {
         self.subscription_manager
-            .close_subscription(subscription_id)
+            .close_subscription(&subscription_id)
             .await;
     }
 

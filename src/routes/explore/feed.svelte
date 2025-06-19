@@ -71,7 +71,6 @@
 	// In a separate function to avoid infinite loops in the reactive block
 	const handleEvents = (events: ParsedEvent<AnyKind>[], eventKind: SubscribeKind, page = 0) => {
 		if (eventKind == 'EOSE') {
-			console.log(subscriptionID, 'EOSE', events);
 			if (events.remainingConnections / events.totalConnections <= 0.5 && eose == false) {
 				loading = false;
 				eose = true;
@@ -113,6 +112,7 @@
 				// cached event are filtered and sorted in the worker
 				cachedFeed = [...cachedFeed, [event, _.uniqBy(context, 'id')]];
 			} else if (!eose) {
+				console.log('hey', subscriptionID, eventKind, events);
 				fetchedFeed = [[event, _.uniqBy(context, 'id')], ...fetchedFeed];
 			} else {
 				if (!page) {
@@ -146,7 +146,7 @@
 		newPosts = start > bufferFeed.length ? bufferFeed.length : start;
 		feed = [...feed, ...fetchedFeed, ...bufferFeed]
 			.sort((a, b) => b[0].created_at - a[0].created_at)
-			.slice(0, (lastPageFetch + 1) * 100);
+			.slice(0, lastPageFetch + 1 * 5);
 		bufferFeed = [];
 
 		lastBufferDump = now();

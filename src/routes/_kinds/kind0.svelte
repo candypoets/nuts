@@ -155,7 +155,7 @@
 						style="background-image: url('{p?.banner}');"
 					>
 						<div class="w-feed h-16 flex items-center justify-between shadow-sm safe-padding-top">
-							<button on:click={goBack} class="p-1 rounded-full hover:bg-base-200 mr-4">
+							<button on:click={goBack} class="p-1 z-10 rounded-full hover:bg-base-200 mr-4">
 								<Icon icon="mdi:arrow-left" class="text-xl" />
 							</button>
 						</div>

@@ -118,7 +118,7 @@ impl Parser {
         self.clean_relays(relay_hints)
     }
 
-    pub fn get_relays(&self, kind: u64, pubkey: &str, _write: Option<bool>) -> Vec<String> {
+    pub fn get_relays(&self, kind: u64, pubkey: &str, write: &bool) -> Vec<String> {
         let mut relays_found = Vec::new();
 
         // Check if there are any relay hints for this pubkey

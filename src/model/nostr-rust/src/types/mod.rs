@@ -18,7 +18,7 @@ use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
 
 /// Request represents a subscription request
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Request {
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub ids: Vec<String>,

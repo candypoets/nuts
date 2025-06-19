@@ -47,37 +47,21 @@ impl Parser {
 
         // Request profile information for both sender and recipient
         requests.push(Request {
-            ids: Vec::new(),
             authors: vec![event.pubkey.to_hex()],
             kinds: vec![0],
-            tags: std::collections::HashMap::new(),
-            since: None,
-            until: None,
-            limit: None,
-            search: String::new(),
-            relays: self.get_relays(0, &event.pubkey.to_hex(), None),
+            relays: self.get_relays(0, &event.pubkey.to_hex(), &false),
             close_on_eose: true,
             cache_first: true,
-            no_optimize: false,
-            count: false,
-            no_context: false,
+            ..Default::default()
         });
 
         requests.push(Request {
-            ids: Vec::new(),
             authors: vec![recipient.clone()],
             kinds: vec![0],
-            tags: std::collections::HashMap::new(),
-            since: None,
-            until: None,
-            limit: None,
-            search: String::new(),
-            relays: self.get_relays(0, &recipient, None),
+            relays: self.get_relays(0, &recipient, &false),
             close_on_eose: true,
             cache_first: true,
-            no_optimize: false,
-            count: false,
-            no_context: false,
+            ..Default::default()
         });
 
         // Create a consistent chat ID by sorting the pubkeys
@@ -95,19 +79,25 @@ impl Parser {
         // Try to decrypt the message using NIP-04
         // The sender is the event author, so we decrypt using their pubkey
         let sender_pubkey = event.pubkey.to_string();
-        
-        match self.signer_manager.nip04_decrypt(&sender_pubkey, &event.content) {
+
+        match self
+            .signer_manager
+            .nip04_decrypt(&sender_pubkey, &event.content)
+        {
             Ok(decrypted) => {
                 parsed.decrypted_content = Some(decrypted.clone());
-                
+
                 // Parse the decrypted content into structured blocks
                 match parse_content(&decrypted) {
                     Ok(content_blocks) => {
-                        parsed.parsed_content = content_blocks.into_iter().map(|block| ContentBlock {
-                            block_type: block.block_type,
-                            text: block.text,
-                            data: block.data,
-                        }).collect();
+                        parsed.parsed_content = content_blocks
+                            .into_iter()
+                            .map(|block| ContentBlock {
+                                block_type: block.block_type,
+                                text: block.text,
+                                data: block.data,
+                            })
+                            .collect();
                     }
                     Err(_) => {
                         // If content parsing fails, create a single text block
@@ -149,18 +139,20 @@ impl Parser {
         }
 
         // Encrypt the message content using NIP-04
-        let encrypted_content = self.signer_manager.nip04_encrypt(&recipient, &event.content)?;
-        
+        let encrypted_content = self
+            .signer_manager
+            .nip04_encrypt(&recipient, &event.content)?;
+
         // Create a new event with the encrypted content using EventBuilder
         let event_builder = EventBuilder::new(event.kind, encrypted_content, event.tags.clone());
         let new_event = event_builder.to_event(&Keys::generate())?;
-        
+
         // Replace the original event with the new one (content is now encrypted)
         *event = new_event;
-        
+
         // Sign the event with encrypted content
         self.signer_manager.sign_event(event)?;
-        
+
         Ok(())
     }
 }
@@ -320,19 +312,22 @@ mod tests {
 
         // Create a test event with the signer as the recipient
         let keys = Keys::generate();
-        let tags = vec![Tag::parse(vec![
-            "p".to_string(),
-            signer_pubkey.clone(),
-        ])
-        .unwrap()];
+        let tags = vec![Tag::parse(vec!["p".to_string(), signer_pubkey.clone()]).unwrap()];
 
-        let mut event = EventBuilder::new(Kind::EncryptedDirectMessage, "Hello, encrypted world!", tags)
-            .to_event(&keys)
-            .unwrap();
+        let mut event = EventBuilder::new(
+            Kind::EncryptedDirectMessage,
+            "Hello, encrypted world!",
+            tags,
+        )
+        .to_event(&keys)
+        .unwrap();
 
         // Test encryption (prepare)
         let prepare_result = parser.prepare_kind_4(&mut event);
-        assert!(prepare_result.is_ok(), "Encryption should succeed with signer");
+        assert!(
+            prepare_result.is_ok(),
+            "Encryption should succeed with signer"
+        );
 
         // The content should now be encrypted
         assert_ne!(event.content, "Hello, encrypted world!");
@@ -340,10 +335,10 @@ mod tests {
 
         // Test decryption (parse)
         let (parsed, _) = parser.parse_kind_4(&event).unwrap();
-        
+
         // Should have the recipient set correctly
         assert_eq!(parsed.recipient, signer_pubkey);
-        
+
         // If the signer has the right keys, decryption might work
         // Note: This depends on the key relationship between the event author and signer
     }
@@ -355,7 +350,7 @@ mod tests {
 
         // Create an event with some "encrypted" content (actually just base64 for testing)
         let fake_encrypted = "dGVzdCBtZXNzYWdl"; // "test message" in base64
-        
+
         let tags = vec![Tag::parse(vec![
             "p".to_string(),
             recipient_keys.public_key().to_string(),
