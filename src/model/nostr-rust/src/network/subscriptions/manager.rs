@@ -4,7 +4,6 @@ use crate::db::NostrDB;
 use crate::network::subscriptions::interfaces::CacheProcessor as CacheProcessorTrait;
 use crate::network::subscriptions::CacheProcessor;
 use crate::parser::Parser;
-use crate::relays::connection_registry;
 use crate::relays::utils::{normalize_relay_url, validate_relay_url};
 use crate::types::*;
 use anyhow::Result;
@@ -17,6 +16,7 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
 pub struct SubscriptionManager {
+    database: Arc<NostrDB>,
     parser: Arc<Parser>,
     registry: Arc<SubscriptionRegistry>,
     cache_processor: Arc<CacheProcessor>,
@@ -29,6 +29,7 @@ impl SubscriptionManager {
         let cache_processor = Arc::new(CacheProcessor::new(database.clone(), parser.clone()));
 
         Self {
+            database: database.clone(),
             parser,
             registry,
             cache_processor,
@@ -61,7 +62,9 @@ impl SubscriptionManager {
                 "Subscription {} already exists, closing it first",
                 subscription_id
             );
-            self.close_subscription(&subscription_id).await?;
+            self.connection_registry
+                .close_subscription(&subscription_id)
+                .await?;
         } else {
             // Create subscription
             let _subscription =
@@ -80,12 +83,12 @@ impl SubscriptionManager {
         debug!("Closing subscription: {}", subscription_id);
 
         self.connection_registry
-            .close_subscription(subscription_id)
+            .close_subscription(&subscription_id)
             .await?;
         // Remove from registry
-        SubscriptionRegistryTrait::remove(&*self.registry, subscription_id).await;
+        SubscriptionRegistryTrait::remove(&*self.registry, &subscription_id).await;
 
-        info!("Subscription {} closed", subscription_id);
+        info!("Subscription {} closed", &subscription_id);
 
         Ok(())
     }
@@ -152,6 +155,7 @@ impl SubscriptionManager {
 
             // Clone the parser for use in the spawn_local task
             let parser = self.parser.clone();
+            let database = self.database.clone();
             let cache_processor = self.cache_processor.clone();
             let sub_id = subscription_id.clone();
             let total_connections = relay_filters.len() as i32;
@@ -177,6 +181,7 @@ impl SubscriptionManager {
                                 match parser.parse(event.clone()) {
                                     Ok(parsed_event) => {
                                         debug!("Successfully parsed event: {:?}", event.id);
+                                        let _ = database.add_event(parsed_event.clone()).await;
                                         // Send the parsed event
                                         let mut events_with_context = vec![parsed_event.clone()];
                                         let context_events = cache_processor
@@ -186,7 +191,7 @@ impl SubscriptionManager {
                                         Self::send_event(&sub_id, &events_with_context).await;
                                     }
                                     Err(e) => {
-                                        warn!("Failed to parse event: {}", e);
+                                        warn!("Failed to parse event kind {}: {}", event.kind, e);
                                     }
                                 }
                             }
@@ -212,7 +217,19 @@ impl SubscriptionManager {
                         }
                     }
                 }
+                info!(
+                    "🔚 Subscription handle completed for subscription {}",
+                    sub_id
+                );
             });
+        }
+
+        // If there are no network requests, we consider the subscription complete
+        if network_requests.is_empty() {
+            info!(
+                "Subscription {} complete (no network requests needed)",
+                subscription_id
+            );
         }
 
         Ok(())
