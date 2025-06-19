@@ -146,7 +146,7 @@
 		newPosts = start > bufferFeed.length ? bufferFeed.length : start;
 		feed = [...feed, ...fetchedFeed, ...bufferFeed]
 			.sort((a, b) => b[0].created_at - a[0].created_at)
-			.slice(0, lastPageFetch + 1 * 5);
+			.slice(0, lastPageFetch + 1 * 100);
 		bufferFeed = [];
 
 		lastBufferDump = now();
