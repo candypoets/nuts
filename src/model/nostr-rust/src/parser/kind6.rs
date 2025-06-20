@@ -24,7 +24,9 @@ impl Parser {
             authors: vec![event.pubkey.to_string()],
             cache_first: true,
             close_on_eose: true,
-            relays: self.get_relays(0, &event.pubkey.to_string(), &false),
+            relays: self
+                .database
+                .find_relay_candidates(0, &event.pubkey.to_string(), &false),
             ..Default::default()
         });
 
@@ -89,7 +91,9 @@ impl Parser {
 
         // If we couldn't parse the content or it was empty, request the original event
         if reposted_event.is_none() {
-            let mut relays = self.get_relays(1, &event.pubkey.to_hex(), &false);
+            let mut relays = self
+                .database
+                .find_relay_candidates(1, &event.pubkey.to_hex(), &false);
             relays.push(relay_hint);
 
             requests.push(Request {

@@ -41,20 +41,14 @@ impl Parser {
 
         // Get the sender profile for this nutzap
         requests.push(Request {
-            ids: Vec::new(),
             authors: vec![event.pubkey.to_hex()],
             kinds: vec![0],
-            tags: std::collections::HashMap::new(),
-            since: None,
-            until: None,
-            limit: None,
-            search: String::new(),
-            relays: self.get_relays(0, &event.pubkey.to_hex(), &false),
+            relays: self
+                .database
+                .find_relay_candidates(0, &event.pubkey.to_hex(), &false),
             close_on_eose: true,
             cache_first: true,
-            no_optimize: false,
-            count: false,
-            no_context: false,
+            ..Default::default()
         });
 
         // Extract required tags
@@ -80,7 +74,7 @@ impl Parser {
                             requests.push(Request {
                                 authors: vec![tag_vec[1].clone()],
                                 kinds: vec![0],
-                                relays: self.get_relays(0, &tag_vec[1], &false),
+                                relays: self.database.find_relay_candidates(0, &tag_vec[1], &false),
                                 cache_first: true,
                                 ..Default::default()
                             });
@@ -94,7 +88,11 @@ impl Parser {
                                 kinds: vec![7376],
                                 tags: spending_tags,
                                 limit: Some(1),
-                                relays: self.get_relays(7376, &tag_vec[1], &false),
+                                relays: self.database.find_relay_candidates(
+                                    7376,
+                                    &tag_vec[1],
+                                    &false,
+                                ),
                                 cache_first: true,
                                 ..Default::default()
                             });
@@ -106,7 +104,7 @@ impl Parser {
                             requests.push(Request {
                                 ids: vec![tag_vec[1].clone()],
                                 kinds: vec![1],
-                                relays: self.get_relays(1, "", &false),
+                                relays: self.database.find_relay_candidates(1, "", &false),
                                 cache_first: true,
                                 ..Default::default()
                             });

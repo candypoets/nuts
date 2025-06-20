@@ -49,7 +49,9 @@ impl Parser {
         requests.push(Request {
             authors: vec![event.pubkey.to_hex()],
             kinds: vec![0],
-            relays: self.get_relays(0, &event.pubkey.to_hex(), &false),
+            relays: self
+                .database
+                .find_relay_candidates(0, &event.pubkey.to_hex(), &false),
             close_on_eose: true,
             cache_first: true,
             ..Default::default()
@@ -58,7 +60,7 @@ impl Parser {
         requests.push(Request {
             authors: vec![recipient.clone()],
             kinds: vec![0],
-            relays: self.get_relays(0, &recipient, &false),
+            relays: self.database.find_relay_candidates(0, &recipient, &false),
             close_on_eose: true,
             cache_first: true,
             ..Default::default()
@@ -305,7 +307,8 @@ mod tests {
         signer_manager.set_signer(SignerType::PrivKey, "").unwrap(); // Generate new key
 
         let shared_signer = std::sync::Arc::new(signer_manager);
-        let parser = Parser::new_with_signer(vec![], vec![], shared_signer.clone());
+        let database = std::sync::Arc::new(crate::db::index::NostrDB::new());
+        let parser = Parser::new_with_signer(shared_signer.clone(), database);
 
         // Get the signer's public key
         let signer_pubkey = shared_signer.get_public_key().unwrap();

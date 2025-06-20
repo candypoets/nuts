@@ -1,10 +1,10 @@
+use crate::db::index::NostrDB;
 use crate::signer::{create_shared_signer_manager, SharedSignerManager};
 use crate::types::*;
 use anyhow::{anyhow, Result};
 use nostr::{Event, Tag};
+use std::sync::Arc;
 use tracing::info;
-
-use std::collections::HashMap;
 
 // Declare all parser modules
 pub mod content;
@@ -24,9 +24,6 @@ pub mod kind7375;
 pub mod kind7376;
 pub mod kind9321;
 pub mod kind9735;
-
-#[cfg(test)]
-pub mod tests;
 
 // Re-export commonly used types
 pub use content::{parse_content, ContentBlock, ContentParser};
@@ -48,129 +45,24 @@ pub use kind9321::Kind9321Parsed;
 pub use kind9735::{Kind9735Parsed, ZapRequest};
 
 pub struct Parser {
-    pub default_relays: Vec<String>,
-    pub indexer_relays: Vec<String>,
-    pub relay_hints: HashMap<String, Vec<String>>,
     pub signer_manager: SharedSignerManager,
+    pub database: Arc<NostrDB>,
 }
 
 impl Parser {
-    pub fn new(default_relays: Vec<String>, indexer_relays: Vec<String>) -> Self {
+    pub fn new(database: Arc<NostrDB>) -> Self {
         info!("Creating new parser");
         Self {
-            default_relays,
-            indexer_relays,
-            relay_hints: HashMap::new(),
             signer_manager: create_shared_signer_manager(),
+            database,
         }
     }
 
-    pub fn new_with_signer(
-        default_relays: Vec<String>,
-        indexer_relays: Vec<String>,
-        signer_manager: SharedSignerManager,
-    ) -> Self {
+    pub fn new_with_signer(signer_manager: SharedSignerManager, database: Arc<NostrDB>) -> Self {
         Self {
-            default_relays,
-            indexer_relays,
-            relay_hints: HashMap::new(),
             signer_manager,
+            database,
         }
-    }
-
-    pub fn get_relay_hint(&mut self, event: &Event) -> Vec<String> {
-        let mut relay_hints = Vec::new();
-
-        for tag in &event.tags {
-            let tag_vec = tag.as_vec();
-            if tag_vec.len() >= 2 && tag_vec[0] == "r" {
-                relay_hints.push(tag_vec[1].clone());
-            }
-        }
-
-        if !relay_hints.is_empty() {
-            // Get existing hints for this pubkey
-            let existing = self
-                .relay_hints
-                .get(&event.pubkey.to_hex())
-                .cloned()
-                .unwrap_or_default();
-
-            // Create a set to keep track of unique relays
-            let mut unique_relays = std::collections::HashSet::new();
-
-            // Add existing relays
-            for relay in existing {
-                unique_relays.insert(relay);
-            }
-
-            // Add new relays
-            for relay in &relay_hints {
-                unique_relays.insert(relay.clone());
-            }
-
-            // Convert back to vec and update
-            let updated_relays: Vec<String> = unique_relays.into_iter().collect();
-            self.relay_hints
-                .insert(event.pubkey.to_hex(), updated_relays);
-        }
-
-        self.clean_relays(relay_hints)
-    }
-
-    pub fn get_relays(&self, kind: u64, pubkey: &str, write: &bool) -> Vec<String> {
-        let mut relays_found = Vec::new();
-
-        // Check if there are any relay hints for this pubkey
-        if let Some(hints) = self.relay_hints.get(pubkey) {
-            if !hints.is_empty() {
-                relays_found.extend_from_slice(hints);
-            }
-        }
-
-        match kind {
-            10002 | 0 | 10019 => {
-                if !self.indexer_relays.is_empty() {
-                    let now = instant::now() as usize;
-                    let index = if self.indexer_relays.len() > 1 {
-                        now % self.indexer_relays.len()
-                    } else {
-                        0
-                    };
-                    relays_found.push(self.indexer_relays[index].clone());
-                }
-            }
-            _ => {
-                // TODO: Query NIP-65 relay list from database
-                // For now, use default relays
-                if !self.default_relays.is_empty() {
-                    let now = instant::now() as usize;
-                    let index = if self.default_relays.len() > 1 {
-                        now % self.default_relays.len()
-                    } else {
-                        0
-                    };
-                    relays_found.push(self.default_relays[index].clone());
-                }
-            }
-        }
-
-        relays_found = self.clean_relays(relays_found);
-
-        // Ensure we have at least 3 relays
-        if relays_found.len() < 3 {
-            // Add a random relay from defaults
-            if !self.default_relays.is_empty() {
-                let now = instant::now() as usize;
-                let index = now % self.default_relays.len();
-                let random_relay = &self.default_relays[index];
-                if !relays_found.contains(random_relay) {
-                    relays_found.push(random_relay.clone());
-                }
-            }
-        }
-
-        relays_found
     }
 
     pub fn parse(&self, event: Event) -> Result<ParsedEvent> {
@@ -238,7 +130,7 @@ impl Parser {
                 (Some(serde_json::to_value(parsed)?), requests)
             }
             39089 => {
-                let (parsed, requests) = self.parse_kind_30000(&event)?;
+                let (parsed, requests) = self.parse_kind_39089(&event)?;
                 (Some(serde_json::to_value(parsed)?), requests)
             }
             _ => {
@@ -270,38 +162,6 @@ impl Parser {
                 Ok(())
             }
         }
-    }
-
-    fn clean_relays(&self, relays: Vec<String>) -> Vec<String> {
-        relays
-            .into_iter()
-            .filter_map(|relay| {
-                let normalized = normalize_url(&relay);
-                if normalized.is_empty() {
-                    None
-                } else {
-                    Some(normalized)
-                }
-            })
-            .collect::<std::collections::HashSet<_>>()
-            .into_iter()
-            .collect()
-    }
-}
-
-fn normalize_url(url: &str) -> String {
-    let url = url.trim();
-    if url.is_empty() {
-        return String::new();
-    }
-
-    // Basic URL normalization
-    if url.starts_with("wss://") || url.starts_with("ws://") {
-        url.to_string()
-    } else if url.starts_with("//") {
-        format!("wss:{}", url)
-    } else {
-        format!("wss://{}", url)
     }
 }
 
@@ -342,26 +202,15 @@ pub fn find_last_tag<'a>(tags: &'a [Tag], tag_name: &str) -> Option<&'a Tag> {
 impl Clone for Parser {
     fn clone(&self) -> Self {
         Self {
-            default_relays: self.default_relays.clone(),
-            indexer_relays: self.indexer_relays.clone(),
-            relay_hints: self.relay_hints.clone(),
             signer_manager: self.signer_manager.clone(),
+            database: self.database.clone(),
         }
     }
 }
 
 impl Default for Parser {
     fn default() -> Self {
-        Self::new(
-            vec![
-                "wss://relay.damus.io".to_string(),
-                "wss://nos.lol".to_string(),
-                "wss://relay.primal.net".to_string(),
-            ],
-            vec![
-                "wss://relay.nostr.band".to_string(),
-                "wss://nostr.wine".to_string(),
-            ],
-        )
+        let database = Arc::new(NostrDB::new());
+        Self::new(database)
     }
 }

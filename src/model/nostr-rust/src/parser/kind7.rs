@@ -52,7 +52,9 @@ impl Parser {
         requests.push(Request {
             authors: vec![event.pubkey.to_hex()],
             kinds: vec![0],
-            relays: self.get_relays(0, &event.pubkey.to_hex(), &false),
+            relays: self
+                .database
+                .find_relay_candidates(0, &event.pubkey.to_hex(), &false),
             close_on_eose: true,
             cache_first: true,
             ..Default::default()

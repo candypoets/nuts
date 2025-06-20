@@ -385,7 +385,7 @@
 				</div>
 			</div>
 
-			<!-- <div
+			<div
 				class="carousel-item w-[100vw] h-full will-change-transform"
 				style="transform: translateZ({transform2 * ($isMobile ? 0 : 10)}px) rotateY({(1 -
 					($isMobile ? 0 : transform2)) *
@@ -403,7 +403,7 @@
 				<div class="w-full h-screen relative overflow-hidden">
 					<Chat visible={currentIndex == 2} />
 				</div>
-			</div> -->
+			</div>
 		</div>
 
 		<!-- Bottom Navigation -->

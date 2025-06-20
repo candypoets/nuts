@@ -19,7 +19,7 @@ pub struct Kind30000Parsed {
 }
 
 impl Parser {
-    pub fn parse_kind_30000(
+    pub fn parse_kind_39089(
         &self,
         event: &Event,
     ) -> Result<(Kind30000Parsed, Option<Vec<Request>>)> {
@@ -104,20 +104,10 @@ impl Parser {
         // Request profiles for all people in the list
         if !result.people.is_empty() {
             requests.push(Request {
-                ids: Vec::new(),
                 authors: result.people.clone(),
                 kinds: vec![0, 10002], // Profile metadata and relay lists
-                tags: std::collections::HashMap::new(),
-                since: None,
-                until: None,
-                limit: None,
-                search: String::new(),
-                relays: self.default_relays.clone(),
-                close_on_eose: false,
-                cache_first: false,
-                no_optimize: false,
-                count: false,
-                no_context: false,
+                relays: self.database.find_relay_candidates(0, "", &false),
+                ..Default::default()
             });
         }
 
@@ -130,8 +120,8 @@ mod tests {
     use super::*;
     use nostr::{EventBuilder, Keys, Kind, Tag};
 
-    #[test]
-    fn test_parse_kind_30000_basic() {
+    #[tokio::test]
+    async fn test_parse_kind_39089_basic() {
         let keys = Keys::generate();
         let list_id = "my-friends";
         let person1 = "npub1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
@@ -148,7 +138,7 @@ mod tests {
             .unwrap();
 
         let parser = Parser::default();
-        let (parsed, requests) = parser.parse_kind_30000(&event).unwrap();
+        let (parsed, requests) = parser.parse_kind_39089(&event).unwrap();
 
         assert_eq!(parsed.list_identifier, list_id);
         assert_eq!(parsed.people.len(), 2);
@@ -158,8 +148,8 @@ mod tests {
         assert!(!requests.unwrap().is_empty());
     }
 
-    #[test]
-    fn test_parse_kind_30000_with_metadata_tags() {
+    #[tokio::test]
+    async fn test_parse_kind_39089_with_metadata_tags() {
         let keys = Keys::generate();
         let list_id = "bitcoin-devs";
         let title = "Bitcoin Developers";
@@ -178,7 +168,7 @@ mod tests {
             .unwrap();
 
         let parser = Parser::default();
-        let (parsed, _) = parser.parse_kind_30000(&event).unwrap();
+        let (parsed, _) = parser.parse_kind_39089(&event).unwrap();
 
         assert_eq!(parsed.list_identifier, list_id);
         assert_eq!(parsed.title, Some(title.to_string()));
@@ -186,8 +176,8 @@ mod tests {
         assert_eq!(parsed.image, Some(image.to_string()));
     }
 
-    #[test]
-    fn test_parse_kind_30000_with_content_metadata() {
+    #[tokio::test]
+    async fn test_parse_kind_39089_with_content_metadata() {
         let keys = Keys::generate();
         let list_id = "nostr-apps";
         let content = r#"{"title":"Nostr Apps","description":"Cool Nostr applications","image":"https://example.com/nostr.png"}"#;
@@ -199,7 +189,7 @@ mod tests {
             .unwrap();
 
         let parser = Parser::default();
-        let (parsed, _) = parser.parse_kind_30000(&event).unwrap();
+        let (parsed, _) = parser.parse_kind_39089(&event).unwrap();
 
         assert_eq!(parsed.list_identifier, list_id);
         assert_eq!(parsed.title, Some("Nostr Apps".to_string()));
@@ -213,8 +203,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_parse_kind_30000_metadata_priority() {
+    #[tokio::test]
+    async fn test_parse_kind_39089_metadata_priority() {
         let keys = Keys::generate();
         let list_id = "test-list";
         let tag_title = "Title from tag";
@@ -231,14 +221,14 @@ mod tests {
             .unwrap();
 
         let parser = Parser::default();
-        let (parsed, _) = parser.parse_kind_30000(&event).unwrap();
+        let (parsed, _) = parser.parse_kind_39089(&event).unwrap();
 
         // Content is parsed first, but tag should not override if already set
         assert_eq!(parsed.title, Some(content_title.to_string()));
     }
 
-    #[test]
-    fn test_parse_kind_30000_missing_d_tag() {
+    #[tokio::test]
+    async fn test_parse_kind_39089_missing_d_tag() {
         let keys = Keys::generate();
         let person = "npub1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
 
@@ -252,7 +242,7 @@ mod tests {
             .unwrap();
 
         let parser = Parser::default();
-        let result = parser.parse_kind_30000(&event);
+        let result = parser.parse_kind_39089(&event);
 
         assert!(result.is_err());
         assert!(result
@@ -261,8 +251,8 @@ mod tests {
             .contains("missing required 'd' tag"));
     }
 
-    #[test]
-    fn test_parse_kind_30000_empty_list() {
+    #[tokio::test]
+    async fn test_parse_kind_39089_empty_list() {
         let keys = Keys::generate();
         let list_id = "empty-list";
 
@@ -273,7 +263,7 @@ mod tests {
             .unwrap();
 
         let parser = Parser::default();
-        let (parsed, requests) = parser.parse_kind_30000(&event).unwrap();
+        let (parsed, requests) = parser.parse_kind_39089(&event).unwrap();
 
         assert_eq!(parsed.list_identifier, list_id);
         assert!(parsed.people.is_empty());
@@ -281,8 +271,8 @@ mod tests {
         assert!(requests.unwrap().is_empty()); // No requests if no people
     }
 
-    #[test]
-    fn test_parse_wrong_kind() {
+    #[tokio::test]
+    async fn test_parse_wrong_kind() {
         let keys = Keys::generate();
 
         let event = EventBuilder::new(Kind::TextNote, "test", Vec::new())
@@ -290,13 +280,13 @@ mod tests {
             .unwrap();
 
         let parser = Parser::default();
-        let result = parser.parse_kind_30000(&event);
+        let result = parser.parse_kind_39089(&event);
 
         assert!(result.is_err());
     }
 
-    #[test]
-    fn test_parse_kind_30000_invalid_json_content() {
+    #[tokio::test]
+    async fn test_parse_kind_39089_invalid_json_content() {
         let keys = Keys::generate();
         let list_id = "test-list";
         let invalid_content = r#"{"title":"unclosed"#;
@@ -308,7 +298,7 @@ mod tests {
             .unwrap();
 
         let parser = Parser::default();
-        let (parsed, _) = parser.parse_kind_30000(&event).unwrap();
+        let (parsed, _) = parser.parse_kind_39089(&event).unwrap();
 
         // Should still work, just ignore invalid JSON content
         assert_eq!(parsed.list_identifier, list_id);

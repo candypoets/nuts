@@ -5,13 +5,13 @@ use crate::db::types::{
 };
 use crate::network::subscriptions::interfaces::EventDatabase;
 use crate::types::{ParsedEvent, Request};
+use crate::utils::relay::RelayUtils;
 use anyhow::Result;
 use async_trait::async_trait;
 use instant::Instant;
-use nostr::{EventId, Filter, PublicKey};
+use nostr::{Event, EventId, Filter, PublicKey};
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
-use tokio::sync::RwLock;
+use std::sync::{Arc, RwLock};
 use tracing::{debug, error, info, warn};
 
 /// Main NostrDB implementation with in-memory indexes and persistent storage
@@ -24,6 +24,12 @@ pub struct NostrDB {
     storage: Arc<dyn EventStorage>,
     /// Initialization flag
     is_initialized: Arc<RwLock<bool>>,
+    /// Default relays for nostr operations
+    pub default_relays: Vec<String>,
+    /// Indexer relays for nostr operations
+    pub indexer_relays: Vec<String>,
+    /// Relay hints for pubkeys
+    pub relay_hints: HashMap<String, Vec<String>>,
 }
 
 impl NostrDB {
@@ -41,6 +47,16 @@ impl NostrDB {
             indexes: Arc::new(RwLock::new(DatabaseIndexes::new())),
             storage,
             is_initialized: Arc::new(RwLock::new(false)),
+            default_relays: vec![
+                "wss://relay.damus.io".to_string(),
+                "wss://nos.lol".to_string(),
+                "wss://relay.primal.net".to_string(),
+            ],
+            indexer_relays: vec![
+                "wss://relay.nostr.band".to_string(),
+                "wss://nostr.wine".to_string(),
+            ],
+            relay_hints: HashMap::new(),
         }
     }
 
@@ -51,6 +67,54 @@ impl NostrDB {
             indexes: Arc::new(RwLock::new(DatabaseIndexes::new())),
             storage,
             is_initialized: Arc::new(RwLock::new(false)),
+            default_relays: vec![
+                "wss://relay.damus.io".to_string(),
+                "wss://nos.lol".to_string(),
+                "wss://relay.primal.net".to_string(),
+            ],
+            indexer_relays: vec![
+                "wss://relay.nostr.band".to_string(),
+                "wss://nostr.wine".to_string(),
+            ],
+            relay_hints: HashMap::new(),
+        }
+    }
+
+    /// Create a new NostrDB instance with custom relay configurations
+    pub fn with_relays(default_relays: Vec<String>, indexer_relays: Vec<String>) -> Self {
+        info!("Creating new nostr db with custom relays");
+        let config = DatabaseConfig::default();
+        let storage = Arc::new(IndexedDbStorage::new(
+            "nostr-local-relay".to_string(),
+            config.clone(),
+        ));
+
+        Self {
+            config,
+            indexes: Arc::new(RwLock::new(DatabaseIndexes::new())),
+            storage,
+            is_initialized: Arc::new(RwLock::new(false)),
+            default_relays,
+            indexer_relays,
+            relay_hints: HashMap::new(),
+        }
+    }
+
+    /// Create a new NostrDB instance with custom configuration, storage, and relays
+    pub fn with_storage_and_relays(
+        config: DatabaseConfig,
+        storage: Arc<dyn EventStorage>,
+        default_relays: Vec<String>,
+        indexer_relays: Vec<String>,
+    ) -> Self {
+        Self {
+            config,
+            indexes: Arc::new(RwLock::new(DatabaseIndexes::new())),
+            storage,
+            is_initialized: Arc::new(RwLock::new(false)),
+            default_relays,
+            indexer_relays,
+            relay_hints: HashMap::new(),
         }
     }
 
@@ -58,7 +122,10 @@ impl NostrDB {
     pub async fn initialize(&self) -> Result<(), DatabaseError> {
         info!("Initializing NostrDB...");
 
-        let mut is_init = self.is_initialized.write().await;
+        let mut is_init = self
+            .is_initialized
+            .write()
+            .map_err(|_| DatabaseError::LockError)?;
         if *is_init {
             debug!("Database already initialized");
             return Ok(());
@@ -66,7 +133,7 @@ impl NostrDB {
 
         // Clear existing indexes
         {
-            let mut indexes = self.indexes.write().await;
+            let mut indexes = self.indexes.write().map_err(|_| DatabaseError::LockError)?;
             indexes.clear();
         }
 
@@ -75,12 +142,12 @@ impl NostrDB {
 
         if !events.is_empty() {
             info!("Loading {} events from persistent storage", events.len());
-            self.build_indexes_from_events(events).await?;
+            self.build_indexes_from_events(events)?;
         }
 
         *is_init = true;
         let event_count = {
-            let indexes = self.indexes.read().await;
+            let indexes = self.indexes.read().map_err(|_| DatabaseError::LockError)?;
             indexes.events_by_id.len()
         };
         info!(
@@ -91,17 +158,20 @@ impl NostrDB {
     }
 
     /// Check if the database is initialized
-    pub async fn is_initialized(&self) -> bool {
-        *self.is_initialized.read().await
+    pub fn is_initialized(&self) -> bool {
+        *self
+            .is_initialized
+            .read()
+            .unwrap_or_else(|_| panic!("Lock poisoned"))
     }
 
     /// Build indexes from a collection of events
-    async fn build_indexes_from_events(
+    fn build_indexes_from_events(
         &self,
         events: Vec<ProcessedNostrEvent>,
     ) -> Result<(), DatabaseError> {
         let start_time = Instant::now();
-        let mut indexes = self.indexes.write().await;
+        let mut indexes = self.indexes.write().map_err(|_| DatabaseError::LockError)?;
 
         // Pre-allocate maps based on event count for better performance
         let event_count = events.len();
@@ -213,12 +283,9 @@ impl NostrDB {
     }
 
     /// Query events using the internal filter format
-    pub async fn query_events_internal(
-        &self,
-        filter: QueryFilter,
-    ) -> Result<QueryResult, DatabaseError> {
+    pub fn query_events_internal(&self, filter: QueryFilter) -> Result<QueryResult, DatabaseError> {
         let start_time = Instant::now();
-        let indexes = self.indexes.read().await;
+        let indexes = self.indexes.read().map_err(|_| DatabaseError::LockError)?;
 
         // Start with candidate sets from indexed fields
         let mut candidate_sets = Vec::new();
@@ -389,8 +456,8 @@ impl NostrDB {
     }
 
     /// Get a single event by ID
-    pub async fn get_event(&self, id: &EventId) -> Option<ParsedEvent> {
-        let indexes = self.indexes.read().await;
+    pub fn get_event(&self, id: &EventId) -> Option<ParsedEvent> {
+        let indexes = self.indexes.read().ok()?;
         indexes
             .events_by_id
             .get(&id.to_hex())
@@ -398,39 +465,197 @@ impl NostrDB {
     }
 
     /// Check if an event exists
-    pub async fn has_event(&self, id: &EventId) -> bool {
-        let indexes = self.indexes.read().await;
+    pub fn has_event(&self, id: &EventId) -> bool {
+        let indexes = self
+            .indexes
+            .read()
+            .unwrap_or_else(|_| panic!("Lock poisoned"));
         indexes.events_by_id.contains_key(&id.to_hex())
     }
 
     /// Get a profile for a given pubkey
-    pub async fn get_profile(&self, pubkey: &PublicKey) -> Option<ParsedEvent> {
-        let indexes = self.indexes.read().await;
+    pub fn get_profile(&self, pubkey: &PublicKey) -> Option<ParsedEvent> {
+        let indexes = self.indexes.read().ok()?;
         indexes
             .profiles_by_pubkey
             .get(&pubkey.to_hex())
             .map(|e| e.to_parsed_event())
     }
 
-    pub async fn get_relays(&self, pubkey: &PublicKey) -> Option<ParsedEvent> {
-        let indexes = self.indexes.read().await;
-        indexes
+    pub fn get_read_relays(&self, pubkey: &str) -> Option<Vec<String>> {
+        let indexes = self.indexes.read().ok()?;
+        let parsed_event = indexes
             .relays_by_pubkey
-            .get(&pubkey.to_hex())
-            .map(|e| e.to_parsed_event())
+            .get(pubkey)
+            .map(|e| e.to_parsed_event());
+
+        match parsed_event {
+            Some(parsed_event) => {
+                if let Some(parsed_data) = &parsed_event.parsed {
+                    if let Ok(kind10002_parsed) = serde_json::from_value::<
+                        crate::parser::Kind10002Parsed,
+                    >(parsed_data.clone())
+                    {
+                        return Some(
+                            kind10002_parsed
+                                .into_iter()
+                                .filter(|relay| relay.read)
+                                .map(|relay| relay.url)
+                                .collect::<Vec<_>>(),
+                        );
+                    } else {
+                        return Some(Vec::new());
+                    }
+                } else {
+                    return Some(Vec::new());
+                }
+            }
+            None => None,
+        }
+    }
+
+    pub fn get_write_relays(&self, pubkey: &str) -> Option<Vec<String>> {
+        let indexes = self.indexes.read().ok()?;
+        let parsed_event = indexes
+            .relays_by_pubkey
+            .get(pubkey)
+            .map(|e| e.to_parsed_event());
+
+        match parsed_event {
+            Some(parsed_event) => {
+                if let Some(parsed_data) = &parsed_event.parsed {
+                    if let Ok(kind10002_parsed) = serde_json::from_value::<
+                        crate::parser::Kind10002Parsed,
+                    >(parsed_data.clone())
+                    {
+                        return Some(
+                            kind10002_parsed
+                                .into_iter()
+                                .filter(|relay| relay.write)
+                                .map(|relay| relay.url)
+                                .collect::<Vec<_>>(),
+                        );
+                    } else {
+                        return Some(Vec::new());
+                    }
+                } else {
+                    return Some(Vec::new());
+                }
+            }
+            None => None,
+        }
+    }
+
+    pub fn get_relay_hint(&mut self, event: &Event) -> Vec<String> {
+        let mut relay_hints = Vec::new();
+
+        for tag in &event.tags {
+            let tag_vec = tag.as_vec();
+            if tag_vec.len() >= 2 && tag_vec[0] == "r" {
+                relay_hints.push(tag_vec[1].clone());
+            }
+        }
+
+        let clean_relays = RelayUtils::clean_relays(&relay_hints);
+
+        if !clean_relays.is_empty() {
+            // Get existing hints for this pubkey
+            let existing = self
+                .relay_hints
+                .get(&event.pubkey.to_hex())
+                .cloned()
+                .unwrap_or_default();
+
+            // Create a set to keep track of unique relays
+            let mut unique_relays = std::collections::HashSet::new();
+
+            // Add existing relays
+            for relay in existing {
+                unique_relays.insert(relay);
+            }
+
+            // Add new relays
+            for relay in &relay_hints {
+                unique_relays.insert(relay.clone());
+            }
+
+            // Convert back to vec and update
+            let updated_relays: Vec<String> = unique_relays.into_iter().collect();
+            self.relay_hints
+                .insert(event.pubkey.to_hex(), updated_relays);
+        }
+
+        clean_relays
+    }
+
+    pub fn find_relay_candidates(&self, kind: u64, pubkey: &str, write: &bool) -> Vec<String> {
+        let mut relays_found = Vec::new();
+
+        // Check if there are any relay hints for this pubkey
+        if let Some(hints) = self.relay_hints.get(pubkey) {
+            if !hints.is_empty() {
+                relays_found.extend_from_slice(hints);
+            }
+        }
+
+        match kind {
+            10002 | 0 | 10019 => {
+                if !self.indexer_relays.is_empty() {
+                    let now = instant::now() as usize;
+                    let index = if self.indexer_relays.len() > 1 {
+                        now % self.indexer_relays.len()
+                    } else {
+                        0
+                    };
+                    relays_found.push(self.indexer_relays[index].clone());
+                }
+            }
+            _ => {
+                if *write == true {
+                    if let Some(write_relays) = self.get_write_relays(pubkey) {
+                        relays_found.extend(write_relays);
+                    }
+                } else {
+                    if let Some(read_relays) = self.get_read_relays(pubkey) {
+                        relays_found.extend(read_relays);
+                    }
+                }
+            }
+        }
+
+        relays_found = RelayUtils::clean_relays(&relays_found);
+
+        // Ensure we have at least 3 relays
+        if relays_found.len() < 3 {
+            // Add a random relay from defaults
+            if !self.default_relays.is_empty() {
+                let now = instant::now() as usize;
+                let index = now % self.default_relays.len();
+                let random_relay = &self.default_relays[index];
+                if !relays_found.contains(random_relay) {
+                    relays_found.push(random_relay.clone());
+                }
+            }
+        }
+
+        relays_found
     }
 
     /// Get database statistics
-    pub async fn get_stats(&self) -> DatabaseStats {
-        let indexes = self.indexes.read().await;
+    pub fn get_stats(&self) -> DatabaseStats {
+        let indexes = self
+            .indexes
+            .read()
+            .unwrap_or_else(|_| panic!("Lock poisoned"));
         indexes.get_stats()
     }
 
     /// Reset and refill persistent storage with recent events
     pub async fn reset_and_refill_storage(&self) -> Result<(), DatabaseError> {
-        let indexes = self.indexes.read().await;
-        let events: Vec<ProcessedNostrEvent> = indexes.events_by_id.values().cloned().collect();
-        drop(indexes);
+        let events: Vec<ProcessedNostrEvent> = {
+            let indexes = self.indexes.read().map_err(|_| DatabaseError::LockError)?;
+            indexes.events_by_id.values().cloned().collect()
+        };
 
         // Clear and save events using the storage trait
         self.storage.clear_storage().await?;
@@ -492,7 +717,6 @@ impl EventDatabase for NostrDB {
                     let filter = QueryFilter::from_nostr_filter(&nostr_filter);
                     let result = self
                         .query_events_internal(filter)
-                        .await
                         .map_err(|e| anyhow::anyhow!("Database query error: {}", e))?;
 
                     all_events.extend(result.events);
@@ -536,7 +760,6 @@ impl EventDatabase for NostrDB {
             );
         let result = self
             .query_events_internal(query_filter)
-            .await
             .map_err(|e| anyhow::anyhow!("Database query error: {}", e))?;
         Ok(result.events)
     }
@@ -551,7 +774,7 @@ impl EventDatabase for NostrDB {
 
         // Add to indexes
         {
-            let mut indexes = self.indexes.write().await;
+            let mut indexes = self.indexes.write().map_err(|_| DatabaseError::LockError)?;
             self.index_event(&mut indexes, processed_event);
         }
 
@@ -583,7 +806,7 @@ pub async fn init_nostr_db() -> Arc<NostrDB> {
         let db = GLOBAL_DB.as_ref().unwrap().clone();
 
         // Initialize the database if not already done
-        if !db.is_initialized().await {
+        if !db.is_initialized() {
             if let Err(e) = db.initialize().await {
                 error!("Failed to initialize NostrDB: {}", e);
             }
@@ -623,7 +846,7 @@ mod tests {
 
         db.add_event(parsed_event.clone()).await.unwrap();
 
-        let retrieved = db.get_event(&event.id).await;
+        let retrieved = db.get_event(&event.id);
         assert!(retrieved.is_some());
         assert_eq!(retrieved.unwrap().event.id, event.id);
     }
@@ -636,11 +859,11 @@ mod tests {
         let event = create_test_event(&keys, Kind::TextNote, "Hello world", vec![]);
         let parsed_event = ParsedEvent::new(event.clone());
 
-        assert!(!db.has_event(&event.id).await);
+        assert!(!db.has_event(&event.id));
 
         db.add_event(parsed_event).await.unwrap();
 
-        assert!(db.has_event(&event.id).await);
+        assert!(db.has_event(&event.id));
     }
 
     #[tokio::test]
@@ -701,7 +924,7 @@ mod tests {
             .await
             .unwrap();
 
-        let retrieved_profile = db.get_profile(&keys.public_key()).await;
+        let retrieved_profile = db.get_profile(&keys.public_key());
         assert!(retrieved_profile.is_some());
         assert_eq!(retrieved_profile.unwrap().event.content, profile_content);
     }
@@ -717,7 +940,7 @@ mod tests {
             db.add_event(ParsedEvent::new(event)).await.unwrap();
         }
 
-        let stats = db.get_stats().await;
+        let stats = db.get_stats();
         assert_eq!(stats.total_events, 5);
         assert_eq!(stats.events_by_kind.get(&Kind::TextNote.as_u64()), Some(&5));
     }

@@ -32,7 +32,6 @@ pub struct PublishManager {
     connection_registry: Arc<ConnectionRegistry>,
     parser: Arc<Parser>,
     operations: Arc<RwLock<HashMap<String, PublishOperation>>>,
-    default_relays: Vec<String>,
     callback: Option<js_sys::Function>,
 }
 
@@ -42,19 +41,11 @@ impl PublishManager {
         connection_registry: Arc<ConnectionRegistry>,
         parser: Arc<Parser>,
     ) -> Self {
-        let default_relays = vec![
-            "wss://relay.damus.io".to_string(),
-            "wss://nos.lol".to_string(),
-            "wss://relay.primal.net".to_string(),
-            "wss://relay.nostr.band".to_string(),
-        ];
-
         Self {
             database,
             connection_registry,
             parser,
             operations: Arc::new(RwLock::new(HashMap::new())),
-            default_relays,
             callback: None,
         }
     }
@@ -63,7 +54,7 @@ impl PublishManager {
         self.callback = Some(callback);
     }
 
-    pub async fn publish_event(&self, publish_id: String, event: Event) -> Result<()> {
+    pub async fn publish_event(&self, publish_id: String, event: &mut Event) -> Result<()> {
         info!("Publishing event {} with ID {}", event.id, publish_id);
 
         // Check if we already have an operation with this ID
@@ -78,8 +69,7 @@ impl PublishManager {
         }
 
         // Prepare the event using parser
-        let mut parser_clone = (*self.parser).clone();
-        let prepared_event = match parser_clone.parse(event.clone()) {
+        match self.parser.prepare(event) {
             Ok(parsed) => parsed,
             Err(e) => return Err(anyhow::anyhow!("failed to prepare event: {}", e)),
         };
@@ -89,14 +79,14 @@ impl PublishManager {
             Ok(relays) if !relays.is_empty() => relays,
             Ok(_) => {
                 debug!("No specific relays determined for publish ID {}, falling back to default relays", publish_id);
-                self.default_relays.clone()
+                self.database.default_relays.clone()
             }
             Err(e) => {
                 warn!(
                     "Failed to determine target relays for publish ID {}: {}, using defaults",
                     publish_id, e
                 );
-                self.default_relays.clone()
+                self.database.default_relays.clone()
             }
         };
 
@@ -106,7 +96,7 @@ impl PublishManager {
             relays
         );
 
-        self.connection_registry.publish(event, relays);
+        let _ = self.connection_registry.publish(event.clone(), relays);
 
         Ok(())
     }
@@ -132,37 +122,15 @@ impl PublishManager {
         // Get relays for all mentioned pubkeys (read relays)
         let read_tasks: Vec<_> = read_pubkeys
             .into_iter()
-            .map(|pubkey| {
-                let database = self.database.clone();
-                async move {
-                    match Self::find_nip65_relays(&database, &pubkey).await {
-                        Ok(Some(relays)) => relays
-                            .into_iter()
-                            .filter(|(_, read, _)| *read)
-                            .map(|(url, _, _)| url)
-                            .collect::<Vec<_>>(),
-                        _ => Vec::new(),
-                    }
-                }
-            })
+            .map(|pubkey| async move { self.database.get_read_relays(&pubkey).unwrap_or_default() })
             .collect();
 
         // Get relays for author pubkeys (write relays)
         let write_tasks: Vec<_> = write_pubkeys
             .into_iter()
-            .map(|pubkey| {
-                let database = self.database.clone();
-                async move {
-                    match Self::find_nip65_relays(&database, &pubkey).await {
-                        Ok(Some(relays)) => relays
-                            .into_iter()
-                            .filter(|(_, _, write)| *write)
-                            .map(|(url, _, _)| url)
-                            .collect::<Vec<_>>(),
-                        _ => Vec::new(),
-                    }
-                }
-            })
+            .map(
+                |pubkey| async move { self.database.get_write_relays(&pubkey).unwrap_or_default() },
+            )
             .collect();
 
         // Wait for all tasks to complete
@@ -177,63 +145,6 @@ impl PublishManager {
         }
 
         Ok(relay_set.into_iter().collect())
-    }
-
-    async fn find_nip65_relays(
-        database: &Arc<NostrDB>,
-        pubkey: &str,
-    ) -> Result<Option<Vec<(String, bool, bool)>>> {
-        // Create filter for NIP-65 relay list metadata (kind 10002)
-        let pubkey_obj = nostr::PublicKey::from_hex(pubkey)?;
-        let filter = Filter::new()
-            .author(pubkey_obj)
-            .kind(Kind::RelayList)
-            .limit(1);
-
-        // Query database for the most recent relay list
-        use crate::network::subscriptions::interfaces::EventDatabase;
-        match EventDatabase::query_events(&**database, filter).await {
-            Ok(events) if !events.is_empty() => {
-                let event = &events[0];
-                let mut relays = Vec::new();
-
-                // Parse relay tags
-                for tag in &event.event.tags {
-                    let tag_vec = tag.as_vec();
-                    if tag_vec.len() >= 2 && tag_vec[0] == "r" {
-                        let relay_url = tag_vec[1].clone();
-                        let mut read = false;
-                        let mut write = false;
-
-                        // Check for read/write markers
-                        if tag_vec.len() >= 3 {
-                            match tag_vec[2].as_str() {
-                                "read" => read = true,
-                                "write" => write = true,
-                                _ => {
-                                    // Default to both read and write if not specified
-                                    read = true;
-                                    write = true;
-                                }
-                            }
-                        } else {
-                            // Default to both read and write if not specified
-                            read = true;
-                            write = true;
-                        }
-
-                        relays.push((relay_url, read, write));
-                    }
-                }
-
-                Ok(Some(relays))
-            }
-            Ok(_) => Ok(None),
-            Err(e) => {
-                debug!("Failed to find NIP-65 relays for pubkey {}: {}", pubkey, e);
-                Ok(None)
-            }
-        }
     }
 
     pub async fn cancel_publish(&self, publish_id: &str) -> Result<()> {

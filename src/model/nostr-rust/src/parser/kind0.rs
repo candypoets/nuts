@@ -35,7 +35,7 @@ pub struct Kind0Parsed {
     pub mastodon: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub nostr: Option<String>,
-    
+
     // Alternative formats
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display_name_alt: Option<String>,
@@ -100,8 +100,12 @@ impl Parser {
                 if let Some(content_obj) = content_value.as_object() {
                     for (key, value) in content_obj {
                         if let Some(str_value) = value.as_str() {
-                            let str_value = if str_value.is_empty() { None } else { Some(str_value.to_string()) };
-                            
+                            let str_value = if str_value.is_empty() {
+                                None
+                            } else {
+                                Some(str_value.to_string())
+                            };
+
                             match key.as_str() {
                                 "name" => profile.name = str_value,
                                 "display_name" => profile.display_name = str_value,
@@ -149,39 +153,42 @@ impl Parser {
 
 pub async fn query_nip05(nip05: &str) -> Result<Option<ProfilePointer>> {
     use regex::Regex;
-    
+
     let nip05_regex = Regex::new(r"^(?:([a-zA-Z0-9._-]+)@)?([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})$")?;
-    
+
     let captures = nip05_regex.captures(nip05);
     if captures.is_none() {
         return Ok(None);
     }
-    
+
     let caps = captures.unwrap();
     let name = caps.get(1).map_or("_", |m| m.as_str());
     let domain = caps.get(2).map_or("", |m| m.as_str());
-    
-    let url = format!("https://proxy.nuts.cash/?url={}/.well-known/nostr.json?name={}", domain, name);
-    
+
+    let url = format!(
+        "https://proxy.nuts.cash/?url={}/.well-known/nostr.json?name={}",
+        domain, name
+    );
+
     let response = reqwest::get(&url).await?;
-    
+
     if response.status() != 200 {
         return Err(anyhow!("wrong response code: {}", response.status()));
     }
-    
+
     let nip05_response: Nip05Response = response.json().await?;
-    
+
     let pubkey = nip05_response.names.get(name);
     if pubkey.is_none() {
         return Ok(None);
     }
-    
+
     let pubkey = pubkey.unwrap().clone();
     let relays = nip05_response
         .relays
         .and_then(|r| r.get(&pubkey).cloned())
         .unwrap_or_default();
-    
+
     Ok(Some(ProfilePointer { pubkey, relays }))
 }
 
@@ -194,35 +201,41 @@ mod tests {
     fn test_parse_kind_0_basic() {
         let keys = Keys::generate();
         let content = r#"{"name":"Alice","about":"Bitcoin enthusiast","picture":"https://example.com/pic.jpg"}"#;
-        
+
         let event = EventBuilder::new(Kind::Metadata, content, Vec::new())
             .to_event(&keys)
             .unwrap();
-        
+
         let parser = Parser::default();
         let (parsed, _) = parser.parse_kind_0(&event).unwrap();
-        
+
         assert_eq!(parsed.pubkey, keys.public_key().to_hex());
         assert_eq!(parsed.name, Some("Alice".to_string()));
         assert_eq!(parsed.about, Some("Bitcoin enthusiast".to_string()));
-        assert_eq!(parsed.picture, Some("https://example.com/pic.jpg".to_string()));
+        assert_eq!(
+            parsed.picture,
+            Some("https://example.com/pic.jpg".to_string())
+        );
     }
 
     #[test]
     fn test_parse_kind_0_alternative_fields() {
         let keys = Keys::generate();
         let content = r#"{"displayName":"Bob","bio":"Nostr developer","avatar":"https://example.com/avatar.jpg"}"#;
-        
+
         let event = EventBuilder::new(Kind::Metadata, content, Vec::new())
             .to_event(&keys)
             .unwrap();
-        
+
         let parser = Parser::default();
         let (parsed, _) = parser.parse_kind_0(&event).unwrap();
-        
+
         assert_eq!(parsed.display_name_alt, Some("Bob".to_string()));
         assert_eq!(parsed.bio, Some("Nostr developer".to_string()));
-        assert_eq!(parsed.avatar, Some("https://example.com/avatar.jpg".to_string()));
+        assert_eq!(
+            parsed.avatar,
+            Some("https://example.com/avatar.jpg".to_string())
+        );
         // Name should fallback to displayName
         assert_eq!(parsed.name, Some("Bob".to_string()));
     }
@@ -230,14 +243,14 @@ mod tests {
     #[test]
     fn test_parse_kind_0_empty_content() {
         let keys = Keys::generate();
-        
+
         let event = EventBuilder::new(Kind::Metadata, "", Vec::new())
             .to_event(&keys)
             .unwrap();
-        
+
         let parser = Parser::default();
         let (parsed, _) = parser.parse_kind_0(&event).unwrap();
-        
+
         assert_eq!(parsed.pubkey, keys.public_key().to_hex());
         assert_eq!(parsed.name, None);
         assert_eq!(parsed.about, None);
@@ -247,14 +260,14 @@ mod tests {
     fn test_parse_kind_0_invalid_json() {
         let keys = Keys::generate();
         let content = r#"{"name":"Alice","invalid json"#;
-        
+
         let event = EventBuilder::new(Kind::Metadata, content, Vec::new())
             .to_event(&keys)
             .unwrap();
-        
+
         let parser = Parser::default();
         let (parsed, _) = parser.parse_kind_0(&event).unwrap();
-        
+
         // Should still work, just with empty fields
         assert_eq!(parsed.pubkey, keys.public_key().to_hex());
         assert_eq!(parsed.name, None);
@@ -263,14 +276,14 @@ mod tests {
     #[test]
     fn test_parse_wrong_kind() {
         let keys = Keys::generate();
-        
+
         let event = EventBuilder::new(Kind::TextNote, "test", Vec::new())
             .to_event(&keys)
             .unwrap();
-        
+
         let parser = Parser::default();
         let result = parser.parse_kind_0(&event);
-        
+
         assert!(result.is_err());
     }
 }

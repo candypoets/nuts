@@ -2,15 +2,11 @@ pub mod cache_processor;
 pub mod interfaces;
 pub mod manager;
 pub mod optimizer;
-pub mod registry;
-pub mod subscription;
 
 pub use cache_processor::CacheProcessor;
 pub use interfaces::*;
 pub use manager::SubscriptionManager;
 pub use optimizer::SubscriptionOptimizer;
-pub use registry::SubscriptionRegistry;
-pub use subscription::Subscription;
 
 use crate::{config::SubscriptionConfig, relays::ConnectionRegistry};
 use std::sync::Arc;

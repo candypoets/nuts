@@ -64,7 +64,9 @@ impl Parser {
         requests.push(Request {
             authors: vec![event.pubkey.to_hex()],
             kinds: vec![0],
-            relays: self.get_relays(0, &event.pubkey.to_hex(), &false),
+            relays: self
+                .database
+                .find_relay_candidates(0, &event.pubkey.to_hex(), &false),
             close_on_eose: true,
             cache_first: true,
             ..Default::default()
@@ -74,7 +76,9 @@ impl Parser {
         requests.push(Request {
             authors: vec![event.pubkey.to_hex()],
             kinds: vec![10002],
-            relays: self.get_relays(10002, &event.pubkey.to_hex(), &false),
+            relays: self
+                .database
+                .find_relay_candidates(10002, &event.pubkey.to_hex(), &false),
             close_on_eose: true,
             cache_first: true,
             ..Default::default()
@@ -90,19 +94,11 @@ impl Parser {
         if let Some(ref reply) = parsed.reply {
             requests.push(Request {
                 ids: vec![reply.id.clone()],
-                authors: Vec::new(),
-                kinds: Vec::new(),
-                tags: std::collections::HashMap::new(),
-                since: None,
-                until: None,
                 limit: Some(1),
-                search: String::new(),
                 relays: reply.relays.clone(),
                 close_on_eose: true,
                 cache_first: true,
-                no_optimize: false,
-                count: false,
-                no_context: false,
+                ..Default::default()
             });
         }
 
@@ -111,19 +107,11 @@ impl Parser {
             if root.id != event.id.to_hex() {
                 requests.push(Request {
                     ids: vec![root.id.clone()],
-                    authors: Vec::new(),
-                    kinds: Vec::new(),
-                    tags: std::collections::HashMap::new(),
-                    since: None,
-                    until: None,
                     limit: Some(1),
-                    search: String::new(),
                     relays: root.relays.clone(),
                     close_on_eose: true,
                     cache_first: true,
-                    no_optimize: false,
-                    count: false,
-                    no_context: false,
+                    ..Default::default()
                 });
             }
         }
@@ -174,7 +162,11 @@ impl Parser {
                             authors: vec![pointer.public_key],
                             kinds: vec![0],
                             limit: Some(1),
-                            relays: self.get_relays(0, &pubkey.to_string(), &false),
+                            relays: self.database.find_relay_candidates(
+                                0,
+                                &pubkey.to_string(),
+                                &false,
+                            ),
                             close_on_eose: true,
                             cache_first: true,
                             ..Default::default()
@@ -207,7 +199,11 @@ impl Parser {
                             authors: vec![pointer.public_key],
                             kinds: vec![0],
                             limit: Some(1),
-                            relays: self.get_relays(0, &profile.public_key.to_string(), &false),
+                            relays: self.database.find_relay_candidates(
+                                0,
+                                &profile.public_key.to_string(),
+                                &false,
+                            ),
                             close_on_eose: true,
                             cache_first: true,
                             ..Default::default()
@@ -246,19 +242,11 @@ impl Parser {
                         // Add request for this event
                         requests.push(Request {
                             ids: vec![pointer.id],
-                            authors: Vec::new(),
-                            kinds: Vec::new(),
-                            tags: std::collections::HashMap::new(),
-                            since: None,
-                            until: None,
                             limit: Some(1),
-                            search: String::new(),
-                            relays: self.default_relays.clone(),
+                            relays: self.database.find_relay_candidates(0, "", &false),
                             close_on_eose: true,
                             cache_first: true,
-                            no_optimize: false,
-                            count: false,
-                            no_context: false,
+                            ..Default::default()
                         });
                     }
                 }
@@ -287,19 +275,11 @@ impl Parser {
                         // Add request for this event
                         requests.push(Request {
                             ids: vec![pointer.id],
-                            authors: Vec::new(),
-                            kinds: Vec::new(),
-                            tags: std::collections::HashMap::new(),
-                            since: None,
-                            until: None,
                             limit: Some(1),
-                            search: String::new(),
                             relays: pointer.relays,
                             close_on_eose: true,
                             cache_first: true,
-                            no_optimize: false,
-                            count: false,
-                            no_context: false,
+                            ..Default::default()
                         });
                     }
                 }

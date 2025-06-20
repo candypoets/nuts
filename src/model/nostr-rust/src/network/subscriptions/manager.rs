@@ -1,4 +1,3 @@
-use super::interfaces::SubscriptionRegistry as SubscriptionRegistryTrait;
 use super::*;
 use crate::db::NostrDB;
 use crate::network::subscriptions::interfaces::CacheProcessor as CacheProcessorTrait;
@@ -11,6 +10,7 @@ use js_sys::{Array, Uint8Array};
 use rmp_serde;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
@@ -18,20 +18,21 @@ use wasm_bindgen_futures::spawn_local;
 pub struct SubscriptionManager {
     database: Arc<NostrDB>,
     parser: Arc<Parser>,
-    registry: Arc<SubscriptionRegistry>,
+    subscriptions: Arc<RwLock<HashSet<String>>>,
     cache_processor: Arc<CacheProcessor>,
     connection_registry: ConnectionRegistry,
+    relay_hints: HashMap<String, Vec<String>>,
 }
 
 impl SubscriptionManager {
     pub fn new(database: Arc<NostrDB>, parser: Arc<Parser>) -> Self {
-        let registry = Arc::new(SubscriptionRegistry::new());
         let cache_processor = Arc::new(CacheProcessor::new(database.clone(), parser.clone()));
 
         Self {
             database: database.clone(),
             parser,
-            registry,
+            subscriptions: Arc::new(RwLock::new(HashSet::new())),
+            relay_hints: HashMap::new(),
             cache_processor,
             connection_registry: ConnectionRegistry::new(),
         }
@@ -54,10 +55,7 @@ impl SubscriptionManager {
         );
 
         // Check if subscription already exists, close it if it does
-        if SubscriptionRegistryTrait::get(&*self.registry, &subscription_id)
-            .await
-            .is_some()
-        {
+        if self.subscriptions.read().await.contains(&subscription_id) {
             debug!(
                 "Subscription {} already exists, closing it first",
                 subscription_id
@@ -65,11 +63,13 @@ impl SubscriptionManager {
             self.connection_registry
                 .close_subscription(&subscription_id)
                 .await?;
-        } else {
-            // Create subscription
-            let _subscription =
-                SubscriptionRegistryTrait::create(&*self.registry, subscription_id.clone()).await;
         }
+
+        // Always insert the subscription (whether it's new or replacing an existing one)
+        self.subscriptions
+            .write()
+            .await
+            .insert(subscription_id.clone());
 
         // Spawn subscription processing task
         self.process_subscription(&subscription_id, requests)
@@ -85,16 +85,16 @@ impl SubscriptionManager {
         self.connection_registry
             .close_subscription(&subscription_id)
             .await?;
-        // Remove from registry
-        SubscriptionRegistryTrait::remove(&*self.registry, &subscription_id).await;
 
-        info!("Subscription {} closed", &subscription_id);
+        self.subscriptions.write().await.remove(subscription_id);
+
+        info!("Subscription {} closed", subscription_id);
 
         Ok(())
     }
 
     pub async fn get_active_subscription_count(&self) -> u32 {
-        SubscriptionRegistryTrait::count(&*self.registry).await as u32
+        self.subscriptions.read().await.len() as u32
     }
 
     async fn process_subscription(
@@ -106,16 +106,6 @@ impl SubscriptionManager {
 
         // track unique event IDs
         let mut sent_ids: HashSet<[u8; 32]> = HashSet::new();
-
-        // Get subscription from registry
-        let _subscription =
-            match SubscriptionRegistryTrait::get(&*self.registry, &subscription_id).await {
-                Some(sub) => sub,
-                None => {
-                    error!("Subscription {} not found in registry", subscription_id);
-                    return Err(anyhow::anyhow!("Subscription not found in registry"));
-                }
-            };
 
         let (network_requests, events) = match self
             .cache_processor
@@ -181,14 +171,14 @@ impl SubscriptionManager {
                                 match parser.parse(event.clone()) {
                                     Ok(parsed_event) => {
                                         debug!("Successfully parsed event: {:?}", event.id);
-                                        let _ = database.add_event(parsed_event.clone()).await;
+                                        let _ = database.add_event(parsed_event.clone());
                                         // Send the parsed event
-                                        let mut events_with_context = vec![parsed_event.clone()];
+                                        let events_with_context = vec![parsed_event.clone()];
                                         // let context_events = cache_processor
                                         //     .find_context_events_simple(&parsed_event, 3)
                                         //     .await;
                                         // events_with_context.extend(context_events);
-                                        Self::send_event(&sub_id, &events_with_context).await;
+                                        let _ = Self::send_event(&sub_id, &events_with_context);
                                     }
                                     Err(e) => {
                                         warn!("Failed to parse event kind {}: {}", event.kind, e);
@@ -262,7 +252,6 @@ impl SubscriptionManager {
     fn set_request_relay(&self, mut request: Request) -> Result<Request> {
         let filter = request.to_filter()?;
         if request.relays.is_empty() {
-            // Use Parser.get_relays to get appropriate relays based on the request kind and pubkey
             let pubkey = match filter.authors.as_ref() {
                 Some(authors) => {
                     if !authors.is_empty() {
@@ -285,7 +274,7 @@ impl SubscriptionManager {
                 None => 0,
             };
 
-            let relays = self.parser.get_relays(kind, &pubkey, &false);
+            let relays = self.database.find_relay_candidates(kind, &pubkey, &false);
 
             if relays.is_empty() {
                 warn!("No relays found for request. Using default relays.");

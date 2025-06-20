@@ -246,6 +246,8 @@ pub enum DatabaseError {
     FilterError(String),
     #[error("Concurrency error: {0}")]
     ConcurrencyError(String),
+    #[error("Lock error: failed to acquire database lock")]
+    LockError,
 }
 
 /// Event storage backend trait

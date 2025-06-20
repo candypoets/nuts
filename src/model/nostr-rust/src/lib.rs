@@ -132,10 +132,6 @@ const INDEXER_RELAYS: &[&str] = &[
     "wss://relay.nostr.band",
 ];
 
-// Global instances that will be exposed to JavaScript (matching Go implementation)
-static mut NOSTR_PARSER: Option<Arc<Parser>> = None;
-static mut NOSTR_SIGNER: Option<Arc<SignerManagerImpl>> = None;
-
 #[wasm_bindgen]
 pub struct NostrClient {
     database: Arc<NostrDB>,
@@ -154,7 +150,10 @@ impl NostrClient {
         setup_tracing();
 
         info!("Initializing NostrClient...");
-        let database = Arc::new(NostrDB::new());
+        let database = Arc::new(NostrDB::with_relays(
+            DEFAULT_RELAYS.iter().map(|s| s.to_string()).collect(),
+            INDEXER_RELAYS.iter().map(|s| s.to_string()).collect(),
+        ));
         database
             .initialize()
             .await
@@ -165,10 +164,7 @@ impl NostrClient {
             .expect("Database initialization failed");
         let signer_manager = Arc::new(SignerManagerImpl::new());
         let connection_registry = Arc::new(ConnectionRegistry::new());
-        let parser = Arc::new(Parser::new(
-            DEFAULT_RELAYS.iter().map(|s| s.to_string()).collect(),
-            INDEXER_RELAYS.iter().map(|s| s.to_string()).collect(),
-        ));
+        let parser = Arc::new(Parser::new(database.clone()));
         let network_manager = Arc::new(NetworkManager::new(
             database.clone(),
             connection_registry.clone() as Arc<ConnectionRegistry>,
@@ -203,23 +199,20 @@ impl NostrClient {
     }
 
     #[wasm_bindgen(js_name = closeSubscription)]
-    pub async fn close_subscription(&self, subscription_id: String) {
+    pub async fn close_subscription(&self, subscription_id: String) -> Result<(), JsValue> {
         self.network_manager
             .close_subscription(subscription_id)
-            .await;
+            .await
+            .map_err(|e| JsValue::from_str(&format!("Failed to close subscription: {}", e)))
     }
 
     #[wasm_bindgen(js_name = publishEvent)]
-    pub async fn publish_event(
-        &self,
-        publish_id: String,
-        event_json: String,
-    ) -> Result<String, JsValue> {
-        let event: Event = serde_json::from_str(&event_json)
+    pub async fn publish_event(&self, publish_id: String, event: &[u8]) -> Result<String, JsValue> {
+        let mut event: Event = rmp_serde::from_slice(&event)
             .map_err(|e| JsValue::from_str(&format!("Failed to parse event: {}", e)))?;
         let summary = self
             .network_manager
-            .publish_event(publish_id, event)
+            .publish_event(publish_id, &mut event)
             .await
             .map_err(|e| JsValue::from_str(&format!("Failed to publish event: {}", e)))?;
 

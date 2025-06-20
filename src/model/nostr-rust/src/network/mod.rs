@@ -44,13 +44,13 @@ impl NetworkManager {
             .await
     }
 
-    pub async fn close_subscription(&self, subscription_id: String) {
+    pub async fn close_subscription(&self, subscription_id: String) -> Result<()> {
         self.subscription_manager
             .close_subscription(&subscription_id)
-            .await;
+            .await
     }
 
-    pub async fn publish_event(&self, publish_id: String, event: nostr::Event) -> Result<()> {
+    pub async fn publish_event(&self, publish_id: String, event: &mut Event) -> Result<()> {
         self.publish_manager.publish_event(publish_id, event).await
     }
 
