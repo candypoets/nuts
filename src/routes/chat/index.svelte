@@ -2,7 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { formatDistanceToNow } from 'date-fns';
 	import _ from 'lodash';
-	import { kind10002, kind3 } from 'src/controller/nostr';
+	import { kind10002, kind3, readRelays, writeRelays } from 'src/controller/nostr';
 	import { isKind4, type AnyKind, type Kind4Parsed } from 'src/types';
 	import Kind from 'src/routes/_kinds/index.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
@@ -77,7 +77,7 @@
 					tags: { '#p': [$key.pub] },
 					authors: $kind3?.parsed.map((c) => c.pubkey).filter((p) => p != $key?.pub),
 					limit: 100, // only load the last 1000 msgs received
-					relays: $kind10002?.parsed?.filter((r) => r.read).map((r) => r.url) || [],
+					relays: $readRelays,
 					noContext: true
 				},
 				{
@@ -85,7 +85,7 @@
 					tags: { '#p': $kind3?.parsed.map((c) => c.pubkey).filter((p) => p != $key?.pub) },
 					authors: [$key.pub],
 					limit: 100,
-					relays: $kind10002?.parsed?.filter((r) => r.write).map((r) => r.url) || [],
+					relays: $writeRelays,
 					noContext: true
 				}
 			];

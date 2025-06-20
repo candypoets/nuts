@@ -8,7 +8,7 @@
 	import { nostrManager, type Request, type SubscribeKind } from 'src/model/nostr';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import type { ParsedEvent } from 'src/types';
-	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/types';
+	import { isKind0, isKind10002, isKind10019, type AnyKind, type Kind0Parsed } from 'src/types';
 	import { onDestroy } from 'svelte';
 	import { go } from '../modals/modal';
 
@@ -18,12 +18,14 @@
 
 	let loading = true;
 	let headerItem: ParsedEvent<Kind0Parsed> | undefined;
-	let feedRequests: Request[] = [
+	let relays: string[] = [];
+	$: feedRequests = [
 		{
 			kinds: [1],
 			authors: [pubkey],
 			limit: 100,
-			relays: []
+			noContext: true,
+			relays
 		}
 	];
 	let timeout: NodeJS.Timeout | undefined;
@@ -39,6 +41,9 @@
 		if (isKind0(event)) {
 			loading = false;
 			headerItem = event;
+		}
+		if (isKind10002(event)) {
+			relays = event.parsed?.filter((r) => r.write).map((r) => r.url) || [];
 		}
 	}
 

@@ -46,55 +46,58 @@
 	let loading = false;
 	let extensionError = false;
 
-	$: walletRelays = $kind10019
-		? $kind10019?.parsed?.readRelays
-		: $kind10002?.parsed?.filter((r) => r.read).map((r) => r.url) || [];
+	$: readRelays = $kind10002?.parsed?.filter((r) => r.read).map((r) => r.url) || [];
+
+	$: walletRelays = $kind10019?.parsed?.readRelays;
+
+	$: relays = walletRelays || readRelays;
+
+	$: console.log('wallet relays', $kind10019, relays);
 
 	$: feedRequests = [
 		{
 			kinds: [7374, 7376, 9321],
 			authors: [$key?.pub],
 			limit: visible ? 100 : 10,
-			relays: walletRelays
+			relays
 		},
 		{
 			kinds: [9321],
 			tags: { '#p': [$key?.pub] },
 			limit: visible ? 100 : 10,
-			relays: walletRelays
+			relays
 		}
 	];
 
-	$: walletSub =
-		walletRelays &&
-		nostrManager.subscribe(
-			'active_wallet',
-			[{ kinds: [7375, 17375], authors: [$key?.pub], relays: walletRelays }],
-			(events: ParsedEvent<unknown>[], eventKind: SubscribeKind) => {
-				if (eventKind == 'EOSE') {
-					walletLoaded.resolve(true);
-					return;
+	$: walletSub = nostrManager.subscribe(
+		'active_wallet',
+		[{ kinds: [7375, 17375], authors: [$key?.pub], relays: walletRelays || readRelays }],
+		(events: ParsedEvent<unknown>[], eventKind: SubscribeKind) => {
+			console.log('wallet events', events);
+			if (eventKind == 'EOSE') {
+				walletLoaded.resolve(true);
+				return;
+			}
+			const [event, ...context] = events;
+			if (!event || !event.parsed) return;
+			if (isKind17375(event)) {
+				// Only update if the store is empty or the event is more recent
+				if (!$kind17375 || event.created_at > $kind17375.created_at) {
+					$kind17375 = event;
+					$activeMintUrl = normalizeMintURL(event.parsed.mints?.[0]);
 				}
-				const [event, ...context] = events;
-				if (!event || !event.parsed) return;
-				if (isKind17375(event)) {
-					// Only update if the store is empty or the event is more recent
-					if (!$kind17375 || event.created_at > $kind17375.created_at) {
-						$kind17375 = event;
-						$activeMintUrl = normalizeMintURL(event.parsed.mints?.[0]);
-					}
-					if (event?.parsed?.p2pkPrivKey) {
-						cashuManager.createWallet(event?.parsed?.p2pkPrivKey, event?.parsed?.mints);
-					}
-				}
-				if (isKind7375(event) && event?.parsed?.mintUrl) {
-					if (event?.parsed?.deletedIds?.length) {
-						$deletedKind7375Ids = $deletedKind7375Ids.concat(event?.parsed?.deletedIds);
-					}
-					$kinds7375 = $kinds7375.concat(event);
+				if (event?.parsed?.p2pkPrivKey) {
+					cashuManager.createWallet(event?.parsed?.p2pkPrivKey, event?.parsed?.mints);
 				}
 			}
-		);
+			if (isKind7375(event) && event?.parsed?.mintUrl) {
+				if (event?.parsed?.deletedIds?.length) {
+					$deletedKind7375Ids = $deletedKind7375Ids.concat(event?.parsed?.deletedIds);
+				}
+				$kinds7375 = $kinds7375.concat(event);
+			}
+		}
+	);
 
 	function updateFeed(
 		feed: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][],
@@ -109,6 +112,9 @@
 		let updatedFeed: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][];
 
 		if (!isKind9321(event)) return feed;
+		if (!lastEvent) {
+			event.isFirst = true;
+		}
 		if (lastEvent?.created_at > event?.created_at + DAY) {
 			if (lastEvent) {
 				lastEvent.isFirst = true;
