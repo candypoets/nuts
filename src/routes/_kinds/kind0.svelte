@@ -11,6 +11,7 @@
 	import { isKind0, isKind10002, isKind10019, type AnyKind, type Kind0Parsed } from 'src/types';
 	import { onDestroy } from 'svelte';
 	import { go } from '../modals/modal';
+	import { limit } from 'src/controller/pagination';
 
 	// Get pubkey from URL parameter
 	export let pubkey: string;
@@ -23,7 +24,7 @@
 		{
 			kinds: [1],
 			authors: [pubkey],
-			limit: 100,
+			limit: $limit,
 			noContext: true,
 			relays
 		}

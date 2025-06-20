@@ -36,6 +36,7 @@
 	import { nostrManager, type SubscribeKind } from 'src/model/nostr';
 	import type { ParsedEvent } from 'src/types';
 	import { key } from 'src/controller/key';
+	import { limit } from 'src/controller/pagination';
 
 	export let visible = false;
 
@@ -58,13 +59,13 @@
 		{
 			kinds: [7374, 7376, 9321],
 			authors: [$key?.pub],
-			limit: visible ? 100 : 10,
+			limit: $limit,
 			relays
 		},
 		{
 			kinds: [9321],
 			tags: { '#p': [$key?.pub] },
-			limit: visible ? 100 : 10,
+			limit: $limit,
 			relays
 		}
 	];
@@ -344,4 +345,3 @@
 		</svelte:fragment> -->
 	</Feed>
 </Pager>
-<Modal />

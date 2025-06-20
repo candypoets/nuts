@@ -11,6 +11,7 @@
 	import Post from 'src/routes/explore/post.svelte';
 	import MultiSelect from '../modals/components/MultiSelect.svelte';
 	import { go } from 'src/routes/modals/modal';
+	import { limit } from 'src/controller/pagination';
 
 	export let visible = true;
 
@@ -30,7 +31,7 @@
 			{
 				kinds: [1, 6],
 				authors: follows,
-				limit: 20,
+				limit: $limit,
 				relays: [
 					'wss://relay.primal.net',
 					'wss://nostr.land',
