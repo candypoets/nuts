@@ -162,10 +162,7 @@ impl CacheProcessorTrait for CacheProcessor {
                                 cached_events_batches.extend(processed_events);
 
                                 // Check if we need to fetch more from network
-                                if request
-                                    .limit
-                                    .map_or(false, |limit| events.len() < limit as usize)
-                                {
+                                if !request.cache_first {
                                     remaining_requests.push(request);
                                 }
                             }
