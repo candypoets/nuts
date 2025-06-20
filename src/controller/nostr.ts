@@ -20,3 +20,13 @@ export const kind10019: Writable<ParsedEvent<Kind10019Parsed> | undefined> = wri
 export const kind17375: Writable<ParsedEvent<Kind17375Parsed> | undefined> = writable();
 
 export const kinds7375: Writable<ParsedEvent<Kind7375Parsed>[]> = writable([]);
+
+export const readRelays = derived(
+	kind10002,
+	($kind10002) => $kind10002?.parsed?.filter((r) => r.read).map((r) => r.url) || []
+);
+
+export const writeRelays = derived(
+	kind10002,
+	($kind10002) => $kind10002?.parsed?.filter((r) => r.write).map((r) => r.url) || []
+);
