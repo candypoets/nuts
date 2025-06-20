@@ -7,7 +7,7 @@ import type {
 } from 'src/types';
 import type { Kind17375Parsed } from 'src/types/kind17375';
 import type { ParsedEvent } from 'src/types';
-import { writable, type Writable } from 'svelte/store';
+import { derived, writable, type Writable } from 'svelte/store';
 
 export const kind0: Writable<ParsedEvent<Kind0Parsed> | undefined> = writable();
 

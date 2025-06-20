@@ -2,8 +2,8 @@
 	import { goto } from '$app/navigation';
 	import Icon from '@iconify/svelte';
 	import _ from 'lodash';
-	import { key } from 'src/controller';
-	import type { SubscribeKind } from 'src/model/nostr';
+	import { key, kind10002 } from 'src/controller';
+	import type { Request, SubscribeKind } from 'src/model/nostr';
 	import { type AnyKind } from 'src/types';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import type { ParsedEvent } from 'src/types';
@@ -16,7 +16,7 @@
 	export let visible = true;
 	let loading = true;
 	let notificationsData = [];
-	let feedRequests = [];
+	let feedRequests: Request = [];
 
 	function updateFeed(
 		feed: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][],
@@ -25,6 +25,7 @@
 	): [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][] {
 		if (eventKind == 'EOSE') return feed;
 		const [event, ...context] = events;
+		console.log('notif', event);
 		if (event.pubkey == $key?.pub) return feed;
 		if (!event || !event.parsed) return feed;
 
@@ -81,7 +82,8 @@
 					{
 						kinds: [1, 7, 6],
 						tags: { '#p': [$key?.pub] },
-						limit: 100
+						limit: 100,
+						relays: $kind10002?.parsed?.filter((r) => r.read).map((r) => r.url) || []
 					}
 					// Replies to user's posts
 					// {

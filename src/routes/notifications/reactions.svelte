@@ -9,7 +9,7 @@
 	import type { ParsedEvent } from 'src/types';
 	import User from '../explore/user.svelte';
 	import Content from '../explore/_post/content.svelte';
-	import { key } from 'src/controller';
+	import { key, readRelays, writeRelays } from 'src/controller';
 	import { go } from '../modals/modal';
 
 	export let post: ProcessedNotification;
@@ -43,7 +43,7 @@
 						{
 							kinds: [1],
 							ids: [post.parsed.referencedPostId],
-							relays: [],
+							relays: [...$writeRelays, ...$readRelays],
 							cacheFirst: true
 						},
 						...(post.requests || [])
@@ -75,6 +75,8 @@
 	});
 
 	$: visible ? subscribe() : unsubscribe();
+
+	$: console.log('post context', post?.parsed);
 </script>
 
 <div class="border-b border-gray-100 p-4 mb-2 transition-colors">
