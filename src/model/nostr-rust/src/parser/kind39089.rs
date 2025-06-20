@@ -7,7 +7,7 @@ use serde_json::Value;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Kind30000Parsed {
-    #[serde(rename = "listIdentifier")]
+    #[serde(rename = "list_identifier")]
     pub list_identifier: String,
     pub people: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -19,7 +19,10 @@ pub struct Kind30000Parsed {
 }
 
 impl Parser {
-    pub fn parse_kind_30000(&self, event: &Event) -> Result<(Kind30000Parsed, Option<Vec<Request>>)> {
+    pub fn parse_kind_30000(
+        &self,
+        event: &Event,
+    ) -> Result<(Kind30000Parsed, Option<Vec<Request>>)> {
         if event.kind.as_u64() != 39089 {
             return Err(anyhow!("event is not kind 39089"));
         }
@@ -61,7 +64,9 @@ impl Parser {
                     if let Some(title) = content_obj.get("title").and_then(|v| v.as_str()) {
                         result.title = Some(title.to_string());
                     }
-                    if let Some(description) = content_obj.get("description").and_then(|v| v.as_str()) {
+                    if let Some(description) =
+                        content_obj.get("description").and_then(|v| v.as_str())
+                    {
                         result.description = Some(description.to_string());
                     }
                     if let Some(image) = content_obj.get("image").and_then(|v| v.as_str()) {
@@ -131,20 +136,20 @@ mod tests {
         let list_id = "my-friends";
         let person1 = "npub1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
         let person2 = "npub2345678901bcdef2345678901bcdef2345678901bcdef2345678901bcdef2";
-        
+
         let tags = vec![
             Tag::parse(vec!["d".to_string(), list_id.to_string()]).unwrap(),
             Tag::parse(vec!["p".to_string(), person1.to_string()]).unwrap(),
             Tag::parse(vec!["p".to_string(), person2.to_string()]).unwrap(),
         ];
-        
+
         let event = EventBuilder::new(Kind::Custom(39089), "", tags)
             .to_event(&keys)
             .unwrap();
-        
+
         let parser = Parser::default();
         let (parsed, requests) = parser.parse_kind_30000(&event).unwrap();
-        
+
         assert_eq!(parsed.list_identifier, list_id);
         assert_eq!(parsed.people.len(), 2);
         assert!(parsed.people.contains(&person1.to_string()));
@@ -160,21 +165,21 @@ mod tests {
         let title = "Bitcoin Developers";
         let description = "List of Bitcoin developers";
         let image = "https://example.com/bitcoin.png";
-        
+
         let tags = vec![
             Tag::parse(vec!["d".to_string(), list_id.to_string()]).unwrap(),
             Tag::parse(vec!["title".to_string(), title.to_string()]).unwrap(),
             Tag::parse(vec!["description".to_string(), description.to_string()]).unwrap(),
             Tag::parse(vec!["image".to_string(), image.to_string()]).unwrap(),
         ];
-        
+
         let event = EventBuilder::new(Kind::Custom(39089), "", tags)
             .to_event(&keys)
             .unwrap();
-        
+
         let parser = Parser::default();
         let (parsed, _) = parser.parse_kind_30000(&event).unwrap();
-        
+
         assert_eq!(parsed.list_identifier, list_id);
         assert_eq!(parsed.title, Some(title.to_string()));
         assert_eq!(parsed.description, Some(description.to_string()));
@@ -186,22 +191,26 @@ mod tests {
         let keys = Keys::generate();
         let list_id = "nostr-apps";
         let content = r#"{"title":"Nostr Apps","description":"Cool Nostr applications","image":"https://example.com/nostr.png"}"#;
-        
-        let tags = vec![
-            Tag::parse(vec!["d".to_string(), list_id.to_string()]).unwrap(),
-        ];
-        
+
+        let tags = vec![Tag::parse(vec!["d".to_string(), list_id.to_string()]).unwrap()];
+
         let event = EventBuilder::new(Kind::Custom(39089), content, tags)
             .to_event(&keys)
             .unwrap();
-        
+
         let parser = Parser::default();
         let (parsed, _) = parser.parse_kind_30000(&event).unwrap();
-        
+
         assert_eq!(parsed.list_identifier, list_id);
         assert_eq!(parsed.title, Some("Nostr Apps".to_string()));
-        assert_eq!(parsed.description, Some("Cool Nostr applications".to_string()));
-        assert_eq!(parsed.image, Some("https://example.com/nostr.png".to_string()));
+        assert_eq!(
+            parsed.description,
+            Some("Cool Nostr applications".to_string())
+        );
+        assert_eq!(
+            parsed.image,
+            Some("https://example.com/nostr.png".to_string())
+        );
     }
 
     #[test]
@@ -211,19 +220,19 @@ mod tests {
         let tag_title = "Title from tag";
         let content_title = "Title from content";
         let content = format!(r#"{{"title":"{}"}}"#, content_title);
-        
+
         let tags = vec![
             Tag::parse(vec!["d".to_string(), list_id.to_string()]).unwrap(),
             Tag::parse(vec!["title".to_string(), tag_title.to_string()]).unwrap(), // Tag should take priority
         ];
-        
+
         let event = EventBuilder::new(Kind::Custom(39089), &content, tags)
             .to_event(&keys)
             .unwrap();
-        
+
         let parser = Parser::default();
         let (parsed, _) = parser.parse_kind_30000(&event).unwrap();
-        
+
         // Content is parsed first, but tag should not override if already set
         assert_eq!(parsed.title, Some(content_title.to_string()));
     }
@@ -232,39 +241,40 @@ mod tests {
     fn test_parse_kind_30000_missing_d_tag() {
         let keys = Keys::generate();
         let person = "npub1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
-        
+
         let tags = vec![
             Tag::parse(vec!["p".to_string(), person.to_string()]).unwrap(),
             // Missing d tag
         ];
-        
+
         let event = EventBuilder::new(Kind::Custom(39089), "", tags)
             .to_event(&keys)
             .unwrap();
-        
+
         let parser = Parser::default();
         let result = parser.parse_kind_30000(&event);
-        
+
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("missing required 'd' tag"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("missing required 'd' tag"));
     }
 
     #[test]
     fn test_parse_kind_30000_empty_list() {
         let keys = Keys::generate();
         let list_id = "empty-list";
-        
-        let tags = vec![
-            Tag::parse(vec!["d".to_string(), list_id.to_string()]).unwrap(),
-        ];
-        
+
+        let tags = vec![Tag::parse(vec!["d".to_string(), list_id.to_string()]).unwrap()];
+
         let event = EventBuilder::new(Kind::Custom(39089), "", tags)
             .to_event(&keys)
             .unwrap();
-        
+
         let parser = Parser::default();
         let (parsed, requests) = parser.parse_kind_30000(&event).unwrap();
-        
+
         assert_eq!(parsed.list_identifier, list_id);
         assert!(parsed.people.is_empty());
         assert!(requests.is_some());
@@ -274,14 +284,14 @@ mod tests {
     #[test]
     fn test_parse_wrong_kind() {
         let keys = Keys::generate();
-        
+
         let event = EventBuilder::new(Kind::TextNote, "test", Vec::new())
             .to_event(&keys)
             .unwrap();
-        
+
         let parser = Parser::default();
         let result = parser.parse_kind_30000(&event);
-        
+
         assert!(result.is_err());
     }
 
@@ -290,18 +300,16 @@ mod tests {
         let keys = Keys::generate();
         let list_id = "test-list";
         let invalid_content = r#"{"title":"unclosed"#;
-        
-        let tags = vec![
-            Tag::parse(vec!["d".to_string(), list_id.to_string()]).unwrap(),
-        ];
-        
+
+        let tags = vec![Tag::parse(vec!["d".to_string(), list_id.to_string()]).unwrap()];
+
         let event = EventBuilder::new(Kind::Custom(39089), invalid_content, tags)
             .to_event(&keys)
             .unwrap();
-        
+
         let parser = Parser::default();
         let (parsed, _) = parser.parse_kind_30000(&event).unwrap();
-        
+
         // Should still work, just ignore invalid JSON content
         assert_eq!(parsed.list_identifier, list_id);
         assert!(parsed.title.is_none());

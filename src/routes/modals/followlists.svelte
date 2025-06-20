@@ -21,7 +21,7 @@
 	let requests: Request[] = [
 		{
 			kinds: [39089],
-			limit: 100,
+			limit: 200,
 			noContext: true,
 			relays: []
 		}
@@ -33,8 +33,8 @@
 		newEvents: ParsedEvent<AnyKind>[],
 		eventKind: 'EVENT' | 'EOSE' | 'EOCE'
 	) {
-		console.log('FLL', newEvents);
 		const [event, ...context] = newEvents;
+		console.log('FLL', newEvents, event);
 		if (!event?.parsed || !isKind39089(event)) return currentFeed;
 
 		// Ensure list has required fields
