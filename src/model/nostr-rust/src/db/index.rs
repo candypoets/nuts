@@ -201,7 +201,14 @@ impl NostrDB {
 
         // Special handling for profiles (kind 0)
         if event.kind() == 0 {
-            indexes.profiles_by_pubkey.insert(event.pubkey(), event);
+            indexes
+                .profiles_by_pubkey
+                .insert(event.pubkey(), event.clone());
+        }
+
+        // Special handling for relay lists (kind 10002)
+        if event.kind() == 10002 {
+            indexes.relays_by_pubkey.insert(event.pubkey(), event);
         }
     }
 
@@ -401,6 +408,14 @@ impl NostrDB {
         let indexes = self.indexes.read().await;
         indexes
             .profiles_by_pubkey
+            .get(&pubkey.to_hex())
+            .map(|e| e.to_parsed_event())
+    }
+
+    pub async fn get_relays(&self, pubkey: &PublicKey) -> Option<ParsedEvent> {
+        let indexes = self.indexes.read().await;
+        indexes
+            .relays_by_pubkey
             .get(&pubkey.to_hex())
             .map(|e| e.to_parsed_event())
     }

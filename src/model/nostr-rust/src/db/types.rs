@@ -273,6 +273,7 @@ pub type KindIndex = HashMap<u64, HashSet<String>>;
 pub type PubkeyIndex = HashMap<String, HashSet<String>>;
 pub type TagIndex = HashMap<String, HashSet<String>>;
 pub type ProfileIndex = HashMap<String, ProcessedNostrEvent>;
+pub type RelayIndex = HashMap<String, ProcessedNostrEvent>;
 
 /// Database indexes for fast querying
 #[derive(Debug, Default)]
@@ -288,6 +289,8 @@ pub struct DatabaseIndexes {
     pub events_by_d_tag: TagIndex,
     /// Special index for profiles (kind 0 events)
     pub profiles_by_pubkey: ProfileIndex,
+    /// Special index for relay lists (kind 10002 events)
+    pub relays_by_pubkey: RelayIndex,
 }
 
 impl DatabaseIndexes {
@@ -306,6 +309,7 @@ impl DatabaseIndexes {
         self.events_by_a_tag.clear();
         self.events_by_d_tag.clear();
         self.profiles_by_pubkey.clear();
+        self.relays_by_pubkey.clear();
     }
 
     /// Get total number of events
