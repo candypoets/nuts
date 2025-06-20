@@ -210,18 +210,4 @@ impl CacheProcessorTrait for CacheProcessor {
 
         context_events
     }
-
-    fn should_cache_event(&self, event: &ParsedEvent) -> bool {
-        // Match Go implementation - only cache specific kinds
-        let kind = event.event.kind.as_u64() as i32;
-        match kind {
-            0 => true,     // Metadata events
-            3 => true,     // Contact lists
-            4 => true,     // Direct messages
-            10002 => true, // Relay list metadata
-            10019 => true, // nuts.cash user settings
-            17375 => true, // nuts.cash encrypted wallet event
-            _ => false,
-        }
-    }
 }

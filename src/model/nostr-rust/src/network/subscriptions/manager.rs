@@ -171,14 +171,15 @@ impl SubscriptionManager {
                                 match parser.parse(event.clone()) {
                                     Ok(parsed_event) => {
                                         debug!("Successfully parsed event: {:?}", event.id);
-                                        let _ = database.add_event(parsed_event.clone());
+                                        let _ = database.add_event(parsed_event.clone()).await;
                                         // Send the parsed event
                                         let events_with_context = vec![parsed_event.clone()];
                                         // let context_events = cache_processor
                                         //     .find_context_events_simple(&parsed_event, 3)
                                         //     .await;
                                         // events_with_context.extend(context_events);
-                                        let _ = Self::send_event(&sub_id, &events_with_context);
+                                        let _ =
+                                            Self::send_event(&sub_id, &events_with_context).await;
                                     }
                                     Err(e) => {
                                         warn!("Failed to parse event kind {}: {}", event.kind, e);

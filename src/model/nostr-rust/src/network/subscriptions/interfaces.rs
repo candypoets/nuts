@@ -1,17 +1,17 @@
 use crate::types::*;
-use std::sync::Arc;
-use tokio::sync::mpsc;
 use anyhow::Result;
 use async_trait::async_trait;
+use std::sync::Arc;
+use tokio::sync::mpsc;
 
 #[async_trait(?Send)]
 pub trait EventDatabase: Send + Sync {
     async fn query_events_for_requests(
-        &self, 
-        requests: Vec<Request>, 
-        skip_filtered: bool
+        &self,
+        requests: Vec<Request>,
+        skip_filtered: bool,
     ) -> Result<(Vec<Request>, Vec<ParsedEvent>)>;
-    
+
     async fn query_events(&self, filter: nostr::Filter) -> Result<Vec<ParsedEvent>>;
     async fn add_event(&self, event: ParsedEvent) -> Result<()>;
     async fn save_events_to_persistent_storage(&self, events: Vec<ParsedEvent>) -> Result<()>;
@@ -56,14 +56,16 @@ pub trait CacheProcessor: Send + Sync {
         requests: Vec<Request>,
         max_depth: usize,
     ) -> Result<(Vec<Request>, Vec<Vec<ParsedEvent>>)>;
-    
+
     async fn find_event_context(&self, event: &ParsedEvent, max_depth: usize) -> Vec<ParsedEvent>;
-    fn should_cache_event(&self, event: &ParsedEvent) -> bool;
 }
 
 #[async_trait(?Send)]
 pub trait NetworkProcessor: Send + Sync {
-    async fn process_network_requests(&self, requests: Vec<Request>) -> mpsc::Receiver<NetworkEvent>;
+    async fn process_network_requests(
+        &self,
+        requests: Vec<Request>,
+    ) -> mpsc::Receiver<NetworkEvent>;
 }
 
 #[async_trait]
@@ -71,11 +73,11 @@ pub trait SubscriptionTrait: Send + Sync {
     fn id(&self) -> &str;
     async fn is_cancelled(&self) -> bool;
     async fn cancel(&self);
-    
+
     async fn get_sent_events(&self) -> std::collections::HashMap<String, Vec<ParsedEvent>>;
     async fn mark_event_as_sent(&self, event_id: &str, events: Vec<ParsedEvent>);
     async fn has_event_been_sent(&self, event_id: &str) -> bool;
-    
+
     async fn add_to_fetched_batch(&self, events: Vec<ParsedEvent>);
     async fn get_fetched_batch(&self) -> Vec<Vec<ParsedEvent>>;
     async fn clear_fetched_batch(&self);

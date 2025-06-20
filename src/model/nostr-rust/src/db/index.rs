@@ -8,11 +8,13 @@ use crate::types::{ParsedEvent, Request};
 use crate::utils::relay::RelayUtils;
 use anyhow::Result;
 use async_trait::async_trait;
+use gloo_timers::future::TimeoutFuture;
 use instant::Instant;
 use nostr::{Event, EventId, Filter, PublicKey};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 use tracing::{debug, error, info, warn};
+use wasm_bindgen_futures::spawn_local;
 
 /// Main NostrDB implementation with in-memory indexes and persistent storage
 pub struct NostrDB {
@@ -24,6 +26,8 @@ pub struct NostrDB {
     storage: Arc<dyn EventStorage>,
     /// Initialization flag
     is_initialized: Arc<RwLock<bool>>,
+    /// Buffer for events to be saved to storage
+    to_save: Arc<RwLock<Vec<ParsedEvent>>>,
     /// Default relays for nostr operations
     pub default_relays: Vec<String>,
     /// Indexer relays for nostr operations
@@ -47,6 +51,7 @@ impl NostrDB {
             indexes: Arc::new(RwLock::new(DatabaseIndexes::new())),
             storage,
             is_initialized: Arc::new(RwLock::new(false)),
+            to_save: Arc::new(RwLock::new(Vec::new())),
             default_relays: vec![
                 "wss://relay.damus.io".to_string(),
                 "wss://nos.lol".to_string(),
@@ -67,6 +72,7 @@ impl NostrDB {
             indexes: Arc::new(RwLock::new(DatabaseIndexes::new())),
             storage,
             is_initialized: Arc::new(RwLock::new(false)),
+            to_save: Arc::new(RwLock::new(Vec::new())),
             default_relays: vec![
                 "wss://relay.damus.io".to_string(),
                 "wss://nos.lol".to_string(),
@@ -93,6 +99,7 @@ impl NostrDB {
             config,
             indexes: Arc::new(RwLock::new(DatabaseIndexes::new())),
             storage,
+            to_save: Arc::new(RwLock::new(Vec::new())),
             is_initialized: Arc::new(RwLock::new(false)),
             default_relays,
             indexer_relays,
@@ -112,6 +119,7 @@ impl NostrDB {
             indexes: Arc::new(RwLock::new(DatabaseIndexes::new())),
             storage,
             is_initialized: Arc::new(RwLock::new(false)),
+            to_save: Arc::new(RwLock::new(Vec::new())),
             default_relays,
             indexer_relays,
             relay_hints: HashMap::new(),
@@ -154,6 +162,10 @@ impl NostrDB {
             "NostrDB initialization complete with {} events in cache",
             event_count
         );
+
+        // Start the periodic save task
+        self.start_periodic_save_task();
+
         Ok(())
     }
 
@@ -673,12 +685,97 @@ impl NostrDB {
             return Ok(());
         }
 
+        info!("Saving {} events to persistent storage", events.len());
+
         let processed_events: Vec<ProcessedNostrEvent> = events
             .into_iter()
             .map(ProcessedNostrEvent::from_parsed_event)
             .collect();
 
-        self.storage.save_events(processed_events).await
+        self.storage.save_events(processed_events).await?;
+        Ok(())
+    }
+
+    fn should_cache_event(&self, event: &ParsedEvent) -> bool {
+        // Match Go implementation - only cache specific kinds
+        let kind = event.event.kind.as_u64() as i32;
+        match kind {
+            0 => true,     // Metadata events
+            3 => true,     // Contact lists
+            4 => true,     // Direct messages
+            10002 => true, // Relay list metadata
+            10019 => true, // nuts.cash user settings
+            17375 => true, // nuts.cash encrypted wallet event
+            _ => false,
+        }
+    }
+
+    /// Start the periodic save task that flushes the to_save buffer every 5 seconds
+    fn start_periodic_save_task(&self) {
+        let to_save = self.to_save.clone();
+        let storage = self.storage.clone();
+
+        spawn_local(async move {
+            loop {
+                // Wait for 5 seconds
+                TimeoutFuture::new(5000).await;
+
+                // Get events to save
+                let events_to_save = {
+                    let mut buffer = match to_save.write() {
+                        Ok(buffer) => buffer,
+                        Err(e) => {
+                            error!("Failed to acquire write lock on to_save buffer: {:?}", e);
+                            continue;
+                        }
+                    };
+
+                    if buffer.is_empty() {
+                        continue;
+                    }
+
+                    let events = buffer.drain(..).collect::<Vec<_>>();
+                    events
+                };
+
+                // Save to storage
+                if !events_to_save.is_empty() {
+                    debug!(
+                        "Flushing {} events from to_save buffer to storage",
+                        events_to_save.len()
+                    );
+
+                    let processed_events: Vec<ProcessedNostrEvent> = events_to_save
+                        .into_iter()
+                        .map(ProcessedNostrEvent::from_parsed_event)
+                        .collect();
+
+                    if let Err(e) = storage.save_events(processed_events).await {
+                        error!("Failed to save events from buffer to storage: {:?}", e);
+                    }
+                }
+            }
+        });
+    }
+
+    /// Add an event to the to_save buffer
+    pub fn add_event_to_save_buffer(&self, event: ParsedEvent) -> Result<(), DatabaseError> {
+        let mut buffer = self.to_save.write().map_err(|_| DatabaseError::LockError)?;
+        buffer.push(event);
+        Ok(())
+    }
+
+    /// Flush the to_save buffer immediately
+    pub async fn flush_save_buffer(&self) -> Result<(), DatabaseError> {
+        let events_to_save = {
+            let mut buffer = self.to_save.write().map_err(|_| DatabaseError::LockError)?;
+            if buffer.is_empty() {
+                return Ok(());
+            }
+            buffer.drain(..).collect::<Vec<_>>()
+        };
+
+        self.save_events_to_storage(events_to_save).await
     }
 }
 
@@ -765,6 +862,11 @@ impl EventDatabase for NostrDB {
     }
 
     async fn add_event(&self, event: ParsedEvent) -> Result<()> {
+        if self.should_cache_event(&event) {
+            self.add_event_to_save_buffer(event.clone())
+                .map_err(|e| warn!("Failed to add event to save buffer: {:?}", e))
+                .ok();
+        }
         if event.event.id.to_hex().is_empty() {
             return Err(anyhow::anyhow!("Event ID cannot be empty"));
         }
