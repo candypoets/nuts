@@ -3,7 +3,7 @@
 	import Icon from '@iconify/svelte';
 	import _ from 'lodash';
 	import { key, kind10002 } from 'src/controller';
-	import type { Request, SubscribeKind } from 'src/model/nostr';
+	import type { Request, SubscribeKind } from 'src/model/nostr-main';
 	import { type AnyKind } from 'src/types';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import type { ParsedEvent } from 'src/types';
@@ -25,7 +25,7 @@
 	): [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][] {
 		if (eventKind == 'EOSE') return feed;
 		const [event, ...context] = events;
-		console.log('notif', event);
+		// console.log('notif', event);
 		if (event.pubkey == $key?.pub) return feed;
 		if (!event || !event.parsed) return feed;
 
@@ -50,7 +50,7 @@
 		}
 		const processedFeed = processNotifications(updatedFeed);
 
-		console.log(processedFeed);
+		// console.log(processedFeed);
 		// Process the updated feed into grouped notifications
 		return processedFeed;
 	}

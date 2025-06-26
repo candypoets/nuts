@@ -2,7 +2,7 @@
 	import Icon from '@iconify/svelte';
 	import { formatTime, type ProcessedNotification } from './notifications';
 	import { onMount } from 'svelte';
-	import { nostrManager } from 'src/model/nostr';
+	import { nostrManager } from 'src/model/nostr-main';
 	import { isKind1, type AnyKind } from 'src/types';
 	import type { ParsedEvent } from 'src/types';
 	import User from '../explore/user.svelte';

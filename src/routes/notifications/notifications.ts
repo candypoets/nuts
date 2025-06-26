@@ -1,5 +1,5 @@
 import { isKind1, type AnyKind, isKind7, isKind6 } from 'src/types';
-import type { Request } from 'src/model/nostr';
+import type { Request } from 'src/model/nostr-main';
 import type { ParsedEvent } from 'src/types';
 import { formatDistanceToNow } from 'date-fns';
 

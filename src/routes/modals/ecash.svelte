@@ -18,7 +18,7 @@
 	import User from 'src/routes/explore/user.svelte';
 	import { goBack } from 'src/routes/modals/modal';
 	import { cashuManager } from 'src/model/cashu';
-	import { nostrManager, type Request, type SubscribeKind } from 'src/model/nostr';
+	import { nostrManager, type Request, type SubscribeKind } from 'src/model/nostr-main';
 	import type { Kind0Parsed, Kind1Parsed, ParsedEvent } from 'src/types';
 	import { onMount, tick } from 'svelte';
 	import { fly } from 'svelte/transition';

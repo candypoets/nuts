@@ -5,7 +5,7 @@
 	import _ from 'lodash';
 	import { kind0, kind3 } from 'src/controller/nostr';
 	import { now } from 'src/lib/period';
-	import { nostrManager, type Request, type SubscribeKind } from 'src/model/nostr';
+	import { nostrManager, type Request, type SubscribeKind } from 'src/model/nostr-main';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import type { ParsedEvent } from 'src/types';
 	import { isKind0, isKind10002, isKind10019, type AnyKind, type Kind0Parsed } from 'src/types';

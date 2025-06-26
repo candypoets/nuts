@@ -7,7 +7,7 @@
 	import VirtualList from 'src/components/VirtualList.svelte';
 	import VirtualListBottom from 'src/components/VirtualListBottom.svelte';
 	import { DAY, now } from 'src/lib/period';
-	import { nostrManager, type SubscribeKind } from 'src/model/nostr';
+	import { nostrManager, type SubscribeKind } from 'src/model/nostr-main';
 	import type { ParsedEvent } from 'src/types';
 	import { isKind, isKind1, isKind6, type AnyKind, type Kind1Parsed } from 'src/types';
 	import Note from './note.svelte';
@@ -71,13 +71,15 @@
 	// In a separate function to avoid infinite loops in the reactive block
 	const handleEvents = (events: ParsedEvent<AnyKind>[], eventKind: SubscribeKind, page = 0) => {
 		if (eventKind == 'EOSE') {
+			console.log(subscriptionID, eventKind, events, events.remainingConnections);
 			if (events.remainingConnections / events.totalConnections <= 0.5 && eose == false) {
 				loading = false;
 				eose = true;
 				feed = _.uniqBy([...fetchedFeed, ...feed], (item) => item[0].id)
 					.sort((a, b) => b[0].created_at - a[0].created_at)
 					.slice(0, (page + 1) * 100);
-				makeFuse();
+				console.log(subscriptionID, 'ok', feed);
+				// makeFuse();
 				fetchedFeed = [];
 			}
 			return;
@@ -86,7 +88,7 @@
 			eoce = true;
 			feed = [...initialItems, ...cachedFeed.slice(0, 100)];
 			cachedFeed = [];
-			makeFuse();
+			// makeFuse();
 			return;
 		}
 		const [event, ...context] = events;
@@ -99,7 +101,7 @@
 			} else {
 				if (!page) {
 					feed = updateFeed(feed, events, eventKind);
-					makeFuse();
+					// makeFuse();
 				}
 			}
 			return;
@@ -151,7 +153,7 @@
 
 		lastBufferDump = now();
 
-		makeFuse();
+		// makeFuse();
 	}
 
 	onMount(() => {

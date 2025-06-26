@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { fly, fade } from 'svelte/transition';
-	import { nostrManager, type RelayStatus } from 'src/model/nostr';
+	import { nostrManager, type RelayStatus } from 'src/model/nostr-main';
 	import StatusCircle from './StatusCircle.svelte';
 
 	// Store active and recently completed publish statuses

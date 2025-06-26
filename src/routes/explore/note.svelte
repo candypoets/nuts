@@ -4,7 +4,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 
-	import { nostrManager, type SubscribeKind } from 'src/model/nostr';
+	import { nostrManager, type SubscribeKind } from 'src/model/nostr-main';
 	import type { AnyKind, Kind1Parsed } from 'src/types';
 	import { type ParsedEvent } from 'src/types';
 	import Content from 'src/routes/explore/_post/content.svelte';

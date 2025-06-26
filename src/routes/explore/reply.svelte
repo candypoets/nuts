@@ -7,7 +7,7 @@
 	import { prepareEvent } from 'src/editor/utils';
 	import { now } from 'src/lib/period';
 	import type { AnyKind, Kind1Parsed } from 'src/types';
-	import { nostrManager, type RelayStatus } from 'src/model/nostr';
+	import { nostrManager, type RelayStatus } from 'src/model/nostr-main';
 	import type { ParsedEvent } from 'src/types';
 	import { getContext, onDestroy, onMount } from 'svelte';
 	import { Editor, EditorContent, createEditor } from 'svelte-tiptap';

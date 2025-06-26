@@ -6,7 +6,7 @@
 	import { isKind1, type AnyKind, type Kind1Parsed } from 'src/types';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import Note from 'src/routes/explore/note.svelte';
-	import { nostrManager, type Request, type SubscribeKind } from 'src/model/nostr';
+	import { nostrManager, type Request, type SubscribeKind } from 'src/model/nostr-main';
 	import type { ParsedEvent } from 'src/types';
 	import { getContext, onDestroy, onMount } from 'svelte';
 	import Reply from '../explore/reply.svelte';

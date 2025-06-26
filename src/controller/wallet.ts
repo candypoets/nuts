@@ -4,7 +4,7 @@ import { derived, get, writable } from 'svelte/store';
 
 import { now } from 'src/lib/period';
 import { cashuManager } from 'src/model/cashu';
-import { nostrManager } from 'src/model/nostr';
+import { nostrManager } from 'src/model/nostr-main';
 import type { Kind7375Parsed, ProofUnion } from 'src/types';
 import type { Mint } from 'src/types/mint';
 import { normalizeMintURL } from 'src/lib/utils';

@@ -9,7 +9,7 @@
 	import { decodePrivKey } from 'src/lib/wallet';
 	import { isKind0, type AnyKind } from 'src/types';
 	import { key } from 'src/controller';
-	import { nostrManager, type SubscribeKind } from 'src/model/nostr';
+	import { nostrManager, type SubscribeKind } from 'src/model/nostr-main';
 	import type { ParsedEvent } from 'src/types';
 
 	let privateKey = '';

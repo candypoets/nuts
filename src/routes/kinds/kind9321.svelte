@@ -11,7 +11,7 @@
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import User from 'src/routes/explore/user.svelte';
 	import { key } from 'src/controller';
-	import { nostrManager, type SubscribeKind } from 'src/model/nostr';
+	import { nostrManager, type SubscribeKind } from 'src/model/nostr-main';
 	import type { ParsedEvent } from 'src/types';
 
 	export let zap: ParsedEvent<Kind9321Parsed>;

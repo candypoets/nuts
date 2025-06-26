@@ -33,7 +33,7 @@
 	import Modal from 'src/routes/modals/index.svelte';
 	import { go } from 'src/routes/modals/modal';
 	import { cashuManager } from 'src/model/cashu';
-	import { nostrManager, type SubscribeKind } from 'src/model/nostr';
+	import { nostrManager, type SubscribeKind } from 'src/model/nostr-main';
 	import type { ParsedEvent } from 'src/types';
 	import { key } from 'src/controller/key';
 	import { limit } from 'src/controller/pagination';
@@ -85,7 +85,7 @@
 				// Only update if the store is empty or the event is more recent
 				if (!$kind17375 || event.created_at > $kind17375.created_at) {
 					$kind17375 = event;
-					$activeMintUrl = normalizeMintURL(event.parsed.mints?.[0]);
+					$activeMintUrl = event.parsed.mints?.[0] && normalizeMintURL(event.parsed.mints?.[0]);
 				}
 				if (event?.parsed?.p2pkPrivKey) {
 					cashuManager.createWallet(event?.parsed?.p2pkPrivKey, event?.parsed?.mints);

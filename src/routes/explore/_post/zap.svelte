@@ -2,7 +2,7 @@
 	import _ from 'lodash';
 	import { kind0 } from 'src/controller/nostr';
 	import { getRelaysFromNote } from 'src/lib/getRelaysFromNote';
-	import { nostrManager } from 'src/model/nostr';
+	import { nostrManager } from 'src/model/nostr-main';
 	import type { Kind9321Parsed, ParsedEvent } from 'src/types';
 	import { isKind9321, isKind9735, type AnyKind, type Kind9735Parsed } from 'src/types';
 	import { onDestroy, onMount } from 'svelte';

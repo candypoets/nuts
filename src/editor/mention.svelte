@@ -4,7 +4,7 @@
 	import { nip19 } from 'nostr-tools';
 	import { SEARCH_RELAYS } from 'src/lib/env';
 	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/types';
-	import { nostrManager, type EventKind } from 'src/model/nostr';
+	import { nostrManager, type EventKind } from 'src/model/nostr-main';
 	import type { ParsedEvent } from 'src/types';
 	import { onDestroy } from 'svelte';
 

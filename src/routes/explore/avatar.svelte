@@ -1,6 +1,6 @@
 <script lang="ts">
 	import _ from 'lodash';
-	import { nostrManager, type SubscribeKind } from 'src/model/nostr';
+	import { nostrManager, type SubscribeKind } from 'src/model/nostr-main';
 	import type { ParsedEvent } from 'src/types';
 	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/types';
 	import { onMount } from 'svelte';

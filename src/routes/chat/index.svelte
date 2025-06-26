@@ -9,7 +9,7 @@
 	import Feed from 'src/routes/explore/feed.svelte';
 	import User from 'src/routes/explore/user.svelte';
 	import { key } from 'src/controller';
-	import type { Request, SubscribeKind } from 'src/model/nostr';
+	import type { Request, SubscribeKind } from 'src/model/nostr-main';
 	import type { ParsedEvent } from 'src/types';
 	import { cubicOut } from 'svelte/easing';
 	import { tweened } from 'svelte/motion';

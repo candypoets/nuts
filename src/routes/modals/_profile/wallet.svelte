@@ -8,7 +8,7 @@
 	import { generateSecretKey, getPublicKey, type EventTemplate } from 'nostr-tools';
 	import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 	import { now } from 'src/lib/period';
-	import { nostrManager, type RelayStatus } from 'src/model/nostr';
+	import { nostrManager, type RelayStatus } from 'src/model/nostr-main';
 
 	let newMintUrl = '';
 	let loading = false;

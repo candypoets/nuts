@@ -12,7 +12,7 @@
 	import Feed from 'src/routes/explore/feed.svelte';
 	import User from 'src/routes/explore/user.svelte';
 	import { key, kind10002 } from 'src/controller';
-	import { nostrManager, type RelayStatus, type SubscribeKind } from 'src/model/nostr';
+	import { nostrManager, type RelayStatus, type SubscribeKind } from 'src/model/nostr-main';
 	import type { ParsedEvent } from 'src/types';
 	import { parseContent } from 'src/lib';
 

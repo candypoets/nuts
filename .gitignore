@@ -8,5 +8,6 @@ node_modules
 !.env.example
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
-wasm-msgpack/target
-src/model/nostr-rust/target
+
+src/model/nostr-main/target
+src/model/nostr-worker/target

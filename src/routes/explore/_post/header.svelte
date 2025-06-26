@@ -7,7 +7,7 @@
 	import { getContext, onMount } from 'svelte';
 
 	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/types';
-	import { nostrManager, type SubscribeKind } from 'src/model/nostr';
+	import { nostrManager, type SubscribeKind } from 'src/model/nostr-main';
 	import type { Kind1Parsed, ParsedEvent } from 'src/types';
 
 	export let note: ParsedEvent<Kind1Parsed>;

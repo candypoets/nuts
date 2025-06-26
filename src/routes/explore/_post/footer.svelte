@@ -20,7 +20,7 @@
 		type Kind7Parsed
 	} from 'src/types';
 	import { key } from 'src/controller';
-	import { nostrManager } from 'src/model/nostr';
+	import { nostrManager } from 'src/model/nostr-main';
 	import type { ParsedEvent } from 'src/types';
 	import { go } from 'src/routes/modals/modal';
 

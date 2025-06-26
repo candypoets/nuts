@@ -5,7 +5,7 @@
 	import Avatar from '../explore/avatar.svelte';
 	import Icon from '@iconify/svelte';
 	import { goBack } from './modal';
-	import type { Request } from 'src/model/nostr';
+	import type { Request } from 'src/model/nostr-main';
 	import MultiSelect from './components/MultiSelect.svelte';
 	import { followList, followPacks } from 'src/controller/feed';
 	import { now } from 'src/lib/period';
