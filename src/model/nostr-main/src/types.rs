@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use nostr::Event;
+
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
@@ -102,17 +104,33 @@ pub struct Request {
     pub no_context: bool,
 }
 
+/// ParsedEvent represents a Nostr event with additional parsed data
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ParsedEvent {
+    #[serde(flatten)]
+    pub event: Event,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parsed: Option<serde_json::Value>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub requests: Option<Vec<Request>>,
+
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub relays: Vec<String>,
+}
+
 /// Messages sent from worker to main thread
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum WorkerToMainMessage {
     SubscriptionEvent {
         subscription_id: String,
         event_type: SubscribeKind,
-        event_data: Vec<serde_json::Value>,
+        event_data: Vec<Vec<ParsedEvent>>,
     },
     PublishStatus {
         publish_id: String,
-        status: RelayStatusUpdate,
+        status: Vec<RelayStatusUpdate>,
     },
     SignedEvent {
         content: String,

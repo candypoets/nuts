@@ -89,7 +89,7 @@ impl SignerManagerImpl {
         self.sign_event(&mut event)?;
 
         // Re-encode the signed event with MessagePack
-        let packed_event = rmps::to_vec(&event)
+        let packed_event = rmps::to_vec_named(&event)
             .map_err(|e| anyhow::anyhow!("Failed to encode signed event: {}", e))?;
 
         // Create a JavaScript Uint8Array and post the message

@@ -70,6 +70,7 @@
 
 	// In a separate function to avoid infinite loops in the reactive block
 	const handleEvents = (events: ParsedEvent<AnyKind>[], eventKind: SubscribeKind, page = 0) => {
+		console.log(subscriptionID, eventKind, events);
 		if (eventKind == 'EOSE') {
 			console.log(subscriptionID, eventKind, events, events.remainingConnections);
 			if (events.remainingConnections / events.totalConnections <= 0.5 && eose == false) {
@@ -78,7 +79,7 @@
 				feed = _.uniqBy([...fetchedFeed, ...feed], (item) => item[0].id)
 					.sort((a, b) => b[0].created_at - a[0].created_at)
 					.slice(0, (page + 1) * 100);
-				console.log(subscriptionID, 'ok', feed);
+				// console.log(subscriptionID, 'ok', feed);
 				// makeFuse();
 				fetchedFeed = [];
 			}
@@ -140,6 +141,7 @@
 		if (timeout) {
 			clearTimeout(timeout);
 			timeout = undefined;
+			console.log(subscriptionID, 'feed unsubscribe');
 			sub?.();
 		}
 	}

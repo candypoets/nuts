@@ -12,7 +12,7 @@ wasm-pack build \
     --out-dir pkg \
     --out-name nostr_main \
     --release \
-    --features console_error_panic_hook,wee_alloc
+    --features wee_alloc
 
 # Generate size report
 echo ""

@@ -43,7 +43,7 @@ impl SubscriptionManager {
         subscription_id: String,
         requests: Vec<Request>,
     ) -> Result<()> {
-        debug!(
+        info!(
             "Opening subscription: {} with {} requests{}",
             subscription_id,
             requests.len(),
@@ -80,12 +80,12 @@ impl SubscriptionManager {
         self.process_subscription(&subscription_id, requests)
             .await?;
 
-        info!("Subscription {} opened successfully", subscription_id);
+        debug!("Subscription {} opened successfully", subscription_id);
         Ok(())
     }
 
     pub async fn close_subscription(&self, subscription_id: &String) -> Result<()> {
-        debug!("Closing subscription: {}", subscription_id);
+        info!("Closing subscription: {}", subscription_id);
 
         self.connection_registry
             .close_subscription(&subscription_id)
@@ -93,7 +93,7 @@ impl SubscriptionManager {
 
         self.subscriptions.write().unwrap().remove(subscription_id);
 
-        info!("Subscription {} closed", subscription_id);
+        debug!("Subscription {} closed", subscription_id);
 
         Ok(())
     }
@@ -301,13 +301,16 @@ impl SubscriptionManager {
     }
 
     async fn send_event(subscription_id: &str, event_data: &Vec<ParsedEvent>) {
+        // Convert ParsedEvent to SerializableParsedEvent to ensure id and sig fields are hex strings
+        let serializable_events: Vec<SerializableParsedEvent> = event_data
+            .iter()
+            .map(|event| SerializableParsedEvent::from(event.clone()))
+            .collect();
+
         let message = crate::WorkerToMainMessage::SubscriptionEvent {
             subscription_id: subscription_id.to_string(),
             event_type: SubscribeKind::FetchedEvent,
-            event_data: event_data
-                .iter()
-                .map(|e| serde_json::to_value(e).unwrap_or_default())
-                .collect(),
+            event_data: vec![serializable_events],
         };
 
         let data = match rmp_serde::to_vec_named(&message) {
@@ -325,13 +328,21 @@ impl SubscriptionManager {
     }
 
     async fn send_cached_events(subscription_id: &str, events: &[Vec<ParsedEvent>]) {
+        // Convert ParsedEvents to SerializableParsedEvent to ensure id and sig fields are hex strings
+        let serializable_events: Vec<Vec<SerializableParsedEvent>> = events
+            .iter()
+            .map(|event_batch| {
+                event_batch
+                    .iter()
+                    .map(|event| SerializableParsedEvent::from(event.clone()))
+                    .collect()
+            })
+            .collect();
+
         let message = crate::WorkerToMainMessage::SubscriptionEvent {
             subscription_id: subscription_id.to_string(),
             event_type: SubscribeKind::CachedEvent,
-            event_data: events
-                .into_iter()
-                .map(|e| serde_json::to_value(e).unwrap_or_default())
-                .collect(),
+            event_data: serializable_events,
         };
 
         let shared_buffer = match rmp_serde::to_vec_named(&message) {

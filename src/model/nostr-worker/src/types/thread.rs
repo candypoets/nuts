@@ -6,7 +6,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    types::{network::SubscribeKind, Request, EOSE},
+    types::{network::SubscribeKind, Request, SerializableParsedEvent, EOSE},
     RelayStatusUpdate,
 };
 
@@ -16,7 +16,7 @@ pub enum WorkerToMainMessage {
     SubscriptionEvent {
         subscription_id: String,
         event_type: SubscribeKind,
-        event_data: Vec<serde_json::Value>,
+        event_data: Vec<Vec<SerializableParsedEvent>>,
     },
     PublishStatus {
         publish_id: String,

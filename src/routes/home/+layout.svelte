@@ -53,8 +53,6 @@
 
 	$: relays = walletRelays || readRelays;
 
-	$: console.log('wallet relays', $kind10019, relays);
-
 	$: feedRequests = [
 		{
 			kinds: [7374, 7376, 9321],
@@ -74,7 +72,6 @@
 		'active_wallet',
 		[{ kinds: [7375, 17375], authors: [$key?.pub], relays: walletRelays || readRelays }],
 		(events: ParsedEvent<unknown>[], eventKind: SubscribeKind) => {
-			console.log('wallet events', events);
 			if (eventKind == 'EOSE') {
 				walletLoaded.resolve(true);
 				return;

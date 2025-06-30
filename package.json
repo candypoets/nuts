@@ -69,7 +69,7 @@
 		"@gandlaf21/bc-ur": "^1.1.12",
 		"@gandlaf21/bolt11-decode": "^3.1.1",
 		"@gandlaf21/cashu-crypto": "^0.2.6",
-		"@msgpack/msgpack": "^3.1.1",
+		"@msgpack/msgpack": "^3.1.2",
 		"@noble/curves": "^1.5.0",
 		"@noble/hashes": "^1.4.0",
 		"@nostrify/nostrify": "npm:@jsr/nostrify__nostrify@^0.30.0",

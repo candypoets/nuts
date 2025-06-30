@@ -86,7 +86,7 @@
 				if (kind == 'EOSE') {
 					return;
 				}
-				console.log('debug', events, kind);
+				console.log('relays', events, kind);
 				// the first event is from the sub, everything else is contextual
 				const event = events[0];
 				if (!event) return;

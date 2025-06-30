@@ -22,6 +22,47 @@ use wasm_bindgen::prelude::*;
 
 use crate::types::network::Request;
 
+/// SerializableParsedEvent represents a ParsedEvent with hex string fields for msgpack serialization
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SerializableParsedEvent {
+    pub id: String,
+    pub pubkey: String,
+    pub created_at: i64,
+    pub kind: u32,
+    pub tags: Vec<Vec<String>>,
+    pub content: String,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parsed: Option<serde_json::Value>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub requests: Option<Vec<Request>>,
+
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub relays: Vec<String>,
+}
+
+impl From<ParsedEvent> for SerializableParsedEvent {
+    fn from(parsed_event: ParsedEvent) -> Self {
+        Self {
+            id: parsed_event.event.id.to_hex(),
+            pubkey: parsed_event.event.pubkey.to_hex(),
+            created_at: parsed_event.event.created_at.as_i64(),
+            kind: parsed_event.event.kind.as_u32(),
+            tags: parsed_event
+                .event
+                .tags
+                .iter()
+                .map(|tag| tag.as_vec().clone())
+                .collect(),
+            content: parsed_event.event.content.clone(),
+            parsed: parsed_event.parsed,
+            requests: parsed_event.requests,
+            relays: parsed_event.relays,
+        }
+    }
+}
+
 /// ParsedEvent represents a Nostr event with additional parsed data
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ParsedEvent {
