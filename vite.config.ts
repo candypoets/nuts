@@ -16,10 +16,28 @@ export default defineConfig({
 		fs: {
 			// Allow serving files from hoisted root node_modules
 			// allow: ['../..']
+		},
+		headers: {
+			'Cross-Origin-Embedder-Policy': 'require-corp',
+			'Cross-Origin-Opener-Policy': 'same-origin',
+			'Cross-Origin-Resource-Policy': 'cross-origin'
 		}
 	},
 	worker: {
-		format: 'es'
+		format: 'es',
+		rollupOptions: {
+			output: {
+				format: 'es'
+			}
+		}
+	},
+	build: {
+		target: 'esnext',
+		rollupOptions: {
+			output: {
+				format: 'es'
+			}
+		}
 	},
 	// optimizeDeps: {
 	// 	exclude: ['./go/wasm_exec.js']
