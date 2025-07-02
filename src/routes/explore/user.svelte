@@ -2,7 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import _ from 'lodash';
-	import { nostrManager, type SubscribeKind } from 'src/model/nostr-main';
+	import { nostrManager, useSharedSubscription, type SubscribeKind } from 'src/model/nostr-main';
 	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/types';
 	import type { ParsedEvent } from 'src/types';
 	import { onMount } from 'svelte';
@@ -30,8 +30,8 @@
 			| Kind0Parsed
 			| undefined;
 		if (!user && query) {
-			sub = nostrManager.subscribe(
-				'user_' + pubkey + '_' + _.random(10000),
+			sub = useSharedSubscription(
+				'u_' + pubkey,
 				[{ kinds: [0], authors: [pubkey], limit: 1, cacheFirst: true, closeOnEOSE: true, relays }],
 				(events: ParsedEvent<AnyKind>[], type: SubscribeKind) => {
 					if (type == 'EOSE') {
@@ -40,7 +40,7 @@
 					const [event, ...context] = events;
 					if (isKind0(event)) {
 						user = event.parsed as Kind0Parsed;
-						sub();
+						sub?.();
 					}
 				}
 			);

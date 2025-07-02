@@ -6,10 +6,16 @@
 	import { isKind1, type AnyKind, type Kind1Parsed } from 'src/types';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import Note from 'src/routes/explore/note.svelte';
-	import { nostrManager, type Request, type SubscribeKind } from 'src/model/nostr-main';
+	import {
+		nostrManager,
+		useSharedSubscription,
+		type Request,
+		type SubscribeKind
+	} from 'src/model/nostr-main';
 	import type { ParsedEvent } from 'src/types';
 	import { getContext, onDestroy, onMount } from 'svelte';
 	import Reply from '../explore/reply.svelte';
+	import User from '../explore/user.svelte';
 
 	export let postId: string;
 	export let visible: boolean;
@@ -20,6 +26,7 @@
 	let loading = true;
 	let feedRequests: Request[] = [];
 	let timeout: NodeJS.Timeout | undefined;
+	let sub: () => void;
 
 	function goBack() {
 		// Get current path
@@ -76,10 +83,11 @@
 	function subscribe() {
 		timeout = setTimeout(async () => {
 			if (visible) {
-				nostrManager.subscribe(
+				sub = useSharedSubscription(
 					'kind1_' + postId,
-					[{ kinds: [1], ids: [postId], limit: 1, relays: [], cacheFirst: true }],
+					[{ kinds: [1], ids: [postId], limit: 5, relays: [], cacheFirst: true }], // limits higher to accomodate for huge posts
 					(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) => {
+						console.log('event', events, kind);
 						if (kind == 'EOSE') return;
 						const [event, ...rest] = events;
 						if (!event?.parsed) return;
@@ -94,7 +102,6 @@
 									kinds: [1],
 									tags: { '#e': [postId] },
 									relays: []
-									// since: ago(30 * DAY)
 								}
 							];
 						}
@@ -108,7 +115,7 @@
 		if (timeout) {
 			clearTimeout(timeout);
 			timeout = undefined;
-			nostrManager.unsubscribe('kind1_' + postId);
+			sub?.();
 		}
 	}
 

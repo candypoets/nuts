@@ -135,8 +135,8 @@ export type MainToWorkerMessage =
   | { Unsubscribe: { subscription_id: string } }
   | { Publish: { publish_id: string; event: any } }
   | { SignEvent: { event: any } }
-  | { SetSigner: { signer_type: string; private_key: string } }
-  | { GetPublicKey: {} };
+  | { GetPublicKey: {} }
+  | { SetSigner: { signer_type: string; private_key: string } };
 
 export type WorkerToMainMessage =
   | { SubscriptionEvent: { subscription_id: string; event_type: SubscribeKind; event_data: any[] } }

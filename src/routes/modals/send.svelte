@@ -9,6 +9,7 @@
 	import { go, goBack } from 'src/routes/modals/modal';
 	import type { Request, SubscribeKind } from 'src/model/nostr-main';
 	import type { ParsedEvent } from 'src/types';
+	import { proxyAvatarUrl } from 'src/lib/proxy';
 
 	let active: string;
 	let search: string;
@@ -148,7 +149,7 @@
 				<div class="avatar mr-3">
 					<div class="w-10 h-10 rounded-full">
 						<img
-							src={post.parsed.picture || 'default-avatar.png'}
+							src={proxyAvatarUrl(post.parsed.picture) || 'default-avatar.png'}
 							alt={post.parsed.name || 'Contact'}
 						/>
 					</div>

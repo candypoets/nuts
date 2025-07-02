@@ -7,10 +7,12 @@ import init, {
 	type Request
 } from 'src/model/nostr-main/pkg/nostr_main.js';
 import nostrWorker from 'src/model/nostr-worker/index?worker';
+import { SharedBufferReader } from 'src/lib/sharedBuffer';
 
 import { decode, encode } from '@msgpack/msgpack';
 import type { EOSE } from './pkg/nutscash_nostr_main';
 import type { NostrEvent } from 'nostr-tools';
+import { writable, type Writable } from 'svelte/store';
 
 // Re-export types for external use
 export type SubscribeKind = 'CACHED_EVENT' | 'FETCHED_EVENT' | 'COUNT' | 'EOSE' | 'EOCE';
@@ -26,7 +28,7 @@ export type PublishKind = 'PUBLISH_STATUS';
 // 	noContext?: boolean;
 // };
 
-// Callback for subscription events
+// Callback for subscription events (kept for backwards compatibility)
 type SubscriptionCallback = (data: ParsedEvent<AnyKind>[] | number, type: SubscribeKind) => void;
 type PublishCallback = (data: RelayStatusUpdate, type: PublishKind) => void;
 
@@ -62,7 +64,7 @@ class NostrManager {
 	private worker: Worker = new nostrWorker();
 	private subscriptions = new Map<
 		string,
-		{ callback: SubscriptionCallback; options: SubscriptionOptions }
+		{ buffer: SharedArrayBuffer; options: SubscriptionOptions }
 	>();
 	private publishes = new Map<string, PublishCallback>();
 	private signers = new Map<string, string>(); // name -> secret key hex
@@ -132,15 +134,9 @@ class NostrManager {
 		eventData: ParsedEvent<AnyKind>[][],
 		eventType: SubscribeKind
 	) {
-		const subscription = this.subscriptions.get(subId);
-		if (!subscription) return;
-		try {
-			for (const events of eventData) {
-				subscription.callback(events, eventType);
-			}
-		} catch (error) {
-			console.error('Failed to parse events:', error);
-		}
+		// Events are now written directly to SharedArrayBuffer by worker
+		// This method is kept for backwards compatibility but not used
+		console.debug('Received subscription event (legacy handler):', subId, eventType);
 	}
 
 	private handlePublishStatus(publishId: string, statuses: RelayStatusUpdate[]) {
@@ -157,8 +153,6 @@ class NostrManager {
 		const subscription = this.subscriptions.get(subId);
 		if (!subscription) return;
 
-		subscription.callback(data, 'EOSE');
-
 		// Auto-close subscription if requested
 		if (subscription.options.closeOnEose) {
 			this.unsubscribe(subId);
@@ -166,17 +160,13 @@ class NostrManager {
 	}
 
 	private handleSubscriptionEoce(subId: string) {
-		const subscription = this.subscriptions.get(subId);
-		if (!subscription) return;
-
-		subscription.callback([], 'EOCE');
+		// Events are now written directly to SharedArrayBuffer by worker
+		console.debug('Received EOCE for subscription:', subId);
 	}
 
 	private handleSubscriptionCount(subId: string, count: number) {
-		const subscription = this.subscriptions.get(subId);
-		if (!subscription) return;
-
-		subscription.callback(count, 'COUNT');
+		// Counts are now written directly to SharedArrayBuffer by worker
+		console.debug('Received count for subscription:', subId, count);
 	}
 
 	private handleSignedEvent(content: string, signedEvent: any) {
@@ -210,10 +200,18 @@ class NostrManager {
 	subscribe(
 		subscriptionId: string,
 		requests: Request[],
-		callback: SubscriptionCallback,
 		options: SubscriptionOptions = {}
-	): () => void {
+	): SharedArrayBuffer {
 		const subId = subscriptionId.length < 64 ? subscriptionId : this.createShortId(subscriptionId);
+		if (subscriptionId.length >= 64) {
+			console.log('subId:', subId, 'subscriptionId:', subscriptionId);
+		}
+		// Check if subscription already exists
+		const existingSubscription = this.subscriptions.get(subId);
+		if (existingSubscription) {
+			return existingSubscription.buffer;
+		}
+
 		const defaultOptions: SubscriptionOptions = {
 			closeOnEose: false,
 			skipCache: false,
@@ -221,7 +219,18 @@ class NostrManager {
 			...options
 		};
 
-		this.subscriptions.set(subId, { callback, options: defaultOptions });
+		// Calculate buffer size based on request limits
+		const totalLimit = requests.reduce((sum, req) => sum + (req.limit || 100), 0);
+		const bufferSize = SharedBufferReader.calculateBufferSize(totalLimit);
+
+		// Create SharedArrayBuffer for this subscription
+		const buffer = new SharedArrayBuffer(bufferSize);
+
+		// Initialize header (write position = 4, meaning no data yet, just header)
+		const view = new DataView(buffer);
+		view.setUint32(0, 4, true); // Little endian
+
+		this.subscriptions.set(subId, { buffer, options: defaultOptions });
 
 		const message: MainToWorkerMessage = {
 			Subscribe: {
@@ -232,8 +241,12 @@ class NostrManager {
 
 		try {
 			const pack = encode(message);
-			this.worker.postMessage(pack);
-			return () => this.unsubscribe(subId);
+			// Pass SharedArrayBuffer as transferable object alongside the serialized message
+			this.worker.postMessage({
+				serializedMessage: pack,
+				sharedBuffer: buffer
+			});
+			return buffer;
 		} catch (error) {
 			this.subscriptions.delete(subId);
 			throw error;
@@ -274,7 +287,7 @@ class NostrManager {
 				}
 			};
 
-			encode(this.worker, message);
+			const pack = encode(message);
 			this.worker.postMessage(pack);
 		} catch (error) {
 			console.error('Failed to publish event:', error);
@@ -293,7 +306,7 @@ class NostrManager {
 			}
 		};
 
-		const pack = encode(this.worker, message);
+		const pack = encode(message);
 		this.worker.postMessage(pack);
 		this.signers.set(name, secretKeyHex);
 	}
@@ -307,7 +320,7 @@ class NostrManager {
 				event: event
 			}
 		};
-		const pack = encode(this.worker, message);
+		const pack = encode(message);
 		this.worker.postMessage(pack);
 	}
 
@@ -318,7 +331,7 @@ class NostrManager {
 		const message: MainToWorkerMessage = {
 			GetPublicKey: {}
 		};
-		const pack = encode(this.worker, message);
+		const pack = encode(message);
 		this.worker.postMessage(pack);
 	}
 
@@ -327,3 +340,60 @@ class NostrManager {
 
 // Re-export the client class for direct instantiation if needed
 export const nostrManager = new NostrManager();
+
+export function useSharedSubscription(
+	subId: string,
+	requests: Request[],
+	callback: any = () => {},
+	options = {}
+) {
+	let buffer: SharedArrayBuffer | null = null;
+	let lastReadPos: number = 4;
+	let timeoutId: number | null = null;
+	let pollInterval: number = 5; // Start at 5ms - very aggressive
+	const maxInterval: number = 4000; // Max 4 seconds
+	let running: boolean = true;
+
+	if (requests.length > 0) {
+		buffer = nostrManager.subscribe(subId, requests, options);
+
+		const processEvents = (): void => {
+			if (!running || !buffer) return;
+
+			const result = SharedBufferReader.readMessages(buffer, lastReadPos);
+			if (result.hasNewData) {
+				// Found new data - reset to aggressive polling
+				pollInterval = 5;
+
+				result.messages.forEach((message: WorkerToMainMessage) => {
+					if ('SubscriptionEvent' in message) {
+						message.SubscriptionEvent.event_data.forEach((event) => {
+							callback(event, message.SubscriptionEvent.event_type);
+						});
+					} else if ('Eose' in message) {
+						callback(message.Eose.data, 'EOSE');
+					} else if ('Eoce' in message) {
+						callback([], 'EOCE');
+					}
+				});
+				lastReadPos = result.newReadPosition;
+			} else {
+				// No new data - back off exponentially (faster backoff)
+				pollInterval = Math.min(pollInterval * 2, maxInterval);
+			}
+
+			// Schedule next poll
+			timeoutId = window.setTimeout(processEvents, pollInterval);
+		};
+
+		// Start immediately
+		processEvents();
+	}
+
+	return (): void => {
+		running = false;
+		if (timeoutId !== null) {
+			clearTimeout(timeoutId);
+		}
+	};
+}

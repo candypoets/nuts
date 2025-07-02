@@ -4,7 +4,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 
-	import { nostrManager, type SubscribeKind } from 'src/model/nostr-main';
+	import { nostrManager, useSharedSubscription, type SubscribeKind } from 'src/model/nostr-main';
 	import type { AnyKind, Kind1Parsed } from 'src/types';
 	import { type ParsedEvent } from 'src/types';
 	import Content from 'src/routes/explore/_post/content.svelte';
@@ -62,9 +62,9 @@
 	function subscribe() {
 		timeout = setTimeout(async () => {
 			if (note && note.requests && visible) {
-				console.log('subscribe', note.id + depth);
+				console.log('subscribe', note.id);
 				// console.log('note requests', note.id || noteId, randomId, note.requests);
-				nostrManager.subscribe(note.id + depth, note.requests, handleEvents);
+				useSharedSubscription(note.id, note.requests, handleEvents);
 			}
 		}, 200);
 	}

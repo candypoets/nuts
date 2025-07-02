@@ -7,7 +7,7 @@ use crate::relays::utils::{normalize_relay_url, validate_relay_url};
 use crate::types::network::{Request, SubscribeKind};
 use crate::types::*;
 use anyhow::Result;
-use js_sys::{Array, Uint8Array};
+use js_sys::{Array, SharedArrayBuffer, Uint8Array};
 use rmp_serde;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
@@ -18,7 +18,7 @@ use wasm_bindgen_futures::spawn_local;
 pub struct SubscriptionManager {
     database: Arc<NostrDB>,
     parser: Arc<Parser>,
-    subscriptions: Arc<RwLock<HashSet<String>>>,
+    subscriptions: Arc<RwLock<HashMap<String, SharedArrayBuffer>>>,
     cache_processor: Arc<CacheProcessor>,
     connection_registry: ConnectionRegistry,
     relay_hints: HashMap<String, Vec<String>>,
@@ -31,7 +31,7 @@ impl SubscriptionManager {
         Self {
             database: database.clone(),
             parser,
-            subscriptions: Arc::new(RwLock::new(HashSet::new())),
+            subscriptions: Arc::new(RwLock::new(HashMap::new())),
             relay_hints: HashMap::new(),
             cache_processor,
             connection_registry: ConnectionRegistry::new(),
@@ -42,6 +42,7 @@ impl SubscriptionManager {
         &self,
         subscription_id: String,
         requests: Vec<Request>,
+        shared_buffer: SharedArrayBuffer,
     ) -> Result<()> {
         info!(
             "Opening subscription: {} with {} requests{}",
@@ -59,22 +60,22 @@ impl SubscriptionManager {
             .subscriptions
             .read()
             .unwrap()
-            .contains(&subscription_id)
+            .contains_key(&subscription_id)
         {
             debug!(
                 "Subscription {} already exists, closing it first",
                 subscription_id
             );
-            self.connection_registry
-                .close_subscription(&subscription_id)
-                .await?;
+            // self.connection_registry
+            //     .close_subscription(&subscription_id)
+            //     .await?;
+            return Ok(());
         }
 
-        // Always insert the subscription (whether it's new or replacing an existing one)
         self.subscriptions
             .write()
             .unwrap()
-            .insert(subscription_id.clone());
+            .insert(subscription_id.clone(), shared_buffer);
 
         // Spawn subscription processing task
         self.process_subscription(&subscription_id, requests)
@@ -91,9 +92,11 @@ impl SubscriptionManager {
             .close_subscription(&subscription_id)
             .await?;
 
-        self.subscriptions.write().unwrap().remove(subscription_id);
-
-        debug!("Subscription {} closed", subscription_id);
+        // Note: We're keeping the SharedArrayBuffer for now, just closing the connection
+        debug!(
+            "Subscription {} closed (SharedArrayBuffer retained)",
+            subscription_id
+        );
 
         Ok(())
     }
@@ -135,10 +138,10 @@ impl SubscriptionManager {
                     sent_ids.insert(first_event.event.id.to_bytes());
                 }
             }
-            Self::send_cached_events(&subscription_id, &events).await;
+            self.send_cached_events(&subscription_id, &events).await;
         }
 
-        Self::send_eoce(&subscription_id).await;
+        let _ = self.send_eoce(&subscription_id).await;
 
         // Only process network requests if there are any
         if !network_requests.is_empty() {
@@ -152,6 +155,10 @@ impl SubscriptionManager {
             let parser = self.parser.clone();
             let database = self.database.clone();
             let cache_processor = self.cache_processor.clone();
+            let shared_buffer = {
+                let subscriptions = self.subscriptions.read().unwrap();
+                subscriptions.get(subscription_id.as_str()).cloned()
+            };
             let sub_id = subscription_id.clone();
             let total_connections = relay_filters.len() as i32;
             let mut remaining_connections = total_connections;
@@ -183,8 +190,15 @@ impl SubscriptionManager {
                                         //     .find_context_events_simple(&parsed_event, 3)
                                         //     .await;
                                         // events_with_context.extend(context_events);
-                                        let _ =
-                                            Self::send_event(&sub_id, &events_with_context).await;
+
+                                        if let Some(ref buffer) = shared_buffer {
+                                            let _ = Self::send_fetched_event(
+                                                buffer,
+                                                &sub_id,
+                                                &events_with_context,
+                                            )
+                                            .await;
+                                        }
                                     }
                                     Err(e) => {
                                         warn!("Failed to parse event kind {}: {}", event.kind, e);
@@ -199,14 +213,17 @@ impl SubscriptionManager {
                                 "Received EOSE from relay {:?} for subscription {} (Remaining: {}/{})",
                                 event.relay, sub_id, remaining_connections, total_connections
                             );
-                            Self::send_eose(
-                                &sub_id,
-                                EOSE {
-                                    total_connections: total_connections,
-                                    remaining_connections: remaining_connections,
-                                },
-                            )
-                            .await;
+                            if let Some(ref buffer) = shared_buffer {
+                                Self::send_eose(
+                                    buffer,
+                                    &sub_id,
+                                    EOSE {
+                                        total_connections: total_connections,
+                                        remaining_connections: remaining_connections,
+                                    },
+                                )
+                                .await;
+                            }
                         }
                         NetworkEventType::Error => {
                             warn!("Received error event from network: {:?}", event);
@@ -300,7 +317,11 @@ impl SubscriptionManager {
         Ok(request)
     }
 
-    async fn send_event(subscription_id: &str, event_data: &Vec<ParsedEvent>) {
+    async fn send_fetched_event(
+        shared_buffer: &SharedArrayBuffer,
+        subscription_id: &str,
+        event_data: &Vec<ParsedEvent>,
+    ) {
         // Convert ParsedEvent to SerializableParsedEvent to ensure id and sig fields are hex strings
         let serializable_events: Vec<SerializableParsedEvent> = event_data
             .iter()
@@ -324,10 +345,10 @@ impl SubscriptionManager {
             }
         };
 
-        Self::post_message(&data).await;
+        let _ = Self::write_to_buffer(shared_buffer, subscription_id, &data).await;
     }
 
-    async fn send_cached_events(subscription_id: &str, events: &[Vec<ParsedEvent>]) {
+    async fn send_cached_events(&self, subscription_id: &str, events: &[Vec<ParsedEvent>]) {
         // Convert ParsedEvents to SerializableParsedEvent to ensure id and sig fields are hex strings
         let serializable_events: Vec<Vec<SerializableParsedEvent>> = events
             .iter()
@@ -342,10 +363,10 @@ impl SubscriptionManager {
         let message = crate::WorkerToMainMessage::SubscriptionEvent {
             subscription_id: subscription_id.to_string(),
             event_type: SubscribeKind::CachedEvent,
-            event_data: serializable_events,
+            event_data: serializable_events.clone(),
         };
 
-        let shared_buffer = match rmp_serde::to_vec_named(&message) {
+        let data = match rmp_serde::to_vec_named(&message) {
             Ok(msgpack) => msgpack,
             Err(e) => {
                 error!(
@@ -356,10 +377,10 @@ impl SubscriptionManager {
             }
         };
 
-        Self::post_message(&shared_buffer).await;
+        self.write_to_shared_buffer(subscription_id, &data).await;
     }
 
-    async fn send_eose(subscription_id: &str, eose: EOSE) {
+    async fn send_eose(shared_buffer: &SharedArrayBuffer, subscription_id: &str, eose: EOSE) {
         let message = crate::WorkerToMainMessage::Eose {
             subscription_id: subscription_id.to_string(),
             data: eose,
@@ -376,10 +397,10 @@ impl SubscriptionManager {
             }
         };
 
-        Self::post_message(&data).await;
+        let _ = Self::write_to_buffer(shared_buffer, subscription_id, &data).await;
     }
 
-    async fn send_eoce(subscription_id: &str) {
+    async fn send_eoce(&self, subscription_id: &str) {
         let message = crate::WorkerToMainMessage::Eoce {
             subscription_id: subscription_id.to_string(),
         };
@@ -395,7 +416,73 @@ impl SubscriptionManager {
             }
         };
 
-        Self::post_message(&data).await;
+        self.write_to_shared_buffer(subscription_id, &data).await;
+    }
+
+    async fn write_to_shared_buffer(&self, subscription_id: &str, data: &[u8]) {
+        let subscriptions = self.subscriptions.read().unwrap();
+        if let Some(shared_buffer) = subscriptions.get(subscription_id) {
+            Self::write_to_buffer(shared_buffer, subscription_id, data).await;
+        } else {
+            warn!(
+                "No SharedArrayBuffer found for subscription: {}, falling back to post_message",
+                subscription_id
+            );
+            Self::post_message(data).await;
+        }
+    }
+
+    async fn write_to_buffer(
+        shared_buffer: &SharedArrayBuffer,
+        subscription_id: &str,
+        data: &[u8],
+    ) {
+        // Get the buffer as Uint8Array for manipulation
+        let buffer_uint8 = Uint8Array::new(shared_buffer);
+        let buffer_length = buffer_uint8.length() as usize;
+
+        // Read current write position from header (first 4 bytes, little endian)
+        let header_subarray = buffer_uint8.subarray(0, 4);
+        let mut header_bytes = vec![0u8; 4];
+        header_subarray.copy_to(&mut header_bytes[..]);
+
+        let mut header_array = [0u8; 4];
+        header_array.copy_from_slice(&header_bytes);
+        let current_write_pos = u32::from_le_bytes(header_array) as usize;
+
+        // Check if we have enough space (4 bytes write position header + 4 bytes length prefix + data)
+        let new_write_pos = current_write_pos + 4 + data.len(); // +4 for length prefix
+        if new_write_pos > buffer_length {
+            warn!(
+                "SharedArrayBuffer overflow for subscription {}: trying to write {} bytes at position {}, buffer size {}",
+                subscription_id, data.len() + 4, current_write_pos, buffer_length
+            );
+            // Fall back to post_message if buffer is full
+            // Self::post_message(data).await;
+            return;
+        }
+
+        // Write the length prefix (4 bytes, little endian) at current write position
+        let length_prefix = (data.len() as u32).to_le_bytes();
+        let length_prefix_uint8 = Uint8Array::from(&length_prefix[..]);
+        buffer_uint8.set(&length_prefix_uint8, current_write_pos as u32);
+
+        // Write the actual data after the length prefix
+        let data_uint8 = Uint8Array::from(data);
+        buffer_uint8.set(&data_uint8, (current_write_pos + 4) as u32);
+
+        // Update the header with new write position (little endian)
+        let new_header = (new_write_pos as u32).to_le_bytes();
+        let new_header_uint8 = Uint8Array::from(&new_header[..]);
+        buffer_uint8.set(&new_header_uint8, 0);
+
+        debug!(
+            "Wrote {} bytes (+ 4 byte length prefix) to SharedArrayBuffer for subscription: {} (pos: {} -> {}) and notified waiters",
+            data.len(),
+            subscription_id,
+            current_write_pos,
+            new_write_pos
+        );
     }
 
     async fn post_message(data: &[u8]) {

@@ -21,11 +21,12 @@
 	import { go, goBack } from 'src/routes/modals/modal';
 	import { cashuManager } from 'src/model/cashu';
 
-	import { nostrManager, type SubscribeKind } from 'src/model/nostr-main';
+	import { nostrManager, useSharedSubscription, type SubscribeKind } from 'src/model/nostr-main';
 	import type { ParsedEvent } from 'src/types';
 	import { key } from 'src/controller';
 	import ImageZoom from 'src/components/ImageZoom.svelte';
 	import { viewport, dimensions, isMobile } from 'src/controller/viewport';
+	import { type Request } from 'src/model/nostr-main/pkg/nostr_main.js';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
 
@@ -65,7 +66,7 @@
 	$: relaySub =
 		$key &&
 		$key.pub &&
-		nostrManager.subscribe(
+		useSharedSubscription(
 			'relays',
 			[
 				{
@@ -86,14 +87,11 @@
 				if (kind == 'EOSE') {
 					return;
 				}
-				console.log('relays', events, kind);
 				// the first event is from the sub, everything else is contextual
 				const event = events[0];
 				if (!event) return;
-				console.log('root eventkind', event, event.kind);
 				if (event.parsed) {
 					if (isKind10002(event) && event.created_at > ($kind10002?.created_at || 0)) {
-						console.log($kind10002, 'profile 10002');
 						$kind10002 = event;
 					}
 					if (isKind10019(event) && event.created_at > ($kind10019?.created_at || 0))
@@ -110,7 +108,7 @@
 
 	$: profileSub =
 		($kind10002 || $kind10019 || $kind3) &&
-		nostrManager.subscribe(
+		useSharedSubscription(
 			'profile',
 			[
 				$kind10002 && {

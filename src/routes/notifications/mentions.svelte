@@ -2,7 +2,7 @@
 	import Icon from '@iconify/svelte';
 	import { type AnyKind } from 'src/types';
 	import Avatar from 'src/routes/explore/avatar.svelte';
-	import { nostrManager } from 'src/model/nostr-main';
+	import { nostrManager, useSharedSubscription } from 'src/model/nostr-main';
 	import type { ParsedEvent } from 'src/types';
 	import Content from '../explore/_post/content.svelte';
 	import User from '../explore/user.svelte';
@@ -23,7 +23,7 @@
 	function subscribe() {
 		timeout = setTimeout(async () => {
 			if (visible) {
-				nostrManager.subscribe(
+				useSharedSubscription(
 					post.id + 'mentions',
 					[
 						// {

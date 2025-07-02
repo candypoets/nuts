@@ -18,7 +18,12 @@
 	import User from 'src/routes/explore/user.svelte';
 	import { goBack } from 'src/routes/modals/modal';
 	import { cashuManager } from 'src/model/cashu';
-	import { nostrManager, type Request, type SubscribeKind } from 'src/model/nostr-main';
+	import {
+		nostrManager,
+		useSharedSubscription,
+		type Request,
+		type SubscribeKind
+	} from 'src/model/nostr-main';
 	import type { Kind0Parsed, Kind1Parsed, ParsedEvent } from 'src/types';
 	import { onMount, tick } from 'svelte';
 	import { fly } from 'svelte/transition';
@@ -63,7 +68,7 @@
 			{ kinds: [10019], authors: [pubkey], cacheFirst: true, relays: [] }
 		];
 		if (noteId) requests.push({ kinds: [1], ids: [noteId], cacheFirst: true, relays: [] });
-		nostrManager.subscribe(
+		useSharedSubscription(
 			'wallet_' + pubkey,
 			requests,
 			(events: ParsedEvent<AnyKind>[], eventKind: SubscribeKind) => {

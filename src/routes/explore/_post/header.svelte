@@ -7,8 +7,9 @@
 	import { getContext, onMount } from 'svelte';
 
 	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/types';
-	import { nostrManager, type SubscribeKind } from 'src/model/nostr-main';
+	import { nostrManager, useSharedSubscription, type SubscribeKind } from 'src/model/nostr-main';
 	import type { Kind1Parsed, ParsedEvent } from 'src/types';
+	import { proxyAvatarUrl } from 'src/lib/proxy';
 
 	export let note: ParsedEvent<Kind1Parsed>;
 	export let context: ParsedEvent<AnyKind>[] = [];
@@ -26,8 +27,8 @@
 				| Kind0Parsed
 				| undefined;
 			if (!author) {
-				sub = nostrManager.subscribe(
-					'header_' + note.pubkey + '_' + _.random(10000),
+				sub = useSharedSubscription(
+					'u_' + note.pubkey,
 					[
 						{
 							kinds: [0],
@@ -46,7 +47,7 @@
 						const [event, ...context] = events;
 						if (isKind0(event)) {
 							author = event.parsed as Kind0Parsed;
-							sub();
+							sub?.();
 						}
 					}
 				);
@@ -80,7 +81,7 @@
 	<div class="w-8 min-w-8" class:!w-6={!!depth} class:!min-w-6={!!depth}>
 		<a on:click|stopPropagation|preventDefault={go} class="cursor-pointer">
 			<img
-				src={author?.picture || '/ns-naked.svg'}
+				src={author?.picture ? proxyAvatarUrl(author.picture) : '/ns-naked.svg'}
 				alt={author?.name}
 				class="border w-8 h-8 rounded-full space-x-4 mx-auto z-10 object-cover"
 				class:!w-6={!!depth}

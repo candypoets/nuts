@@ -33,7 +33,7 @@
 	import Modal from 'src/routes/modals/index.svelte';
 	import { go } from 'src/routes/modals/modal';
 	import { cashuManager } from 'src/model/cashu';
-	import { nostrManager, type SubscribeKind } from 'src/model/nostr-main';
+	import { useSharedSubscription, type SubscribeKind } from 'src/model/nostr-main';
 	import type { ParsedEvent } from 'src/types';
 	import { key } from 'src/controller/key';
 	import { limit } from 'src/controller/pagination';
@@ -68,10 +68,14 @@
 		}
 	];
 
-	$: walletSub = nostrManager.subscribe(
+	$: walletSub = useSharedSubscription(
 		'active_wallet',
-		[{ kinds: [7375, 17375], authors: [$key?.pub], relays: walletRelays || readRelays }],
+		[
+			{ kinds: [7375], authors: [$key?.pub], limit: 10, relays: walletRelays || readRelays },
+			{ kinds: [17375], authors: [$key?.pub], limit: 10, relays: walletRelays || readRelays }
+		],
 		(events: ParsedEvent<unknown>[], eventKind: SubscribeKind) => {
+			console.log('active_wallet', events, eventKind);
 			if (eventKind == 'EOSE') {
 				walletLoaded.resolve(true);
 				return;
@@ -149,7 +153,7 @@
 
 		loading = true;
 
-		const login = nostrManager.subscribe(
+		const login = useSharedSubscription(
 			'login_' + pubkey,
 			[
 				{

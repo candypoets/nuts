@@ -7,6 +7,7 @@ use crate::relays::ConnectionRegistry;
 use crate::types::network::Request;
 use crate::types::*;
 use anyhow::Result;
+use js_sys::SharedArrayBuffer;
 use std::sync::Arc;
 
 pub struct NetworkManager {
@@ -39,9 +40,10 @@ impl NetworkManager {
         &self,
         subscription_id: String,
         requests: Vec<Request>,
+        shared_buffer: SharedArrayBuffer,
     ) -> Result<()> {
         self.subscription_manager
-            .open_subscription(subscription_id, requests)
+            .open_subscription(subscription_id, requests, shared_buffer)
             .await
     }
 

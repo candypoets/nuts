@@ -7,7 +7,7 @@
 	import VirtualList from 'src/components/VirtualList.svelte';
 	import VirtualListBottom from 'src/components/VirtualListBottom.svelte';
 	import { DAY, now } from 'src/lib/period';
-	import { nostrManager, type SubscribeKind } from 'src/model/nostr-main';
+	import { nostrManager, useSharedSubscription, type SubscribeKind } from 'src/model/nostr-main';
 	import type { ParsedEvent } from 'src/types';
 	import { isKind, isKind1, isKind6, type AnyKind, type Kind1Parsed } from 'src/types';
 	import Note from './note.svelte';
@@ -72,8 +72,7 @@
 	const handleEvents = (events: ParsedEvent<AnyKind>[], eventKind: SubscribeKind, page = 0) => {
 		console.log(subscriptionID, eventKind, events);
 		if (eventKind == 'EOSE') {
-			console.log(subscriptionID, eventKind, events, events.remainingConnections);
-			if (events.remainingConnections / events.totalConnections <= 0.5 && eose == false) {
+			if (events.remainingConnections / events.totalConnections <= 0.8 && eose == false) {
 				loading = false;
 				eose = true;
 				feed = _.uniqBy([...fetchedFeed, ...feed], (item) => item[0].id)
@@ -132,7 +131,7 @@
 				eose = false;
 				cachedFeed = [];
 
-				sub = nostrManager.subscribe(subscriptionID, requests, handleEvents);
+				sub = useSharedSubscription(subscriptionID, requests, handleEvents);
 			}
 		}, 300);
 	}
@@ -187,7 +186,7 @@
 				// get the last item in the feed
 				const lastEvent = feed[feed.length - 1][0];
 				// get the next page results from the cache
-				const pageSub = nostrManager.subscribe(
+				const pageSub = useSharedSubscription(
 					subscriptionID + page,
 					requests.map((r) => ({
 						...r,

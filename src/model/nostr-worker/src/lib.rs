@@ -75,7 +75,7 @@ macro_rules! console_error {
 }
 
 // Worker implementation
-use js_sys::Uint8Array;
+use js_sys::{SharedArrayBuffer, Uint8Array};
 use std::sync::{Arc, Mutex, Once};
 use tracing::info;
 
@@ -213,12 +213,13 @@ impl NostrClient {
         &self,
         subscription_id: String,
         requests_data: &[u8],
+        shared_buffer: SharedArrayBuffer,
     ) -> Result<(), JsValue> {
         let requests: Vec<Request> = rmp_serde::from_slice(requests_data)
             .map_err(|e| JsValue::from_str(&format!("Failed to parse requests: {}", e)))?;
 
         self.network_manager
-            .open_subscription(subscription_id, requests)
+            .open_subscription(subscription_id, requests, shared_buffer)
             .await
             .map_err(|e| JsValue::from_str(&format!("Failed to open subscription: {}", e)))
     }
@@ -330,9 +331,52 @@ impl NostrClient {
             .len() as u32
     }
 
-    pub async fn handle_message(&self, data: &JsValue) -> Result<(), JsValue> {
-        let message_bytes = if data.is_instance_of::<Uint8Array>() {
-            let uint8_array: Uint8Array = data.clone().dyn_into()?;
+    pub async fn handle_message(&self, message_obj: &JsValue) -> Result<(), JsValue> {
+        // Check if this is the new format with serializedMessage and sharedBuffer
+        if let Some(obj) = message_obj.dyn_ref::<js_sys::Object>() {
+            if js_sys::Reflect::has(obj, &JsValue::from_str("serializedMessage")).unwrap_or(false)
+                && js_sys::Reflect::has(obj, &JsValue::from_str("sharedBuffer")).unwrap_or(false)
+            {
+                // Extract serialized message
+                let serialized_msg =
+                    js_sys::Reflect::get(obj, &JsValue::from_str("serializedMessage"))?;
+                let message_uint8 = js_sys::Uint8Array::from(serialized_msg);
+                let mut message_bytes = vec![0u8; message_uint8.length() as usize];
+                message_uint8.copy_to(&mut message_bytes);
+
+                // Extract SharedArrayBuffer
+                let shared_buffer = js_sys::Reflect::get(obj, &JsValue::from_str("sharedBuffer"))?;
+                let shared_buffer = shared_buffer
+                    .dyn_into::<js_sys::SharedArrayBuffer>()
+                    .map_err(|_| JsValue::from_str("Invalid SharedArrayBuffer"))?;
+
+                let main_message: MainToWorkerMessage = rmp_serde::from_slice(&message_bytes)
+                    .map_err(|e| JsValue::from_str(&format!("Failed to decode message: {}", e)))?;
+
+                match main_message {
+                    MainToWorkerMessage::Subscribe {
+                        subscription_id,
+                        requests,
+                    } => {
+                        let requests_data = rmp_serde::to_vec_named(&requests).map_err(|e| {
+                            JsValue::from_str(&format!("Failed to serialize requests: {}", e))
+                        })?;
+                        self.open_subscription(subscription_id, &requests_data, shared_buffer)
+                            .await?;
+                    }
+                    _ => {
+                        return Err(JsValue::from_str(
+                            "Only Subscribe messages support new format",
+                        ));
+                    }
+                }
+                return Ok(());
+            }
+        }
+
+        // Fall back to old format for other message types
+        let message_bytes = if message_obj.is_instance_of::<Uint8Array>() {
+            let uint8_array: Uint8Array = message_obj.clone().dyn_into()?;
             uint8_array.to_vec()
         } else {
             return Err(JsValue::from_str("Expected Uint8Array message"));
@@ -343,14 +387,12 @@ impl NostrClient {
 
         match main_message {
             MainToWorkerMessage::Subscribe {
-                subscription_id,
-                requests,
+                subscription_id: _,
+                requests: _,
             } => {
-                let requests_data = rmp_serde::to_vec_named(&requests).map_err(|e| {
-                    JsValue::from_str(&format!("Failed to serialize requests: {}", e))
-                })?;
-                self.open_subscription(subscription_id, &requests_data)
-                    .await?;
+                return Err(JsValue::from_str(
+                    "Subscribe requires SharedArrayBuffer in new format",
+                ));
             }
             MainToWorkerMessage::Unsubscribe { subscription_id } => {
                 self.close_subscription(subscription_id).await?;
@@ -358,7 +400,7 @@ impl NostrClient {
             MainToWorkerMessage::Publish { publish_id, event } => {
                 let event_data = rmp_serde::to_vec_named(&event)
                     .map_err(|e| JsValue::from_str(&format!("Failed to serialize event: {}", e)))?;
-                let _ = self.publish_event(publish_id, &event_data).await?;
+                self.publish_event(publish_id, &event_data).await?;
             }
             MainToWorkerMessage::SignEvent { event } => {
                 let event_data = rmp_serde::to_vec_named(&event)
@@ -371,7 +413,7 @@ impl NostrClient {
             } => {
                 self.set_signer(signer_type, private_key)?;
             }
-            MainToWorkerMessage::GetPublicKey => {
+            MainToWorkerMessage::GetPublicKey {} => {
                 self.get_public_key()?;
             }
         }

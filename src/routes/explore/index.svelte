@@ -40,8 +40,9 @@
 				]
 			},
 			{
-				kinds: [0, 10002], // take another chance to cache 0 and 10002 events for the followlist
+				kinds: [10002], // take another chance to cache 0 and 10002 events for the followlist
 				authors: follows,
+				limit: follows.length,
 				relays: [
 					'wss://relay.primal.net',
 					'wss://nostr.land',

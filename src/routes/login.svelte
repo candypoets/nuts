@@ -9,7 +9,7 @@
 	import { decodePrivKey } from 'src/lib/wallet';
 	import { isKind0, type AnyKind } from 'src/types';
 	import { key } from 'src/controller';
-	import { nostrManager, type SubscribeKind } from 'src/model/nostr-main';
+	import { nostrManager, useSharedSubscription, type SubscribeKind } from 'src/model/nostr-main';
 	import type { ParsedEvent } from 'src/types';
 
 	let privateKey = '';
@@ -43,7 +43,7 @@
 
 		loading = true;
 
-		const loginSub = nostrManager.subscribe(
+		const loginSub = useSharedSubscription(
 			'login_' + pubkey,
 			[{ kinds: [kinds.Metadata], authors: [pubkey], limit: 1, relays: [] }],
 			(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) => {
