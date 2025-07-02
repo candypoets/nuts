@@ -3,6 +3,7 @@ use crate::types::network::Request;
 use anyhow::{anyhow, Result};
 use nostr::{Event, EventBuilder};
 use serde::{Deserialize, Serialize};
+use tracing::{info, warn};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Kind17375Parsed {
@@ -36,7 +37,9 @@ impl Parser {
         // For now, we'll leave decrypted as false
         // In a full implementation:
         let signer = &self.signer_manager;
+
         if signer.has_signer() {
+            info!("Signer available, attempting to decrypt event content");
             let pubkey = signer.get_public_key()?;
             if let Ok(decrypted) = signer.nip44_decrypt(&pubkey, &event.content) {
                 if !decrypted.is_empty() {
@@ -66,6 +69,8 @@ impl Parser {
                     }
                 }
             }
+        } else {
+            warn!("No signer found for event");
         }
 
         // Also check for unencrypted mint tags in the event

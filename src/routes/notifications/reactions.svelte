@@ -75,8 +75,6 @@
 	});
 
 	$: visible ? subscribe() : unsubscribe();
-
-	$: console.log('post context', post?.parsed);
 </script>
 
 <div class="border-b border-gray-100 p-4 mb-2 transition-colors">
