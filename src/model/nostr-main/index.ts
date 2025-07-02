@@ -102,22 +102,10 @@ class NostrManager {
 	}
 
 	private handleWorkerMessage(message: WorkerToMainMessage) {
-		if ('SubscriptionEvent' in message) {
-			console.log('Received message:', message);
-			this.handleSubscriptionEvent(
-				message.SubscriptionEvent.subscription_id,
-				message.SubscriptionEvent.event_data,
-				message.SubscriptionEvent.event_type
-			);
-		} else if ('PublishStatus' in message) {
+		if ('PublishStatus' in message) {
 			this.handlePublishStatus(message.PublishStatus.publish_id, message.PublishStatus.status);
 		} else if ('Count' in message) {
 			this.handleSubscriptionCount(message.Count.subscription_id, message.Count.count);
-		} else if ('Eose' in message) {
-			console.log('Eose received:', message.Eose.subscription_id, message.Eose.data);
-			this.handleSubscriptionEose(message.Eose.subscription_id, message.Eose.data);
-		} else if ('Eoce' in message) {
-			this.handleSubscriptionEoce(message.Eoce.subscription_id);
 		} else if ('SignedEvent' in message) {
 			this.handleSignedEvent(message.SignedEvent.content, message.SignedEvent.signed_event);
 		} else if ('PublicKey' in message) {
@@ -129,16 +117,6 @@ class NostrManager {
 		}
 	}
 
-	private handleSubscriptionEvent(
-		subId: string,
-		eventData: ParsedEvent<AnyKind>[][],
-		eventType: SubscribeKind
-	) {
-		// Events are now written directly to SharedArrayBuffer by worker
-		// This method is kept for backwards compatibility but not used
-		console.debug('Received subscription event (legacy handler):', subId, eventType);
-	}
-
 	private handlePublishStatus(publishId: string, statuses: RelayStatusUpdate[]) {
 		const publishCallback = this.publishes.get(publishId);
 		if (!publishCallback) return;
@@ -147,26 +125,6 @@ class NostrManager {
 		if (statuses.length > 0) {
 			publishCallback(statuses[0], 'PUBLISH_STATUS');
 		}
-	}
-
-	private handleSubscriptionEose(subId: string, data: EOSE) {
-		const subscription = this.subscriptions.get(subId);
-		if (!subscription) return;
-
-		// Auto-close subscription if requested
-		if (subscription.options.closeOnEose) {
-			this.unsubscribe(subId);
-		}
-	}
-
-	private handleSubscriptionEoce(subId: string) {
-		// Events are now written directly to SharedArrayBuffer by worker
-		console.debug('Received EOCE for subscription:', subId);
-	}
-
-	private handleSubscriptionCount(subId: string, count: number) {
-		// Counts are now written directly to SharedArrayBuffer by worker
-		console.debug('Received count for subscription:', subId, count);
 	}
 
 	private handleSignedEvent(content: string, signedEvent: any) {
@@ -203,9 +161,9 @@ class NostrManager {
 		options: SubscriptionOptions = {}
 	): SharedArrayBuffer {
 		const subId = subscriptionId.length < 64 ? subscriptionId : this.createShortId(subscriptionId);
-		if (subscriptionId.length >= 64) {
-			console.log('subId:', subId, 'subscriptionId:', subscriptionId);
-		}
+		// if (subscriptionId.length >= 64) {
+		// 	console.log('subId:', subId, 'subscriptionId:', subscriptionId);
+		// }
 		// Check if subscription already exists
 		const existingSubscription = this.subscriptions.get(subId);
 		if (existingSubscription) {
@@ -299,6 +257,7 @@ class NostrManager {
 	 * Set a signer for signing events
 	 */
 	setSigner(name: string, secretKeyHex: string): void {
+		console.log('SET_SIGNER', name, secretKeyHex);
 		const message: MainToWorkerMessage = {
 			SetSigner: {
 				signer_type: name,
