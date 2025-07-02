@@ -2,6 +2,7 @@
 	import Icon from '@iconify/svelte';
 	import { type NostrEvent } from 'nostr-tools';
 	import { type Contact } from 'src/model/contact';
+	import { proxyAvatarUrl } from 'src/lib/proxy';
 
 	export let note: NostrEvent;
 	export let author: Contact;
@@ -10,7 +11,7 @@
 <div class="flex gap-2 mt-2">
 	<div class="w-8 min-w-8">
 		<img
-			src={author?.picture || '/ns-naked.svg'}
+			src={author?.picture ? proxyAvatarUrl(author.picture) : '/ns-naked.svg'}
 			alt={author?.name}
 			class="border w-8 h-8 rounded-full space-x-4 mx-auto"
 		/>

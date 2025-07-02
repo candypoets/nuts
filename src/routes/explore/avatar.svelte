@@ -1,8 +1,8 @@
 <script lang="ts">
-	import _ from 'lodash';
-	import { nostrManager, type SubscribeKind } from 'src/model/nostr-main';
+	import { useSharedSubscription, type SubscribeKind } from 'src/model/nostr-main';
 	import type { ParsedEvent } from 'src/types';
 	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/types';
+	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import { onMount } from 'svelte';
 
 	// The pubkey/npub of the user
@@ -16,6 +16,7 @@
 
 	let profile: Kind0Parsed | undefined;
 	let imageUrl: string | undefined;
+	let proxiedImageUrl: string | undefined;
 
 	let sub: () => void;
 
@@ -33,9 +34,10 @@
 			| Kind0Parsed
 			| undefined;
 		imageUrl = profile?.picture;
+		proxiedImageUrl = imageUrl ? proxyAvatarUrl(imageUrl) : undefined;
 		if (!profile && query) {
-			sub = nostrManager.subscribe(
-				'avatar_' + pubkey + '_' + _.random(10000),
+			sub = useSharedSubscription(
+				'av_' + pubkey,
 				[
 					{
 						kinds: [0],
@@ -54,7 +56,8 @@
 					if (isKind0(event)) {
 						profile = event.parsed as Kind0Parsed;
 						imageUrl = profile?.picture;
-						sub();
+						proxiedImageUrl = imageUrl ? proxyAvatarUrl(imageUrl) : undefined;
+						sub?.();
 					}
 				}
 			);
@@ -68,8 +71,8 @@
 <div
 	class={`${sizeClasses[size]} rounded-full overflow-hidden bg-gray-200 flex-shrink-0 ${customClass}`}
 >
-	{#if imageUrl}
-		<img src={imageUrl} alt="Profile" class="w-full h-full object-cover" />
+	{#if proxiedImageUrl}
+		<img src={proxiedImageUrl} alt="Profile" class="w-full h-full object-cover" />
 	{:else}
 		<!-- Placeholder while loading -->
 		<div class="w-full h-full bg-gray-300 shimmer"></div>

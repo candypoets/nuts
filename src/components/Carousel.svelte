@@ -1,12 +1,28 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
 	import { onMount } from 'svelte';
+	import { proxyImageUrl, proxyVideoUrl, ImagePresets } from 'src/lib/proxy';
 
 	export let items: any[] = [];
 	export let onClose: () => void = undefined;
 	export let currentIndex = 0;
 	export let keyboardShortcut = false;
 	export let noScroll = false;
+
+	// Ensure items have proxied URLs if they contain src properties
+	// Use full preset for carousel (zoom view) to get high quality images
+	$: processedItems = items.map((item) => {
+		if (item && typeof item === 'object' && item.src) {
+			return {
+				...item,
+				src:
+					item.type === 'video'
+						? proxyVideoUrl(item.src)
+						: proxyImageUrl(item.src, ImagePresets.full)
+			};
+		}
+		return item;
+	});
 
 	let carouselElement: HTMLElement;
 	let container: HTMLElement;
@@ -22,7 +38,7 @@
 	}
 
 	function handleScroll(event: WheelEvent | TouchEvent) {
-		if (items.length > 1 && currentIndex !== items.length - 1) {
+		if (processedItems.length > 1 && currentIndex !== processedItems.length - 1) {
 			event.stopPropagation();
 		}
 		if (carouselElement) {
@@ -36,7 +52,7 @@
 		if (event.key === 'ArrowLeft') {
 			scrollToIndex(Math.max(currentIndex - 1, 0));
 		} else if (event.key === 'ArrowRight') {
-			scrollToIndex(Math.min(currentIndex + 1, items.length - 1));
+			scrollToIndex(Math.min(currentIndex + 1, processedItems.length - 1));
 		} else if (event.key === 'Escape') {
 			onClose();
 		}
@@ -66,7 +82,7 @@
 		on:touchmove={handleScroll}
 		on:touchend={handleScroll}
 	>
-		{#each items as item, index}
+		{#each processedItems as item, index}
 			<div
 				class="h-full w-full shrink-0 snap-always overflow-hidden rounded-xl bg-opacity-50"
 				class:snap-start={index === 0}
@@ -77,9 +93,9 @@
 		{/each}
 	</div>
 
-	{#if items.length > 1}
+	{#if processedItems.length > 1}
 		<div class="absolute bottom-4 flex w-full items-center justify-center gap-1">
-			{#each items as _, index (index)}
+			{#each processedItems as _, index (index)}
 				<button
 					class="border-base-content h-2 w-2 rounded-full border"
 					class:bg-white={index === currentIndex}
@@ -103,8 +119,9 @@
 		>
 			<button
 				class="rounded-full p-2 text-white"
-				class:opacity-0={currentIndex == items.length - 1}
-				on:click|stopPropagation={() => scrollToIndex(Math.min(currentIndex + 1, items.length - 1))}
+				class:opacity-0={currentIndex == processedItems.length - 1}
+				on:click|stopPropagation={() =>
+					scrollToIndex(Math.min(currentIndex + 1, processedItems.length - 1))}
 			>
 				<Icon icon="mdi:chevron-right" class="text-2xl text-white" />
 			</button>

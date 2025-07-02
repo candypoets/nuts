@@ -7,6 +7,8 @@
 
 	// Toggle for showing the context sidebar
 	let showContext: boolean = true;
+
+	// The links are already proxied when stored in the store from ImageGrid
 </script>
 
 {#if $zoomed !== undefined}

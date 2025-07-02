@@ -7,6 +7,7 @@
 		zoomed as zoomedStore
 	} from 'src/controller/image';
 	import type { AnyKind, Kind1Parsed, ParsedEvent } from 'src/types';
+	import { proxyMediaLinks, ImagePresets } from 'src/lib/proxy';
 	import { getContext } from 'svelte';
 
 	export let links: { src: string; type?: 'image' | 'video' }[];
@@ -15,7 +16,9 @@
 
 	let isImageContext = getContext('imageContext');
 
-	$: columns = Math.ceil(Math.sqrt(links.length));
+	$: proxiedLinks = proxyMediaLinks(links, ImagePresets.thumbnail);
+
+	$: columns = Math.ceil(Math.sqrt(proxiedLinks.length));
 
 	function getSpan(i: number, fullwidth = false) {
 		// how many slots are left in the row
@@ -24,7 +27,7 @@
 	}
 
 	function setZoom(zoom: number) {
-		$linksStore = links;
+		$linksStore = proxiedLinks;
 		$zoomedStore = zoom;
 		$noteStore = note;
 		$contextStore = context;
@@ -37,17 +40,17 @@
 		'relative my-2 grid cursor-pointer gap-1 overflow-hidden rounded-lg'
 	)}
 	class:w-44={isImageContext}
-	class:bg-gray-300={links.length == 1}
-	class:bg-opacity-20={links.length == 1}
+	class:bg-gray-300={proxiedLinks.length == 1}
+	class:bg-opacity-20={proxiedLinks.length == 1}
 >
-	{#each links as link, i}
+	{#each proxiedLinks as link, i}
 		{#if link.type === 'video'}
 			<video
-				class:max-h-[50vh]={links.length == 1}
-				class:!w-auto={links.length == 1}
-				class:m-auto={links.length == 1}
+				class:max-h-[50vh]={proxiedLinks.length == 1}
+				class:!w-auto={proxiedLinks.length == 1}
+				class:m-auto={proxiedLinks.length == 1}
 				class={cx(
-					i == 0 ? 'col-span-' + getSpan(i == 0 ? links.length - 1 : i) : '',
+					i == 0 ? 'col-span-' + getSpan(i == 0 ? proxiedLinks.length - 1 : i) : '',
 					'h-full max-h-96 w-full object-cover'
 				)}
 				on:click|preventDefault|stopPropagation={() => setZoom(i)}
@@ -61,11 +64,11 @@
 			/>
 		{:else}
 			<img
-				class:max-h-[50vh]={links.length == 1}
-				class:!w-auto={links.length == 1}
-				class:m-auto={links.length == 1}
+				class:max-h-[50vh]={proxiedLinks.length == 1}
+				class:!w-auto={proxiedLinks.length == 1}
+				class:m-auto={proxiedLinks.length == 1}
 				class={cx(
-					i == 0 ? 'col-span-' + getSpan(links.length - 1) : '',
+					i == 0 ? 'col-span-' + getSpan(proxiedLinks.length - 1) : '',
 					'h-full max-h-96 w-full object-cover'
 				)}
 				on:click|preventDefault|stopPropagation={() => setZoom(i)}

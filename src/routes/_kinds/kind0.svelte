@@ -5,7 +5,13 @@
 	import _ from 'lodash';
 	import { kind0, kind3 } from 'src/controller/nostr';
 	import { now } from 'src/lib/period';
-	import { nostrManager, type Request, type SubscribeKind } from 'src/model/nostr-main';
+	import { proxyAvatarUrl, proxyBannerUrl } from 'src/lib/proxy';
+	import {
+		nostrManager,
+		useSharedSubscription,
+		type Request,
+		type SubscribeKind
+	} from 'src/model/nostr-main';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import type { ParsedEvent } from 'src/types';
 	import { isKind0, isKind10002, isKind10019, type AnyKind, type Kind0Parsed } from 'src/types';
@@ -72,7 +78,7 @@
 		timeout = setTimeout(() => {
 			if (visible) {
 				// feedRequests = [];
-				sub = nostrManager.subscribe(
+				sub = useSharedSubscription(
 					'kind0_' + pubkey,
 					[
 						{
@@ -158,7 +164,7 @@
 
 					<div
 						class="absolute w-full h-52 bg-cover bg-center top-0 left-0 right-0"
-						style="background-image: url('{p?.banner}');"
+						style="background-image: url('{p?.banner ? proxyBannerUrl(p.banner) : ''}');"
 					>
 						<div class="w-feed h-16 flex items-center justify-between shadow-sm safe-padding-top">
 							<button on:click={goBack} class="p-1 z-10 rounded-full hover:bg-base-200 mr-4">
@@ -211,7 +217,7 @@
 						</button>
 					</div>
 					<img
-						src={p?.picture || '/ns-naked.svg'}
+						src={p?.picture ? proxyAvatarUrl(p.picture) : '/ns-naked.svg'}
 						alt={p?.name || 'Profile'}
 						class:-mt-60={p?.banner}
 						class:!relative={!p?.banner}
