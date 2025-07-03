@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import { getContext, onDestroy } from 'svelte';
+	import { getContext, onDestroy, onMount } from 'svelte';
 	import { kinds, type EventTemplate } from 'nostr-tools';
 
 	import EmojiPickerContent from 'src/components/EmojiPickerContent.svelte';
@@ -40,11 +40,22 @@
 	let reposted = false;
 	let timeout: NodeJS.Timeout | undefined;
 	let triggerElement: HTMLElement;
+	let isMobile = false;
 	const mapReactions: Record<string, ParsedEvent<Kind7Parsed>> = {};
 	const mapReplies: Record<string, ParsedEvent<Kind1Parsed>> = {};
 	const mapReposts: Record<string, ParsedEvent<Kind6Parsed>> = {};
 	const mapEmoticons: Record<string, number> = {};
 	const commonEmoticons = ['👍', '❤️', '😂', '🔥', '😍', '🙏', '💯', '🤔', '🫂', '🚀'];
+
+	function checkMobile() {
+		isMobile = window.innerWidth < 640;
+	}
+
+	onMount(() => {
+		checkMobile();
+		window.addEventListener('resize', checkMobile);
+		return () => window.removeEventListener('resize', checkMobile);
+	});
 
 	const handleReactions = (event: ParsedEvent<Kind7Parsed>) => {
 		if (!event.parsed || mapReactions[event.id]) return;
@@ -204,11 +215,13 @@
 			<div class="flex items-center space-x-1">
 				{#each Object.entries(mapEmoticons)
 					.sort((a, b) => b[1] - a[1])
-					.slice(0, 10) as [emoji, count]}
+					.slice(0, isMobile ? 8 : 10) as [emoji, count]}
 					{#if emoji.startsWith('http')}
-						<img src={emoji} alt={emoji} class="w-4 h-4 inline-block" />
+						<img src={emoji} alt={emoji} class="w-3 h-3 sm:w-4 sm:h-4 inline-block" />
 					{:else if !!emoji && emoji != 'undefined'}
-						<span class="max-w-4 inline-block overflow-hidden">{emoji}</span>
+						<span class="max-w-3 sm:max-w-4 inline-block overflow-hidden text-sm sm:text-base"
+							>{emoji}</span
+						>
 					{/if}
 				{/each}
 			</div>
