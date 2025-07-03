@@ -17,8 +17,14 @@
 	let isImageContext = getContext('imageContext');
 
 	$: proxiedLinks = proxyMediaLinks(links, ImagePresets.thumbnail);
+	$: fullQualityLinks = proxyMediaLinks(links, ImagePresets.full);
 
-	$: columns = Math.ceil(Math.sqrt(proxiedLinks.length));
+	// Limit display to 5 items max
+	$: displayLinks = proxiedLinks.slice(0, 5);
+	$: hasMoreItems = proxiedLinks.length > 5;
+	$: remainingCount = proxiedLinks.length - 5;
+
+	$: columns = Math.ceil(Math.sqrt(displayLinks.length));
 
 	function getSpan(i: number, fullwidth = false) {
 		// how many slots are left in the row
@@ -27,7 +33,7 @@
 	}
 
 	function setZoom(zoom: number) {
-		$linksStore = proxiedLinks;
+		$linksStore = fullQualityLinks;
 		$zoomedStore = zoom;
 		$noteStore = note;
 		$contextStore = context;
@@ -40,41 +46,55 @@
 		'relative my-2 grid cursor-pointer gap-1 overflow-hidden rounded-lg'
 	)}
 	class:w-44={isImageContext}
-	class:bg-gray-300={proxiedLinks.length == 1}
-	class:bg-opacity-20={proxiedLinks.length == 1}
+	class:bg-gray-300={displayLinks.length == 1}
+	class:bg-opacity-20={displayLinks.length == 1}
 >
-	{#each proxiedLinks as link, i}
+	{#each displayLinks as link, i}
 		{#if link.type === 'video'}
 			<video
-				class:max-h-[50vh]={proxiedLinks.length == 1}
-				class:!w-auto={proxiedLinks.length == 1}
-				class:m-auto={proxiedLinks.length == 1}
+				class:max-h-[50vh]={displayLinks.length == 1}
+				class:!w-auto={displayLinks.length == 1}
+				class:m-auto={displayLinks.length == 1}
 				class={cx(
-					i == 0 ? 'col-span-' + getSpan(i == 0 ? proxiedLinks.length - 1 : i) : '',
+					i == 0 ? 'col-span-' + getSpan(i == 0 ? displayLinks.length - 1 : i) : '',
 					'h-full max-h-96 w-full object-cover'
 				)}
 				on:click|preventDefault|stopPropagation={() => setZoom(i)}
 				src={link.src.toString()}
 				muted
-				autoplay
+				autoplay={proxiedLinks.length == 1 || i == 0}
 				loop
 				playsinline
 				webkit-playsinline
 				disablePictureInPicture
 			/>
 		{:else}
-			<img
-				class:max-h-[50vh]={proxiedLinks.length == 1}
-				class:!w-auto={proxiedLinks.length == 1}
-				class:m-auto={proxiedLinks.length == 1}
-				class={cx(
-					i == 0 ? 'col-span-' + getSpan(proxiedLinks.length - 1) : '',
-					'h-full max-h-96 w-full object-cover'
-				)}
-				on:click|preventDefault|stopPropagation={() => setZoom(i)}
-				src={link.src.toString()}
-				loading="lazy"
-			/>
+			<div class="relative">
+				<img
+					class:max-h-[50vh]={displayLinks.length == 1}
+					class:!w-auto={displayLinks.length == 1}
+					class:m-auto={displayLinks.length == 1}
+					class={cx(
+						i == 0 ? 'col-span-' + getSpan(displayLinks.length - 1) : '',
+						'h-full max-h-96 w-full object-cover'
+					)}
+					on:click|preventDefault|stopPropagation={() => setZoom(i)}
+					src={link.src.toString()}
+					loading="lazy"
+				/>
+
+				{#if hasMoreItems && i === displayLinks.length - 1}
+					<div
+						class="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center cursor-pointer"
+						on:click|preventDefault|stopPropagation={() => setZoom(i)}
+					>
+						<div class="text-white text-center">
+							<div class="text-2xl font-bold">+{remainingCount}</div>
+							<div class="text-sm">more</div>
+						</div>
+					</div>
+				{/if}
+			</div>
 		{/if}
 	{/each}
 </div>
