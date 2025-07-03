@@ -14,6 +14,7 @@
 		balanceByMint,
 		deletedKind7375Ids,
 		mints,
+		proofsByMint,
 		walletLoaded
 	} from 'src/controller/wallet';
 	import { DAY } from 'src/lib/period';
@@ -78,6 +79,8 @@
 			console.log('active_wallet', events, eventKind);
 			if (eventKind == 'EOSE') {
 				walletLoaded.resolve(true);
+				// Process cashu tokens from kinds7375
+
 				return;
 			}
 			const [event, ...context] = events;
@@ -93,6 +96,7 @@
 				}
 			}
 			if (isKind7375(event) && event?.parsed?.mintUrl) {
+				console.log('kind7375', event);
 				if (event?.parsed?.deletedIds?.length) {
 					$deletedKind7375Ids = $deletedKind7375Ids.concat(event?.parsed?.deletedIds);
 				}
@@ -192,6 +196,15 @@
 			}
 		);
 	}
+
+	walletLoaded.then(() => {
+		setTimeout(() => {
+			const proofsMint = proofsByMint();
+			for (const [mintUrl, proofs] of Object.entries(proofsMint)) {
+				cashuManager.checkProofState(mintUrl, proofs);
+			}
+		}, 1000);
+	});
 
 	onMount(() => {
 		cashuManager.subscribe('wallet_update', (result: { [key: string]: number }) => {
