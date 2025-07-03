@@ -4,11 +4,26 @@ use anyhow::{anyhow, Result};
 use nostr::Event;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use tracing::{info, warn};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DLEQProof {
+    pub e: String,
+    pub s: String,
+    pub r: String,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProofUnion {
-    // Placeholder for proof types - would need actual cashu types
-    pub data: Value,
+    pub amount: u64,
+    pub id: String,
+    pub secret: String,
+    #[serde(rename = "C")]
+    pub c: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dleq: Option<DLEQProof>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<u8>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -27,8 +42,9 @@ struct TokenContent {
     pub mint: String,
     pub id: String,
     pub proofs: Vec<ProofUnion>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub del: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    pub del: Option<Vec<String>>,
 }
 
 impl Parser {
@@ -37,29 +53,32 @@ impl Parser {
             return Err(anyhow!("event is not kind 7375"));
         }
 
-        let parsed = Kind7375Parsed {
+        let mut parsed = Kind7375Parsed {
             mint_url: String::new(),
             proofs: Vec::new(),
             deleted_ids: Vec::new(),
             decrypted: false,
         };
 
-        // Note: Decryption would require signer implementation
-        // For now, we'll leave as empty
-        // In a full implementation:
-        // if let Some(signer) = &self.signer {
-        //     let pubkey = signer.get_public_key()?;
-        //     if let Ok(decrypted) = signer.nip44_decrypt(&pubkey, &event.content) {
-        //         if !decrypted.is_empty() {
-        //             if let Ok(content) = serde_json::from_str::<TokenContent>(&decrypted) {
-        //                 parsed.mint_url = content.mint;
-        //                 parsed.proofs = content.proofs;
-        //                 parsed.deleted_ids = content.del;
-        //                 parsed.decrypted = true;
-        //             }
-        //         }
-        //     }
-        // }
+        let signer = &self.signer_manager;
+
+        if signer.has_signer() {
+            let pubkey = signer.get_public_key()?;
+            if let Ok(decrypted) = signer.nip44_decrypt(&pubkey, &event.content) {
+                if !decrypted.is_empty() {
+                    if let Ok(content) = serde_json::from_str::<TokenContent>(&decrypted) {
+                        parsed.mint_url = content.mint;
+                        parsed.proofs = content.proofs;
+                        parsed.deleted_ids = content.del.unwrap_or_default();
+                        parsed.decrypted = true;
+                    } else if let Err(e) = serde_json::from_str::<TokenContent>(&decrypted) {
+                        warn!("Failed to parse 7375 token content: {}", e);
+                    }
+                }
+            }
+        } else {
+            warn!("No signer found for event 7375");
+        }
 
         Ok((parsed, None))
     }

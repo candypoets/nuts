@@ -33,9 +33,6 @@ impl Parser {
             decrypted: false,
         };
 
-        // Note: Decryption would require signer implementation
-        // For now, we'll leave decrypted as false
-        // In a full implementation:
         let signer = &self.signer_manager;
 
         if signer.has_signer() {

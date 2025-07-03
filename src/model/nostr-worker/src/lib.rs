@@ -22,7 +22,7 @@ pub mod utils;
 pub use db::NostrDB;
 pub use network::NetworkManager;
 pub use parser::Parser;
-pub use signer::{PrivateKeySigner, Signer, SignerManager, SignerManagerImpl};
+pub use signer::{PrivateKeySigner, SharedSignerManager, Signer, SignerManager, SignerManagerImpl};
 pub use types::*;
 
 // Re-export communication types for external use
@@ -76,7 +76,7 @@ macro_rules! console_error {
 
 // Worker implementation
 use js_sys::{SharedArrayBuffer, Uint8Array};
-use std::sync::{Arc, Mutex, Once};
+use std::sync::{Arc, Once};
 use tracing::info;
 
 use crate::types::network::Request;
@@ -168,7 +168,7 @@ const INDEXER_RELAYS: &[&str] = &[
 pub struct NostrClient {
     connection_registry: Arc<relays::ConnectionRegistry>,
     network_manager: Arc<NetworkManager>,
-    signer_manager: Arc<Mutex<SignerManagerImpl>>,
+    signer_manager: SharedSignerManager,
 }
 
 #[wasm_bindgen]
@@ -191,9 +191,12 @@ impl NostrClient {
                 e
             })
             .expect("Database initialization failed");
-        let signer_manager = Arc::new(Mutex::new(SignerManagerImpl::new()));
+        let shared_signer_manager: SharedSignerManager = Arc::new(SignerManagerImpl::new());
         let connection_registry = Arc::new(relays::ConnectionRegistry::new());
-        let parser = Arc::new(Parser::new(database.clone()));
+        let parser = Arc::new(Parser::new_with_signer(
+            shared_signer_manager.clone(),
+            database.clone(),
+        ));
         let network_manager = Arc::new(NetworkManager::new(
             database.clone(),
             connection_registry.clone() as Arc<relays::ConnectionRegistry>,
@@ -205,7 +208,7 @@ impl NostrClient {
         Self {
             connection_registry,
             network_manager,
-            signer_manager,
+            signer_manager: shared_signer_manager,
         }
     }
 
@@ -253,20 +256,18 @@ impl NostrClient {
             .map_err(|e| JsValue::from_str(&format!("Failed to parse event: {}", e)))?;
 
         // Sign the event using the signer manager
-        {
-            let signer_guard = self.signer_manager.lock().unwrap();
-            signer_guard
-                .sign_event(&mut event)
-                .map_err(|e| JsValue::from_str(&format!("Failed to sign event: {}", e)))?;
-        }
+        let signed_event = self
+            .signer_manager
+            .sign_event(&mut event)
+            .map_err(|e| JsValue::from_str(&format!("Failed to sign event: {}", e)))?;
 
         // Convert signed event back to JSON
-        let signed_event_json = serde_json::to_value(&event)
+        let signed_event_json = serde_json::to_value(&signed_event)
             .map_err(|e| JsValue::from_str(&format!("Failed to serialize signed event: {}", e)))?;
 
         // Send signed event back to main thread
         let signed_event_message = WorkerToMainMessage::SignedEvent {
-            content: event.content.clone(),
+            content: signed_event.content.clone(),
             signed_event: signed_event_json,
         };
 
@@ -288,20 +289,21 @@ impl NostrClient {
     }
 
     pub fn set_signer(&self, signer_type: String, private_key: String) -> Result<(), JsValue> {
-        let mut signer_guard = self.signer_manager.lock().unwrap();
-        signer_guard
-            .js_set_signer(&signer_type, Some(&private_key))
+        let signer_type_enum: SignerType = signer_type
+            .parse()
+            .map_err(|e| JsValue::from_str(&format!("Invalid signer type: {}", e)))?;
+
+        self.signer_manager
+            .set_signer(signer_type_enum, &private_key)
             .map_err(|e| JsValue::from_str(&format!("Failed to set signer: {}", e)))
     }
 
     pub fn get_public_key(&self) -> Result<(), JsValue> {
         // Get the public key from signer manager
-        let pubkey = {
-            let signer_guard = self.signer_manager.lock().unwrap();
-            signer_guard
-                .get_public_key()
-                .map_err(|e| JsValue::from_str(&format!("Failed to get public key: {}", e)))?
-        };
+        let pubkey = self
+            .signer_manager
+            .get_public_key()
+            .map_err(|e| JsValue::from_str(&format!("Failed to get public key: {}", e)))?;
 
         let pubkey_message = WorkerToMainMessage::PublicKey { public_key: pubkey };
 

@@ -111,23 +111,6 @@ impl SignerManagerImpl {
         Ok(())
     }
 
-    /// Handles JavaScript set signer requests
-    pub fn js_set_signer(
-        &mut self,
-        signer_type_str: &str,
-        signer_data: Option<&str>,
-    ) -> Result<()> {
-        debug!("Received set signer request: type={}", signer_type_str);
-
-        let signer_type: SignerType = signer_type_str.parse()?;
-        let data = signer_data.unwrap_or("");
-
-        self.set_signer(signer_type.clone(), data)?;
-
-        info!("Signer set successfully: {}", signer_type);
-        Ok(())
-    }
-
     /// Handles JavaScript NIP-04 encrypt requests
     pub fn js_nip04_encrypt(&self, recipient_pubkey: &str, plaintext: &str) -> Result<()> {
         debug!(
@@ -231,7 +214,7 @@ impl SignerManager for SignerManagerImpl {
     }
 
     /// Sets the current signer
-    fn set_signer(&mut self, signer_type: SignerType, signer_data: &str) -> Result<()> {
+    fn set_signer(&self, signer_type: SignerType, signer_data: &str) -> Result<()> {
         info!("Setting signer: type={}", signer_type);
 
         let new_signer = Self::create_signer(signer_type.clone(), signer_data)?;
@@ -372,14 +355,14 @@ impl WasmSignerManager {
             .map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
-    pub fn set_signer(
-        &mut self,
-        signer_type: &str,
-        signer_data: Option<String>,
-    ) -> Result<(), JsValue> {
-        let data = signer_data.as_deref();
+    pub fn set_signer(&self, signer_type: &str, data: Option<&str>) -> Result<(), JsValue> {
+        let signer_type_enum: SignerType = signer_type
+            .parse()
+            .map_err(|e| JsValue::from_str(&format!("Invalid signer type: {}", e)))?;
+        let signer_data = data.unwrap_or("");
+
         self.inner
-            .js_set_signer(signer_type, data)
+            .set_signer(signer_type_enum, signer_data)
             .map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
@@ -458,7 +441,7 @@ mod tests {
 
     #[test]
     fn test_set_signer() {
-        let mut manager = SignerManagerImpl::new();
+        let manager = SignerManagerImpl::new();
 
         // Set a signer with generated key
         assert!(manager.set_signer(SignerType::PrivKey, "").is_ok());
@@ -471,7 +454,7 @@ mod tests {
 
     #[test]
     fn test_sign_event() {
-        let mut manager = SignerManagerImpl::new();
+        let manager = SignerManagerImpl::new();
         manager.set_signer(SignerType::PrivKey, "").unwrap();
 
         // Create event using EventBuilder and sign it
@@ -485,7 +468,7 @@ mod tests {
 
     #[test]
     fn test_get_public_key() {
-        let mut manager = SignerManagerImpl::new();
+        let manager = SignerManagerImpl::new();
         manager.set_signer(SignerType::PrivKey, "").unwrap();
 
         let pubkey = manager.get_public_key().unwrap();
@@ -495,8 +478,8 @@ mod tests {
 
     #[test]
     fn test_nip04_encryption_decryption() {
-        let mut manager1 = SignerManagerImpl::new();
-        let mut manager2 = SignerManagerImpl::new();
+        let manager1 = SignerManagerImpl::new();
+        let manager2 = SignerManagerImpl::new();
 
         manager1.set_signer(SignerType::PrivKey, "").unwrap();
         manager2.set_signer(SignerType::PrivKey, "").unwrap();
@@ -516,8 +499,8 @@ mod tests {
 
     #[test]
     fn test_nip44_encryption_decryption() {
-        let mut manager1 = SignerManagerImpl::new();
-        let mut manager2 = SignerManagerImpl::new();
+        let manager1 = SignerManagerImpl::new();
+        let manager2 = SignerManagerImpl::new();
 
         manager1.set_signer(SignerType::PrivKey, "").unwrap();
         manager2.set_signer(SignerType::PrivKey, "").unwrap();

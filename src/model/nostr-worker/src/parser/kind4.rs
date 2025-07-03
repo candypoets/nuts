@@ -304,7 +304,7 @@ mod tests {
         use crate::types::SignerType;
 
         // Create signer manager and set up a private key signer
-        let mut signer_manager = create_signer_manager();
+        let signer_manager = create_signer_manager();
         signer_manager.set_signer(SignerType::PrivKey, "").unwrap(); // Generate new key
 
         let shared_signer = std::sync::Arc::new(signer_manager);

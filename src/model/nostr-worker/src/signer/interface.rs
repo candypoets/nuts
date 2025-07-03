@@ -41,7 +41,7 @@ pub trait SignerManager: Send + Sync {
     fn get_public_key(&self) -> Result<String>;
 
     /// Sets the current signer
-    fn set_signer(&mut self, signer_type: SignerType, signer_data: &str) -> Result<()>;
+    fn set_signer(&self, signer_type: SignerType, signer_data: &str) -> Result<()>;
 
     /// Gets the current signer type
     fn get_signer_type(&self) -> Option<SignerType>;
