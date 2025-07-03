@@ -15,6 +15,7 @@
 	// read-only, but visible to consumers via bind:start
 	export let start = 0;
 	export let end = 0;
+	export let down = true;
 
 	// local state
 	let height_map = [];
@@ -28,6 +29,7 @@
 	export let top = 0;
 	let bottom = 0;
 	let average_height;
+	let lastScrollTop = 0;
 
 	function reverseScroll(event) {
 		event.preventDefault();
@@ -97,6 +99,10 @@
 
 	async function handle_scroll() {
 		let { scrollTop } = viewport;
+
+		// Track scroll direction (inverted because of rotateZ(180deg) transform)
+		down = scrollTop < lastScrollTop;
+		lastScrollTop = down ? scrollTop - 5 : scrollTop + 5;
 
 		const old_start = start;
 

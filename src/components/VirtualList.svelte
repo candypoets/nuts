@@ -72,16 +72,18 @@
 		height_map.length = items.length;
 	}
 
-	let lastScrollTop = top;
+	let lastScrollTop = 0;
+	let touchStartY = 0;
+	let touchStartX = 0;
 
 	export let down = true;
 
 	async function handle_scroll(event) {
 		const { scrollTop } = viewport;
 
-		down = event.deltaY > 0;
-
-		lastScrollTop = scrollTop;
+		// Track scroll direction based on scroll position change
+		down = scrollTop > lastScrollTop; 
+		lastScrollTop = down ? scrollTop - 5 : scrollTop + 5;
 
 		const old_start = start;
 
@@ -150,6 +152,29 @@
 		// more. maybe we can just call handle_scroll again?
 	}
 
+	function handleTouchStart(event) {
+		touchStartY = event.touches[0].clientY;
+		touchStartX = event.touches[0].clientX;
+	}
+
+	function handleTouchMove(event) {
+		const touchCurrentY = event.touches[0].clientY;
+		const touchCurrentX = event.touches[0].clientX;
+
+		const deltaY = Math.abs(touchCurrentY - touchStartY);
+		const deltaX = Math.abs(touchCurrentX - touchStartX);
+
+		// Check if this is primarily a Y-axis gesture
+		const isYAxisGesture = deltaY > deltaX && deltaY > 10;
+
+		if (isYAxisGesture) {
+			// Only stop propagation if we're not at the top of the scroll
+			if (viewport.scrollTop > 0) {
+				event.stopPropagation();
+			}
+		}
+	}
+
 	// trigger initial refresh
 	onMount(() => {
 		rows = contents.getElementsByTagName('svelte-virtual-list-row');
@@ -165,6 +190,8 @@
 	on:scroll={handle_scroll}
 	class={'max-h-screen ' + className || ''}
 	style="height: {height};"
+	on:touchstart={handleTouchStart}
+	on:touchmove={handleTouchMove}
 >
 	<svelte-virtual-list-contents
 		bind:this={contents}
