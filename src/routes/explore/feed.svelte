@@ -70,7 +70,6 @@
 
 	// In a separate function to avoid infinite loops in the reactive block
 	const handleEvents = (events: ParsedEvent<AnyKind>[], eventKind: SubscribeKind, page = 0) => {
-		console.log(subscriptionID, eventKind, events);
 		if (eventKind == 'EOSE') {
 			if (events.remainingConnections / events.totalConnections <= 0.8 && eose == false) {
 				loading = false;
@@ -114,7 +113,6 @@
 				// cached event are filtered and sorted in the worker
 				cachedFeed = [...cachedFeed, [event, _.uniqBy(context, 'id')]];
 			} else if (!eose) {
-				console.log('hey', subscriptionID, eventKind, events);
 				fetchedFeed = [[event, _.uniqBy(context, 'id')], ...fetchedFeed];
 			} else {
 				if (!page) {
@@ -235,22 +233,18 @@
 >
 	{#if start >= 1}
 		<!-- Fixed header (only visible when scrolled) -->
-		{#if !down}
-			<div class="absolute z-10 w-full" out:slide|local>
-				<div
-					class="w-feed m-auto"
-					on:click={() => viewport.scrollTo({ top: 0, behavior: 'smooth' })}
-				>
-					<slot name="sticky-header" visible={true} scrolled={true} {newPosts} />
-				</div>
+		<div class="absolute z-10 w-full sticky-header" style="--header-visible: {down ? 0 : 1};">
+			<div class="w-feed m-auto" on:click={() => viewport.scrollTo({ top: 0, behavior: 'smooth' })}>
+				<slot name="sticky-header" visible={true} scrolled={true} {newPosts} />
 			</div>
-		{/if}
+		</div>
 	{/if}
 	<div class="absolute z-10 w-full">
 		<div class="w-feed m-auto">
 			<slot name="fixed-header" {start} />
 		</div>
 	</div>
+
 	<svelte:component
 		this={bottom ? VirtualListBottom : VirtualList}
 		items={search ? filteredFeed : feed}
@@ -284,3 +278,17 @@
 		</div>
 	</svelte:component>
 </div>
+
+<style>
+	.sticky-header {
+		opacity: var(--header-visible);
+		transform: translate3d(0, calc((1 - var(--header-visible)) * -100%), 0);
+		transition:
+			opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+			transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+		will-change: opacity, transform;
+		contain: layout style paint;
+		backface-visibility: hidden;
+		-webkit-backface-visibility: hidden;
+	}
+</style>

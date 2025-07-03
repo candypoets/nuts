@@ -5,7 +5,7 @@
 	import Notifications from 'src/routes/notifications/index.svelte';
 	import { goBack } from 'src/routes/modals/modal';
 
-	import { cubicOut, elasticOut } from 'svelte/easing';
+	import { cubicOut, elasticOut, quintOut } from 'svelte/easing';
 	import { tweened } from 'svelte/motion';
 	import { fly } from 'svelte/transition';
 	import { viewport } from 'src/controller/viewport';
@@ -25,8 +25,8 @@
 
 	// Tweened store for smooth swipe animation
 	const swipeTranslateX = tweened(0, {
-		duration: 300,
-		easing: cubicOut
+		duration: 400,
+		easing: quintOut
 	});
 
 	function handleTouchStart(e: TouchEvent) {
@@ -84,33 +84,33 @@
 
 	// Create a tweened store for the depth-based translation
 	const depthTranslation = tweened(0, {
-		duration: 400,
-		easing: cubicOut
+		duration: 500,
+		easing: quintOut
 	});
 
 	const depthScale = tweened(1, {
-		duration: 400,
-		easing: cubicOut
+		duration: 500,
+		easing: quintOut
 	});
 
 	const depthOpacity = tweened(1, {
-		duration: 400,
-		easing: cubicOut
+		duration: 500,
+		easing: quintOut
 	});
 
 	const modalDepthTranslation = tweened(0, {
-		duration: 400,
-		easing: cubicOut
+		duration: 450,
+		easing: quintOut
 	});
 
 	const modalDepthScale = tweened(1, {
-		duration: 400,
-		easing: cubicOut
+		duration: 450,
+		easing: quintOut
 	});
 
 	const modalDepthOpacity = tweened(1, {
-		duration: 400,
-		easing: cubicOut
+		duration: 450,
+		easing: quintOut
 	});
 
 	// Update the tweened value when depth changes
@@ -128,13 +128,16 @@
 <div
 	class="absolute right-0 top-0 h-screen lg:p-2 z-20"
 	bind:this={element}
-	in:fly={{ x: $viewport.vw * 50, duration: 400, opacity: 1, easing: cubicOut }}
-	out:fly={{ x: element.offsetWidth, duration: 300, opacity: 1, easing: elasticOut }}
+	in:fly={{ x: $viewport.vw * 50, duration: 500, opacity: 1, easing: quintOut }}
+	out:fly={{ x: element.offsetWidth, duration: 400, opacity: 1, easing: elasticOut }}
 >
 	<div
-		class="lg:border bg-base-300 bg-opacity-80 border-base-300 h-screen lg:rounded-xl overflow-hidden lg:px-2 backdrop-blur-sm"
-		style="transform: translateX({-$depthTranslation +
-			$swipeTranslateX}px) translateY(-{$modalDepthTranslation}px) scale({scale}); opacity: {$depthOpacity};"
+		class="lg:border bg-base-300 bg-opacity-80 border-base-300 h-screen lg:rounded-xl overflow-hidden lg:px-2 backdrop-blur-sm transition-gpu"
+		style="transform: translate3d({-$depthTranslation +
+			$swipeTranslateX}px, {-$modalDepthTranslation}px, 0) scale({scale});
+			opacity: {$depthOpacity};
+			backface-visibility: hidden;
+			-webkit-backface-visibility: hidden;"
 		on:touchstart|stopPropagation={handleTouchStart}
 		on:touchmove|stopPropagation={handleTouchMove}
 		on:touchend|stopPropagation={handleTouchEnd}
@@ -150,3 +153,11 @@
 		{/if}
 	</div>
 </div>
+
+<style>
+	.transition-gpu {
+		transform-origin: center center;
+		contain: layout style paint;
+		will-change: transform, opacity;
+	}
+</style>

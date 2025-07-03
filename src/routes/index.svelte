@@ -3,6 +3,7 @@
 
 	import { onMount } from 'svelte';
 	import { spring } from 'svelte/motion';
+	import { quintOut } from 'svelte/easing';
 	import { pwaInfo } from 'virtual:pwa-info';
 
 	import { goto } from '$app/navigation';
@@ -46,13 +47,13 @@
 
 	// Create a spring store for smooth animations
 	const xPosition = spring(0, {
-		stiffness: 0.1,
-		damping: 1
+		stiffness: 0.15,
+		damping: 0.8
 	});
 
 	const scrollPosition = spring(0, {
-		stiffness: 0.1, // Lower for slower, softer animation
-		damping: 1 // Adjust for bounce effect
+		stiffness: 0.15, // Lower for slower, softer animation
+		damping: 0.8 // Adjust for bounce effect
 	});
 
 	$: if (scroller) {
@@ -254,8 +255,11 @@
 
 		goto(pages[index]);
 		// Update scroll and position stores
-		$scrollPosition = (currentIndex * scrollerWidth) / 2;
-		$xPosition = currentIndex * scrollerWidth;
+		const targetX = currentIndex * scrollerWidth;
+		const targetScroll = (currentIndex * scrollerWidth) / 2;
+
+		scrollPosition.set(targetScroll);
+		xPosition.set(targetX);
 	}
 
 	function handleTouchStart(e: TouchEvent) {
@@ -274,13 +278,14 @@
 		const deltaY = touchCurrentY - touchStartY;
 
 		// Only consider horizontal swipes (more horizontal than vertical movement)
-		if (Math.abs(deltaX) > Math.abs(deltaY)) {
+		if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 10) {
 			isSwiping = true;
-			// Cancel horizontal scrolling
+			// Prevent all scrolling and default behavior
 			e.preventDefault();
+			e.stopPropagation();
 			// Update xPosition with swipe movement
 			xPosition.set(startXPosition - deltaX, { hard: true });
-			$scrollPosition = startXPosition - deltaX / 2;
+			scrollPosition.set((startXPosition - deltaX) / 2, { hard: true });
 		}
 	}
 
@@ -306,6 +311,7 @@
 		} else {
 			// Swipe wasn't far enough, snap back to current position
 			xPosition.set(currentIndex * containerWidth);
+			scrollPosition.set((currentIndex * containerWidth) / 2);
 		}
 
 		isSwiping = false;
@@ -323,20 +329,18 @@
 	<Alert />
 	{#if $key?.pub}
 		<div
-			class="flex gap-2 overflow-hidden relative will-change-scroll"
+			class="carousel-container flex gap-2"
 			bind:this={scroller}
 			on:touchstart={handleTouchStart}
 			on:touchmove={handleTouchMove}
 			on:touchend={handleTouchEnd}
-			style="transform-style: preserve-3d; perspective: 1000px;"
+			style="--transform0: {transform0}; --transform1: {transform1}; --transform2: {transform2}; --current-index: {currentIndex}; --is-mobile: {$isMobile
+				? 1
+				: 0};"
 		>
 			<!-- Home Section -->
 			<div
-				class="carousel-item w-[100vw] will-change-transform"
-				style="transform: translateZ({transform0 * ($isMobile ? 0 : 10)}px) rotateY({(1 -
-					($isMobile ? 0 : transform0)) *
-					(0 - currentIndex) *
-					30}deg) scale({$isMobile ? 1 : transform0}); opacity: {transform0};"
+				class="carousel-item w-[100vw] will-change-transform carousel-item-0"
 				class:z-10={currentIndex == 0}
 				on:click={(e) => {
 					if (currentIndex != 0) {
@@ -355,13 +359,8 @@
 
 			<!-- Explore Section -->
 			<div
-				class="carousel-item w-[100vw] h-full will-change-transform"
+				class="carousel-item w-[100vw] h-full will-change-transform carousel-item-1"
 				class:z-10={currentIndex == 1}
-				style="transform: translateZ({transform1 * ($isMobile ? 0 : 10)}px) rotateY({(1 -
-					($isMobile ? 0 : transform1)) *
-					(1 - currentIndex) *
-					30}deg) scale({$isMobile ? 1 : transform1}); opacity: {transform1};; margin-right: -{50 *
-					$viewport.vw}px; margin-left: -{50 * $viewport.vw}px"
 				on:click={(e) => {
 					if (currentIndex != 1) {
 						e.preventDefault();
@@ -406,3 +405,54 @@
 {:else}
 	<Landing />
 {/if}
+
+<style>
+	.carousel-container {
+		transform-style: preserve-3d;
+		perspective: 1000px;
+		backface-visibility: hidden;
+		overflow: hidden;
+		user-select: none;
+		transform: translateZ(0);
+	}
+
+	.carousel-item-0 {
+		transform: translate3d(0, 0, calc(var(--transform0) * (1 - var(--is-mobile)) * 10px))
+			rotateY(
+				calc((1 - var(--is-mobile)) * (1 - var(--transform0)) * (0 - var(--current-index)) * 30deg)
+			)
+			scale(calc(var(--is-mobile) + (1 - var(--is-mobile)) * var(--transform0)));
+		opacity: calc(var(--is-mobile) + (1 - var(--is-mobile)) * var(--transform0));
+		transform-origin: center center;
+		contain: layout style paint;
+		backface-visibility: hidden;
+	}
+
+	.carousel-item-1 {
+		transform: translate3d(-50vw, 0, calc(var(--transform1) * (1 - var(--is-mobile)) * 10px))
+			rotateY(
+				calc((1 - var(--is-mobile)) * (1 - var(--transform1)) * (1 - var(--current-index)) * 30deg)
+			)
+			scale(calc(var(--is-mobile) + (1 - var(--is-mobile)) * var(--transform1)));
+		opacity: calc(var(--is-mobile) + (1 - var(--is-mobile)) * var(--transform1));
+		transform-origin: center center;
+		contain: layout style paint;
+		backface-visibility: hidden;
+	}
+
+	.carousel-item-2 {
+		transform: translate3d(0, 0, calc(var(--transform2) * (1 - var(--is-mobile)) * 10px))
+			rotateY(
+				calc((1 - var(--is-mobile)) * (1 - var(--transform2)) * (2 - var(--current-index)) * 30deg)
+			)
+			scale(calc(var(--is-mobile) + (1 - var(--is-mobile)) * var(--transform2)));
+		opacity: calc(var(--is-mobile) + (1 - var(--is-mobile)) * var(--transform2));
+		transform-origin: center center;
+		contain: layout style paint;
+		backface-visibility: hidden;
+	}
+
+	.carousel-item {
+		/* Remove CSS transitions to let spring handle all animations */
+	}
+</style>

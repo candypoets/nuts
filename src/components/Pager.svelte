@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { cubicOut } from 'svelte/easing';
+	import { cubicOut, quintOut } from 'svelte/easing';
 	import { tweened } from 'svelte/motion';
 
 	import Kind from 'src/routes/_kinds/index.svelte';
@@ -15,13 +15,13 @@
 	let depth = 0;
 
 	$: subTweened = tweened(0, {
-		duration: 400,
-		easing: cubicOut
+		duration: 600,
+		easing: quintOut
 	});
 
 	$: modalTweened = tweened(0, {
-		duration: 400,
-		easing: cubicOut
+		duration: 500,
+		easing: quintOut
 	});
 
 	$: {
@@ -42,14 +42,14 @@
 
 	// Create a tweened store for the depth-based translation
 	const subDepth = tweened(0, {
-		duration: 400,
-		easing: cubicOut
+		duration: 600,
+		easing: quintOut
 	});
 
 	// Create a tweened store for the modal depth-based translation
 	const modalDepth = tweened(0, {
-		duration: 400,
-		easing: cubicOut
+		duration: 500,
+		easing: quintOut
 	});
 
 	// Update the modal tweened value when depth changes
@@ -62,12 +62,15 @@
 </script>
 
 <div
-	style="transform: translateX({-$subTweened *
-		($viewport.vw * 20 + $subDepth)}px) translateY(-{$modalDepth}px) scale({(200 - $modalDepth) /
-		200}) rotateY({$subTweened * -20}deg);
-         transform-style: preserve-3d; perspective: 1000px;"
+	style="transform: translate3d({-$subTweened *
+		($viewport.vw * 20 + $subDepth)}px, {-$modalDepth}px, 0)
+		scale({(200 - $modalDepth) / 200}) rotateY({$subTweened * -20}deg);
+		transform-style: preserve-3d;
+		perspective: 1000px;
+		backface-visibility: hidden;
+		-webkit-backface-visibility: hidden;"
 	on:click={() => goto(rootPath)}
-	class="will-change-transform"
+	class="will-change-transform transition-gpu"
 >
 	<slot />
 </div>
@@ -75,3 +78,11 @@
 <Kind {rootPath} bind:subs {modals} />
 
 <Modal {rootPath} bind:modals bind:depth />
+
+<style>
+	.transition-gpu {
+		transform-origin: center center;
+		contain: layout style paint;
+		will-change: transform;
+	}
+</style>
