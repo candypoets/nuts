@@ -1,5 +1,5 @@
 import { sveltekit } from '@sveltejs/kit/vite';
-// import { VitePWA } from "vite-plugin-pwa";
+import basicSsl from '@vitejs/plugin-basic-ssl';
 import { SvelteKitPWA as VitePWA } from '@vite-pwa/sveltekit';
 
 import { defineConfig } from 'vite';
@@ -13,6 +13,8 @@ export default defineConfig({
 	// WARN: this will not be necessary on your project
 	logLevel: 'info',
 	server: {
+		proxy: {},
+		host: true,
 		fs: {
 			// Allow serving files from hoisted root node_modules
 			// allow: ['../..']
@@ -43,6 +45,7 @@ export default defineConfig({
 	// 	exclude: ['./go/wasm_exec.js']
 	// },
 	plugins: [
+		basicSsl(),
 		wasm(),
 		topLevelAwait(),
 		sveltekit(),
