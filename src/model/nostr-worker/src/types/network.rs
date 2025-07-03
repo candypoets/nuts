@@ -127,36 +127,46 @@ impl Request {
                     match tag_char {
                         'a'..='z' | 'A'..='Z' => {
                             let alphabet = match tag_char.to_ascii_lowercase() {
-                                'a' => Alphabet::A,
-                                'b' => Alphabet::B,
-                                'c' => Alphabet::C,
-                                'd' => Alphabet::D,
-                                'e' => Alphabet::E,
-                                'f' => Alphabet::F,
-                                'g' => Alphabet::G,
-                                'h' => Alphabet::H,
-                                'i' => Alphabet::I,
-                                'j' => Alphabet::J,
-                                'k' => Alphabet::K,
-                                'l' => Alphabet::L,
-                                'm' => Alphabet::M,
-                                'n' => Alphabet::N,
-                                'o' => Alphabet::O,
-                                'p' => Alphabet::P,
-                                'q' => Alphabet::Q,
-                                'r' => Alphabet::R,
-                                's' => Alphabet::S,
-                                't' => Alphabet::T,
-                                'u' => Alphabet::U,
-                                'v' => Alphabet::V,
-                                'w' => Alphabet::W,
-                                'x' => Alphabet::X,
-                                'y' => Alphabet::Y,
-                                'z' => Alphabet::Z,
-                                _ => unreachable!(),
+                                'a' => Some(Alphabet::A),
+                                'b' => Some(Alphabet::B),
+                                'c' => Some(Alphabet::C),
+                                'd' => Some(Alphabet::D),
+                                'e' => Some(Alphabet::E),
+                                'f' => Some(Alphabet::F),
+                                'g' => Some(Alphabet::G),
+                                'h' => Some(Alphabet::H),
+                                'i' => Some(Alphabet::I),
+                                'j' => Some(Alphabet::J),
+                                'k' => Some(Alphabet::K),
+                                'l' => Some(Alphabet::L),
+                                'm' => Some(Alphabet::M),
+                                'n' => Some(Alphabet::N),
+                                'o' => Some(Alphabet::O),
+                                'p' => Some(Alphabet::P),
+                                'q' => Some(Alphabet::Q),
+                                'r' => Some(Alphabet::R),
+                                's' => Some(Alphabet::S),
+                                't' => Some(Alphabet::T),
+                                'u' => Some(Alphabet::U),
+                                'v' => Some(Alphabet::V),
+                                'w' => Some(Alphabet::W),
+                                'x' => Some(Alphabet::X),
+                                'y' => Some(Alphabet::Y),
+                                'z' => Some(Alphabet::Z),
+                                _ => {
+                                    debug!(
+                                        "Unexpected character after to_ascii_lowercase: '{}' (original: '{}')",
+                                        tag_char.to_ascii_lowercase(),
+                                        tag_char
+                                    );
+                                    None
+                                }
                             };
-                            let single_letter_tag = SingleLetterTag::lowercase(alphabet);
-                            filter = filter.custom_tag(single_letter_tag, tag_values.clone());
+
+                            if let Some(alphabet) = alphabet {
+                                let single_letter_tag = SingleLetterTag::lowercase(alphabet);
+                                filter = filter.custom_tag(single_letter_tag, tag_values.clone());
+                            }
                         }
                         _ => {
                             // This case handles non-alphabetic characters in tag names

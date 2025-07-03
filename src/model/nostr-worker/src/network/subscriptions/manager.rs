@@ -112,8 +112,9 @@ impl SubscriptionManager {
     ) -> Result<()> {
         debug!("Processing subscription: {}", subscription_id);
 
-        // track unique event IDs
+        // track unique event IDs with size limit to prevent memory issues
         let mut sent_ids: HashSet<[u8; 32]> = HashSet::new();
+        const MAX_SENT_IDS: usize = 10000; // Limit to prevent excessive memory usage
 
         let (network_requests, events) = match self
             .cache_processor
@@ -135,7 +136,9 @@ impl SubscriptionManager {
             // Update sent_ids with all event IDs from cached events
             for event_batch in &events {
                 if let Some(first_event) = event_batch.first() {
-                    sent_ids.insert(first_event.event.id.to_bytes());
+                    if sent_ids.len() < MAX_SENT_IDS {
+                        sent_ids.insert(first_event.event.id.to_bytes());
+                    }
                 }
             }
             self.send_cached_events(&subscription_id, &events).await;
@@ -335,7 +338,19 @@ impl SubscriptionManager {
         };
 
         let data = match rmp_serde::to_vec_named(&message) {
-            Ok(msgpack) => msgpack,
+            Ok(msgpack) => {
+                // Safety check: prevent excessive serialized data
+                if msgpack.len() > 512 * 1024 {
+                    // 512KB limit
+                    warn!(
+                        "Serialized data too large: {} bytes for subscription {}",
+                        msgpack.len(),
+                        subscription_id
+                    );
+                    return;
+                }
+                msgpack
+            }
             Err(e) => {
                 error!(
                     "Failed to serialize event for subscription {}: {}",
@@ -349,6 +364,17 @@ impl SubscriptionManager {
     }
 
     async fn send_cached_events(&self, subscription_id: &str, events: &[Vec<ParsedEvent>]) {
+        // Safety check: prevent excessive memory allocation
+        let total_events: usize = events.iter().map(|batch| batch.len()).sum();
+        if total_events > 1000 {
+            // Limit total number of cached events
+            warn!(
+                "Too many cached events: {} for subscription {}",
+                total_events, subscription_id
+            );
+            return;
+        }
+
         // Convert ParsedEvents to SerializableParsedEvent to ensure id and sig fields are hex strings
         let serializable_events: Vec<Vec<SerializableParsedEvent>> = events
             .iter()
@@ -367,7 +393,19 @@ impl SubscriptionManager {
         };
 
         let data = match rmp_serde::to_vec_named(&message) {
-            Ok(msgpack) => msgpack,
+            Ok(msgpack) => {
+                // Safety check: prevent excessive serialized data
+                if msgpack.len() > 1024 * 1024 {
+                    // 1MB limit for cached events
+                    warn!(
+                        "Serialized cached data too large: {} bytes for subscription {}",
+                        msgpack.len(),
+                        subscription_id
+                    );
+                    return;
+                }
+                msgpack
+            }
             Err(e) => {
                 error!(
                     "Failed to serialize cached events for subscription {}: {}",
@@ -425,10 +463,9 @@ impl SubscriptionManager {
             Self::write_to_buffer(shared_buffer, subscription_id, data).await;
         } else {
             warn!(
-                "No SharedArrayBuffer found for subscription: {}, falling back to post_message",
+                "No SharedArrayBuffer found for subscription: {}, dropping message",
                 subscription_id
             );
-            Self::post_message(data).await;
         }
     }
 
@@ -437,6 +474,18 @@ impl SubscriptionManager {
         subscription_id: &str,
         data: &[u8],
     ) {
+        // Add safety checks for data size
+        if data.len() > 1024 * 1024 {
+            // 1MB limit
+            warn!(
+                "Data too large for SharedArrayBuffer: {} bytes for subscription {}",
+                data.len(),
+                subscription_id
+            );
+            warn!("Dropping message due to size limit");
+            return;
+        }
+
         // Get the buffer as Uint8Array for manipulation
         let buffer_uint8 = Uint8Array::new(shared_buffer);
         let buffer_length = buffer_uint8.length() as usize;
@@ -450,6 +499,16 @@ impl SubscriptionManager {
         header_array.copy_from_slice(&header_bytes);
         let current_write_pos = u32::from_le_bytes(header_array) as usize;
 
+        // Safety check for current write position
+        if current_write_pos >= buffer_length {
+            warn!(
+                "Invalid write position {} >= buffer length {} for subscription {}",
+                current_write_pos, buffer_length, subscription_id
+            );
+            warn!("Dropping message due to invalid write position");
+            return;
+        }
+
         // Check if we have enough space (4 bytes write position header + 4 bytes length prefix + data)
         let new_write_pos = current_write_pos + 4 + data.len(); // +4 for length prefix
         if new_write_pos > buffer_length {
@@ -457,8 +516,8 @@ impl SubscriptionManager {
                 "SharedArrayBuffer overflow for subscription {}: trying to write {} bytes at position {}, buffer size {}",
                 subscription_id, data.len() + 4, current_write_pos, buffer_length
             );
-            // Fall back to post_message if buffer is full
-            // Self::post_message(data).await;
+            // Drop message if buffer is full
+            warn!("Dropping message due to buffer overflow");
             return;
         }
 
@@ -483,25 +542,5 @@ impl SubscriptionManager {
             current_write_pos,
             new_write_pos
         );
-    }
-
-    async fn post_message(data: &[u8]) {
-        // Create a Uint8Array from the data
-        let uint8_array = Uint8Array::from(data);
-
-        // Get the ArrayBuffer from the Uint8Array for transferring
-        let array_buffer = uint8_array.buffer();
-
-        // Create transfer array
-        let transfer_array = Array::new();
-        transfer_array.push(&array_buffer);
-
-        web_sys::js_sys::global()
-            .dyn_ref::<web_sys::DedicatedWorkerGlobalScope>()
-            .unwrap()
-            .post_message_with_transfer(&uint8_array, &transfer_array)
-            .unwrap_or_else(|e| {
-                error!("Failed to post message: {:?}", e);
-            });
     }
 }
