@@ -91,7 +91,7 @@ features = [
 ]
 
 [features]
-default = ["full", "wee_alloc"]
+default = ["full"]
 wee_alloc = ["dep:wee_alloc"]
 
 # Full feature set - includes all heavy dependencies
