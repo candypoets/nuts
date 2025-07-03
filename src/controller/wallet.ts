@@ -62,36 +62,35 @@ export const balance = derived(balanceByMint, ($balanceByMint) => {
 export const deletedKind7375Ids = writable<string[]>([]);
 
 export function proofsByMint() {
-	// Group by mint URL
+	// Group proofs by mint URL using eventsByMint as wrapper
 	const groupedByMint: Record<string, ProofUnion[]> = {};
+	const eventsByMintData = eventsByMint();
 
-	for (const event of get(kinds7375)) {
-		if (get(deletedKind7375Ids).includes(event.id)) {
-			continue;
-		}
-		if (event.parsed && event.parsed?.mintUrl) {
-			const normalizedMintUrl = normalizeURL(event.parsed.mintUrl).replace(/\/$/, '');
-			if (!groupedByMint[normalizedMintUrl]) {
-				groupedByMint[normalizedMintUrl] = [];
-			}
-			// Check if the proof is locked to a specific pubkey
-			if (event.parsed?.proofs && event.parsed.proofs.length > 0) {
-				for (const proof of event.parsed.proofs) {
-					if (proof.secret && proof.secret.includes('p2pk:')) {
-						// This proof is locked to a p2pk address
-						const p2pkMatch = proof.secret.match(/p2pk:([a-f0-9]+)/i);
-						if (p2pkMatch && p2pkMatch[1]) {
-							// Check if the proof's pubkey matches the p2pkPubKey in kind17375
-							if (get(kind17375)?.parsed?.p2pkPubKey === p2pkMatch[1]) {
-								// If it matches, push the event to the appropriate mint entry
-								groupedByMint[normalizedMintUrl].push(proof);
-							}
-						}
-					}
-				}
+	for (const [mintUrl, events] of Object.entries(eventsByMintData)) {
+		const allProofs: ProofUnion[] = [];
+
+		// Collect all proofs from all events for this mint
+		for (const event of events) {
+			if (event.parsed?.proofs) {
+				allProofs.push(...event.parsed.proofs);
 			}
 		}
+
+		// Deduplicate proofs based on id, secret, and C
+		const uniqueProofs: ProofUnion[] = [];
+		const seenProofs = new Set<string>();
+
+		for (const proof of allProofs) {
+			const proofKey = `${proof.id}-${proof.secret}-${proof.C}`;
+			if (!seenProofs.has(proofKey)) {
+				seenProofs.add(proofKey);
+				uniqueProofs.push(proof);
+			}
+		}
+
+		groupedByMint[mintUrl] = uniqueProofs;
 	}
+
 	return groupedByMint;
 }
 

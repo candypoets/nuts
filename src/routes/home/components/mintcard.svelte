@@ -7,7 +7,7 @@
 	export let size = 'lg';
 	export let navigate = false;
 
-	$: balance = $balanceByMint[mint.url] || 0;
+	$: balance = $balanceByMint[mint?.url] || 0;
 
 	$: errorRatio =
 		mint?.n_errors && mint?.n_mints

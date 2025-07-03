@@ -678,6 +678,10 @@ func (wm *WalletManager) callWallet(this js.Value, args []js.Value) any {
 			}
 
 			result, err = wal.CheckProofState(mintURL, proofs, true)
+			if err != nil {
+				err = fmt.Errorf("error checking proofs: %w", err)
+				break
+			}
 
 		case "RemoveSpentProofs":
 			err = wal.RemoveSpentProofs()
