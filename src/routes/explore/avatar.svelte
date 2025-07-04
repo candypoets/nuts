@@ -37,7 +37,7 @@
 		proxiedImageUrl = imageUrl ? proxyAvatarUrl(imageUrl) : undefined;
 		if (!profile && query) {
 			sub = useSharedSubscription(
-				'av_' + pubkey,
+				'u_' + pubkey,
 				[
 					{
 						kinds: [0],

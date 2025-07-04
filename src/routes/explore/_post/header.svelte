@@ -97,7 +97,7 @@
 					<div class="whitespace-nowrap overflow-hidden text-ellipsis font-semibold">
 						{author?.name && $isMobile && author.name.length > 25
 							? author.name.slice(0, 25) + '...'
-							: author?.name || note.pubkey.slice(0, 15) + '...'}
+							: author?.name || note.pubkey?.slice(0, 15) + '...'}
 					</div>
 				</a>
 				{#if author?.nip05}
@@ -111,7 +111,7 @@
 							<div class="whitespace-nowrap overflow-hidden text-ellipsis">
 								{author?.name && $isMobile && author.name.length > 25
 									? author.name.slice(0, 25) + '...'
-									: author?.name || note.pubkey.slice(0, 15) + '...'}
+									: author?.name || note.pubkey?.slice(0, 15) + '...'}
 							</div>
 						</a>
 						<Icon icon="bitcoin-icons:verify-filled" class="inline text-lg text-primary" />
