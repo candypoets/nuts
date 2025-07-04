@@ -8,3 +8,5 @@ export const viewport = derived(dimensions, ($dimensions) => ({
 }));
 
 export const isMobile = derived(dimensions, ($dimensions) => $dimensions.width <= 768);
+
+export const down = writable(false);
