@@ -181,21 +181,24 @@
 	};
 </script>
 
-<div class="flex items-center h-screen">
+<div class="flex items-start md:items-center h-screen">
 	<div
-		class="bg-base-300 bg-opacity-85 border rounded-xl p-4 w-feed max-h-[90vh] lg:h-auto overflow-scroll scroll-auto backdrop-blur-sm"
+		class="bg-base-300 bg-opacity-85 md:border rounded-xl md:p-4 w-feed md:max-h-[90vh] lg:h-auto h-screen overflow-scroll scroll-auto backdrop-blur-sm safe-padding-top"
 		style="-webkit-overflow-scrolling: touch;"
 		bind:this={scroller}
 	>
 		<div>
+			<button on:click={goBack} class="btn btn-ghost btn-sm">
+				<Icon icon="mingcute:down-line" class="text-xl" />
+			</button>
 			{#if note}
-				<div class="">
+				<div class="p-4">
 					<Note {note} context={[]} footer={false} showRoot={false} visible />
 				</div>
+				<div class="mx-8 mt-4 border-b border-gray-600"></div>
 			{/if}
-			<div class="mx-8 mt-4 border-b border-gray-600"></div>
-			<div class="p-4">
-				<div class="flex gap-4 items-center">
+			<div class="md:p-4">
+				<div class="flex md:gap-4 items-center">
 					<div class="w-1/2 text-center">
 						<MintSelector />
 					</div>
@@ -214,7 +217,7 @@
 		</div>
 		<div>
 			<div class="w-full gap-3">
-				<div class="h-52 flex flex-col items-center">
+				<div class="md:h-52 flex flex-col items-center">
 					{#if !status}
 						<input
 							autofocus
@@ -224,7 +227,7 @@
 							inputmode="decimal"
 							autocomplete="off"
 							bind:value={amount}
-							class="mt-10 text-7xl bg-base-content text-primary-content focus:outline-none text-center max-w-xs rounded-xl"
+							class="mt-10 text-7xl bg-transparent caret-transparent focus:outline-none text-center max-w-xs rounded-xl"
 							on:keydown={(e) => {
 								if (!!processing) return;
 								if (e.key === 'Enter') {
@@ -236,16 +239,21 @@
 						<p class="font-bold text-xl">Sats</p>
 					{:else}
 						<div
-							class="mt-10 w-1/2 bg-base-content text-center text-primary-content p-4 rounded-xl"
+							class="md:mt-10 w-1/2 bg-base-content text-center text-primary-content p-4 rounded-xl"
 						>
 							{status}
 						</div>
 					{/if}
 				</div>
 			</div>
-
-			<div class="px-4 w-full mt-36">
-				<div class="join w-full">
+			<div class="px-4 w-full md:mt-36">
+				<input
+					type="text"
+					placeholder="Add a memo"
+					bind:value={memo}
+					class="input w-full join-item md:hidden block my-4 input-bordered"
+				/>
+				<div class="join w-full pb-4">
 					<label class="swap join-item border bg-base-300">
 						<input type="checkbox" bind:checked={zap} />
 						<div class="swap-on px-4">
@@ -255,13 +263,13 @@
 					</label>
 					<input
 						type="text"
-						class="input w-full join-item"
+						class="input input-bordered w-full join-item md:block hidden"
 						placeholder="Add a memo"
 						bind:value={memo}
 					/>
 
 					<button
-						class="btn btn-primary join-item border"
+						class="btn btn-outline join-item border flex-grow"
 						disabled={!amount || !Number(amount) || amount > balance || !!status}
 						on:click={sendEcash}
 					>
