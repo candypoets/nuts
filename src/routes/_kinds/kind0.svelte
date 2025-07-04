@@ -4,20 +4,16 @@
 	import Icon from '@iconify/svelte';
 	import _ from 'lodash';
 	import { kind0, kind3 } from 'src/controller/nostr';
+	import { limit } from 'src/controller/pagination';
 	import { now } from 'src/lib/period';
 	import { proxyAvatarUrl, proxyBannerUrl } from 'src/lib/proxy';
-	import {
-		nostrManager,
-		useSharedSubscription,
-		type Request,
-		type SubscribeKind
-	} from 'src/model/nostr-main';
+	import { nostrManager, useSharedSubscription, type SubscribeKind } from 'src/model/nostr-main';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import type { ParsedEvent } from 'src/types';
-	import { isKind0, isKind10002, isKind10019, type AnyKind, type Kind0Parsed } from 'src/types';
+	import { isKind0, isKind10002, type AnyKind, type Kind0Parsed } from 'src/types';
 	import { onDestroy } from 'svelte';
 	import { go } from '../modals/modal';
-	import { limit } from 'src/controller/pagination';
+	import Avatar from '../explore/avatar.svelte';
 
 	// Get pubkey from URL parameter
 	export let pubkey: string;
@@ -141,7 +137,8 @@
 			<button on:click={goBack} class="p-1 rounded-full hover:bg-base-200 mr-4">
 				<Icon icon="mdi:arrow-left" class="text-xl" />
 			</button>
-			<h1 class="text-lg font-semibold">Profile</h1>
+			<!-- <h1 class="text-lg font-semibold">Profile</h1> -->
+			<Avatar {pubkey} size="lg" />
 			<span class="w-8" />
 		</div>
 	</svelte:fragment>
@@ -149,7 +146,7 @@
 		<!-- {#if item.id != headerItem.id} -->
 		{@const p = headerItem?.parsed}
 		<div
-			class="transition-all duration-300 w-feed mx-auto will-change-transform unsafe-padding-top"
+			class="transition-all duration-300 w-feed mx-auto will-change-transform"
 			class:relative={visible}
 			class:shadow-md={!visible}
 			class:z-20={!visible}
@@ -181,19 +178,19 @@
 				</div>
 			{:else}
 				<div
-					class="w-feed border-b border-base-200 h-16 flex items-center justify-between shadow-sm safe-padding-top"
+					class="w-feed border-b border-base-200 h-52 flex items-start justify-between shadow-sm safe-padding-top"
 				>
 					<button on:click={goBack} class="p-1 rounded-full hover:bg-base-200 mr-4">
 						<Icon icon="mdi:arrow-left" class="text-xl" />
 					</button>
-					<h1 class="text-lg font-semibold">Profile</h1>
+					<!-- <h1 class="text-lg font-semibold">Profile</h1> -->
 					<span class="w-10" />
 				</div>
 			{/if}
 			<!-- Content adjusts size/layout based on visible state -->
 			<div class="px-4 my-6">
 				<div class="flex items-center gap-3 mb-4">
-					<div class="absolute right-4 top-20" class:top-4={!p?.banner}>
+					<div class="absolute right-4 top-20">
 						<button
 							class="z-10 btn lg:btn-wide w-32 border border-white btn-nav lg:text-xl bg-opacity-80"
 							on:click={updateFollowList}
@@ -219,9 +216,7 @@
 					<img
 						src={p?.picture ? proxyAvatarUrl(p.picture) : '/ns-naked.svg'}
 						alt={p?.name || 'Profile'}
-						class:-mt-60={p?.banner}
-						class:!relative={!p?.banner}
-						class="w-32 h-32 rounded-full border absolute object-cover"
+						class="w-32 h-32 -mt-60 rounded-full border absolute object-cover"
 					/>
 					<div>
 						<h2 class="text-xl font-bold">{p?.name || 'Unnamed'}</h2>
