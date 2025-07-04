@@ -324,6 +324,24 @@
 
 <!-- <Debug /> -->
 <ImageZoom />
+{#if $isMobile && $page.url.pathname.split('/').length < 3}
+	<div class="absolute w-full z-10 unsafe-padding-top">
+		<div class="flex space-x-2">
+			<div
+				class="h-1 bg-white bg-opacity-30 w-1/3 rounded-full will-change-transform"
+				style="transform: scaleY({transform0}); opacity: {transform0}"
+			></div>
+			<div
+				class="h-1 bg-white bg-opacity-30 w-1/3 rounded-full will-change-transform"
+				style="transform: scaleY({transform1}); opacity: {transform1}"
+			></div>
+			<div
+				class="h-1 bg-white bg-opacity-30 w-1/3 rounded-full will-change-transform"
+				style="transform: scaleY({transform2}); opacity: {transform2}"
+			></div>
+		</div>
+	</div>
+{/if}
 {#if !homepage}
 	<Statuses />
 	<Alert />
