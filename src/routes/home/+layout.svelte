@@ -163,6 +163,7 @@
 				{
 					kinds: [0, 3, 10002],
 					authors: [pubkey],
+					limit: 10,
 					cacheFirst: true,
 					relays: []
 				}
