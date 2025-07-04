@@ -4,7 +4,8 @@
 	import { onMount } from 'svelte';
 
 	import Icon from '@iconify/svelte';
-	let theme = 'dark';
+
+	let theme = browser ? localStorage.getItem('theme') || 'dark' : 'dark';
 
 	onMount(() => {});
 
