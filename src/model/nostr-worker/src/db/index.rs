@@ -11,7 +11,9 @@ use async_trait::async_trait;
 use gloo_timers::future::TimeoutFuture;
 use instant::Instant;
 use nostr::{Event, EventId, Filter, PublicKey};
+use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet};
+use std::hash::{Hash, Hasher};
 use std::sync::{Arc, RwLock};
 use tracing::{debug, error, info, warn};
 use wasm_bindgen_futures::spawn_local;
@@ -34,6 +36,10 @@ pub struct NostrDB {
     pub indexer_relays: Vec<String>,
     /// Relay hints for pubkeys
     pub relay_hints: HashMap<String, Vec<String>>,
+    /// Counter for round-robin indexer relay selection
+    indexer_relay_counter: Arc<RwLock<usize>>,
+    /// Counter for round-robin default relay selection
+    default_relay_counter: Arc<RwLock<usize>>,
 }
 
 impl NostrDB {
@@ -62,6 +68,8 @@ impl NostrDB {
                 "wss://nostr.wine".to_string(),
             ],
             relay_hints: HashMap::new(),
+            indexer_relay_counter: Arc::new(RwLock::new(0)),
+            default_relay_counter: Arc::new(RwLock::new(0)),
         }
     }
 
@@ -83,6 +91,8 @@ impl NostrDB {
                 "wss://nostr.wine".to_string(),
             ],
             relay_hints: HashMap::new(),
+            indexer_relay_counter: Arc::new(RwLock::new(0)),
+            default_relay_counter: Arc::new(RwLock::new(0)),
         }
     }
 
@@ -104,6 +114,8 @@ impl NostrDB {
             default_relays,
             indexer_relays,
             relay_hints: HashMap::new(),
+            indexer_relay_counter: Arc::new(RwLock::new(0)),
+            default_relay_counter: Arc::new(RwLock::new(0)),
         }
     }
 
@@ -123,6 +135,8 @@ impl NostrDB {
             default_relays,
             indexer_relays,
             relay_hints: HashMap::new(),
+            indexer_relay_counter: Arc::new(RwLock::new(0)),
+            default_relay_counter: Arc::new(RwLock::new(0)),
         }
     }
 
@@ -613,13 +627,9 @@ impl NostrDB {
         match kind {
             10002 | 0 | 10019 => {
                 if !self.indexer_relays.is_empty() {
-                    let now = instant::now() as usize;
-                    let index = if self.indexer_relays.len() > 1 {
-                        now % self.indexer_relays.len()
-                    } else {
-                        0
-                    };
-                    relays_found.push(self.indexer_relays[index].clone());
+                    let mut counter = self.indexer_relay_counter.write().unwrap();
+                    *counter = (*counter + 1) % self.indexer_relays.len();
+                    relays_found.push(self.indexer_relays[*counter].clone());
                 }
             }
             _ => {
@@ -641,9 +651,9 @@ impl NostrDB {
         if relays_found.len() < 3 {
             // Add a random relay from defaults
             if !self.default_relays.is_empty() {
-                let now = instant::now() as usize;
-                let index = now % self.default_relays.len();
-                let random_relay = &self.default_relays[index];
+                let mut counter = self.default_relay_counter.write().unwrap();
+                *counter = (*counter + 1) % self.default_relays.len();
+                let random_relay = &self.default_relays[*counter];
                 if !relays_found.contains(random_relay) {
                     relays_found.push(random_relay.clone());
                 }
