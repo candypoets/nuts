@@ -33,9 +33,9 @@ optimize_wasm() {
         # Create backup
         cp "$file_path" "$backup_path"
 
-        # Apply optimizations
+        # Apply Safari-compatible optimizations
         wasm-opt -Oz --enable-bulk-memory --enable-sign-ext --enable-mutable-globals \
-            --enable-nontrapping-float-to-int --strip-debug --strip-producers \
+            --strip-debug --strip-producers \
             "$backup_path" -o "$file_path"
 
         # Get optimized size
@@ -65,7 +65,7 @@ wasm-pack build \
     --out-dir pkg \
     --out-name nutscash_nostr_worker \
     --release \
-    --features console_error_panic_hook,wee_alloc
+    --features console_error_panic_hook
 
 # Optimize worker WASM
 optimize_wasm "pkg/nutscash_nostr_worker_bg.wasm"
