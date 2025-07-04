@@ -269,7 +269,7 @@
 				visible={visible && feed.findIndex((note) => note[0]?.id === item[0].id) >= start - 2}
 			>
 				<Note
-					note={repost ? item[0]?.parsed.repostedEvent : item[0]}
+					note={repost ? { ...item[0]?.parsed.repostedEvent, requests: item[0].requests } : item[0]}
 					context={item[1]}
 					visible={visible && feed.findIndex((note) => note[0]?.id === item[0].id) >= start - 2}
 					{repost}
