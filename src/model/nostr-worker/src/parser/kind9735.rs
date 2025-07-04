@@ -1,5 +1,6 @@
 use crate::parser::Parser;
 use crate::types::network::Request;
+use crate::utils::request_deduplication::RequestDeduplicator;
 use anyhow::{anyhow, Result};
 use nostr::Event;
 use serde::{Deserialize, Serialize};
@@ -189,7 +190,10 @@ impl Parser {
             }
         }
 
-        Ok((receipt, Some(requests)))
+        // Deduplicate requests using the utility
+        let deduplicated_requests = RequestDeduplicator::deduplicate_requests(requests);
+
+        Ok((receipt, Some(deduplicated_requests)))
     }
 }
 

@@ -1,5 +1,6 @@
 use crate::parser::{content::parse_content, Parser};
 use crate::types::network::Request;
+use crate::utils::request_deduplication::RequestDeduplicator;
 use anyhow::{anyhow, Result};
 use nostr::{Event, Tag};
 use serde::{Deserialize, Serialize};
@@ -61,28 +62,28 @@ impl Parser {
         };
 
         // Request profile information for the author
-        requests.push(Request {
-            authors: vec![event.pubkey.to_hex()],
-            kinds: vec![0],
-            relays: self
-                .database
-                .find_relay_candidates(0, &event.pubkey.to_hex(), &false),
-            close_on_eose: true,
-            cache_first: true,
-            ..Default::default()
-        });
+        // requests.push(Request {
+        //     authors: vec![event.pubkey.to_hex()],
+        //     kinds: vec![0],
+        //     relays: self
+        //         .database
+        //         .find_relay_candidates(0, &event.pubkey.to_hex(), &false),
+        //     close_on_eose: true,
+        //     cache_first: true,
+        //     ..Default::default()
+        // });
 
         // Request relay list for the author
-        requests.push(Request {
-            authors: vec![event.pubkey.to_hex()],
-            kinds: vec![10002],
-            relays: self
-                .database
-                .find_relay_candidates(10002, &event.pubkey.to_hex(), &false),
-            close_on_eose: true,
-            cache_first: true,
-            ..Default::default()
-        });
+        // requests.push(Request {
+        //     authors: vec![event.pubkey.to_hex()],
+        //     kinds: vec![10002],
+        //     relays: self
+        //         .database
+        //         .find_relay_candidates(10002, &event.pubkey.to_hex(), &false),
+        //     close_on_eose: true,
+        //     cache_first: true,
+        //     ..Default::default()
+        // });
 
         // Parse references using NIP-27 (nostr: URIs and bech32 entities)
         // For now, we'll parse them manually from content
@@ -95,7 +96,12 @@ impl Parser {
             requests.push(Request {
                 ids: vec![reply.id.clone()],
                 limit: Some(1),
-                relays: reply.relays.clone(),
+                relays: if reply.relays.is_empty() {
+                    self.database
+                        .find_relay_candidates(1, &event.pubkey.to_string(), &false)
+                } else {
+                    reply.relays.clone()
+                },
                 close_on_eose: true,
                 cache_first: true,
                 ..Default::default()
@@ -108,7 +114,12 @@ impl Parser {
                 requests.push(Request {
                     ids: vec![root.id.clone()],
                     limit: Some(1),
-                    relays: root.relays.clone(),
+                    relays: if root.relays.is_empty() {
+                        self.database
+                            .find_relay_candidates(1, &event.pubkey.to_string(), &false)
+                    } else {
+                        root.relays.clone()
+                    },
                     close_on_eose: true,
                     cache_first: true,
                     ..Default::default()
@@ -133,7 +144,10 @@ impl Parser {
             }
         }
 
-        Ok((parsed, Some(requests)))
+        // Deduplicate requests using the utility
+        let deduplicated_requests = RequestDeduplicator::deduplicate_requests(requests);
+
+        Ok((parsed, Some(deduplicated_requests)))
     }
 
     fn extract_profile_mentions(
@@ -368,6 +382,7 @@ impl Parser {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::request_deduplication::RequestDeduplicator;
     use nostr::{EventBuilder, Keys, Kind, Tag};
 
     #[test]
@@ -478,5 +493,103 @@ mod tests {
             .iter()
             .any(|block| block.block_type == "hashtag");
         assert!(has_hashtag);
+    }
+
+    #[test]
+    fn test_request_deduplication() {
+        // Create multiple requests with the same filter criteria but different relays
+        let requests = vec![
+            Request {
+                ids: vec!["event1".to_string(), "event2".to_string()],
+                authors: vec!["author1".to_string()],
+                kinds: vec![1, 6],
+                relays: vec!["relay1.com".to_string(), "relay2.com".to_string()],
+                limit: Some(1),
+                close_on_eose: true,
+                cache_first: true,
+                ..Default::default()
+            },
+            Request {
+                ids: vec!["event2".to_string(), "event1".to_string()], // Same IDs, different order
+                authors: vec!["author1".to_string()],
+                kinds: vec![6, 1], // Same kinds, different order
+                relays: vec!["relay2.com".to_string(), "relay3.com".to_string()],
+                limit: Some(1),
+                close_on_eose: true,
+                cache_first: true,
+                ..Default::default()
+            },
+            Request {
+                ids: vec!["event3".to_string()],
+                authors: vec!["author2".to_string()],
+                kinds: vec![1],
+                relays: vec!["relay1.com".to_string()],
+                limit: Some(1),
+                close_on_eose: true,
+                cache_first: true,
+                ..Default::default()
+            },
+            Request {
+                ids: vec!["event1".to_string(), "event2".to_string()],
+                authors: vec!["author1".to_string()],
+                kinds: vec![1, 6],
+                relays: vec!["relay4.com".to_string(), "relay1.com".to_string()],
+                limit: Some(2), // Different limit - should NOT be deduplicated
+                close_on_eose: true,
+                cache_first: true,
+                ..Default::default()
+            },
+        ];
+
+        let deduplicated = RequestDeduplicator::deduplicate_requests(requests);
+
+        // Should have 3 unique requests (2 with same filter but different limits, 1 unique)
+        assert_eq!(deduplicated.len(), 3);
+
+        // Find requests with event1 and event2
+        let matching_requests: Vec<_> = deduplicated
+            .iter()
+            .filter(|r| {
+                r.ids.contains(&"event1".to_string()) && r.ids.contains(&"event2".to_string())
+            })
+            .collect();
+
+        // Should have 2 requests with event1+event2 (different limits)
+        assert_eq!(matching_requests.len(), 2);
+
+        // Find the request with limit 1
+        let limit_1_request = matching_requests
+            .iter()
+            .find(|r| r.limit == Some(1))
+            .unwrap();
+
+        // Should have 3 relays deduplicated
+        assert_eq!(limit_1_request.relays.len(), 3);
+        assert!(limit_1_request.relays.contains(&"relay1.com".to_string()));
+        assert!(limit_1_request.relays.contains(&"relay2.com".to_string()));
+        assert!(limit_1_request.relays.contains(&"relay3.com".to_string()));
+
+        // Find the request with limit 2
+        let limit_2_request = matching_requests
+            .iter()
+            .find(|r| r.limit == Some(2))
+            .unwrap();
+
+        // Should have 2 relays
+        assert_eq!(limit_2_request.relays.len(), 2);
+        assert!(limit_2_request.relays.contains(&"relay1.com".to_string()));
+        assert!(limit_2_request.relays.contains(&"relay4.com".to_string()));
+
+        // Find the request with event3
+        let single_event_request = deduplicated
+            .iter()
+            .find(|r| r.ids.contains(&"event3".to_string()))
+            .unwrap();
+
+        // Should have only one relay
+        assert_eq!(single_event_request.relays.len(), 1);
+        assert!(single_event_request
+            .relays
+            .contains(&"relay1.com".to_string()));
     }
 }

@@ -1,4 +1,5 @@
 use crate::types::network::Request;
+use crate::utils::request_deduplication::RequestDeduplicator;
 use crate::{parser::Parser, ParsedEvent};
 use anyhow::{anyhow, Result};
 use nostr::{Event, Kind};
@@ -19,16 +20,16 @@ impl Parser {
         }
 
         // Add request for the author's metadata
-        requests.push(Request {
-            kinds: vec![0],
-            authors: vec![event.pubkey.to_string()],
-            cache_first: true,
-            close_on_eose: true,
-            relays: self
-                .database
-                .find_relay_candidates(0, &event.pubkey.to_string(), &false),
-            ..Default::default()
-        });
+        // requests.push(Request {
+        //     kinds: vec![0],
+        //     authors: vec![event.pubkey.to_string()],
+        //     cache_first: true,
+        //     close_on_eose: true,
+        //     relays: self
+        //         .database
+        //         .find_relay_candidates(0, &event.pubkey.to_string(), &false),
+        //     ..Default::default()
+        // });
 
         // Find the e tag for the reposted event (should be the last one if multiple)
         let e_tag = match event
@@ -107,6 +108,9 @@ impl Parser {
 
         let result = Kind6Parsed { reposted_event };
 
-        Ok((result, Some(requests)))
+        // Deduplicate requests using the utility
+        let deduplicated_requests = RequestDeduplicator::deduplicate_requests(requests);
+
+        Ok((result, Some(deduplicated_requests)))
     }
 }

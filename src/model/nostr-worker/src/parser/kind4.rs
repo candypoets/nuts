@@ -1,5 +1,6 @@
 use crate::parser::{content::parse_content, Parser};
 use crate::types::network::Request;
+use crate::utils::request_deduplication::RequestDeduplicator;
 use anyhow::{anyhow, Result};
 use nostr::{Event, EventBuilder, Keys};
 use serde::{Deserialize, Serialize};
@@ -117,7 +118,10 @@ impl Parser {
             }
         }
 
-        Ok((parsed, Some(requests)))
+        // Deduplicate requests using the utility
+        let deduplicated_requests = RequestDeduplicator::deduplicate_requests(requests);
+
+        Ok((parsed, Some(deduplicated_requests)))
     }
 
     pub fn prepare_kind_4(&self, event: &mut Event) -> Result<()> {

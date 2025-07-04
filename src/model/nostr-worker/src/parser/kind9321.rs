@@ -1,5 +1,6 @@
 use crate::parser::Parser;
 use crate::types::network::Request;
+use crate::utils::request_deduplication::RequestDeduplicator;
 use anyhow::{anyhow, Result};
 use nostr::Event;
 use serde::{Deserialize, Serialize};
@@ -180,7 +181,10 @@ impl Parser {
             event_id: event_tag.map(|tag| tag[1].clone()),
         };
 
-        Ok((result, Some(requests)))
+        // Deduplicate requests using the utility
+        let deduplicated_requests = RequestDeduplicator::deduplicate_requests(requests);
+
+        Ok((result, Some(deduplicated_requests)))
     }
 
     pub fn prepare_kind_9321(&self, event: &mut Event) -> Result<()> {

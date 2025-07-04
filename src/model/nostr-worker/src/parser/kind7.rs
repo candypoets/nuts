@@ -1,5 +1,6 @@
 use crate::parser::{find_last_tag, Parser};
 use crate::types::network::Request;
+use crate::utils::request_deduplication::RequestDeduplicator;
 use anyhow::{anyhow, Result};
 use nostr::Event;
 use serde::{Deserialize, Serialize};
@@ -128,7 +129,10 @@ impl Parser {
             target_coordinates,
         };
 
-        Ok((result, Some(requests)))
+        // Deduplicate requests using the utility
+        let deduplicated_requests = RequestDeduplicator::deduplicate_requests(requests);
+
+        Ok((result, Some(deduplicated_requests)))
     }
 
     fn parse_emoji_content(&self, event: &Event) -> Option<Emoji> {

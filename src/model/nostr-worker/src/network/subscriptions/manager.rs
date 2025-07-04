@@ -302,19 +302,14 @@ impl SubscriptionManager {
 
             let relays = self.database.find_relay_candidates(kind, &pubkey, &false);
 
-            if relays.is_empty() {
-                warn!("No relays found for request. Using default relays.");
-                // Add default relays if Parser didn't provide any
-                let default_relays = vec![
-                    "wss://relay.damus.io".to_string(),
-                    "wss://nos.lol".to_string(),
-                    "wss://relay.primal.net".to_string(),
-                ];
-                request.relays.extend(default_relays);
-            } else {
-                debug!("Found {} relays for request", relays.len());
-                request.relays.extend(relays);
-            }
+            info!(
+                "No relays specified, found {} relay candidates",
+                relays.len()
+            );
+
+            // Limit to maximum of 3 relays
+            let relays_to_add: Vec<String> = relays.into_iter().take(3).collect();
+            request.relays.extend(relays_to_add);
         }
 
         Ok(request)

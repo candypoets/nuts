@@ -649,13 +649,24 @@ impl NostrDB {
 
         // Ensure we have at least 3 relays
         if relays_found.len() < 3 {
-            // Add a random relay from defaults
-            if !self.default_relays.is_empty() {
-                let mut counter = self.default_relay_counter.write().unwrap();
-                *counter = (*counter + 1) % self.default_relays.len();
-                let random_relay = &self.default_relays[*counter];
-                if !relays_found.contains(random_relay) {
-                    relays_found.push(random_relay.clone());
+            match kind {
+                10002 | 0 | 10019 => {
+                    if !self.indexer_relays.is_empty() {
+                        let mut counter = self.indexer_relay_counter.write().unwrap();
+                        *counter = (*counter + 1) % self.indexer_relays.len();
+                        relays_found.push(self.indexer_relays[*counter].clone());
+                    }
+                }
+                _ => {
+                    // Add a random relay from defaults
+                    if !self.default_relays.is_empty() {
+                        let mut counter = self.default_relay_counter.write().unwrap();
+                        *counter = (*counter + 1) % self.default_relays.len();
+                        let random_relay = &self.default_relays[*counter];
+                        if !relays_found.contains(random_relay) {
+                            relays_found.push(random_relay.clone());
+                        }
+                    }
                 }
             }
         }
