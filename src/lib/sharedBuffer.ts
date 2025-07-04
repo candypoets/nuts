@@ -1,4 +1,4 @@
-import { decode } from '@msgpack/msgpack';
+import { unpack } from 'msgpackr';
 import type { NostrEvent } from 'nostr-tools';
 import type { WorkerToMainMessage } from 'src/model/nostr-main/pkg/nostr_main.js';
 import type { AnyKind, ParsedEvent } from 'src/types';
@@ -57,7 +57,7 @@ export class SharedBufferReader {
 				const eventData = uint8View.slice(currentPos, currentPos + eventLength);
 
 				// Decode the event
-				const message = decode(eventData) as WorkerToMainMessage;
+				const message = unpack(eventData) as WorkerToMainMessage;
 				messages.push(message);
 
 				currentPos += eventLength;
