@@ -42,8 +42,10 @@
 </script>
 
 <div
-	class="w-40 max-w-md mx-auto shrink-0 snap-always"
+	class="max-w-md mx-auto shrink-0 snap-always"
 	class:w-72={size == 'lg'}
+	class:w-32={size == 'sm'}
+	class:w-40={size == 'sm'}
 	class:cursor-pointer={navigate}
 	on:click|stopPropagation={goto}
 >

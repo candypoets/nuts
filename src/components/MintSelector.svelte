@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
+	import { isMobile } from 'src/controller';
 	import { mints, balanceByMint, activeMintUrl, mint } from 'src/controller/wallet';
 	import Mintcard from 'src/routes/home/components/mintcard.svelte';
 </script>
@@ -9,11 +10,11 @@
 	<!-- svelte-ignore a11y-label-has-associated-control -->
 	<label tabindex="0" class="join-item w-full">
 		{#await $mint then m}
-			<div class="flex items-center gap-1 w-full px-4">
+			<div class="flex items-center gap-1 w-full md:px-4">
 				<!-- <div> -->
 				<Icon icon="mdi:chevron-down" class="w-6 h-6 text-gray-400" />
 				<!-- </div> -->
-				<Mintcard mint={m} size="sm" />
+				<Mintcard mint={m} size={$isMobile ? 'xs' : 'sm'} />
 				<!-- <p class="max-w-xs text-xs flex-grow">
 					{m?.name ?? '----'}
 				</p> -->
