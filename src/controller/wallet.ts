@@ -97,7 +97,6 @@ export function proofsByMint() {
 export function eventsByMint() {
 	// Group events by mint URL
 	const groupedByMint: Record<string, ParsedEvent<Kind7375Parsed>[]> = {};
-
 	for (const event of get(kinds7375)) {
 		if (get(deletedKind7375Ids).includes(event.id)) {
 			continue;
@@ -122,6 +121,8 @@ export function eventsByMint() {
 								break;
 							}
 						}
+					} else {
+						hasValidP2pkProof = true;
 					}
 				}
 			}
@@ -132,6 +133,7 @@ export function eventsByMint() {
 			}
 		}
 	}
+
 	return groupedByMint;
 }
 
