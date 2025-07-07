@@ -69,6 +69,7 @@
 	subscriptionID="contacts"
 	requests={feedRequests}
 	kinds={[0]}
+	itemHeight={75}
 	{headerItem}
 	{updateFeed}
 >
