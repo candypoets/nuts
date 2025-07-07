@@ -30,6 +30,7 @@
 	export let backdrop: boolean = false;
 	export let search: string = '';
 	export let fuseKeys: string[] = [];
+	export let itemHeight: number;
 	export let initialItems: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][] = [];
 
 	let cachedFeed: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
@@ -128,6 +129,7 @@
 				eoce = false;
 				eose = false;
 				cachedFeed = [];
+				// feed = [];
 
 				sub = useSharedSubscription(subscriptionID, requests, handleEvents);
 			}
@@ -139,6 +141,7 @@
 			clearTimeout(timeout);
 			timeout = undefined;
 			console.log(subscriptionID, 'feed unsubscribe');
+			// feed = [];
 			sub?.();
 		}
 	}
@@ -174,34 +177,34 @@
 	let lastPageFetch = 0;
 
 	// pagination
-	$: {
-		if (end % 100 > 80) {
-			if (lastPageFetch <= page) {
-				lastPageFetch++;
+	// $: {
+	// 	if (end % 100 > 80) {
+	// 		if (lastPageFetch <= page) {
+	// 			lastPageFetch++;
 
-				eose = false;
-				eoce = false;
-				// get the last item in the feed
-				const lastEvent = feed[feed.length - 1][0];
-				// get the next page results from the cache
-				const pageSub = useSharedSubscription(
-					subscriptionID + page,
-					requests.map((r) => ({
-						...r,
-						until: lastEvent.created_at,
-						since: lastEvent.created_at - (r?.since ? now() - r.since : 30 * DAY)
-					})),
-					(events: ParsedEvent<AnyKind>[], eventKind: SubscribeKind) => {
-						handleEvents(events, eventKind, lastPageFetch);
-						if (eventKind == 'EOSE') {
-							// stop the sub on EOSE
-							pageSub();
-						}
-					}
-				);
-			}
-		}
-	}
+	// 			eose = false;
+	// 			eoce = false;
+	// 			// get the last item in the feed
+	// 			const lastEvent = feed[feed.length - 1][0];
+	// 			// get the next page results from the cache
+	// 			const pageSub = useSharedSubscription(
+	// 				subscriptionID + page,
+	// 				requests.map((r) => ({
+	// 					...r,
+	// 					until: lastEvent.created_at,
+	// 					since: lastEvent.created_at - (r?.since ? now() - r.since : 30 * DAY)
+	// 				})),
+	// 				(events: ParsedEvent<AnyKind>[], eventKind: SubscribeKind) => {
+	// 					handleEvents(events, eventKind, lastPageFetch);
+	// 					if (eventKind == 'EOSE') {
+	// 						// stop the sub on EOSE
+	// 						pageSub?.();
+	// 					}
+	// 				}
+	// 			);
+	// 		}
+	// 	}
+	// }
 
 	function decreaseNewPosts() {
 		newPosts--;
@@ -223,9 +226,6 @@
 			filteredFeed = feed as [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][];
 		}
 	}
-
-	// $: console.log('cachedFeed', subscriptionID, cachedFeed);
-	// $: console.log('fetchedFeed', subscriptionID, fetchedFeed);
 </script>
 
 <div
@@ -254,6 +254,7 @@
 		bind:down
 		getItemId={(item) => item.data[0]?.id}
 		let:item
+		{itemHeight}
 		{backdrop}
 		{loading}
 	>

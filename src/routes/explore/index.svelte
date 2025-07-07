@@ -55,7 +55,12 @@
 </script>
 
 <Pager rootPath="/explore" bind:subs>
-	<Feed subscriptionID="main_feed" requests={feedRequests} kinds={[1, 6]} backdrop>
+	<Feed
+		subscriptionID={$followPacks.reduce((acc, cur) => acc + cur.id, '')}
+		requests={feedRequests}
+		kinds={[1, 6]}
+		backdrop
+	>
 		<svelte:fragment slot="sticky-header" let:newPosts>
 			<div
 				id={$page.url.pathname === '/explore' ? 'top' : undefined}
