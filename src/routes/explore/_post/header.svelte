@@ -42,7 +42,6 @@
 					],
 					(events: ParsedEvent<AnyKind>[], type: SubscribeKind) => {
 						if (type == 'EOSE') {
-							console.log('eose', events);
 							return;
 						}
 						const [event, ...context] = events;
