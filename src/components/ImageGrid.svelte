@@ -45,7 +45,7 @@
 		'grid-cols-' + columns,
 		'relative my-2 grid cursor-pointer gap-1 overflow-hidden rounded-lg'
 	)}
-	class:w-44={isImageContext}
+	class:w-full={isImageContext}
 	class:bg-gray-300={displayLinks.length == 1}
 	class:bg-opacity-20={displayLinks.length == 1}
 >
