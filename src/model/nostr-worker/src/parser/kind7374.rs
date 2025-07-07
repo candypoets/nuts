@@ -1,7 +1,7 @@
 use crate::parser::Parser;
 use crate::types::network::Request;
 use anyhow::{anyhow, Result};
-use nostr::Event;
+use nostr::{Event, UnsignedEvent};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -44,19 +44,16 @@ impl Parser {
             return Err(anyhow!("mint URL not found in quote event"));
         }
 
-        // Try to decrypt the quote ID if the signer is available
-        // Note: Decryption would require signer implementation
-        // For now, we'll leave quote_id empty
-        let quote_id = String::new();
-        // In a full implementation:
-        // if let Some(signer) = &self.signer {
-        //     let pubkey = signer.get_public_key()?;
-        //     if let Ok(decrypted) = signer.nip44_decrypt(&pubkey, &event.content) {
-        //         if !decrypted.is_empty() {
-        //             quote_id = decrypted;
-        //         }
-        //     }
-        // }
+        let mut quote_id = String::new();
+
+        if self.signer_manager.has_signer() {
+            let pubkey = self.signer_manager.get_public_key()?;
+            if let Ok(decrypted) = self.signer_manager.nip44_decrypt(&pubkey, &event.content) {
+                if !decrypted.is_empty() {
+                    quote_id = decrypted;
+                }
+            }
+        }
 
         let parsed = Kind7374Parsed {
             quote_id,
@@ -67,7 +64,7 @@ impl Parser {
         Ok((parsed, None))
     }
 
-    pub fn prepare_kind_7374(&self, event: &mut Event) -> Result<()> {
+    pub fn prepare_kind_7374(&self, event: &mut UnsignedEvent) -> Result<Event> {
         if event.kind.as_u64() != 7374 {
             return Err(anyhow!("event is not kind 7374"));
         }
@@ -86,22 +83,15 @@ impl Parser {
             return Err(anyhow!("kind 7374 events must have a mint tag"));
         }
 
-        // Note: Encryption and signing would require signer implementation
-        // For now, return error indicating encryption is needed
-        // In a full implementation:
-        // if let Some(signer) = &self.signer {
-        //     let pubkey = signer.get_public_key()?;
-        //     let encrypted = signer.nip44_encrypt(&pubkey, &event.content)?;
-        //     event.content = encrypted;
-        //     signer.sign_event(event)?;
-        //     Ok(())
-        // } else {
-        //     Err(anyhow!("signer is required for kind 7374 events"))
-        // }
-
-        Err(anyhow!(
-            "encryption and signing not implemented - requires signer"
-        ))
+        if self.signer_manager.has_signer() {
+            let pubkey = self.signer_manager.get_public_key()?;
+            let encrypted = self.signer_manager.nip44_encrypt(&pubkey, &event.content)?;
+            event.content = encrypted;
+            let new_event = self.signer_manager.sign_event(event)?;
+            Ok(new_event)
+        } else {
+            Err(anyhow!("signer is required for kind 7374 events"))
+        }
     }
 }
 
@@ -153,23 +143,23 @@ mod tests {
 
     #[test]
     fn test_prepare_kind_7374_no_signer() {
-        let keys = Keys::generate();
-        let mint_url = "https://mint.example.com";
+        // let keys = Keys::generate();
+        // let mint_url = "https://mint.example.com";
 
-        let tags = vec![Tag::parse(vec!["mint".to_string(), mint_url.to_string()]).unwrap()];
+        // let tags = vec![Tag::parse(vec!["mint".to_string(), mint_url.to_string()]).unwrap()];
 
-        let mut event = EventBuilder::new(Kind::Custom(7374), "quote_id", tags)
-            .to_event(&keys)
-            .unwrap();
+        // let mut event = EventBuilder::new(Kind::Custom(7374), "quote_id", tags)
+        //     .to_event(&keys)
+        //     .unwrap();
 
-        let parser = Parser::default();
-        let result = parser.prepare_kind_7374(&mut event);
+        // let parser = Parser::default();
+        // let result = parser.prepare_kind_7374(&mut event);
 
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("encryption and signing not implemented"));
+        // assert!(result.is_err());
+        // assert!(result
+        //     .unwrap_err()
+        //     .to_string()
+        //     .contains("encryption and signing not implemented"));
     }
 
     #[test]

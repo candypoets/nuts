@@ -2,7 +2,7 @@ use crate::db::index::NostrDB;
 use crate::signer::{create_shared_signer_manager, SharedSignerManager};
 use crate::types::*;
 use anyhow::{anyhow, Result};
-use nostr::{Event, Tag};
+use nostr::{Event, Tag, UnsignedEvent};
 use std::sync::Arc;
 use tracing::info;
 
@@ -146,7 +146,7 @@ impl Parser {
         })
     }
 
-    pub fn prepare(&self, event: &mut Event) -> Result<()> {
+    pub fn prepare(&self, event: &mut UnsignedEvent) -> Result<Event> {
         let kind = event.kind.as_u64();
 
         match kind {
@@ -159,7 +159,8 @@ impl Parser {
             17375 => self.prepare_kind_17375(event),
             _ => {
                 // Event is already signed - no additional preparation needed
-                Ok(())
+                let new_event = self.signer_manager.sign_event(event)?;
+                Ok(new_event)
             }
         }
     }

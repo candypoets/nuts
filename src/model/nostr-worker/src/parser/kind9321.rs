@@ -2,7 +2,7 @@ use crate::parser::Parser;
 use crate::types::network::Request;
 use crate::utils::request_deduplication::RequestDeduplicator;
 use anyhow::{anyhow, Result};
-use nostr::Event;
+use nostr::{Event, UnsignedEvent};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -187,8 +187,8 @@ impl Parser {
         Ok((result, Some(deduplicated_requests)))
     }
 
-    pub fn prepare_kind_9321(&self, event: &mut Event) -> Result<()> {
-        if event.kind.as_u64() != 9321 {
+    pub fn prepare_kind_9321(&self, unsigned_event: &mut UnsignedEvent) -> Result<Event> {
+        if unsigned_event.kind.as_u64() != 9321 {
             return Err(anyhow!("event is not kind 9321"));
         }
 
@@ -197,7 +197,7 @@ impl Parser {
         let mut has_mint = false;
         let mut has_recipient = false;
 
-        for tag in &event.tags {
+        for tag in &unsigned_event.tags {
             let tag_vec = tag.as_vec();
             if tag_vec.len() >= 2 {
                 match tag_vec[0].as_str() {
@@ -221,9 +221,9 @@ impl Parser {
             return Err(anyhow!("kind 9321 must include a p tag with recipient"));
         }
 
-        // Note: Signing would require signer implementation
-        // For now, return error indicating signing is needed
-        Err(anyhow!("signing not implemented - requires signer"))
+        self.signer_manager
+            .sign_event(unsigned_event)
+            .map_err(|e| anyhow!("failed to sign event: {}", e))
     }
 }
 

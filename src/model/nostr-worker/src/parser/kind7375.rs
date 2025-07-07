@@ -1,7 +1,7 @@
 use crate::parser::Parser;
 use crate::types::network::Request;
 use anyhow::{anyhow, Result};
-use nostr::Event;
+use nostr::{Event, UnsignedEvent};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tracing::{info, warn};
@@ -83,13 +83,13 @@ impl Parser {
         Ok((parsed, None))
     }
 
-    pub fn prepare_kind_7375(&self, event: &mut Event) -> Result<()> {
-        if event.kind.as_u64() != 7375 {
+    pub fn prepare_kind_7375(&self, unsigned_event: &mut UnsignedEvent) -> Result<Event> {
+        if unsigned_event.kind.as_u64() != 7375 {
             return Err(anyhow!("event is not kind 7375"));
         }
 
         // Content must be a valid JSON for TokenContent
-        let _content: TokenContent = serde_json::from_str(&event.content)
+        let _content: TokenContent = serde_json::from_str(&unsigned_event.content)
             .map_err(|e| anyhow!("invalid token content: {}", e))?;
 
         // Validate content
@@ -101,11 +101,20 @@ impl Parser {
             return Err(anyhow!("token content must include at least one proof"));
         }
 
-        // Note: Encryption and signing would require signer implementation
-        // For now, return error indicating encryption is needed
-        Err(anyhow!(
-            "encryption and signing not implemented - requires signer"
-        ))
+        let signer = &self.signer_manager;
+
+        if !signer.has_signer() {
+            return Err(anyhow!("no signer available for encryption"));
+        }
+
+        let pubkey = signer.get_public_key()?;
+        let encrypted_content = signer.nip44_encrypt(&pubkey, &unsigned_event.content)?;
+
+        unsigned_event.content = encrypted_content;
+
+        let event = signer.sign_event(unsigned_event)?;
+
+        Ok(event)
     }
 }
 

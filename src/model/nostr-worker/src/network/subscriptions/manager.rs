@@ -92,7 +92,9 @@ impl SubscriptionManager {
             .close_subscription(&subscription_id)
             .await?;
 
-        // Note: We're keeping the SharedArrayBuffer for now, just closing the connection
+        // drop the reference to the sharedBuffer
+        self.subscriptions.write().unwrap().remove(subscription_id);
+
         debug!(
             "Subscription {} closed (SharedArrayBuffer retained)",
             subscription_id
@@ -307,8 +309,9 @@ impl SubscriptionManager {
                 relays.len()
             );
 
-            // Limit to maximum of 3 relays
-            let relays_to_add: Vec<String> = relays.into_iter().take(3).collect();
+            // Limit to maximum of 8 relays
+            let relays_to_add: Vec<String> = relays.into_iter().take(8).collect();
+
             request.relays.extend(relays_to_add);
         }
 

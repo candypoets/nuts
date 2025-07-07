@@ -239,8 +239,9 @@ impl NostrClient {
         publish_id: String,
         event_data: &[u8],
     ) -> Result<String, JsValue> {
-        let mut event: Event = rmp_serde::from_slice(event_data)
+        let mut event: UnsignedEvent = rmp_serde::from_slice(event_data)
             .map_err(|e| JsValue::from_str(&format!("Failed to parse event: {}", e)))?;
+
         let summary = self
             .network_manager
             .publish_event(publish_id, &mut event)
@@ -384,6 +385,8 @@ impl NostrClient {
             return Err(JsValue::from_str("Expected Uint8Array message"));
         };
 
+        info!("Received message in worker: {} bytes", message_bytes.len());
+
         let main_message: MainToWorkerMessage = rmp_serde::from_slice(&message_bytes)
             .map_err(|e| JsValue::from_str(&format!("Failed to decode message: {}", e)))?;
 
@@ -400,6 +403,7 @@ impl NostrClient {
                 self.close_subscription(subscription_id).await?;
             }
             MainToWorkerMessage::Publish { publish_id, event } => {
+                info!("Publishing event with ID: {}", publish_id);
                 let event_data = rmp_serde::to_vec_named(&event)
                     .map_err(|e| JsValue::from_str(&format!("Failed to serialize event: {}", e)))?;
                 self.publish_event(publish_id, &event_data).await?;

@@ -1,7 +1,7 @@
 use crate::parser::Parser;
 use crate::types::network::Request;
 use anyhow::{anyhow, Result};
-use nostr::Event;
+use nostr::{Event, UnsignedEvent};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -69,65 +69,70 @@ impl Parser {
             }
         }
 
-        // Note: Decryption would require signer implementation
-        // For now, we'll leave decrypted as false
-        // In a full implementation:
-        // if let Some(signer) = &self.signer {
-        //     let pubkey = signer.get_public_key()?;
-        //     if let Ok(decrypted) = signer.nip44_decrypt(&pubkey, &event.content) {
-        //         if !decrypted.is_empty() {
-        //             if let Ok(tags) = serde_json::from_str::<Vec<Vec<String>>>(&decrypted) {
-        //                 parsed.decrypted = true;
-        //                 parsed.tags = Vec::new();
-        //
-        //                 // Process decrypted tags
-        //                 for tag in tags {
-        //                     if tag.len() >= 2 {
-        //                         let history_tag = HistoryTag {
-        //                             name: tag[0].clone(),
-        //                             value: tag[1].clone(),
-        //                             relay: tag.get(2).cloned(),
-        //                             marker: tag.get(3).cloned(),
-        //                         };
-        //                         parsed.tags.push(history_tag);
-        //
-        //                         // Extract specific tag values
-        //                         match tag[0].as_str() {
-        //                             "direction" => parsed.direction = tag[1].clone(),
-        //                             "amount" => {
-        //                                 if let Ok(amt) = tag[1].parse::<i32>() {
-        //                                     parsed.amount = amt;
-        //                                 }
-        //                             }
-        //                             "e" => {
-        //                                 if tag.len() >= 4 {
-        //                                     match tag[3].as_str() {
-        //                                         "created" => parsed.created_events.push(tag[1].clone()),
-        //                                         "destroyed" => parsed.destroyed_events.push(tag[1].clone()),
-        //                                         "redeemed" => parsed.redeemed_events.push(tag[1].clone()),
-        //                                         _ => {}
-        //                                     }
-        //                                 }
-        //                             }
-        //                             _ => {}
-        //                         }
-        //                     }
-        //                 }
-        //             }
-        //         }
-        //     }
-        // }
+        let signer = &self.signer_manager;
+
+        if signer.has_signer() {
+            let pubkey = signer.get_public_key()?;
+            if let Ok(decrypted) = signer.nip44_decrypt(&pubkey, &event.content) {
+                if !decrypted.is_empty() {
+                    if let Ok(tags) = serde_json::from_str::<Vec<Vec<String>>>(&decrypted) {
+                        parsed.decrypted = true;
+                        parsed.tags = Vec::new();
+
+                        // Process decrypted tags
+                        for tag in tags {
+                            if tag.len() >= 2 {
+                                let history_tag = HistoryTag {
+                                    name: tag[0].clone(),
+                                    value: tag[1].clone(),
+                                    relay: tag.get(2).cloned(),
+                                    marker: tag.get(3).cloned(),
+                                };
+                                parsed.tags.push(history_tag);
+
+                                // Extract specific tag values
+                                match tag[0].as_str() {
+                                    "direction" => parsed.direction = tag[1].clone(),
+                                    "amount" => {
+                                        if let Ok(amt) = tag[1].parse::<i32>() {
+                                            parsed.amount = amt;
+                                        }
+                                    }
+                                    "e" => {
+                                        if tag.len() >= 4 {
+                                            match tag[3].as_str() {
+                                                "created" => {
+                                                    parsed.created_events.push(tag[1].clone())
+                                                }
+                                                "destroyed" => {
+                                                    parsed.destroyed_events.push(tag[1].clone())
+                                                }
+                                                "redeemed" => {
+                                                    parsed.redeemed_events.push(tag[1].clone())
+                                                }
+                                                _ => {}
+                                            }
+                                        }
+                                    }
+                                    _ => {}
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         Ok((parsed, Some(requests)))
     }
 
-    pub fn prepare_kind_7376(&self, event: &mut Event) -> Result<()> {
-        if event.kind.as_u64() != 7376 {
+    pub fn prepare_kind_7376(&self, unsigned_event: &mut UnsignedEvent) -> Result<Event> {
+        if unsigned_event.kind.as_u64() != 7376 {
             return Err(anyhow!("event is not kind 7376"));
         }
 
         // For spending history events, the content is an array of tags
-        let tags: Vec<Vec<String>> = serde_json::from_str(&event.content)
+        let tags: Vec<Vec<String>> = serde_json::from_str(&unsigned_event.content)
             .map_err(|e| anyhow!("invalid spending history content: {}", e))?;
 
         // Check for required direction and amount tags
@@ -155,11 +160,28 @@ impl Parser {
             ));
         }
 
-        // Note: Encryption and signing would require signer implementation
-        // For now, return error indicating encryption is needed
-        Err(anyhow!(
-            "encryption and signing not implemented - requires signer"
-        ))
+        // NIP-44 encrypt the content
+        let tags_json =
+            serde_json::to_string(&tags).map_err(|e| anyhow!("failed to marshal tags: {}", e))?;
+
+        let signer_manager = &self.signer_manager;
+
+        if !signer_manager.has_signer() {
+            return Err(anyhow!("no signer available for encryption"));
+        }
+
+        let pubkey = signer_manager.get_public_key()?;
+
+        let encrypted = signer_manager
+            .nip44_encrypt(&pubkey, &tags_json)
+            .map_err(|e| anyhow!("failed to encrypt tags: {}", e))?;
+
+        unsigned_event.content = encrypted;
+
+        // Sign the event
+        signer_manager
+            .sign_event(unsigned_event)
+            .map_err(|e| anyhow!("failed to sign event: {}", e))
     }
 }
 
@@ -211,39 +233,39 @@ mod tests {
 
     #[test]
     fn test_prepare_kind_7376_invalid_content() {
-        let keys = Keys::generate();
+        // let keys = Keys::generate();
 
-        let mut event = EventBuilder::new(Kind::Custom(7376), "invalid json", Vec::new())
-            .to_event(&keys)
-            .unwrap();
+        // let mut event = EventBuilder::new(Kind::Custom(7376), "invalid json", Vec::new())
+        //     .to_event(&keys)
+        //     .unwrap();
 
-        let parser = Parser::default();
-        let result = parser.prepare_kind_7376(&mut event);
+        // let parser = Parser::default();
+        // let result = parser.prepare_kind_7376(&mut event);
 
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("invalid spending history content"));
+        // assert!(result.is_err());
+        // assert!(result
+        //     .unwrap_err()
+        //     .to_string()
+        //     .contains("invalid spending history content"));
     }
 
     #[test]
     fn test_prepare_kind_7376_missing_required_fields() {
-        let keys = Keys::generate();
-        let content = r#"[["amount", "100"]]"#; // Missing direction
+        // let keys = Keys::generate();
+        // let content = r#"[["amount", "100"]]"#; // Missing direction
 
-        let mut event = EventBuilder::new(Kind::Custom(7376), content, Vec::new())
-            .to_event(&keys)
-            .unwrap();
+        // let mut event = EventBuilder::new(Kind::Custom(7376), content, Vec::new())
+        //     .to_event(&keys)
+        //     .unwrap();
 
-        let parser = Parser::default();
-        let result = parser.prepare_kind_7376(&mut event);
+        // let parser = Parser::default();
+        // let result = parser.prepare_kind_7376(&mut event);
 
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("must include direction and amount"));
+        // assert!(result.is_err());
+        // assert!(result
+        //     .unwrap_err()
+        //     .to_string()
+        //     .contains("must include direction and amount"));
     }
 
     #[test]

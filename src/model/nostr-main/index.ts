@@ -13,6 +13,7 @@ import { decode, encode } from '@msgpack/msgpack';
 import type { EOSE } from './pkg/nutscash_nostr_main';
 import type { NostrEvent } from 'nostr-tools';
 import { writable, type Writable } from 'svelte/store';
+import { pack } from 'msgpackr';
 
 // Re-export types for external use
 export type SubscribeKind = 'CACHED_EVENT' | 'FETCHED_EVENT' | 'COUNT' | 'EOSE' | 'EOCE';
@@ -64,7 +65,7 @@ class NostrManager {
 	private worker: Worker = new nostrWorker();
 	private subscriptions = new Map<
 		string,
-		{ buffer: SharedArrayBuffer; options: SubscriptionOptions }
+		{ buffer: SharedArrayBuffer; options: SubscriptionOptions; refCount: number }
 	>();
 	private publishes = new Map<string, PublishCallback>();
 	private signers = new Map<string, string>(); // name -> secret key hex
@@ -161,12 +162,12 @@ class NostrManager {
 		options: SubscriptionOptions = {}
 	): SharedArrayBuffer {
 		const subId = subscriptionId.length < 64 ? subscriptionId : this.createShortId(subscriptionId);
-		// if (subscriptionId.length >= 64) {
-		// 	console.log('subId:', subId, 'subscriptionId:', subscriptionId);
-		// }
+
 		// Check if subscription already exists
 		const existingSubscription = this.subscriptions.get(subId);
 		if (existingSubscription) {
+			// Increment reference count for existing subscription
+			existingSubscription.refCount++;
 			return existingSubscription.buffer;
 		}
 
@@ -188,7 +189,7 @@ class NostrManager {
 		const view = new DataView(buffer);
 		view.setUint32(0, 4, true); // Little endian
 
-		this.subscriptions.set(subId, { buffer, options: defaultOptions });
+		this.subscriptions.set(subId, { buffer, options: defaultOptions, refCount: 1 });
 
 		const message: MainToWorkerMessage = {
 			Subscribe: {
@@ -214,39 +215,36 @@ class NostrManager {
 	/**
 	 * Unsubscribe from a subscription
 	 */
-	private unsubscribe(subId: string): void {
-		this.subscriptions.delete(subId);
-
-		const message: MainToWorkerMessage = {
-			Unsubscribe: {
-				subscription_id: subId
-			}
-		};
-		const pack = encode(message);
-		this.worker.postMessage(pack);
+	unsubscribe(subId: string): void {
+		const subscription = this.subscriptions.get(subId);
+		if (subscription) {
+			subscription.refCount--;
+		}
 	}
 
 	/**
 	 * Publish an event
 	 */
-	publish(eventJson: string, callback?: PublishCallback) {
+	publish(publish_id: string, event: NostrEvent, callback?: PublishCallback) {
 		try {
-			const event = JSON.parse(eventJson);
-			const eventId = event.id;
+			// for rust compatibility, will be overriden post parsing
+			event.id = publish_id;
 
 			if (callback) {
-				this.publishes.set(eventId, callback);
+				this.publishes.set(publish_id, callback);
 			}
+
+			console.log('event', event);
 
 			const message: MainToWorkerMessage = {
 				Publish: {
-					publish_id: eventId,
-					event: JSON.parse(eventJson)
+					publish_id: publish_id,
+					event
 				}
 			};
 
-			const pack = encode(message);
-			this.worker.postMessage(pack);
+			const p = encode(message);
+			this.worker.postMessage(p);
 		} catch (error) {
 			console.error('Failed to publish event:', error);
 			throw error;
@@ -295,10 +293,53 @@ class NostrManager {
 	}
 
 	addPublishCallbackAll() {}
+
+	/**
+	 * Clean up subscriptions with zero or negative reference counts
+	 */
+	cleanup(): void {
+		const subscriptionsToDelete: string[] = [];
+
+		// Find subscriptions with zero or negative reference counts
+		for (const [subId, subscription] of this.subscriptions.entries()) {
+			if (subscription.refCount <= 0) {
+				subscriptionsToDelete.push(subId);
+			}
+		}
+
+		// Clean up each subscription
+		for (const subId of subscriptionsToDelete) {
+			const subscription = this.subscriptions.get(subId);
+			if (subscription) {
+				// Send unsubscribe message to worker
+				const message: MainToWorkerMessage = {
+					Unsubscribe: {
+						subscription_id: subId
+					}
+				};
+				const pack = encode(message);
+				this.worker.postMessage(pack);
+
+				// Remove from subscriptions map (this removes main thread's reference)
+				this.subscriptions.delete(subId);
+
+				// Note: The SharedArrayBuffer will be garbage collected once both
+				// the main thread (above) and worker thread (via Unsubscribe message)
+				// drop their references to it
+			}
+		}
+	}
 }
 
 // Re-export the client class for direct instantiation if needed
 export const nostrManager = new NostrManager();
+
+/**
+ * Clean up subscriptions with zero or negative reference counts
+ */
+export function cleanup(): void {
+	nostrManager.cleanup();
+}
 
 export function useSharedSubscription(
 	subId: string,
@@ -320,6 +361,7 @@ export function useSharedSubscription(
 			if (!running || !buffer) return;
 
 			const result = SharedBufferReader.readMessages(buffer, lastReadPos);
+
 			if (result.hasNewData) {
 				// Found new data - reset to aggressive polling
 				pollInterval = 5;
@@ -341,6 +383,11 @@ export function useSharedSubscription(
 				pollInterval = Math.min(pollInterval * 2, maxInterval);
 			}
 
+			// Clear any existing timeout before scheduling a new one
+			if (timeoutId !== null) {
+				clearTimeout(timeoutId);
+			}
+
 			// Schedule next poll
 			timeoutId = window.setTimeout(processEvents, pollInterval);
 		};
@@ -354,5 +401,6 @@ export function useSharedSubscription(
 		if (timeoutId !== null) {
 			clearTimeout(timeoutId);
 		}
+		nostrManager.unsubscribe(subId);
 	};
 }

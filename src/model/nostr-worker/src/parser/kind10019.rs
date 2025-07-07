@@ -1,7 +1,7 @@
 use crate::parser::Parser;
 use crate::types::network::Request;
 use anyhow::{anyhow, Result};
-use nostr::Event;
+use nostr::{Event, UnsignedEvent};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -75,8 +75,8 @@ impl Parser {
         Ok((parsed, None))
     }
 
-    pub fn prepare_kind_10019(&self, event: &mut Event) -> Result<()> {
-        if event.kind.as_u64() != 10019 {
+    pub fn prepare_kind_10019(&self, unsigned_event: &mut UnsignedEvent) -> Result<Event> {
+        if unsigned_event.kind.as_u64() != 10019 {
             return Err(anyhow!("event is not kind 10019"));
         }
 
@@ -84,7 +84,7 @@ impl Parser {
         let mut has_mint = false;
         let mut has_pubkey = false;
 
-        for tag in &event.tags {
+        for tag in &unsigned_event.tags {
             let tag_vec = tag.as_vec();
             if tag_vec.len() >= 2 {
                 match tag_vec[0].as_str() {
@@ -102,10 +102,9 @@ impl Parser {
         if !has_pubkey {
             return Err(anyhow!("kind 10019 must include a pubkey tag"));
         }
-
-        // Note: Signing would require signer implementation
-        // For now, return error indicating signing is needed
-        Err(anyhow!("signing not implemented - requires signer"))
+        self.signer_manager
+            .sign_event(unsigned_event)
+            .map_err(|e| anyhow!("failed to sign event: {}", e))
     }
 }
 

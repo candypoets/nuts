@@ -2,7 +2,7 @@ use crate::parser::{content::parse_content, Parser};
 use crate::types::network::Request;
 use crate::utils::request_deduplication::RequestDeduplicator;
 use anyhow::{anyhow, Result};
-use nostr::{Event, EventBuilder, Keys};
+use nostr::{Event, EventBuilder, Keys, UnsignedEvent};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -124,7 +124,7 @@ impl Parser {
         Ok((parsed, Some(deduplicated_requests)))
     }
 
-    pub fn prepare_kind_4(&self, event: &mut Event) -> Result<()> {
+    pub fn prepare_kind_4(&self, event: &mut UnsignedEvent) -> Result<Event> {
         // Find recipient from p tag
         let recipient = event
             .tags
@@ -157,10 +157,7 @@ impl Parser {
         // Sign the event with encrypted content
         let new_event = self.signer_manager.sign_event(&mut unsigned_event)?;
 
-        // Replace the original event with the new one (content is now encrypted)
-        *event = new_event;
-
-        Ok(())
+        Ok(new_event)
     }
 }
 

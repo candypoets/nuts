@@ -5,7 +5,7 @@ use crate::types::*;
 use anyhow::Result;
 use futures::future::join_all;
 use instant::Instant;
-use nostr::{Event, Kind};
+use nostr::{Event, Kind, UnsignedEvent};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::RwLock;
@@ -48,8 +48,15 @@ impl PublishManager {
         self.callback = Some(callback);
     }
 
-    pub async fn publish_event(&self, publish_id: String, event: &mut Event) -> Result<()> {
-        info!("Publishing event {} with ID {}", event.id, publish_id);
+    pub async fn publish_event(
+        &self,
+        publish_id: String,
+        unsigned_event: &mut UnsignedEvent,
+    ) -> Result<()> {
+        info!(
+            "Publishing event {} with ID {}",
+            unsigned_event.id, publish_id
+        );
 
         // Check if we already have an operation with this ID
         {
@@ -63,7 +70,7 @@ impl PublishManager {
         }
 
         // Prepare the event using parser
-        match self.parser.prepare(event) {
+        let event = match self.parser.prepare(unsigned_event) {
             Ok(parsed) => parsed,
             Err(e) => return Err(anyhow::anyhow!("failed to prepare event: {}", e)),
         };

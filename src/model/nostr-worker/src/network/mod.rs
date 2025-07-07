@@ -8,6 +8,7 @@ use crate::types::network::Request;
 use crate::types::*;
 use anyhow::Result;
 use js_sys::SharedArrayBuffer;
+use nostr::UnsignedEvent;
 use std::sync::Arc;
 
 pub struct NetworkManager {
@@ -53,7 +54,7 @@ impl NetworkManager {
             .await
     }
 
-    pub async fn publish_event(&self, publish_id: String, event: &mut Event) -> Result<()> {
+    pub async fn publish_event(&self, publish_id: String, event: &mut UnsignedEvent) -> Result<()> {
         self.publish_manager.publish_event(publish_id, event).await
     }
 
