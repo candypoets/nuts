@@ -8,7 +8,16 @@
 
 	import { decodePrivKey } from 'src/lib/wallet';
 	import Pager from 'src/components/Pager.svelte';
-	import { kind0, kind10002, kind10019, kind17375, kind3, kinds7375 } from 'src/controller/nostr';
+	import {
+		delayedPromise,
+		kind0,
+		kind10002,
+		kind10019,
+		kind10019Ready,
+		kind17375,
+		kind3,
+		kinds7375
+	} from 'src/controller/nostr';
 	import {
 		activeMintUrl,
 		balanceByMint,
@@ -52,58 +61,79 @@
 
 	$: walletRelays = $kind10019?.parsed?.readRelays;
 
-	$: relays = walletRelays || readRelays;
+	let defaultRelays;
 
-	$: feedRequests = [
-		{
-			kinds: [7374, 7376, 9321],
-			authors: [$key?.pub],
-			limit: $limit,
-			relays
-		},
-		{
-			kinds: [9321],
-			tags: { '#p': [$key?.pub] },
-			limit: $limit,
-			relays
-		}
-	];
-
-	$: walletSub = useSharedSubscription(
-		'active_wallet',
-		[
-			{ kinds: [7375], authors: [$key?.pub], limit: 10, relays: walletRelays || readRelays },
-			{ kinds: [17375], authors: [$key?.pub], limit: 10, relays: walletRelays || readRelays }
-		],
-		(events: ParsedEvent<unknown>[], eventKind: SubscribeKind) => {
-			console.log('active_wallet', events, eventKind);
-			if (eventKind == 'EOSE') {
-				walletLoaded.resolve(true);
-				// Process cashu tokens from kinds7375
-
-				return;
-			}
-			const [event, ...context] = events;
-			if (!event || !event.parsed) return;
-			if (isKind17375(event)) {
-				// Only update if the store is empty or the event is more recent
-				if (!$kind17375 || event.created_at > $kind17375.created_at) {
-					$kind17375 = event;
-					$activeMintUrl = event.parsed.mints?.[0] && normalizeMintURL(event.parsed.mints?.[0]);
-				}
-				if (event?.parsed?.p2pkPrivKey) {
-					cashuManager.createWallet(event?.parsed?.p2pkPrivKey, event?.parsed?.mints);
-				}
-			}
-			if (isKind7375(event) && event?.parsed?.mintUrl) {
-				console.log('kind7375', event);
-				if (event?.parsed?.deletedIds?.length) {
-					$deletedKind7375Ids = $deletedKind7375Ids.concat(event?.parsed?.deletedIds);
-				}
-				$kinds7375 = $kinds7375.concat(event);
-			}
-		}
+	setTimeout(
+		() =>
+			(defaultRelays = [
+				'wss://relay.damus.io',
+				'wss://nos.lol',
+				'wss://relay.primal.net',
+				'wss://relay.nostr.band'
+			]),
+		3000
 	);
+
+	$: relays = walletRelays || readRelays || defaultRelays;
+
+	let feedRequests: Request[] = [];
+
+	Promise.race([kind10019Ready.promise, delayedPromise]).then(() => {
+		feedRequests = [
+			{
+				kinds: [7374, 7376, 9321],
+				authors: [$key?.pub],
+				limit: $limit,
+				relays: relays
+			},
+			{
+				kinds: [9321],
+				tags: { '#p': [$key?.pub] },
+				limit: $limit,
+				relays: relays
+			}
+		];
+	});
+
+	$: console.log('hey:', relays, $key?.pub);
+
+	let walletSub = Promise.race([kind10019Ready.promise, delayedPromise]).then((event) => {
+		useSharedSubscription(
+			'active_wallet',
+			[
+				{ kinds: [7375], authors: [$key?.pub], limit: 40, relays: relays },
+				{ kinds: [17375], authors: [$key?.pub], limit: 10, relays: relays }
+			],
+			(events: ParsedEvent<unknown>[], eventKind: SubscribeKind) => {
+				console.log('active_wallet', events, eventKind);
+				if (eventKind == 'EOSE') {
+					if (events.remainingConnections / events.totalConnections <= 0.5) {
+						walletLoaded.resolve(true);
+					}
+					return;
+				}
+				const [event, ...context] = events;
+				if (!event || !event.parsed) return;
+				if (isKind17375(event)) {
+					// Only update if the store is empty or the event is more recent
+					if (!$kind17375 || event.created_at > $kind17375.created_at) {
+						$kind17375 = event;
+						$activeMintUrl = event.parsed.mints?.[0] && normalizeMintURL(event.parsed.mints?.[0]);
+					}
+					if (event?.parsed?.p2pkPrivKey) {
+						console.log('create wallet:', event?.parsed?.p2pkPrivKey, event?.id);
+						cashuManager.createWallet(event?.parsed?.p2pkPrivKey, event?.parsed?.mints);
+					}
+				}
+				if (isKind7375(event) && event?.parsed?.mintUrl) {
+					if (event?.parsed?.deletedIds?.length) {
+						$deletedKind7375Ids = $deletedKind7375Ids.concat(event?.parsed?.deletedIds);
+					}
+					$kinds7375 = $kinds7375.concat(event);
+				}
+			}
+		);
+	});
 
 	function updateFeed(
 		feed: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][],
@@ -201,10 +231,12 @@
 	walletLoaded.then(() => {
 		setTimeout(() => {
 			const proofsMint = proofsByMint();
+			console.log('wallet proofsMint', proofsMint);
 			for (const [mintUrl, proofs] of Object.entries(proofsMint)) {
+				console.log('wallet checkProofState', mintUrl, proofs);
 				cashuManager.checkProofState(mintUrl, proofs);
 			}
-		}, 1000);
+		}, 2000);
 	});
 
 	onMount(() => {
@@ -215,7 +247,7 @@
 </script>
 
 <Pager rootPath="/home">
-	<Feed subscriptionID="home" requests={feedRequests} {updateFeed} backdrop>
+	<Feed subscriptionID="home" requests={feedRequests} {updateFeed} itemHeight={150} backdrop>
 		<svelte:fragment slot="header">
 			<div
 				class="relative w-feed unsafe-padding-top place-content-center m-auto z-10 backdrop unsafe-padding-top"
