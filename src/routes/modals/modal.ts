@@ -1,5 +1,6 @@
 import { goto } from '$app/navigation';
 import { page } from '$app/stores';
+import { cleanup } from 'src/model/nostr-main';
 import { get, writable } from 'svelte/store';
 
 export const pathOptions = [
@@ -31,7 +32,7 @@ export function goBack() {
 
 	// Find the last "/" and get everything before it
 	const lastSlashIndex = currentPath.lastIndexOf('/');
-
+	cleanup();
 	if (lastSlashIndex > 0) {
 		// Navigate to the parent path (everything before last slash)
 		const parentPath = currentPath.substring(0, lastSlashIndex);
@@ -47,6 +48,7 @@ export function go(eventPath: string) {
 
 	// Check if the current URL already ends with the profile we're trying to navigate to
 	if (!currentPath.endsWith(eventPath)) {
+		cleanup();
 		console.log(`Navigating to ${currentPath}/${eventPath}`);
 		goto(`${currentPath}/${eventPath}`);
 	}

@@ -114,8 +114,6 @@
 	$: depthTranslation.set(depth * 30); // 10px per depth level (adjust as needed)
 	$: depthScale.set(Math.max(0.85, 1 - depth * 0.05)); // Reduce scale by 5% per depth level, min 85%
 	$: depthOpacity.set(Math.max(0.3, 1 - depth * 0.3)); // Reduce opacity by 20% per depth level, min 50%
-
-	$: console.log('path', path);
 </script>
 
 <div
