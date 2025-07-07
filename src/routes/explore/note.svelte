@@ -51,7 +51,6 @@
 
 	function handleEvents(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) {
 		if (kind == 'EOSE') {
-			console.log('eose', events);
 			return;
 		}
 		const [event] = events;
@@ -62,7 +61,6 @@
 	function subscribe() {
 		timeout = setTimeout(async () => {
 			if (note && note.requests && visible) {
-				console.log('subscribe', note.id);
 				// console.log('note requests', note.id || noteId, randomId, note.requests);
 				useSharedSubscription(note.id, note.requests, handleEvents);
 			}
