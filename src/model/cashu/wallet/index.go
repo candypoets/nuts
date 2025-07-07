@@ -287,6 +287,14 @@ func (wm *WalletManager) createWallet(this js.Value, args []js.Value) any {
 			wm.Wallets = make(map[string]*wallet.Wallet)
 		}
 
+		// Check if wallet already exists
+		if _, exists := wm.Wallets[secret]; exists {
+			wm.log.Debug().
+				Str("secret", secret).
+				Msg("Wallet already exists, skipping creation")
+			return
+		}
+
 		pubkey, err := GetPublicKey(secret)
 		if err != nil {
 			wm.log.Error().
@@ -294,6 +302,11 @@ func (wm *WalletManager) createWallet(this js.Value, args []js.Value) any {
 				Msg("Failed to get public key from secret")
 			return
 		}
+
+		wm.log.Debug().
+			Str("pubkey", pubkey).
+			Str("secret", secret).
+			Msg("Creating wallet with pubkey and secret")
 
 		db, err := storage.InitBrowser(pubkey)
 		if err != nil {
