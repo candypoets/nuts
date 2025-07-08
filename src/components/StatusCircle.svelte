@@ -1,13 +1,17 @@
 <script lang="ts">
 	import { onMount, createEventDispatcher } from 'svelte';
 	import { spring, tweened } from 'svelte/motion';
+	import { fade } from 'svelte/transition';
 	import { PublishStatus } from 'src/model/nostr-main';
 	import { cubicOut } from 'svelte/easing';
+	import { proxyImageUrl, ImagePresets } from 'src/lib/proxy';
 
 	// Component props
 	export let relayName = '';
 	export let relayImage = null;
-	export let status: PublishStatus = PublishStatus.StatusPending;
+	export let relayInfo: any = null; // NIP-11 relay information from parent
+	export let status: 'pending' | 'sent' | 'success' | 'connection_error' | 'failed' | 'rejected' =
+		'pending';
 	export let progress = 0; // 0 to 1
 	export let errorMessage = '';
 	export let eventData = {};
@@ -97,18 +101,28 @@
 	// Get first letter of relay name (for fallback)
 	$: firstLetter = relayName.charAt(0).toUpperCase();
 
-	// Tailwind classes based on status
-	$: statusTextColor = {
-		[PublishStatus.StatusSent]: 'text-gray',
-		[PublishStatus.StatusPending]: 'text-blue-500',
-		[PublishStatus.StatusSuccess]: 'text-green-500',
-		[PublishStatus.StatusConnError]: 'text-red-500',
-		[PublishStatus.StatusFailed]: 'text-red-500',
-		[PublishStatus.StatusRejected]: 'text-red-500'
-	}[status];
+	// Determine which image to use (priority: relayImage prop > relay info icon > fallback)
+	$: displayImage = relayImage
+		? proxyImageUrl(relayImage, ImagePresets.avatar)
+		: relayInfo?.icon
+			? proxyImageUrl(relayInfo.icon, ImagePresets.avatar)
+			: null;
 
-	const isErrorStatus = status === PublishStatus.StatusFailed ||
-		status === PublishStatus.StatusRejected || [PublishStatus.StatusConnError];
+	// Tailwind classes based on status
+	$: statusTextColor =
+		{
+			pending: 'text-blue-500',
+			sent: 'text-gray',
+			success: 'text-green-500',
+			connection_error: 'text-red-500',
+			failed: 'text-red-500',
+			rejected: 'text-red-500'
+		}[status] || 'text-gray';
+
+	const isErrorStatus =
+		status === 'failed' || status === 'rejected' || status === 'connection_error';
+
+	$: console.log('relay status', status, statusTextColor, relayName);
 </script>
 
 <div class="inline-block relative" style="opacity: {$opacity}; transform: scale({$scale})">
@@ -118,11 +132,16 @@
 		height={size}
 		viewBox="0 0 100 100"
 		on:click={toggleDetails}
+		on:keydown={(e) => e.key === 'Enter' && toggleDetails()}
+		role="button"
+		tabindex="0"
 		class="overflow-visible cursor-pointer transition-transform duration-200 ease-in-out {status ===
-			PublishStatus.StatusFailed || showDetails
+			'failed' || showDetails
 			? 'hover:scale-105'
 			: ''}"
 	>
+		<!-- White transparent background circle -->
+		<circle cx="50" cy="50" r="50" fill="rgba(255, 255, 255, 0.6)" />
 		<!-- Background circle -->
 		<circle cx="50" cy="50" r="46" fill="none" stroke="#e6e6e6" stroke-width="8" />
 
@@ -141,9 +160,9 @@
 
 		<!-- Center content -->
 		<g>
-			{#if relayImage}
+			{#if displayImage}
 				<image
-					href={relayImage}
+					href={displayImage}
 					x="25"
 					y="25"
 					width="50"
@@ -151,7 +170,14 @@
 					clip-path="circle(25px at center)"
 				/>
 			{:else}
-				<text x="50" y="50" text-anchor="middle" dominant-baseline="central" font-size="40">
+				<text
+					x="50"
+					y="50"
+					text-anchor="middle"
+					dominant-baseline="central"
+					font-size="40"
+					fill="#333"
+				>
 					{firstLetter}
 				</text>
 			{/if}
@@ -162,7 +188,7 @@
 	{#if showDetails}
 		<div
 			class="card absolute left-1/2 top-1/2 mt-8 ml-4 bg-base-100 shadow-lg w-72 z-50"
-			transition:tweened={{ duration: 200 }}
+			transition:fade={{ duration: 200 }}
 		>
 			<div class="card-title bg-base-200 px-4 py-3 flex justify-between items-center">
 				<span class="font-bold {statusTextColor} text-sm">{status.toUpperCase()}</span>
@@ -173,6 +199,15 @@
 					<iconify-icon icon="mdi:close" width="16" height="16"></iconify-icon>
 				</button>
 			</div>
+
+			{#if relayInfo}
+				<div class="px-4 py-3 border-b border-base-300">
+					<div class="text-sm font-semibold">{relayInfo.name || relayName}</div>
+					{#if relayInfo.description}
+						<div class="text-xs text-base-content/70 mt-1">{relayInfo.description}</div>
+					{/if}
+				</div>
+			{/if}
 
 			{#if isErrorStatus && errorMessage}
 				<div class="px-4 py-3 text-error border-b border-base-300">

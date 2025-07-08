@@ -1,16 +1,30 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { fly, fade } from 'svelte/transition';
-	import { nostrManager, type RelayStatus } from 'src/model/nostr-main';
+	import { nostrManager, type RelayStatus, PublishStatus } from 'src/model/nostr-main';
 	import StatusCircle from './StatusCircle.svelte';
+	import { normalizeURL } from 'nostr-tools/utils';
+	import { proxyUrl } from 'src/lib/proxy';
 
 	// Store active and recently completed publish statuses
 	type StatusEntry = {
 		relay: string;
-		status: RelayStatus;
+		status: any; // RelayStatusUpdate from pkg
 		eventId: string;
 		timestamp: number;
 		expiryTimer?: number;
+	};
+
+	// NIP-11 relay information type
+	type RelayInfo = {
+		name?: string;
+		description?: string;
+		icon?: string;
+		pubkey?: string;
+		contact?: string;
+		supported_nips?: number[];
+		software?: string;
+		version?: string;
 	};
 
 	let statuses: StatusEntry[] = [];
@@ -19,11 +33,17 @@
 	// Used to update the correct status entries and manage cleanup
 	const eventRelayMap = new Map<string, Set<string>>();
 
+	// Cache for relay info to prevent duplicate fetches
+	const relayInfoCache = new Map<string, RelayInfo>();
+
+	// Track fetch attempts to avoid duplicate requests
+	const fetchAttempts = new Set<string>();
+
 	// Constants
 	const DISPLAY_DURATION_MS = 5000; // 5 seconds to show completed statuses
 
 	// Add a status update to the list
-	function updateStatus(status: RelayStatus, eventId: string) {
+	function updateStatus(status: any, eventId: string) {
 		const relayUrl = status.relay;
 		const existingIndex = statuses.findIndex((s) => s.relay === relayUrl && s.eventId === eventId);
 
@@ -101,10 +121,73 @@
 		}
 	}
 
+	// Fetch relay information from NIP-11
+	async function fetchRelayInfo(relayUrl: string): Promise<RelayInfo | null> {
+		try {
+			// Normalize and convert websocket URL to HTTP URL
+			const normalizedUrl = normalizeURL(relayUrl);
+
+			// Check cache first
+			if (relayInfoCache.has(normalizedUrl)) {
+				return relayInfoCache.get(normalizedUrl) || null;
+			}
+
+			// Check if we're already fetching this relay
+			if (fetchAttempts.has(normalizedUrl)) {
+				return null;
+			}
+
+			fetchAttempts.add(normalizedUrl);
+
+			const httpUrl = normalizedUrl.replace('wss://', 'https://').replace('ws://', 'http://');
+
+			// Use proxy to handle CORP policy
+			const proxyedUrl = proxyUrl(httpUrl, 'resource');
+			console.log('Fetching relay info from:', httpUrl, 'via proxy:', proxyedUrl);
+
+			const response = await fetch(proxyedUrl, {
+				headers: {
+					Accept: 'application/nostr+json'
+				}
+			});
+
+			console.log('Relay info response status:', response.status, 'for', relayUrl);
+
+			if (response.ok) {
+				const relayInfo: RelayInfo = await response.json();
+				console.log('Fetched relay info:', relayInfo);
+				// Cache the result
+				relayInfoCache.set(normalizedUrl, relayInfo);
+				return relayInfo;
+			} else {
+				console.warn('Failed to fetch relay info - HTTP', response.status, response.statusText);
+			}
+		} catch (error) {
+			console.log('Failed to fetch relay info for', relayUrl, error);
+		} finally {
+			fetchAttempts.delete(normalizeURL(relayUrl));
+		}
+
+		// Cache empty result to prevent retry
+		relayInfoCache.set(normalizeURL(relayUrl), {});
+		return null;
+	}
+
+	// Get relay info for a specific relay URL
+	function getRelayInfo(relayUrl: string): RelayInfo | null {
+		const normalizedUrl = normalizeURL(relayUrl);
+		return relayInfoCache.get(normalizedUrl) || null;
+	}
+
 	onMount(() => {
 		// Subscribe to publish status updates
-		nostrManager.addPublishCallbackAll((status, eventId) => {
+		nostrManager.addPublishCallbackAll((status: any, eventId: string) => {
 			updateStatus(status, eventId);
+			// Fetch relay info for new relays (fire and forget)
+			const normalizedUrl = normalizeURL(status.relay);
+			if (!relayInfoCache.has(normalizedUrl) && !fetchAttempts.has(normalizedUrl)) {
+				fetchRelayInfo(status.relay);
+			}
 		});
 	});
 
@@ -128,8 +211,9 @@
 			out:fly={{ x: -50, duration: 200 }}
 		>
 			<StatusCircle
-				relayName={getRelayName(entry.relay)}
-				status={entry.status.status}
+				relayName={getRelayInfo(entry.relay)?.name || getRelayName(entry.relay)}
+				relayInfo={getRelayInfo(entry.relay)}
+				status={entry.status.status.toLowerCase() || 'pending'}
 				errorMessage={entry.status.message}
 				eventData={{
 					eventId: entry.eventId,

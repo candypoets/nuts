@@ -60,6 +60,12 @@ export const GET: RequestHandler = async ({ url, setHeaders, request }) => {
 			'User-Agent': 'NutsCash/1.0'
 		};
 
+		// Forward Accept header for content negotiation (e.g., NIP-11)
+		const acceptHeader = request.headers.get('accept');
+		if (acceptHeader) {
+			fetchHeaders['Accept'] = acceptHeader;
+		}
+
 		// Forward range header for video streaming
 		if (range) {
 			fetchHeaders['Range'] = range;
@@ -78,7 +84,15 @@ export const GET: RequestHandler = async ({ url, setHeaders, request }) => {
 		const contentType = response.headers.get('content-type') || 'application/octet-stream';
 
 		// Allow common media types
-		const allowedTypes = ['video/', 'audio/', 'image/', 'application/pdf', 'text/'];
+		const allowedTypes = [
+			'video/',
+			'audio/',
+			'image/',
+			'application/pdf',
+			'text/',
+			'application/json',
+			'application/nostr+json'
+		];
 		const isAllowed = allowedTypes.some((type) => contentType.startsWith(type));
 		if (!isAllowed) {
 			throw error(400, 'Resource type not allowed');
