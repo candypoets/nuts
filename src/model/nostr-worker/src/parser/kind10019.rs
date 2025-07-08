@@ -13,11 +13,11 @@ pub struct MintInfo {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Kind10019Parsed {
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(skip_serializing_if = "Vec::is_empty", rename = "trustedMints")]
     pub trusted_mints: Vec<MintInfo>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", rename = "p2pkPubkey")]
     pub p2pk_pubkey: Option<String>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(skip_serializing_if = "Vec::is_empty", rename = "readRelays")]
     pub read_relays: Vec<String>,
 }
 
