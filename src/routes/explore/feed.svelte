@@ -239,6 +239,15 @@
 			</div>
 		</div>
 	{/if}
+
+	{#if start >= 1}
+		<!-- Fixed footer (only visible when scrolled) -->
+		<div class="fixed bottom-0 z-10 w-full sticky-footer" style="--footer-visible: {down ? 0 : 1};">
+			<div class="w-feed m-auto">
+				<slot name="sticky-footer" visible={true} scrolled={true} {newPosts} />
+			</div>
+		</div>
+	{/if}
 	<div class="absolute z-10 w-full">
 		<div class="w-feed m-auto">
 			<slot name="fixed-header" {start} />
@@ -291,5 +300,27 @@
 		contain: layout style paint;
 		backface-visibility: hidden;
 		-webkit-backface-visibility: hidden;
+	}
+
+	.sticky-footer {
+		opacity: var(--footer-visible);
+		transform: translate3d(0, calc((1 - var(--footer-visible)) * 100%), 0);
+		transition:
+			opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+			transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+		will-change: opacity, transform;
+		contain: layout style paint;
+		backface-visibility: hidden;
+		-webkit-backface-visibility: hidden;
+		/* Stay above keyboard on mobile */
+		bottom: env(keyboard-inset-height, 0);
+	}
+
+	/* Fallback for older browsers */
+	@supports not (bottom: env(keyboard-inset-height)) {
+		.sticky-footer {
+			/* Use viewport height units for better keyboard handling */
+			bottom: max(0px, env(safe-area-inset-bottom));
+		}
 	}
 </style>

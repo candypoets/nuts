@@ -64,13 +64,10 @@
 		<svelte:fragment slot="sticky-header" let:newPosts>
 			<div
 				id={$page.url.pathname === '/explore' ? 'top' : undefined}
-				class="backdrop-blur border-b border-base-200 unsafe-padding-top"
+				class="backdrop-blur md:border-b border-base-200 safe-padding-top"
 			>
-				<div class="flex justify-between w-feed lg:m-auto h-16 items-center">
+				<div class="flex justify-between w-feed lg:m-auto md:h-16 items-center">
 					<h1 class="text-2xl font-semibold flex gap-2 items-center">
-						<span class="cursor-pointer" on:click|stopPropagation={() => go('notifications')}>
-							<Icon icon="mdi:bell" class="mr-2" />
-						</span>
 						<div class="cursor-pointer" on:click|stopPropagation={() => go('followlists')}>
 							Explore
 						</div>
@@ -81,7 +78,10 @@
 						{/if}
 					</div>
 					<div class="flex gap-2 items-center">
-						<span class="text font-semibold">{$balance} Sats</span>
+						<!-- <span class="text font-semibold">{$balance} Sats</span> -->
+						<span class="cursor-pointer" on:click|stopPropagation={() => go('notifications')}>
+							<Icon icon="mdi:bell-outline" class="text-2xl mr-2" />
+						</span>
 						<a class="cursor-pointer" on:click|stopPropagation={() => go('profile')}>
 							<img
 								src={$kind0?.parsed?.picture || '/ns-naked.svg'}
@@ -90,30 +90,31 @@
 						</a>
 					</div>
 				</div>
-			</div>
-			<div class="backdrop-blur-md" on:click|stopPropagation>
-				<div class="w-feed lg:m-auto">
-					<MultiSelect
-						selectedLists={$followPacks}
-						getTitle={(item) => item.parsed?.title}
-						removeItem={(list) => {
-							$followPacks = $followPacks.filter((p) => p.id != list.id);
-						}}
-					/>
+				<div on:click|stopPropagation>
+					<div class="w-feed lg:m-auto">
+						<MultiSelect
+							selectedLists={$followPacks}
+							getTitle={(item) => item.parsed?.title}
+							removeItem={(list) => {
+								$followPacks = $followPacks.filter((p) => p.id != list.id);
+							}}
+						/>
+					</div>
 				</div>
-				<Post />
 			</div>
 		</svelte:fragment>
+		<svelte.fragment slot="sticky-footer">
+			<div class="backdrop-blur pb-safe pt-4">
+				<Post actionsOnTop />
+			</div>
+		</svelte.fragment>
 		<svelte.fragment slot="header">
 			<div
-				class="relative unsafe-padding-top unsafe-padding-top"
+				class="relative md:pt-4 safe-padding-top"
 				id={$page.url.pathname === '/explore' ? 'top' : undefined}
 			>
-				<div class="w-feed lg:m-auto flex justify-between h-16 items-center">
+				<div class="w-feed lg:m-auto flex justify-between items-center">
 					<h1 class="text-2xl font-semibold flex gap-2 items-center">
-						<span class="cursor-pointer" on:click|stopPropagation={() => go('notifications')}>
-							<Icon icon="mdi:bell" class="mr-2" />
-						</span>
 						<div
 							class="cursor-pointer flex items-center"
 							on:click|stopPropagation={() => go('followlists')}
@@ -123,7 +124,11 @@
 						</div>
 					</h1>
 					<div class="flex gap-2 items-center">
-						<span class="text font-semibold">{$balance} Sats</span>
+						<!-- <span class="text font-semibold">{$balance} Sats</span> -->
+
+						<span class="cursor-pointer" on:click|stopPropagation={() => go('notifications')}>
+							<Icon icon="mdi:bell-outline" class="text-2xl mr-2" />
+						</span>
 						<div class="cursor-pointer" on:click|stopPropagation={() => go('profile')}>
 							<img
 								src={$kind0?.parsed?.picture || '/ns-naked.svg'}
