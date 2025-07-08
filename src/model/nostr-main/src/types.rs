@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use nostr::Event;
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use wasm_bindgen::prelude::*;
 
 /// Publish status types
@@ -22,6 +23,13 @@ pub struct RelayStatusUpdate {
     pub status: PublishStatus,
     pub message: String,
     pub timestamp: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EventTemplate {
+    pub kind: u64,
+    pub content: String,
+    pub tags: Vec<Vec<String>>,
 }
 
 /// EOSE (End of Stored Events) represents the completion of stored events delivery
@@ -168,10 +176,10 @@ pub enum MainToWorkerMessage {
     },
     Publish {
         publish_id: String,
-        event: serde_json::Value,
+        template: EventTemplate,
     },
     SignEvent {
-        event: serde_json::Value,
+        template: EventTemplate,
     },
     SetSigner {
         signer_type: String,

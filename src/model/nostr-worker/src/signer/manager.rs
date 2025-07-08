@@ -1,4 +1,4 @@
-use crate::types::{SignerMessage, SignerType};
+use crate::types::{EventTemplate, SignerMessage, SignerType};
 use anyhow::Result;
 use nostr::{Event, UnsignedEvent};
 use rmp_serde as rmps;
@@ -196,6 +196,24 @@ impl SignerManager for SignerManagerImpl {
 
         debug!("Successfully signed event: {}", event.id);
         Ok(signed_event)
+    }
+
+    /// Converts an EventTemplate to an UnsignedEvent using the current signer's public key
+    fn unsign_event(&self, template: EventTemplate) -> Result<UnsignedEvent> {
+        info!(
+            "Converting EventTemplate to UnsignedEvent for kind {}",
+            template.kind
+        );
+
+        let current_lock = self.current.lock().unwrap();
+        let signer = current_lock
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("No signer available"))?;
+
+        let unsigned_event = signer.unsign_event(template)?;
+
+        debug!("Successfully created UnsignedEvent");
+        Ok(unsigned_event)
     }
 
     /// Returns the public key of the current signer

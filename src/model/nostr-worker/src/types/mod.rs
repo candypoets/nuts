@@ -17,10 +17,38 @@ pub use nostr::{
     Alphabet, Event, EventId, Filter, Kind, PublicKey, SingleLetterTag, Tag, Timestamp,
 };
 
+use nostr::{EventBuilder, UnsignedEvent};
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 use wasm_bindgen::prelude::*;
 
 use crate::types::network::Request;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EventTemplate {
+    pub kind: u64,
+    pub content: String,
+    pub tags: Vec<Vec<String>>,
+}
+
+impl EventTemplate {
+    pub fn to_unsigned_event(&self, pubkey: PublicKey) -> Result<UnsignedEvent, String> {
+        let kind = Kind::from(self.kind);
+
+        let mut tags = Vec::new();
+        for tag_vec in &self.tags {
+            if !tag_vec.is_empty() {
+                let tag = Tag::parse(tag_vec.clone()).map_err(|e| format!("Invalid tag: {}", e))?;
+                tags.push(tag);
+            }
+        }
+
+        let event_builder =
+            EventBuilder::new(kind, &self.content, tags).custom_created_at(nostr::Timestamp::now());
+
+        Ok(event_builder.to_unsigned_event(pubkey))
+    }
+}
 
 /// SerializableParsedEvent represents a ParsedEvent with hex string fields for msgpack serialization
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -174,7 +202,7 @@ pub struct NetworkEvent {
 }
 
 /// Publish status types
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum PublishStatus {
     Pending,
     Sent,

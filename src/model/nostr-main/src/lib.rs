@@ -130,11 +130,17 @@ export type EOSE = {
   remainingConnections: number;
 };
 
+export type EventTemplate = {
+  kind: number;
+  content: string;
+  tags: string[][];
+};
+
 export type MainToWorkerMessage =
   | { Subscribe: { subscription_id: string; requests: Request[] } }
   | { Unsubscribe: { subscription_id: string } }
-  | { Publish: { publish_id: string; event: any } }
-  | { SignEvent: { event: any } }
+  | { Publish: { publish_id: string; template: EventTemplate } }
+  | { SignEvent: { template: EventTemplate } }
   | { GetPublicKey: {} }
   | { SetSigner: { signer_type: string; private_key: string } };
 

@@ -8,11 +8,11 @@ use crate::{
     relays::{
         connection::RelayConnection,
         types::{
-            ClientMessage, ConnectionStatus, PublishStatus, RelayConfig, RelayError, RelayMessage,
-            RelayResponse,
+            ClientMessage, ConnectionStatus, RelayConfig, RelayError, RelayMessage, RelayResponse,
         },
         utils::{normalize_relay_url, validate_relay_url},
     },
+    types::{PublishStatus as MainPublishStatus, RelayStatusUpdate},
     NetworkEvent, NetworkEventType,
 };
 use futures::channel::mpsc;
@@ -36,18 +36,7 @@ pub struct ConnectionRegistry {
     /// Event receivers for subscriptions (subscription_id -> sender)
     subscription_senders: Arc<RwLock<HashMap<String, mpsc::UnboundedSender<NetworkEvent>>>>,
     /// Publish result receivers (event_id -> sender)
-    publish_result_senders: Arc<RwLock<HashMap<EventId, mpsc::UnboundedSender<PublishResult>>>>,
-}
-
-/// Result of a publish operation
-#[derive(Debug, Clone)]
-pub struct PublishResult {
-    pub event_id: EventId,
-    pub relay_url: String,
-    pub status: PublishStatus,
-    pub message: String,
-    pub accepted: bool,
-    pub timestamp: instant::Instant,
+    publish_result_senders: Arc<RwLock<HashMap<EventId, mpsc::UnboundedSender<RelayStatusUpdate>>>>,
 }
 
 /// Handle for a subscription that allows event streaming and cancellation
@@ -99,7 +88,7 @@ impl futures::Stream for SubscriptionHandle {
 pub struct PublishHandle {
     event_id: EventId,
     relay_urls: Vec<String>,
-    result_receiver: mpsc::UnboundedReceiver<PublishResult>,
+    result_receiver: mpsc::UnboundedReceiver<RelayStatusUpdate>,
     registry: Arc<ConnectionRegistry>,
 }
 
@@ -115,12 +104,12 @@ impl PublishHandle {
     }
 
     /// Get the next publish result
-    pub async fn next_result(&mut self) -> Option<PublishResult> {
+    pub async fn next_result(&mut self) -> Option<RelayStatusUpdate> {
         self.result_receiver.next().await
     }
 
     /// Wait for all publish results
-    pub async fn wait_for_all_results(&mut self) -> Vec<PublishResult> {
+    pub async fn wait_for_all_results(&mut self) -> Vec<RelayStatusUpdate> {
         let mut results = Vec::new();
         let expected_count = self.relay_urls.len();
 
@@ -128,6 +117,7 @@ impl PublishHandle {
             if let Some(result) = self.next_result().await {
                 results.push(result);
             } else {
+                // Channel closed, break the loop
                 break;
             }
         }
@@ -254,8 +244,16 @@ impl ConnectionRegistry {
             normalized_urls.push(normalize_relay_url(&url));
         }
 
+        // Log publish information
+        tracing::info!(
+            event_id = %event_id,
+            relay_count = normalized_urls.len(),
+            relays = ?normalized_urls,
+            "Publishing event to relays"
+        );
+
         // Create result channel for this publish
-        let (result_sender, result_receiver) = mpsc::unbounded();
+        let (result_sender, result_receiver) = mpsc::unbounded::<RelayStatusUpdate>();
 
         // Store publish tracking
         {
@@ -264,7 +262,22 @@ impl ConnectionRegistry {
         }
         {
             let mut senders = self.publish_result_senders.write().unwrap();
-            senders.insert(event_id, result_sender);
+            senders.insert(event_id, result_sender.clone());
+        }
+
+        // Send pending status for all relays
+        for url in &normalized_urls {
+            let _ = self
+                .send_publish_result(
+                    event_id,
+                    RelayStatusUpdate {
+                        relay: url.clone(),
+                        status: MainPublishStatus::Pending,
+                        message: "Preparing to publish".to_string(),
+                        timestamp: js_sys::Date::now() as i64,
+                    },
+                )
+                .await;
         }
 
         // Ensure connections to all relays and send EVENT messages
@@ -288,16 +301,30 @@ impl ConnectionRegistry {
 
                 // Send failure result
                 let _ = self
-                    .send_publish_result(PublishResult {
+                    .send_publish_result(
                         event_id,
-                        relay_url: url.clone(),
-                        status: PublishStatus::Failed,
-                        message: e.to_string(),
-                        accepted: false,
-                        timestamp: instant::Instant::now(),
-                    })
+                        RelayStatusUpdate {
+                            relay: url.clone(),
+                            status: MainPublishStatus::ConnectionError,
+                            message: e.to_string(),
+                            timestamp: js_sys::Date::now() as i64,
+                        },
+                    )
                     .await;
                 continue;
+            } else {
+                // Send successful sent status
+                let _ = self
+                    .send_publish_result(
+                        event_id,
+                        RelayStatusUpdate {
+                            relay: url.clone(),
+                            status: MainPublishStatus::Sent,
+                            message: "Event sent to relay".to_string(),
+                            timestamp: js_sys::Date::now() as i64,
+                        },
+                    )
+                    .await;
             }
         }
 
@@ -461,20 +488,18 @@ impl ConnectionRegistry {
                 let event_id_obj = EventId::from_hex(event_id)
                     .map_err(|e| RelayError::ProtocolError(format!("Invalid event ID: {}", e)))?;
 
-                let result = PublishResult {
-                    event_id: event_id_obj,
-                    relay_url: response.relay_url.clone(),
+                let result = RelayStatusUpdate {
+                    relay: response.relay_url.clone(),
                     status: if *accepted {
-                        PublishStatus::Accepted
+                        MainPublishStatus::Success
                     } else {
-                        PublishStatus::Rejected
+                        MainPublishStatus::Rejected
                     },
                     message: message.clone(),
-                    accepted: *accepted,
-                    timestamp: response.timestamp,
+                    timestamp: js_sys::Date::now() as i64,
                 };
 
-                if let Err(e) = self.send_publish_result(result).await {
+                if let Err(e) = self.send_publish_result(event_id_obj, result).await {
                     tracing::warn!(
                         event_id = %event_id,
                         error = %e,
@@ -566,9 +591,13 @@ impl ConnectionRegistry {
     }
 
     /// Send publish result
-    async fn send_publish_result(&self, result: PublishResult) -> Result<(), RelayError> {
+    async fn send_publish_result(
+        &self,
+        event_id: EventId,
+        result: RelayStatusUpdate,
+    ) -> Result<(), RelayError> {
         let senders = self.publish_result_senders.read().unwrap();
-        if let Some(sender) = senders.get(&result.event_id) {
+        if let Some(sender) = senders.get(&event_id) {
             sender
                 .unbounded_send(result)
                 .map_err(|_| RelayError::ConnectionClosed)?;

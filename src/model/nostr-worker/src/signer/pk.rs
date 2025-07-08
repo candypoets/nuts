@@ -4,6 +4,7 @@ use nostr::{Event, EventBuilder, Keys, Kind, PublicKey, Tag, UnsignedEvent};
 use tracing::{debug, info};
 
 use super::interface::Signer;
+use crate::types::EventTemplate;
 
 /// PrivateKeySigner provides cryptographic operations using a private key
 /// It implements methods for NIP-04, NIP-44 encryption/decryption, and event signing
@@ -83,6 +84,14 @@ impl Signer for PrivateKeySigner {
 
         debug!("Successfully signed event: {}", signed_event.id);
         Ok(signed_event)
+    }
+
+    /// Converts an EventTemplate to an UnsignedEvent using the signer's public key
+    fn unsign_event(&self, template: EventTemplate) -> Result<UnsignedEvent> {
+        let pubkey = self.keys.public_key();
+        template
+            .to_unsigned_event(pubkey)
+            .map_err(|e| anyhow::anyhow!("Failed to create unsigned event: {}", e))
     }
 
     /// Encrypts a message for a recipient using NIP-04

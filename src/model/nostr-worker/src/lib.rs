@@ -1,6 +1,8 @@
 // Shared library for common types and functionality used by the worker
 
-use nostr::UnsignedEvent;
+use nostr::{EventBuilder, Kind, PublicKey, Tag, UnsignedEvent};
+use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 use wasm_bindgen::prelude::*;
 
 // Use `wee_alloc` as the global allocator for smaller WASM size
@@ -23,6 +25,7 @@ pub use db::NostrDB;
 pub use network::NetworkManager;
 pub use parser::Parser;
 pub use signer::{PrivateKeySigner, SharedSignerManager, Signer, SignerManager, SignerManagerImpl};
+use types::EventTemplate;
 pub use types::*;
 
 // Re-export communication types for external use
@@ -234,13 +237,15 @@ impl NostrClient {
             .map_err(|e| JsValue::from_str(&format!("Failed to close subscription: {}", e)))
     }
 
-    pub async fn publish_event(
+    async fn publish_event(
         &self,
         publish_id: String,
-        event_data: &[u8],
+        template: EventTemplate,
     ) -> Result<String, JsValue> {
-        let mut event: UnsignedEvent = rmp_serde::from_slice(event_data)
-            .map_err(|e| JsValue::from_str(&format!("Failed to parse event: {}", e)))?;
+        let mut event = self
+            .signer_manager
+            .unsign_event(template)
+            .map_err(|e| JsValue::from_str(&format!("Failed to create unsigned event: {}", e)))?;
 
         let summary = self
             .network_manager
@@ -252,9 +257,11 @@ impl NostrClient {
             .map_err(|e| JsValue::from_str(&format!("Failed to serialize summary: {}", e)))
     }
 
-    pub fn sign_event(&self, event_data: &[u8]) -> Result<(), JsValue> {
-        let mut event: UnsignedEvent = rmp_serde::from_slice(event_data)
-            .map_err(|e| JsValue::from_str(&format!("Failed to parse event: {}", e)))?;
+    fn sign_event(&self, template: EventTemplate) -> Result<(), JsValue> {
+        let mut event = self
+            .signer_manager
+            .unsign_event(template)
+            .map_err(|e| JsValue::from_str(&format!("Failed to create unsigned event: {}", e)))?;
 
         // Sign the event using the signer manager
         let signed_event = self
@@ -402,16 +409,15 @@ impl NostrClient {
             MainToWorkerMessage::Unsubscribe { subscription_id } => {
                 self.close_subscription(subscription_id).await?;
             }
-            MainToWorkerMessage::Publish { publish_id, event } => {
+            MainToWorkerMessage::Publish {
+                publish_id,
+                template,
+            } => {
                 info!("Publishing event with ID: {}", publish_id);
-                let event_data = rmp_serde::to_vec_named(&event)
-                    .map_err(|e| JsValue::from_str(&format!("Failed to serialize event: {}", e)))?;
-                self.publish_event(publish_id, &event_data).await?;
+                self.publish_event(publish_id, template).await?;
             }
-            MainToWorkerMessage::SignEvent { event } => {
-                let event_data = rmp_serde::to_vec_named(&event)
-                    .map_err(|e| JsValue::from_str(&format!("Failed to serialize event: {}", e)))?;
-                self.sign_event(&event_data)?;
+            MainToWorkerMessage::SignEvent { template } => {
+                self.sign_event(template)?;
             }
             MainToWorkerMessage::SetSigner {
                 signer_type,

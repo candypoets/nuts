@@ -15,9 +15,7 @@ pub mod types;
 
 // Re-export main public API
 pub use connection::RelayConnection;
-pub use connection_registry::{
-    ConnectionRegistry, PublishHandle, PublishResult, SubscriptionHandle,
-};
+pub use connection_registry::{ConnectionRegistry, PublishHandle, SubscriptionHandle};
 pub use types::{
     ClientMessage, ConnectionStatus, PublishStatus, RelayError, RelayMessage, RelayResponse,
     SubscriptionStatus,

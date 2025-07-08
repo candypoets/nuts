@@ -1,4 +1,4 @@
-use crate::types::SignerType;
+use crate::types::{EventTemplate, SignerType};
 use anyhow::Result;
 use nostr::{Event, UnsignedEvent};
 
@@ -10,6 +10,9 @@ pub trait Signer: Send + Sync {
 
     /// Signs a Nostr event with the private key
     fn sign_event(&self, event: &mut UnsignedEvent) -> Result<Event>;
+
+    /// Converts an EventTemplate to an UnsignedEvent using the signer's public key
+    fn unsign_event(&self, template: EventTemplate) -> Result<UnsignedEvent>;
 
     /// Encrypts a message for a recipient using NIP-04
     fn nip04_encrypt(&self, recipient_pubkey: &str, plaintext: &str) -> Result<String>;
@@ -36,6 +39,9 @@ pub trait Signer: Send + Sync {
 pub trait SignerManager: Send + Sync {
     /// Signs an event with the current signer
     fn sign_event(&self, event: &mut UnsignedEvent) -> Result<Event>;
+
+    /// Converts an EventTemplate to an UnsignedEvent using the current signer's public key
+    fn unsign_event(&self, template: EventTemplate) -> Result<UnsignedEvent>;
 
     /// Returns the public key of the current signer
     fn get_public_key(&self) -> Result<String>;

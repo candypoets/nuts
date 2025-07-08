@@ -104,6 +104,11 @@ class NostrManager {
 
 	private handleWorkerMessage(message: WorkerToMainMessage) {
 		if ('PublishStatus' in message) {
+			console.log(
+				'PublishStatus received:',
+				message.PublishStatus.publish_id,
+				message.PublishStatus.status
+			);
 			this.handlePublishStatus(message.PublishStatus.publish_id, message.PublishStatus.status);
 		} else if ('Count' in message) {
 			this.handleSubscriptionCount(message.Count.subscription_id, message.Count.count);
@@ -120,7 +125,11 @@ class NostrManager {
 
 	private handlePublishStatus(publishId: string, statuses: RelayStatusUpdate[]) {
 		const publishCallback = this.publishes.get(publishId);
-		if (!publishCallback) return;
+		console.log('publishCallback', publishCallback);
+		if (!publishCallback) {
+			const publishAllCallback = this.publishes.get('*');
+			return publishAllCallback && publishAllCallback(statuses[0], 'PUBLISH_STATUS');
+		}
 
 		// Handle the first status for now
 		if (statuses.length > 0) {
@@ -227,19 +236,22 @@ class NostrManager {
 	 */
 	publish(publish_id: string, event: NostrEvent, callback?: PublishCallback) {
 		try {
-			// for rust compatibility, will be overriden post parsing
-			event.id = publish_id;
-
 			if (callback) {
 				this.publishes.set(publish_id, callback);
 			}
 
-			console.log('event', event);
+			const template = {
+				kind: event.kind,
+				content: event.content,
+				tags: event.tags || []
+			};
+
+			console.log(template);
 
 			const message: MainToWorkerMessage = {
 				Publish: {
 					publish_id: publish_id,
-					event
+					template
 				}
 			};
 
@@ -272,9 +284,15 @@ class NostrManager {
 	 * Sign an event using a stored signer
 	 */
 	signEvent(event: NostrEvent) {
+		const template = {
+			kind: event.kind,
+			content: event.content,
+			tags: event.tags
+		};
+
 		const message: MainToWorkerMessage = {
 			SignEvent: {
-				event: event
+				template: template
 			}
 		};
 		const pack = encode(message);
@@ -292,7 +310,9 @@ class NostrManager {
 		this.worker.postMessage(pack);
 	}
 
-	addPublishCallbackAll() {}
+	addPublishCallbackAll(callback: (status: RelayStatusUpdate, eventId: string) => void) {
+		this.publishes.set('*', callback);
+	}
 
 	/**
 	 * Clean up subscriptions with zero or negative reference counts

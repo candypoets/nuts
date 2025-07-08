@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     types::{network::SubscribeKind, Request, SerializableParsedEvent, EOSE},
-    RelayStatusUpdate,
+    EventTemplate, RelayStatusUpdate,
 };
 
 /// Messages sent from worker to main thread
@@ -58,10 +58,10 @@ pub enum MainToWorkerMessage {
     },
     Publish {
         publish_id: String,
-        event: serde_json::Value,
+        template: EventTemplate,
     },
     SignEvent {
-        event: serde_json::Value,
+        template: EventTemplate,
     },
     SetSigner {
         signer_type: String,
