@@ -40,7 +40,9 @@
 					const [event, ...context] = events;
 					if (isKind0(event)) {
 						user = event.parsed as Kind0Parsed;
+
 						sub?.();
+						sub = undefined;
 					}
 				}
 			);

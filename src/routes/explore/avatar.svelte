@@ -58,6 +58,8 @@
 						imageUrl = profile?.picture;
 						proxiedImageUrl = imageUrl ? proxyAvatarUrl(imageUrl) : undefined;
 						sub?.();
+						// avoid sub being called twice on unmount
+						sub = undefined;
 					}
 				}
 			);

@@ -74,7 +74,8 @@
 						console.log('tags: ', event.parsed?.tags);
 						if (sub) sub(); // Unsubscribe once found
 					}
-				}
+				},
+				{ closeOnEose: true }
 			);
 		}
 		return () => sub?.();

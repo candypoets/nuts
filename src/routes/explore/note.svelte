@@ -33,6 +33,8 @@
 	// is the note tailing in a thread
 	export let tailing: boolean | undefined = undefined;
 
+	let sub: () => void;
+
 	let replies: ParsedEvent<Kind1Parsed>[] = [];
 
 	$: visibleReplies = showReplies ? showReplies(replies) : [];
@@ -62,7 +64,7 @@
 		timeout = setTimeout(async () => {
 			if (note && note.requests && visible) {
 				// console.log('note requests', note.id || noteId, randomId, note.requests);
-				useSharedSubscription(note.id, note.requests, handleEvents);
+				sub = useSharedSubscription(note.id, note.requests, handleEvents);
 			}
 		}, 200);
 	}
@@ -71,7 +73,7 @@
 		if (timeout) {
 			clearTimeout(timeout);
 			timeout = undefined;
-			note && nostrManager.unsubscribe(note.id);
+			sub?.();
 		}
 	}
 

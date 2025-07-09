@@ -27,6 +27,8 @@
 	export let note: ParsedEvent<any>;
 	export let visible: boolean;
 
+	let sub: () => void;
+
 	$: relays = getRelaysFromNote(note);
 
 	let reactions: ParsedEvent<Kind7Parsed>[] = [];
@@ -106,7 +108,7 @@
 	function subscribe() {
 		timeout = setTimeout(async () => {
 			if (visible) {
-				useSharedSubscription(
+				sub = useSharedSubscription(
 					note.id + 'footer',
 					[
 						{
@@ -126,7 +128,7 @@
 		if (timeout) {
 			clearTimeout(timeout);
 			timeout = undefined;
-			nostrManager.unsubscribe(note.id + 'footer');
+			sub?.();
 		}
 	}
 

@@ -365,12 +365,16 @@ export function useSharedSubscription(
 	subId: string,
 	requests: Request[],
 	callback: any = () => {},
-	options = {}
+	options = { closeOnEose: false }
 ) {
+	if (!subId) {
+		console.warn('useSharedSubscription: No subscription ID provided');
+		return () => {};
+	}
 	let buffer: SharedArrayBuffer | null = null;
 	let lastReadPos: number = 4;
 	let timeoutId: number | null = null;
-	let pollInterval: number = 5; // Start at 5ms - very aggressive
+	let pollInterval: number = 15; // Start at 5ms - very aggressive
 	const maxInterval: number = 4000; // Max 4 seconds
 	let running: boolean = true;
 
@@ -378,7 +382,13 @@ export function useSharedSubscription(
 		buffer = nostrManager.subscribe(subId, requests, options);
 
 		const processEvents = (): void => {
-			if (!running || !buffer) return;
+			console.log('processEvents');
+			if (!running || !buffer) {
+				if (timeoutId !== null) {
+					clearTimeout(timeoutId);
+				}
+				return;
+			}
 
 			const result = SharedBufferReader.readMessages(buffer, lastReadPos);
 
@@ -392,6 +402,11 @@ export function useSharedSubscription(
 							callback(event, message.SubscriptionEvent.event_type);
 						});
 					} else if ('Eose' in message) {
+						if (options.closeOnEose) {
+							console.log('close');
+							running = false;
+							timeoutId && clearTimeout(timeoutId);
+						}
 						callback(message.Eose.data, 'EOSE');
 					} else if ('Eoce' in message) {
 						callback([], 'EOCE');
@@ -412,11 +427,12 @@ export function useSharedSubscription(
 			timeoutId = window.setTimeout(processEvents, pollInterval);
 		};
 
-		// Start immediately
-		processEvents();
+		// Start after a minimal delay to ensure the return function is available
+		timeoutId = window.setTimeout(processEvents, 0);
 	}
 
 	return (): void => {
+		console.log('kill', subId);
 		running = false;
 		if (timeoutId !== null) {
 			clearTimeout(timeoutId);

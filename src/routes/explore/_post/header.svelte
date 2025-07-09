@@ -48,6 +48,7 @@
 						if (isKind0(event)) {
 							author = event.parsed as Kind0Parsed;
 							sub?.();
+							sub = undefined;
 						}
 					}
 				);
