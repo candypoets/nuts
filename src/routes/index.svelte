@@ -11,7 +11,16 @@
 
 	import Alert from 'src/components/Alert.svelte';
 	import Statuses from 'src/components/Statuses.svelte';
-	import { kind0, kind10002, kind10019, kind3 } from 'src/controller/nostr';
+	import {
+		kind0,
+		kind0Ready,
+		kind10002,
+		kind10002Ready,
+		kind10019,
+		kind10019Ready,
+		kind3,
+		kind3Ready
+	} from 'src/controller/nostr';
 	import { mints, saveNuts } from 'src/controller/wallet';
 	import { isKind0, isKind10002, isKind10019, isKind3, type AnyKind } from 'src/types';
 	import Landing from 'src/routes/+page.svelte';
@@ -94,11 +103,20 @@
 				if (event.parsed) {
 					if (isKind10002(event) && event.created_at > ($kind10002?.created_at || 0)) {
 						$kind10002 = event;
+						kind10002Ready.resolve(event);
 					}
-					if (isKind10019(event) && event.created_at > ($kind10019?.created_at || 0))
+					if (isKind10019(event) && event.created_at > ($kind10019?.created_at || 0)) {
 						$kind10019 = event;
-					if (isKind0(event) && event.created_at > ($kind0?.created_at || 0)) $kind0 = event;
-					if (isKind3(event) && event.created_at > ($kind3?.created_at || 0)) $kind3 = event;
+						kind10019Ready.resolve(event);
+					}
+					if (isKind0(event) && event.created_at > ($kind0?.created_at || 0)) {
+						$kind0 = event;
+						kind0Ready.resolve(event);
+					}
+					if (isKind3(event) && event.created_at > ($kind3?.created_at || 0)) {
+						$kind3 = event;
+						kind3Ready.resolve(event);
+					}
 				}
 				// Handle subscription updates here
 			},
@@ -392,12 +410,8 @@
 				</div>
 			</div>
 
-			<!-- <div
-				class="carousel-item w-[100vw] h-full will-change-transform"
-				style="transform: translateZ({transform2 * ($isMobile ? 0 : 10)}px) rotateY({(1 -
-					($isMobile ? 0 : transform2)) *
-					(2 - currentIndex) *
-					30}deg) scale({$isMobile ? 1 : transform2}); opacity: {transform2};"
+			<div
+				class="carousel-item w-[100vw] h-full will-change-transform carousel-item-2"
 				class:z-10={currentIndex == 2}
 				on:click={(e) => {
 					if (currentIndex != 2) {
@@ -410,7 +424,9 @@
 				<div class="w-full h-screen relative overflow-hidden">
 					<Chat visible={currentIndex == 2} />
 				</div>
-			</div> -->
+			</div>
+
+			<div class="w-[50vw]"></div>
 		</div>
 
 		<!-- Bottom Navigation -->
@@ -459,7 +475,7 @@
 	}
 
 	.carousel-item-2 {
-		transform: translate3d(0, 0, calc(var(--transform2) * (1 - var(--is-mobile)) * 10px))
+		transform: translate3d(-100vw, 0, calc(var(--transform2) * (1 - var(--is-mobile)) * 10px))
 			rotateY(
 				calc((1 - var(--is-mobile)) * (1 - var(--transform2)) * (2 - var(--current-index)) * 30deg)
 			)
@@ -468,6 +484,7 @@
 		transform-origin: center center;
 		contain: layout style paint;
 		backface-visibility: hidden;
+		padding-right: 500px;
 	}
 
 	.carousel-item {
