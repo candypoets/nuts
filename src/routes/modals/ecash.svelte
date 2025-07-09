@@ -3,6 +3,7 @@
 	import type { EventTemplate } from 'nostr-tools';
 
 	import MintSelector from 'src/components/MintSelector.svelte';
+	import VirtualList from 'src/components/VirtualList.svelte';
 	import { activeMintUrl, balanceByMint, mints } from 'src/controller/wallet';
 	import { now } from 'src/lib/period';
 	import {
@@ -63,9 +64,9 @@
 
 	onMount(() => {
 		const requests: Request[] = [
-			{ kinds: [0], authors: [pubkey], cacheFirst: true, relays: [] },
-			{ kinds: [10002], authors: [pubkey], cacheFirst: true, relays: [] },
-			{ kinds: [10019], authors: [pubkey], cacheFirst: true, relays: [] }
+			{ kinds: [0], authors: [pubkey], limit: 1, cacheFirst: true, relays: [] },
+			{ kinds: [10002], authors: [pubkey], limit: 3, cacheFirst: true, relays: [] },
+			{ kinds: [10019], authors: [pubkey], limit: 3, cacheFirst: true, relays: [] }
 		];
 		if (noteId) requests.push({ kinds: [1], ids: [noteId], cacheFirst: true, relays: [] });
 		useSharedSubscription(
@@ -83,7 +84,7 @@
 				}
 				if (isKind1(event)) {
 					note = event;
-					tick().then((_) => scroller.scrollTo({ top: 10000 }));
+					tick().then((_) => scroller?.scrollTo({ top: 10000 }));
 				}
 				if (isKind0(event)) {
 					kind0 = event;
@@ -123,11 +124,12 @@
 							status = 'Recipient has no preferred mint';
 						}
 					}
-					status = 'Lock proofs to recipient pubkey';
+					console.log(wallet);
+					status = 'Lock proofs to recipient pubkey' + wallet.p2pkPubkey;
 					const proofsToSend = await cashuManager.sendToPubkey(
 						Number(amount) || 0,
 						$activeMintUrl || '',
-						'02' + wallet.p2pkPubkey || '',
+						wallet.p2pkPubkey || '',
 						null,
 						true
 					);
@@ -135,7 +137,6 @@
 					const nutszap: EventTemplate = {
 						kind: 9321,
 						content: memo,
-						pubkey: $key?.pub,
 						created_at: now(),
 						tags: [
 							...proofsToSend.map((proof) => ['proof', JSON.stringify(proof)]),
@@ -144,6 +145,7 @@
 							['p', pubkey]
 						]
 					};
+					console.log(nutszap);
 					status = 'Success!! Publishing nutszap';
 					nostrManager.publish('nutszap_' + pubkey, nutszap);
 					setTimeout(() => (status = ''), 1000);
@@ -164,6 +166,8 @@
 					};
 					status = 'Signing zap request';
 					const signed = await nostrManager.signEvent(zapRequest);
+
+					console.log(signed);
 					status = 'Generate zap invoice';
 					const { pr } = await getInvoiceFromProfile(kind0, Number(amount), signed);
 					status = 'Generate melt quote';
@@ -183,124 +187,134 @@
 
 <div class="flex items-start md:items-center h-screen">
 	<div
-		class="bg-base-300 bg-opacity-85 md:border rounded-xl md:p-4 w-feed md:max-h-[90vh] lg:h-auto h-screen overflow-scroll scroll-auto backdrop-blur-sm safe-padding-top"
-		style="-webkit-overflow-scrolling: touch;"
-		bind:this={scroller}
+		class="bg-base-300 bg-opacity-85 md:border rounded-xl md:p-4 w-feed md:max-h-[90vh] lg:h-auto h-screen backdrop-blur-sm safe-padding-top"
 	>
-		<div>
-			<button on:click={goBack} class="btn btn-ghost btn-sm">
-				<Icon icon="mingcute:down-line" class="text-xl" />
-			</button>
-			{#if note}
-				<div class="p-4">
-					<Note {note} context={[]} footer={false} showRoot={false} visible />
-				</div>
-				<div class="mx-8 mt-4 border-b border-gray-600"></div>
-			{/if}
-			<div class="md:p-4">
-				<div class="flex md:gap-4 items-center">
-					<div class="w-1/2 text-center">
-						<MintSelector />
-					</div>
+		<VirtualList
+			items={[]}
+			height="100%"
+			className="overflow-scroll scroll-auto"
+			bind:viewport={scroller}
+			getItemId={() => 'header'}
+		>
+			<div slot="feed-header">
+				<div>
+					<button on:click={goBack} class="btn btn-ghost btn-sm">
+						<Icon icon="mingcute:down-line" class="text-xl" />
+					</button>
+					{#if note}
+						<div class="p-4">
+							<Note {note} context={[]} footer={false} showRoot={false} visible />
+						</div>
+						<div class="mx-8 mt-4 border-b border-gray-600"></div>
+					{/if}
+					<div class="md:p-4">
+						<div class="flex md:gap-4 items-center">
+							<div class="w-1/2 text-center">
+								<MintSelector />
+							</div>
 
-					<div class="flex justify-center">
-						<Icon icon="mdi:arrow-right" class="text-5xl text-gray-400" />
-					</div>
-					<div class="flex gap-2 items-center justify-center py-2 border-b last:border-none w-1/2">
-						<!-- <Icon icon="carbon:lightning" class="w-16 h-6" />
-										-->
-						<Avatar {pubkey} size="lg" />
-						<User {pubkey} link={false} />
+							<div class="flex justify-center">
+								<Icon icon="mdi:arrow-right" class="text-5xl text-gray-400" />
+							</div>
+							<div
+								class="flex gap-2 items-center justify-center py-2 border-b last:border-none w-1/2"
+							>
+								<!-- <Icon icon="carbon:lightning" class="w-16 h-6" />
+												-->
+								<Avatar {pubkey} size="lg" />
+								<User {pubkey} link={false} />
+							</div>
+						</div>
 					</div>
 				</div>
-			</div>
-		</div>
-		<div>
-			<div class="w-full gap-3">
-				<div class="md:h-52 flex flex-col items-center">
-					{#if !status}
+				<div>
+					<div class="w-full gap-3">
+						<div class="md:h-52 flex flex-col items-center">
+							{#if !status}
+								<input
+									autofocus
+									id="send-amt"
+									placeholder="0"
+									type="text"
+									inputmode="decimal"
+									autocomplete="off"
+									bind:value={amount}
+									class="mt-10 text-7xl bg-transparent caret-transparent focus:outline-none text-center max-w-xs rounded-xl"
+									on:keydown={(e) => {
+										if (!!processing) return;
+										if (e.key === 'Enter') {
+											sendEcash();
+										}
+									}}
+								/>
+								<p />
+								<p class="font-bold text-xl">Sats</p>
+							{:else}
+								<div
+									class="md:mt-10 w-1/2 bg-base-content text-center text-primary-content p-4 rounded-xl"
+								>
+									{status}
+								</div>
+							{/if}
+						</div>
+					</div>
+					<div class="px-4 w-full md:mt-36">
 						<input
-							autofocus
-							id="send-amt"
-							placeholder="0"
 							type="text"
-							inputmode="decimal"
-							autocomplete="off"
-							bind:value={amount}
-							class="mt-10 text-7xl bg-transparent caret-transparent focus:outline-none text-center max-w-xs rounded-xl"
-							on:keydown={(e) => {
-								if (!!processing) return;
-								if (e.key === 'Enter') {
-									sendEcash();
-								}
-							}}
+							placeholder="Add a memo"
+							bind:value={memo}
+							class="input w-full join-item md:hidden block my-4 input-bordered"
 						/>
-						<p />
-						<p class="font-bold text-xl">Sats</p>
-					{:else}
-						<div
-							class="md:mt-10 w-1/2 bg-base-content text-center text-primary-content p-4 rounded-xl"
-						>
-							{status}
+						<div class="join w-full pb-4">
+							<label class="swap join-item border bg-base-300">
+								<input type="checkbox" bind:checked={zap} />
+								<div class="swap-on px-4">
+									<Icon icon="emojione-v1:lightning-mood" class="text-2xl" />
+								</div>
+								<div class="swap-off px-4"><Icon icon="openmoji:peanuts" class="text-2xl" /></div>
+							</label>
+							<input
+								type="text"
+								class="input input-bordered w-full join-item md:block hidden"
+								placeholder="Add a memo"
+								bind:value={memo}
+							/>
+
+							<button
+								class="btn btn-outline join-item border flex-grow"
+								disabled={!amount || !Number(amount) || amount > balance || !!status}
+								on:click={sendEcash}
+							>
+								{#if Number(amount) > balance}
+									Not enough funds
+								{:else if !!status}
+									Sending...
+								{:else}
+									<div class="flex items-center gap-2">
+										<span class="capitalize w-40 lg:w-auto text-white">Send</span>
+									</div>
+								{/if}
+							</button>
+						</div>
+					</div>
+					{#if !zap && !wallet}
+						<div class="px-4 w-full mt-4" transition:fly>
+							<div class="alert alert-info shadow-lg">
+								<Icon
+									icon="mdi:information-slab-circle-outline"
+									class="stroke-current shrink-0 w-6 h-6"
+								/>
+								<div>
+									<div class="text-sm">
+										This user has not setted up an ecash wallet yet. The ecash will definitely
+										arrive, but their notification experience might be a bit more low-key.
+									</div>
+								</div>
+							</div>
 						</div>
 					{/if}
 				</div>
 			</div>
-			<div class="px-4 w-full md:mt-36">
-				<input
-					type="text"
-					placeholder="Add a memo"
-					bind:value={memo}
-					class="input w-full join-item md:hidden block my-4 input-bordered"
-				/>
-				<div class="join w-full pb-4">
-					<label class="swap join-item border bg-base-300">
-						<input type="checkbox" bind:checked={zap} />
-						<div class="swap-on px-4">
-							<Icon icon="emojione-v1:lightning-mood" class="text-2xl" />
-						</div>
-						<div class="swap-off px-4"><Icon icon="openmoji:peanuts" class="text-2xl" /></div>
-					</label>
-					<input
-						type="text"
-						class="input input-bordered w-full join-item md:block hidden"
-						placeholder="Add a memo"
-						bind:value={memo}
-					/>
-
-					<button
-						class="btn btn-outline join-item border flex-grow"
-						disabled={!amount || !Number(amount) || amount > balance || !!status}
-						on:click={sendEcash}
-					>
-						{#if Number(amount) > balance}
-							Not enough funds
-						{:else if !!status}
-							Sending...
-						{:else}
-							<div class="flex items-center gap-2">
-								<span class="capitalize w-40 lg:w-auto text-white">Send</span>
-							</div>
-						{/if}
-					</button>
-				</div>
-			</div>
-			{#if !zap && !wallet}
-				<div class="px-4 w-full mt-4" transition:fly>
-					<div class="alert alert-info shadow-lg">
-						<Icon
-							icon="mdi:information-slab-circle-outline"
-							class="stroke-current shrink-0 w-6 h-6"
-						/>
-						<div>
-							<div class="text-sm">
-								This user has not setted up an ecash wallet yet. The ecash will definitely arrive,
-								but their notification experience might be a bit more low-key.
-							</div>
-						</div>
-					</div>
-				</div>
-			{/if}
-		</div>
+		</VirtualList>
 	</div>
 </div>
