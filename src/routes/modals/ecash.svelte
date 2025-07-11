@@ -17,8 +17,10 @@
 	import { normalizeMintURL } from 'src/lib/utils';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import User from 'src/routes/explore/user.svelte';
-	import { goBack } from 'src/routes/modals/modal';
+	import { getContext } from 'svelte';
 	import { cashuManager } from 'src/model/cashu';
+
+	let animator = getContext('animator');
 	import {
 		nostrManager,
 		useSharedSubscription,
@@ -198,7 +200,7 @@
 		>
 			<div slot="feed-header">
 				<div>
-					<button on:click={goBack} class="btn btn-ghost btn-sm">
+					<button on:click={animator.goBack} class="btn btn-ghost btn-sm">
 						<Icon icon="mingcute:down-line" class="text-xl" />
 					</button>
 					{#if note}

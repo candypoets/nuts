@@ -19,6 +19,7 @@
 	// in a chat, pubkey is the other person's pubkey
 	export let pubkey: string;
 	export let visible: boolean;
+	export let goBack: () => void;
 
 	let feedRequests: any[] = [];
 	let message: string = '';

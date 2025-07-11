@@ -4,9 +4,11 @@
 	import { decode } from '@gandlaf21/bolt11-decode';
 	import Icon from '@iconify/svelte';
 	import TokenIcon from 'src/components/TokenIcon.svelte';
-	import { goBack } from './modal';
+	import { getContext } from 'svelte';
 	import { formatAmount, getInvoiceFromLNURL, isValidLNURL } from 'src/lib/wallet';
 	import { balance } from 'src/controller/wallet';
+
+	let animator = getContext('animator');
 
 	export let invoice: string;
 
@@ -66,7 +68,7 @@
 
 <div class="h-full bg-base-300 bg-opacity-95">
 	<div class="p-4 flex justify-between">
-		<div on:click={goBack} aria-label="Close" role="button" tabindex="-1" autofocus>
+		<div on:click={animator.goBack} aria-label="Close" role="button" tabindex="-1" autofocus>
 			<Icon icon="mdi:close" class="w-6 h-6" />
 		</div>
 		<strong> Lightning Payment </strong>

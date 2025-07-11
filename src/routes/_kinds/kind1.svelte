@@ -20,6 +20,7 @@
 	export let postId: string;
 	export let visible: boolean;
 	export let depth: number = 0;
+	export let goBack: () => void;
 
 	let headerItem: ParsedEvent<Kind1Parsed> | undefined;
 	let context: ParsedEvent<AnyKind>[] | undefined;
@@ -27,23 +28,6 @@
 	let feedRequests: Request[] = [];
 	let timeout: NodeJS.Timeout | undefined;
 	let sub: () => void;
-
-	function goBack() {
-		// Get current path
-		const currentPath = $page.url.pathname;
-
-		// Find the last "/" and get everything before it
-		const lastSlashIndex = currentPath.lastIndexOf('/');
-
-		if (lastSlashIndex > 0) {
-			// Navigate to the parent path (everything before last slash)
-			const parentPath = currentPath.substring(0, lastSlashIndex);
-			goto(parentPath);
-		} else {
-			// If no slash or at root, go to explore page
-			goto('/explore');
-		}
-	}
 
 	function updateFeed(
 		feed: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][],

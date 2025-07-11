@@ -14,6 +14,7 @@
 	import Replies from './replies.svelte';
 
 	export let visible = true;
+	export let goBack: () => void;
 	let loading = true;
 	let notificationsData = [];
 	let feedRequests: Request = [];
@@ -111,7 +112,7 @@
 		<div
 			class=" w-feed border-b border-base-200 px-4 py-3 h-16 flex items-center justify-between backdrop-blur"
 		>
-			<button on:click={() => goto('/explore')} class="p-1 rounded-full hover:bg-base-200 mr-4">
+			<button on:click={() => goBack()} class="p-1 rounded-full hover:bg-base-200 mr-4">
 				<Icon icon="mdi:arrow-left" class="text-xl" />
 			</button>
 			<h1 class="text-lg font-semibold">Notifications</h1>
@@ -122,7 +123,7 @@
 		<div
 			class="w-feed unsafe-padding-top border-b border-base-200 h-16 flex items-center justify-between shadow-sm"
 		>
-			<button on:click={() => goto('/explore')} class="p-1 rounded-full hover:bg-base-200 mr-4">
+			<button on:click={() => goBack()} class="p-1 rounded-full hover:bg-base-200 mr-4">
 				<Icon icon="mdi:arrow-left" class="text-xl" />
 			</button>
 			<h1 class="text-lg font-semibold">Notifications</h1>

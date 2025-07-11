@@ -2,9 +2,11 @@
 	import Icon from '@iconify/svelte';
 
 	import Theme from 'src/components/Theme.svelte';
-	import { go, goBack } from 'src/routes/modals/modal';
+	import { getContext } from 'svelte';
+	import { go } from 'src/routes/modals/modal';
 	import { kind0 } from 'src/controller/nostr';
 
+	let animator = getContext('animator');
 	let search: string;
 	// export let encodedToken: string = '';
 </script>
@@ -12,7 +14,7 @@
 <div class="h-full bg-base-300 bg-opacity-85 lg:pt-4">
 	<div class="w-feed">
 		<div class="px-4 flex justify-between">
-			<div on:click={goBack}>
+			<div on:click={animator.goBack}>
 				<Icon icon="mingcute:down-line" class="text-xl" />
 			</div>
 		</div>

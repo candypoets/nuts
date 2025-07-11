@@ -4,11 +4,13 @@
 	import { normalizeURL } from 'nostr-tools/utils';
 	import { isMintUrlValid } from 'src/lib/mint';
 	import { kind17375 } from 'src/controller/nostr';
-	import { onMount } from 'svelte';
+	import { onMount, getContext } from 'svelte';
 	import { generateSecretKey, getPublicKey, type EventTemplate } from 'nostr-tools';
 	import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 	import { now } from 'src/lib/period';
 	import { nostrManager, type RelayStatus } from 'src/model/nostr-main';
+
+	let animator = getContext('animator');
 
 	let newMintUrl = '';
 	let loading = false;
@@ -213,7 +215,7 @@
 
 <div class="h-full bg-base-300 bg-opacity-85 pt-4">
 	<div class="flex justify-between mb-12 px-4">
-		<button class="w-1/4" aria-label="Return to previous screen">
+		<button class="w-1/4" aria-label="Return to previous screen" on:click={animator.goBack}>
 			<Icon icon="iconamoon:arrow-down-2-light" class="w-6 h-6" />
 		</button>
 		<h2 class="font-bold text-xl">eCash Wallet</h2>

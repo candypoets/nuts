@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { decode } from '@gandlaf21/bolt11-decode';
 	import Icon from '@iconify/svelte';
-	import { goBack } from 'src/routes/modals/modal';
+	import { getContext } from 'svelte';
+
+	let animator = getContext('animator');
 
 	export let invoice: string;
 
@@ -22,7 +24,7 @@
 
 <div class="px-4">
 	<button
-		on:click|stopPropagation={goBack}
+		on:click|stopPropagation={animator.goBack}
 		on:keydown={(e) => e.key === 'Enter' && (open = false)}
 		class="btn btn-ghost p-1"
 	>

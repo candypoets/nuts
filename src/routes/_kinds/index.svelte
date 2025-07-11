@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { page } from '$app/stores';
+	import { onMount, onDestroy } from 'svelte';
 	import Sub from './_sub.svelte';
+	import { PagerAnimator } from 'src/lib/animations/PagerAnimator';
+	import { viewport } from 'src/controller/viewport';
 
 	export let rootPath = '/explore';
 
@@ -10,6 +13,7 @@
 
 	const subPaths = ['nprofile', 'nevent', 'kind4', 'notifications'];
 
+	// Update subs based on route
 	$: {
 		if ($page.url.pathname.startsWith(rootPath)) {
 			subs = $page.url.pathname

@@ -18,6 +18,7 @@
 	// Get pubkey from URL parameter
 	export let pubkey: string;
 	export let visible: boolean;
+	export let goBack: () => void;
 
 	let loading = true;
 	let headerItem: ParsedEvent<Kind0Parsed> | undefined;
@@ -47,24 +48,6 @@
 		}
 		if (isKind10002(event)) {
 			relays = event.parsed?.filter((r) => r.write).map((r) => r.url) || [];
-		}
-	}
-
-	function goBack() {
-		// Get current path
-		const currentPath = $page.url.pathname;
-
-		// Find the last "/" and get everything before it
-		const lastSlashIndex = currentPath.lastIndexOf('/');
-		console.log(currentPath, lastSlashIndex);
-
-		if (lastSlashIndex > 0) {
-			// Navigate to the parent path (everything before last slash)
-			const parentPath = currentPath.substring(0, lastSlashIndex);
-			goto(parentPath);
-		} else {
-			// If no slash or at root, go to explore page
-			goto('/explore');
 		}
 	}
 

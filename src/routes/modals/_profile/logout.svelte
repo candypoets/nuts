@@ -1,14 +1,16 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
+	import { getContext } from 'svelte';
 	import { key } from 'src/controller';
 
 	export let subopen: boolean = false;
+	let animator = getContext('animator');
 </script>
 
 <div class="h-full py-4 flex items-center">
 	<div class="border rounded-xl h-full w-feed lg:h-auto bg-base-300 bg-opacity-85 py-4">
 		<div class="px-4">
-			<div on:click={() => (subopen = false)}>
+			<div on:click={animator.goBack}>
 				<Icon icon="mdi:close" class="w-6 h-6" />
 			</div>
 		</div>

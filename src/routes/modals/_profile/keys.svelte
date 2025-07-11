@@ -1,8 +1,10 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
+	import { getContext } from 'svelte';
 	import { key, kind0 } from 'src/controller';
 	export let subopen: boolean = false;
 
+	let animator = getContext('animator');
 	let copied = '';
 
 	function copyToClipboard(value: string) {
@@ -15,7 +17,7 @@
 
 <div class="h-full bg-base-300 bg-opacity-85 pt-4">
 	<div class="flex justify-between mb-12 px-4">
-		<div class="w-1/4" on:click={() => (subopen = false)}>
+		<div class="w-1/4" on:click={animator.goBack}>
 			<Icon icon="iconamoon:arrow-down-2-light" class="w-6 h-6" />
 		</div>
 		<h2 class="font-bold text-xl">Keys</h2>

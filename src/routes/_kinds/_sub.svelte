@@ -3,18 +3,18 @@
 	import Kind1 from 'src/routes/_kinds/kind1.svelte';
 	import Kind4 from 'src/routes/_kinds/kind4.svelte';
 	import Notifications from 'src/routes/notifications/index.svelte';
-	import { goBack } from 'src/routes/modals/modal';
 
-	import { cubicOut, elasticOut, quintOut } from 'svelte/easing';
-	import { tweened } from 'svelte/motion';
-	import { fly } from 'svelte/transition';
+	import { onMount, onDestroy, getContext } from 'svelte';
 	import { viewport } from 'src/controller/viewport';
+	import { goBack } from '../modals/modal';
+	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
 
 	export let path: string;
 	export let visible: boolean;
 	export let depth: number = 0;
 	export let modalDepth: number = 0;
 
+	let pagerAnimator: PagerAnimator | undefined = getContext('animator');
 	let element: HTMLElement;
 
 	// Touch gesture variables
@@ -22,11 +22,19 @@
 	let touchStartY = 0;
 	let touchStartTime = 0;
 	let isSwiping = false;
+	let isHorizontalGesture = false;
+	let debugLogs: string[] = [];
 
-	// Tweened store for smooth swipe animation
-	const swipeTranslateX = tweened(0, {
-		duration: 400,
-		easing: quintOut
+	function addLog(logs: string) {
+		debugLogs.push(logs);
+	}
+
+	// Add keyboard listener for desktop
+	onMount(() => {
+		console.log('mount', pagerAnimator);
+		if (pagerAnimator && element) {
+			pagerAnimator.registerElement(element);
+		}
 	});
 
 	function handleTouchStart(e: TouchEvent) {
@@ -34,123 +42,122 @@
 		touchStartY = e.touches[0].clientY;
 		touchStartTime = Date.now();
 		isSwiping = false;
-		swipeTranslateX.set(0);
+		isHorizontalGesture = false;
+		addLog(`Touch start: x=${touchStartX}, element=${!!element}, animator=${!!pagerAnimator}`);
 	}
 
 	function handleTouchMove(e: TouchEvent) {
-		if (!element) return;
+		if (!element || !pagerAnimator) {
+			addLog(`Touch move blocked: element=${!!element}, animator=${!!pagerAnimator}`);
+			return;
+		}
 
 		const touchCurrentX = e.touches[0].clientX;
 		const touchCurrentY = e.touches[0].clientY;
 		const deltaX = touchCurrentX - touchStartX;
 		const deltaY = touchCurrentY - touchStartY;
 
-		// Only consider horizontal swipes (more horizontal than vertical movement)
-		if (Math.abs(deltaX) > Math.abs(deltaY) && deltaX > 0) {
+		const absDeltaX = Math.abs(deltaX);
+		const absDeltaY = Math.abs(deltaY);
+
+		// Determine gesture direction only once
+		if (!isHorizontalGesture && !isSwiping) {
+			// Need minimum movement to determine direction
+			if (absDeltaX > 5 || absDeltaY > 5) {
+				// Check if it's more horizontal than vertical AND it's a right swipe
+				const isMoreHorizontal = absDeltaX > absDeltaY;
+				const isRightSwipe = deltaX > 0;
+				isHorizontalGesture = isMoreHorizontal && isRightSwipe;
+				addLog(
+					`Gesture detected: horizontal=${isMoreHorizontal}, right=${isRightSwipe}, final=${isHorizontalGesture}`
+				);
+
+				// If it's not a right horizontal swipe, don't interfere
+				if (!isHorizontalGesture) {
+					addLog('Not horizontal gesture, returning');
+					return;
+				}
+			} else {
+				return; // Not enough movement yet
+			}
+		}
+
+		// Only handle right horizontal swipes
+		if (isHorizontalGesture && deltaX > 2) {
 			isSwiping = true;
-			// Cancel horizontal scrolling
 			e.preventDefault();
-			// Apply visual feedback - move container with swipe
-			swipeTranslateX.set(Math.max(0, deltaX), { duration: 0 });
+			e.stopPropagation();
+			addLog(`Tracking swipe: deltaX=${deltaX}`);
+
+			// Use PagerAnimator for real-time gesture tracking
+			pagerAnimator.trackSwipeDismiss(deltaX);
 		}
 	}
 
 	function handleTouchEnd(e: TouchEvent) {
-		if (!element || !isSwiping) return;
+		if (!element || !pagerAnimator) return;
 
-		const touchEndX = e.changedTouches[0].clientX;
-		const touchEndTime = Date.now();
-		const deltaX = touchEndX - touchStartX;
-		const deltaTime = touchEndTime - touchStartTime;
-		const containerWidth = element.offsetWidth;
+		// Always handle touch end for horizontal gestures
+		if (isHorizontalGesture) {
+			const touchEndX = e.changedTouches[0].clientX;
+			const touchEndTime = Date.now();
+			const deltaX = touchEndX - touchStartX;
+			const deltaTime = touchEndTime - touchStartTime;
+			const containerWidth = element.offsetWidth;
 
-		// Calculate velocity in pixels per millisecond
-		const velocity = deltaX / deltaTime;
+			// Calculate velocity in pixels per millisecond
+			const velocity = deltaX / deltaTime;
 
-		// Trigger goBack if swipe distance is more than 1/3 of container width
-		// OR if velocity is high enough (> 0.5 px/ms) and minimum distance (50px)
-		const distanceThreshold = deltaX > containerWidth / 3;
-		const velocityThreshold = velocity > 0.5 && deltaX > 50;
+			// Trigger goBack if swipe distance is more than 1/3 of container width
+			// OR if velocity is high enough (> 0.5 px/ms) and minimum distance (50px)
+			const distanceThreshold = deltaX > containerWidth / 3;
+			const velocityThreshold = velocity > 0.5 && deltaX > 50;
 
-		if (distanceThreshold || velocityThreshold) {
-			goBack();
-		} else {
-			// Gently animate back to original position
-			swipeTranslateX.set(0);
+			if (isSwiping && (distanceThreshold || velocityThreshold)) {
+				// Complete swipe dismiss with WAAPI out animation, then call goBack
+				addLog(`Dismissing: distance=${distanceThreshold}, velocity=${velocityThreshold}`);
+				pagerAnimator.completeSwipeDismiss();
+			} else {
+				// Cancel swipe dismiss - animate back to original position
+				addLog('Canceling swipe dismiss');
+				pagerAnimator.cancelSwipeDismiss();
+			}
 		}
 
+		// Reset touch states
 		isSwiping = false;
+		isHorizontalGesture = false;
 	}
-
-	// Create a tweened store for the depth-based translation
-	const depthTranslation = tweened(0, {
-		duration: 500,
-		easing: quintOut
-	});
-
-	const depthScale = tweened(1, {
-		duration: 500,
-		easing: quintOut
-	});
-
-	const depthOpacity = tweened(1, {
-		duration: 500,
-		easing: quintOut
-	});
-
-	const modalDepthTranslation = tweened(0, {
-		duration: 450,
-		easing: quintOut
-	});
-
-	const modalDepthScale = tweened(1, {
-		duration: 450,
-		easing: quintOut
-	});
-
-	const modalDepthOpacity = tweened(1, {
-		duration: 450,
-		easing: quintOut
-	});
-
-	// Update the tweened value when depth changes
-	$: depthTranslation.set(depth * 30); // 10px per depth level (adjust as needed)
-	$: depthScale.set(Math.max(0.85, 1 - depth * 0.05)); // Reduce scale by 5% per depth level, min 85%
-	$: depthOpacity.set(Math.max(0.3, 1 - depth * 0.3)); // Reduce opacity by 20% per depth level, min 50%
-
-	// Update the tweened value when modalDepth changes
-	$: modalDepthTranslation.set(modalDepth * 30); // 10px per modalDepth level
-	$: modalDepthScale.set(Math.max(0.85, 1 - modalDepth * 0.05)); // Reduce scale by 5% per modalDepth level, min 85%
-
-	$: scale = $modalDepthScale * $depthScale;
 </script>
 
-<div
-	class="absolute right-0 top-0 h-screen lg:p-2 z-20"
-	bind:this={element}
-	in:fly={{ x: $viewport.vw * 50, duration: 500, opacity: 1, easing: quintOut }}
-	out:fly={{ x: element.offsetWidth, duration: 400, opacity: 1, easing: elasticOut }}
->
+<div class="absolute right-0 top-0 h-screen lg:p-2 z-20" bind:this={element} data-kind="sub">
 	<div
 		class="lg:border bg-base-300 bg-opacity-80 border-base-300 h-screen lg:rounded-xl overflow-hidden lg:px-2 backdrop-blur-sm transition-gpu"
-		style="transform: translate3d({-$depthTranslation +
-			$swipeTranslateX}px, {-$modalDepthTranslation}px, 0) scale({scale});
-			opacity: {$depthOpacity};
-			backface-visibility: hidden;
+		style="backface-visibility: hidden;
 			-webkit-backface-visibility: hidden;"
 		on:touchstart|stopPropagation={handleTouchStart}
 		on:touchmove|stopPropagation={handleTouchMove}
 		on:touchend|stopPropagation={handleTouchEnd}
 	>
 		{#if path.includes('nprofile')}
-			<Kind0 pubkey={path.split(':')?.[1]} {visible} />
+			<Kind0 pubkey={path.split(':')?.[1]} {visible} goBack={pagerAnimator?.goBack} />
 		{:else if path.includes('nevent')}
-			<Kind1 postId={path.split(':')?.[1]} {visible} />
+			<Kind1 postId={path.split(':')?.[1]} {visible} goBack={pagerAnimator?.goBack} />
 		{:else if path.includes('kind4')}
-			<Kind4 pubkey={path.split(':')?.[1]} {visible} />
+			<Kind4 pubkey={path.split(':')?.[1]} {visible} goBack={pagerAnimator?.goBack} />
 		{:else if path.includes('notifications')}
-			<Notifications />
+			<Notifications goBack={pagerAnimator?.goBack} />
 		{/if}
+
+		<!-- Debug overlay -->
+		<!-- <div
+			class="absolute top-4 left-4 bg-black bg-opacity-75 text-white text-xs p-2 rounded max-w-xs z-50"
+		>
+			<div class="font-bold mb-1">Touch Debug:</div>
+			{#each debugLogs as log}
+				<div class="text-xs">{log}</div>
+			{/each}
+		</div> -->
 	</div>
 </div>
 

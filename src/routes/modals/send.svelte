@@ -6,8 +6,11 @@
 	import type { Contact } from 'src/model/contact';
 	import type { AnyKind, Kind0Parsed } from 'src/types';
 	import Feed from 'src/routes/explore/feed.svelte';
-	import { go, goBack } from 'src/routes/modals/modal';
+	import { go } from 'src/routes/modals/modal';
+	import { getContext } from 'svelte';
 	import type { Request, SubscribeKind } from 'src/model/nostr-main';
+
+	let animator = getContext('animator');
 	import type { ParsedEvent } from 'src/types';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 
@@ -76,7 +79,7 @@
 	<svelte:fragment slot="header">
 		<div>
 			<div class="px-4 pt-4 flex justify-between unsafe-padding-top">
-				<div on:click={goBack}>
+				<div on:click={animator.goBack}>
 					<Icon icon="mingcute:down-line" class="text-xl" />
 				</div>
 				<div class="flex">

@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { cubicOut, quintOut } from 'svelte/easing';
-	import { tweened } from 'svelte/motion';
+	import { onMount, onDestroy, setContext } from 'svelte';
 
 	import Kind from 'src/routes/_kinds/index.svelte';
 	import Modal from 'src/routes/modals/index.svelte';
 	import { viewport } from 'src/controller/viewport';
+	import { PagerAnimator } from 'src/lib/animations/PagerAnimator';
+	import { goBack } from 'src/routes/modals/modal';
 
 	export let rootPath: string;
 
@@ -13,61 +14,61 @@
 	let modals: string[] = [];
 
 	let depth = 0;
+	let mainElement: HTMLElement;
 
-	$: subTweened = tweened(0, {
-		duration: 600,
-		easing: quintOut
-	});
-
-	$: modalTweened = tweened(0, {
-		duration: 500,
-		easing: quintOut
-	});
-
-	$: {
-		if (modals && modals.length > 0) {
-			modalTweened.set(1);
-		} else {
-			modalTweened.set(0);
+	// Instantiate animator immediately
+	let pagerAnimator = new PagerAnimator($viewport, goBack, {
+		duration: 0.3,
+		in: {
+			sub: {
+				x: ['100%', '0%'],
+				y: [0, 0],
+				scale: [1, 1],
+				opacity: [0.5, 1]
+			},
+			modal: {
+				x: [0, 0],
+				y: ['100%', '0%'],
+				scale: [1, 1],
+				opacity: [0.5, 1]
+			}
+		},
+		out: {
+			sub: {
+				x: '100%',
+				opacity: 0.5
+			},
+			modal: {
+				y: '100%',
+				opacity: 0.5
+			}
 		}
-	}
+	});
 
-	$: {
-		if (subs && subs.length > 0) {
-			subTweened.set(1);
-		} else {
-			subTweened.set(0);
+	// Set context immediately since pagerAnimator is now available
+	setContext('animator', pagerAnimator);
+
+	// Set main content when element is ready
+	onMount(() => {
+		if (mainElement && pagerAnimator) {
+			pagerAnimator.setMainContent(mainElement);
 		}
+		return pagerAnimator.destroy;
+	});
+
+	// React to viewport changes
+	$: if (pagerAnimator) {
+		pagerAnimator.updateViewport($viewport);
 	}
-
-	// Create a tweened store for the depth-based translation
-	const subDepth = tweened(0, {
-		duration: 600,
-		easing: quintOut
-	});
-
-	// Create a tweened store for the modal depth-based translation
-	const modalDepth = tweened(0, {
-		duration: 500,
-		easing: quintOut
-	});
-
-	// Update the modal tweened value when depth changes
-	$: modalDepth.set(depth * 30); // 10px per depth level
-
-	// Update the tweened value when depth changes
-	$: subDepth.set(subs.length * 30); // 10px per depth level
 </script>
 
 <div
-	style="transform: translate3d({-$subTweened *
-		($viewport.vw * 20 + $subDepth)}px, {-$modalDepth}px, 0)
-		scale({(200 - $modalDepth) / 200}) rotateY({$subTweened * -20}deg);
-		transform-style: preserve-3d;
+	bind:this={mainElement}
+	style="transform-style: preserve-3d;
 		perspective: 1000px;
 		backface-visibility: hidden;
 		-webkit-backface-visibility: hidden;"
-	on:click={() => goto(rootPath)}
+	on:click={() => pagerAnimator.unregisterAll()}
 	class="will-change-transform transition-gpu"
 >
 	<slot />

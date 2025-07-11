@@ -1,32 +1,31 @@
 <script lang="ts">
+	import Profile from 'src/routes/modals/_profile/index.svelte';
+	import Keys from 'src/routes/modals/_profile/keys.svelte';
+	import Logout from 'src/routes/modals/_profile/logout.svelte';
+	import Relays from 'src/routes/modals/_profile/relays.svelte';
+	import Wallet from 'src/routes/modals/_profile/wallet.svelte';
 	import Ecash from 'src/routes/modals/ecash.svelte';
 	import Lightning from 'src/routes/modals/lightning.svelte';
 	import Melt from 'src/routes/modals/melt.svelte';
+	import Melted from 'src/routes/modals/melted.svelte';
+	import Minted from 'src/routes/modals/minted.svelte';
+	import Minting from 'src/routes/modals/minting.svelte';
 	import QR from 'src/routes/modals/qr.svelte';
-	import Profile from 'src/routes/modals/_profile/index.svelte';
+	import Scan from 'src/routes/modals/scan.svelte';
 	import Send from 'src/routes/modals/send.svelte';
 	import Tapcash from 'src/routes/modals/tapcash.svelte';
 	import Topup from 'src/routes/modals/topup.svelte';
-	import Minting from 'src/routes/modals/minting.svelte';
-	import Minted from 'src/routes/modals/minted.svelte';
-	import Melted from 'src/routes/modals/melted.svelte';
-	import Scan from 'src/routes/modals/scan.svelte';
-	import Keys from 'src/routes/modals/_profile/keys.svelte';
-	import Wallet from 'src/routes/modals/_profile/wallet.svelte';
-	import Relays from 'src/routes/modals/_profile/relays.svelte';
-	import Logout from 'src/routes/modals/_profile/logout.svelte';
 
-	import { cubicOut, elasticOut } from 'svelte/easing';
-	import { tweened } from 'svelte/motion';
-	import { fly } from 'svelte/transition';
-	import { goBack } from './modal';
-	import Followlists from './followlists.svelte';
 	import { viewport } from 'src/controller/viewport';
+	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
+	import { getContext, onMount } from 'svelte';
+	import Followlists from './followlists.svelte';
 
 	export let path: string;
 	export let visible: boolean;
 	export let depth: number = 0;
 
+	let pagerAnimator: PagerAnimator | undefined = getContext('animator');
 	let element: HTMLElement;
 
 	// Touch gesture variables
@@ -34,11 +33,17 @@
 	let touchStartY = 0;
 	let touchStartTime = 0;
 	let isSwiping = false;
+	let isVerticalGesture = false;
+	let debugLogs: string[] = [];
 
-	// Tweened store for smooth swipe animation
-	const swipeTranslateY = tweened(0, {
-		duration: 300,
-		easing: cubicOut
+	function addLog(logs: string) {
+		debugLogs.push(logs);
+	}
+
+	onMount(() => {
+		if (pagerAnimator && element) {
+			pagerAnimator.registerElement(element);
+		}
 	});
 
 	function handleTouchStart(e: TouchEvent) {
@@ -46,87 +51,103 @@
 		touchStartY = e.touches[0].clientY;
 		touchStartTime = Date.now();
 		isSwiping = false;
-		swipeTranslateY.set(0);
+		isVerticalGesture = false;
+		addLog(`Touch start: y=${touchStartY}, element=${!!element}, animator=${!!pagerAnimator}`);
 	}
 
 	function handleTouchMove(e: TouchEvent) {
-		if (!element) return;
+		if (!element || !pagerAnimator) {
+			addLog(`Touch move blocked: element=${!!element}, animator=${!!pagerAnimator}`);
+			return;
+		}
 
 		const touchCurrentX = e.touches[0].clientX;
 		const touchCurrentY = e.touches[0].clientY;
 		const deltaX = touchCurrentX - touchStartX;
 		const deltaY = touchCurrentY - touchStartY;
 
-		// Only consider vertical swipes (more vertical than horizontal movement)
-		if (Math.abs(deltaY) > Math.abs(deltaX) && deltaY > 0) {
+		const absDeltaX = Math.abs(deltaX);
+		const absDeltaY = Math.abs(deltaY);
+
+		// Determine gesture direction only once
+		if (!isVerticalGesture && !isSwiping) {
+			// Need minimum movement to determine direction
+			if (absDeltaX > 5 || absDeltaY > 5) {
+				// Check if it's more vertical than horizontal AND it's a down swipe
+				const isMoreVertical = absDeltaY > absDeltaX;
+				const isDownSwipe = deltaY > 0;
+				isVerticalGesture = isMoreVertical && isDownSwipe;
+				addLog(
+					`Gesture detected: vertical=${isMoreVertical}, down=${isDownSwipe}, final=${isVerticalGesture}`
+				);
+
+				// If it's not a down vertical swipe, don't interfere
+				if (!isVerticalGesture) {
+					addLog('Not vertical gesture, returning');
+					return;
+				}
+			} else {
+				return; // Not enough movement yet
+			}
+		}
+
+		// Only handle down vertical swipes
+		if (isVerticalGesture && deltaY > 2) {
 			isSwiping = true;
-			// Cancel vertical scrolling
 			e.preventDefault();
-			// Apply visual feedback - move container with swipe
-			swipeTranslateY.set(Math.max(0, deltaY), { duration: 0 });
+			e.stopPropagation();
+			addLog(`Tracking swipe: deltaY=${deltaY}`);
+
+			// Use PagerAnimator for real-time gesture tracking
+			pagerAnimator.trackSwipeDismiss(0, deltaY);
 		}
 	}
 
 	function handleTouchEnd(e: TouchEvent) {
-		if (!element || !isSwiping) return;
+		if (!element || !pagerAnimator) return;
 
-		const touchEndY = e.changedTouches[0].clientY;
-		const touchEndTime = Date.now();
-		const deltaY = touchEndY - touchStartY;
-		const deltaTime = touchEndTime - touchStartTime;
-		const containerHeight = element.offsetHeight;
+		// Always handle touch end for vertical gestures
+		if (isVerticalGesture) {
+			const touchEndY = e.changedTouches[0].clientY;
+			const touchEndTime = Date.now();
+			const deltaY = touchEndY - touchStartY;
+			const deltaTime = touchEndTime - touchStartTime;
+			const containerHeight = element.offsetHeight;
 
-		// Calculate velocity in pixels per millisecond
-		const velocity = deltaY / deltaTime;
+			// Calculate velocity in pixels per millisecond
+			const velocity = deltaY / deltaTime;
 
-		// Trigger goBack if swipe distance is more than 1/3 of container height
-		// OR if velocity is high enough (> 0.5 px/ms) and minimum distance (50px)
-		const distanceThreshold = deltaY > containerHeight / 3;
-		const velocityThreshold = velocity > 0.5 && deltaY > 50;
+			// Trigger goBack if swipe distance is more than 1/3 of container height
+			// OR if velocity is high enough (> 0.5 px/ms) and minimum distance (50px)
+			const distanceThreshold = deltaY > containerHeight / 3;
+			const velocityThreshold = velocity > 0.5 && deltaY > 50;
 
-		if (distanceThreshold || velocityThreshold) {
-			goBack();
-		} else {
-			// Gently animate back to original position
-			swipeTranslateY.set(0);
+			if (isSwiping && (distanceThreshold || velocityThreshold)) {
+				// Complete swipe dismiss with WAAPI out animation, then call goBack
+				addLog(`Dismissing: distance=${distanceThreshold}, velocity=${velocityThreshold}`);
+				pagerAnimator.completeSwipeDismiss();
+			} else {
+				// Cancel swipe dismiss - animate back to original position
+				addLog('Canceling swipe dismiss');
+				pagerAnimator.cancelSwipeDismiss();
+			}
 		}
 
+		// Reset touch states
 		isSwiping = false;
+		isVerticalGesture = false;
 	}
-
-	// Create a tweened store for the depth-based translation
-	const depthTranslation = tweened(0, {
-		duration: 400,
-		easing: cubicOut
-	});
-
-	const depthScale = tweened(1, {
-		duration: 400,
-		easing: cubicOut
-	});
-
-	const depthOpacity = tweened(1, {
-		duration: 400,
-		easing: cubicOut
-	});
-
-	// Update the tweened value when depth changes
-	$: depthTranslation.set(depth * 30); // 10px per depth level (adjust as needed)
-	$: depthScale.set(Math.max(0.85, 1 - depth * 0.05)); // Reduce scale by 5% per depth level, min 85%
-	$: depthOpacity.set(Math.max(0.3, 1 - depth * 0.3)); // Reduce opacity by 20% per depth level, min 50%
 </script>
 
 <div
 	class="fixed right-0 top-0 h-screen z-20"
 	bind:this={element}
-	on:click|stopPropagation={goBack}
+	on:click|stopPropagation={pagerAnimator?.goBack}
 	style="width: {$viewport.vw * 100}px;"
-	in:fly={{ y: $viewport.vh * 100, duration: 400, opacity: 1, easing: cubicOut }}
-	out:fly={{ y: $viewport.vh * 100, duration: 300, opacity: 1, easing: cubicOut }}
+	data-kind="modal"
 >
 	<div
 		class="m-auto relative overflow-hidden w-feed h-full"
-		style="transform: translateY({-$depthTranslation + $swipeTranslateY}px) scale({$depthScale});"
 		on:click|stopPropagation
 		on:touchstart|stopPropagation={handleTouchStart}
 		on:touchmove|stopPropagation={handleTouchMove}
@@ -159,7 +180,7 @@
 		{:else if path.includes('profile')}
 			<Profile />
 		{:else if path.includes('zaps')}
-			<Zaps />
+			<!-- <Zaps /> -->
 		{:else if path.includes('keys')}
 			<Keys />
 		{:else if path.includes('wallet')}

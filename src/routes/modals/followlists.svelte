@@ -4,12 +4,14 @@
 	import { isKind39089, type Kind39089Parsed } from 'src/types/kind39089';
 	import Avatar from '../explore/avatar.svelte';
 	import Icon from '@iconify/svelte';
-	import { goBack } from './modal';
+	import { getContext } from 'svelte';
 	import type { Request } from 'src/model/nostr-main';
 	import MultiSelect from './components/MultiSelect.svelte';
 	import { followList, followPacks } from 'src/controller/feed';
 	import { now } from 'src/lib/period';
 	import { kind3 } from 'src/controller';
+
+	let animator = getContext('animator');
 
 	let searchQuery = '';
 	let subscriptionID = 'follow-lists';
@@ -78,7 +80,7 @@
 			<div
 				class="backdrop-blur-md w-feed border-b border-base-200 h-16 flex items-center justify-between shadow-sm"
 			>
-				<button on:click={goBack} class="p-1 rounded-full hover:bg-base-200 mr-4">
+				<button on:click={animator.goBack} class="p-1 rounded-full hover:bg-base-200 mr-4">
 					<Icon icon="mdi:arrow-left" class="text-xl" />
 				</button>
 				<h1 class="text-lg font-semibold">Follow Packs</h1>
@@ -119,7 +121,7 @@
 				<div
 					class="w-feed safe-padding-top border-b border-base-200 flex items-center justify-between shadow-sm"
 				>
-					<button on:click={goBack} class="p-1 rounded-full hover:bg-base-200 mr-4">
+					<button on:click={animator.goBack} class="p-1 rounded-full hover:bg-base-200 mr-4">
 						<Icon icon="mdi:arrow-left" class="text-xl" />
 					</button>
 					<h1 class="text-lg font-semibold">Follow Packs</h1>
