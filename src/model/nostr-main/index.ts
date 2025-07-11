@@ -382,7 +382,6 @@ export function useSharedSubscription(
 		buffer = nostrManager.subscribe(subId, requests, options);
 
 		const processEvents = (): void => {
-			console.log('processEvents');
 			if (!running || !buffer) {
 				if (timeoutId !== null) {
 					clearTimeout(timeoutId);
@@ -432,7 +431,6 @@ export function useSharedSubscription(
 	}
 
 	return (): void => {
-		console.log('kill', subId);
 		running = false;
 		if (timeoutId !== null) {
 			clearTimeout(timeoutId);
