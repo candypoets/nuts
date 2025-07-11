@@ -37,6 +37,7 @@
 	import ImageZoom from 'src/components/ImageZoom.svelte';
 	import { viewport, dimensions, isMobile } from 'src/controller/viewport';
 	import { type Request } from 'src/model/nostr-main/pkg/nostr_main.js';
+	import { CarouselAnimator } from 'src/lib/carousel/CarouselAnimator';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
 
@@ -45,29 +46,20 @@
 	const pages = ['/home', '/explore', '/chat'];
 	let currentIndex = 0;
 
-	// Reactive variable for scroller width
-	$: scrollerWidth = scroller?.clientWidth + 20 || 0;
+	// Reactive variable for scroller width - use viewport width for touch calculations
+	$: scrollerWidth = scroller?.clientWidth || $viewport.vw * 100;
 
 	// Touch gesture variables
 	let touchStartX = 0;
 	let touchStartY = 0;
+	let touchStartTime = 0;
 	let isSwiping = false;
+	let isHorizontalGesture = false;
 	let startXPosition = 0;
 
-	// Create a spring store for smooth animations
-	const xPosition = spring(0, {
-		stiffness: 0.15,
-		damping: 0.8
-	});
-
-	const scrollPosition = spring(0, {
-		stiffness: 0.15, // Lower for slower, softer animation
-		damping: 0.8 // Adjust for bounce effect
-	});
-
-	$: if (scroller) {
-		scroller.scrollLeft = $scrollPosition;
-	}
+	// Create animator instance
+	let carouselAnimator: CarouselAnimator;
+	let carouselItems: HTMLElement[] = [];
 
 	$: $key && $key.priv && nostrManager.setSigner('privkey', $key.priv);
 
@@ -194,10 +186,31 @@
 				window.requestAnimationFrame(initializePositions);
 				return;
 			}
+
+			// Initialize carousel animator
+			carouselAnimator = new CarouselAnimator(scrollerWidth);
+			carouselItems = Array.from(scroller.querySelectorAll('.carousel-item'));
+			carouselAnimator.setItems(carouselItems);
+
+			// Initialize all items with proper positioning
+			carouselItems.forEach((item, index) => {
+				const ratio = CarouselAnimator.getTransformRatio(index, 0, scrollerWidth);
+				const transform = $isMobile
+					? `translateX(${index * 100}vw) translateY(0)`
+					: `translateX(${index * 50}vw) translateY(0) translateZ(${ratio * 10}px) rotateY(${
+							(1 - ratio) * index * 30
+						}deg) scale(${ratio})`;
+				const opacity = $isMobile ? '1' : ratio.toString();
+				item.style.transform = transform;
+				item.style.opacity = opacity;
+			});
+
 			function setPosition(index: number) {
 				currentIndex = index;
-				scrollPosition.set((currentIndex * scrollerWidth) / 2, { hard: true });
-				xPosition.set(index * scrollerWidth, { hard: true });
+				carouselAnimator.setCurrentIndex(currentIndex);
+				const initialX = currentIndex * scrollerWidth;
+				// Initialize without animation to set tracked states
+				carouselAnimator.animateToPosition(initialX, 0, $isMobile); // No duration for initial position
 			}
 
 			// Determine the index based on the current route
@@ -222,6 +235,11 @@
 			relaySub && relaySub();
 			profileSub && profileSub();
 			mintSub();
+
+			// Clean up carousel animations
+			if (carouselAnimator) {
+				carouselAnimator.cancelAllAnimations();
+			}
 		};
 	});
 
@@ -238,19 +256,9 @@
 		$dimensions.height = window.innerHeight;
 	}
 
-	function getTransformRatio(index: number, x: number, elementWidth: number) {
-		// Calculate the "target point" where this index should reach ratio=1
-		const targetPoint = index * elementWidth;
-
-		// Calculate the distance in terms of "element widths"
-		const distanceInWidths = Math.abs(x - targetPoint) / elementWidth;
-
-		// When distance is 0, ratio should be 1
-		// As distance increases, ratio decreases according to 1/(distance+1)
-		// +1 prevents division by zero and ensures we get 1 when at exact target
-		const ratio = 1 / (distanceInWidths + 1);
-
-		return ratio;
+	// Update animator when scroller width changes
+	$: if (carouselAnimator && scrollerWidth) {
+		carouselAnimator.updateScrollerWidth(scrollerWidth);
 	}
 
 	// Handle keyboard navigation (Alt + Left/Right)
@@ -267,77 +275,142 @@
 	function moveToIndex(index: number) {
 		// Ensure index is within bounds
 		if (index < 0 || index >= pages.length) return;
+
 		pages[currentIndex] = $page.url.pathname;
-		// Update the current index
 		currentIndex = index;
 
-		goto(pages[index]);
-		// Update scroll and position stores
-		const targetX = currentIndex * scrollerWidth;
-		const targetScroll = (currentIndex * scrollerWidth) / 2;
+		// Use Web Animations API for smooth transition
+		if (carouselAnimator) {
+			carouselAnimator.setCurrentIndex(currentIndex);
+			const targetX = currentIndex * scrollerWidth;
+			carouselAnimator.animateToPosition(targetX, 400, $isMobile);
+		}
 
-		scrollPosition.set(targetScroll);
-		xPosition.set(targetX);
+		goto(pages[index]);
 	}
+
+	// Touch handling with RAF
+	let virtualXPosition = 0;
 
 	function handleTouchStart(e: TouchEvent) {
 		touchStartX = e.touches[0].clientX;
 		touchStartY = e.touches[0].clientY;
+		touchStartTime = Date.now();
 		isSwiping = false;
-		startXPosition = $xPosition;
+		isHorizontalGesture = false;
+
+		// Cancel any ongoing animations to allow immediate touch control
+		// This will capture the current animated state for smooth transitions
+		if (carouselAnimator) {
+			carouselAnimator.cancelAllAnimations();
+		}
+
+		// Set virtual position based on current index after animations are cancelled
+		virtualXPosition = currentIndex * scrollerWidth;
 	}
 
 	function handleTouchMove(e: TouchEvent) {
-		if (!scroller) return;
+		if (!scroller || !carouselAnimator) return;
 
 		const touchCurrentX = e.touches[0].clientX;
 		const touchCurrentY = e.touches[0].clientY;
 		const deltaX = touchCurrentX - touchStartX;
 		const deltaY = touchCurrentY - touchStartY;
 
-		// Only consider horizontal swipes (more horizontal than vertical movement)
-		if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 10) {
+		// Determine gesture direction only once
+		if (!isHorizontalGesture && !isSwiping) {
+			const absDeltaX = Math.abs(deltaX);
+			const absDeltaY = Math.abs(deltaY);
+
+			// Need minimum movement to determine direction
+			if (absDeltaX > 10 || absDeltaY > 10) {
+				isHorizontalGesture = absDeltaX > absDeltaY;
+
+				// If it's vertical, don't interfere with scrolling
+				if (!isHorizontalGesture) {
+					return;
+				}
+			} else {
+				return; // Not enough movement yet
+			}
+		}
+
+		// Only handle horizontal gestures
+		if (isHorizontalGesture && Math.abs(deltaX) > 5) {
 			isSwiping = true;
-			// Prevent all scrolling and default behavior
 			e.preventDefault();
 			e.stopPropagation();
-			// Update xPosition with swipe movement
-			xPosition.set(startXPosition - deltaX, { hard: true });
-			scrollPosition.set((startXPosition - deltaX) / 2, { hard: true });
+
+			// Add boundary constraints - prevent dragging beyond limits
+			let constrainedDeltaX = deltaX;
+			const maxDeltaX = currentIndex * scrollerWidth; // Can't drag right beyond first item
+			const minDeltaX = -(pages.length - 1 - currentIndex) * scrollerWidth; // Can't drag left beyond last item
+
+			if (deltaX > maxDeltaX) {
+				constrainedDeltaX = maxDeltaX + (deltaX - maxDeltaX) * 0.3; // Rubber band effect
+			} else if (deltaX < minDeltaX) {
+				constrainedDeltaX = minDeltaX + (deltaX - minDeltaX) * 0.3; // Rubber band effect
+			}
+
+			// Update virtual position and use RAF for immediate response
+			virtualXPosition = currentIndex * scrollerWidth - constrainedDeltaX;
+			carouselAnimator.trackTouchPosition(virtualXPosition, $isMobile);
 		}
 	}
 
 	function handleTouchEnd(e: TouchEvent) {
-		if (!scroller || !isSwiping) return;
+		if (!scroller || !carouselAnimator) return;
 
-		const touchEndX = e.changedTouches[0].clientX;
-		const deltaX = touchEndX - touchStartX;
-		const containerWidth = scroller.offsetWidth;
+		// Always animate back to a stable position, even if not swiping
+		if (isHorizontalGesture) {
+			const touchEndX = e.changedTouches[0].clientX;
+			const deltaX = touchEndX - touchStartX;
+			const containerWidth = scroller.offsetWidth;
+			const velocity = Math.abs(deltaX) / (Date.now() - touchStartTime);
 
-		// Determine if we should move to next/previous page
-		if (Math.abs(deltaX) > containerWidth / 3) {
-			if (deltaX > 0 && currentIndex > 0) {
-				// Swipe right - go to previous page
-				moveToIndex(currentIndex - 1);
-			} else if (deltaX < 0 && currentIndex < pages.length - 1) {
-				// Swipe left - go to next page
-				moveToIndex(currentIndex + 1);
-			} else {
-				// At boundary, snap back to current position
-				xPosition.set(currentIndex * containerWidth);
+			// Determine target index based on distance and velocity
+			let targetIndex = currentIndex;
+			const threshold = containerWidth / 3;
+			const velocityThreshold = 0.5; // pixels per millisecond
+
+			if (isSwiping && (Math.abs(deltaX) > threshold || velocity > velocityThreshold)) {
+				if (deltaX > 0 && currentIndex > 0) {
+					targetIndex = currentIndex - 1;
+				} else if (deltaX < 0 && currentIndex < pages.length - 1) {
+					targetIndex = currentIndex + 1;
+				}
 			}
-		} else {
-			// Swipe wasn't far enough, snap back to current position
-			xPosition.set(currentIndex * containerWidth);
-			scrollPosition.set((currentIndex * containerWidth) / 2);
+
+			// Always animate to target position with smooth transition
+			const targetX = targetIndex * scrollerWidth;
+			carouselAnimator.setCurrentIndex(targetIndex);
+			carouselAnimator.animateToPosition(targetX, 300, $isMobile);
+
+			if (targetIndex !== currentIndex) {
+				currentIndex = targetIndex;
+				goto(pages[targetIndex]);
+			}
 		}
 
+		// Reset all touch states
 		isSwiping = false;
+		isHorizontalGesture = false;
 	}
 
-	$: transform0 = getTransformRatio(0, $xPosition, scrollerWidth);
-	$: transform1 = getTransformRatio(1, $xPosition, scrollerWidth);
-	$: transform2 = getTransformRatio(2, $xPosition, scrollerWidth);
+	// Progress bar animation using transform ratio
+	$: if (scrollerWidth) {
+		// Update progress bars
+		const progressBars = document.querySelectorAll('.progress-bar');
+		progressBars.forEach((bar, index) => {
+			const ratio = CarouselAnimator.getTransformRatio(
+				index,
+				currentIndex * scrollerWidth,
+				scrollerWidth
+			);
+			(bar as HTMLElement).style.transform = `scaleY(${ratio})`;
+			(bar as HTMLElement).style.opacity = ratio.toString();
+		});
+	}
 </script>
 
 <!-- <Debug /> -->
@@ -346,16 +419,13 @@
 	<div class="absolute w-full z-10 unsafe-padding-top">
 		<div class="flex space-x-2">
 			<div
-				class="h-1 bg-white bg-opacity-30 w-1/3 rounded-full will-change-transform"
-				style="transform: scaleY({transform0}); opacity: {transform0}"
+				class="h-1 bg-white bg-opacity-30 w-1/3 rounded-full will-change-transform progress-bar"
 			></div>
 			<div
-				class="h-1 bg-white bg-opacity-30 w-1/3 rounded-full will-change-transform"
-				style="transform: scaleY({transform1}); opacity: {transform1}"
+				class="h-1 bg-white bg-opacity-30 w-1/3 rounded-full will-change-transform progress-bar"
 			></div>
 			<div
-				class="h-1 bg-white bg-opacity-30 w-1/3 rounded-full will-change-transform"
-				style="transform: scaleY({transform2}); opacity: {transform2}"
+				class="h-1 bg-white bg-opacity-30 w-1/3 rounded-full will-change-transform progress-bar"
 			></div>
 		</div>
 	</div>
@@ -365,14 +435,11 @@
 	<Alert />
 	{#if $key?.pub}
 		<div
-			class="carousel-container flex gap-2"
+			class="carousel-container"
 			bind:this={scroller}
 			on:touchstart={handleTouchStart}
 			on:touchmove={handleTouchMove}
 			on:touchend={handleTouchEnd}
-			style="--transform0: {transform0}; --transform1: {transform1}; --transform2: {transform2}; --current-index: {currentIndex}; --is-mobile: {$isMobile
-				? 1
-				: 0};"
 		>
 			<!-- Home Section -->
 			<div
@@ -425,8 +492,6 @@
 					<Chat visible={currentIndex == 2} />
 				</div>
 			</div>
-
-			<div class="w-[50vw]"></div>
 		</div>
 
 		<!-- Bottom Navigation -->
@@ -448,46 +513,29 @@
 		overflow: hidden;
 		user-select: none;
 		transform: translateZ(0);
+		position: relative;
+		height: 100vh;
+		width: 100vw;
 	}
 
-	.carousel-item-0 {
-		transform: translate3d(0, 0, calc(var(--transform0) * (1 - var(--is-mobile)) * 10px))
-			rotateY(
-				calc((1 - var(--is-mobile)) * (1 - var(--transform0)) * (0 - var(--current-index)) * 30deg)
-			)
-			scale(calc(var(--is-mobile) + (1 - var(--is-mobile)) * var(--transform0)));
-		opacity: calc(var(--is-mobile) + (1 - var(--is-mobile)) * var(--transform0));
+	.carousel-item-0,
+	.carousel-item-1,
+	.carousel-item-2 {
 		transform-origin: center center;
 		contain: layout style paint;
 		backface-visibility: hidden;
-	}
-
-	.carousel-item-1 {
-		transform: translate3d(-50vw, 0, calc(var(--transform1) * (1 - var(--is-mobile)) * 10px))
-			rotateY(
-				calc((1 - var(--is-mobile)) * (1 - var(--transform1)) * (1 - var(--current-index)) * 30deg)
-			)
-			scale(calc(var(--is-mobile) + (1 - var(--is-mobile)) * var(--transform1)));
-		opacity: calc(var(--is-mobile) + (1 - var(--is-mobile)) * var(--transform1));
-		transform-origin: center center;
-		contain: layout style paint;
-		backface-visibility: hidden;
+		position: absolute;
+		top: 0;
+		left: 0;
+		height: 100vh;
+		width: 100vw;
 	}
 
 	.carousel-item-2 {
-		transform: translate3d(-100vw, 0, calc(var(--transform2) * (1 - var(--is-mobile)) * 10px))
-			rotateY(
-				calc((1 - var(--is-mobile)) * (1 - var(--transform2)) * (2 - var(--current-index)) * 30deg)
-			)
-			scale(calc(var(--is-mobile) + (1 - var(--is-mobile)) * var(--transform2)));
-		opacity: calc(var(--is-mobile) + (1 - var(--is-mobile)) * var(--transform2));
-		transform-origin: center center;
-		contain: layout style paint;
-		backface-visibility: hidden;
 		padding-right: 500px;
 	}
 
 	.carousel-item {
-		/* Remove CSS transitions to let spring handle all animations */
+		/* Animations handled by Web Animations API */
 	}
 </style>
