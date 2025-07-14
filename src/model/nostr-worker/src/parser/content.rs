@@ -37,6 +37,21 @@ struct Pattern {
     processor: fn(&str, &regex::Captures) -> Result<ContentBlock>,
 }
 
+/// Safely truncate a string at the given byte length, ensuring we don't cut in the middle of a UTF-8 character
+fn safe_truncate(s: &str, max_bytes: usize) -> &str {
+    if max_bytes >= s.len() {
+        return s;
+    }
+
+    // Find the largest valid character boundary at or before max_bytes
+    let mut boundary = max_bytes;
+    while boundary > 0 && !s.is_char_boundary(boundary) {
+        boundary -= 1;
+    }
+
+    &s[..boundary]
+}
+
 impl ContentParser {
     pub fn new() -> Self {
         let patterns = vec![
@@ -274,86 +289,133 @@ impl ContentParser {
         max_images: usize,
         max_lines: usize,
     ) -> Vec<ContentBlock> {
-        let total_length: usize = blocks
-            .iter()
-            .filter_map(|b| {
-                if b.block_type == "text" {
-                    Some(b.text.len())
-                } else {
-                    None
-                }
-            })
-            .sum();
-        let total_lines: usize = blocks
-            .iter()
-            .filter_map(|b| {
-                if b.block_type == "text" {
-                    Some(b.text.lines().count())
-                } else {
-                    None
-                }
-            })
-            .sum();
-        let image_count: usize = blocks.iter().filter(|b| b.block_type == "image").count();
+        // Be more aggressive with limits based on content size
+        let adjusted_max_length = if max_length > 2000 {
+            max_length / 3 // Very long content gets cut to 1/3
+        } else if max_length > 1000 {
+            (max_length * 2) / 3 // Medium content gets cut to 2/3
+        } else {
+            max_length // Short content keeps original limit
+        };
 
-        if total_length <= max_length && image_count <= max_images && total_lines <= max_lines {
-            return blocks;
-        }
+        let adjusted_max_lines = if max_lines > 50 {
+            max_lines / 3 // Very long gets cut to 1/3
+        } else if max_lines > 20 {
+            (max_lines * 2) / 3 // Medium gets cut to 2/3
+        } else {
+            max_lines // Short keeps original
+        };
 
         let mut shortened_blocks = Vec::new();
         let mut current_length = 0;
         let mut current_lines = 0;
         let mut current_images = 0;
-        let mut text_shortened = false;
+        let mut text_blocks_processed = 0;
 
         for block in blocks {
-            if block.block_type == "text" {
-                if !text_shortened && current_length < max_length && current_lines < max_lines {
-                    let block_lines = block.text.lines().count();
-                    let remaining_length = max_length - current_length;
-                    let remaining_lines = max_lines - current_lines;
+            // Stop processing once we hit our limits
+            if current_length >= adjusted_max_length || current_lines >= adjusted_max_lines {
+                break;
+            }
 
-                    let text =
-                        if block.text.len() > remaining_length || block_lines > remaining_lines {
-                            text_shortened = true;
+            match block.block_type.as_str() {
+                "text" => {
+                    // Limit text blocks based on content length
+                    let max_text_blocks = if adjusted_max_length > 1000 { 2 } else { 4 };
+                    if text_blocks_processed >= max_text_blocks {
+                        break;
+                    }
 
-                            // If we need to truncate by lines
-                            if block_lines > remaining_lines {
-                                let truncated_lines: Vec<&str> =
-                                    block.text.lines().take(remaining_lines).collect();
-                                let truncated_text = truncated_lines.join("\n");
-                                if truncated_text.len() > remaining_length {
-                                    format!("{}...", &truncated_text[..remaining_length - 3])
-                                } else {
-                                    format!("{}...", truncated_text)
-                                }
+                    let remaining_length = adjusted_max_length.saturating_sub(current_length);
+                    let remaining_lines = adjusted_max_lines.saturating_sub(current_lines);
+
+                    // Skip if we have no meaningful remaining capacity
+                    let min_remaining_length = if adjusted_max_length > 500 { 100 } else { 50 };
+                    if remaining_length < min_remaining_length || remaining_lines < 1 {
+                        break;
+                    }
+
+                    let mut text = block.text.clone();
+                    let mut needs_truncation = false;
+
+                    // First, aggressively truncate by lines
+                    let lines: Vec<&str> = text.lines().collect();
+                    if lines.len() > remaining_lines {
+                        text = lines
+                            .into_iter()
+                            .take(remaining_lines)
+                            .collect::<Vec<_>>()
+                            .join("\n");
+                        needs_truncation = true;
+                    }
+
+                    // Then truncate by character length if still too long
+                    if text.len() > remaining_length {
+                        // Reserve space for "..." suffix
+                        let target_length = remaining_length.saturating_sub(3);
+                        text = safe_truncate(&text, target_length).to_string();
+                        needs_truncation = true;
+                    }
+
+                    // Truncate individual lines that are too long
+                    let max_line_length = if adjusted_max_length > 1000 { 150 } else { 200 };
+                    let truncated_lines: Vec<String> = text
+                        .lines()
+                        .take(remaining_lines) // Ensure we don't exceed line limit
+                        .map(|line| {
+                            if line.len() > max_line_length {
+                                format!(
+                                    "{}...",
+                                    safe_truncate(line, max_line_length.saturating_sub(3))
+                                )
                             } else {
-                                // Truncate by length only
-                                format!("{}...", &block.text[..remaining_length - 3])
+                                line.to_string()
                             }
-                        } else {
-                            block.text.clone()
-                        };
+                        })
+                        .collect();
+
+                    if truncated_lines.len() < text.lines().count()
+                        || truncated_lines.iter().any(|line| line.ends_with("..."))
+                    {
+                        needs_truncation = true;
+                    }
+
+                    text = truncated_lines.join("\n");
+
+                    // Add ellipsis if we truncated anything
+                    if needs_truncation && !text.ends_with("...") {
+                        text = format!("{}...", text);
+                    }
 
                     let text_len = text.len();
                     let text_lines = text.lines().count();
+
                     shortened_blocks.push(ContentBlock {
                         block_type: block.block_type,
                         text,
                         data: block.data,
                     });
+
                     current_length += text_len;
                     current_lines += text_lines;
+                    text_blocks_processed += 1;
                 }
-            } else if block.block_type == "image" {
-                if current_images < max_images {
-                    shortened_blocks.push(block);
-                    current_images += 1;
+                "image" => {
+                    if current_images < max_images {
+                        shortened_blocks.push(block);
+                        current_images += 1;
+                    }
                 }
-            } else {
-                shortened_blocks.push(block);
+                _ => {
+                    // For other block types (links, hashtags, etc.), add them but count their length
+                    if current_length + block.text.len() <= adjusted_max_length {
+                        current_length += block.text.len();
+                        shortened_blocks.push(block);
+                    }
+                }
             }
         }
+
         shortened_blocks
     }
 }
@@ -545,8 +607,75 @@ mod tests {
 
         let has_hashtag = result.iter().any(|b| b.block_type == "hashtag");
         let has_link = result.iter().any(|b| b.block_type == "link");
-
         assert!(has_hashtag);
         assert!(has_link);
+    }
+
+    #[test]
+    fn test_safe_truncate_unicode() {
+        // Test with normal ASCII
+        assert_eq!(safe_truncate("hello", 3), "hel");
+        assert_eq!(safe_truncate("hello", 10), "hello");
+
+        // Test with Unicode emoji
+        let text_with_emoji = "hello💀world";
+        assert_eq!(safe_truncate(text_with_emoji, 5), "hello");
+        assert_eq!(safe_truncate(text_with_emoji, 8), "hello"); // Should not cut the emoji
+        assert_eq!(safe_truncate(text_with_emoji, 9), "hello💀");
+
+        // Test with multibyte characters
+        let text_with_unicode = "héllo";
+        assert_eq!(safe_truncate(text_with_unicode, 1), "h");
+        assert_eq!(safe_truncate(text_with_unicode, 2), "h"); // Should not cut é
+        assert_eq!(safe_truncate(text_with_unicode, 3), "hé");
+    }
+
+    #[test]
+    fn test_shorten_content_with_unicode() {
+        let parser = ContentParser::new();
+        let blocks = vec![ContentBlock::new(
+            "text".to_string(),
+            "Hello 💀 world! This is a test with emoji.".to_string(),
+        )];
+
+        // Test that shortening doesn't panic with Unicode
+        let shortened = parser.shorten_content(blocks, 20, 5, 10);
+        assert_eq!(shortened.len(), 1);
+        assert!(shortened[0].text.ends_with("..."));
+    }
+
+    #[test]
+    fn test_aggressive_line_truncation() {
+        let parser = ContentParser::new();
+
+        // Create a very long text with many lines
+        let long_text = (0..100)
+            .map(|i| format!("This is line number {}", i))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let blocks = vec![ContentBlock::new("text".to_string(), long_text)];
+
+        // Test aggressive truncation
+        let shortened = parser.shorten_content(blocks, 1000, 5, 30);
+        assert_eq!(shortened.len(), 1);
+        assert!(shortened[0].text.lines().count() <= 20); // Should be less than 30 due to aggressive cutting
+        assert!(shortened[0].text.ends_with("..."));
+    }
+
+    #[test]
+    fn test_long_line_truncation() {
+        let parser = ContentParser::new();
+
+        // Create text with very long lines
+        let long_line = "This is an extremely long line that goes on and on and on and should be truncated because it exceeds the maximum line length that we want to allow in our content parser to prevent the UI from breaking due to very long unbroken text strings.".repeat(3);
+        let blocks = vec![ContentBlock::new("text".to_string(), long_line)];
+
+        let shortened = parser.shorten_content(blocks, 2000, 5, 10);
+        assert_eq!(shortened.len(), 1);
+
+        // Each line should be truncated to max 200 chars + "..."
+        for line in shortened[0].text.lines() {
+            assert!(line.len() <= 203); // 200 + "..."
+        }
     }
 }
