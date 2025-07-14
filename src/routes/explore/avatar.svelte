@@ -4,6 +4,7 @@
 	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/types';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import { onMount } from 'svelte';
+	import { userQuery } from '../queries/user';
 
 	// The pubkey/npub of the user
 	export let pubkey: string = '';
@@ -38,16 +39,7 @@
 		if (!profile && query) {
 			sub = useSharedSubscription(
 				'u_' + pubkey,
-				[
-					{
-						kinds: [0],
-						authors: [pubkey],
-						limit: 1,
-						cacheFirst: true,
-						closeOnEOSE: true,
-						relays: []
-					}
-				],
+				userQuery(pubkey),
 				(events: ParsedEvent<AnyKind>[], type: SubscribeKind) => {
 					if (type == 'EOSE') {
 						return;

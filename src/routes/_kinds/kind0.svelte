@@ -14,6 +14,7 @@
 	import { onDestroy } from 'svelte';
 	import { go } from '../modals/modal';
 	import Avatar from '../explore/avatar.svelte';
+	import { userQuery } from '../queries/user';
 
 	// Get pubkey from URL parameter
 	export let pubkey: string;
@@ -57,26 +58,7 @@
 		timeout = setTimeout(() => {
 			if (visible) {
 				// feedRequests = [];
-				sub = useSharedSubscription(
-					'kind0_' + pubkey,
-					[
-						{
-							kinds: [0],
-							authors: [pubkey],
-							limit: 1,
-							relays: [],
-							cacheFirst: true
-						},
-						{
-							kinds: [10002],
-							authors: [pubkey],
-							limit: 1,
-							relays: [],
-							cacheFirst: true
-						}
-					],
-					handleEvents
-				);
+				sub = useSharedSubscription('u_' + pubkey, userQuery(pubkey), handleEvents);
 			}
 		});
 	}

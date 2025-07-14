@@ -6,6 +6,7 @@
 	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/types';
 	import type { ParsedEvent } from 'src/types';
 	import { onMount } from 'svelte';
+	import { userQuery } from '../queries/user';
 
 	export let pubkey: string;
 	export let link: boolean = true;
@@ -32,7 +33,7 @@
 		if (!user && query) {
 			sub = useSharedSubscription(
 				'u_' + pubkey,
-				[{ kinds: [0], authors: [pubkey], limit: 1, cacheFirst: true, closeOnEOSE: true, relays }],
+				userQuery(pubkey),
 				(events: ParsedEvent<AnyKind>[], type: SubscribeKind) => {
 					if (type == 'EOSE') {
 						return;

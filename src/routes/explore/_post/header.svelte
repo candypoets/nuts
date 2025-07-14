@@ -11,6 +11,7 @@
 	import type { Kind1Parsed, ParsedEvent } from 'src/types';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import { isMobile } from 'src/controller';
+	import { userQuery } from 'src/routes/queries/user';
 
 	export let note: ParsedEvent<Kind1Parsed>;
 	export let context: ParsedEvent<AnyKind>[] = [];
@@ -30,16 +31,7 @@
 			if (!author) {
 				sub = useSharedSubscription(
 					'u_' + note.pubkey,
-					[
-						{
-							kinds: [0],
-							authors: [note.pubkey],
-							limit: 1,
-							cacheFirst: true,
-							closeOnEOSE: true,
-							relays: []
-						}
-					],
+					userQuery(note.pubkey),
 					(events: ParsedEvent<AnyKind>[], type: SubscribeKind) => {
 						if (type == 'EOSE') {
 							return;
