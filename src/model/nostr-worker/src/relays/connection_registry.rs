@@ -177,13 +177,11 @@ impl ConnectionRegistry {
             }
         }
 
-        // Validate and normalize URLs
-        let mut urls = Vec::new();
-
         // Create event channel for this subscription
         let (event_sender, event_receiver) = mpsc::unbounded();
 
-        // Store subscription tracking
+        // Store subscription tracking with all URLs initially
+        let urls: Vec<String> = reqs.keys().cloned().collect();
         {
             let mut active_subs = self.active_subscriptions.write().unwrap();
             active_subs.insert(subscription_id.clone(), urls.clone());
@@ -193,36 +191,67 @@ impl ConnectionRegistry {
             senders.insert(subscription_id.clone(), event_sender);
         }
 
-        // Ensure connections to all relays and send REQ messages
-        for (url, filters) in &reqs {
-            urls.push(url.clone());
-
-            let connection = self.ensure_connection(&url).await?;
-
-            // Add subscription to connection tracking
-            connection
-                .add_subscription(subscription_id.clone(), filters.len())
-                .await;
-
-            // Start message processing for this connection if not already started
-            self.ensure_message_processing(url.clone(), connection.clone())
-                .await;
-
-            // Send REQ message
-            let req_message = ClientMessage::req(subscription_id.clone(), filters.clone());
-            if let Err(e) = connection.send_message(req_message).await {
-                tracing::error!(relay = %url, error = %e, "Failed to send REQ message");
-                connection.remove_subscription(&subscription_id).await;
-                continue;
-            }
-        }
-
-        Ok(SubscriptionHandle {
-            subscription_id,
+        // Return handle immediately
+        let handle = SubscriptionHandle {
+            subscription_id: subscription_id.clone(),
             relay_urls: urls,
             event_receiver,
             registry: Arc::new(self.clone()),
-        })
+        };
+
+        // Spawn background task for connections
+        let registry = self.clone();
+        spawn_local(async move {
+            for (url, filters) in reqs {
+                let registry = registry.clone();
+                let sub_id = subscription_id.clone();
+                let url_clone = url.clone();
+                let filters_clone = filters.clone();
+
+                // Spawn individual connection attempt
+                spawn_local(async move {
+                    match registry.ensure_connection(&url_clone).await {
+                        Ok(connection) => {
+                            // Add subscription to connection tracking
+                            connection
+                                .add_subscription(sub_id.clone(), filters_clone.len())
+                                .await;
+
+                            // Start message processing for this connection if not already started
+                            registry
+                                .ensure_message_processing(url_clone.clone(), connection.clone())
+                                .await;
+
+                            // Send REQ message
+                            let req_message = ClientMessage::req(sub_id.clone(), filters_clone);
+                            if let Err(e) = connection.send_message(req_message).await {
+                                tracing::error!(relay = %url_clone, error = %e, "Failed to send REQ message");
+                                connection.remove_subscription(&sub_id).await;
+
+                                // Remove failed URL from active subscriptions
+                                if let Ok(mut active_subs) = registry.active_subscriptions.write() {
+                                    if let Some(urls) = active_subs.get_mut(&sub_id) {
+                                        urls.retain(|u| u != &url_clone);
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            tracing::error!(relay = %url_clone, error = %e, "Failed to connect to relay");
+
+                            // Remove failed URL from active subscriptions
+                            if let Ok(mut active_subs) = registry.active_subscriptions.write() {
+                                if let Some(urls) = active_subs.get_mut(&sub_id) {
+                                    urls.retain(|u| u != &url_clone);
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        });
+
+        Ok(handle)
     }
 
     /// Publish an event to one or more relays
