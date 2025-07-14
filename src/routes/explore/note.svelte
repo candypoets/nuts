@@ -43,8 +43,6 @@
 
 	let isImageContext = getContext('imageContext');
 
-	// let randomId = Math.floor(Math.random() * 100) + 1;
-
 	$: {
 		if (!note && noteId && context) {
 			note = context.find((event) => event.id === noteId) as ParsedEvent<Kind1Parsed>;
@@ -63,7 +61,6 @@
 	function subscribe() {
 		timeout = setTimeout(async () => {
 			if (note && note.requests && visible) {
-				// console.log('note requests', note.id || noteId, randomId, note.requests);
 				sub = useSharedSubscription(note.id, note.requests, handleEvents);
 			}
 		}, 200);
