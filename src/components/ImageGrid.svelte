@@ -16,7 +16,7 @@
 
 	let isImageContext = getContext('imageContext');
 
-	$: proxiedLinks = proxyMediaLinks(links, ImagePresets.thumbnail);
+	$: proxiedLinks = proxyMediaLinks(links, ImagePresets.full);
 	$: fullQualityLinks = proxyMediaLinks(links, ImagePresets.full);
 
 	// Limit display to 5 items max
