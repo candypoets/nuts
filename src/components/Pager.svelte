@@ -7,6 +7,7 @@
 	import { viewport } from 'src/controller/viewport';
 	import { PagerAnimator } from 'src/lib/animations/PagerAnimator';
 	import { goBack } from 'src/routes/modals/modal';
+	import { pagerAnimators } from 'src/controller/pager';
 
 	export let rootPath: string;
 
@@ -16,50 +17,22 @@
 	let depth = 0;
 	let mainElement: HTMLElement;
 
-	// Instantiate animator immediately
-	let pagerAnimator = new PagerAnimator($viewport, goBack, {
-		duration: 0.3,
-		in: {
-			sub: {
-				x: ['100%', '0%'],
-				y: [0, 0],
-				scale: [1, 1],
-				opacity: [0.5, 1]
-			},
-			modal: {
-				x: [0, 0],
-				y: ['100%', '0%'],
-				scale: [1, 1],
-				opacity: [0.5, 1]
-			}
-		},
-		out: {
-			sub: {
-				x: '100%',
-				opacity: 0.5
-			},
-			modal: {
-				y: '100%',
-				opacity: 0.5
-			}
-		}
-	});
+	const animator = $pagerAnimators[rootPath.replace('/', '')];
+
+	$: console.log($pagerAnimators, rootPath, animator);
 
 	// Set context immediately since pagerAnimator is now available
-	setContext('animator', pagerAnimator);
+	setContext('animator', animator);
 
 	// Set main content when element is ready
 	onMount(() => {
-		if (mainElement && pagerAnimator) {
-			pagerAnimator.setMainContent(mainElement);
+		if (mainElement && animator) {
+			animator?.setMainContent(mainElement);
 		}
-		return pagerAnimator.destroy;
 	});
 
 	// React to viewport changes
-	$: if (pagerAnimator) {
-		pagerAnimator.updateViewport($viewport);
-	}
+	$: animator?.updateViewport($viewport);
 </script>
 
 <div
@@ -68,7 +41,7 @@
 		perspective: 1000px;
 		backface-visibility: hidden;
 		-webkit-backface-visibility: hidden;"
-	on:click={() => pagerAnimator.unregisterAll()}
+	on:click={() => animator.unregisterAll()}
 	class="will-change-transform transition-gpu"
 >
 	<slot />

@@ -38,6 +38,7 @@
 	import { viewport, dimensions, isMobile } from 'src/controller/viewport';
 	import { type Request } from 'src/model/nostr-main/pkg/nostr_main.js';
 	import { CarouselAnimator } from 'src/lib/carousel/CarouselAnimator';
+	import { pagerAnimator, setupPagerAnimators } from 'src/controller/pager';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
 
@@ -63,7 +64,7 @@
 
 	$: $key && $key.priv && nostrManager.setSigner('privkey', $key.priv);
 
-	$: console.log('pubkey', $key?.pub);
+	setupPagerAnimators($viewport, goBack);
 
 	$: relaySub =
 		$key &&
@@ -264,7 +265,8 @@
 	// Handle keyboard navigation (Alt + Left/Right)
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key == 'Escape') {
-			goBack();
+			console.log('escap', $pagerAnimator);
+			$pagerAnimator?.goBack();
 		} else if (e.key === 'ArrowLeft' && currentIndex > 0) {
 			moveToIndex(currentIndex - 1);
 		} else if (e.key === 'ArrowRight' && currentIndex < pages.length - 1) {
@@ -531,9 +533,9 @@
 		width: 100vw;
 	}
 
-	.carousel-item-2 {
+	/* .carousel-item-2 {
 		padding-right: 500px;
-	}
+	} */
 
 	.carousel-item {
 		/* Animations handled by Web Animations API */
