@@ -17,8 +17,23 @@
 	export let showQuote = true;
 
 	let imageContext = getContext('imageContext');
+	let showFullContent = false;
 
-	$: parsedContent = note?.parsed?.parsedContent || [];
+	$: hasShortened = note?.parsed?.shortenedContent?.length > 0;
+	$: parsedContent =
+		hasShortened && !showFullContent
+			? note?.parsed?.shortenedContent || []
+			: note?.parsed?.parsedContent || [];
+
+	// Helper function to check if current block is the last text block
+	function isLastTextBlock(index: number, content: any[]) {
+		for (let i = index + 1; i < content.length; i++) {
+			if (content[i].type === 'text') {
+				return false;
+			}
+		}
+		return true;
+	}
 </script>
 
 <div
@@ -39,6 +54,14 @@
 						: parsed.text
 				).replace(/\n/g, '<br>')}</span
 			>
+			{#if hasShortened && isLastTextBlock(index, parsedContent)}
+				<button
+					class="text-primary text-sm font-medium ml-1 hover:underline"
+					on:click|stopPropagation={() => (showFullContent = !showFullContent)}
+				>
+					{showFullContent ? 'See less' : 'See more'}
+				</button>
+			{/if}
 			<!-- {/if} -->
 		{:else if parsed.type == 'link'}
 			{#if parsed.data?.preview && parsed.data?.preview?.images?.[0]}
@@ -101,7 +124,8 @@
 			<ImageGrid {note} links={parsed.data?.items || []} />
 		{/if}
 	{/each}
-	<!-- <div class="w-full" on:click={(e) => e.stopPropagation()}>
+
+	<!-- <div class="w-full" on:click={(e) => e.stopPropagation()">
 		{#each previews.filter((p) => p?.images?.length) as preview}
 
 		{/each}

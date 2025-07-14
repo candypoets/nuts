@@ -7,6 +7,7 @@ type Reference = ReturnType<typeof parseReferences>[0];
 export type Kind1Parsed = {
 	content: string;
 	parsedContent: ContentBlock[];
+	shortenedContent: ContentBlock[];
 	references: Reference[];
 	quotes: ProfilePointer[];
 	mentions: EventPointer[];

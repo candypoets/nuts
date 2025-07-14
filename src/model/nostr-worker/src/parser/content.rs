@@ -266,6 +266,96 @@ impl ContentParser {
 
         processed_blocks
     }
+
+    pub fn shorten_content(
+        &self,
+        blocks: Vec<ContentBlock>,
+        max_length: usize,
+        max_images: usize,
+        max_lines: usize,
+    ) -> Vec<ContentBlock> {
+        let total_length: usize = blocks
+            .iter()
+            .filter_map(|b| {
+                if b.block_type == "text" {
+                    Some(b.text.len())
+                } else {
+                    None
+                }
+            })
+            .sum();
+        let total_lines: usize = blocks
+            .iter()
+            .filter_map(|b| {
+                if b.block_type == "text" {
+                    Some(b.text.lines().count())
+                } else {
+                    None
+                }
+            })
+            .sum();
+        let image_count: usize = blocks.iter().filter(|b| b.block_type == "image").count();
+
+        if total_length <= max_length && image_count <= max_images && total_lines <= max_lines {
+            return blocks;
+        }
+
+        let mut shortened_blocks = Vec::new();
+        let mut current_length = 0;
+        let mut current_lines = 0;
+        let mut current_images = 0;
+        let mut text_shortened = false;
+
+        for block in blocks {
+            if block.block_type == "text" {
+                if !text_shortened && current_length < max_length && current_lines < max_lines {
+                    let block_lines = block.text.lines().count();
+                    let remaining_length = max_length - current_length;
+                    let remaining_lines = max_lines - current_lines;
+
+                    let text =
+                        if block.text.len() > remaining_length || block_lines > remaining_lines {
+                            text_shortened = true;
+
+                            // If we need to truncate by lines
+                            if block_lines > remaining_lines {
+                                let truncated_lines: Vec<&str> =
+                                    block.text.lines().take(remaining_lines).collect();
+                                let truncated_text = truncated_lines.join("\n");
+                                if truncated_text.len() > remaining_length {
+                                    format!("{}...", &truncated_text[..remaining_length - 3])
+                                } else {
+                                    format!("{}...", truncated_text)
+                                }
+                            } else {
+                                // Truncate by length only
+                                format!("{}...", &block.text[..remaining_length - 3])
+                            }
+                        } else {
+                            block.text.clone()
+                        };
+
+                    let text_len = text.len();
+                    let text_lines = text.lines().count();
+                    shortened_blocks.push(ContentBlock {
+                        block_type: block.block_type,
+                        text,
+                        data: block.data,
+                    });
+                    current_length += text_len;
+                    current_lines += text_lines;
+                }
+            } else if block.block_type == "image" {
+                if current_images < max_images {
+                    shortened_blocks.push(block);
+                    current_images += 1;
+                }
+            } else {
+                shortened_blocks.push(block);
+            }
+        }
+        shortened_blocks
+    }
 }
 
 impl Default for ContentParser {

@@ -1,18 +1,12 @@
-use crate::parser::{content::parse_content, Parser};
+use crate::parser::{
+    content::{parse_content, ContentBlock, ContentParser},
+    Parser,
+};
 use crate::types::network::Request;
 use crate::utils::request_deduplication::RequestDeduplicator;
 use anyhow::{anyhow, Result};
 use nostr::{Event, Tag};
 use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ContentBlock {
-    #[serde(rename = "type")]
-    pub block_type: String,
-    pub text: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub data: Option<serde_json::Value>,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProfilePointer {
@@ -36,6 +30,12 @@ pub struct EventPointer {
 pub struct Kind1Parsed {
     #[serde(rename = "parsedContent", default)]
     pub parsed_content: Vec<ContentBlock>,
+    #[serde(
+        rename = "shortenedContent",
+        default,
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    pub shortened_content: Vec<ContentBlock>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub quotes: Vec<ProfilePointer>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -55,6 +55,7 @@ impl Parser {
         let mut requests = Vec::new();
         let mut parsed = Kind1Parsed {
             parsed_content: Vec::new(),
+            shortened_content: Vec::new(),
             quotes: Vec::new(),
             mentions: Vec::new(),
             reply: None,
@@ -130,7 +131,7 @@ impl Parser {
         // Parse content into structured blocks
         match parse_content(&event.content) {
             Ok(content_blocks) => {
-                parsed.parsed_content = content_blocks
+                let parsed_blocks: Vec<ContentBlock> = content_blocks
                     .into_iter()
                     .map(|block| ContentBlock {
                         block_type: block.block_type,
@@ -138,6 +139,18 @@ impl Parser {
                         data: block.data,
                     })
                     .collect();
+
+                // Create shortened content if needed
+                let content_parser = ContentParser::new();
+                let shortened_blocks =
+                    content_parser.shorten_content(parsed_blocks.clone(), 500, 3, 10);
+
+                parsed.parsed_content = parsed_blocks.clone();
+                parsed.shortened_content = if shortened_blocks.len() < parsed_blocks.len() {
+                    shortened_blocks
+                } else {
+                    Vec::new()
+                };
             }
             Err(err) => {
                 return Err(anyhow!("error parsing content: {}", err));
@@ -400,6 +413,7 @@ mod tests {
         assert_eq!(parsed.parsed_content.len(), 1);
         assert_eq!(parsed.parsed_content[0].block_type, "text");
         assert_eq!(parsed.parsed_content[0].text, content);
+        assert_eq!(parsed.shortened_content.len(), 0); // Content is short, no shortening needed
         assert!(requests.is_some());
         assert!(requests.unwrap().len() >= 2); // Author profile + relay list
     }
@@ -430,6 +444,7 @@ mod tests {
         let reply = parsed.reply.unwrap();
         assert_eq!(reply.id, reply_event_id);
         assert_eq!(reply.relays, vec![relay_url]);
+        assert_eq!(parsed.shortened_content.len(), 0); // Content is short, no shortening needed
     }
 
     #[test]
@@ -458,6 +473,7 @@ mod tests {
         let root = parsed.root.unwrap();
         assert_eq!(root.id, root_event_id);
         assert_eq!(root.relays, vec![relay_url]);
+        assert_eq!(parsed.shortened_content.len(), 0); // Content is short, no shortening needed
     }
 
     #[test]
@@ -493,6 +509,7 @@ mod tests {
             .iter()
             .any(|block| block.block_type == "hashtag");
         assert!(has_hashtag);
+        assert_eq!(parsed.shortened_content.len(), 0); // Content is short, no shortening needed
     }
 
     #[test]
@@ -591,5 +608,102 @@ mod tests {
         assert!(single_event_request
             .relays
             .contains(&"relay1.com".to_string()));
+    }
+
+    #[test]
+    fn test_parse_kind_1_with_long_content() {
+        let keys = Keys::generate();
+        // Create content longer than 500 characters
+        let long_content =
+            "This is a very long text that should be shortened when parsed. ".repeat(20); // ~1280 characters
+
+        let event = EventBuilder::new(Kind::TextNote, &long_content, Vec::new())
+            .to_event(&keys)
+            .unwrap();
+
+        let parser = Parser::default();
+        let (parsed, _) = parser.parse_kind_1(&event).unwrap();
+
+        // Should have parsed content
+        assert_eq!(parsed.parsed_content.len(), 1);
+        assert_eq!(parsed.parsed_content[0].block_type, "text");
+        assert_eq!(parsed.parsed_content[0].text, long_content);
+
+        // Should have shortened content since it's longer than 500 characters
+        assert!(parsed.shortened_content.len() > 0);
+        assert_eq!(parsed.shortened_content.len(), 1);
+        assert_eq!(parsed.shortened_content[0].block_type, "text");
+        assert!(parsed.shortened_content[0].text.len() < long_content.len());
+        assert!(parsed.shortened_content[0].text.ends_with("..."));
+    }
+
+    #[test]
+    fn test_parse_kind_1_with_many_line_breaks() {
+        let keys = Keys::generate();
+        // Create content with many line breaks (15 lines, but short total length)
+        let content_with_lines = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8\nLine 9\nLine 10\nLine 11\nLine 12\nLine 13\nLine 14\nLine 15";
+
+        let event = EventBuilder::new(Kind::TextNote, content_with_lines, Vec::new())
+            .to_event(&keys)
+            .unwrap();
+
+        let parser = Parser::default();
+        let (parsed, _) = parser.parse_kind_1(&event).unwrap();
+
+        // Should have parsed content
+        assert_eq!(parsed.parsed_content.len(), 1);
+        assert_eq!(parsed.parsed_content[0].block_type, "text");
+        assert_eq!(parsed.parsed_content[0].text, content_with_lines);
+
+        // Should have shortened content since it has more than 10 lines
+        assert!(parsed.shortened_content.len() > 0);
+        assert_eq!(parsed.shortened_content.len(), 1);
+        assert_eq!(parsed.shortened_content[0].block_type, "text");
+        assert!(parsed.shortened_content[0].text.lines().count() <= 10);
+        assert!(parsed.shortened_content[0].text.ends_with("..."));
+    }
+
+    #[test]
+    fn test_parse_kind_1_with_long_text_and_many_lines() {
+        let keys = Keys::generate();
+        // Create content with both long lines and many lines (should trigger both limits)
+        let long_line =
+            "This is a very long line that exceeds typical length limits and should be truncated. "
+                .repeat(10); // ~870 chars per line
+        let content_with_long_lines = format!(
+            "{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}",
+            long_line,
+            long_line,
+            long_line,
+            long_line,
+            long_line,
+            long_line,
+            long_line,
+            long_line,
+            long_line,
+            long_line,
+            long_line,
+            long_line
+        ); // 12 lines, each ~870 chars
+
+        let event = EventBuilder::new(Kind::TextNote, &content_with_long_lines, Vec::new())
+            .to_event(&keys)
+            .unwrap();
+
+        let parser = Parser::default();
+        let (parsed, _) = parser.parse_kind_1(&event).unwrap();
+
+        // Should have parsed content
+        assert_eq!(parsed.parsed_content.len(), 1);
+        assert_eq!(parsed.parsed_content[0].block_type, "text");
+        assert_eq!(parsed.parsed_content[0].text, content_with_long_lines);
+
+        // Should have shortened content due to both length and line count limits
+        assert!(parsed.shortened_content.len() > 0);
+        assert_eq!(parsed.shortened_content.len(), 1);
+        assert_eq!(parsed.shortened_content[0].block_type, "text");
+        assert!(parsed.shortened_content[0].text.len() < content_with_long_lines.len());
+        assert!(parsed.shortened_content[0].text.lines().count() <= 10);
+        assert!(parsed.shortened_content[0].text.ends_with("..."));
     }
 }
