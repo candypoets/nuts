@@ -1,6 +1,4 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
-	import { page } from '$app/stores';
 	import Icon from '@iconify/svelte';
 	import _ from 'lodash';
 	import { kind0, kind3 } from 'src/controller/nostr';
@@ -12,9 +10,10 @@
 	import type { ParsedEvent } from 'src/types';
 	import { isKind0, isKind10002, type AnyKind, type Kind0Parsed } from 'src/types';
 	import { onDestroy } from 'svelte';
-	import { go } from '../modals/modal';
 	import Avatar from '../explore/avatar.svelte';
+	import { go } from '../modals/modal';
 	import { userQuery } from '../queries/user';
+	import Content from '../explore/_post/content.svelte';
 
 	// Get pubkey from URL parameter
 	export let pubkey: string;
@@ -24,7 +23,7 @@
 	let loading = true;
 	let headerItem: ParsedEvent<Kind0Parsed> | undefined;
 	let relays: string[] = [];
-	$: feedRequests = [
+	$: feedRequests = relays.length && [
 		{
 			kinds: [1],
 			authors: [pubkey],
@@ -193,6 +192,17 @@
 
 				{#if p?.about}
 					<p class="mb-4 opacity-1">{@html p?.about}</p>
+				{/if}
+				{#if relays.length > 0}
+					<div class="mb-4">
+						<div class="flex flex-wrap gap-2">
+							{#each relays as relay}
+								<span class="text-xs px-2 py-1 bg-base-200 rounded-full opacity-80">
+									{relay.replace('wss://', '').replace('ws://', '')}
+								</span>
+							{/each}
+						</div>
+					</div>
 				{/if}
 			</div>
 
