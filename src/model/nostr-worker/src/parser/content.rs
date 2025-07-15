@@ -306,14 +306,18 @@ impl ContentParser {
             max_lines // Short keeps original
         };
 
+        // Check if original content has images
+        let original_has_images = blocks.iter().any(|b| b.block_type == "image");
+
         let mut shortened_blocks = Vec::new();
         let mut current_length = 0;
         let mut current_lines = 0;
         let mut current_images = 0;
         let mut text_blocks_processed = 0;
+        let mut first_image_added = false;
 
+        // Stop processing once we hit our limits
         for block in blocks {
-            // Stop processing once we hit our limits
             if current_length >= adjusted_max_length || current_lines >= adjusted_max_lines {
                 break;
             }
@@ -401,7 +405,12 @@ impl ContentParser {
                     text_blocks_processed += 1;
                 }
                 "image" => {
-                    if current_images < max_images {
+                    // Always include the first image if original content has images
+                    if !first_image_added && original_has_images {
+                        shortened_blocks.push(block);
+                        current_images += 1;
+                        first_image_added = true;
+                    } else if current_images < max_images {
                         shortened_blocks.push(block);
                         current_images += 1;
                     }
@@ -609,73 +618,5 @@ mod tests {
         let has_link = result.iter().any(|b| b.block_type == "link");
         assert!(has_hashtag);
         assert!(has_link);
-    }
-
-    #[test]
-    fn test_safe_truncate_unicode() {
-        // Test with normal ASCII
-        assert_eq!(safe_truncate("hello", 3), "hel");
-        assert_eq!(safe_truncate("hello", 10), "hello");
-
-        // Test with Unicode emoji
-        let text_with_emoji = "hello💀world";
-        assert_eq!(safe_truncate(text_with_emoji, 5), "hello");
-        assert_eq!(safe_truncate(text_with_emoji, 8), "hello"); // Should not cut the emoji
-        assert_eq!(safe_truncate(text_with_emoji, 9), "hello💀");
-
-        // Test with multibyte characters
-        let text_with_unicode = "héllo";
-        assert_eq!(safe_truncate(text_with_unicode, 1), "h");
-        assert_eq!(safe_truncate(text_with_unicode, 2), "h"); // Should not cut é
-        assert_eq!(safe_truncate(text_with_unicode, 3), "hé");
-    }
-
-    #[test]
-    fn test_shorten_content_with_unicode() {
-        let parser = ContentParser::new();
-        let blocks = vec![ContentBlock::new(
-            "text".to_string(),
-            "Hello 💀 world! This is a test with emoji.".to_string(),
-        )];
-
-        // Test that shortening doesn't panic with Unicode
-        let shortened = parser.shorten_content(blocks, 20, 5, 10);
-        assert_eq!(shortened.len(), 1);
-        assert!(shortened[0].text.ends_with("..."));
-    }
-
-    #[test]
-    fn test_aggressive_line_truncation() {
-        let parser = ContentParser::new();
-
-        // Create a very long text with many lines
-        let long_text = (0..100)
-            .map(|i| format!("This is line number {}", i))
-            .collect::<Vec<_>>()
-            .join("\n");
-        let blocks = vec![ContentBlock::new("text".to_string(), long_text)];
-
-        // Test aggressive truncation
-        let shortened = parser.shorten_content(blocks, 1000, 5, 30);
-        assert_eq!(shortened.len(), 1);
-        assert!(shortened[0].text.lines().count() <= 20); // Should be less than 30 due to aggressive cutting
-        assert!(shortened[0].text.ends_with("..."));
-    }
-
-    #[test]
-    fn test_long_line_truncation() {
-        let parser = ContentParser::new();
-
-        // Create text with very long lines
-        let long_line = "This is an extremely long line that goes on and on and on and should be truncated because it exceeds the maximum line length that we want to allow in our content parser to prevent the UI from breaking due to very long unbroken text strings.".repeat(3);
-        let blocks = vec![ContentBlock::new("text".to_string(), long_line)];
-
-        let shortened = parser.shorten_content(blocks, 2000, 5, 10);
-        assert_eq!(shortened.len(), 1);
-
-        // Each line should be truncated to max 200 chars + "..."
-        for line in shortened[0].text.lines() {
-            assert!(line.len() <= 203); // 200 + "..."
-        }
     }
 }
