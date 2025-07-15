@@ -14,6 +14,7 @@
 	import { go } from '../modals/modal';
 	import { userQuery } from '../queries/user';
 	import Content from '../explore/_post/content.svelte';
+	import RelaysList from 'src/components/RelaysList.svelte';
 
 	// Get pubkey from URL parameter
 	export let pubkey: string;
@@ -193,17 +194,7 @@
 				{#if p?.about}
 					<p class="mb-4 opacity-1">{@html p?.about}</p>
 				{/if}
-				{#if relays.length > 0}
-					<div class="mb-4">
-						<div class="flex flex-wrap gap-2">
-							{#each relays as relay}
-								<span class="text-xs px-2 py-1 bg-base-200 rounded-full opacity-80">
-									{relay.replace('wss://', '').replace('ws://', '')}
-								</span>
-							{/each}
-						</div>
-					</div>
-				{/if}
+				<RelaysList {relays} />
 			</div>
 
 			<div class="tabs tabs-bordered">

@@ -221,6 +221,16 @@ class NostrManager {
 		}
 	}
 
+	getBuffer(subId: string): SharedArrayBuffer | undefined {
+		// Check if subscription already exists
+		const existingSubscription = this.subscriptions.get(subId);
+		if (existingSubscription) {
+			// Increment reference count for existing subscription
+			existingSubscription.refCount++;
+			return existingSubscription.buffer;
+		}
+	}
+
 	/**
 	 * Unsubscribe from a subscription
 	 */
@@ -436,5 +446,93 @@ export function useSubscription(
 			clearTimeout(timeoutId);
 		}
 		nostrManager.unsubscribe(subId);
+	};
+}
+
+export function useSharedSubscription(
+	subId: string,
+	callback: any = () => {},
+	options = { closeOnEose: false }
+) {
+	if (!subId) {
+		console.warn('useSharedSubscription: No subscription ID provided');
+		return () => {};
+	}
+	let lastReadPos: number = 4;
+	let timeoutId: number | null = null;
+	let pollInterval: number = 15; // Start at 5ms - very aggressive
+	const maxInterval: number = 4000; // Max 4 seconds
+	let running: boolean = true;
+
+	let buffer = nostrManager.getBuffer(subId);
+	let originalTimeout = 10;
+
+	// while (!buffer) {
+	// 	setTimeout(() => {
+	// 		buffer = nostrManager.getBuffer(subId);
+	// 		console.log('buffer', buffer);
+	// 	}, originalTimeout);
+	// 	if (originalTimeout > maxInterval) {
+	// 		originalTimeout = maxInterval;
+	// 	} else {
+	// 		originalTimeout *= 2;
+	// 	}
+	// }
+
+	console.log('buffer', buffer);
+
+	const processEvents = (): void => {
+		if (!running || !buffer) {
+			if (timeoutId !== null) {
+				clearTimeout(timeoutId);
+			}
+			return;
+		}
+
+		const result = SharedBufferReader.readMessages(buffer, lastReadPos);
+
+		if (result.hasNewData) {
+			// Found new data - reset to aggressive polling
+			pollInterval = 5;
+
+			result.messages.forEach((message: WorkerToMainMessage) => {
+				if ('SubscriptionEvent' in message) {
+					message.SubscriptionEvent.event_data.forEach((event) => {
+						callback(event, message.SubscriptionEvent.event_type);
+					});
+				} else if ('Eose' in message) {
+					if (options.closeOnEose) {
+						console.log('close');
+						running = false;
+						timeoutId && clearTimeout(timeoutId);
+					}
+					callback(message.Eose.data, 'EOSE');
+				} else if ('Eoce' in message) {
+					callback([], 'EOCE');
+				}
+			});
+			lastReadPos = result.newReadPosition;
+		} else {
+			// No new data - back off exponentially (faster backoff)
+			pollInterval = Math.min(pollInterval * 2, maxInterval);
+		}
+
+		// Clear any existing timeout before scheduling a new one
+		if (timeoutId !== null) {
+			clearTimeout(timeoutId);
+		}
+
+		// Schedule next poll
+		timeoutId = window.setTimeout(processEvents, pollInterval);
+	};
+
+	// Start after a minimal delay to ensure the return function is available
+	timeoutId = window.setTimeout(processEvents, 0);
+
+	return (): void => {
+		running = false;
+		if (timeoutId !== null) {
+			clearTimeout(timeoutId);
+		}
 	};
 }

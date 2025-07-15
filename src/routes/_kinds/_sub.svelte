@@ -142,7 +142,7 @@
 		{#if path.includes('nprofile')}
 			<Kind0 pubkey={path.split(':')?.[1]} {visible} goBack={pagerAnimator?.goBack} />
 		{:else if path.includes('nevent')}
-			<Kind1 postId={path.split(':')?.[1]} {visible} goBack={pagerAnimator?.goBack} />
+			<Kind1 nevent={path.split(':')?.[1]} {visible} goBack={pagerAnimator?.goBack} />
 		{:else if path.includes('kind4')}
 			<Kind4 pubkey={path.split(':')?.[1]} {visible} goBack={pagerAnimator?.goBack} />
 		{:else if path.includes('notifications')}

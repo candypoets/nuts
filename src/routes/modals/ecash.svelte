@@ -4,8 +4,16 @@
 
 	import MintSelector from 'src/components/MintSelector.svelte';
 	import VirtualList from 'src/components/VirtualList.svelte';
+	import { key } from 'src/controller';
 	import { activeMintUrl, balanceByMint, mints } from 'src/controller/wallet';
 	import { now } from 'src/lib/period';
+	import { normalizeMintURL } from 'src/lib/utils';
+	import { getInvoiceFromProfile, GetLNURLFromProfile } from 'src/lib/wallet';
+	import { cashuManager } from 'src/model/cashu';
+	import { nostrManager, useSubscription, type SubscribeKind } from 'src/model/nostr-main';
+	import Avatar from 'src/routes/explore/avatar.svelte';
+	import User from 'src/routes/explore/user.svelte';
+	import type { Kind0Parsed, Kind1Parsed, ParsedEvent } from 'src/types';
 	import {
 		isKind0,
 		isKind1,
@@ -14,25 +22,9 @@
 		type AnyKind,
 		type Kind10019Parsed
 	} from 'src/types';
-	import { normalizeMintURL } from 'src/lib/utils';
-	import Avatar from 'src/routes/explore/avatar.svelte';
-	import User from 'src/routes/explore/user.svelte';
-	import { getContext } from 'svelte';
-	import { cashuManager } from 'src/model/cashu';
-
-	let animator = getContext('animator');
-	import {
-		nostrManager,
-		uuseSubscriptionequest,
-		type SubscribeKind
-	} from 'src/model/nostr-main';
-	import type { Kind0Parsed, Kind1Parsed, ParsedEvent } from 'src/types';
-	import { onMount, tick } from 'svelte';
+	import { getContext, onMount, tick } from 'svelte';
 	import { fly } from 'svelte/transition';
-	import { key } from 'src/controller';
 	import Note from '../explore/note.svelte';
-	import Kind1 from '../_kinds/kind1.svelte';
-	import { getInvoiceFromProfile, GetLNURLFromProfile } from 'src/lib/wallet';
 
 	// export let active: string;
 	export let pubkey: string;
@@ -70,7 +62,7 @@
 			{ kinds: [10019], authors: [pubkey], limit: 3, cacheFirst: true, relays: [] }
 		];
 		if (noteId) requests.push({ kinds: [1], ids: [noteId], cacheFirst: true, relays: [] });
-		useSharedSubscription(
+		useSubscription(
 			'wallet_' + pubkey,
 			requests,
 			(events: ParsedEvent<AnyKind>[], eventKind: SubscribeKind) => {
@@ -85,7 +77,7 @@
 				}
 				if (isKind1(event)) {
 					note = event;
-					tick().then((useSubscriptionlTo({ top: 10000 }));
+					tick().then(() => scrollTo({ top: 10000 }));
 				}
 				if (isKind0(event)) {
 					kind0 = event;

@@ -31,8 +31,8 @@
 	import { go, goBack } from 'src/routes/modals/modal';
 	import { cashuManager } from 'src/model/cashu';
 
-	import { nostrManager, useSharedSubscription, type SubscribeKind } from 'src/model/nostr-main';
-	import type { ParsedEvent }useSubscription
+	import { nostrManager, useSubscription, type SubscribeKind } from 'src/model/nostr-main';
+	import type { ParsedEvent } from 'src/types';
 	import { key } from 'src/controller';
 	import ImageZoom from 'src/components/ImageZoom.svelte';
 	import { viewport, dimensions, isMobile } from 'src/controller/viewport';
@@ -69,7 +69,7 @@
 	$: relaySub =
 		$key &&
 		$key.pub &&
-		useSharedSubscription(
+		useSubscription(
 			'relays',
 			[
 				{
@@ -79,7 +79,7 @@
 					noOptimize: true
 				},
 				{
-useSubscription/ 0 and 3 are here if found immdiately, but refetched after
+					kinds: [3, 0], // 0 and 3 are here if found immdiately, but refetched after
 					authors: [$key.pub],
 					relays: ['wss://relay.damus.io', 'wss://relay.nostr.band', 'wss://purplepag.es'],
 					noOptimize: true,
@@ -120,7 +120,7 @@ useSubscription/ 0 and 3 are here if found immdiately, but refetched after
 
 	$: profileSub =
 		($kind10002 || $kind10019 || $kind3) &&
-		useSharedSubscription(
+		useSubscription(
 			'profile',
 			[
 				$kind10002 && {
@@ -128,7 +128,8 @@ useSubscription/ 0 and 3 are here if found immdiately, but refetched after
 					authors: [$key?.pub],
 					relays: $kind10002.parsed?.filter((r) => r.write).map((r) => r.url),
 					noOptimize: true
-				},useSubscription		$kind3 && {
+				},
+				$kind3 && {
 					kinds: [10002],
 					authors: $kind3.parsed?.map((p) => p.pubkey),
 					relays: ['wss://relay.nostr.band', 'wss://purplepag.es'],

@@ -1,14 +1,17 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
 	import _ from 'lodash';
-	import {useSubscriptiont Feed from 'src/routes/explore/feed.svelte';
 	import Note from 'src/routes/explore/note.svelte';
 	import type { ParsedEvent } from 'src/types';
 	import { isKind1, type AnyKind, type Kind1Parsed } from 'src/types';
 	import { getContext, onDestroy } from 'svelte';
 	import Reply from '../explore/reply.svelte';
+	import { decode, type EventPointer } from 'nostr-tools/nip19';
+	import { useSubscription, type SubscribeKind } from 'src/model/nostr-main';
+	import RelaysList from 'src/components/RelaysList.svelte';
+	import Feed from '../explore/feed.svelte';
 
-	export let postId: string;
+	export let nevent: string;
 	export let visible: boolean;
 	export let depth: number = 0;
 	export let goBack: () => void;
@@ -20,6 +23,8 @@
 	let timeout: NodeJS.Timeout | undefined;
 	let sub: () => void;
 
+	const { data } = decode(nevent) as unknown as { data: EventPointer };
+
 	function updateFeed(
 		feed: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][],
 		events: ParsedEvent<AnyKind>[],
@@ -29,10 +34,10 @@
 		const [event, ...context] = events;
 		if (isKind1(event)) {
 			// only show replies to root posts
-			if (event?.parsed?.reply?.id && event.parsed?.reply?.id != postId) return feed;
+			if (event?.parsed?.reply?.id && event.parsed?.reply?.id != data?.id) return feed;
 			if (
 				(!event?.parsed?.reply?.id || event?.parsed?.reply?.id == event?.parsed?.root?.id) &&
-				event.parsed?.root?.id != postId
+				event.parsed?.root?.id != data?.id
 			)
 				return feed;
 			// check if the event is already in the feed
@@ -56,13 +61,24 @@
 	}
 
 	function subscribe() {
-		timeout = setTimeoutuseSubscription
+		timeout = setTimeout(() => {
 			if (visible) {
-				sub = useSharedSubscription(
-					'kind1_' + postId,
-					[{ kinds: [1], ids: [postId], limit: 5, relays: [], cacheFirst: true }], // limits higher to accomodate for huge posts
+				sub = useSubscription(
+					'kind1_' + data?.id,
+					[
+						{
+							kinds: [1],
+							ids: [data?.id],
+							limit: 5,
+							relays: data.relays?.slice(1) || [],
+							cacheFirst: true
+						}
+					], // limits higher to accomodate for huge posts
 					(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) => {
-						if (kind == 'EOSE') return;
+						if (kind == 'EOSE') {
+							return console.log(events);
+						}
+						console.log(events);
 						const [event, ...rest] = events;
 						if (!event?.parsed) return;
 						if (isKind1(event)) {
@@ -74,8 +90,8 @@
 							feedRequests = [
 								{
 									kinds: [1],
-									tags: { '#e': [postId] },
-									relays: []
+									tags: { '#e': [data?.id] },
+									relays: data.relays
 								}
 							];
 						}
@@ -101,8 +117,9 @@
 </script>
 
 <Feed
-	subscriptionID={'kind1_feed_' + postId}
+	subscriptionID={'f_' + data?.id}
 	requests={feedRequests}
+	class="w-feed"
 	{headerItem}
 	{updateFeed}
 	{visible}
@@ -134,6 +151,7 @@
 				<span class="w-10" />
 			</div>
 		{/if}
+		<RelaysList class="px-4" relays={data.relays?.slice(1) || []} />
 		{#if headerItem}
 			<Note note={headerItem} {context} {visible} zaps />
 			<Reply parent={headerItem} {context} />

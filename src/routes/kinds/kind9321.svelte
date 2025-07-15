@@ -6,13 +6,15 @@
 
 	import { formatDate } from 'date-fns';
 	import { DAY } from 'src/lib/period';
-	import { isKind7376, type AnyKind, type Kind9321Parsed } from 'src/types';
+	import { isKind10002, isKind7376, type AnyKind, type Kind9321Parsed } from 'src/types';
 	import type { Kind7376Parsed } from 'src/types/kind7376';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import User from 'src/routes/explore/user.svelte';
 	import { key } from 'src/controller';
 	import { useSubscription, type SubscribeKind } from 'src/model/nostr-main';
 	import type { ParsedEvent } from 'src/types';
+	import { userQuery } from '../queries/user';
+	import { nip19 } from 'nostr-tools';
 
 	export let zap: ParsedEvent<Kind9321Parsed>;
 	export let context: ParsedEvent<AnyKind>[];
@@ -20,11 +22,28 @@
 	let redeemed: ParsedEvent<Kind7376Parsed> | undefined;
 	let sub: () => void;
 
+	let relays: string[] = [];
+
+	const usub = useSubscription(
+		'u_' + zap.parsed?.recipient || '',
+		userQuery(zap.parsed?.recipient || ''),
+		(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) => {
+			if (kind == 'EOSE') {
+				return;
+			}
+			const [event] = events;
+			if (isKind10002(event)) {
+				relays = event.parsed?.filter((r) => !!r.write).map((r) => r.url) || [];
+				usub?.();
+			}
+		}
+	);
+
 	function go() {
 		const currentPath = $page.url.pathname;
 		let eventPath = '';
 		if (zap?.parsed?.eventId) {
-			eventPath = `nevent:${zap?.parsed?.eventId}`;
+			eventPath = `nevent:${nip19.neventEncode({ id: zap?.parsed?.eventId, relays })}`;
 		} else {
 			eventPath = `nprofile:${
 				zap?.parsed?.recipient == $key?.pub ? zap?.pubkey : zap?.parsed?.recipient

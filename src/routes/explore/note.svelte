@@ -4,15 +4,16 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 
-	import { useSubscription, type SubscribeKind } from 'src/model/nostr-main';
+	import { useSharedSubscription, useSubscription, type SubscribeKind } from 'src/model/nostr-main';
 	import type { AnyKind, Kind1Parsed } from 'src/types';
-	import { type ParsedEvent } from 'src/types';
+	import { isKind10002, type ParsedEvent } from 'src/types';
 	import Content from 'src/routes/explore/_post/content.svelte';
 	import Footer from 'src/routes/explore/_post/footer.svelte';
 	import Header from 'src/routes/explore/_post/header.svelte';
 	import Zap from 'src/routes/explore/_post/zap.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import { nip19 } from 'nostr-tools';
+	import { userQuery } from '../queries/user';
 
 	// if the note is a repost, this is the reposter pubkey
 	export let repost: string | undefined = undefined;
@@ -43,6 +44,8 @@
 	let timeout: NodeJS.Timeout | undefined;
 
 	let isImageContext = getContext('imageContext');
+
+	let relays: string[] = [];
 
 	$: {
 		if (!note && noteId && context) {
@@ -77,13 +80,29 @@
 
 	$: visible == true ? subscribe() : unsubscribe();
 
-	// $: note && useSharedSubscription("u_" + note.pubkey, [])
+	$: usub =
+		note &&
+		useSubscription(
+			'u_' + note.pubkey,
+			userQuery(note.pubkey),
+			(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) => {
+				if (kind == 'EOSE') {
+					return;
+				}
+				const [event] = events;
+				if (isKind10002(event)) {
+					relays = event.parsed?.filter((r) => !!r.write).map((r) => r.url) || [];
+					usub?.();
+				}
+			}
+		);
 
 	function go() {
 		if (isImageContext) return;
 		const currentPath = $page.url.pathname;
-		// const nip10Event = nip19.neventEncode({id: note?.id || noteId || "", relays: })
-		const eventPath = `nevent:${note?.id || noteId}`;
+		console.log('relays', relays);
+		const nip19Event = nip19.neventEncode({ id: note?.id || noteId || '', relays });
+		const eventPath = `nevent:${nip19Event}`;
 
 		// Check if the current URL already ends with the profile we're trying to navigate to
 		if (!currentPath.endsWith(eventPath)) {

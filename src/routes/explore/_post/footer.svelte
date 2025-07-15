@@ -10,6 +10,7 @@
 	import { now } from 'src/lib/period';
 	import {
 		isKind1,
+		isKind10002,
 		isKind17,
 		isKind6,
 		isKind7,
@@ -20,9 +21,10 @@
 		type Kind7Parsed
 	} from 'src/types';
 	import { key } from 'src/controller';
-	import { nostrManager, useSubscription } from 'src/model/nostr-main';
+	import { nostrManager, useSubscription, type SubscribeKind } from 'src/model/nostr-main';
 	import type { ParsedEvent } from 'src/types';
 	import { go } from 'src/routes/modals/modal';
+	import { userQuery } from 'src/routes/queries/user';
 
 	export let note: ParsedEvent<any>;
 	export let visible: boolean;
@@ -108,17 +110,31 @@
 	function subscribe() {
 		timeout = setTimeout(async () => {
 			if (visible) {
-				sub = useSubscription(
-					note.id + 'footer',
-					[
-						{
-							kinds: [1, 6, 7, 17],
-							tags: { '#e': [note.id] },
-							noContext: true,
-							relays: relays || note.relays || []
+				const usub = useSubscription(
+					'u_' + note.pubkey,
+					userQuery(note.pubkey),
+					(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) => {
+						if (kind == 'EOSE') {
+							return;
 						}
-					],
-					handleEvents
+						const [event] = events;
+						if (isKind10002(event)) {
+							relays = event.parsed?.filter((r) => !!r.read).map((r) => r.url) || [];
+							usub?.();
+							sub = useSubscription(
+								'f_' + note.id,
+								[
+									{
+										kinds: [1, 6, 7, 17],
+										tags: { '#e': [note.id] },
+										noContext: true,
+										relays: relays || note.relays || []
+									}
+								],
+								handleEvents
+							);
+						}
+					}
 				);
 			}
 		}, 200);
