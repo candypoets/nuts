@@ -1,21 +1,13 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
-	import { page } from '$app/stores';
 	import Icon from '@iconify/svelte';
 	import _ from 'lodash';
-	import { isKind1, type AnyKind, type Kind1Parsed } from 'src/types';
+	import { useSharedSubscription, type Request, type SubscribeKind } from 'src/model/nostr-main';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import Note from 'src/routes/explore/note.svelte';
-	import {
-		nostrManager,
-		useSharedSubscription,
-		type Request,
-		type SubscribeKind
-	} from 'src/model/nostr-main';
 	import type { ParsedEvent } from 'src/types';
-	import { getContext, onDestroy, onMount } from 'svelte';
+	import { isKind1, type AnyKind, type Kind1Parsed } from 'src/types';
+	import { getContext, onDestroy } from 'svelte';
 	import Reply from '../explore/reply.svelte';
-	import User from '../explore/user.svelte';
 
 	export let postId: string;
 	export let visible: boolean;
@@ -71,7 +63,6 @@
 					'kind1_' + postId,
 					[{ kinds: [1], ids: [postId], limit: 5, relays: [], cacheFirst: true }], // limits higher to accomodate for huge posts
 					(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) => {
-						console.log('event', events, kind);
 						if (kind == 'EOSE') return;
 						const [event, ...rest] = events;
 						if (!event?.parsed) return;
