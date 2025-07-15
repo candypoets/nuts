@@ -1,20 +1,19 @@
 <script lang="ts">
-	import { page } from '$app/stores';
 	import Icon from '@iconify/svelte';
 	import _ from 'lodash';
 	import type { EventTemplate } from 'nostr-tools';
 
 	import Editor from 'src/components/Editor.svelte';
+	import { key, kind10002 } from 'src/controller';
+	import { parseContent } from 'src/lib';
 	import { now } from 'src/lib/period';
-	import { isKind4, type AnyKind, type Kind1Parsed } from 'src/types';
+	import { nostrManager, type RelayStatus, type SubscribeKind } from 'src/model/nostr-main';
 	import Message from 'src/routes/_kinds/message.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import User from 'src/routes/explore/user.svelte';
-	import { key, kind10002 } from 'src/controller';
-	import { nostrManager, type RelayStatus, type SubscribeKind } from 'src/model/nostr-main';
 	import type { ParsedEvent } from 'src/types';
-	import { parseContent } from 'src/lib';
+	import { isKind4, type AnyKind, type Kind1Parsed } from 'src/types';
 
 	// in a chat, pubkey is the other person's pubkey
 	export let pubkey: string;
