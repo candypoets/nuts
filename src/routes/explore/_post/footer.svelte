@@ -20,7 +20,7 @@
 		type Kind7Parsed
 	} from 'src/types';
 	import { key } from 'src/controller';
-	import { nostrManager, useSharedSubscription } from 'src/model/nostr-main';
+	import { nostrManager, useSubscription } from 'src/model/nostr-main';
 	import type { ParsedEvent } from 'src/types';
 	import { go } from 'src/routes/modals/modal';
 
@@ -108,7 +108,7 @@
 	function subscribe() {
 		timeout = setTimeout(async () => {
 			if (visible) {
-				sub = useSharedSubscription(
+				sub = useSubscription(
 					note.id + 'footer',
 					[
 						{

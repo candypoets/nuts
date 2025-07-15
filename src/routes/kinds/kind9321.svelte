@@ -11,7 +11,7 @@
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import User from 'src/routes/explore/user.svelte';
 	import { key } from 'src/controller';
-	import { useSharedSubscription, type SubscribeKind } from 'src/model/nostr-main';
+	import { useSubscription, type SubscribeKind } from 'src/model/nostr-main';
 	import type { ParsedEvent } from 'src/types';
 
 	export let zap: ParsedEvent<Kind9321Parsed>;
@@ -50,7 +50,7 @@
 
 		// If not found and we are the recipient, subscribe to find it
 		if (!redeemed && zap.parsed?.recipient) {
-			sub = useSharedSubscription(
+			sub = useSubscription(
 				'kind:7376:' + zap.id, // Subscription ID related to the zap
 				[
 					// Only subscribe if we are the recipient

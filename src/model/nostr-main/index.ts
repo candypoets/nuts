@@ -361,7 +361,7 @@ export function cleanup(): void {
 	nostrManager.cleanup();
 }
 
-export function useSharedSubscription(
+export function useSubscription(
 	subId: string,
 	requests: Request[],
 	callback: any = () => {},

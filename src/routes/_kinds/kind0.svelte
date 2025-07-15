@@ -5,7 +5,7 @@
 	import { limit } from 'src/controller/pagination';
 	import { now } from 'src/lib/period';
 	import { proxyAvatarUrl, proxyBannerUrl } from 'src/lib/proxy';
-	import { nostrManager, useSharedSubscription, type SubscribeKind } from 'src/model/nostr-main';
+	import { nostrManager, useSubscription, type SubscribeKind } from 'src/model/nostr-main';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import type { ParsedEvent } from 'src/types';
 	import { isKind0, isKind10002, type AnyKind, type Kind0Parsed } from 'src/types';
@@ -57,7 +57,7 @@
 		timeout = setTimeout(() => {
 			if (visible) {
 				// feedRequests = [];
-				sub = useSharedSubscription('u_' + pubkey, userQuery(pubkey), handleEvents);
+				sub = useSubscription('u_' + pubkey, userQuery(pubkey), handleEvents);
 			}
 		});
 	}

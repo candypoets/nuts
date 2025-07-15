@@ -23,8 +23,7 @@
 	let animator = getContext('animator');
 	import {
 		nostrManager,
-		useSharedSubscription,
-		type Request,
+		uuseSubscriptionequest,
 		type SubscribeKind
 	} from 'src/model/nostr-main';
 	import type { Kind0Parsed, Kind1Parsed, ParsedEvent } from 'src/types';
@@ -86,7 +85,7 @@
 				}
 				if (isKind1(event)) {
 					note = event;
-					tick().then((_) => scroller?.scrollTo({ top: 10000 }));
+					tick().then((useSubscriptionlTo({ top: 10000 }));
 				}
 				if (isKind0(event)) {
 					kind0 = event;

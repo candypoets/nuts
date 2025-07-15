@@ -7,7 +7,7 @@
 	import VirtualList from 'src/components/VirtualList.svelte';
 	import VirtualListBottom from 'src/components/VirtualListBottom.svelte';
 	import { DAY, now } from 'src/lib/period';
-	import { nostrManager, useSharedSubscription, type SubscribeKind } from 'src/model/nostr-main';
+	import { nostrManager, useSubscription, type SubscribeKind } from 'src/model/nostr-main';
 	import type { ParsedEvent } from 'src/types';
 	import { isKind, isKind1, isKind6, type AnyKind, type Kind1Parsed } from 'src/types';
 	import Note from './note.svelte';
@@ -131,7 +131,7 @@
 				cachedFeed = [];
 				// feed = [];
 
-				sub = useSharedSubscription(subscriptionID, requests, handleEvents);
+				sub = useSubscription(subscriptionID, requests, handleEvents);
 			}
 		}, 300);
 	}

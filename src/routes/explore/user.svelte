@@ -2,7 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import _ from 'lodash';
-	import { nostrManager, useSharedSubscription, type SubscribeKind } from 'src/model/nostr-main';
+	import { nostrManager, useSubscription, type SubscribeKind } from 'src/model/nostr-main';
 	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/types';
 	import type { ParsedEvent } from 'src/types';
 	import { onMount } from 'svelte';
@@ -31,7 +31,7 @@
 			| Kind0Parsed
 			| undefined;
 		if (!user && query) {
-			sub = useSharedSubscription(
+			sub = useSubscription(
 				'u_' + pubkey,
 				userQuery(pubkey),
 				(events: ParsedEvent<AnyKind>[], type: SubscribeKind) => {

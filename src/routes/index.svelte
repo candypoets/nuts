@@ -32,7 +32,7 @@
 	import { cashuManager } from 'src/model/cashu';
 
 	import { nostrManager, useSharedSubscription, type SubscribeKind } from 'src/model/nostr-main';
-	import type { ParsedEvent } from 'src/types';
+	import type { ParsedEvent }useSubscription
 	import { key } from 'src/controller';
 	import ImageZoom from 'src/components/ImageZoom.svelte';
 	import { viewport, dimensions, isMobile } from 'src/controller/viewport';
@@ -79,7 +79,7 @@
 					noOptimize: true
 				},
 				{
-					kinds: [3, 0], // 0 and 3 are here if found immdiately, but refetched after
+useSubscription/ 0 and 3 are here if found immdiately, but refetched after
 					authors: [$key.pub],
 					relays: ['wss://relay.damus.io', 'wss://relay.nostr.band', 'wss://purplepag.es'],
 					noOptimize: true,
@@ -128,8 +128,7 @@
 					authors: [$key?.pub],
 					relays: $kind10002.parsed?.filter((r) => r.write).map((r) => r.url),
 					noOptimize: true
-				},
-				$kind3 && {
+				},useSubscription		$kind3 && {
 					kinds: [10002],
 					authors: $kind3.parsed?.map((p) => p.pubkey),
 					relays: ['wss://relay.nostr.band', 'wss://purplepag.es'],

@@ -4,7 +4,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 
-	import { nostrManager, useSharedSubscription, type SubscribeKind } from 'src/model/nostr-main';
+	import { useSubscription, type SubscribeKind } from 'src/model/nostr-main';
 	import type { AnyKind, Kind1Parsed } from 'src/types';
 	import { type ParsedEvent } from 'src/types';
 	import Content from 'src/routes/explore/_post/content.svelte';
@@ -12,6 +12,7 @@
 	import Header from 'src/routes/explore/_post/header.svelte';
 	import Zap from 'src/routes/explore/_post/zap.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
+	import { nip19 } from 'nostr-tools';
 
 	// if the note is a repost, this is the reposter pubkey
 	export let repost: string | undefined = undefined;
@@ -61,7 +62,7 @@
 	function subscribe() {
 		timeout = setTimeout(async () => {
 			if (note && note.requests && visible) {
-				sub = useSharedSubscription(note.id, note.requests, handleEvents);
+				sub = useSubscription(note.id, note.requests, handleEvents);
 			}
 		}, 200);
 	}
@@ -76,9 +77,12 @@
 
 	$: visible == true ? subscribe() : unsubscribe();
 
+	// $: note && useSharedSubscription("u_" + note.pubkey, [])
+
 	function go() {
 		if (isImageContext) return;
 		const currentPath = $page.url.pathname;
+		// const nip10Event = nip19.neventEncode({id: note?.id || noteId || "", relays: })
 		const eventPath = `nevent:${note?.id || noteId}`;
 
 		// Check if the current URL already ends with the profile we're trying to navigate to

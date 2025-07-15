@@ -43,7 +43,7 @@
 	import Modal from 'src/routes/modals/index.svelte';
 	import { go } from 'src/routes/modals/modal';
 	import { cashuManager } from 'src/model/cashu';
-	import { useSharedSubscription, type SubscribeKind } from 'src/model/nostr-main';
+	import { useSubscription, type SubscribeKind } from 'src/model/nostr-main';
 	import type { ParsedEvent } from 'src/types';
 	import { key } from 'src/controller/key';
 	import { limit } from 'src/controller/pagination';
@@ -98,7 +98,7 @@
 	$: console.log('hey:', relays, $key?.pub);
 
 	let walletSub = Promise.race([kind10019Ready.promise, delayedPromise]).then((event) => {
-		useSharedSubscription(
+		useSubscription(
 			'active_wallet',
 			[
 				{ kinds: [7375], authors: [$key?.pub], limit: 40, relays: relays },
@@ -187,7 +187,7 @@
 
 		loading = true;
 
-		const login = useSharedSubscription(
+		const login = useSubscription(
 			'login_' + pubkey,
 			[
 				{

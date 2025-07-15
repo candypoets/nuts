@@ -2,7 +2,7 @@
 	import _ from 'lodash';
 	import { kind0 } from 'src/controller/nostr';
 	import { getRelaysFromNote } from 'src/lib/getRelaysFromNote';
-	import { nostrManager, useSharedSubscription } from 'src/model/nostr-main';
+	import { nostrManager, useSubscription } from 'src/model/nostr-main';
 	import type { Kind9321Parsed, ParsedEvent } from 'src/types';
 	import { isKind9321, isKind9735, type AnyKind, type Kind9735Parsed } from 'src/types';
 	import { onDestroy, onMount } from 'svelte';
@@ -26,7 +26,7 @@
 	async function subscribe() {
 		timeout = setTimeout(() => {
 			if (visible) {
-				sub = useSharedSubscription(
+				sub = useSubscription(
 					note.id + 'zaps',
 					[
 						{

@@ -4,7 +4,7 @@
 	import { nip19 } from 'nostr-tools';
 	import { SEARCH_RELAYS } from 'src/lib/env';
 	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/types';
-	import { nostrManager, useSharedSubscription, type EventKind } from 'src/model/nostr-main';
+	import { nostrManager, useSubscription, type EventKind } from 'src/model/nostr-main';
 	import type { ParsedEvent } from 'src/types';
 	import { onDestroy } from 'svelte';
 
@@ -91,7 +91,7 @@
 		eose = false;
 		selectedIndex = 0;
 		loading = true;
-		sub = useSharedSubscription(
+		sub = useSubscription(
 			'mentionlist_nocache',
 			[{ kinds: [0], search, limit: 10, relays: SEARCH_RELAYS }],
 			handleEvents

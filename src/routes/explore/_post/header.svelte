@@ -7,7 +7,7 @@
 	import { getContext, onMount } from 'svelte';
 
 	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/types';
-	import { nostrManager, useSharedSubscription, type SubscribeKind } from 'src/model/nostr-main';
+	import { nostrManager, useSubscription, type SubscribeKind } from 'src/model/nostr-main';
 	import type { Kind1Parsed, ParsedEvent } from 'src/types';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import { isMobile } from 'src/controller';
@@ -29,7 +29,7 @@
 				| Kind0Parsed
 				| undefined;
 			if (!author) {
-				sub = useSharedSubscription(
+				sub = useSubscription(
 					'u_' + note.pubkey,
 					userQuery(note.pubkey),
 					(events: ParsedEvent<AnyKind>[], type: SubscribeKind) => {

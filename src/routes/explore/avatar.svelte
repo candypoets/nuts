@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { useSharedSubscription, type SubscribeKind } from 'src/model/nostr-main';
+	import { useSubscription, type SubscribeKind } from 'src/model/nostr-main';
 	import type { ParsedEvent } from 'src/types';
 	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/types';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
@@ -37,7 +37,7 @@
 		imageUrl = profile?.picture;
 		proxiedImageUrl = imageUrl ? proxyAvatarUrl(imageUrl) : undefined;
 		if (!profile && query) {
-			sub = useSharedSubscription(
+			sub = useSubscription(
 				'u_' + pubkey,
 				userQuery(pubkey),
 				(events: ParsedEvent<AnyKind>[], type: SubscribeKind) => {

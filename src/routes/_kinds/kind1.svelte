@@ -1,8 +1,7 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
 	import _ from 'lodash';
-	import { useSharedSubscription, type Request, type SubscribeKind } from 'src/model/nostr-main';
-	import Feed from 'src/routes/explore/feed.svelte';
+	import {useSubscriptiont Feed from 'src/routes/explore/feed.svelte';
 	import Note from 'src/routes/explore/note.svelte';
 	import type { ParsedEvent } from 'src/types';
 	import { isKind1, type AnyKind, type Kind1Parsed } from 'src/types';
@@ -57,7 +56,7 @@
 	}
 
 	function subscribe() {
-		timeout = setTimeout(async () => {
+		timeout = setTimeoutuseSubscription
 			if (visible) {
 				sub = useSharedSubscription(
 					'kind1_' + postId,

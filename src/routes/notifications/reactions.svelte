@@ -4,7 +4,7 @@
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import type { ProcessedNotification } from './notifications';
 	import { onMount } from 'svelte';
-	import { nostrManager, useSharedSubscription } from 'src/model/nostr-main';
+	import { nostrManager, useSubscription } from 'src/model/nostr-main';
 	import { isKind1, type AnyKind } from 'src/types';
 	import type { ParsedEvent } from 'src/types';
 	import User from '../explore/user.svelte';
@@ -31,7 +31,7 @@
 	function subscribe() {
 		timeout = setTimeout(async () => {
 			if (visible) {
-				useSharedSubscription(
+				useSubscription(
 					post.id + 'reactions',
 					[
 						{
