@@ -19,7 +19,7 @@
 	let imageUrl: string | undefined;
 	let proxiedImageUrl: string | undefined;
 
-	let sub: () => void;
+	let sub: (() => void) | undefined;
 
 	// Size mapping to Tailwind classes
 	const sizeClasses = {

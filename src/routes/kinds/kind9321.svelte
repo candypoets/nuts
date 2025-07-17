@@ -20,11 +20,11 @@
 	export let context: ParsedEvent<AnyKind>[];
 
 	let redeemed: ParsedEvent<Kind7376Parsed> | undefined;
-	let sub: () => void;
+	let sub: (() => void) | undefined;
 
 	let relays: string[] = [];
 
-	const usub = useSubscription(
+	let usub = useSubscription(
 		'u_' + zap.parsed?.recipient || '',
 		userQuery(zap.parsed?.recipient || ''),
 		(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) => {
@@ -35,6 +35,7 @@
 			if (isKind10002(event)) {
 				relays = event.parsed?.filter((r) => !!r.write).map((r) => r.url) || [];
 				usub?.();
+				usub = undefined;
 			}
 		}
 	);
@@ -91,13 +92,17 @@
 					if (isKind7376(event)) {
 						redeemed = event; // Assign the found redeem event
 						console.log('tags: ', event.parsed?.tags);
-						if (sub) sub(); // Unsubscribe once found
+						sub?.(); // Unsubscribe once found
+						sub = undefined;
 					}
 				},
 				{ closeOnEose: true }
 			);
 		}
-		return () => sub?.();
+		return () => {
+			sub?.();
+			usub?.();
+		};
 	});
 </script>
 

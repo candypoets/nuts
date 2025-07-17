@@ -24,14 +24,15 @@
 	import { nostrManager, useSubscription, type SubscribeKind } from 'src/model/nostr-main';
 	import type { ParsedEvent } from 'src/types';
 	import { go } from 'src/routes/modals/modal';
-	import { userQuery } from 'src/routes/queries/user';
+	import { getUserRelays, userQuery } from 'src/routes/queries/user';
 
 	export let note: ParsedEvent<any>;
 	export let visible: boolean;
 
-	let sub: () => void;
+	let sub: (() => void) | undefined;
+	let relaysub: (() => void) | undefined;
 
-	$: relays = getRelaysFromNote(note);
+	let relays: string[] = [];
 
 	let reactions: ParsedEvent<Kind7Parsed>[] = [];
 
@@ -101,6 +102,7 @@
 		if (isKind7(event) || isKind17(event)) {
 			handleReactions(event);
 		} else if (isKind1(event)) {
+			// console.log(note.id, event);
 			handleReplies(event);
 		} else if (isKind6(event)) {
 			handleReposts(event);
@@ -109,33 +111,22 @@
 
 	function subscribe() {
 		timeout = setTimeout(async () => {
-			if (visible) {
-				const usub = useSubscription(
-					'u_' + note.pubkey,
-					userQuery(note.pubkey),
-					(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) => {
-						if (kind == 'EOSE') {
-							return;
-						}
-						const [event] = events;
-						if (isKind10002(event)) {
-							relays = event.parsed?.filter((r) => !!r.read).map((r) => r.url) || [];
-							usub?.();
-							sub = useSubscription(
-								'f_' + note.id,
-								[
-									{
-										kinds: [1, 6, 7, 17],
-										tags: { '#e': [note.id] },
-										noContext: true,
-										relays: relays || note.relays || []
-									}
-								],
-								handleEvents
-							);
-						}
-					}
-				);
+			if (visible && !relaysub) {
+				relaysub = getUserRelays(note.pubkey, (result) => {
+					relays = result;
+					sub = useSubscription(
+						'f_' + note.id,
+						[
+							{
+								kinds: [1, 6, 7, 17],
+								tags: { '#e': [note.id] },
+								noContext: true,
+								relays
+							}
+						],
+						handleEvents
+					);
+				});
 			}
 		}, 200);
 	}
@@ -145,6 +136,8 @@
 			clearTimeout(timeout);
 			timeout = undefined;
 			sub?.();
+			relaysub?.();
+			relaysub = undefined;
 		}
 	}
 

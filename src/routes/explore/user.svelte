@@ -15,16 +15,7 @@
 	export let query = true;
 
 	let user: Kind0Parsed | undefined;
-	let sub: () => void;
-
-	$: {
-		if (!user && pubkey) {
-		}
-	}
-
-	$: {
-		if (user && !!sub) sub();
-	}
+	let sub: (() => void) | undefined;
 
 	onMount(() => {
 		user = (context || []).find((event) => event.kind === 0 && event.pubkey === pubkey)?.parsed as

@@ -10,7 +10,12 @@
 	import { normalizeMintURL } from 'src/lib/utils';
 	import { getInvoiceFromProfile, GetLNURLFromProfile } from 'src/lib/wallet';
 	import { cashuManager } from 'src/model/cashu';
-	import { nostrManager, useSubscription, type SubscribeKind } from 'src/model/nostr-main';
+	import {
+		nostrManager,
+		useSubscription,
+		type SubscribeKind,
+		type Request
+	} from 'src/model/nostr-main';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import User from 'src/routes/explore/user.svelte';
 	import type { Kind0Parsed, Kind1Parsed, ParsedEvent } from 'src/types';
@@ -29,6 +34,8 @@
 	// export let active: string;
 	export let pubkey: string;
 	export let noteId: string;
+
+	let animator = getContext('animator');
 	let memo: string = '';
 
 	let amount: number | undefined = undefined;

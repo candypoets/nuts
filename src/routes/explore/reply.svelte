@@ -98,7 +98,6 @@
 
 	async function handleSubmit() {
 		if (!editorReady || isSubmitting || !$editor.getText().trim()) return;
-		console.log('submitting', $editor.commands);
 		isSubmitting = true;
 		const content = $editor.getText();
 
@@ -111,8 +110,6 @@
 		reply = prepareEvent(reply);
 
 		onSubmit(reply as NostrEvent);
-
-		console.log('reply', reply);
 
 		nostrManager.publish('1' + reply.content, reply as NostrEvent, (status: RelayStatus) => {
 			// as soon as a status come back, signing is done

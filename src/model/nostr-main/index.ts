@@ -1,33 +1,21 @@
-import type { AnyKind, ParsedEvent } from 'src/types';
+import { SharedBufferReader } from 'src/lib/sharedBuffer';
 import init, {
-	encodeAndPostMessage,
 	type MainToWorkerMessage,
-	type WorkerToMainMessage,
 	type RelayStatusUpdate,
-	type Request
+	type Request,
+	type WorkerToMainMessage
 } from 'src/model/nostr-main/pkg/nostr_main.js';
 import nostrWorker from 'src/model/nostr-worker/index?worker';
-import { SharedBufferReader } from 'src/lib/sharedBuffer';
+import type { AnyKind, ParsedEvent } from 'src/types';
 
 import { decode, encode } from '@msgpack/msgpack';
-import type { EOSE } from './pkg/nutscash_nostr_main';
 import type { NostrEvent } from 'nostr-tools';
-import { writable, type Writable } from 'svelte/store';
-import { pack } from 'msgpackr';
 
 // Re-export types for external use
 export type SubscribeKind = 'CACHED_EVENT' | 'FETCHED_EVENT' | 'COUNT' | 'EOSE' | 'EOCE';
 export type PublishKind = 'PUBLISH_STATUS';
 
-// export type Request = Filter & {
-// 	relays: string[];
-// 	closeOnEOSE?: boolean;
-// 	cacheFirst?: boolean;
-// 	noOptimize?: boolean;
-// 	limit?: number;
-// 	count?: boolean;
-// 	noContext?: boolean;
-// };
+export type { Request };
 
 // Callback for subscription events (kept for backwards compatibility)
 type SubscriptionCallback = (data: ParsedEvent<AnyKind>[] | number, type: SubscribeKind) => void;
@@ -69,6 +57,8 @@ class NostrManager {
 	>();
 	private publishes = new Map<string, PublishCallback>();
 	private signers = new Map<string, string>(); // name -> secret key hex
+
+	public PERPETUAL_SUBSCRIPTIONS = ['notifications', 'starterpack'];
 
 	constructor() {
 		this.setupWorkerListener();
@@ -234,10 +224,13 @@ class NostrManager {
 	/**
 	 * Unsubscribe from a subscription
 	 */
-	unsubscribe(subId: string): void {
+	unsubscribe(subscriptionId: string): void {
+		const subId = subscriptionId.length < 64 ? subscriptionId : this.createShortId(subscriptionId);
 		const subscription = this.subscriptions.get(subId);
 		if (subscription) {
 			subscription.refCount--;
+			// console.log('Cleaning', subscriptionId, subscription?.refCount);
+			// console.log('Actually Cleaning', subId, subscription.refCount);
 		}
 	}
 
@@ -332,11 +325,14 @@ class NostrManager {
 
 		// Find subscriptions with zero or negative reference counts
 		for (const [subId, subscription] of this.subscriptions.entries()) {
-			if (subscription.refCount <= 0) {
+			if (subscription.refCount <= 0 && !this.PERPETUAL_SUBSCRIPTIONS.includes(subId)) {
 				subscriptionsToDelete.push(subId);
 			}
 		}
-
+		// Log the number of subscriptions that will be deleted
+		console.log(
+			`CLosing Cleaning up ${subscriptionsToDelete.length} / ${this.subscriptions.size} subscription(s)`
+		);
 		// Clean up each subscription
 		for (const subId of subscriptionsToDelete) {
 			const subscription = this.subscriptions.get(subId);
@@ -446,93 +442,5 @@ export function useSubscription(
 			clearTimeout(timeoutId);
 		}
 		nostrManager.unsubscribe(subId);
-	};
-}
-
-export function useSharedSubscription(
-	subId: string,
-	callback: any = () => {},
-	options = { closeOnEose: false }
-) {
-	if (!subId) {
-		console.warn('useSharedSubscription: No subscription ID provided');
-		return () => {};
-	}
-	let lastReadPos: number = 4;
-	let timeoutId: number | null = null;
-	let pollInterval: number = 15; // Start at 5ms - very aggressive
-	const maxInterval: number = 4000; // Max 4 seconds
-	let running: boolean = true;
-
-	let buffer = nostrManager.getBuffer(subId);
-	let originalTimeout = 10;
-
-	// while (!buffer) {
-	// 	setTimeout(() => {
-	// 		buffer = nostrManager.getBuffer(subId);
-	// 		console.log('buffer', buffer);
-	// 	}, originalTimeout);
-	// 	if (originalTimeout > maxInterval) {
-	// 		originalTimeout = maxInterval;
-	// 	} else {
-	// 		originalTimeout *= 2;
-	// 	}
-	// }
-
-	console.log('buffer', buffer);
-
-	const processEvents = (): void => {
-		if (!running || !buffer) {
-			if (timeoutId !== null) {
-				clearTimeout(timeoutId);
-			}
-			return;
-		}
-
-		const result = SharedBufferReader.readMessages(buffer, lastReadPos);
-
-		if (result.hasNewData) {
-			// Found new data - reset to aggressive polling
-			pollInterval = 5;
-
-			result.messages.forEach((message: WorkerToMainMessage) => {
-				if ('SubscriptionEvent' in message) {
-					message.SubscriptionEvent.event_data.forEach((event) => {
-						callback(event, message.SubscriptionEvent.event_type);
-					});
-				} else if ('Eose' in message) {
-					if (options.closeOnEose) {
-						console.log('close');
-						running = false;
-						timeoutId && clearTimeout(timeoutId);
-					}
-					callback(message.Eose.data, 'EOSE');
-				} else if ('Eoce' in message) {
-					callback([], 'EOCE');
-				}
-			});
-			lastReadPos = result.newReadPosition;
-		} else {
-			// No new data - back off exponentially (faster backoff)
-			pollInterval = Math.min(pollInterval * 2, maxInterval);
-		}
-
-		// Clear any existing timeout before scheduling a new one
-		if (timeoutId !== null) {
-			clearTimeout(timeoutId);
-		}
-
-		// Schedule next poll
-		timeoutId = window.setTimeout(processEvents, pollInterval);
-	};
-
-	// Start after a minimal delay to ensure the return function is available
-	timeoutId = window.setTimeout(processEvents, 0);
-
-	return (): void => {
-		running = false;
-		if (timeoutId !== null) {
-			clearTimeout(timeoutId);
-		}
 	};
 }

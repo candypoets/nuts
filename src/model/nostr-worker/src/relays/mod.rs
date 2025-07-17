@@ -65,6 +65,8 @@ pub fn new_registry() -> ConnectionRegistry {
 
 /// Utility functions for the relay module
 pub mod utils {
+    const BLACKLISTED_RELAYS: &[&str] = &["wheat.happytavern.co"];
+
     use super::types::{ClientMessage, RelayError, RelayMessage};
 
     /// Parse a relay message from JSON string
@@ -81,6 +83,16 @@ pub mod utils {
     pub fn validate_relay_url(url: &str) -> Result<(), RelayError> {
         if url.is_empty() {
             return Err(RelayError::InvalidUrl("URL cannot be empty".to_string()));
+        }
+
+        let normalized_url = url.trim().to_lowercase();
+        for &blacklisted in BLACKLISTED_RELAYS {
+            if normalized_url.contains(blacklisted) {
+                return Err(RelayError::InvalidUrl(format!(
+                    "Relay URL is blacklisted: {}",
+                    url
+                )));
+            }
         }
 
         if !url.starts_with("ws://") && !url.starts_with("wss://") {

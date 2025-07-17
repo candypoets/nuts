@@ -3,15 +3,14 @@
 	import { page } from '$app/stores';
 	import Icon from '@iconify/svelte';
 	import { formatDistanceToNow } from 'date-fns';
-	import _ from 'lodash';
 	import { getContext, onMount } from 'svelte';
 
-	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/types';
-	import { nostrManager, useSubscription, type SubscribeKind } from 'src/model/nostr-main';
-	import type { Kind1Parsed, ParsedEvent } from 'src/types';
-	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import { isMobile } from 'src/controller';
+	import { proxyAvatarUrl } from 'src/lib/proxy';
+	import { useSubscription, type SubscribeKind } from 'src/model/nostr-main';
 	import { userQuery } from 'src/routes/queries/user';
+	import type { Kind1Parsed, ParsedEvent } from 'src/types';
+	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/types';
 
 	export let note: ParsedEvent<Kind1Parsed>;
 	export let context: ParsedEvent<AnyKind>[] = [];
@@ -21,7 +20,7 @@
 
 	let author: Kind0Parsed | undefined;
 	let isImageContext = getContext('imageContext');
-	let sub: () => void;
+	let sub: (() => void) | undefined;
 
 	onMount(() => {
 		if (!author) {
@@ -48,15 +47,6 @@
 		}
 		return () => sub?.();
 	});
-
-	$: {
-		if (!author && context) {
-			author = context.find((c) => c.pubkey === note.pubkey && c.kind == 0)?.parsed as
-				| Kind0Parsed
-				| undefined;
-			author && sub?.();
-		}
-	}
 
 	function go() {
 		if (isImageContext) return;
@@ -108,7 +98,7 @@
 						</a>
 						<Icon icon="bitcoin-icons:verify-filled" class="inline text-lg text-primary" />
 						<p class="text-xs opacity-50 ml-2">
-							{formatDistanceToNow(note.created_at, { addSuffix: true })}
+							{formatDistanceToNow((note?.created_at || 0) * 1000, { addSuffix: true })}
 						</p>
 					</div>
 					{#if author?.nip05}

@@ -7,6 +7,7 @@
 	import { isKind9321, isKind9735, type AnyKind, type Kind9735Parsed } from 'src/types';
 	import { onDestroy, onMount } from 'svelte';
 	import Avatar from '../avatar.svelte';
+	import { getUserRelays } from 'src/routes/queries/user';
 
 	export let note: ParsedEvent<any>;
 	export let visible: boolean;
@@ -19,27 +20,31 @@
 	let biggestZap: ParsedEvent<Kind9735Parsed>;
 	let totalZapAmount = 0;
 	let totalNutAmount = 0;
-	let sub: () => void;
+	let sub: (() => void) | undefined;
+	let relaysub: (() => void) | undefined;
 
 	$: relays = getRelaysFromNote(note);
 
 	async function subscribe() {
 		timeout = setTimeout(() => {
-			if (visible) {
-				sub = useSubscription(
-					note.id + 'zaps',
-					[
-						{
-							kinds: [9735, 9321],
-							tags: { '#e': [note.id] },
-							noContext: true,
-							limit: 100,
-							since: note.created_at,
-							relays: relays || []
-						}
-					],
-					handleEvents
-				);
+			if (visible && !relaysub) {
+				relaysub = getUserRelays(note.pubkey, (result) => {
+					relays = result;
+					sub = useSubscription(
+						'z_' + note.id,
+						[
+							{
+								kinds: [9735, 9321],
+								tags: { '#e': [note.id] },
+								noContext: true,
+								limit: 100,
+								since: note.created_at,
+								relays: relays || []
+							}
+						],
+						handleEvents
+					);
+				});
 			}
 		}, 200);
 	}
@@ -80,6 +85,7 @@
 			clearTimeout(timeout);
 			timeout = undefined;
 			sub?.();
+			relaysub?.();
 		}
 	}
 

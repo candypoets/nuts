@@ -5,15 +5,19 @@
 	import { limit } from 'src/controller/pagination';
 	import { now } from 'src/lib/period';
 	import { proxyAvatarUrl, proxyBannerUrl } from 'src/lib/proxy';
-	import { nostrManager, useSubscription, type SubscribeKind } from 'src/model/nostr-main';
+	import {
+		nostrManager,
+		useSubscription,
+		type SubscribeKind,
+		type Request
+	} from 'src/model/nostr-main';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import type { ParsedEvent } from 'src/types';
 	import { isKind0, isKind10002, type AnyKind, type Kind0Parsed } from 'src/types';
-	import { onDestroy } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import Avatar from '../explore/avatar.svelte';
 	import { go } from '../modals/modal';
 	import { userQuery } from '../queries/user';
-	import Content from '../explore/_post/content.svelte';
 	import RelaysList from 'src/components/RelaysList.svelte';
 
 	// Get pubkey from URL parameter
@@ -24,18 +28,10 @@
 	let loading = true;
 	let headerItem: ParsedEvent<Kind0Parsed> | undefined;
 	let relays: string[] = [];
-	$: feedRequests = relays.length && [
-		{
-			kinds: [1],
-			authors: [pubkey],
-			limit: $limit,
-			noContext: true,
-			relays
-		}
-	];
+	let feedRequests: Request[] = [];
 	let timeout: NodeJS.Timeout | undefined;
 
-	let sub: () => void;
+	let sub: (() => void) | undefined;
 
 	function handleEvents(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) {
 		if (kind == 'EOSE') {
@@ -49,6 +45,15 @@
 		}
 		if (isKind10002(event)) {
 			relays = event.parsed?.filter((r) => r.write).map((r) => r.url) || [];
+			feedRequests = [
+				{
+					kinds: [1],
+					authors: [pubkey],
+					limit: $limit,
+					noContext: true,
+					relays
+				}
+			];
 		}
 	}
 
@@ -56,8 +61,7 @@
 
 	function subscribe() {
 		timeout = setTimeout(() => {
-			if (visible) {
-				// feedRequests = [];
+			if (visible && !sub) {
 				sub = useSubscription('u_' + pubkey, userQuery(pubkey), handleEvents);
 			}
 		});
@@ -68,6 +72,7 @@
 			clearTimeout(timeout);
 			timeout = undefined;
 			sub?.();
+			sub = undefined;
 		}
 	}
 
@@ -92,6 +97,23 @@
 
 		nostrManager.publish('follow_' + pubkey, template);
 	}
+
+	onMount(() => {
+		// set a time out after which we set the feedRequests whatever happen
+		setTimeout(() => {
+			if (!feedRequests.length) {
+				feedRequests = [
+					{
+						kinds: [1],
+						authors: [pubkey],
+						limit: $limit,
+						noContext: true,
+						relays
+					}
+				];
+			}
+		}, 1000);
+	});
 
 	$: visible ? subscribe() : unsubscribe();
 </script>

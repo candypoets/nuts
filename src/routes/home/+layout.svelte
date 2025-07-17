@@ -105,7 +105,6 @@
 				{ kinds: [17375], authors: [$key?.pub], limit: 10, relays: relays }
 			],
 			(events: ParsedEvent<unknown>[], eventKind: SubscribeKind) => {
-				console.log('active_wallet', events, eventKind);
 				if (eventKind == 'EOSE') {
 					if (events.remainingConnections / events.totalConnections <= 0.5) {
 						walletLoaded.resolve(true);
@@ -231,9 +230,7 @@
 	walletLoaded.then(() => {
 		setTimeout(() => {
 			const proofsMint = proofsByMint();
-			console.log('wallet proofsMint', proofsMint);
 			for (const [mintUrl, proofs] of Object.entries(proofsMint)) {
-				console.log('wallet checkProofState', mintUrl, proofs);
 				cashuManager.checkProofState(mintUrl, proofs);
 			}
 		}, 2000);

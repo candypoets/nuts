@@ -2,7 +2,7 @@
 	import { goto } from '$app/navigation';
 	import Icon from '@iconify/svelte';
 	import _ from 'lodash';
-	import { key, kind10002 } from 'src/controller';
+	import { key, kind10002, lastNotificationView, writeRelays } from 'src/controller';
 	import type { Request, SubscribeKind } from 'src/model/nostr-main';
 	import { type AnyKind } from 'src/types';
 	import Feed from 'src/routes/explore/feed.svelte';
@@ -56,26 +56,8 @@
 		return processedFeed;
 	}
 
-	// $: feedRequests =
-	// 	($key && [
-	// 		// Mentions of user, reactions to user's posts, reposts of user's content
-	// 		{
-	// 			kinds: [1, 7, 6],
-	// 			'#p': [$key?.pub],
-	// 			limit: 40,
-	// 			since: ago(14 * DAY)
-	// 		}
-	// 		// Replies to user's posts
-	// 		// {
-	// 		// 	kinds: [1],
-	// 		// 	'#e': [], // This will be populated with the user's post IDs
-	// 		// 	limit: 40,
-	// 		// 	since: ago(14 * DAY)
-	// 		// }
-	// 	]) ||
-	// 	[];
-
 	onMount(() => {
+		$lastNotificationView = Date.now();
 		feedRequests =
 			($key &&
 				$key.pub && [
@@ -84,7 +66,7 @@
 						kinds: [1, 7, 6],
 						tags: { '#p': [$key?.pub] },
 						limit: 100,
-						relays: $kind10002?.parsed?.filter((r) => r.read).map((r) => r.url) || []
+						relays: $writeRelays
 					}
 					// Replies to user's posts
 					// {
@@ -102,7 +84,7 @@
 
 <!-- Header for the page -->
 <Feed
-	subscriptionID={`notifications`}
+	subscriptionID="notifications"
 	requests={feedRequests}
 	{updateFeed}
 	{visible}

@@ -1,10 +1,10 @@
 <script lang="ts">
 	import _ from 'lodash';
-	import { getContext, onDestroy } from 'svelte';
+	import { getContext, onDestroy, onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 
-	import { useSharedSubscription, useSubscription, type SubscribeKind } from 'src/model/nostr-main';
+	import { useSubscription, type SubscribeKind } from 'src/model/nostr-main';
 	import type { AnyKind, Kind1Parsed } from 'src/types';
 	import { isKind10002, type ParsedEvent } from 'src/types';
 	import Content from 'src/routes/explore/_post/content.svelte';
@@ -13,7 +13,8 @@
 	import Zap from 'src/routes/explore/_post/zap.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import { nip19 } from 'nostr-tools';
-	import { userQuery } from '../queries/user';
+	import { getUserRelays, userQuery } from '../queries/user';
+	import Relays from '../modals/_profile/relays.svelte';
 
 	// if the note is a repost, this is the reposter pubkey
 	export let repost: string | undefined = undefined;
@@ -35,7 +36,8 @@
 	// is the note tailing in a thread
 	export let tailing: boolean | undefined = undefined;
 
-	let sub: () => void;
+	let sub: (() => void) | undefined;
+	let relaysub: (() => void) | undefined;
 
 	let replies: ParsedEvent<Kind1Parsed>[] = [];
 
@@ -46,6 +48,8 @@
 	let isImageContext = getContext('imageContext');
 
 	let relays: string[] = [];
+
+	let subscribing = false;
 
 	$: {
 		if (!note && noteId && context) {
@@ -64,8 +68,19 @@
 
 	function subscribe() {
 		timeout = setTimeout(async () => {
-			if (note && note.requests && visible) {
-				sub = useSubscription(note.id, note.requests, handleEvents);
+			if (note && visible) {
+				if (!sub && note.requests) {
+					sub = useSubscription(note.id, note.requests, handleEvents);
+				}
+				if (!relays.length && !relaysub) {
+					relaysub = getUserRelays(
+						note.pubkey,
+						(result) => {
+							relays = result;
+						},
+						'read'
+					);
+				}
 			}
 		}, 200);
 	}
@@ -75,27 +90,13 @@
 			clearTimeout(timeout);
 			timeout = undefined;
 			sub?.();
+			sub = undefined;
+			relaysub?.();
+			relaysub = undefined;
 		}
 	}
 
 	$: visible == true ? subscribe() : unsubscribe();
-
-	$: usub =
-		note &&
-		useSubscription(
-			'u_' + note.pubkey,
-			userQuery(note.pubkey),
-			(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) => {
-				if (kind == 'EOSE') {
-					return;
-				}
-				const [event] = events;
-				if (isKind10002(event)) {
-					relays = event.parsed?.filter((r) => !!r.write).map((r) => r.url) || [];
-					usub?.();
-				}
-			}
-		);
 
 	function go() {
 		if (isImageContext) return;

@@ -21,6 +21,7 @@ use nostr::{Event, EventId, Filter};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::RwLock;
+use tracing::{info, warn};
 use wasm_bindgen_futures::spawn_local;
 
 /// Main connection registry for managing relay operations
@@ -269,7 +270,10 @@ impl ConnectionRegistry {
         // Validate and normalize URLs
         let mut normalized_urls = Vec::new();
         for url in relay_urls {
-            validate_relay_url(&url)?;
+            if let Err(e) = validate_relay_url(&url) {
+                warn!("Invalid relay URL {}: {}, skipping", url, e);
+                continue;
+            }
             normalized_urls.push(normalize_relay_url(&url));
         }
 
@@ -378,6 +382,7 @@ impl ConnectionRegistry {
             let close_message = ClientMessage::close(subscription_id.to_string());
             for url in &urls {
                 if let Some(connection) = self.get_connection(url).await {
+                    info!(relay = %url, subscription_id = %subscription_id, "Sending CLOSE message to relay");
                     if let Err(e) = connection.send_message(close_message.clone()).await {
                         tracing::error!(relay = %url, error = %e, "Failed to send CLOSE message");
                     }

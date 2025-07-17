@@ -1,17 +1,18 @@
 <script lang="ts">
+	import Fuse from 'fuse.js';
 	import _ from 'lodash';
 	import { onMount } from 'svelte';
-	import Fuse from 'fuse.js';
 
 	import type { NostrEvent } from 'nostr-tools';
 	import VirtualList from 'src/components/VirtualList.svelte';
 	import VirtualListBottom from 'src/components/VirtualListBottom.svelte';
-	import { DAY, now } from 'src/lib/period';
-	import { nostrManager, useSubscription, type SubscribeKind } from 'src/model/nostr-main';
+	import { now } from 'src/lib/period';
+	import { cleanup, useSubscription, type SubscribeKind } from 'src/model/nostr-main';
 	import type { ParsedEvent } from 'src/types';
 	import { isKind, isKind1, isKind6, type AnyKind, type Kind1Parsed } from 'src/types';
 	import Note from './note.svelte';
-	import { slide } from 'svelte/transition';
+	import { formatDistanceToNow } from 'date-fns';
+	import { limit } from 'src/controller/pagination';
 
 	// Props
 	export let bottom = false;
@@ -30,7 +31,7 @@
 	export let backdrop: boolean = false;
 	export let search: string = '';
 	export let fuseKeys: string[] = [];
-	export let itemHeight: number;
+	export let itemHeight: number | undefined = undefined;
 	export let initialItems: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][] = [];
 
 	let cachedFeed: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
@@ -40,6 +41,8 @@
 	let newPosts: number = 0;
 	let timeout: NodeJS.Timeout | undefined;
 	let sub: () => void | undefined;
+	let pagesub: () => void | undefined;
+
 	let fuse: Fuse<any>;
 	let filteredFeed: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][] = [];
 
@@ -71,13 +74,21 @@
 
 	// In a separate function to avoid infinite loops in the reactive block
 	const handleEvents = (events: ParsedEvent<AnyKind>[], eventKind: SubscribeKind, page = 0) => {
+		// console.log(events?.[0]);
 		if (eventKind == 'EOSE') {
-			if (events.remainingConnections / events.totalConnections <= 0.8 && eose == false) {
+			if (eose == false && events.remainingConnections / events.totalConnections < 1) {
 				loading = false;
 				eose = true;
-				feed = _.uniqBy([...fetchedFeed, ...feed], (item) => item[0].id)
-					.sort((a, b) => b[0].created_at - a[0].created_at)
-					.slice(0, (page + 1) * 100);
+				if (page == 0) {
+					feed = _.uniqBy([...fetchedFeed, ...feed], (item) => item[0].id).sort(
+						(a, b) => b[0].created_at - a[0].created_at
+					);
+				} else {
+					feed = _.uniqBy(
+						[...feed, ...fetchedFeed.sort((a, b) => b[0].created_at - a[0].created_at)],
+						(item) => item[0].id
+					);
+				}
 				// console.log(subscriptionID, 'ok', feed);
 				// makeFuse();
 				fetchedFeed = [];
@@ -86,7 +97,11 @@
 		}
 		if (eventKind == 'EOCE' && !eoce) {
 			eoce = true;
-			feed = [...initialItems, ...cachedFeed.slice(0, 100)];
+			if (page == 0) {
+				feed = [...feed, ...initialItems, ...cachedFeed];
+			} else {
+				feed = [...feed, ...cachedFeed];
+			}
 			cachedFeed = [];
 			// makeFuse();
 			return;
@@ -99,10 +114,8 @@
 			} else if (!eose) {
 				fetchedFeed = updateFeed(fetchedFeed, events, eventKind);
 			} else {
-				if (!page) {
-					feed = updateFeed(feed, events, eventKind);
-					// makeFuse();
-				}
+				feed = updateFeed(feed, events, eventKind);
+				// makeFuse();
 			}
 			return;
 		}
@@ -116,9 +129,7 @@
 			} else if (!eose) {
 				fetchedFeed = [[event, _.uniqBy(context, 'id')], ...fetchedFeed];
 			} else {
-				if (!page) {
-					bufferFeed.push([event, _.uniqBy(context, 'id')]);
-				}
+				bufferFeed.push([event, _.uniqBy(context, 'id')]);
 			}
 		}
 	};
@@ -140,7 +151,6 @@
 		if (timeout) {
 			clearTimeout(timeout);
 			timeout = undefined;
-			console.log(subscriptionID, 'feed unsubscribe');
 			// feed = [];
 			sub?.();
 		}
@@ -148,9 +158,9 @@
 
 	function setBufferFeed() {
 		newPosts = start > bufferFeed.length ? bufferFeed.length : start;
-		feed = [...feed, ...fetchedFeed, ...bufferFeed]
-			.sort((a, b) => b[0].created_at - a[0].created_at)
-			.slice(0, lastPageFetch + 1 * 100);
+		feed = [...feed, ...fetchedFeed, ...bufferFeed].sort(
+			(a, b) => b[0].created_at - a[0].created_at
+		);
 		bufferFeed = [];
 
 		lastBufferDump = now();
@@ -172,40 +182,6 @@
 		};
 	});
 
-	$: page = Math.floor(end / 100);
-
-	let lastPageFetch = 0;
-
-	// pagination
-	// $: {
-	// 	if (end % 100 > 80) {
-	// 		if (lastPageFetch <= page) {
-	// 			lastPageFetch++;
-
-	// 			eose = false;
-	// 			eoce = false;
-	// 			// get the last item in the feed
-	// 			const lastEvent = feed[feed.length - 1][0];
-	// 			// get the next page results from the cache
-	// 			const pageSub = useSharedSubscription(
-	// 				subscriptionID + page,
-	// 				requests.map((r) => ({
-	// 					...r,
-	// 					until: lastEvent.created_at,
-	// 					since: lastEvent.created_at - (r?.since ? now() - r.since : 30 * DAY)
-	// 				})),
-	// 				(events: ParsedEvent<AnyKind>[], eventKind: SubscribeKind) => {
-	// 					handleEvents(events, eventKind, lastPageFetch);
-	// 					if (eventKind == 'EOSE') {
-	// 						// stop the sub on EOSE
-	// 						pageSub?.();
-	// 					}
-	// 				}
-	// 			);
-	// 		}
-	// 	}
-	// }
-
 	function decreaseNewPosts() {
 		newPosts--;
 	}
@@ -226,8 +202,63 @@
 			filteredFeed = feed as [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][];
 		}
 	}
+
+	let currentPage = 0;
+	let lastFeedLength = 0;
+	let noResultsCount = 0;
+	let sinceMultiplier = 1;
+
+	$: console.log(eose);
+
+	$: {
+		if (start != 0 && end == feed.length && !!eose && noResultsCount <= 3) {
+			eoce = false;
+			eose = false;
+			setTimeout(() => (eose = true), 2000);
+			// Check if the last pagesub yielded new results
+			if (lastFeedLength == feed.length) {
+				noResultsCount++;
+				// Exponential increase in since range
+				sinceMultiplier *= 5;
+			} else {
+				// Reset counters if we got new results
+				noResultsCount = 0;
+				sinceMultiplier = 1;
+			}
+
+			lastFeedLength = feed.length;
+
+			currentPage++;
+			setTimeout(() => {
+				pagesub?.();
+				cleanup();
+				const until = feed[Math.min(currentPage * $limit, feed.length - 1)][0].created_at;
+				const since = until - (currentPage + 2) * 24 * 60 * 60 * sinceMultiplier;
+				console.log(
+					'paaaaage',
+					currentPage * $limit,
+					formatDistanceToNow(until * 1000, {
+						addSuffix: true
+					}),
+					'sinceMultiplier:',
+					sinceMultiplier,
+					'noResultsCount:',
+					noResultsCount
+				);
+				pagesub = useSubscription(
+					subscriptionID + since,
+					requests.map((r) => ({ ...r, until, since })),
+					(events: ParsedEvent<AnyKind>[], eventKind: SubscribeKind) =>
+						handleEvents(events, eventKind, currentPage)
+				);
+			}, noResultsCount * 1000);
+		}
+	}
 </script>
 
+<div class="fixed bottom-4 left-4 text-white">
+	{start} - {end} - {feed.length}
+</div>
 <div
 	class={'lg:pt-0 overflow-scroll scrollbar-hide h-full min-h-screen m-auto !pt-0 ' + $$props.class}
 >

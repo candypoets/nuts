@@ -266,7 +266,10 @@ impl SubscriptionManager {
 
             // Add the filter to each relay in the request
             for relay_url in request.relays {
-                validate_relay_url(&relay_url)?;
+                if let Err(e) = validate_relay_url(&relay_url) {
+                    warn!("Invalid relay URL {}: {}, skipping", relay_url, e);
+                    continue;
+                }
                 relay_filters_map
                     .entry(normalize_relay_url(&relay_url))
                     .or_insert_with(Vec::new)

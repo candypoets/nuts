@@ -2,11 +2,9 @@
 	import Icon from '@iconify/svelte';
 	import { nip19 } from 'nostr-tools';
 	import { note, zoomed } from 'src/controller/image';
-	import { useSubscription, type SubscribeKind } from 'src/model/nostr-main';
 	import Kind1 from 'src/routes/_kinds/kind1.svelte';
-	import { userQuery } from 'src/routes/queries/user';
-	import { isKind10002, type AnyKind, type ParsedEvent } from 'src/types';
-	import { setContext } from 'svelte';
+	import { getUserRelays } from 'src/routes/queries/user';
+	import { onDestroy, setContext } from 'svelte';
 	import { slide } from 'svelte/transition';
 
 	// Toggle to show/hide the context panel
@@ -23,24 +21,18 @@
 
 	$: usub =
 		$note &&
-		useSubscription(
-			'u_' + $note.pubkey,
-			userQuery($note.pubkey),
-			(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) => {
-				if (kind == 'EOSE') {
-					return;
-				}
-				const [event] = events;
-				if (isKind10002(event)) {
-					const relays = event.parsed?.filter((r) => !!r.write).map((r) => r.url) || [];
-					console.log('relays', relays);
-					nevent = nip19.neventEncode({ id: $note.id, relays });
-					usub?.();
-				}
-			}
+		!nevent &&
+		getUserRelays(
+			$note.pubkey,
+			(relays) => {
+				nevent = nip19.neventEncode({ id: $note.id, relays });
+			},
+			'write'
 		);
 
 	setContext('imageContext', true);
+
+	onDestroy(() => usub && usub?.());
 </script>
 
 <!-- Context toggle button -->

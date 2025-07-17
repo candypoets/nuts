@@ -11,6 +11,7 @@
 	import Content from '../explore/_post/content.svelte';
 	import { key, readRelays, writeRelays } from 'src/controller';
 	import { go } from '../modals/modal';
+	import { nip19 } from 'nostr-tools';
 
 	export let post: ProcessedNotification;
 	export let visible: boolean;
@@ -105,7 +106,8 @@
 			{#if originalPost}
 				<a
 					class="cursor-pointer bg-base-content p-3 rounded-md mb-3 text-sm text-primary-content line-clamp-2 w-post-1"
-					on:click={() => go(`nevent:${originalPost.id}`)}
+					on:click={() =>
+						go(`nevent:${nip19.neventEncode({ id: originalPost.id, relays: $writeRelays })}`)}
 				>
 					<Content note={originalPost} showMedia={false} showQuote={false} depth={2} {context} />
 				</a>

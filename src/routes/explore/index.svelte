@@ -12,6 +12,9 @@
 	import MultiSelect from '../modals/components/MultiSelect.svelte';
 	import { go } from 'src/routes/modals/modal';
 	import { limit } from 'src/controller/pagination';
+	import { ago } from 'src/lib/period';
+	import Notifications from './notifications.svelte';
+	import { proxyAvatarUrl } from 'src/lib/proxy';
 
 	export let visible = true;
 
@@ -32,6 +35,7 @@
 				kinds: [1, 6],
 				authors: follows,
 				limit: $limit,
+				since: ago(2 * 24 * 60 * 60),
 				relays: [
 					'wss://relay.primal.net',
 					'wss://nostr.land',
@@ -67,11 +71,17 @@
 				class="backdrop-blur md:border-b border-base-200 safe-padding-top"
 			>
 				<div class="flex justify-between w-feed lg:m-auto md:h-16 items-center">
-					<h1 class="text-2xl font-semibold flex gap-2 items-center">
-						<div class="cursor-pointer" on:click|stopPropagation={() => go('followlists')}>
-							Explore
-						</div>
-					</h1>
+					<div class="flex gap-1 items-center">
+						{#each $followPacks as pack}
+							<div class="cursor-pointer" on:click|stopPropagation={() => go('followlists')}>
+								<img
+									src={proxyAvatarUrl(pack.parsed?.image) || '/followlist.png'}
+									class="w-8 h-8 border rounded-full"
+									alt={pack.parsed?.title || 'Follow pack'}
+								/>
+							</div>
+						{/each}
+					</div>
 					<div class="text-primary cursor-pointer">
 						{#if newPosts}
 							{newPosts} new posts
@@ -90,17 +100,6 @@
 						</a>
 					</div>
 				</div>
-				<div on:click|stopPropagation>
-					<div class="w-feed lg:m-auto">
-						<MultiSelect
-							selectedLists={$followPacks}
-							getTitle={(item) => item.parsed?.title}
-							removeItem={(list) => {
-								$followPacks = $followPacks.filter((p) => p.id != list.id);
-							}}
-						/>
-					</div>
-				</div>
 			</div>
 		</svelte:fragment>
 		<svelte.fragment slot="sticky-footer">
@@ -113,22 +112,21 @@
 				class="relative md:pt-4 safe-padding-top"
 				id={$page.url.pathname === '/explore' ? 'top' : undefined}
 			>
-				<div class="w-feed lg:m-auto flex justify-between items-center">
-					<h1 class="text-2xl font-semibold flex gap-2 items-center">
-						<div
-							class="cursor-pointer flex items-center"
-							on:click|stopPropagation={() => go('followlists')}
-						>
-							Explore
-							<Icon icon="mdi:arrow-down-drop" class="ml-1" />
-						</div>
-					</h1>
+				<div class="w-feed lg:m-auto flex justify-between items-center pb-4">
+					<div class="flex gap-1 items-center">
+						{#each $followPacks as pack}
+							<div class="cursor-pointer" on:click|stopPropagation={() => go('followlists')}>
+								<img
+									src={proxyAvatarUrl(pack.parsed?.image) || '/followlist.png'}
+									class="w-8 h-8 border rounded-full"
+									alt={pack.parsed?.title || 'Follow pack'}
+								/>
+							</div>
+						{/each}
+					</div>
 					<div class="flex gap-2 items-center">
 						<!-- <span class="text font-semibold">{$balance} Sats</span> -->
-
-						<span class="cursor-pointer" on:click|stopPropagation={() => go('notifications')}>
-							<Icon icon="mdi:bell-outline" class="text-2xl mr-2" />
-						</span>
+						<Notifications />
 						<div class="cursor-pointer" on:click|stopPropagation={() => go('profile')}>
 							<img
 								src={$kind0?.parsed?.picture || '/ns-naked.svg'}
@@ -139,15 +137,6 @@
 				</div>
 			</div>
 
-			<div class="w-feed lg:m-auto">
-				<MultiSelect
-					selectedLists={$followPacks}
-					getTitle={(item) => item.parsed?.title}
-					removeItem={(list) => {
-						$followPacks = $followPacks.filter((p) => p.id != list.id);
-					}}
-				/>
-			</div>
 			<Post />
 		</svelte.fragment>
 	</Feed>

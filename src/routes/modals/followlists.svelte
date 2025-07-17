@@ -5,16 +5,16 @@
 	import Avatar from '../explore/avatar.svelte';
 	import Icon from '@iconify/svelte';
 	import { getContext } from 'svelte';
-	import type { Request } from 'src/model/nostr-main';
+	import { nostrManager, type Request } from 'src/model/nostr-main';
 	import MultiSelect from './components/MultiSelect.svelte';
 	import { followList, followPacks } from 'src/controller/feed';
-	import { now } from 'src/lib/period';
-	import { kind3 } from 'src/controller';
+	import { formatDistanceToNow } from 'date-fns';
+	import { proxyAvatarUrl } from 'src/lib/proxy';
 
 	let animator = getContext('animator');
 
 	let searchQuery = '';
-	let subscriptionID = 'follow-lists';
+	let subscriptionID = 'starterpack';
 
 	// Define fuseKeys for search
 	const fuseKeys = ['0.parsed.title', '0.parsed.description'];
@@ -23,7 +23,7 @@
 	let requests: Request[] = [
 		{
 			kinds: [39089],
-			limit: 200,
+			limit: 50,
 			noContext: true,
 			relays: []
 		}
@@ -80,7 +80,12 @@
 			<div
 				class="backdrop-blur-md w-feed border-b border-base-200 h-16 flex items-center justify-between shadow-sm"
 			>
-				<button on:click={animator.goBack} class="p-1 rounded-full hover:bg-base-200 mr-4">
+				<button
+					on:click={() => {
+						animator?.goBack();
+					}}
+					class="p-1 rounded-full hover:bg-base-200 mr-4"
+				>
 					<Icon icon="mdi:arrow-left" class="text-xl" />
 				</button>
 				<h1 class="text-lg font-semibold">Follow Packs</h1>
@@ -169,10 +174,13 @@
 					</div>
 				{/if}
 				{#if post.parsed}
+					<div class="float-right text-xs">
+						Last updated {formatDistanceToNow(post.created_at * 1000, { addSuffix: true })}
+					</div>
 					<div class="flex items-center gap-4 mb-4">
 						{#if post.parsed.image}
 							<img
-								src={post.parsed.image}
+								src={proxyAvatarUrl(post.parsed.image)}
 								alt={post.parsed.title}
 								class="w-16 h-16 rounded-full object-cover"
 							/>

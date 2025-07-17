@@ -8,8 +8,10 @@
 	import Reply from '../explore/reply.svelte';
 	import { decode, type EventPointer } from 'nostr-tools/nip19';
 	import { useSubscription, type SubscribeKind } from 'src/model/nostr-main';
+	import { type Request } from 'src/model/nostr-main/pkg/nostr_main.js';
 	import RelaysList from 'src/components/RelaysList.svelte';
 	import Feed from '../explore/feed.svelte';
+	import { getUserRelays } from '../queries/user';
 
 	export let nevent: string;
 	export let visible: boolean;
@@ -21,7 +23,8 @@
 	let loading = true;
 	let feedRequests: Request[] = [];
 	let timeout: NodeJS.Timeout | undefined;
-	let sub: () => void;
+	let sub: (() => void) | undefined;
+	let relaysub: (() => void) | undefined;
 
 	const { data } = decode(nevent) as unknown as { data: EventPointer };
 
@@ -62,7 +65,7 @@
 
 	function subscribe() {
 		timeout = setTimeout(() => {
-			if (visible) {
+			if (visible && !sub) {
 				sub = useSubscription(
 					'kind1_' + data?.id,
 					[
@@ -70,7 +73,7 @@
 							kinds: [1],
 							ids: [data?.id],
 							limit: 5,
-							relays: data.relays?.slice(1) || [],
+							relays: data.relays || [],
 							cacheFirst: true
 						}
 					], // limits higher to accomodate for huge posts
@@ -78,7 +81,6 @@
 						if (kind == 'EOSE') {
 							return console.log(events);
 						}
-						console.log(events);
 						const [event, ...rest] = events;
 						if (!event?.parsed) return;
 						if (isKind1(event)) {
@@ -87,13 +89,20 @@
 							// profile = event;
 							headerItem = event;
 							context = rest;
-							feedRequests = [
-								{
-									kinds: [1],
-									tags: { '#e': [data?.id] },
-									relays: data.relays
-								}
-							];
+							relaysub = getUserRelays(
+								event.pubkey,
+								(relays) => {
+									feedRequests = [
+										{
+											kinds: [1],
+											tags: { '#e': [data?.id] },
+											noContext: true,
+											relays
+										}
+									];
+								},
+								'read'
+							);
 						}
 					}
 				);
@@ -106,6 +115,9 @@
 			clearTimeout(timeout);
 			timeout = undefined;
 			sub?.();
+			sub = undefined;
+			relaysub?.();
+			relaysub = undefined;
 		}
 	}
 
@@ -151,7 +163,7 @@
 				<span class="w-10" />
 			</div>
 		{/if}
-		<RelaysList class="px-4" relays={data.relays?.slice(1) || []} />
+		<RelaysList class="px-4" relays={data.relays || []} />
 		{#if headerItem}
 			<Note note={headerItem} {context} {visible} zaps />
 			<Reply parent={headerItem} {context} />

@@ -57,7 +57,7 @@
 				class:m-auto={displayLinks.length == 1}
 				class={cx(
 					i == 0 ? 'col-span-' + getSpan(i == 0 ? displayLinks.length - 1 : i) : '',
-					'h-full max-h-96 w-full object-cover'
+					'h-96 w-full object-cover'
 				)}
 				on:click|preventDefault|stopPropagation={() => setZoom(i)}
 				src={link.src.toString()}
@@ -72,11 +72,12 @@
 			<div class="relative">
 				<img
 					class:max-h-[50vh]={displayLinks.length == 1}
+					class:!h-48={displayLinks.length > 2}
 					class:!w-auto={displayLinks.length == 1}
 					class:m-auto={displayLinks.length == 1}
 					class={cx(
 						i == 0 ? 'col-span-' + getSpan(displayLinks.length - 1) : '',
-						'h-full max-h-96 w-full object-cover'
+						'h-96 w-full object-cover'
 					)}
 					on:click|preventDefault|stopPropagation={() => setZoom(i)}
 					src={link.src.toString()}

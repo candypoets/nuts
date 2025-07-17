@@ -1,5 +1,6 @@
 import type { NostrEvent } from 'nostr-tools';
 
+import { type Request } from 'src/model/nostr-main';
 import { type Kind0Parsed } from './kind0';
 import { type Kind1Parsed } from './kind1';
 import { type Kind3Parsed } from './kind3';
