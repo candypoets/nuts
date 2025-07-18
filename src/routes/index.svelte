@@ -495,11 +495,6 @@
 				</div>
 			</div>
 		</div>
-
-		<!-- Bottom Navigation -->
-		<!-- <MobileNav activeIndex={activePageIndex} />
-		<DesktopNav /> -->
-		<!-- <Theme /> -->
 	{:else}
 		<Login />
 	{/if}

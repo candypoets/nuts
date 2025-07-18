@@ -5,7 +5,7 @@
 	import _ from 'lodash';
 	import Pager from 'src/components/Pager.svelte';
 	import { followPacks } from 'src/controller/feed';
-	import { kind0 } from 'src/controller/nostr';
+	import { kind0, readRelays } from 'src/controller/nostr';
 	import { balance } from 'src/controller/wallet';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import Post from 'src/routes/explore/post.svelte';
@@ -15,6 +15,7 @@
 	import { ago } from 'src/lib/period';
 	import Notifications from './notifications.svelte';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
+	import RelaysList from 'src/components/RelaysList.svelte';
 
 	export let visible = true;
 
@@ -36,12 +37,7 @@
 				authors: follows,
 				limit: $limit,
 				since: ago(2 * 24 * 60 * 60),
-				relays: [
-					'wss://relay.primal.net',
-					'wss://nostr.land',
-					'wss://premium.primal.net',
-					'wss://relay.damus.io'
-				]
+				relays: $readRelays
 			},
 			{
 				kinds: [10002], // take another chance to cache 0 and 10002 events for the followlist
@@ -68,7 +64,7 @@
 		<svelte:fragment slot="sticky-header" let:newPosts>
 			<div
 				id={$page.url.pathname === '/explore' ? 'top' : undefined}
-				class="backdrop-blur md:border-b border-base-200 safe-padding-top"
+				class="backdrop-blur-sm bg-base-300 bg-opacity-80 md:border-b border-base-200 safe-padding-top"
 			>
 				<div class="flex justify-between w-feed lg:m-auto md:h-16 items-center">
 					<div class="flex gap-1 items-center">
@@ -103,13 +99,13 @@
 			</div>
 		</svelte:fragment>
 		<svelte.fragment slot="sticky-footer">
-			<div class="backdrop-blur pb-safe pt-4">
+			<div class="m-safe py-4">
 				<Post actionsOnTop />
 			</div>
 		</svelte.fragment>
 		<svelte.fragment slot="header">
 			<div
-				class="relative md:pt-4 safe-padding-top"
+				class="relative md:pt-4 unsafe-padding-top"
 				id={$page.url.pathname === '/explore' ? 'top' : undefined}
 			>
 				<div class="w-feed lg:m-auto flex justify-between items-center pb-4">
@@ -136,8 +132,8 @@
 					</div>
 				</div>
 			</div>
-
-			<Post />
+			<RelaysList relays={$readRelays} />
+			<!-- <Post /> -->
 		</svelte.fragment>
 	</Feed>
 </Pager>

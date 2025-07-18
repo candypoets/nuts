@@ -261,7 +261,7 @@
 <svelte:window on:click={handleClickOutside} on:resize={handleViewportResize} />
 
 <div
-	class="w-feed m-auto rounded-lg transition-all duration-200 {isExpanded
+	class="w-feed relative m-auto rounded-lg bg-base-300 bg-opacity-300 bg-opacity-85 transition-all duration-200 pt-4 {isExpanded
 		? 'shadow-md'
 		: 'shadow-sm'}"
 	bind:this={editorContainer}
@@ -370,7 +370,7 @@
 		>
 			<!-- Editor content -->
 			<div
-				class="prose dark:prose-invert prose-sm max-w-none p-3 md:py-3 py-2 bg-base-300 md:rounded-xl rounded-full cursor-text border border-accent"
+				class="prose dark:prose-invert prose-sm max-w-none p-3 md:py-3 py-2 bg-opacity-85 border bg-base-300 backdrop-blur-fix md:rounded-xl rounded-full cursor-text text-white"
 				on:click|stopPropagation={focusEditor}
 			>
 				<EditorContent editor={$editor} on:focus={handleEditorFocus} />

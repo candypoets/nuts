@@ -4,6 +4,7 @@ use crate::utils::request_deduplication::RequestDeduplicator;
 use anyhow::{anyhow, Result};
 use nostr::{Event, EventBuilder, Keys, UnsignedEvent};
 use serde::{Deserialize, Serialize};
+use tracing::warn;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContentBlock {
@@ -16,10 +17,11 @@ pub struct ContentBlock {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Kind4Parsed {
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(rename = "parsedContent", skip_serializing_if = "Vec::is_empty")]
     pub parsed_content: Vec<ContentBlock>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub decrypted_content: Option<String>,
+    #[serde(rename = "chatID")]
     pub chat_id: String,
     pub recipient: String,
 }
@@ -83,9 +85,27 @@ impl Parser {
         // The sender is the event author, so we decrypt using their pubkey
         let sender_pubkey = event.pubkey.to_string();
 
+        // Check if we are the sender - if so, use the recipient for decryption
+        let decryption_pubkey = if self.signer_manager.has_signer() {
+            match self.signer_manager.get_public_key() {
+                Ok(our_pubkey) => {
+                    if our_pubkey == sender_pubkey {
+                        // We are the sender, use recipient for decryption
+                        parsed.recipient.clone()
+                    } else {
+                        // We are not the sender, use sender for decryption
+                        sender_pubkey.clone()
+                    }
+                }
+                Err(_) => sender_pubkey.clone(),
+            }
+        } else {
+            sender_pubkey.clone()
+        };
+
         match self
             .signer_manager
-            .nip04_decrypt(&sender_pubkey, &event.content)
+            .nip04_decrypt(&decryption_pubkey, &event.content)
         {
             Ok(decrypted) => {
                 parsed.decrypted_content = Some(decrypted.clone());
@@ -112,7 +132,11 @@ impl Parser {
                     }
                 }
             }
-            Err(_) => {
+            Err(err) => {
+                warn!(
+                    "Failed to decrypt kind 4 message from {}: decryption failed: {}",
+                    event.pubkey, err
+                );
                 // If decryption fails, we can't display the content
                 // This is normal if we don't have the right keys
             }

@@ -5,9 +5,8 @@
 	"scripts": {
 		"dev": "vite dev",
 		"dev:host": "vite dev --host",
-		"build": "vite build",
-		"build:wasm": "GOOS=js GOARCH=wasm go build -o main.wasm ./go/main.go",
-		"build:wasm-msgpack": "cd wasm-msgpack && ./build.sh",
+		"build": "npm run build:wasm && vite build",
+		"build:wasm": "./src/model/init.sh",
 		"preview": "vite preview",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",

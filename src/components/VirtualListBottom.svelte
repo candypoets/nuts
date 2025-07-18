@@ -1,4 +1,5 @@
 <script>
+	import _ from 'lodash';
 	import { onMount, tick } from 'svelte';
 
 	// props
@@ -57,7 +58,7 @@
 		// startY = event.touches[0].pageY;
 	}
 
-	$: visible = items.slice(0, end).map((data, i) => {
+	$: visible = _.uniqBy(items.slice(0, end), (item) => item[0]?.id).map((data, i) => {
 		return { index: i + start, data };
 	});
 

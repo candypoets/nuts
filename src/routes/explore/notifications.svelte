@@ -26,6 +26,10 @@
 			}
 		);
 	});
+
+	$: if ($lastNotificationView > Date.now() - 1000) {
+		missed = 0;
+	}
 </script>
 
 <div class="indicator cursor-pointer" on:click|stopPropagation={() => go('notifications')}>

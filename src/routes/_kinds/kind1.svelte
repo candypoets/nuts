@@ -166,9 +166,15 @@
 		<RelaysList class="px-4" relays={data.relays || []} />
 		{#if headerItem}
 			<Note note={headerItem} {context} {visible} zaps />
-			<Reply parent={headerItem} {context} />
 		{/if}
 	</svelte:fragment>
+	<svelte.fragment slot="sticky-footer">
+		<div class="m-safe py-4">
+			{#if headerItem}
+				<Reply parent={headerItem} {context} actionsOnTop />
+			{/if}
+		</div>
+	</svelte.fragment>
 	<svelte:fragment slot="item-content" let:post let:context let:visible>
 		<Note
 			note={post}

@@ -82,7 +82,7 @@
 		const { scrollTop } = viewport;
 
 		// Track scroll direction based on scroll position change
-		down = scrollTop > lastScrollTop; 
+		down = scrollTop > lastScrollTop;
 		lastScrollTop = down ? scrollTop - 5 : scrollTop + 5;
 
 		const old_start = start;
@@ -197,7 +197,7 @@
 		bind:this={contents}
 		style="top: {top}px; padding-bottom: {bottom > 100 ? bottom : 100}px;"
 		class={backdrop &&
-			'bg-base-300 bg-opacity-85 w-feed-container mx-auto min-h-screen rounded-xl backdrop-blur-sm'}
+			'bg-base-300 bg-opacity-85 w-feed-container mx-auto min-h-screen rounded-xl backdrop-blur-gpu isolate'}
 	>
 		<svelte-virtual-list-row>
 			<slot name="feed-header" />

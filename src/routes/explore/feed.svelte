@@ -74,7 +74,7 @@
 
 	// In a separate function to avoid infinite loops in the reactive block
 	const handleEvents = (events: ParsedEvent<AnyKind>[], eventKind: SubscribeKind, page = 0) => {
-		// console.log(events?.[0]);
+		console.log(events?.[0]);
 		if (eventKind == 'EOSE') {
 			if (eose == false && events.remainingConnections / events.totalConnections < 1) {
 				loading = false;
@@ -141,7 +141,7 @@
 				eose = false;
 				cachedFeed = [];
 				// feed = [];
-
+				console.log(requests);
 				sub = useSubscription(subscriptionID, requests, handleEvents);
 			}
 		}, 300);
@@ -271,14 +271,17 @@
 		</div>
 	{/if}
 
-	{#if start >= 1}
-		<!-- Fixed footer (only visible when scrolled) -->
-		<div class="fixed bottom-0 z-10 w-full sticky-footer" style="--footer-visible: {down ? 0 : 1};">
-			<div class="w-feed m-auto">
-				<slot name="sticky-footer" visible={true} scrolled={true} {newPosts} />
-			</div>
+	<!-- {#if start >= 1} -->
+	<!-- Fixed footer (only visible when scrolled) -->
+	<div
+		class="fixed bottom-0 z-10 w-full sticky-footer"
+		style="--footer-visible: {!down || start < 1 ? 1 : 0};"
+	>
+		<div class="w-feed m-auto">
+			<slot name="sticky-footer" visible={true} scrolled={true} {newPosts} />
 		</div>
-	{/if}
+	</div>
+	<!-- {/if} -->
 	<div class="absolute z-10 w-full">
 		<div class="w-feed m-auto">
 			<slot name="fixed-header" {start} />

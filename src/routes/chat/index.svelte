@@ -2,7 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { formatDistanceToNow } from 'date-fns';
 	import _ from 'lodash';
-	import { kind10002, kind3, readRelays, writeRelays } from 'src/controller/nostr';
+	import { kind10002, kind3, kind3Ready, readRelays, writeRelays } from 'src/controller/nostr';
 	import { isKind4, type AnyKind, type Kind4Parsed } from 'src/types';
 	import Kind from 'src/routes/_kinds/index.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
@@ -58,6 +58,7 @@
 	function processMessages(messages: [ParsedEvent<Kind4Parsed>, ParsedEvent<AnyKind>[]][]) {
 		messages.forEach((m) => {
 			const dm = m[0];
+
 			if (dm.parsed?.chatID) {
 				const prev = contacts[dm.parsed?.chatID]?.[0];
 				// if (dm.created_at > contacts[dm.parsed?.chatID]?.[0]?.created_at || 0) {
@@ -69,50 +70,31 @@
 		return Object.values(contacts);
 	}
 
-	$: {
-		if ($kind3?.parsed && $kind3?.parsed.length && $key?.pub) {
-			feedRequests = [
-				{
-					kinds: [4],
-					tags: { '#p': [$key.pub] },
-					authors: $kind3?.parsed.map((c) => c.pubkey).filter((p) => p != $key?.pub),
-					limit: 100, // only load the last 1000 msgs received
-					relays: $readRelays,
-					noContext: true
-				},
-				{
-					kinds: [4],
-					tags: { '#p': $kind3?.parsed.map((c) => c.pubkey).filter((p) => p != $key?.pub) },
-					authors: [$key.pub],
-					limit: 100,
-					relays: $writeRelays,
-					noContext: true
-				}
-			];
-			// feedRequests = $kind3?.parsed
-			// 	.map((c) => c.pubkey)
-			// 	.filter((p) => p != $key?.pub)
-			// 	.flatMap((contact) => [
-			// 		{
-			// 			kinds: [4],
-			// 			tags: { '#p': [$key.pub] },
-			// 			authors: [contact],
-			// 			// since: ago(6 * MONTH),
-			// 			limit: 1,
-			// 			relays: $kind10002?.parsed?.filter((r) => r.read).map((r) => r.url) || [],
-			// 			noOptimize: true
-			// 		},
-			// 		{
-			// 			kinds: [4],
-			// 			tags: { '#p': [contact] },
-			// 			authors: [$key.pub],
-			// 			relays: $kind10002?.parsed?.filter((r) => r.write).map((r) => r.url) || [],
-			// 			limit: 1,
-			// 			noOptimize: true
-			// 		}
-			// 	]);
-		}
-	}
+	kind3Ready.promise.then((kind3) => {
+		console.log('kind3 ready', kind3);
+		feedRequests =
+			kind3.parsed
+				?.map((c) => c.pubkey)
+				.filter((p) => p != $key?.pub)
+				.flatMap((pubkey) => [
+					{
+						kinds: [4],
+						tags: { '#p': [$key.pub] },
+						authors: [pubkey],
+						limit: 5, // only load the last 5 msgs received
+						relays: $readRelays,
+						noContext: true
+					},
+					{
+						kinds: [4],
+						tags: { '#p': [pubkey] },
+						authors: [$key.pub],
+						limit: 5, // only load the last 5 msgs received
+						relays: [],
+						noContext: true
+					}
+				]) || [];
+	});
 
 	function correspondant(post: ParsedEvent<Kind4Parsed>) {
 		const recipient = post.parsed?.recipient;

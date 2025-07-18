@@ -247,7 +247,7 @@
 	<Feed subscriptionID="home" requests={feedRequests} {updateFeed} itemHeight={150} backdrop>
 		<svelte:fragment slot="header">
 			<div
-				class="relative w-feed unsafe-padding-top place-content-center m-auto z-10 backdrop unsafe-padding-top"
+				class="relative w-feed safe-padding-top place-content-center m-auto z-10 backdrop"
 				class:shadow-md={scrollY > 0}
 				id="top"
 			>

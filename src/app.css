@@ -51,6 +51,41 @@
 	background-position: center;
 	background-repeat: no-repeat;
 	filter: brightness(0.8) contrast(1.2);
+	isolation: isolate;
+}
+
+.backdrop-blur-fix {
+	position: relative;
+}
+
+.backdrop-blur-fix::before {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	backdrop-filter: blur(12px);
+	z-index: -1;
+	pointer-events: none;
+}
+
+/* For different blur intensities */
+.backdrop-blur-fix-sm::before {
+	backdrop-filter: blur(4px);
+}
+
+.backdrop-blur-fix-xl::before {
+	backdrop-filter: blur(24px);
+}
+
+.backdrop-blur-gpu {
+	transform: translateZ(0);
+	will-change: backdrop-filter;
+	-webkit-backdrop-filter: blur(8px);
+	backdrop-filter: blur(8px);
+	isolation: isolate;
+	z-index: 1;
 }
 
 .toggle-up {
