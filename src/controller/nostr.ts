@@ -2,11 +2,11 @@ import type {
 	Kind0Parsed,
 	Kind10002Parsed,
 	Kind10019Parsed,
+	Kind17375Parsed,
 	Kind3Parsed,
-	Kind7375Parsed
-} from 'src/types';
-import type { Kind17375Parsed } from 'src/types/kind17375';
-import type { ParsedEvent } from 'src/types';
+	Kind7375Parsed,
+	ParsedEvent
+} from '@candypoets/nipworker';
 import { derived, writable, type Writable } from 'svelte/store';
 
 export const resolvable = <T = any>() => {

@@ -1,19 +1,19 @@
 <script lang="ts">
+	import type { AnyKind, Kind1Parsed, ParsedEvent, RelayStatus } from '@candypoets/nipworker';
+	import { nostrManager } from '@candypoets/nipworker';
 	import Icon from '@iconify/svelte';
 	import type { EventTemplate, NostrEvent } from 'nostr-tools';
-	import GifPicker from 'src/components/GIFPicker.svelte';
-	import EmojiPicker from 'src/components/EmojiPicker.svelte';
-	import { replying } from 'src/controller/editor';
-	import { extensions } from 'src/editor';
-	import { prepareEvent } from 'src/editor/utils';
-	import { now } from 'src/lib/period';
-	import type { AnyKind, Kind1Parsed } from 'src/types';
-	import { nostrManager, type RelayStatus } from 'src/model/nostr-main';
-	import type { ParsedEvent } from 'src/types';
 	import { getContext, onDestroy, onMount } from 'svelte';
 	import { Editor, EditorContent, createEditor } from 'svelte-tiptap';
 	import type { Readable } from 'svelte/store';
 	import { fly } from 'svelte/transition';
+
+	import EmojiPicker from 'src/components/EmojiPicker.svelte';
+	import GifPicker from 'src/components/GIFPicker.svelte';
+	import { replying } from 'src/controller/editor';
+	import { extensions } from 'src/editor';
+	import { prepareEvent } from 'src/editor/utils';
+	import { now } from 'src/lib/period';
 	import User from './user.svelte';
 
 	export let placeholder = 'Write your reply...';

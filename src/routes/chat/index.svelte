@@ -1,20 +1,26 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import type {
+		AnyKind,
+		Kind4Parsed,
+		ParsedEvent,
+		Request,
+		SubscribeKind
+	} from '@candypoets/nipworker';
+	import { isKind4 } from '@candypoets/nipworker/utils';
 	import { formatDistanceToNow } from 'date-fns';
 	import _ from 'lodash';
-	import { kind10002, kind3, kind3Ready, readRelays, writeRelays } from 'src/controller/nostr';
-	import { isKind4, type AnyKind, type Kind4Parsed } from 'src/types';
-	import Kind from 'src/routes/_kinds/index.svelte';
+	import { cubicOut } from 'svelte/easing';
+	import { tweened } from 'svelte/motion';
+
+	import Pager from 'src/components/Pager.svelte';
+	import { key } from 'src/controller';
+	import { kind3Ready, readRelays } from 'src/controller/nostr';
+	import { viewport } from 'src/controller/viewport';
+	import Content from 'src/routes/explore/_post/content.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import User from 'src/routes/explore/user.svelte';
-	import { key } from 'src/controller';
-	import type { Request, SubscribeKind } from 'src/model/nostr-main';
-	import type { ParsedEvent } from 'src/types';
-	import { cubicOut } from 'svelte/easing';
-	import { tweened } from 'svelte/motion';
-	import Content from '../explore/_post/content.svelte';
-	import { viewport } from 'src/controller/viewport';
 
 	export let visible = true;
 
@@ -124,51 +130,51 @@
 	$: depthTranslation.set(subs.length * 30);
 </script>
 
-<div
-	style="transform: translateX({-$tweenedValue *
-		($viewport.vw * 20 + $depthTranslation)}px) rotateY({$tweenedValue * -20}deg);
+<Pager rootPath="/chat">
+	<div
+		style="transform: translateX({-$tweenedValue *
+			($viewport.vw * 20 + $depthTranslation)}px) rotateY({$tweenedValue * -20}deg);
          transform-style: preserve-3d; perspective: 1000px;"
-	on:click={() => goto('/chat')}
->
-	<Feed subscriptionID={`chat`} requests={feedRequests} {updateFeed} backdrop>
-		<svelte:fragment slot="sticky-header">
-			<div id="top">
-				<div class="flex justify-between w-feed lg:m-auto h-16 items-center">
+		on:click={() => goto('/chat')}
+	>
+		<Feed subscriptionID={`chat`} requests={feedRequests} {updateFeed} backdrop>
+			<svelte:fragment slot="sticky-header">
+				<div id="top">
+					<div class="flex justify-between w-feed lg:m-auto h-16 items-center">
+						<h1 class="text-2xl font-semibold">Chat</h1>
+					</div>
+				</div>
+			</svelte:fragment>
+			<svelte:fragment slot="header">
+				<div class="flex unsafe-padding-top justify-between w-feed m-auto h-16 items-center">
 					<h1 class="text-2xl font-semibold">Chat</h1>
 				</div>
-			</div>
-		</svelte:fragment>
-		<svelte:fragment slot="header">
-			<div class="flex unsafe-padding-top justify-between w-feed m-auto h-16 items-center">
-				<h1 class="text-2xl font-semibold">Chat</h1>
-			</div>
-		</svelte:fragment>
-		<svelte:fragment slot="item-content" let:post let:context let:visible>
-			<a
-				href={'/chat/' + 'kind4:' + correspondant(post)}
-				class="flex gap-2 h-28 overflow-hidden hover:bg-base-200 p-4 cursor-pointer w-feed border-b border-base-200"
-			>
-				<div class="flex-shrink-0">
-					<Avatar pubkey={correspondant(post)} {context} size="xl" />
-				</div>
-				<div class="flex-grow">
-					<div class="flex justify-between">
-						<User pubkey={correspondant(post)} link={false} {context} />
-						<div class="text-xs font-bold text-gray-700 shrink-0">
-							{formatDistanceToNow(post.created_at * 1000, { addSuffix: true })}
+			</svelte:fragment>
+			<svelte:fragment slot="item-content" let:post let:context let:visible>
+				<a
+					href={'/chat/' + 'kind4:' + correspondant(post)}
+					class="flex gap-2 h-28 overflow-hidden hover:bg-base-200 p-4 cursor-pointer w-feed border-b"
+				>
+					<div class="flex-shrink-0">
+						<Avatar pubkey={correspondant(post)} {context} size="xl" />
+					</div>
+					<div class="flex-grow">
+						<div class="flex justify-between">
+							<User pubkey={correspondant(post)} link={false} {context} />
+							<div class="text-xs shrink-0">
+								{formatDistanceToNow(post.created_at * 1000, { addSuffix: true })}
+							</div>
+						</div>
+						<div class="text-xs lg:text-base break-words overflow-hidden max-w-full">
+							<span class="flex gap-1">
+								{#if post.pubkey == $key?.pub}<span class="text-primary">you:</span>
+								{/if}
+								<Content note={post} {context} class="!w-auto flex-grow" />
+							</span>
 						</div>
 					</div>
-					<div class="text-xs lg:text-base break-words overflow-hidden max-w-full">
-						<span class="flex gap-1">
-							{#if post.pubkey == $key?.pub}<span class="text-primary">you:</span>
-							{/if}
-							<Content note={post} {context} class="!w-auto flex-grow" />
-						</span>
-					</div>
-				</div>
-			</a>
-		</svelte:fragment>
-	</Feed>
-</div>
-
-<Kind rootPath="/chat" bind:subs />
+				</a>
+			</svelte:fragment>
+		</Feed>
+	</div></Pager
+>

@@ -6,6 +6,8 @@ import { defineConfig } from 'vite';
 import wasm from 'vite-plugin-wasm';
 import topLevelAwait from 'vite-plugin-top-level-await';
 
+// Custom plugin to handle SharedArrayBuffer headers for @fs routes
+
 export default defineConfig({
 	ssr: {
 		// noExternal: ['idb']
@@ -17,7 +19,7 @@ export default defineConfig({
 		host: true,
 		fs: {
 			// Allow serving files from hoisted root node_modules
-			// allow: ['../..']
+			allow: ['..']
 		},
 		headers: {
 			'Cross-Origin-Embedder-Policy': 'require-corp',

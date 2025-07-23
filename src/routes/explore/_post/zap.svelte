@@ -1,13 +1,14 @@
 <script lang="ts">
+	import type { AnyKind, Kind9321Parsed, Kind9735Parsed, ParsedEvent } from '@candypoets/nipworker';
+	import { useSubscription } from '@candypoets/nipworker/hooks';
+	import { isKind9321, isKind9735 } from '@candypoets/nipworker/utils';
 	import _ from 'lodash';
+	import { onDestroy } from 'svelte';
+
 	import { kind0 } from 'src/controller/nostr';
 	import { getRelaysFromNote } from 'src/lib/getRelaysFromNote';
-	import { nostrManager, useSubscription } from 'src/model/nostr-main';
-	import type { Kind9321Parsed, ParsedEvent } from 'src/types';
-	import { isKind9321, isKind9735, type AnyKind, type Kind9735Parsed } from 'src/types';
-	import { onDestroy, onMount } from 'svelte';
-	import Avatar from '../avatar.svelte';
 	import { getUserRelays } from 'src/routes/queries/user';
+	import Avatar from '../avatar.svelte';
 
 	export let note: ParsedEvent<any>;
 	export let visible: boolean;

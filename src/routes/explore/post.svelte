@@ -10,8 +10,8 @@
 	import { prepareEvent } from 'src/editor/utils';
 	import type { EventTemplate, NostrEvent } from 'nostr-tools';
 	import { now } from 'src/lib/period';
-	import { nostrManager, type RelayStatus } from 'src/model/nostr-main';
 	import { composing } from 'src/controller/editor';
+	import { nostrManager } from '@candypoets/nipworker';
 
 	export let placeholder = "What's on your mind?";
 	export let initialContent = '';

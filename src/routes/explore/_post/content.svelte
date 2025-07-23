@@ -5,8 +5,7 @@
 	import _ from 'lodash';
 
 	import ImageGrid from 'src/components/ImageGrid.svelte';
-	import type { Kind1Parsed, Kind4Parsed, ParsedEvent } from 'src/types';
-	import type { AnyKind } from 'src/types';
+	import type { Kind1Parsed, Kind4Parsed, ParsedEvent, AnyKind } from '@candypoets/nipworker';
 	import { getContext } from 'svelte';
 
 	export let note: ParsedEvent<Kind1Parsed | Kind4Parsed>;

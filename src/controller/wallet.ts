@@ -4,12 +4,15 @@ import { derived, get, writable } from 'svelte/store';
 
 import { now } from 'src/lib/period';
 import { cashuManager } from 'src/model/cashu';
-import { nostrManager } from 'src/model/nostr-main';
-import type { Kind7375Parsed, ProofUnion } from 'src/types';
 import type { Mint } from 'src/types/mint';
 import { normalizeMintURL } from 'src/lib/utils';
-import type { ParsedEvent } from 'src/types';
 import { kind17375, kinds7375 } from 'src/controller/nostr';
+import {
+	nostrManager,
+	type Kind7375Parsed,
+	type ParsedEvent,
+	type ProofUnion
+} from '@candypoets/nipworker';
 
 async function fetchMintData(mint: string): Promise<Mint> {
 	try {

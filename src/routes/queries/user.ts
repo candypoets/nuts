@@ -1,5 +1,6 @@
-import { useSubscription, type SubscribeKind } from 'src/model/nostr-main';
-import { isKind10002, type AnyKind, type ParsedEvent } from 'src/types';
+import type { AnyKind, ParsedEvent, SubscribeKind } from '@candypoets/nipworker';
+import { useSubscription } from '@candypoets/nipworker/hooks';
+import { isKind10002 } from '@candypoets/nipworker/utils';
 
 export const userQuery = (pubkey: string, relays: string[] = []) => [
 	{

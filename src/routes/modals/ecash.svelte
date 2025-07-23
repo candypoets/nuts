@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
 	import type { EventTemplate } from 'nostr-tools';
+	import { getContext, onMount, tick } from 'svelte';
 
 	import MintSelector from 'src/components/MintSelector.svelte';
 	import VirtualList from 'src/components/VirtualList.svelte';
@@ -10,26 +11,22 @@
 	import { normalizeMintURL } from 'src/lib/utils';
 	import { getInvoiceFromProfile, GetLNURLFromProfile } from 'src/lib/wallet';
 	import { cashuManager } from 'src/model/cashu';
+	import Avatar from 'src/routes/explore/avatar.svelte';
+	import Note from 'src/routes/explore/note.svelte';
+	import User from 'src/routes/explore/user.svelte';
+
 	import {
 		nostrManager,
-		useSubscription,
-		type SubscribeKind,
-		type Request
-	} from 'src/model/nostr-main';
-	import Avatar from 'src/routes/explore/avatar.svelte';
-	import User from 'src/routes/explore/user.svelte';
-	import type { Kind0Parsed, Kind1Parsed, ParsedEvent } from 'src/types';
-	import {
-		isKind0,
-		isKind1,
-		isKind10002,
-		isKind10019,
 		type AnyKind,
-		type Kind10019Parsed
-	} from 'src/types';
-	import { getContext, onMount, tick } from 'svelte';
+		type Kind0Parsed,
+		type Kind10019Parsed,
+		type Kind1Parsed,
+		type ParsedEvent,
+		type SubscribeKind
+	} from '@candypoets/nipworker';
+	import { useSubscription } from '@candypoets/nipworker/hooks';
+	import { isKind0, isKind1, isKind10002, isKind10019 } from '@candypoets/nipworker/utils';
 	import { fly } from 'svelte/transition';
-	import Note from '../explore/note.svelte';
 
 	// export let active: string;
 	export let pubkey: string;

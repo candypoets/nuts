@@ -1,17 +1,23 @@
 <script lang="ts">
+	import type {
+		AnyKind,
+		Kind1Parsed,
+		ParsedEvent,
+		Request,
+		SubscribeKind
+	} from '@candypoets/nipworker';
+	import { useSubscription } from '@candypoets/nipworker/hooks';
+	import { isKind1 } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import _ from 'lodash';
-	import Note from 'src/routes/explore/note.svelte';
-	import type { ParsedEvent } from 'src/types';
-	import { isKind1, type AnyKind, type Kind1Parsed } from 'src/types';
-	import { getContext, onDestroy } from 'svelte';
-	import Reply from '../explore/reply.svelte';
 	import { decode, type EventPointer } from 'nostr-tools/nip19';
-	import { useSubscription, type SubscribeKind } from 'src/model/nostr-main';
-	import { type Request } from 'src/model/nostr-main/pkg/nostr_main.js';
+	import { getContext, onDestroy } from 'svelte';
+
 	import RelaysList from 'src/components/RelaysList.svelte';
-	import Feed from '../explore/feed.svelte';
-	import { getUserRelays } from '../queries/user';
+	import Feed from 'src/routes/explore/feed.svelte';
+	import Note from 'src/routes/explore/note.svelte';
+	import Reply from 'src/routes/explore/reply.svelte';
+	import { getUserRelays } from 'src/routes/queries/user';
 
 	export let nevent: string;
 	export let visible: boolean;

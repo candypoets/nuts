@@ -1,16 +1,16 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
+	import type { AnyKind, Kind0Parsed, Kind1Parsed, ParsedEvent } from '@candypoets/nipworker';
+	import { useSubscription } from '@candypoets/nipworker/hooks';
+	import { isKind0 } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { formatDistanceToNow } from 'date-fns';
 	import { getContext, onMount } from 'svelte';
 
 	import { isMobile } from 'src/controller';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
-	import { useSubscription, type SubscribeKind } from 'src/model/nostr-main';
 	import { userQuery } from 'src/routes/queries/user';
-	import type { Kind1Parsed, ParsedEvent } from 'src/types';
-	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/types';
 
 	export let note: ParsedEvent<Kind1Parsed>;
 	export let context: ParsedEvent<AnyKind>[] = [];

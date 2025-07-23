@@ -1,14 +1,15 @@
 <script lang="ts">
+	import { nostrManager, type RelayStatus } from '@candypoets/nipworker';
 	import Icon from '@iconify/svelte';
-	import _ from 'lodash';
-	import { normalizeURL } from 'nostr-tools/utils';
-	import { isMintUrlValid } from 'src/lib/mint';
-	import { kind17375 } from 'src/controller/nostr';
-	import { onMount, getContext } from 'svelte';
-	import { generateSecretKey, getPublicKey, type EventTemplate } from 'nostr-tools';
 	import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
+	import _ from 'lodash';
+	import { generateSecretKey, getPublicKey, type EventTemplate } from 'nostr-tools';
+	import { normalizeURL } from 'nostr-tools/utils';
+	import { getContext, onMount } from 'svelte';
+
+	import { kind17375 } from 'src/controller/nostr';
+	import { isMintUrlValid } from 'src/lib/mint';
 	import { now } from 'src/lib/period';
-	import { nostrManager, type RelayStatus } from 'src/model/nostr-main';
 
 	let animator = getContext('animator');
 

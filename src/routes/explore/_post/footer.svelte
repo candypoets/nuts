@@ -1,30 +1,26 @@
 <script lang="ts">
-	import Icon from '@iconify/svelte';
-	import { getContext, onDestroy, onMount } from 'svelte';
-	import { kinds, type EventTemplate } from 'nostr-tools';
-
-	import EmojiPickerContent from 'src/components/EmojiPickerContent.svelte';
-	import { replying } from 'src/controller/editor';
-	import { kind0 } from 'src/controller/nostr';
-	import { getRelaysFromNote } from 'src/lib/getRelaysFromNote';
-	import { now } from 'src/lib/period';
 	import {
-		isKind1,
-		isKind10002,
-		isKind17,
-		isKind6,
-		isKind7,
+		nostrManager,
 		ReactionType,
 		type AnyKind,
 		type Kind1Parsed,
 		type Kind6Parsed,
-		type Kind7Parsed
-	} from 'src/types';
+		type Kind7Parsed,
+		type ParsedEvent
+	} from '@candypoets/nipworker';
+	import { isKind17, isKind6, isKind7, isKind1 } from '@candypoets/nipworker/utils';
+	import { useSubscription } from '@candypoets/nipworker/hooks';
+	import Icon from '@iconify/svelte';
+	import { kinds, type EventTemplate } from 'nostr-tools';
+	import { getContext, onDestroy, onMount } from 'svelte';
+
+	import EmojiPickerContent from 'src/components/EmojiPickerContent.svelte';
 	import { key } from 'src/controller';
-	import { nostrManager, useSubscription, type SubscribeKind } from 'src/model/nostr-main';
-	import type { ParsedEvent } from 'src/types';
+	import { replying } from 'src/controller/editor';
+	import { kind0 } from 'src/controller/nostr';
+	import { now } from 'src/lib/period';
 	import { go } from 'src/routes/modals/modal';
-	import { getUserRelays, userQuery } from 'src/routes/queries/user';
+	import { getUserRelays } from 'src/routes/queries/user';
 
 	export let note: ParsedEvent<any>;
 	export let visible: boolean;

@@ -1,4 +1,14 @@
 <script lang="ts">
+	import type { AnyKind, ParsedEvent, SubscribeKind } from '@candypoets/nipworker';
+	import { useSubscription } from '@candypoets/nipworker/hooks';
+	import {
+		isKind0,
+		isKind10002,
+		isKind17375,
+		isKind3,
+		isKind7375,
+		isKind9321
+	} from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { schnorr } from '@noble/curves/secp256k1';
 	import { bytesToHex } from '@noble/hashes/utils';
@@ -6,8 +16,8 @@
 	import { nip19 } from 'nostr-tools';
 	import { onMount } from 'svelte';
 
-	import { decodePrivKey } from 'src/lib/wallet';
 	import Pager from 'src/components/Pager.svelte';
+	import { key } from 'src/controller/key';
 	import {
 		delayedPromise,
 		kind0,
@@ -18,6 +28,7 @@
 		kind3,
 		kinds7375
 	} from 'src/controller/nostr';
+	import { limit } from 'src/controller/pagination';
 	import {
 		activeMintUrl,
 		balanceByMint,
@@ -27,26 +38,13 @@
 		walletLoaded
 	} from 'src/controller/wallet';
 	import { DAY } from 'src/lib/period';
-	import {
-		isKind0,
-		isKind10002,
-		isKind17375,
-		isKind3,
-		isKind7375,
-		isKind9321,
-		type AnyKind
-	} from 'src/types';
 	import { normalizeMintURL } from 'src/lib/utils';
+	import { decodePrivKey } from 'src/lib/wallet';
+	import { cashuManager } from 'src/model/cashu';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import MintCard from 'src/routes/home/components/mintcard.svelte';
 	import Kind9321 from 'src/routes/kinds/kind9321.svelte';
-	import Modal from 'src/routes/modals/index.svelte';
 	import { go } from 'src/routes/modals/modal';
-	import { cashuManager } from 'src/model/cashu';
-	import { useSubscription, type SubscribeKind } from 'src/model/nostr-main';
-	import type { ParsedEvent } from 'src/types';
-	import { key } from 'src/controller/key';
-	import { limit } from 'src/controller/pagination';
 
 	export let visible = false;
 

@@ -2,7 +2,7 @@
 	import { onMount, createEventDispatcher } from 'svelte';
 	import { spring, tweened } from 'svelte/motion';
 	import { fade } from 'svelte/transition';
-	import { PublishStatus } from 'src/model/nostr-main';
+	import { PublishStatus } from '@candypoets/nipworker';
 	import { cubicOut } from 'svelte/easing';
 	import { proxyImageUrl, ImagePresets } from 'src/lib/proxy';
 

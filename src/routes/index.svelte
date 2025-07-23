@@ -1,16 +1,25 @@
 <script lang="ts">
 	import 'src/app.css';
 
+	import {
+		nostrManager,
+		type AnyKind,
+		type ParsedEvent,
+		type Request,
+		type SubscribeKind
+	} from '@candypoets/nipworker';
+	import { useSubscription } from '@candypoets/nipworker/hooks';
+	import { isKind0, isKind10002, isKind10019, isKind3 } from '@candypoets/nipworker/utils';
 	import { onMount } from 'svelte';
-	import { spring } from 'svelte/motion';
-	import { quintOut } from 'svelte/easing';
 	import { pwaInfo } from 'virtual:pwa-info';
 
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 
 	import Alert from 'src/components/Alert.svelte';
+	import ImageZoom from 'src/components/ImageZoom.svelte';
 	import Statuses from 'src/components/Statuses.svelte';
+	import { key } from 'src/controller';
 	import {
 		kind0,
 		kind0Ready,
@@ -21,24 +30,17 @@
 		kind3,
 		kind3Ready
 	} from 'src/controller/nostr';
+	import { pagerAnimator, setupPagerAnimators } from 'src/controller/pager';
+	import { dimensions, isMobile, viewport } from 'src/controller/viewport';
 	import { mints, saveNuts } from 'src/controller/wallet';
-	import { isKind0, isKind10002, isKind10019, isKind3, type AnyKind } from 'src/types';
+	import { CarouselAnimator } from 'src/lib/carousel/CarouselAnimator';
+	import { cashuManager } from 'src/model/cashu';
 	import Landing from 'src/routes/+page.svelte';
+	import Chat from 'src/routes/chat/index.svelte';
 	import Explore from 'src/routes/explore/index.svelte';
 	import Home from 'src/routes/home/+layout.svelte';
-	import Chat from 'src/routes/chat/index.svelte';
 	import Login from 'src/routes/login.svelte';
 	import { go, goBack } from 'src/routes/modals/modal';
-	import { cashuManager } from 'src/model/cashu';
-
-	import { nostrManager, useSubscription, type SubscribeKind } from 'src/model/nostr-main';
-	import type { ParsedEvent } from 'src/types';
-	import { key } from 'src/controller';
-	import ImageZoom from 'src/components/ImageZoom.svelte';
-	import { viewport, dimensions, isMobile } from 'src/controller/viewport';
-	import { type Request } from 'src/model/nostr-main/pkg/nostr_main.js';
-	import { CarouselAnimator } from 'src/lib/carousel/CarouselAnimator';
-	import { pagerAnimator, setupPagerAnimators } from 'src/controller/pager';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
 

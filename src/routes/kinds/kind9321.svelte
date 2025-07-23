@@ -1,20 +1,25 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
+	import {
+		type AnyKind,
+		type Kind7376Parsed,
+		type Kind9321Parsed,
+		type ParsedEvent,
+		type SubscribeKind
+	} from '@candypoets/nipworker';
+	import { useSubscription } from '@candypoets/nipworker/hooks';
+	import { isKind10002, isKind7376 } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
+	import { formatDate } from 'date-fns';
+	import { nip19 } from 'nostr-tools';
 	import { onMount } from 'svelte';
 
-	import { formatDate } from 'date-fns';
+	import { key } from 'src/controller';
 	import { DAY } from 'src/lib/period';
-	import { isKind10002, isKind7376, type AnyKind, type Kind9321Parsed } from 'src/types';
-	import type { Kind7376Parsed } from 'src/types/kind7376';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import User from 'src/routes/explore/user.svelte';
-	import { key } from 'src/controller';
-	import { useSubscription, type SubscribeKind } from 'src/model/nostr-main';
-	import type { ParsedEvent } from 'src/types';
-	import { userQuery } from '../queries/user';
-	import { nip19 } from 'nostr-tools';
+	import { userQuery } from 'src/routes/queries/user';
 
 	export let zap: ParsedEvent<Kind9321Parsed>;
 	export let context: ParsedEvent<AnyKind>[];

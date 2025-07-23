@@ -3,10 +3,9 @@
 	import Icon from '@iconify/svelte';
 	import _ from 'lodash';
 	import { key, kind10002, lastNotificationView, writeRelays } from 'src/controller';
-	import type { Request, SubscribeKind } from 'src/model/nostr-main';
-	import { type AnyKind } from 'src/types';
+	import type { Request, SubscribeKind, AnyKind } from '@candypoets/nipworker';
 	import Feed from 'src/routes/explore/feed.svelte';
-	import type { ParsedEvent } from 'src/types';
+	import type { ParsedEvent } from '@candypoets/nipworker';
 	import { onMount } from 'svelte';
 	import Mentions from './mentions.svelte';
 	import { processNotifications } from './notifications';

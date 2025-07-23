@@ -7,18 +7,20 @@
 	import { proxyAvatarUrl, proxyBannerUrl } from 'src/lib/proxy';
 	import {
 		nostrManager,
-		useSubscription,
 		type SubscribeKind,
-		type Request
-	} from 'src/model/nostr-main';
+		type Request,
+		type ParsedEvent
+	} from '@candypoets/nipworker';
 	import Feed from 'src/routes/explore/feed.svelte';
-	import type { ParsedEvent } from 'src/types';
-	import { isKind0, isKind10002, type AnyKind, type Kind0Parsed } from 'src/types';
+
+	import { type AnyKind, type Kind0Parsed } from '@candypoets/nipworker';
+	import { isKind0, isKind10002 } from '@candypoets/nipworker/utils';
 	import { onDestroy, onMount } from 'svelte';
 	import Avatar from '../explore/avatar.svelte';
 	import { go } from '../modals/modal';
 	import { userQuery } from '../queries/user';
 	import RelaysList from 'src/components/RelaysList.svelte';
+	import { useSubscription } from '@candypoets/nipworker/hooks';
 
 	// Get pubkey from URL parameter
 	export let pubkey: string;

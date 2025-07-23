@@ -9,7 +9,7 @@ import Tweet from './tweet.svelte';
 import Video from './video.svelte';
 
 import { NostrMention } from './mention';
-import { nostrManager } from 'src/model/nostr-main';
+import { nostrManager } from '@candypoets/nipworker';
 
 export const extensions = [
 	StarterKit,

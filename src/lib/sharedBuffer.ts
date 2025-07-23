@@ -1,7 +1,6 @@
 import { unpack } from 'msgpackr';
-import type { NostrEvent } from 'nostr-tools';
-import type { WorkerToMainMessage } from 'src/model/nostr-main/pkg/nostr_main.js';
-import type { AnyKind, ParsedEvent } from 'src/types';
+
+import type { WorkerToMainMessage, AnyKind, ParsedEvent } from '@candypoets/nipworker';
 
 /**
  * Utility library for reading from SharedArrayBuffer with 4-byte header approach

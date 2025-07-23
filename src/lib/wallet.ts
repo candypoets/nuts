@@ -1,9 +1,7 @@
-import { nip19, type Nostr, type NostrEvent } from 'nostr-tools';
-
-import { bech32 } from 'bech32';
-
+import type { Kind0Parsed, ParsedEvent } from '@candypoets/nipworker';
 import { hexToBytes } from '@noble/hashes/utils';
-import type { Kind0Parsed, ParsedEvent } from 'src/types';
+import { bech32 } from 'bech32';
+import { nip19, type NostrEvent } from 'nostr-tools';
 
 export function decodePrivKey(value: string): Uint8Array {
 	let pk;

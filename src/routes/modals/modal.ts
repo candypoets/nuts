@@ -1,7 +1,7 @@
 import { goto } from '$app/navigation';
 import { page } from '$app/stores';
-import { cleanup } from 'src/model/nostr-main';
-import { get, writable } from 'svelte/store';
+import { cleanup } from '@candypoets/nipworker';
+import { get } from 'svelte/store';
 
 export const pathOptions = [
 	'receive',

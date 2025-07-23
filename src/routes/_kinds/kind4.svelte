@@ -7,13 +7,13 @@
 	import { key, kind10002 } from 'src/controller';
 	import { parseContent } from 'src/lib';
 	import { now } from 'src/lib/period';
-	import { nostrManager, type RelayStatus, type SubscribeKind } from 'src/model/nostr-main';
+	import { nostrManager, type RelayStatus, type SubscribeKind } from '@candypoets/nipworker';
 	import Message from 'src/routes/_kinds/message.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import User from 'src/routes/explore/user.svelte';
-	import type { ParsedEvent } from 'src/types';
-	import { isKind4, type AnyKind, type Kind1Parsed } from 'src/types';
+	import type { ParsedEvent, AnyKind, Kind1Parsed } from '@candypoets/nipworker';
+	import { isKind4 } from '@candypoets/nipworker/utils';
 
 	// in a chat, pubkey is the other person's pubkey
 	export let pubkey: string;
@@ -71,7 +71,7 @@
 					kinds: [4],
 					tags: { '#p': [$key?.pub] },
 					authors: [pubkey],
-					limit: 200,
+					limit: 20,
 					relays: $kind10002?.parsed?.filter((r) => r.read).map((r) => r.url) || [],
 					noOptimize: true
 				},
@@ -79,7 +79,7 @@
 					kinds: [4],
 					tags: { '#p': [pubkey] },
 					authors: [$key?.pub],
-					limit: 200,
+					limit: 20,
 					relays: $kind10002?.parsed?.filter((r) => r.write).map((r) => r.url) || [],
 					noOptimize: true
 				}
@@ -129,15 +129,15 @@
 	{updateFeed}
 	{visible}
 	bottom={true}
-	className="w-feed"
+	class="w-feed"
 >
 	<svelte:fragment slot="fixed-header">
 		<div
 			class="fixed pt-safe flex justify-between items-center lg:w-50vw py-2 w-full backdrop-blur-xl bg-transparent h-20 z-10"
 		>
-			<a href="/chat">
+			<div on:click={goBack} class="cursor-pointer">
 				<Icon icon="mingcute:left-line" class="text-2xl" />
-			</a>
+			</div>
 			{#key pubkey}
 				<div class="flex items-center gap-4">
 					<Avatar pubkey={pubkey || ''} size="lg" context={[]} />

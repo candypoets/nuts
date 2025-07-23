@@ -1,5 +1,4 @@
 import { nip19 } from 'nostr-tools';
-import { getLinkPreview } from 'link-preview-js';
 
 export type ContentBlock = {
 	type:
@@ -101,14 +100,14 @@ export async function parseContent(content: string): Promise<ContentBlock[]> {
 			type: 'link',
 			regex: /(https?:\/\/\S+)(?![\)])/gi,
 			processMatch: async (match: RegExpExecArray) => {
-				const preview = await getLinkPreview(
-					'https://proxy.nuts.cash/?url=' +
-						(match[0]?.startsWith('http') ? match[0] : 'https://' + match[0])
-				);
+				// const preview = await getLinkPreview(
+				// 	'https://proxy.nuts.cash/?url=' +
+				// 		(match[0]?.startsWith('http') ? match[0] : 'https://' + match[0])
+				// );
 				return {
 					type: 'link' as const,
 					text: match[0],
-					data: { href: match[0], preview }
+					data: { href: match[0] }
 				};
 			}
 		}

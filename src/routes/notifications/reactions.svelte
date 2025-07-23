@@ -1,17 +1,19 @@
 <script lang="ts">
-	import { formatDistanceToNow } from 'date-fns';
+	import type { AnyKind, ParsedEvent } from '@candypoets/nipworker';
+	import { nostrManager } from '@candypoets/nipworker';
+	import { useSubscription } from '@candypoets/nipworker/hooks';
+	import { isKind1 } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
-	import Avatar from 'src/routes/explore/avatar.svelte';
-	import type { ProcessedNotification } from './notifications';
-	import { onMount } from 'svelte';
-	import { nostrManager, useSubscription } from 'src/model/nostr-main';
-	import { isKind1, type AnyKind } from 'src/types';
-	import type { ParsedEvent } from 'src/types';
-	import User from '../explore/user.svelte';
-	import Content from '../explore/_post/content.svelte';
-	import { key, readRelays, writeRelays } from 'src/controller';
-	import { go } from '../modals/modal';
+	import { formatDistanceToNow } from 'date-fns';
 	import { nip19 } from 'nostr-tools';
+	import { onMount } from 'svelte';
+
+	import { key, readRelays, writeRelays } from 'src/controller';
+	import Content from 'src/routes/explore/_post/content.svelte';
+	import Avatar from 'src/routes/explore/avatar.svelte';
+	import User from 'src/routes/explore/user.svelte';
+	import { go } from 'src/routes/modals/modal';
+	import type { ProcessedNotification } from './notifications';
 
 	export let post: ProcessedNotification;
 	export let visible: boolean;

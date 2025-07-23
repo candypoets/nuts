@@ -4,14 +4,14 @@
 
 	import { kind3 } from 'src/controller/nostr';
 	import type { Contact } from 'src/model/contact';
-	import type { AnyKind, Kind0Parsed } from 'src/types';
+	import type { AnyKind, Kind0Parsed } from '@candypoets/nipworker';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import { go } from 'src/routes/modals/modal';
 	import { getContext } from 'svelte';
-	import type { Request, SubscribeKind } from 'src/model/nostr-main';
+	import type { Request, SubscribeKind } from '@candypoets/nipworker';
 
 	let animator = getContext('animator');
-	import type { ParsedEvent } from 'src/types';
+	import type { ParsedEvent } from '@candypoets/nipworker';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 
 	let active: string;

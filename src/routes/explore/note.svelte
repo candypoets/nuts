@@ -4,17 +4,15 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 
-	import { useSubscription, type SubscribeKind } from 'src/model/nostr-main';
-	import type { AnyKind, Kind1Parsed } from 'src/types';
-	import { isKind10002, type ParsedEvent } from 'src/types';
 	import Content from 'src/routes/explore/_post/content.svelte';
 	import Footer from 'src/routes/explore/_post/footer.svelte';
 	import Header from 'src/routes/explore/_post/header.svelte';
 	import Zap from 'src/routes/explore/_post/zap.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import { nip19 } from 'nostr-tools';
-	import { getUserRelays, userQuery } from '../queries/user';
-	import Relays from '../modals/_profile/relays.svelte';
+	import { getUserRelays } from '../queries/user';
+	import type { AnyKind, Kind1Parsed, ParsedEvent, SubscribeKind } from '@candypoets/nipworker';
+	import { useSubscription } from '@candypoets/nipworker/hooks';
 
 	// if the note is a repost, this is the reposter pubkey
 	export let repost: string | undefined = undefined;

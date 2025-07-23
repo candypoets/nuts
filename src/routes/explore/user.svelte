@@ -2,11 +2,12 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import _ from 'lodash';
-	import { nostrManager, useSubscription, type SubscribeKind } from 'src/model/nostr-main';
-	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/types';
-	import type { ParsedEvent } from 'src/types';
 	import { onMount } from 'svelte';
-	import { userQuery } from '../queries/user';
+
+	import { userQuery } from 'src/routes/queries/user';
+	import { useSubscription } from '@candypoets/nipworker/hooks';
+	import type { ParsedEvent, AnyKind, Kind0Parsed, SubscribeKind } from '@candypoets/nipworker';
+	import { isKind0 } from '@candypoets/nipworker/utils';
 
 	export let pubkey: string;
 	export let link: boolean = true;

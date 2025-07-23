@@ -1,6 +1,5 @@
-import { isKind1, type AnyKind, isKind7, isKind6 } from 'src/types';
-import type { Request } from 'src/model/nostr-main';
-import type { ParsedEvent } from 'src/types';
+import { isKind1, isKind7, isKind6 } from '@candypoets/nipworker/utils';
+import type { Request, AnyKind, ParsedEvent } from '@candypoets/nipworker';
 import { formatDistanceToNow } from 'date-fns';
 
 export function formatTime(timestamp: number): string {

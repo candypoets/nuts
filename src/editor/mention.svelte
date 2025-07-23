@@ -3,9 +3,9 @@
 	import _ from 'lodash';
 	import { nip19 } from 'nostr-tools';
 	import { SEARCH_RELAYS } from 'src/lib/env';
-	import { isKind0, type AnyKind, type Kind0Parsed } from 'src/types';
-	import { nostrManager, useSubscription, type EventKind } from 'src/model/nostr-main';
-	import type { ParsedEvent } from 'src/types';
+	import type { AnyKind, Kind0Parsed, ParsedEvent, SubscribeKind } from '@candypoets/nipworker';
+	import { isKind0 } from '@candypoets/nipworker/utils';
+	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import { onDestroy } from 'svelte';
 
 	// Props from the mention suggestion plugin
@@ -55,7 +55,7 @@
 		return score;
 	}
 
-	const handleEvents = (events: ParsedEvent<AnyKind>[], eventKind: EventKind) => {
+	const handleEvents = (events: ParsedEvent<AnyKind>[], eventKind: SubscribeKind) => {
 		if (eventKind == 'EOCE' && !eoce) {
 			eoce = true;
 			items = _.uniqBy(cachedEvents, 'pubkey');

@@ -1,16 +1,17 @@
 <script lang="ts">
+	import type { AnyKind, ParsedEvent, SubscribeKind } from '@candypoets/nipworker';
+	import { nostrManager } from '@candypoets/nipworker';
+	import { useSubscription } from '@candypoets/nipworker/hooks';
+	import { isKind0 } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { schnorr } from '@noble/curves/secp256k1';
 	import { bytesToHex } from '@noble/hashes/utils';
 	import { kinds, nip19, type EventTemplate } from 'nostr-tools';
 	import { onMount } from 'svelte';
 
+	import { key } from 'src/controller';
 	import { now } from 'src/lib/period';
 	import { decodePrivKey } from 'src/lib/wallet';
-	import { isKind0, type AnyKind } from 'src/types';
-	import { key } from 'src/controller';
-	import { nostrManager, useSubscription, type SubscribeKind } from 'src/model/nostr-main';
-	import type { ParsedEvent } from 'src/types';
 
 	let privateKey = '';
 	let name = '';

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { fly, fade } from 'svelte/transition';
-	import { nostrManager, type RelayStatus, PublishStatus } from 'src/model/nostr-main';
+	import { nostrManager, type RelayStatus, PublishStatus } from '@candypoets/nipworker';
 	import StatusCircle from './StatusCircle.svelte';
 	import { normalizeURL } from 'nostr-tools/utils';
 	import { proxyUrl } from 'src/lib/proxy';

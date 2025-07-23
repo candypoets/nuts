@@ -1,6 +1,5 @@
 import { persistentWritable } from 'src/lib/persistentWritable';
-import type { ParsedEvent } from 'src/types';
-import type { Kind39089Parsed } from 'src/types/kind39089';
+import type { ParsedEvent, Kind39089Parsed } from '@candypoets/nipworker';
 import { get, writable } from 'svelte/store';
 
 import { derived } from 'svelte/store';

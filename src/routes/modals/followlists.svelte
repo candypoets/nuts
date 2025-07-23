@@ -1,15 +1,15 @@
 <script lang="ts">
-	import Feed from 'src/routes/explore/feed.svelte';
-	import type { AnyKind, ParsedEvent } from 'src/types';
-	import { isKind39089, type Kind39089Parsed } from 'src/types/kind39089';
-	import Avatar from '../explore/avatar.svelte';
+	import type { AnyKind, Kind39089Parsed, ParsedEvent, Request } from '@candypoets/nipworker';
+	import { isKind39089 } from '@candypoets/nipworker/utils';
+
 	import Icon from '@iconify/svelte';
-	import { getContext } from 'svelte';
-	import { nostrManager, type Request } from 'src/model/nostr-main';
-	import MultiSelect from './components/MultiSelect.svelte';
-	import { followList, followPacks } from 'src/controller/feed';
 	import { formatDistanceToNow } from 'date-fns';
+	import { followList, followPacks } from 'src/controller/feed';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
+	import Avatar from 'src/routes/explore/avatar.svelte';
+	import Feed from 'src/routes/explore/feed.svelte';
+	import MultiSelect from 'src/routes/modals/components/MultiSelect.svelte';
+	import { getContext } from 'svelte';
 
 	let animator = getContext('animator');
 
@@ -19,7 +19,6 @@
 	// Define fuseKeys for search
 	const fuseKeys = ['0.parsed.title', '0.parsed.description'];
 
-	// Function to construct the requests for kind 30000 events
 	let requests: Request[] = [
 		{
 			kinds: [39089],
@@ -174,9 +173,6 @@
 					</div>
 				{/if}
 				{#if post.parsed}
-					<div class="float-right text-xs">
-						Last updated {formatDistanceToNow(post.created_at * 1000, { addSuffix: true })}
-					</div>
 					<div class="flex items-center gap-4 mb-4">
 						{#if post.parsed.image}
 							<img
@@ -219,6 +215,9 @@
 
 					<div class="mt-4 text-sm text-base-content/50">
 						List ID: {post.parsed.list_identifier}
+						<div class="float-right text-xs">
+							Last updated {formatDistanceToNow(post.created_at * 1000, { addSuffix: true })}
+						</div>
 					</div>
 				{/if}
 			</div>

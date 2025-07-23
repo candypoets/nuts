@@ -7,12 +7,18 @@
 	import VirtualList from 'src/components/VirtualList.svelte';
 	import VirtualListBottom from 'src/components/VirtualListBottom.svelte';
 	import { now } from 'src/lib/period';
-	import { cleanup, useSubscription, type SubscribeKind } from 'src/model/nostr-main';
-	import type { ParsedEvent } from 'src/types';
-	import { isKind, isKind1, isKind6, type AnyKind, type Kind1Parsed } from 'src/types';
 	import Note from './note.svelte';
 	import { formatDistanceToNow } from 'date-fns';
 	import { limit } from 'src/controller/pagination';
+	import { isKind, isKind1, isKind6 } from '@candypoets/nipworker/utils';
+	import { cleanup } from '@candypoets/nipworker';
+	import { useSubscription } from '@candypoets/nipworker/hooks';
+	import type {
+		ParsedEvent,
+		AnyKind,
+		SubscribeKind,
+		Kind1Parsed
+	} from 'node_modules/@candypoets/nipworker/dist/types';
 
 	// Props
 	export let bottom = false;

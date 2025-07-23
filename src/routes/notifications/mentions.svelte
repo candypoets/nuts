@@ -1,13 +1,14 @@
 <script lang="ts">
+	import { nostrManager } from '@candypoets/nipworker';
+	import type { AnyKind, ParsedEvent } from '@candypoets/nipworker/';
+	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import Icon from '@iconify/svelte';
-	import { type AnyKind } from 'src/types';
-	import Avatar from 'src/routes/explore/avatar.svelte';
-	import { nostrManager, useSubscription } from 'src/model/nostr-main';
-	import type { ParsedEvent } from 'src/types';
-	import Content from '../explore/_post/content.svelte';
-	import User from '../explore/user.svelte';
-	import { formatTime, type ProcessedNotification } from './notifications';
 	import { onMount } from 'svelte';
+
+	import Content from 'src/routes/explore/_post/content.svelte';
+	import Avatar from 'src/routes/explore/avatar.svelte';
+	import User from 'src/routes/explore/user.svelte';
+	import { formatTime, type ProcessedNotification } from 'src/routes/notifications/notifications';
 
 	export let post: ProcessedNotification;
 	export let visible: boolean;

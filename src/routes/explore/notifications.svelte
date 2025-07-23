@@ -1,11 +1,10 @@
 <script lang="ts">
+	import type { AnyKind, ParsedEvent, SubscribeKind } from '@candypoets/nipworker';
+	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import Icon from '@iconify/svelte';
-	import { key, kind10002Ready, lastNotificationView } from 'src/controller';
-	import { nostrManager, useSubscription, type SubscribeKind } from 'src/model/nostr-main';
-	import { go } from '../modals/modal';
-	import type { AnyKind, ParsedEvent } from 'src/types';
-	import { DAY } from 'src/lib/period';
 
+	import { go } from 'src/routes/modals/modal';
+	import { key, kind10002Ready, lastNotificationView } from 'src/controller';
 	let missed = 0;
 
 	kind10002Ready.promise.then((result) => {
