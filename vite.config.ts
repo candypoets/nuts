@@ -43,9 +43,9 @@ export default defineConfig({
 			}
 		}
 	},
-	// optimizeDeps: {
-	// 	exclude: ['./go/wasm_exec.js']
-	// },
+	optimizeDeps: {
+		exclude: ['@candypoets/nipworker']
+	},
 	plugins: [
 		basicSsl(),
 		wasm(),
