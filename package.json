@@ -5,15 +5,13 @@
 	"scripts": {
 		"dev": "vite dev",
 		"dev:host": "vite dev --host",
-		"build": "npm run build:wasm && vite build",
-		"build:wasm": "./src/model/init.sh",
+		"build": "vite build",
 		"preview": "vite preview",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"test:unit": "vitest",
 		"lint": "prettier --plugin-search-dir . --check . && eslint .",
-		"format": "prettier --plugin-search-dir . --write .",
-		"tauri": "tauri"
+		"format": "prettier --plugin-search-dir . --write ."
 	},
 	"devDependencies": {
 		"@gandlaf21/bolt11-decode": "^3.0.6",

@@ -1,23 +1,18 @@
 <script lang="ts">
-	import { BleClient } from '@capacitor-community/bluetooth-le';
-	import { Capacitor } from '@capacitor/core';
-
 	export let data = '';
 
 	const scanBT = async () => {
 		const devices = [];
-		if (!BleClient.isEnabled()) {
-			await BleClient.requestEnable();
-		}
-		await BleClient.requestLEScan({}, (d) => {
-			console.log(d);
-		});
+		// if (!BleClient.isEnabled()) {
+		// 	await BleClient.requestEnable();
+		// }
+		// await BleClient.requestLEScan({}, (d) => {
+		// 	console.log(d);
+		// });
 	};
 </script>
 
-{Capacitor.getPlatform()}
-{navigator.bluetooth}
-{#if (Capacitor.getPlatform() === 'web' && navigator.bluetooth) || Capacitor.getPlatform() !== 'web'}
+{#if navigator.bluetooth}
 	<button class="btn btn-info btn-square" on:click={scanBT}>
 		<svg
 			viewBox="0 0 24 24"
