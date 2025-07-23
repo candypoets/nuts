@@ -19,8 +19,6 @@
 
 	const animator = $pagerAnimators[rootPath.replace('/', '')];
 
-	$: console.log($pagerAnimators, rootPath, animator);
-
 	// Set context immediately since pagerAnimator is now available
 	setContext('animator', animator);
 

@@ -121,7 +121,6 @@
 							status = 'Recipient has no preferred mint';
 						}
 					}
-					console.log(wallet);
 					status = 'Lock proofs to recipient pubkey' + wallet.p2pkPubkey;
 					const proofsToSend = await cashuManager.sendToPubkey(
 						Number(amount) || 0,
@@ -130,7 +129,6 @@
 						null,
 						true
 					);
-					console.log(isMintSupported, proofsToSend, wallet);
 					const nutszap: EventTemplate = {
 						kind: 9321,
 						content: memo,
@@ -142,7 +140,6 @@
 							['p', pubkey]
 						]
 					};
-					console.log(nutszap);
 					status = 'Success!! Publishing nutszap';
 					nostrManager.publish('nutszap_' + pubkey, nutszap);
 					setTimeout(() => (status = ''), 1000);
@@ -164,7 +161,6 @@
 					status = 'Signing zap request';
 					const signed = await nostrManager.signEvent(zapRequest);
 
-					console.log(signed);
 					status = 'Generate zap invoice';
 					const { pr } = await getInvoiceFromProfile(kind0, Number(amount), signed);
 					status = 'Generate melt quote';

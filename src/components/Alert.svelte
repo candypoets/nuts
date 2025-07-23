@@ -6,8 +6,6 @@
 	// 		$alert = '';
 	// 	}, 1000);
 	// }
-
-	// $: console.log('alert:', $alert);
 </script>
 
 <!-- {#if $alert} -->

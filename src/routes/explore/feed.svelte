@@ -80,7 +80,6 @@
 
 	// In a separate function to avoid infinite loops in the reactive block
 	const handleEvents = (events: ParsedEvent<AnyKind>[], eventKind: SubscribeKind, page = 0) => {
-		console.log(events?.[0]);
 		if (eventKind == 'EOSE') {
 			if (eose == false && events.remainingConnections / events.totalConnections < 1) {
 				loading = false;
@@ -95,7 +94,6 @@
 						(item) => item[0].id
 					);
 				}
-				// console.log(subscriptionID, 'ok', feed);
 				// makeFuse();
 				fetchedFeed = [];
 			}
@@ -147,7 +145,6 @@
 				eose = false;
 				cachedFeed = [];
 				// feed = [];
-				console.log(requests);
 				sub = useSubscription(subscriptionID, requests, handleEvents);
 			}
 		}, 300);
@@ -214,8 +211,6 @@
 	let noResultsCount = 0;
 	let sinceMultiplier = 1;
 
-	$: console.log(eose);
-
 	$: {
 		if (start != 0 && end == feed.length && !!eose && noResultsCount <= 3) {
 			eoce = false;
@@ -240,17 +235,6 @@
 				cleanup();
 				const until = feed[Math.min(currentPage * $limit, feed.length - 1)][0].created_at;
 				const since = until - (currentPage + 2) * 24 * 60 * 60 * sinceMultiplier;
-				console.log(
-					'paaaaage',
-					currentPage * $limit,
-					formatDistanceToNow(until * 1000, {
-						addSuffix: true
-					}),
-					'sinceMultiplier:',
-					sinceMultiplier,
-					'noResultsCount:',
-					noResultsCount
-				);
 				pagesub = useSubscription(
 					subscriptionID + since,
 					requests.map((r) => ({ ...r, until, since })),

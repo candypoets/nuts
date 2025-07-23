@@ -48,7 +48,6 @@ export class PagerAnimator {
 	 * Set the main content element after instantiation
 	 */
 	setMainContent(element: HTMLElement) {
-		console.log('setMainContent', element);
 		this.main = element;
 	}
 

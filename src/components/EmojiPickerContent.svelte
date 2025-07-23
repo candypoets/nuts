@@ -32,7 +32,6 @@
 
 		// Initialize if it doesn't exist yet for this trigger
 		if (!tippyInstance) {
-			// console.log('Initializing Tippy on:', triggerElement);
 			tippyInstance = tippy(triggerElement, {
 				content: contentElement, // Use this component's root element as content
 				trigger: 'click',
@@ -50,13 +49,11 @@
 			});
 		} else {
 			// If instance exists, potentially update props if needed (usually not necessary for content element)
-			// console.log('Tippy instance already exists for:', triggerElement);
 		}
 	}
 
 	function destroyTippy() {
 		if (tippyInstance) {
-			// console.log('Destroying Tippy instance');
 			tippyInstance.destroy();
 			tippyInstance = null;
 		}

@@ -27,9 +27,7 @@ export const extensions = [
 		fileUpload: {
 			immediateUpload: true, // It will automatically upload when a file is added to the editor, if false, call `editor.commands.uploadFiles()` manually
 			sign: async (event) => {
-				console.log('sign', event);
 				const signed = await nostrManager.signEvent(event);
-				console.log('signed', signed);
 				return signed;
 			},
 			onDrop() {

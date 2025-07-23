@@ -7,8 +7,6 @@
 
 	// Extract nprofile data from node attributes
 	const tag = node.attrs?.tag || '';
-
-	$: console.log(node.attrs);
 </script>
 
 <NodeViewWrapper class="inline">

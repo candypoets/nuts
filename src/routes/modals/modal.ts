@@ -49,7 +49,6 @@ export function go(eventPath: string) {
 	// Check if the current URL already ends with the profile we're trying to navigate to
 	if (!currentPath.endsWith(eventPath)) {
 		cleanup();
-		console.log(`Navigating to ${currentPath}/${eventPath}`);
 		goto(`${currentPath}/${eventPath}`);
 	}
 }

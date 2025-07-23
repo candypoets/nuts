@@ -77,7 +77,6 @@
 	}
 
 	kind3Ready.promise.then((kind3) => {
-		console.log('kind3 ready', kind3);
 		feedRequests =
 			kind3.parsed
 				?.map((c) => c.pubkey)

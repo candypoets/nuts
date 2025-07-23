@@ -31,7 +31,6 @@
 
 	// Add keyboard listener for desktop
 	onMount(() => {
-		console.log('mount', pagerAnimator);
 		if (pagerAnimator && element) {
 			pagerAnimator.registerElement(element);
 		}

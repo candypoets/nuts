@@ -99,7 +99,6 @@
 	function go() {
 		if (isImageContext) return;
 		const currentPath = $page.url.pathname;
-		console.log('relays', relays);
 		const nip19Event = nip19.neventEncode({ id: note?.id || noteId || '', relays });
 		const eventPath = `nevent:${nip19Event}`;
 

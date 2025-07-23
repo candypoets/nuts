@@ -25,7 +25,6 @@
 
 <button
 	on:click={(_) => {
-		console.log('theme changed');
 		if (theme == 'dark') {
 			theme = 'light';
 			saveThemeSelection();

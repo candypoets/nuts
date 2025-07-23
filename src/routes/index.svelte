@@ -68,56 +68,56 @@
 
 	setupPagerAnimators($viewport, goBack);
 
-	$: relaySub =
-		$key &&
+	$: $key &&
 		$key.pub &&
-		useSubscription(
-			'relays',
-			[
-				{
-					kinds: [10019, 10002],
-					authors: [$key.pub],
-					relays: ['wss://relay.damus.io', 'wss://relay.nostr.band', 'wss://purplepag.es'],
-					noOptimize: true
-				},
-				{
-					kinds: [3, 0], // 0 and 3 are here if found immdiately, but refetched after
-					authors: [$key.pub],
-					relays: ['wss://relay.damus.io', 'wss://relay.nostr.band', 'wss://purplepag.es'],
-					noOptimize: true,
-					cacheFirst: true
-				}
-			],
-			(events: ParsedEvent<unknown>[], kind: SubscribeKind) => {
-				if (kind == 'EOSE') {
-					return;
-				}
-				// the first event is from the sub, everything else is contextual
-				const event = events[0];
-				if (!event) return;
-				if (event.parsed) {
-					if (isKind10002(event) && event.created_at > ($kind10002?.created_at || 0)) {
-						$kind10002 = event;
-						kind10002Ready.resolve(event);
+		setTimeout(
+			() =>
+				useSubscription(
+					'relays',
+					[
+						{
+							kinds: [10019, 10002],
+							authors: [$key.pub],
+							relays: ['wss://relay.damus.io', 'wss://relay.nostr.band', 'wss://purplepag.es'],
+							noOptimize: true
+						},
+						{
+							kinds: [3, 0], // 0 and 3 are here if found immdiately, but refetched after
+							authors: [$key.pub],
+							relays: ['wss://relay.damus.io', 'wss://relay.nostr.band', 'wss://purplepag.es'],
+							noOptimize: true,
+							cacheFirst: true
+						}
+					],
+					(events: ParsedEvent<unknown>[], kind: SubscribeKind) => {
+						if (kind == 'EOSE') {
+							return;
+						}
+						// the first event is from the sub, everything else is contextual
+						const event = events[0];
+						if (!event) return;
+						if (event.parsed) {
+							if (isKind10002(event) && event.created_at > ($kind10002?.created_at || 0)) {
+								$kind10002 = event;
+								kind10002Ready.resolve(event);
+							}
+							if (isKind10019(event) && event.created_at > ($kind10019?.created_at || 0)) {
+								$kind10019 = event;
+								kind10019Ready.resolve(event);
+							}
+							if (isKind0(event) && event.created_at > ($kind0?.created_at || 0)) {
+								$kind0 = event;
+								kind0Ready.resolve(event);
+							}
+							if (isKind3(event) && event.created_at > ($kind3?.created_at || 0)) {
+								$kind3 = event;
+								kind3Ready.resolve(event);
+							}
+						}
+						// Handle subscription updates here
 					}
-					if (isKind10019(event) && event.created_at > ($kind10019?.created_at || 0)) {
-						$kind10019 = event;
-						kind10019Ready.resolve(event);
-					}
-					if (isKind0(event) && event.created_at > ($kind0?.created_at || 0)) {
-						$kind0 = event;
-						kind0Ready.resolve(event);
-					}
-					if (isKind3(event) && event.created_at > ($kind3?.created_at || 0)) {
-						$kind3 = event;
-						kind3Ready.resolve(event);
-					}
-				}
-				// Handle subscription updates here
-			},
-			{
-				force: true
-			}
+				),
+			1000
 		);
 
 	$: profileSub =
@@ -267,7 +267,6 @@
 	// Handle keyboard navigation (Alt + Left/Right)
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key == 'Escape') {
-			console.log('escap', $pagerAnimator);
 			$pagerAnimator?.goBack();
 		} else if (e.key === 'ArrowLeft' && currentIndex > 0) {
 			moveToIndex(currentIndex - 1);

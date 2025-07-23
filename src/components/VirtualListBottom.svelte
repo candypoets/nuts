@@ -66,8 +66,6 @@
 	$: if (mounted) refresh(items, viewport_height, itemHeight);
 
 	async function refresh(items, viewport_height, itemHeight) {
-		// console.log('-------refresh-------');
-		// console.log('refresh', items, viewport_height, itemHeight);
 		const { scrollTop } = viewport;
 
 		await tick(); // wait until the DOM is up to date
@@ -111,26 +109,21 @@
 			height_map[v] = itemHeight || rows[v].offsetHeight;
 		}
 
-		// console.log('height map', height_map, rows);
-
 		let i = 0;
 		let y = 0;
 
 		while (i < items.length) {
 			const row_height = height_map[i] || average_height;
 			if (y + row_height > scrollTop) {
-				// console.log('break');
 				start = i;
 				top = y;
 
 				break;
 			}
-			// console.log('not break');
 
 			y += row_height;
 			i += 1;
 		}
-		// console.log('i', i);
 		while (i < items.length) {
 			y += height_map[i] || average_height;
 			i += 1;
@@ -138,7 +131,6 @@
 			if (y > scrollTop + viewport_height * 2) break;
 		}
 		end = i;
-		// console.log('end', end);
 
 		const remaining = items.length - end;
 		average_height = y / end;
@@ -150,7 +142,6 @@
 
 		// prevent jumping if we scrolled up into unknown territory
 		// if (start < old_start) {
-		// 	// console.log('oy');
 		// 	await tick();
 
 		// 	let expected_height = 0;
@@ -177,8 +168,6 @@
 		rows = contents.getElementsByTagName('svelte-virtual-list-row');
 		mounted = true;
 	});
-
-	// $: console.log('visible', visible);
 </script>
 
 <svelte-virtual-list-viewport

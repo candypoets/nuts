@@ -96,7 +96,6 @@
 					const [event, ...context] = events;
 					if (isKind7376(event)) {
 						redeemed = event; // Assign the found redeem event
-						console.log('tags: ', event.parsed?.tags);
 						sub?.(); // Unsubscribe once found
 						sub = undefined;
 					}

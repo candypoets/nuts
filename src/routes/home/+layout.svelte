@@ -93,8 +93,6 @@
 		];
 	});
 
-	$: console.log('hey:', relays, $key?.pub);
-
 	let walletSub = Promise.race([kind10019Ready.promise, delayedPromise]).then((event) => {
 		useSubscription(
 			'active_wallet',
@@ -118,8 +116,7 @@
 						$activeMintUrl = event.parsed.mints?.[0] && normalizeMintURL(event.parsed.mints?.[0]);
 					}
 					if (event?.parsed?.p2pkPrivKey) {
-						console.log('create wallet:', event?.parsed?.p2pkPrivKey, event?.id);
-						cashuManager.createWallet(event?.parsed?.p2pkPrivKey, event?.parsed?.mints);
+						// cashuManager.createWallet(event?.parsed?.p2pkPrivKey, event?.parsed?.mints);
 					}
 				}
 				if (isKind7375(event) && event?.parsed?.mintUrl) {
@@ -174,7 +171,6 @@
 
 	async function handleLogin() {
 		// Handle login logic here
-		console.log('Logging in with private key:', privateKey);
 
 		// build a key object to store in the db
 		const pk = decodePrivKey(privateKey);
@@ -228,9 +224,9 @@
 	walletLoaded.then(() => {
 		setTimeout(() => {
 			const proofsMint = proofsByMint();
-			for (const [mintUrl, proofs] of Object.entries(proofsMint)) {
-				cashuManager.checkProofState(mintUrl, proofs);
-			}
+			// for (const [mintUrl, proofs] of Object.entries(proofsMint)) {
+			// 	cashuManager.checkProofState(mintUrl, proofs);
+			// }
 		}, 2000);
 	});
 

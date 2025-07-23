@@ -121,8 +121,6 @@
 
 	const isErrorStatus =
 		status === 'failed' || status === 'rejected' || status === 'connection_error';
-
-	$: console.log('relay status', status, statusTextColor, relayName);
 </script>
 
 <div class="inline-block relative" style="opacity: {$opacity}; transform: scale({$scale})">

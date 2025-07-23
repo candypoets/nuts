@@ -34,7 +34,6 @@
 
 	async function handleLogin() {
 		// Handle login logic here
-		console.log('Logging in with private key:', privateKey);
 
 		// build a key object to store in the db
 		const pk = decodePrivKey(privateKey);
@@ -48,6 +47,7 @@
 			'login_' + pubkey,
 			[{ kinds: [kinds.Metadata], authors: [pubkey], limit: 1, relays: [] }],
 			(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) => {
+				if (kind == 'EOSE') return;
 				const [event, ...context] = events;
 				if (isKind0(event)) {
 					loading = false;
@@ -69,7 +69,6 @@
 		const pubkey = bytesToHex(schnorr.getPublicKey(priv));
 
 		// Handle signup logic here
-		// console.log('Signing up with details:', userName, profilePicture, bio);
 
 		$key = {
 			pub: pubkey,
@@ -150,7 +149,6 @@
 						npub: nip19.npubEncode(pubKey)
 					});
 					$activeAccount = Array.from($keysCache.values()).findIndex((k) => k.pub == pubKey);
-					console.log('clicked', $activeAccount);
 				}}
 			>
 				{#if !extensionError}

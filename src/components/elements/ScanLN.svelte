@@ -27,7 +27,6 @@
 	});
 
 	onMount(() => {
-		console.log('qr scanner');
 		qrScanner = new Html5QrcodeScanner(
 			'ln-qr-reader',
 			{ fps: 10, qrbox: { width: 250, height: 250 } },

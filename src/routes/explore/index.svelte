@@ -90,7 +90,7 @@
 						</span>
 						<a class="cursor-pointer" on:click|stopPropagation={() => go('profile')}>
 							<img
-								src={$kind0?.parsed?.picture || '/ns-naked.svg'}
+								src={proxyAvatarUrl($kind0?.parsed?.picture) || '/ns-naked.svg'}
 								class="w-8 h-8 border rounded-full"
 							/>
 						</a>

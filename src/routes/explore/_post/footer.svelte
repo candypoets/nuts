@@ -98,7 +98,6 @@
 		if (isKind7(event) || isKind17(event)) {
 			handleReactions(event);
 		} else if (isKind1(event)) {
-			// console.log(note.id, event);
 			handleReplies(event);
 		} else if (isKind6(event)) {
 			handleReposts(event);

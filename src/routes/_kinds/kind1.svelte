@@ -85,7 +85,7 @@
 					], // limits higher to accomodate for huge posts
 					(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) => {
 						if (kind == 'EOSE') {
-							return console.log(events);
+							return;
 						}
 						const [event, ...rest] = events;
 						if (!event?.parsed) return;

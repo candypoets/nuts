@@ -6,6 +6,33 @@ import { defineConfig } from 'vite';
 import wasm from 'vite-plugin-wasm';
 import topLevelAwait from 'vite-plugin-top-level-await';
 
+// Custom plugin to handle SharedArrayBuffer headers for preview mode
+const sharedArrayBufferPlugin = () => {
+	return {
+		name: 'shared-array-buffer-headers',
+		configurePreviewServer(server) {
+			server.middlewares.use((req, res, next) => {
+				// Set headers for all requests
+				res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+				res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+
+				// Set CORP headers for static assets
+				if (
+					req.url?.includes('.wasm') ||
+					req.url?.includes('worker') ||
+					req.url?.includes('.js') ||
+					req.url?.includes('/static/') ||
+					req.url?.includes('/_app/')
+				) {
+					res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+				}
+
+				next();
+			});
+		}
+	};
+};
+
 // Custom plugin to handle SharedArrayBuffer headers for @fs routes
 
 export default defineConfig({
@@ -36,7 +63,7 @@ export default defineConfig({
 		}
 	},
 	build: {
-		target: 'esnext',
+		target: 'es2022',
 		rollupOptions: {
 			output: {
 				format: 'es'
@@ -50,6 +77,7 @@ export default defineConfig({
 		basicSsl(),
 		wasm(),
 		topLevelAwait(),
+		sharedArrayBufferPlugin(), // Add our custom plugin
 		sveltekit(),
 		VitePWA({
 			devOptions: {

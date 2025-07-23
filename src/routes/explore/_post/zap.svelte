@@ -61,7 +61,6 @@
 
 	function handleNuts(event: ParsedEvent<Kind9321Parsed>) {
 		if (!event.parsed) return;
-		console.log('nuts');
 		if (event.pubkey == $kind0?.pubkey) zapped = true;
 		if (nuts.some((n) => n.id == event.id)) return;
 		totalNutAmount += event.parsed.amount;

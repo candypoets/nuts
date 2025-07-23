@@ -25,7 +25,6 @@
 	): [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][] {
 		if (eventKind == 'EOSE') return feed;
 		const [event, ...context] = events;
-		// console.log('notif', event);
 		if (event.pubkey == $key?.pub) return feed;
 		if (!event || !event.parsed) return feed;
 
@@ -50,7 +49,6 @@
 		}
 		const processedFeed = processNotifications(updatedFeed);
 
-		// console.log(processedFeed);
 		// Process the updated feed into grouped notifications
 		return processedFeed;
 	}

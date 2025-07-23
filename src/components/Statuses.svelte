@@ -107,9 +107,7 @@
 	}
 
 	// Handle status clicks to show more details
-	function handleStatusClick(event: CustomEvent) {
-		console.log('Status clicked:', event.detail);
-	}
+	function handleStatusClick(event: CustomEvent) {}
 
 	// Get domain name from relay URL (for display purposes)
 	function getRelayName(url: string): string {
@@ -143,7 +141,6 @@
 
 			// Use proxy to handle CORP policy
 			const proxyedUrl = proxyUrl(httpUrl, 'resource');
-			console.log('Fetching relay info from:', httpUrl, 'via proxy:', proxyedUrl);
 
 			const response = await fetch(proxyedUrl, {
 				headers: {
@@ -151,11 +148,8 @@
 				}
 			});
 
-			console.log('Relay info response status:', response.status, 'for', relayUrl);
-
 			if (response.ok) {
 				const relayInfo: RelayInfo = await response.json();
-				console.log('Fetched relay info:', relayInfo);
 				// Cache the result
 				relayInfoCache.set(normalizedUrl, relayInfo);
 				return relayInfo;

@@ -11,7 +11,6 @@
 	async function addRelay() {
 		loading = true;
 		// const isValid = await checkNostrRelay(newRelayUrl);
-		// console.log('isValid', isValid);
 		// loading = false;
 		// isInvalid = !isValid;
 		// if (isValid) {

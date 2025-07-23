@@ -35,7 +35,6 @@
 		eventKind: 'EVENT' | 'EOSE' | 'EOCE'
 	) {
 		const [event, ...context] = newEvents;
-		console.log('FLL', newEvents, event);
 		if (!event?.parsed || !isKind39089(event)) return currentFeed;
 
 		// Ensure list has required fields

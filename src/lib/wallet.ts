@@ -170,7 +170,6 @@ export const formatAmount = (amount: number, unit: string, withSuffix = true): s
 	if (unit === 'sat') {
 		return formatSats(amount, withSuffix);
 	} else {
-		console.log(amount);
 		return formatSats(amount, withSuffix);
 	}
 };
