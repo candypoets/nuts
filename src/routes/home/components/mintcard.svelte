@@ -1,9 +1,11 @@
 <script lang="ts">
+	import Icon from '@iconify/svelte';
 	import { nutsWallet } from 'src/controller/proofs';
 	import { activeMintUrl, fetchMintData } from 'src/controller/wallet';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import { go } from 'src/routes/modals/modal';
 	import { get } from 'svelte/store';
+	import { proxyAvatarUrl } from 'src/lib/proxy';
 
 	export let mintUrl: string | null;
 	export let size = 'lg';
@@ -66,7 +68,15 @@
 			>
 				<!-- Credit card chip design -->
 				<div class="flex gap-2 items-start justify-between" class:!items-center={size == 'xs'}>
-					<h2 class="font-bold tracking-wider -mt-1">
+					<h2 class="font-bold tracking-wider -mt-1 flex gap-1">
+						{#if mint?.parsedInfo?.icon_url}
+							<img
+								src={proxyAvatarUrl(mint.parsedInfo.icon_url)}
+								alt="Mint Icon"
+								class="w-6 h-6"
+								on:error={(e) => (e.target.style.display = 'none')}
+							/>
+						{/if}
 						{mint.name ? mint.name.replace(/mint/gi, '').replace(/cashu/gi, '') : 'Unknown Mint'}
 					</h2>
 
@@ -79,7 +89,7 @@
 						<div class="absolute inset-0 bg-white opacity-50 animate-pulse"></div>
 					</div>
 				</div>
-				{#if showBalance}
+				{#if showBalance && size != 'lg'}
 					<p class="text-sm text-left">{$balanceByMint?.[mintUrl] || 0} sats</p>
 				{/if}
 				{#if size == 'lg'}
@@ -95,9 +105,10 @@
 								class="bg-gray-700/30 rounded-lg p-3 flex-1 backdrop-blur-sm"
 								class:hidden={!showBalance}
 							>
-								<p class="text-xs uppercase text-indigo-200 font-semibold">Balance</p>
-								<p class="font-mono text-xl mt-1">
-									{$balanceByMint?.[mintUrl] || 0 || '0'} <span class="text-sm -ml-2">sats</span>
+								<!-- <p class="text-xs uppercase text-indigo-200 font-semibold">Balance</p> -->
+								<p class="font-mono text-xl mt-1 flex items-center">
+									{$balanceByMint?.[mintUrl] || 0 || '0'}
+									<Icon icon="bitcoin-icons:satoshi-v2-filled" class="text-xl" />
 								</p>
 							</div>
 

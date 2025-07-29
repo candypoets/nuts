@@ -23,6 +23,7 @@ export async function fetchMintData(mint: string): Promise<Mint> {
 			throw new Error('Failed to fetch mint data');
 		}
 		const res = await response.json();
+		res.parsedInfo = JSON.parse(res.info);
 		res.name = res.name.replace(/mint/gi, '').replace(/cashu/gi, '');
 		return res;
 	} catch (err) {
