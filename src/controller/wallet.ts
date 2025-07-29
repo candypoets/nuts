@@ -14,7 +14,7 @@ import {
 	type ProofUnion
 } from '@candypoets/nipworker';
 
-async function fetchMintData(mint: string): Promise<Mint> {
+export async function fetchMintData(mint: string): Promise<Mint> {
 	try {
 		const response = await fetch(
 			`https://api.audit.8333.space/mints/url/?url=${normalizeURL(mint).replace(/\/$/, '')}`
