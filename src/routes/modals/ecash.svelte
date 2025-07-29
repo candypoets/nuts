@@ -5,8 +5,8 @@
 
 	import MintSelector from 'src/components/MintSelector.svelte';
 	import VirtualList from 'src/components/VirtualList.svelte';
-	import { key } from 'src/controller';
-	import { activeMintUrl, balanceByMint, mints } from 'src/controller/wallet';
+	import { key, kind17375 } from 'src/controller';
+	import { activeMintUrl } from 'src/controller/wallet';
 	import { now } from 'src/lib/period';
 	import { normalizeMintURL } from 'src/lib/utils';
 	import { getInvoiceFromProfile, GetLNURLFromProfile } from 'src/lib/wallet';
@@ -26,6 +26,9 @@
 	} from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import { isKind0, isKind1, isKind10002, isKind10019 } from '@candypoets/nipworker/utils';
+	import { MintQuoteState, type MeltQuoteResponse, type MintQuoteResponse } from '@cashu/cashu-ts';
+	import { random, throttle } from 'lodash';
+	import { nutsWallet } from 'src/controller/proofs';
 	import { fly } from 'svelte/transition';
 
 	// export let active: string;
@@ -39,12 +42,10 @@
 	let note: ParsedEvent<Kind1Parsed>;
 	let kind0: ParsedEvent<Kind0Parsed>;
 
-	// let invoice: string;
-	// let fees: 0;
 	let processing = '';
 	let scroller: HTMLElement;
 
-	let wallet: Kind10019Parsed;
+	let kind10019: Kind10019Parsed;
 
 	let zap = true;
 	let receiptRelays: string[] = [];
@@ -57,7 +58,23 @@
 		}
 	}
 
-	$: balance = $balanceByMint[$activeMintUrl || ''];
+	let balanceByMint = $nutsWallet?.balanceByMint;
+
+	let fromMint = $activeMintUrl || $kind17375?.parsed?.mints?.[0];
+	let toMint: string;
+	let fees: number = 0;
+	let meltquote: MeltQuoteResponse;
+	let mintquote: MintQuoteResponse;
+
+	const resetState = () => {
+		fees = 0;
+		meltquote = undefined;
+		mintquote = undefined;
+		processing = '';
+	};
+
+	$: balance = $balanceByMint?.[fromMint || ''];
+	$: amountPlusFees = Number(amount || 0) + Number(fees || 0);
 
 	onMount(() => {
 		const requests: Request[] = [
@@ -73,7 +90,8 @@
 				if (eventKind == 'EOSE') return;
 				const [event, ...context] = events;
 				if (isKind10019(event)) {
-					wallet = event?.parsed;
+					kind10019 = event?.parsed;
+					toMint = kind10019?.trustedMints?.[0]?.url;
 					zap = false;
 				}
 				if (isKind10002(event)) {
@@ -90,105 +108,144 @@
 		);
 	});
 
-	const sendEcash = async () => {
-		if ($activeMintUrl) {
-			try {
-				if (wallet && !zap) {
-					const isMintSupported = wallet.trustedMints?.some(
-						(tm) => normalizeMintURL(tm.url) == $activeMintUrl
-					);
-					if (!isMintSupported) {
-						status = 'Finding a common mint';
-						// attempt a swap to a supported mint before sending
-						const myMints = await $mints;
-						const supportedMint = wallet.trustedMints?.find((tm) =>
-							myMints.some((m) => m.url == normalizeMintURL(tm.url))
-						);
-						if (supportedMint) {
-							status = 'Found common mint, swapping funds to: ' + supportedMint.url;
-							await cashuManager.mintSwap(Number(amount), $activeMintUrl, supportedMint.url);
-							// Switch to a mint that the recipient supports
-							$activeMintUrl = normalizeMintURL(supportedMint.url);
-						} else if (wallet.trustedMints?.[0].url) {
-							status = 'No common mint found, swapping funds to: ' + wallet.trustedMints?.[0].url;
-							await cashuManager.addMint(wallet.trustedMints?.[0].url);
-							await cashuManager.mintSwap(
-								Number(amount),
-								$activeMintUrl,
-								wallet.trustedMints?.[0].url
-							);
-						} else {
-							status = 'Recipient has no preferred mint';
-						}
-					}
-					status = 'Lock proofs to recipient pubkey' + wallet.p2pkPubkey;
-					const proofsToSend = await cashuManager.sendToPubkey(
-						Number(amount) || 0,
-						$activeMintUrl || '',
-						wallet.p2pkPubkey || '',
-						null,
-						true
-					);
-					const nutszap: EventTemplate = {
-						kind: 9321,
-						content: memo,
-						created_at: now(),
-						tags: [
-							...proofsToSend.map((proof) => ['proof', JSON.stringify(proof)]),
-							['u', $activeMintUrl || ''],
-							['e', noteId || ''],
-							['p', pubkey]
-						]
-					};
-					status = 'Success!! Publishing nutszap';
-					nostrManager.publish('nutszap_' + pubkey, nutszap);
-					setTimeout(() => (status = ''), 1000);
-				} else {
-					const lnurl = GetLNURLFromProfile(kind0);
-					const zapRequest: EventTemplate = {
-						kind: 9734,
-						content: memo,
-						pubkey: $key?.pub || '',
-						created_at: now(),
-						tags: [
-							['e', noteId || ''],
-							['p', pubkey],
-							['amount', (Number(amount) * 1000).toString()],
-							['relays', ...receiptRelays.map((r) => r)],
-							['lnurl', lnurl || '']
-						]
-					};
-					status = 'Signing zap request';
-					const signed = await nostrManager.signEvent(zapRequest);
-
-					status = 'Generate zap invoice';
-					const { pr } = await getInvoiceFromProfile(kind0, Number(amount), signed);
-					status = 'Generate melt quote';
-					const meltQuote = await cashuManager.requestMeltQuote(pr, $activeMintUrl);
-					status = 'Sending lighning payment';
-					await cashuManager.melt(meltQuote.quote);
-					status = 'Success! Publishing zap request';
-					nostrManager.publish('zap' + pubkey, zapRequest);
-					setTimeout(() => (status = ''), 1000);
-				}
-			} catch (e) {
-				console.error(e);
+	const computeFees = throttle(async (amount: number, fromMint: string, toMint: string) => {
+		if (fromMint && toMint && amount && toMint != fromMint) {
+			console.log('computeFees', amount);
+			// attempt a swap to a supported mint before sending
+			const fromWallet = await $nutsWallet?.getWallet(fromMint);
+			const toWallet = await $nutsWallet?.getWallet(toMint);
+			if (toWallet && fromWallet && kind10019?.p2pkPubkey) {
+				mintquote = await toWallet.createMintQuote(amount, kind10019.p2pkPubkey);
+				meltquote = await fromWallet.createMeltQuote(mintquote.request);
+				fees = meltquote.fee_reserve;
 			}
 		}
+	}, 1000);
+
+	$: computeFees(amount, fromMint, toMint);
+
+	const sendEcash = async () => {
+		processing = 'true';
+		const fromWallet = await $nutsWallet?.getWallet(fromMint);
+		const unspentProofs = fromWallet && $nutsWallet?.unspentProofs.get(fromWallet);
+		if (meltquote && unspentProofs && amount && fromMint && toMint && $nutsWallet) {
+			status = 'Swap from ' + fromMint + ' to ' + toMint;
+			const toWallet = await $nutsWallet.getWallet(toMint);
+			const { keep, send } = fromWallet?.selectProofsToSend(unspentProofs, amountPlusFees, true);
+			console.log('hey', meltquote);
+			const { change } = await fromWallet.meltProofs(meltquote, send);
+			try {
+				let response = await toWallet?.checkMintQuote(mintquote.quote);
+				console.log(response);
+				while (response.state !== MintQuoteState.PAID) {
+					status = 'Waiting for mint quote to be paid...';
+					await new Promise((resolve) => setTimeout(resolve, 1000));
+					response = await toWallet?.checkMintQuote(mintquote.quote);
+				}
+
+				const proofsToSend = await toWallet.mintProofs(amount, mintquote.quote);
+
+				status = 'Swap successful';
+
+				console.log(typeof amount, proofsToSend, toWallet.getFeesForProofs(proofsToSend));
+
+				const sendRes = await toWallet.send(Number(amount), proofsToSend, {
+					includeFees: false,
+					p2pk: { pubkey: kind10019.p2pkPubkey as string }
+				});
+
+				const nutszap: EventTemplate = {
+					kind: 9321,
+					content: memo,
+					created_at: now(),
+					tags: [
+						...sendRes.send.map((proof) => ['proof', JSON.stringify(proof)]),
+						['u', toMint || ''],
+						['e', noteId || ''],
+						['p', pubkey]
+					].filter((t) => !!t[1])
+				};
+				status = 'Success!! Publishing nutszap';
+				nostrManager.publish('nutszap_' + random(1000), nutszap);
+				setTimeout(() => (status = ''), 1000);
+			} finally {
+				console.log('finally', keep, change);
+				$nutsWallet?.unspentProofs.set(fromWallet, keep.concat(change));
+				$nutsWallet.updateBalanceByMint();
+				$nutsWallet.saveProofs(fromMint, keep.concat(change));
+			}
+		} else if (fromMint == toMint && fromWallet && unspentProofs) {
+			const { keep, send } = await fromWallet.send(Number(amount), unspentProofs, {
+				p2pk: { pubkey: kind10019?.p2pkPubkey }
+			});
+
+			const nutszap: EventTemplate = {
+				kind: 9321,
+				content: memo,
+				created_at: now(),
+				tags: [
+					...send.map((proof) => ['proof', JSON.stringify(proof)]),
+					['u', $activeMintUrl || ''],
+					['e', noteId || ''],
+					['p', pubkey]
+				].filter((t) => !!t[1])
+			};
+			status = 'Success!! Publishing nutszap';
+			nostrManager.publish('nutszap_' + random(), nutszap);
+			setTimeout(() => (status = ''), 1000);
+			$nutsWallet?.unspentProofs.set(fromWallet, keep);
+			$nutsWallet?.updateBalanceByMint();
+			$nutsWallet?.saveProofs(fromMint, keep);
+		} else if (fromMint && fromWallet && unspentProofs) {
+			const lnurl = GetLNURLFromProfile(kind0);
+			const zapRequest: EventTemplate = {
+				kind: 9734,
+				content: memo,
+				pubkey: $key?.pub || '',
+				created_at: now(),
+				tags: [
+					['e', noteId || ''],
+					['p', pubkey],
+					['amount', (Number(amount) * 1000).toString()],
+					['relays', ...receiptRelays.map((r) => r)],
+					['lnurl', lnurl || '']
+				].filter((t) => !!t[1])
+			};
+			status = 'Signing zap request';
+			const signed = await nostrManager.signEvent(zapRequest);
+
+			status = 'Generate zap invoice';
+			const { pr } = await getInvoiceFromProfile(kind0, Number(amount), signed);
+			status = 'Generate melt quote';
+			meltquote = await fromWallet.createMeltQuote(pr);
+			status = 'Sending lighning payment';
+			console.log(unspentProofs);
+			// const { keep, send } = await fromWallet.swap(0, unspentProofs);
+			// console.log(keep, send);
+			// if (keep.length) {
+			// 	$nutsWallet?.saveProofs(fromMint, keep);
+			// } else {
+			// 	$nutsWallet?.saveProofs(fromMint, send);
+			// }
+			const { change } = await fromWallet.meltProofs(meltquote, unspentProofs);
+			status = 'Success! Publishing zap request';
+			nostrManager.publish('zap' + pubkey, zapRequest);
+			setTimeout(() => (status = ''), 1000);
+			$nutsWallet?.unspentProofs.set(fromWallet, change);
+			$nutsWallet?.updateBalanceByMint();
+			$nutsWallet?.saveProofs(fromMint, change);
+		}
+		resetState();
 	};
+
+	$: console.log(fees, balance, $activeMintUrl, $balanceByMint, fromMint);
 </script>
 
-<div class="flex items-start md:items-center h-screen">
+<div class="flex items-start md:items-center fullscreen-height">
 	<div
-		class="bg-base-300 bg-opacity-85 md:border rounded-xl md:p-4 w-feed md:max-h-[90vh] lg:h-auto h-screen backdrop-blur-sm safe-padding-top"
+		class="bg-base-300 bg-opacity-85 md:border rounded-xl md:p-4 w-feed md:max-h-[90vh] lg:h-auto fullscreen-height backdrop-blur-sm safe-padding-top overflow-hidden"
 	>
-		<VirtualList
-			items={[]}
-			height="100%"
-			className="overflow-scroll scroll-auto"
-			bind:viewport={scroller}
-			getItemId={() => 'header'}
-		>
+		<VirtualList items={[]} height="100%" bind:viewport={scroller} getItemId={() => 'header'}>
 			<div slot="feed-header">
 				<div>
 					<button on:click={animator.goBack} class="btn btn-ghost btn-sm">
@@ -201,21 +258,36 @@
 						<div class="mx-8 mt-4 border-b border-gray-600"></div>
 					{/if}
 					<div class="md:p-4">
-						<div class="flex md:gap-4 items-center">
-							<div class="w-1/2 text-center">
-								<MintSelector />
+						<div class="flex md:gap-4 items-center justify-around">
+							<div class="w-1/3 text-center">
+								<MintSelector
+									mints={$kind17375?.parsed?.mints}
+									pubkey={$key?.pub}
+									bind:activeMint={fromMint}
+								/>
 							</div>
 
 							<div class="flex justify-center">
 								<Icon icon="mdi:arrow-right" class="text-5xl text-gray-400" />
 							</div>
-							<div
-								class="flex gap-2 items-center justify-center py-2 border-b last:border-none w-1/2"
-							>
-								<!-- <Icon icon="carbon:lightning" class="w-16 h-6" />
+							<div class="w-1/3">
+								{#if kind10019}
+									<MintSelector
+										{pubkey}
+										mints={kind10019?.trustedMints?.map((m) => m.url) || []}
+										chevron="right"
+										bind:activeMint={toMint}
+									/>
+								{:else}
+									<div
+										class="flex gap-2 items-center justify-center py-2 border-b last:border-none w-1/2"
+									>
+										<!-- <Icon icon="carbon:lightning" class="w-16 h-6" />
 												-->
-								<Avatar {pubkey} size="lg" />
-								<User {pubkey} link={false} />
+										<Avatar {pubkey} size="lg" />
+										<User {pubkey} link={false} />
+									</div>
+								{/if}
 							</div>
 						</div>
 					</div>
@@ -224,34 +296,43 @@
 					<div class="w-full gap-3">
 						<div class="md:h-52 flex flex-col items-center">
 							{#if !status}
-								<input
-									autofocus
-									id="send-amt"
-									placeholder="0"
-									type="text"
-									inputmode="decimal"
-									autocomplete="off"
-									bind:value={amount}
-									class="mt-10 text-7xl bg-transparent caret-transparent focus:outline-none text-center max-w-xs rounded-xl"
-									on:keydown={(e) => {
-										if (!!processing) return;
-										if (e.key === 'Enter') {
-											sendEcash();
-										}
-									}}
-								/>
-								<p />
-								<p class="font-bold text-xl">Sats</p>
+								<div class="join items-center mt-10">
+									<div class="join-item w-0">
+										<Icon icon="bitcoin-icons:satoshi-v2-filled" class="text-4xl" />
+									</div>
+									<input
+										autofocus
+										id="send-amt"
+										placeholder="0"
+										type="text"
+										inputmode="decimal"
+										autocomplete="off"
+										bind:value={amount}
+										class="join-item text-7xl bg-transparent caret-transparent focus:outline-none text-center max-w-xs rounded-xl"
+										on:keydown={(e) => {
+											if (!!processing) return;
+											if (e.key === 'Enter') {
+												sendEcash();
+											}
+										}}
+									/>
+								</div>
 							{:else}
-								<div
-									class="md:mt-10 w-1/2 bg-base-content text-center text-primary-content p-4 rounded-xl"
-								>
+								<div class="md:mt-10 w-1/2 text-center text-primary p-4">
 									{status}
 								</div>
 							{/if}
 						</div>
 					</div>
-					<div class="px-4 w-full md:mt-36">
+					{#if fees}
+						<div class="px-4 w-full mt-4" transition:fly>
+							<div class="text-sm text-primary">
+								A fee of {fees} sats may apply for this transaction. This covers Lightning network costs
+								and is only reserved - you might get some or all of it refunded.
+							</div>
+						</div>
+					{/if}
+					<div class="px-4 w-full my-8">
 						<input
 							type="text"
 							placeholder="Add a memo"
@@ -275,10 +356,10 @@
 
 							<button
 								class="btn btn-outline join-item border flex-grow"
-								disabled={!amount || !Number(amount) || amount > balance || !!status}
+								disabled={!amount || !Number(amount) || amountPlusFees > balance || !!status}
 								on:click={sendEcash}
 							>
-								{#if Number(amount) > balance}
+								{#if Number(amountPlusFees) > balance}
 									Not enough funds
 								{:else if !!status}
 									Sending...
@@ -290,7 +371,7 @@
 							</button>
 						</div>
 					</div>
-					{#if !zap && !wallet}
+					{#if !zap && !kind10019}
 						<div class="px-4 w-full mt-4" transition:fly>
 							<div class="alert alert-info shadow-lg">
 								<Icon

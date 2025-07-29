@@ -4,7 +4,10 @@
 
 	import Alert from 'src/components/Alert.svelte';
 	import MintSelector from 'src/components/MintSelector.svelte';
+	import { key, kind17375 } from 'src/controller';
+	import { nutsWallet } from 'src/controller/proofs';
 	import { activeMintUrl } from 'src/controller/wallet';
+	import { now } from 'src/lib/period';
 	import { formatAmount } from 'src/lib/wallet';
 	import { cashuManager } from 'src/model/cashu';
 	import { QRCodeImage } from 'svelte-qrcode-image';
@@ -47,13 +50,19 @@
 		// $alert = 'copied to clipboard!';
 	}
 
-	function handleCreateInvoice() {
-		$activeMintUrl &&
-			cashuManager.requestMint(Number(amount), $activeMintUrl).then((quote) => {
+	async function handleCreateInvoice() {
+		if ($activeMintUrl && $nutsWallet) {
+			const cashu = await $nutsWallet.getWallet($activeMintUrl);
+			if (cashu) {
+				const quote = await cashu.createMintQuote(Number(amount));
 				doMint = true;
 				qrCode = quote.request;
+				console.log('quote', quote);
+				$nutsWallet.saveMintQuote(now(), quote, $activeMintUrl);
+				$nutsWallet.monitorMintQuote(quote, now(), $activeMintUrl);
 				scrollTo('right');
-			});
+			}
+		}
 	}
 
 	function scrollTo(side: 'left' | 'right') {
@@ -93,7 +102,11 @@
 					<span tabindex="-1"></span>
 					<!-- Using span to avoid a11y issues with empty link -->
 					<div class="m-auto lg:w-1/3 max-w-xs">
-						<MintSelector />
+						<MintSelector
+							mints={$kind17375?.parsed?.mints}
+							pubkey={$key?.pub}
+							activeMint={$activeMintUrl || $kind17375?.parsed?.mints?.[0]}
+						/>
 					</div>
 					<div class="h-52 flex flex-col items-center">
 						<input
