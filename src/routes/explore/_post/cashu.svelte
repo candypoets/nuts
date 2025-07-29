@@ -3,13 +3,16 @@
 
 	export let cashu: string;
 
-	let token: Token = getDecodedToken(cashu);
+	let token: Token;
+	try {
+		token = getDecodedToken(cashu);
+	} catch (e) {}
 </script>
 
-{#each token.token.filter((t) => t.proofs.length) as t}
+{#if token}
 	<div class="bg-base-200 bg-opacity-50 rounded-lg mb-2 p-2 block">
 		<strong class="text-lg">🥜</strong>
-		<strong class="text-lg">{t.proofs.reduce((acc, p) => (acc += p.amount), 0)} Sats</strong>
-		<p class="text-xs">{t.mint}</p>
+		<strong class="text-lg">{token?.proofs.reduce((acc, p) => (acc += p.amount), 0)} Sats</strong>
+		<p class="text-xs">{token?.mint}</p>
 	</div>
-{/each}
+{/if}
