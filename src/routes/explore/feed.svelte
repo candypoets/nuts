@@ -337,7 +337,7 @@
 		backface-visibility: hidden;
 		-webkit-backface-visibility: hidden;
 		/* Stay above keyboard on mobile */
-		bottom: env(keyboard-inset-height, 0);
+		/* bottom: env(keyboard-inset-height, 0); */
 	}
 
 	/* Fallback for older browsers */

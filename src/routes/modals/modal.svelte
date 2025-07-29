@@ -140,7 +140,7 @@
 </script>
 
 <div
-	class="fixed right-0 top-0 h-screen z-20"
+	class="fixed right-0 top-0 fullscreen-height z-20"
 	bind:this={element}
 	on:click|stopPropagation={pagerAnimator?.goBack}
 	style="width: {$viewport.vw * 100}px;"

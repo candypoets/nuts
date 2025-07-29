@@ -12,9 +12,9 @@
 	import Icon from '@iconify/svelte';
 	import { schnorr } from '@noble/curves/secp256k1';
 	import { bytesToHex } from '@noble/hashes/utils';
+	import { formatDistanceToNow } from 'date-fns';
 	import _ from 'lodash';
 	import { nip19 } from 'nostr-tools';
-	import { onMount } from 'svelte';
 
 	import Pager from 'src/components/Pager.svelte';
 	import { key } from 'src/controller/key';
@@ -25,26 +25,19 @@
 		kind10019,
 		kind10019Ready,
 		kind17375,
-		kind3,
-		kinds7375
+		kind3
 	} from 'src/controller/nostr';
 	import { limit } from 'src/controller/pagination';
-	import {
-		activeMintUrl,
-		balanceByMint,
-		deletedKind7375Ids,
-		mints,
-		proofsByMint,
-		walletLoaded
-	} from 'src/controller/wallet';
+	import { addProofs, nutsWallet, nutsWallets, setNutsWallet } from 'src/controller/proofs';
+	import { activeMintUrl, walletLoaded } from 'src/controller/wallet';
 	import { DAY } from 'src/lib/period';
 	import { normalizeMintURL } from 'src/lib/utils';
 	import { decodePrivKey } from 'src/lib/wallet';
-	import { cashuManager } from 'src/model/cashu';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import MintCard from 'src/routes/home/components/mintcard.svelte';
 	import Kind9321 from 'src/routes/kinds/kind9321.svelte';
 	import { go } from 'src/routes/modals/modal';
+	import { onMount } from 'svelte';
 
 	export let visible = false;
 
@@ -97,7 +90,7 @@
 		useSubscription(
 			'active_wallet',
 			[
-				{ kinds: [7375], authors: [$key?.pub], limit: 40, relays: relays },
+				{ kinds: [7375], authors: [$key?.pub], limit: 100, relays: relays },
 				{ kinds: [17375], authors: [$key?.pub], limit: 10, relays: relays }
 			],
 			(events: ParsedEvent<unknown>[], eventKind: SubscribeKind) => {
@@ -116,16 +109,29 @@
 						$activeMintUrl = event.parsed.mints?.[0] && normalizeMintURL(event.parsed.mints?.[0]);
 					}
 					if (event?.parsed?.p2pkPrivKey) {
-						// cashuManager.createWallet(event?.parsed?.p2pkPrivKey, event?.parsed?.mints);
+						setNutsWallet(
+							event.parsed.p2pkPrivKey,
+							event.parsed.p2pkPubKey,
+							event.parsed.mints.map(normalizeMintURL),
+							event.created_at
+						);
 					}
 				}
 				if (isKind7375(event) && event?.parsed?.mintUrl) {
-					if (event?.parsed?.deletedIds?.length) {
-						$deletedKind7375Ids = $deletedKind7375Ids.concat(event?.parsed?.deletedIds);
-					}
-					$kinds7375 = $kinds7375.concat(event);
+					// if (event?.parsed?.deletedIds?.length) {
+					// 	$deletedKind7375Ids = $deletedKind7375Ids.concat(event?.parsed?.deletedIds);
+					// }
+					// $kinds7375 = $kinds7375.concat(event);
+					console.log(
+						event.parsed.mintUrl,
+						formatDistanceToNow((event?.created_at || 0) * 1000, { addSuffix: true }),
+						event.parsed.proofs.reduce((acc, cur) => (acc += cur.amount), 0),
+						event.parsed.proofs
+					);
+					addProofs(event.parsed?.mintUrl, event.parsed?.proofs);
 				}
-			}
+			},
+			{ bytesPerEvent: 6144 }
 		);
 	});
 
@@ -142,6 +148,10 @@
 		let updatedFeed: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][];
 
 		if (!isKind9321(event)) return feed;
+		if (event.parsed?.recipient === $key?.pub) {
+			console.log(event.parsed.mintUrl, event.parsed.proofs);
+			addProofs(event.parsed?.mintUrl, event.parsed?.proofs);
+		}
 		if (!lastEvent) {
 			event.isFirst = true;
 		}
@@ -221,24 +231,13 @@
 		);
 	}
 
-	walletLoaded.then(() => {
-		setTimeout(() => {
-			const proofsMint = proofsByMint();
-			// for (const [mintUrl, proofs] of Object.entries(proofsMint)) {
-			// 	cashuManager.checkProofState(mintUrl, proofs);
-			// }
-		}, 2000);
-	});
-
 	onMount(() => {
-		cashuManager.subscribe('wallet_update', (result: { [key: string]: number }) => {
-			$balanceByMint = result;
-		});
+		walletLoaded.then(() => console.log('walletLoaded', nutsWallets));
 	});
 </script>
 
 <Pager rootPath="/home">
-	<Feed subscriptionID="home" requests={feedRequests} {updateFeed} itemHeight={150} backdrop>
+	<Feed subscriptionID="home" requests={feedRequests} {updateFeed} backdrop>
 		<svelte:fragment slot="header">
 			<div
 				class="relative w-feed safe-padding-top place-content-center m-auto z-10 backdrop"
@@ -262,30 +261,28 @@
 						</div>
 					</div>
 				</div>
-				{#await $mints then mints}
-					{#if mints.length}
-						<div
-							class="flex gap-2 items-stretch overflow-x-scroll scrollbar-hide snap-x snap-mandatory scroll-smooth"
-						>
-							{#each mints || [] as mint}
-								<MintCard {mint} navigate />
-							{/each}
-						</div>
-					{:else}
-						<div class="w-full p-4 rounded-lg mb-4 bg-base-200">
-							<div class="flex items-center justify-between">
-								<div>
-									<h3 class="font-semibold text-lg">Setup Your Wallet</h3>
-									<p class="text-sm text-secondary-content">Configure your wallet to get started</p>
-								</div>
-								<button class="btn btn-primary" on:click|stopPropagation={() => go('wallet')}>
-									<Icon icon="ph:wallet-bold" class="mr-2" />
-									Setup Wallet
-								</button>
+				{#if $nutsWallet}
+					<div
+						class="flex gap-2 items-stretch overflow-x-scroll scrollbar-hide snap-x snap-mandatory scroll-smooth"
+					>
+						{#each $nutsWallet.mintUrls || [] as url}
+							<MintCard mintUrl={url} navigate />
+						{/each}
+					</div>
+				{:else}
+					<div class="w-full p-4 rounded-lg mb-4 bg-base-200">
+						<div class="flex items-center justify-between">
+							<div>
+								<h3 class="font-semibold text-lg">Setup Your Wallet</h3>
+								<p class="text-sm text-secondary-content">Configure your wallet to get started</p>
 							</div>
+							<button class="btn btn-primary" on:click|stopPropagation={() => go('wallet')}>
+								<Icon icon="ph:wallet-bold" class="mr-2" />
+								Setup Wallet
+							</button>
 						</div>
-					{/if}
-				{/await}
+					</div>
+				{/if}
 			</div>
 			<div class="flex lg:gap-8 gap-4 px-4 py-4 w-feed m-auto">
 				<div class="text-center">

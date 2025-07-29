@@ -31,7 +31,7 @@
 		kind3Ready
 	} from 'src/controller/nostr';
 	import { pagerAnimator, setupPagerAnimators } from 'src/controller/pager';
-	import { dimensions, isMobile, viewport } from 'src/controller/viewport';
+	import { isMobile, viewport } from 'src/controller/viewport';
 	import { mints, saveNuts } from 'src/controller/wallet';
 	import { CarouselAnimator } from 'src/lib/carousel/CarouselAnimator';
 	import { cashuManager } from 'src/model/cashu';
@@ -70,54 +70,50 @@
 
 	$: $key &&
 		$key.pub &&
-		setTimeout(
-			() =>
-				useSubscription(
-					'relays',
-					[
-						{
-							kinds: [10019, 10002],
-							authors: [$key.pub],
-							relays: ['wss://relay.damus.io', 'wss://relay.nostr.band', 'wss://purplepag.es'],
-							noOptimize: true
-						},
-						{
-							kinds: [3, 0], // 0 and 3 are here if found immdiately, but refetched after
-							authors: [$key.pub],
-							relays: ['wss://relay.damus.io', 'wss://relay.nostr.band', 'wss://purplepag.es'],
-							noOptimize: true,
-							cacheFirst: true
-						}
-					],
-					(events: ParsedEvent<unknown>[], kind: SubscribeKind) => {
-						if (kind == 'EOSE') {
-							return;
-						}
-						// the first event is from the sub, everything else is contextual
-						const event = events[0];
-						if (!event) return;
-						if (event.parsed) {
-							if (isKind10002(event) && event.created_at > ($kind10002?.created_at || 0)) {
-								$kind10002 = event;
-								kind10002Ready.resolve(event);
-							}
-							if (isKind10019(event) && event.created_at > ($kind10019?.created_at || 0)) {
-								$kind10019 = event;
-								kind10019Ready.resolve(event);
-							}
-							if (isKind0(event) && event.created_at > ($kind0?.created_at || 0)) {
-								$kind0 = event;
-								kind0Ready.resolve(event);
-							}
-							if (isKind3(event) && event.created_at > ($kind3?.created_at || 0)) {
-								$kind3 = event;
-								kind3Ready.resolve(event);
-							}
-						}
-						// Handle subscription updates here
+		useSubscription(
+			'relays',
+			[
+				{
+					kinds: [10019, 10002],
+					authors: [$key.pub],
+					relays: ['wss://relay.damus.io', 'wss://relay.nostr.band', 'wss://purplepag.es'],
+					noOptimize: true
+				},
+				{
+					kinds: [3, 0], // 0 and 3 are here if found immdiately, but refetched after
+					authors: [$key.pub],
+					relays: ['wss://relay.damus.io', 'wss://relay.nostr.band', 'wss://purplepag.es'],
+					noOptimize: true,
+					cacheFirst: true
+				}
+			],
+			(events: ParsedEvent<unknown>[], kind: SubscribeKind) => {
+				if (kind == 'EOSE') {
+					return;
+				}
+				// the first event is from the sub, everything else is contextual
+				const event = events[0];
+				if (!event) return;
+				if (event.parsed) {
+					if (isKind10002(event) && event.created_at > ($kind10002?.created_at || 0)) {
+						$kind10002 = event;
+						kind10002Ready.resolve(event);
 					}
-				),
-			1000
+					if (isKind10019(event) && event.created_at > ($kind10019?.created_at || 0)) {
+						$kind10019 = event;
+						kind10019Ready.resolve(event);
+					}
+					if (isKind0(event) && event.created_at > ($kind0?.created_at || 0)) {
+						$kind0 = event;
+						kind0Ready.resolve(event);
+					}
+					if (isKind3(event) && event.created_at > ($kind3?.created_at || 0)) {
+						$kind3 = event;
+						kind3Ready.resolve(event);
+					}
+				}
+				// Handle subscription updates here
+			}
 		);
 
 	$: profileSub =
@@ -150,9 +146,7 @@
 
 	// Watch for route changes
 	onMount(() => {
-		setViewport();
 		window.addEventListener('keydown', handleKeydown);
-		window.addEventListener('resize', setViewport);
 
 		if (localStorage.getItem('theme')) {
 			let theme = localStorage.getItem('theme');
@@ -234,8 +228,7 @@
 
 		return () => {
 			window.removeEventListener('keydown', handleKeydown);
-			window.removeEventListener('resize', setViewport);
-			relaySub && relaySub();
+			// relaySub && relaySub();
 			profileSub && profileSub();
 			mintSub();
 
@@ -247,17 +240,6 @@
 	});
 
 	$: homepage = $page.route.id == '/';
-
-	function setViewport() {
-		document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
-		document.documentElement.style.setProperty(
-			'--vw',
-			`${document.documentElement.clientWidth * 0.01}px`
-		);
-
-		$dimensions.width = window.innerWidth;
-		$dimensions.height = window.innerHeight;
-	}
 
 	// Update animator when scroller width changes
 	$: if (carouselAnimator && scrollerWidth) {
