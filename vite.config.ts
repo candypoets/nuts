@@ -123,8 +123,8 @@ export default defineConfig({
 	],
 	resolve: {
 		alias: {
-			src: ['/src'],
-			'@cashu/cashu-ts': path.resolve(__dirname, '../cashu-ts/src')
+			src: ['/src']
+			// '@cashu/cashu-ts': path.resolve(__dirname, '../cashu-ts/src')
 		}
 	},
 	test: {

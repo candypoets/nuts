@@ -11,7 +11,7 @@
 		"sourceMap": true,
 		"strict": true,
 		"paths": {
-			"@cashu/cashu-ts": ["../cashu-ts/src"]
+			// "@cashu/cashu-ts": ["../cashu-ts/src"]
 		}
 	}
 	// Path aliases are handled by https://kit.svelte.dev/docs/configuration#alias
