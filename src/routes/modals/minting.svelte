@@ -9,7 +9,6 @@
 	import { activeMintUrl } from 'src/controller/wallet';
 	import { now } from 'src/lib/period';
 	import { formatAmount } from 'src/lib/wallet';
-	import { cashuManager } from 'src/model/cashu';
 	import { QRCodeImage } from 'svelte-qrcode-image';
 
 	export let doMint = false;

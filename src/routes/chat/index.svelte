@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
 	import type {
 		AnyKind,
 		Kind4Parsed,
 		ParsedEvent,
 		Request,
-		SubscribeKind
+		SubscribeKind,
+		SubscriptionOptions
 	} from '@candypoets/nipworker';
 	import { isKind4 } from '@candypoets/nipworker/utils';
 	import { formatDistanceToNow } from 'date-fns';
@@ -15,8 +15,7 @@
 
 	import Pager from 'src/components/Pager.svelte';
 	import { key } from 'src/controller';
-	import { kind3Ready, readRelays } from 'src/controller/nostr';
-	import { viewport } from 'src/controller/viewport';
+	import { kind3Ready, readRelays, writeRelays } from 'src/controller/nostr';
 	import Content from 'src/routes/explore/_post/content.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import Feed from 'src/routes/explore/feed.svelte';
@@ -28,6 +27,17 @@
 	let subs: string[] = [];
 
 	let contacts: { [key: string]: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]] } = {};
+
+	const subscriptionOptions: SubscriptionOptions = {
+		pipeline: {
+			pipes: [
+				{ name: 'deduplication' },
+				{ name: 'npubLimiter', params: { kind: 4, limitPerNpub: 5, maxTotalNpubs: 100 } },
+				{ name: 'parse' },
+				{ name: 'serializeEvents' }
+			]
+		}
+	};
 
 	function updateFeed(
 		feed: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][],
@@ -77,28 +87,22 @@
 	}
 
 	kind3Ready.promise.then((kind3) => {
-		feedRequests =
-			kind3.parsed
-				?.map((c) => c.pubkey)
-				.filter((p) => p != $key?.pub)
-				.flatMap((pubkey) => [
-					{
-						kinds: [4],
-						tags: { '#p': [$key.pub] },
-						authors: [pubkey],
-						limit: 5, // only load the last 5 msgs received
-						relays: $readRelays,
-						noContext: true
-					},
-					{
-						kinds: [4],
-						tags: { '#p': [pubkey] },
-						authors: [$key.pub],
-						limit: 5, // only load the last 5 msgs received
-						relays: [],
-						noContext: true
-					}
-				]) || [];
+		feedRequests = [
+			{
+				kinds: [4],
+				tags: { '#p': [$key.pub] },
+				authors: kind3.parsed?.map((c) => c.pubkey).filter((p) => p != $key?.pub) || [],
+				relays: $readRelays,
+				noContext: true
+			},
+			{
+				kinds: [4],
+				tags: { '#p': kind3.parsed?.map((c) => c.pubkey).filter((p) => p != $key?.pub) || [] },
+				authors: [$key.pub],
+				relays: $writeRelays,
+				noContext: true
+			}
+		];
 	});
 
 	function correspondant(post: ParsedEvent<Kind4Parsed>) {
@@ -130,50 +134,43 @@
 </script>
 
 <Pager rootPath="/chat">
-	<div
-		style="transform: translateX({-$tweenedValue *
-			($viewport.vw * 20 + $depthTranslation)}px) rotateY({$tweenedValue * -20}deg);
-         transform-style: preserve-3d; perspective: 1000px;"
-		on:click={() => goto('/chat')}
-	>
-		<Feed subscriptionID={`chat`} requests={feedRequests} {updateFeed} backdrop>
-			<svelte:fragment slot="sticky-header">
-				<div id="top">
-					<div class="flex justify-between w-feed lg:m-auto h-16 items-center">
-						<h1 class="text-2xl font-semibold">Chat</h1>
-					</div>
-				</div>
-			</svelte:fragment>
-			<svelte:fragment slot="header">
-				<div class="flex unsafe-padding-top justify-between w-feed m-auto h-16 items-center">
+	<Feed subscriptionID={`chat`} requests={feedRequests} {updateFeed} {subscriptionOptions} backdrop>
+		<svelte:fragment slot="sticky-header">
+			<div id="top">
+				<div class="flex justify-between w-feed lg:m-auto h-16 items-center">
 					<h1 class="text-2xl font-semibold">Chat</h1>
 				</div>
-			</svelte:fragment>
-			<svelte:fragment slot="item-content" let:post let:context let:visible>
-				<a
-					href={'/chat/' + 'kind4:' + correspondant(post)}
-					class="flex gap-2 h-28 overflow-hidden hover:bg-base-200 p-4 cursor-pointer w-feed border-b"
-				>
-					<div class="flex-shrink-0">
-						<Avatar pubkey={correspondant(post)} {context} size="xl" />
-					</div>
-					<div class="flex-grow">
-						<div class="flex justify-between">
-							<User pubkey={correspondant(post)} link={false} {context} />
-							<div class="text-xs shrink-0">
-								{formatDistanceToNow(post.created_at * 1000, { addSuffix: true })}
-							</div>
-						</div>
-						<div class="text-xs lg:text-base break-words overflow-hidden max-w-full">
-							<span class="flex gap-1">
-								{#if post.pubkey == $key?.pub}<span class="text-primary">you:</span>
-								{/if}
-								<Content note={post} {context} class="!w-auto flex-grow" />
-							</span>
+			</div>
+		</svelte:fragment>
+		<svelte:fragment slot="header">
+			<div class="flex unsafe-padding-top justify-between w-feed m-auto h-16 items-center">
+				<h1 class="text-2xl font-semibold">Chat</h1>
+			</div>
+		</svelte:fragment>
+		<svelte:fragment slot="item-content" let:post let:context let:visible>
+			<a
+				href={'/chat/' + 'kind4:' + correspondant(post)}
+				class="flex gap-2 h-28 overflow-hidden hover:bg-base-200 p-4 cursor-pointer w-feed border-b"
+			>
+				<div class="flex-shrink-0">
+					<Avatar pubkey={correspondant(post)} {context} size="xl" />
+				</div>
+				<div class="flex-grow">
+					<div class="flex justify-between">
+						<User pubkey={correspondant(post)} link={false} {context} />
+						<div class="text-xs shrink-0">
+							{formatDistanceToNow(post.created_at * 1000, { addSuffix: true })}
 						</div>
 					</div>
-				</a>
-			</svelte:fragment>
-		</Feed>
-	</div></Pager
->
+					<div class="text-xs lg:text-base break-words overflow-hidden max-w-full">
+						<span class="flex gap-1">
+							{#if post.pubkey == $key?.pub}<span class="text-primary">you:</span>
+							{/if}
+							<Content note={post} {context} class="!w-auto flex-grow" />
+						</span>
+					</div>
+				</div>
+			</a>
+		</svelte:fragment>
+	</Feed>
+</Pager>

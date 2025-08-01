@@ -32,9 +32,8 @@
 	} from 'src/controller/nostr';
 	import { pagerAnimator, setupPagerAnimators } from 'src/controller/pager';
 	import { isMobile, viewport } from 'src/controller/viewport';
-	import { mints, saveNuts } from 'src/controller/wallet';
+
 	import { CarouselAnimator } from 'src/lib/carousel/CarouselAnimator';
-	import { cashuManager } from 'src/model/cashu';
 	import Landing from 'src/routes/+page.svelte';
 	import Chat from 'src/routes/chat/index.svelte';
 	import Explore from 'src/routes/explore/index.svelte';
@@ -152,29 +151,6 @@
 			let theme = localStorage.getItem('theme');
 			document.getElementsByTagName('html')[0].setAttribute('data-theme', theme);
 		}
-		let mintSub = cashuManager.subscribe('quote_update', async ({ quoteId, state, mint, type }) => {
-			if (type == 'mint') {
-				if (state == 'paid') {
-					const amount = await cashuManager.mintTokens(quoteId);
-					const mintProofs = await cashuManager.getProofsFromMint(mint);
-					saveNuts(mint, mintProofs);
-					$mints.then((mints) => {
-						const mintName = mints.find((m) => m.url == mint)?.name?.trim();
-						go(`minted:${mintName}:${amount}`);
-					});
-				}
-			} else {
-				if (state == 'paid') {
-					const meltProofs = await cashuManager.getProofsFromMint(mint);
-					const meltQuote = await cashuManager.checkMeltQuoteState(quoteId);
-					saveNuts(mint, meltProofs);
-					$mints.then((mints) => {
-						const mintName = mints.find((m) => m.url == mint)?.name?.trim();
-						go(`melted:${mintName}:${meltQuote.amount}`);
-					});
-				}
-			}
-		});
 
 		// Set up initial index based on route, but wait for scroller to be available
 		const initializePositions = () => {
@@ -230,7 +206,6 @@
 			window.removeEventListener('keydown', handleKeydown);
 			// relaySub && relaySub();
 			profileSub && profileSub();
-			mintSub();
 
 			// Clean up carousel animations
 			if (carouselAnimator) {

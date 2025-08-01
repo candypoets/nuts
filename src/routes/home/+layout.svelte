@@ -1,5 +1,10 @@
 <script lang="ts">
-	import type { AnyKind, ParsedEvent, SubscribeKind } from '@candypoets/nipworker';
+	import type {
+		AnyKind,
+		ParsedEvent,
+		SubscribeKind,
+		WorkerToMainMessage
+	} from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import {
 		isKind0,
@@ -67,9 +72,11 @@
 
 	$: relays = walletRelays || readRelays || defaultRelays;
 
+	const relayPromise = Promise.race([kind10019Ready.promise, delayedPromise]);
+
 	let feedRequests: Request[] = [];
 
-	Promise.race([kind10019Ready.promise, delayedPromise]).then(() => {
+	relayPromise.then(() => {
 		feedRequests = [
 			{
 				kinds: [7374, 7376, 9321],
@@ -86,11 +93,34 @@
 		];
 	});
 
+	let proofs: () => void;
+
+	relayPromise.then(() => {
+		console.log('ohoh');
+		proofs?.();
+		proofs = useSubscription(
+			'proofs_' + $key?.pub,
+			[
+				{ kinds: [7375], authors: [$key?.pub], relays },
+				{ kinds: [9321], tags: { '#p': [$key?.pub] }, relays: relays }
+			],
+			(message: any) => {
+				console.log('message hooks?', message);
+				addProofs(message.mint, message.proofs);
+			},
+			{
+				pipeline: {
+					pipes: [{ name: 'deduplication' }, { name: 'parse' }, { name: 'proofVerification' }]
+				}
+			}
+		);
+	});
+
 	let walletSub = Promise.race([kind10019Ready.promise, delayedPromise]).then((event) => {
 		useSubscription(
 			'active_wallet',
 			[
-				{ kinds: [7375], authors: [$key?.pub], limit: 100, relays: relays },
+				{ kinds: [7375], authors: [$key?.pub], limit: 10, relays: relays },
 				{ kinds: [17375], authors: [$key?.pub], limit: 10, relays: relays }
 			],
 			(events: ParsedEvent<unknown>[], eventKind: SubscribeKind) => {
@@ -128,7 +158,7 @@
 						event.parsed.proofs.reduce((acc, cur) => (acc += cur.amount), 0),
 						event.parsed.proofs
 					);
-					addProofs(event.parsed?.mintUrl, event.parsed?.proofs);
+					// addProofs(event.parsed?.mintUrl, event.parsed?.proofs);
 				}
 			},
 			{ bytesPerEvent: 6144 }
@@ -149,8 +179,7 @@
 
 		if (!isKind9321(event)) return feed;
 		if (event.parsed?.recipient === $key?.pub) {
-			console.log(event.parsed.mintUrl, event.parsed.proofs);
-			addProofs(event.parsed?.mintUrl, event.parsed?.proofs);
+			// addProofs(event.parsed?.mintUrl, event.parsed?.proofs);
 		}
 		if (!lastEvent) {
 			event.isFirst = true;

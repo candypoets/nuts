@@ -5,7 +5,7 @@
 	import _ from 'lodash';
 	import Pager from 'src/components/Pager.svelte';
 	import { followPacks } from 'src/controller/feed';
-	import { kind0, readRelays } from 'src/controller/nostr';
+	import { kind0, kind3, kind3Ready, readRelays } from 'src/controller/nostr';
 	import { balance } from 'src/controller/wallet';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import Post from 'src/routes/explore/post.svelte';
@@ -16,6 +16,7 @@
 	import Notifications from './notifications.svelte';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import RelaysList from 'src/components/RelaysList.svelte';
+	import type { Kind3Parsed, ParsedEvent } from '@candypoets/nipworker';
 
 	export let visible = true;
 
@@ -27,30 +28,21 @@
 	$: setFeedRequests(following);
 
 	function setFeedRequests(follows: string[]) {
-		if (following.length == 0) {
-			feedRequests = [];
-			return;
-		}
-		feedRequests = [
-			{
-				kinds: [1, 6],
-				authors: follows,
-				limit: $limit,
-				since: ago(2 * 24 * 60 * 60),
-				relays: $readRelays
-			},
-			{
-				kinds: [10002], // take another chance to cache 0 and 10002 events for the followlist
-				authors: follows,
-				limit: follows.length,
-				relays: [
-					'wss://relay.primal.net',
-					'wss://nostr.land',
-					'wss://premium.primal.net',
-					'wss://relay.damus.io'
-				]
-			}
-		];
+		kind3Ready.promise.then((kind3) => {
+			console.log(follows, $followPacks, kind3);
+			if (follows.length == 0 && $followPacks.length)
+				follows = kind3.parsed?.map((c) => c.pubkey) || [];
+			console.log(follows);
+			feedRequests = [
+				{
+					kinds: [1, 6],
+					authors: follows,
+					limit: $limit,
+					since: ago(2 * 24 * 60 * 60),
+					relays: $readRelays
+				}
+			];
+		});
 	}
 </script>
 

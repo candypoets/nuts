@@ -11,7 +11,7 @@
 	import { formatDistanceToNow } from 'date-fns';
 	import { limit } from 'src/controller/pagination';
 	import { isKind, isKind1, isKind6 } from '@candypoets/nipworker/utils';
-	import { cleanup } from '@candypoets/nipworker';
+	import { cleanup, type SubscriptionOptions } from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import type {
 		ParsedEvent,
@@ -24,6 +24,7 @@
 	export let bottom = false;
 	export let subscriptionID: string;
 	export let requests: any[] = [];
+	export let subscriptionOptions: SubscriptionOptions | undefined = undefined;
 	export let updateFeed:
 		| ((
 				feed: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][],
@@ -145,7 +146,7 @@
 				eose = false;
 				cachedFeed = [];
 				// feed = [];
-				sub = useSubscription(subscriptionID, requests, handleEvents);
+				sub = useSubscription(subscriptionID, requests, handleEvents, subscriptionOptions);
 			}
 		}, 300);
 	}

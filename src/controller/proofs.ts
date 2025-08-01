@@ -157,7 +157,7 @@ export const dispatchAllProofs = async (): Promise<void> => {
 	if (!zeroWallet) return;
 
 	// Get all mint URLs from the zero wallet's unspent proofs
-	const mintUrls = Array.from(zeroWallet.unspentProofs.keys()).map((wallet) => wallet.mint.mintUrl);
+	const mintUrls = Array.from(zeroWallet.unspentProofs.keys());
 
 	// Call dispatchProofs for each mint URL
 	for (const mintUrl of mintUrls) {
@@ -174,7 +174,7 @@ export const dispatchProofs = async (mintUrl: string): Promise<void> => {
 	if (!zeroWallet) return;
 
 	// Get unspent proofs for the specific mint from the zero wallet
-	const unspentProofs = zeroWallet.unspentProofs.get(await zeroWallet.getWallet(mintUrl)) || [];
+	const unspentProofs = zeroWallet.unspentProofs.get(mintUrl) || [];
 
 	// Filter proofs that have p2pk field in the secret
 	const p2pkProofs = unspentProofs.filter((proof) => {
@@ -199,7 +199,7 @@ export const dispatchProofs = async (mintUrl: string): Promise<void> => {
 
 	// Dispatch non-p2pk proofs to the most recent wallet
 	if (nonP2pkProofs.length > 0 && nuts) {
-		await nuts.addProofs(mintUrl, nonP2pkProofs);
+		nuts.addProofs(mintUrl, nonP2pkProofs);
 		// Remove proofs from zero wallet
 		await zeroWallet.removeProofs(mintUrl, nonP2pkProofs);
 	}
@@ -243,9 +243,15 @@ export const dispatchProofs = async (mintUrl: string): Promise<void> => {
 	}
 };
 
+/**
+ * NutsWallet class manages Cashu tokens and proofs for a specific public key.
+ * It handles multiple mints, tracks unspent and spent proofs, and provides
+ * balance tracking through Svelte stores.
+ */
 export class NutsWallet {
-	public unspentProofs: Map<CashuWallet, Proof[]> = new Map();
-	public spentProofs: Map<CashuWallet, Proof[]> = new Map();
+	// Maps to track proofs by mint url - unspent proofs are available for spending, spent proofs are historical
+	public unspentProofs: Map<string, Proof[]> = new Map();
+	public spentProofs: Map<string, Proof[]> = new Map();
 
 	public wallets: Map<string, CashuWallet> = new Map();
 
@@ -253,9 +259,6 @@ export class NutsWallet {
 
 	private _pubkey: string;
 	private _privkey: string;
-
-	// Queue for pending proof additions by mint URL
-	private pendingProofs: Map<string, Proof[]> = new Map();
 
 	// Svelte stores for balance tracking
 	public balanceByMint = writable<Record<string, number>>({});
@@ -311,20 +314,16 @@ export class NutsWallet {
 	public updateBalanceByMint = () => {
 		const newBalanceByMint: Record<string, number> = {};
 
-		for (const [wallet, proofs] of this.unspentProofs.entries()) {
+		for (const [mintUrl, proofs] of this.unspentProofs.entries()) {
 			console.log(
 				'Proofs uniqueness check:',
 				proofs.length === _.uniqBy(proofs, 'secret').length
 					? 'All proofs are unique'
 					: 'Duplicate proofs found'
 			);
-			// Find the mint URL for this wallet
-			const mintUrl = Array.from(this.wallets.entries()).find(([_, w]) => w === wallet)?.[0];
 
-			if (mintUrl) {
-				const totalAmount = proofs.reduce((sum, proof) => sum + proof.amount, 0);
-				newBalanceByMint[mintUrl] = totalAmount;
-			}
+			const totalAmount = proofs.reduce((sum, proof) => sum + proof.amount, 0);
+			newBalanceByMint[mintUrl] = totalAmount;
 		}
 
 		this.balanceByMint.set(newBalanceByMint);
@@ -345,81 +344,27 @@ export class NutsWallet {
 		return wallet;
 	};
 
-	public addProofs = async (mint: string, proofs: Proof[]) => {
+	public addProofs = (mint: string, unspent: Proof[]) => {
 		mint = normalizeMintURL(mint);
-		if (!mint || !proofs?.length) return;
+		if (!mint || !unspent?.length) return;
+		const usp = this.unspentProofs.get(mint) || [];
 
-		// Check if there's already an ongoing addProofs operation for this mint
-		if (this.pendingProofs.has(mint)) {
-			// Add proofs to the pending queue
-			const currentPending = this.pendingProofs.get(mint) || [];
-			this.pendingProofs.set(mint, _.uniqBy([...currentPending, ...proofs], 'secret'));
-			return;
-		}
+		console.log(
+			'addProofs usp',
+			mint,
+			usp.reduce((acc, cur) => acc + cur.amount, 0)
+		);
 
-		// Start a new addProofs operation
-		this.pendingProofs.set(mint, []);
-		await this.processAddProofs(mint, _.uniqBy(proofs, 'secret'));
-	};
+		this.unspentProofs.set(mint, _.uniqBy([...usp, ...unspent], 'secret'));
 
-	private processAddProofs = async (mint: string, proofs: Proof[]) => {
-		try {
-			// console.log('processAddProofs', mint, proofs);
-			const wallet = await this.getWallet(mint);
-			if (!this.wallets.has(mint)) {
-				this.wallets.set(mint, wallet);
-			}
-			const usp = this.unspentProofs.get(wallet) || [];
-			const sp = this.spentProofs.get(wallet) || [];
-			const existingProofs = usp.concat(sp);
-			const newProofs = _.differenceBy(proofs, existingProofs, 'secret');
-			console.log(mint, newProofs);
-			if (newProofs.length > 0) {
-				const { unspent, spent } = await this.checkProofsState(wallet, newProofs);
-				// for (const proof of unspent) {
-				// 	const knownKeyset = wallet.keysets.find((keyset) => keyset.id === proof.id);
-				// 	if (!knownKeyset) {
-				// 		wallet.getKeys(proof.id);
-				// 	}
-				// }
-				this.unspentProofs.set(wallet, _.uniqBy([...usp, ...unspent], 'secret'));
-				this.spentProofs.set(wallet, _.uniqBy([...sp, ...spent], 'secret'));
-
-				// Update balance stores
-				this.updateBalanceByMint();
-			}
-		} finally {
-			// Check if there are pending proofs to process
-			const pendingQueue = this.pendingProofs.get(mint) || [];
-
-			if (pendingQueue.length === 0) {
-				// No pending proofs, remove the entry
-				this.pendingProofs.delete(mint);
-			} else {
-				// Process pending proofs (max 100 at a time)
-				const proofsToProcess = pendingQueue.slice(0, 100);
-				const remainingProofs = pendingQueue.slice(100);
-
-				// Update the queue with remaining proofs
-				if (remainingProofs.length > 0) {
-					this.pendingProofs.set(mint, remainingProofs);
-				} else {
-					this.pendingProofs.set(mint, []);
-				}
-
-				// Recursively process the next batch
-				await this.processAddProofs(mint, proofsToProcess);
-			}
-		}
+		// Update balance stores
+		this.updateBalanceByMint();
 	};
 
 	public saveProofs = async (mint: string, proofs: Proof[]) => {
-		console.log(mint, proofs);
 		if (!mint || !proofs?.length) return;
 
-		const wallet = this.wallets.get(mint);
-		if (!wallet) return;
-		const usp = this.unspentProofs.get(wallet) || [];
+		const usp = this.unspentProofs.get(mint) || [];
 		const allUnspentProofs = [...usp, ...proofs];
 
 		console.log(allUnspentProofs);
@@ -440,13 +385,11 @@ export class NutsWallet {
 		this.addProofs(mint, proofs);
 	};
 
-	public removeProofs = async (mint: string, proofs: Proof[]) => {
+	public removeProofs = (mint: string, proofs: Proof[]) => {
 		if (!mint || !proofs?.length) return;
-		const wallet = this.wallets.get(mint);
-		if (!wallet) return;
 
-		const usp = this.unspentProofs.get(wallet) || [];
-		const sp = this.spentProofs.get(wallet) || [];
+		const usp = this.unspentProofs.get(mint) || [];
+		const sp = this.spentProofs.get(mint) || [];
 
 		// Find proofs to remove from unspent (based on secret)
 		const proofsToRemove = proofs.filter((proof) =>
@@ -464,28 +407,11 @@ export class NutsWallet {
 		const updatedSpent = [...sp, ...proofsToRemove];
 
 		// Update maps
-		this.unspentProofs.set(wallet, updatedUnspent);
-		this.spentProofs.set(wallet, updatedSpent);
+		this.unspentProofs.set(mint, updatedUnspent);
+		this.spentProofs.set(mint, updatedSpent);
 
 		// Update balance stores
 		this.updateBalanceByMint();
-	};
-
-	public checkProofsState = async (
-		wallet: CashuWallet,
-		proofs: Proof[]
-	): Promise<{ unspent: Proof[]; spent: Proof[] }> => {
-		const proofsState = await wallet.checkProofsStates(proofs);
-		const unspentProofs: Proof[] = [];
-		const spentProofs: Proof[] = [];
-		for (const [index, state] of proofsState.entries()) {
-			if (state.state === CheckStateEnum.UNSPENT) {
-				unspentProofs.push(proofs[index]);
-			} else {
-				spentProofs.push(proofs[index]);
-			}
-		}
-		return { unspent: unspentProofs, spent: spentProofs };
 	};
 
 	public monitorMintQuote = async (
@@ -493,7 +419,6 @@ export class NutsWallet {
 		createdAt: number,
 		mintUrl: string
 	): Promise<void> => {
-		console.log('monitorMintQuote');
 		const wallet = await this.getWallet(mintUrl);
 		const quoteExpiry = quote.expiry;
 		let interval = 1; // Start with 1 second
@@ -502,7 +427,6 @@ export class NutsWallet {
 
 		const checkQuote = async () => {
 			if (isPaid) return; // Stop if already paid
-			console.log('checking quote', quote);
 			try {
 				const response = await wallet.checkMintQuote(quote.quote);
 				if (response.state === MintQuoteState.PAID) {
@@ -582,9 +506,5 @@ export class NutsWallet {
 				this.monitorMintQuote(mintQuote, createdAt, mintQuote.mintUrl);
 			}
 		}
-	};
-
-	public getPendingProofs = (): Map<string, Proof[]> => {
-		return new Map(this.pendingProofs);
 	};
 }

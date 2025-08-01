@@ -31,6 +31,8 @@
 		events: ParsedEvent<AnyKind>[],
 		eventKind: SubscribeKind
 	) {
+		// Reorder feed by created_at, most recent first
+		feed = feed.sort((a, b) => (b[0].created_at || 0) - (a[0].created_at || 0));
 		const [event, ...context] = events;
 		const lastEvent = feed?.[feed.length - 1]?.[0];
 		let firstEvent = feed?.[0]?.[0];
@@ -133,7 +135,7 @@
 >
 	<svelte:fragment slot="fixed-header">
 		<div
-			class="fixed pt-safe flex justify-between items-center lg:w-50vw py-2 w-full backdrop-blur-xl bg-transparent h-20 z-10"
+			class="fixed pt-safe flex justify-between items-center lg:w-50vw py-2 w-full backdrop-blur-xl h-20 z-10"
 		>
 			<div on:click={goBack} class="cursor-pointer">
 				<Icon icon="mingcute:left-line" class="text-2xl" />

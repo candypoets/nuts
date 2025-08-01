@@ -1,6 +1,7 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import basicSsl from '@vitejs/plugin-basic-ssl';
 import { SvelteKitPWA as VitePWA } from '@vite-pwa/sveltekit';
+import * as path from 'path';
 
 import { defineConfig } from 'vite';
 import wasm from 'vite-plugin-wasm';
@@ -122,7 +123,8 @@ export default defineConfig({
 	],
 	resolve: {
 		alias: {
-			src: ['/src']
+			src: ['/src'],
+			'@cashu/cashu-ts': path.resolve(__dirname, '../cashu-ts/src')
 		}
 	},
 	test: {

@@ -1,18 +1,10 @@
-import type { EventTemplate } from 'nostr-tools';
+import { type Kind7375Parsed, type ParsedEvent, type ProofUnion } from '@candypoets/nipworker';
 import { normalizeURL } from 'nostr-tools/utils';
 import { derived, get, writable } from 'svelte/store';
 
-import { now } from 'src/lib/period';
-import { cashuManager } from 'src/model/cashu';
-import type { Mint } from 'src/types/mint';
-import { normalizeMintURL } from 'src/lib/utils';
 import { kind17375, kinds7375 } from 'src/controller/nostr';
-import {
-	nostrManager,
-	type Kind7375Parsed,
-	type ParsedEvent,
-	type ProofUnion
-} from '@candypoets/nipworker';
+import { normalizeMintURL } from 'src/lib/utils';
+import type { Mint } from 'src/types/mint';
 
 export async function fetchMintData(mint: string): Promise<Mint> {
 	try {
@@ -139,87 +131,6 @@ export function eventsByMint() {
 	}
 
 	return groupedByMint;
-}
-
-export async function deleteNuts(mintUrl: string, deletedNuts: ProofUnion[]) {
-	await walletLoaded;
-	// Get all events for the specified mint URL, we delete all of them
-	const eventsToDelete = eventsByMint()[normalizeURL(mintUrl).replace(/\/$/, '')] || [];
-	// Get all current proofs for this mint
-	let currentProofs = proofsByMint()[normalizeURL(mintUrl).replace(/\/$/, '')] || [];
-
-	if (currentProofs.length) {
-		currentProofs = await cashuManager.checkProofState(mintUrl, currentProofs);
-	}
-	// Update the balance for this mint
-	// Keep only proofs that weren't deleted
-	const remainingProofs = currentProofs.filter(
-		(proof) =>
-			!deletedNuts.some(
-				(deletedProof) =>
-					proof.id === deletedProof.id &&
-					proof.secret === deletedProof.secret &&
-					deletedProof.C === proof.C
-			)
-	);
-
-	const event: EventTemplate = {
-		kind: 7375,
-		content: JSON.stringify({
-			mint: mintUrl,
-			proofs: remainingProofs,
-			del: eventsToDelete.map((ev) => ev.id)
-		}),
-		tags: [],
-		created_at: now()
-	};
-
-	nostrManager.publish('deleteNuts', event);
-}
-
-export async function saveNuts(mintUrl: string, nutsToSave: ProofUnion[]) {
-	await walletLoaded;
-	// Get all events for the specified mint URL, we delete all of them
-	const eventsToDelete = eventsByMint()[normalizeURL(mintUrl).replace(/\/$/, '')] || [];
-	// Get all current proofs for this mint
-	let currentProofs = proofsByMint()[normalizeURL(mintUrl).replace(/\/$/, '')] || [];
-
-	if (currentProofs.length) {
-		currentProofs = await cashuManager.checkProofState(mintUrl, currentProofs);
-	}
-
-	// Check if any of the nutsToSave are not already in currentProofs
-	const newNuts = nutsToSave.filter(
-		(nutToSave) =>
-			!currentProofs.some(
-				(existingProof) =>
-					existingProof.id === nutToSave.id &&
-					existingProof.secret === nutToSave.secret &&
-					existingProof.C === nutToSave.C
-			)
-	);
-
-	// If all nuts are already saved, stop the operation
-	if (newNuts.length === 0) {
-		console.log('All nuts already saved, no operation needed');
-		return;
-	}
-
-	// Only combine the current proofs with the new ones that aren't already present
-	const combinedProofs = [...currentProofs, ...newNuts];
-
-	const event: EventTemplate = {
-		kind: 7375,
-		content: JSON.stringify({
-			mint: mintUrl,
-			proofs: combinedProofs,
-			del: eventsToDelete.map((ev) => ev.id)
-		}),
-		tags: [],
-		created_at: now()
-	};
-
-	nostrManager.publish('saveNuts', event);
 }
 
 export const walletLoaded = (() => {
