@@ -8,9 +8,7 @@
 	import { key, kind17375 } from 'src/controller';
 	import { activeMintUrl } from 'src/controller/wallet';
 	import { now } from 'src/lib/period';
-	import { normalizeMintURL } from 'src/lib/utils';
 	import { getInvoiceFromProfile, GetLNURLFromProfile } from 'src/lib/wallet';
-	import { cashuManager } from 'src/model/cashu';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import Note from 'src/routes/explore/note.svelte';
 	import User from 'src/routes/explore/user.svelte';
@@ -132,7 +130,6 @@
 			status = 'Swap from ' + fromMint + ' to ' + toMint;
 			const toWallet = await $nutsWallet.getWallet(toMint);
 			const { keep, send } = fromWallet?.selectProofsToSend(unspentProofs, amountPlusFees, true);
-			console.log('hey', meltquote);
 			const { change } = await fromWallet.meltProofs(meltquote, send);
 			try {
 				let response = await toWallet?.checkMintQuote(mintquote.quote);
@@ -146,8 +143,6 @@
 				const proofsToSend = await toWallet.mintProofs(amount, mintquote.quote);
 
 				status = 'Swap successful';
-
-				console.log(typeof amount, proofsToSend, toWallet.getFeesForProofs(proofsToSend));
 
 				const sendRes = await toWallet.send(Number(amount), proofsToSend, {
 					includeFees: false,
