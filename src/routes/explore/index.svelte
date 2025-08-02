@@ -59,7 +59,7 @@
 				class="backdrop-blur-sm bg-base-300 bg-opacity-80 md:border-b border-base-200 safe-padding-top"
 			>
 				<div class="flex justify-between w-feed lg:m-auto md:h-16 items-center">
-					<div class="flex gap-1 items-center">
+					<div class="flex gap-1 items-center w-1/3">
 						{#each $followPacks as pack}
 							<div class="cursor-pointer" on:click|stopPropagation={() => go('followlists')}>
 								<img
@@ -70,12 +70,12 @@
 							</div>
 						{/each}
 					</div>
-					<div class="text-primary cursor-pointer">
+					<div class="text-primary cursor-pointer flex-grow text-center">
 						{#if newPosts}
 							{newPosts} new posts
 						{/if}
 					</div>
-					<div class="flex gap-2 items-center">
+					<div class="flex gap-2 items-center w-1/3 justify-end">
 						<!-- <span class="text font-semibold">{$balance} Sats</span> -->
 						<span class="cursor-pointer" on:click|stopPropagation={() => go('notifications')}>
 							<Icon icon="mdi:bell-outline" class="text-2xl mr-2" />
