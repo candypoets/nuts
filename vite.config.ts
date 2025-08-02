@@ -1,10 +1,8 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import basicSsl from '@vitejs/plugin-basic-ssl';
 import { SvelteKitPWA as VitePWA } from '@vite-pwa/sveltekit';
-import * as path from 'path';
 
 import { defineConfig } from 'vite';
-import wasm from 'vite-plugin-wasm';
 import topLevelAwait from 'vite-plugin-top-level-await';
 
 // Custom plugin to handle SharedArrayBuffer headers for preview mode
@@ -55,14 +53,6 @@ export default defineConfig({
 			'Cross-Origin-Resource-Policy': 'cross-origin'
 		}
 	},
-	worker: {
-		format: 'es',
-		rollupOptions: {
-			output: {
-				format: 'es'
-			}
-		}
-	},
 	build: {
 		target: 'es2022',
 		rollupOptions: {
@@ -76,7 +66,6 @@ export default defineConfig({
 	},
 	plugins: [
 		basicSsl(),
-		wasm(),
 		topLevelAwait(),
 		sharedArrayBufferPlugin(), // Add our custom plugin
 		sveltekit(),
@@ -125,22 +114,6 @@ export default defineConfig({
 		alias: {
 			src: ['/src']
 			// '@cashu/cashu-ts': path.resolve(__dirname, '../cashu-ts/src')
-		}
-	},
-	test: {
-		include: ['src/**/*.{test,spec}.{js,ts,svelte}'],
-		exclude: ['build', '.svelte-kit/**'],
-		environment: 'jsdom',
-		globals: true,
-		deps: {
-			inline: [/svelte/, /@testing-library/]
-		},
-		coverage: {
-			reporter: ['text', 'json', 'html'],
-			exclude: ['**/node_modules/**', '**/.svelte-kit/**']
-		},
-		env: {
-			VITE_INDEXER_RELAYS: 'relay1,relay2,relay3' // Mock value for tests
 		}
 	}
 });
