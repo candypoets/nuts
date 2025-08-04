@@ -29,6 +29,9 @@ RUN npm ci --only=production && npm cache clean --force
 # Copy built application
 COPY --from=builder /app/build ./build
 
+# Copy the custom server file
+COPY --from=builder /app/server.js ./server.js
+
 EXPOSE 3000
 
 # Start the Node.js server with custom server
