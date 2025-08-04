@@ -4,19 +4,16 @@
 
 	import _ from 'lodash';
 	import Pager from 'src/components/Pager.svelte';
+	import RelaysList from 'src/components/RelaysList.svelte';
 	import { followPacks } from 'src/controller/feed';
-	import { kind0, kind3, kind3Ready, readRelays } from 'src/controller/nostr';
-	import { balance } from 'src/controller/wallet';
-	import Feed from 'src/routes/explore/feed.svelte';
-	import Post from 'src/routes/explore/post.svelte';
-	import MultiSelect from '../modals/components/MultiSelect.svelte';
-	import { go } from 'src/routes/modals/modal';
+	import { kind0, kind3Ready, readRelays } from 'src/controller/nostr';
 	import { limit } from 'src/controller/pagination';
 	import { ago } from 'src/lib/period';
-	import Notifications from './notifications.svelte';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
-	import RelaysList from 'src/components/RelaysList.svelte';
-	import type { Kind3Parsed, ParsedEvent } from '@candypoets/nipworker';
+	import Feed from 'src/routes/explore/feed.svelte';
+	import Post from 'src/routes/explore/post.svelte';
+	import { go } from 'src/routes/modals/modal';
+	import Notifications from './notifications.svelte';
 
 	export let visible = true;
 
