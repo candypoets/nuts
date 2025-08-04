@@ -33,6 +33,7 @@
 	}
 
 	async function handleLogin() {
+		console.log('handleLogin');
 		// Handle login logic here
 
 		// build a key object to store in the db
@@ -98,7 +99,7 @@
 			// 	pub: pubKey,
 			// 	npub: nip19.npubEncode(pubKey)
 			// });
-			// $activeAccount = Array.from($keysCache.values()).findIndex((k) => k.pub == pubKey);
+			// $activeAccount = Array.from(Cache.values()).findIndex((k) => k.pub == pubKey);
 		} else if (window.localStorage.getItem('nostr-privkey')) {
 			// backward compatibility
 			privateKey = window.localStorage.getItem('nostr-privkey');

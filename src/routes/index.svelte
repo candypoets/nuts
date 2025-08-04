@@ -39,7 +39,7 @@
 	import Explore from 'src/routes/explore/index.svelte';
 	import Home from 'src/routes/home/+layout.svelte';
 	import Login from 'src/routes/login.svelte';
-	import { go, goBack } from 'src/routes/modals/modal';
+	import { goBack } from 'src/routes/modals/modal';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
 
@@ -75,15 +75,15 @@
 				{
 					kinds: [10019, 10002],
 					authors: [$key.pub],
-					relays: ['wss://relay.damus.io', 'wss://relay.nostr.band', 'wss://purplepag.es'],
-					noOptimize: true
+					relays: ['wss://relay.damus.io', 'wss://relay.nostr.band', 'wss://purplepag.es']
+					// noOptimize: true
 				},
 				{
 					kinds: [3, 0], // 0 and 3 are here if found immdiately, but refetched after
 					authors: [$key.pub],
-					relays: ['wss://relay.damus.io', 'wss://relay.nostr.band', 'wss://purplepag.es'],
-					noOptimize: true,
-					cacheFirst: true
+					relays: ['wss://relay.damus.io', 'wss://relay.nostr.band', 'wss://purplepag.es']
+					// noOptimize: true,
+					// cacheFirst: true
 				}
 			],
 			(events: ParsedEvent<unknown>[], kind: SubscribeKind) => {
@@ -92,7 +92,9 @@
 				}
 				// the first event is from the sub, everything else is contextual
 				const event = events[0];
+
 				if (!event) return;
+
 				if (event.parsed) {
 					if (isKind10002(event) && event.created_at > ($kind10002?.created_at || 0)) {
 						$kind10002 = event;
