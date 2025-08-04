@@ -175,7 +175,7 @@
 		{/if}
 	</svelte:fragment>
 	<svelte.fragment slot="sticky-footer">
-		<div class="m-safe py-4">
+		<div class="md:pb-4 pb-safe pt-0 backdrop-blur-md">
 			{#if headerItem}
 				<Reply parent={headerItem} {context} actionsOnTop />
 			{/if}

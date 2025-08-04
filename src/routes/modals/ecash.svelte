@@ -238,7 +238,7 @@
 
 <div class="flex items-start md:items-center fullscreen-height">
 	<div
-		class="bg-base-300 bg-opacity-85 md:border rounded-xl md:p-4 w-feed md:max-h-[90vh] lg:h-auto fullscreen-height backdrop-blur-sm safe-padding-top overflow-hidden"
+		class="bg-base-300 bg-opacity-85 md:border rounded-xl md:p-4 w-feed md:max-h-[90vh] lg:h-auto fullscreen-height backdrop-blur-sm pt-safe overflow-hidden"
 	>
 		<VirtualList items={[]} height="100%" bind:viewport={scroller} getItemId={() => 'header'}>
 			<div slot="feed-header">

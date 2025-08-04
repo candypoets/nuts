@@ -122,7 +122,7 @@
 
 <Feed subscriptionID={'kind0_feed_' + pubkey} requests={feedRequests} {visible}>
 	<svelte:fragment slot="sticky-header">
-		<div class="px-4 py-3 flex items-center justify-between backdrop-blur-md safe-padding-top">
+		<div class="px-4 py-3 flex items-center justify-between backdrop-blur-md pt-safe">
 			<button on:click={goBack} class="p-1 rounded-full hover:bg-base-200 mr-4">
 				<Icon icon="mdi:arrow-left" class="text-xl" />
 			</button>
@@ -152,7 +152,7 @@
 						class="absolute w-full h-52 bg-cover bg-center top-0 left-0 right-0"
 						style="background-image: url('{p?.banner ? proxyBannerUrl(p.banner) : ''}');"
 					>
-						<div class="w-feed h-16 flex items-center justify-between shadow-sm safe-padding-top">
+						<div class="w-feed h-16 flex items-center justify-between shadow-sm pt-safe">
 							<button on:click={goBack} class="p-1 z-10 rounded-full hover:bg-base-200 mr-4">
 								<Icon icon="mdi:arrow-left" class="text-xl" />
 							</button>
@@ -167,7 +167,7 @@
 				</div>
 			{:else}
 				<div
-					class="w-feed border-b border-base-200 h-52 flex items-start justify-between shadow-sm safe-padding-top"
+					class="w-feed border-b border-base-200 h-52 flex items-start justify-between shadow-sm pt-safe"
 				>
 					<button on:click={goBack} class="p-1 rounded-full hover:bg-base-200 mr-4">
 						<Icon icon="mdi:arrow-left" class="text-xl" />

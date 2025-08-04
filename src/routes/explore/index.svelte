@@ -51,11 +51,8 @@
 		backdrop
 	>
 		<svelte:fragment slot="sticky-header" let:newPosts>
-			<div
-				id={$page.url.pathname === '/explore' ? 'top' : undefined}
-				class="backdrop-blur-sm bg-base-300 bg-opacity-80 md:border-b border-base-200 safe-padding-top"
-			>
-				<div class="flex justify-between w-feed lg:m-auto md:h-16 items-center">
+			<div class="backdrop-blur-sm bg-base-300 bg-opacity-80 md:border-b border-base-200 pt-safe">
+				<div class="flex justify-between w-feed lg:m-auto h-16 items-center">
 					<div class="flex gap-1 items-center w-1/3">
 						{#each $followPacks as pack}
 							<div class="cursor-pointer" on:click|stopPropagation={() => go('followlists')}>
@@ -88,16 +85,13 @@
 			</div>
 		</svelte:fragment>
 		<svelte.fragment slot="sticky-footer">
-			<div class="m-safe py-4">
+			<div class="md:pb-4 pb-safe pt-0 backdrop-blur-md">
 				<Post actionsOnTop />
 			</div>
 		</svelte.fragment>
 		<svelte.fragment slot="header">
-			<div
-				class="relative md:pt-4 unsafe-padding-top"
-				id={$page.url.pathname === '/explore' ? 'top' : undefined}
-			>
-				<div class="w-feed lg:m-auto flex justify-between items-center pb-4">
+			<div class="relative pt-safe">
+				<div class="w-feed lg:m-auto flex justify-between items-center h-16">
 					<div class="flex gap-1 items-center">
 						{#each $followPacks as pack}
 							<div class="cursor-pointer" on:click|stopPropagation={() => go('followlists')}>

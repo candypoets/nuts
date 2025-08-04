@@ -248,7 +248,7 @@
 <div
 	class:max-w-[23rem]={isImageContext}
 	class:-ml-2={isImageContext}
-	class="reply-editor w-feed rounded-lg transition-all duration-200 bg-opacity-85 bg-base-300 {isExpanded
+	class="reply-editor w-feed rounded-lg transition-all duration-200 {isExpanded
 		? 'shadow-md'
 		: 'shadow-sm'}"
 	bind:this={editorContainer}

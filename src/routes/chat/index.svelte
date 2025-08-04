@@ -136,15 +136,17 @@
 <Pager rootPath="/chat">
 	<Feed subscriptionID={`chat`} requests={feedRequests} {updateFeed} {subscriptionOptions} backdrop>
 		<svelte:fragment slot="sticky-header">
-			<div id="top">
+			<div class="relative pt-safe">
 				<div class="flex justify-between w-feed lg:m-auto h-16 items-center">
 					<h1 class="text-2xl font-semibold">Chat</h1>
 				</div>
 			</div>
 		</svelte:fragment>
 		<svelte:fragment slot="header">
-			<div class="flex unsafe-padding-top justify-between w-feed m-auto h-16 items-center">
-				<h1 class="text-2xl font-semibold">Chat</h1>
+			<div class="relative pt-safe">
+				<div class="w-feed flex justify-between w-feed m-auto h-16 items-center">
+					<h1 class="text-2xl font-semibold">Chat</h1>
+				</div>
 			</div>
 		</svelte:fragment>
 		<svelte:fragment slot="item-content" let:post let:context let:visible>

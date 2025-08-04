@@ -269,9 +269,8 @@
 	<Feed subscriptionID="home" requests={feedRequests} {updateFeed} backdrop>
 		<svelte:fragment slot="header">
 			<div
-				class="relative w-feed safe-padding-top place-content-center m-auto z-10 backdrop"
+				class="relative w-feed pt-safe place-content-center m-auto z-10 backdrop"
 				class:shadow-md={scrollY > 0}
-				id="top"
 			>
 				<div class="flex justify-between w-feed lg:m-auto h-16 items-center">
 					<h1 class="text-2xl font-semibold">Home</h1>
@@ -293,6 +292,7 @@
 				{#if $nutsWallet}
 					<div
 						class="flex gap-2 items-stretch overflow-x-scroll scrollbar-hide snap-x snap-mandatory scroll-smooth"
+						on:touchmove|stopPropagation
 					>
 						{#each $nutsWallet.mintUrls || [] as url}
 							<MintCard mintUrl={url} navigate />

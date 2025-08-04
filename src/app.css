@@ -127,6 +127,10 @@
 	padding-top: env(safe-area-inset-top);
 }
 
+.safe-height {
+	height: calc(var(--vh, 1vh) * 100 + env(safe-area-inset-bottom) + env(safe-area-inset-top));
+}
+
 .scrollbar-hide {
 	/* IE and Edge */
 	'-ms-overflow-style': 'none',
@@ -138,7 +142,7 @@
 	}
 }
 
-.safe-padding-top {
+.pt-safe {
 	padding-top: env(safe-area-inset-top);
 }
 
