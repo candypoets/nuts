@@ -31,5 +31,5 @@ COPY --from=builder /app/build ./build
 
 EXPOSE 3000
 
-# Start the Node.js server
-CMD ["node", "build"]
+# Start the Node.js server with custom server
+CMD ["node", "server.js"]
