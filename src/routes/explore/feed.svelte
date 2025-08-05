@@ -49,6 +49,7 @@
 	let timeout: NodeJS.Timeout | undefined;
 	let sub: () => void | undefined;
 	let pagesub: () => void | undefined;
+	let headsub: () => void | undefined;
 
 	let fuse: Fuse<any>;
 	let filteredFeed: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][] = [];
@@ -81,6 +82,21 @@
 
 	// In a separate function to avoid infinite loops in the reactive block
 	const handleEvents = (events: ParsedEvent<AnyKind>[], eventKind: SubscribeKind, page = 0) => {
+		if (eventKind == 'BUFFER_FULL') {
+			let since = feed.length > 0 ? feed[0][0].created_at : now();
+			headsub?.();
+			cleanup();
+			console.log('buffer full', subscriptionID, feed, since);
+			headsub = useSubscription(
+				subscriptionID + '_head',
+				requests.map((r) => ({ ...r, since })),
+				(events: ParsedEvent<AnyKind>[], eventKind: SubscribeKind) => {
+					console.log('buffer full head event', events[0]);
+					handleEvents(events, eventKind);
+				}
+			);
+			return;
+		}
 		if (eventKind == 'EOSE') {
 			if (eose == false && events.remainingConnections / events.totalConnections < 1) {
 				loading = false;
