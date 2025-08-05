@@ -89,9 +89,9 @@
 						}
 						const [event, ...rest] = events;
 						if (!event?.parsed) return;
-						if (isKind1(event)) {
+						if (isKind1(event) && event.id == data.id) {
 							loading = false;
-							// console.log('note events', note?.id, randomId, events, context);
+							console.log('note events', events, data.id);
 							// profile = event;
 							headerItem = event;
 							context = rest;
@@ -143,7 +143,6 @@
 	{visible}
 >
 	<svelte:fragment slot="sticky-header">
-		<!-- {#if !imageContext} -->
 		<div
 			class="px-4 py-3 flex items-center justify-between backdrop-blur bg-base-100 bg-opacity-90"
 		>
@@ -153,9 +152,6 @@
 			<h1 class="text-lg font-semibold">Post</h1>
 			<span />
 		</div>
-		<!-- {:else}
-			<span />
-		{/if} -->
 	</svelte:fragment>
 	<svelte:fragment slot="header">
 		{#if !imageContext}
@@ -171,7 +167,7 @@
 		{/if}
 		<RelaysList class="px-4" relays={data.relays || []} />
 		{#if headerItem}
-			<Note note={headerItem} {context} {visible} zaps />
+			<Note note={headerItem} {context} {visible} zaps main />
 		{/if}
 	</svelte:fragment>
 	<svelte.fragment slot="sticky-footer">
@@ -187,7 +183,8 @@
 			{context}
 			{visible}
 			showRoot={false}
-			showReplies={(replies) => replies.filter((r) => r.pubkey == headerItem?.pubkey)}
+			showReplies={(replies) =>
+				replies.filter((r) => r.pubkey == headerItem?.pubkey || r.pubkey == post?.pubkey)}
 			zaps
 		/>
 	</svelte:fragment>

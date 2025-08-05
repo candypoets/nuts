@@ -107,7 +107,7 @@
 			<!-- Original post summary -->
 			{#if originalPost}
 				<a
-					class="cursor-pointer bg-base-content p-3 rounded-md mb-3 text-sm text-primary-content line-clamp-2 w-post-1"
+					class="cursor-pointer bg-base-200 p-3 rounded-md mb-3 text-sm text-primary-content line-clamp-2 w-post-1"
 					on:click={() =>
 						go(`nevent:${nip19.neventEncode({ id: originalPost.id, relays: $writeRelays })}`)}
 				>

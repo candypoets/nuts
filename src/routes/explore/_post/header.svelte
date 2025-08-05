@@ -15,6 +15,7 @@
 	export let note: ParsedEvent<Kind1Parsed>;
 	export let context: ParsedEvent<AnyKind>[] = [];
 	export let depth = 0;
+	export let main = false;
 
 	export let oneline: boolean = true;
 
@@ -76,7 +77,10 @@
 		<div class="flex items-start" class:flex-wrap={isImageContext} class:items-center={oneline}>
 			{#if oneline}
 				<a on:click|stopPropagation|preventDefault={go} class="hover:underline cursor-pointer">
-					<div class="whitespace-nowrap overflow-hidden text-ellipsis font-semibold text-sm">
+					<div
+						class="whitespace-nowrap overflow-hidden text-ellipsis font-semibold text-sm"
+						class:!text-base={main}
+					>
 						{author?.name && $isMobile && author.name.length > 25
 							? author.name.slice(0, 25) + '...'
 							: author?.name || note.pubkey?.slice(0, 15) + '...'}

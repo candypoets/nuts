@@ -14,6 +14,7 @@
 	export let visible: boolean = false;
 	export let showMedia = true;
 	export let showQuote = true;
+	export let main = false;
 
 	let imageContext = getContext('imageContext');
 	let showFullContent = false;
@@ -37,6 +38,7 @@
 
 <div
 	class:max-w-72={imageContext}
+	class:!w-full={main}
 	class={(!depth
 		? 'w-post'
 		: 'w-post-' + depth + ' text-sm text-wrap whitespace-normal break-words relative') +

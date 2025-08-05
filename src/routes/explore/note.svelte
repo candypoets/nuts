@@ -14,6 +14,7 @@
 	import type { AnyKind, Kind1Parsed, ParsedEvent, SubscribeKind } from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 
+	export let main: boolean = false;
 	// if the note is a repost, this is the reposter pubkey
 	export let repost: string | undefined = undefined;
 	export let noteId: string | undefined = undefined;
@@ -121,6 +122,8 @@
 	class:hidden={depth > 3}
 >
 	{#if note}
+		<!-- <div class="break-words">{nip19.neventEncode({ id: note?.id || noteId || '', relays })}</div>
+		{note.id} -->
 		{#if zaps && !depth}
 			<Zap {note} {visible} />
 		{/if}
@@ -132,17 +135,20 @@
 				<Avatar pubkey={repost} {context} size="sm" />
 			</div>
 		{/if}
-		<Header {note} {context} {depth} />
+		<Header {note} {context} {depth} {main} />
+		<!-- {#if main}
+			<div class="main">main</div>
+		{/if} -->
 		<div class="flex gap-2">
 			<!-- {#if !depth} -->
-			<div class="min-w-8" class:!min-w-4={!!depth} />
+			<div class:!min-w-0={!!main} class="min-w-8" class:!min-w-4={!!depth} />
 			<!-- {/if} -->
-			<div class="-mt-2" class:!mt-0={!!depth || isImageContext}>
-				<Content {note} {context} {visible} {depth} />
+			<div class="-mt-2" class:!mt-0={!!depth || isImageContext} class:!mt-2={!!main}>
+				<Content {note} {context} {visible} {depth} {main} />
 			</div>
 		</div>
 		{#if footer && !depth}
-			<Footer bind:replies {note} {visible} />
+			<Footer bind:replies {note} {visible} {main} />
 		{/if}
 		{#if leading}
 			<div
@@ -170,5 +176,5 @@
 	{/if}
 </div>
 {#each visibleReplies as reply}
-	<svelte:self note={reply} {context} {visible} zaps tailing showRoot={false} />
+	<svelte:self note={reply} {context} {visible} {showReplies} zaps tailing showRoot={false} />
 {/each}

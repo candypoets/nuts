@@ -24,6 +24,7 @@
 
 	export let note: ParsedEvent<any>;
 	export let visible: boolean;
+	export let main = false;
 
 	let sub: (() => void) | undefined;
 	let relaysub: (() => void) | undefined;
@@ -171,93 +172,89 @@
 	$: visible ? subscribe() : unsubscribe();
 </script>
 
-<div class="flex-grow flex px-2 w-full h-6 pl-10">
+<div class="flex-grow flex px-2 w-full h-6 pl-10" class:!pl-2={main}>
 	<div class="flex items-center gap-2 cursor-pointer w-full">
-		{#if visible}
-			<div
-				class="flex items-center space-x-1 hover:font-bold hover:text-accent hover:-mt-1 transition-all"
-				class:text-primary={!!replied}
-				class:font-semibold={!!replied}
-				on:click={() => ($replying = !isImageContext)}
-				role="button"
-				tabindex="0"
-			>
-				<Icon icon="iconamoon:comment-light" class="text-xl" />
-				<span>{replies?.length || ''}</span>
-			</div>
+		<div
+			class="flex items-center space-x-1 hover:font-bold hover:text-accent hover:-mt-1 transition-all"
+			class:text-primary={!!replied}
+			class:font-semibold={!!replied}
+			on:click={() => ($replying = !isImageContext)}
+			role="button"
+			tabindex="0"
+		>
+			<Icon icon="iconamoon:comment-light" class="text-xl" />
+			<span>{replies?.length || ''}</span>
+		</div>
 
-			<!-- Repost Button -->
-			<div
-				class="flex items-center space-x-1 hover:font-bold hover:text-accent hover:-mt-1 transition-all"
-				class:text-primary={!!reposted}
-				class:font-semibold={!!reposted}
-				class:hover:text-primary={!!reposted}
-				class:hover:mt-0={!!reposted}
-				class:cursor-default={!!reposted}
-				role="button"
-				tabindex="0"
-				on:click|stopPropagation={() => !reposted && sendRepost()}
-			>
-				<Icon icon="ph:repeat" class="text-2xl" />
-				<span>{reposts?.length || ''}</span>
-			</div>
+		<!-- Repost Button -->
+		<div
+			class="flex items-center space-x-1 hover:font-bold hover:text-accent hover:-mt-1 transition-all"
+			class:text-primary={!!reposted}
+			class:font-semibold={!!reposted}
+			class:hover:text-primary={!!reposted}
+			class:hover:mt-0={!!reposted}
+			class:cursor-default={!!reposted}
+			role="button"
+			tabindex="0"
+			on:click|stopPropagation={() => !reposted && sendRepost()}
+		>
+			<Icon icon="ph:repeat" class="text-2xl" />
+			<span>{reposts?.length || ''}</span>
+		</div>
 
-			<!-- Zap Button -->
-			<div
-				class="flex items-center space-x-1 hover:font-bold hover:text-accent hover:-mt-1 transition-all"
-				role="button"
-				tabindex="0"
-				on:click|stopPropagation={() => {
-					go('ecash:' + note.pubkey + ':' + note.id);
-				}}
-			>
-				<Icon icon="material-symbols-light:bolt-outline-rounded" class="text-3xl" />
-				<span></span>
-			</div>
-		{/if}
+		<!-- Zap Button -->
+		<div
+			class="flex items-center space-x-1 hover:font-bold hover:text-accent hover:-mt-1 transition-all"
+			role="button"
+			tabindex="0"
+			on:click|stopPropagation={() => {
+				go('ecash:' + note.pubkey + ':' + note.id);
+			}}
+		>
+			<Icon icon="material-symbols-light:bolt-outline-rounded" class="text-3xl" />
+			<span></span>
+		</div>
 	</div>
 	<div class="flex items-center shrink-0 justify-end gap-1 cursor-pointer">
-		{#if visible}
-			<div class="flex items-center space-x-1">
-				{#each Object.entries(mapEmoticons)
-					.sort((a, b) => b[1] - a[1])
-					.slice(0, isMobile ? 8 : 10) as [emoji, count]}
-					{#if emoji.startsWith('http')}
-						<img src={emoji} alt={emoji} class="w-3 h-3 sm:w-4 sm:h-4 inline-block" />
-					{:else if !!emoji && emoji != 'undefined'}
-						<span class="max-w-3 sm:max-w-4 inline-block overflow-hidden text-sm sm:text-base"
-							>{emoji}</span
-						>
+		<div class="flex items-center space-x-1">
+			{#each Object.entries(mapEmoticons)
+				.sort((a, b) => b[1] - a[1])
+				.slice(0, isMobile ? 8 : 10) as [emoji, count]}
+				{#if emoji.startsWith('http')}
+					<img src={emoji} alt={emoji} class="w-3 h-3 sm:w-4 sm:h-4 inline-block" />
+				{:else if !!emoji && emoji != 'undefined'}
+					<span class="max-w-3 sm:max-w-4 inline-block overflow-hidden text-sm sm:text-base"
+						>{emoji}</span
+					>
+				{/if}
+			{/each}
+		</div>
+		<div>
+			<!-- Trigger Area - Bind this element -->
+			<div
+				bind:this={triggerElement}
+				class="reaction-trigger flex items-center space-x-1 hover:text-accent hover:-mt-1 transition-all cursor-pointer"
+				class:text-accent={liked}
+				class:font-semibold={liked}
+				title={liked ? 'You reacted' : 'React to this post'}
+				aria-label="React to post"
+				on:click|stopPropagation
+			>
+				<span>{reactions?.length || ''}</span>
+				{#if liked}
+					{#if liked.startsWith('http')}
+						<img src={liked} alt={liked} class="w-4 h-4 inline-block" />
+					{:else if !!liked && liked != 'undefined'}
+						<span class="max-w-6 inline-block overflow-hidden text-xl">{liked}</span>
 					{/if}
-				{/each}
-			</div>
-			<div>
-				<!-- Trigger Area - Bind this element -->
-				<div
-					bind:this={triggerElement}
-					class="reaction-trigger flex items-center space-x-1 hover:text-accent hover:-mt-1 transition-all cursor-pointer"
-					class:text-accent={liked}
-					class:font-semibold={liked}
-					title={liked ? 'You reacted' : 'React to this post'}
-					aria-label="React to post"
-					on:click|stopPropagation
-				>
-					<span>{reactions?.length || ''}</span>
-					{#if liked}
-						{#if liked.startsWith('http')}
-							<img src={liked} alt={liked} class="w-4 h-4 inline-block" />
-						{:else if !!liked && liked != 'undefined'}
-							<span class="max-w-6 inline-block overflow-hidden text-xl">{liked}</span>
-						{/if}
-					{:else}
-						<Icon icon="icon-park-outline:like" class="text-xl pointer-events-none" />
-					{/if}
-				</div>
-
-				{#if triggerElement}
-					<EmojiPickerContent {triggerElement} emojis={commonEmoticons} onSelect={sendReaction} />
+				{:else}
+					<Icon icon="icon-park-outline:like" class="text-xl pointer-events-none" />
 				{/if}
 			</div>
-		{/if}
+
+			{#if triggerElement}
+				<EmojiPickerContent {triggerElement} emojis={commonEmoticons} onSelect={sendReaction} />
+			{/if}
+		</div>
 	</div>
 </div>
