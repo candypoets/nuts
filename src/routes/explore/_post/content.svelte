@@ -45,7 +45,7 @@
 	{#each parsedContent as parsed, index}
 		{#if parsed.type == 'text'}
 			<!-- {#if !isImageUrl(part.content)} -->
-			<span class="break-words"
+			<span class="break-words text-white"
 				>{@html (index == 0
 					? parsed.text.trimStart()
 					: index == parsedContent.length - 1
