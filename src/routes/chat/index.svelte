@@ -90,16 +90,16 @@
 		feedRequests = [
 			{
 				kinds: [4],
-				tags: { '#p': [$key.pub] },
-				authors: kind3.parsed?.map((c) => c.pubkey).filter((p) => p != $key?.pub) || [],
-				relays: $readRelays,
+				tags: { '#p': kind3.parsed?.map((c) => c.pubkey).filter((p) => p != $key?.pub) || [] },
+				authors: [$key.pub],
+				relays: $writeRelays,
 				noContext: true
 			},
 			{
 				kinds: [4],
-				tags: { '#p': kind3.parsed?.map((c) => c.pubkey).filter((p) => p != $key?.pub) || [] },
-				authors: [$key.pub],
-				relays: $writeRelays,
+				tags: { '#p': [$key.pub] },
+				authors: kind3.parsed?.map((c) => c.pubkey).filter((p) => p != $key?.pub) || [],
+				relays: $readRelays,
 				noContext: true
 			}
 		];
