@@ -77,7 +77,7 @@
 					class:m-auto={displayLinks.length == 1}
 					class={cx(
 						i == 0 ? 'col-span-' + getSpan(displayLinks.length - 1) : '',
-						'h-96 w-full object-cover'
+						'max-h-96 w-full object-cover'
 					)}
 					on:click|preventDefault|stopPropagation={() => setZoom(i)}
 					src={link.src.toString()}
