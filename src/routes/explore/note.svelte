@@ -1,18 +1,18 @@
 <script lang="ts">
-	import _ from 'lodash';
-	import { getContext, onDestroy, onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
+	import type { AnyKind, Kind1Parsed, ParsedEvent, SubscribeKind } from '@candypoets/nipworker';
+	import { useSubscription } from '@candypoets/nipworker/hooks';
+	import _ from 'lodash';
+	import { nip19 } from 'nostr-tools';
+	import { getContext, onDestroy } from 'svelte';
 
 	import Content from 'src/routes/explore/_post/content.svelte';
 	import Footer from 'src/routes/explore/_post/footer.svelte';
 	import Header from 'src/routes/explore/_post/header.svelte';
 	import Zap from 'src/routes/explore/_post/zap.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
-	import { nip19 } from 'nostr-tools';
-	import { getUserRelays } from '../queries/user';
-	import type { AnyKind, Kind1Parsed, ParsedEvent, SubscribeKind } from '@candypoets/nipworker';
-	import { useSubscription } from '@candypoets/nipworker/hooks';
+	import { getUserRelays } from 'src/routes/queries/user';
 
 	export let main: boolean = false;
 	// if the note is a repost, this is the reposter pubkey
