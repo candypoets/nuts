@@ -128,7 +128,7 @@
 			<Zap {note} {visible} />
 		{/if}
 		{#if leading || visibleReplies.length}
-			<div class="absolute border-gray-400 border-opacity-50 left-4 h-full border-r-2" />
+			<div class="absolute border-primary-content left-4 h-full border-r-2" />
 		{/if}
 		{#if repost}
 			<div class="translate-x-1">
@@ -153,7 +153,7 @@
 		{#if leading}
 			<div
 				class={(!depth ? 'w-post' : 'w-post-' + (depth + 1)) +
-					' border-b border-gray-400 border-opacity-50 absolute right-3 mt-2'}
+					' border-b border-primary-content absolute right-3 mt-2'}
 			/>
 		{/if}
 	{:else}

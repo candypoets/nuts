@@ -39,6 +39,7 @@
 <div
 	class:max-w-72={imageContext}
 	class:!w-full={main}
+	class:min-w-feed={main}
 	class={(!depth
 		? 'w-post'
 		: 'w-post-' + depth + ' text-sm text-wrap whitespace-normal break-words relative') +

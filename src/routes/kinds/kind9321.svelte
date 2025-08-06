@@ -123,7 +123,7 @@
 {/if}
 <!-- Added role, tabindex and keydown for accessibility -->
 <div
-	class="p-4 cursor-pointer border-x border-b"
+	class="p-4 cursor-pointer border-x border-b border-primary-content"
 	class:border-t={zap.isFirst}
 	class:rounded-t-lg={zap.isFirst}
 	on:click|stopPropagation={go}

@@ -20,6 +20,7 @@
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import User from 'src/routes/explore/user.svelte';
+	import Icon from '@iconify/svelte';
 
 	export let visible = true;
 
@@ -138,26 +139,32 @@
 		<svelte:fragment slot="sticky-header">
 			<div class="relative pt-safe">
 				<div class="flex justify-between w-feed lg:m-auto h-16 items-center">
-					<h1 class="text-2xl font-semibold">Chat</h1>
+					<h1 class="text-2xl font-semibold">Chats</h1>
+					<button class="btn btn-circle btn-sm btn-accent">
+						<Icon icon="teenyicons:add-outline" class="text-xl"></Icon>
+					</button>
 				</div>
 			</div>
 		</svelte:fragment>
 		<svelte:fragment slot="header">
 			<div class="relative pt-safe">
 				<div class="w-feed flex justify-between w-feed m-auto h-16 items-center">
-					<h1 class="text-2xl font-semibold">Chat</h1>
+					<h1 class="text-2xl font-semibold">Chats</h1>
+					<button class="btn btn-circle btn-sm btn-accent">
+						<Icon icon="teenyicons:add-outline" class="text-xl"></Icon>
+					</button>
 				</div>
 			</div>
 		</svelte:fragment>
 		<svelte:fragment slot="item-content" let:post let:context let:visible>
 			<a
 				href={'/chat/' + 'kind4:' + correspondant(post)}
-				class="flex gap-2 h-28 overflow-hidden hover:bg-base-200 p-4 cursor-pointer w-feed border-b"
+				class="flex gap-2 h-28 overflow-hidden p-4 cursor-pointer w-feed"
 			>
 				<div class="flex-shrink-0">
 					<Avatar pubkey={correspondant(post)} {context} size="xl" />
 				</div>
-				<div class="flex-grow">
+				<div class="flex-grow border-b border-primary-content">
 					<div class="flex justify-between">
 						<User pubkey={correspondant(post)} link={false} {context} />
 						<div class="text-xs shrink-0">
@@ -165,7 +172,7 @@
 						</div>
 					</div>
 					<div class="text-xs lg:text-base break-words overflow-hidden max-w-full">
-						<span class="flex gap-1">
+						<span class="flex gap-1 max-h-6">
 							{#if post.pubkey == $key?.pub}<span class="text-primary">you:</span>
 							{/if}
 							<Content note={post} {context} class="!w-auto flex-grow" />

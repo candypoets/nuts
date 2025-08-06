@@ -159,7 +159,10 @@
 
 {#if isCompact}
 	<!-- Compact chat-style editor -->
-	<div class="message-editor w-full rounded-lg" bind:this={editorContainer}>
+	<div
+		class="message-editor w-full rounded-lg border border-primary-content"
+		bind:this={editorContainer}
+	>
 		<div class="flex items-center bg-base-300 rounded-xl">
 			<!-- Editor container -->
 			<div

@@ -148,7 +148,7 @@
 			{/key}
 			<div />
 		</div>
-		<div class="fixed bottom-0 w-feed px-2 py-4 pr-5 backdrop-blur-xl">
+		<div class="fixed bottom-0 w-feed pb-safe md:pb-4 backdrop-blur-xl">
 			<Editor
 				placeholder="Message..."
 				initialContent=""

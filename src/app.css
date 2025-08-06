@@ -309,6 +309,10 @@
 	width: 100vw;
 }
 
+.min-w-feed {
+	min-width: 100vw;
+}
+
 .w-feed-container {
 	width: 100vw;
 	padding: 0;
@@ -339,6 +343,10 @@
 		width: 30rem;
 	}
 
+	.min-w-feed {
+		min-width: 30rem;
+	}
+
 	.w-post {
 		width: calc(30rem - var(--post-offset));
 	}
@@ -363,6 +371,10 @@
 	}
 	.w-feed {
 		width: 40rem;
+	}
+
+	.min-w-feed {
+		min-width: 40rem;
 	}
 
 	.w-post {
@@ -391,6 +403,10 @@
 		width: 50rem;
 	}
 
+	.min-w-feed {
+		min-width: 50rem;
+	}
+
 	.w-post {
 		width: calc(50rem - var(--post-offset));
 	}
@@ -415,6 +431,10 @@
 	}
 	.w-feed {
 		width: 50rem;
+	}
+
+	.min-w-feed {
+		min-width: 50rem;
 	}
 
 	.w-post {
