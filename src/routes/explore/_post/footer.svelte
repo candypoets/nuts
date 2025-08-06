@@ -6,7 +6,8 @@
 		type Kind1Parsed,
 		type Kind6Parsed,
 		type Kind7Parsed,
-		type ParsedEvent
+		type ParsedEvent,
+		type SubscriptionOptions
 	} from '@candypoets/nipworker';
 	import { isKind17, isKind6, isKind7, isKind1 } from '@candypoets/nipworker/utils';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
@@ -53,6 +54,12 @@
 	function checkMobile() {
 		isMobile = window.innerWidth < 640;
 	}
+
+	const subscriptionOptions: SubscriptionOptions = {
+		pipeline: {
+			pipes: [{ name: 'deduplication' }, { name: 'parse' }, { name: 'serializeEvents' }]
+		}
+	};
 
 	onMount(() => {
 		checkMobile();
@@ -121,7 +128,8 @@
 								relays
 							}
 						],
-						handleEvents
+						handleEvents,
+						subscriptionOptions
 					);
 				});
 			}
