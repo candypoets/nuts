@@ -21,6 +21,7 @@
 	import { now } from 'src/lib/period';
 	import { go } from 'src/routes/modals/modal';
 	import { getUserRelays } from 'src/routes/queries/user';
+	import { proxyAvatarUrl } from 'src/lib/proxy';
 
 	export let note: ParsedEvent<any>;
 	export let visible: boolean;
@@ -221,7 +222,7 @@
 				.sort((a, b) => b[1] - a[1])
 				.slice(0, isMobile ? 8 : 10) as [emoji, count]}
 				{#if emoji.startsWith('http')}
-					<img src={emoji} alt={emoji} class="w-3 h-3 sm:w-4 sm:h-4 inline-block" />
+					<img src={proxyAvatarUrl(emoji)} alt={emoji} class="w-3 h-3 sm:w-4 sm:h-4 inline-block" />
 				{:else if !!emoji && emoji != 'undefined'}
 					<span class="max-w-3 sm:max-w-4 inline-block overflow-hidden text-sm sm:text-base"
 						>{emoji}</span
