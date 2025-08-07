@@ -45,6 +45,10 @@
 	let timeout: NodeJS.Timeout | undefined;
 	let triggerElement: HTMLElement;
 	let isMobile = false;
+	let reactionCount = 0;
+	let replyCount = 0;
+	let repostCount = 0;
+
 	const mapReactions: Record<string, ParsedEvent<Kind7Parsed>> = {};
 	const mapReplies: Record<string, ParsedEvent<Kind1Parsed>> = {};
 	const mapReposts: Record<string, ParsedEvent<Kind6Parsed>> = {};
@@ -57,7 +61,10 @@
 
 	const subscriptionOptions: SubscriptionOptions = {
 		pipeline: {
-			pipes: [{ name: 'deduplication' }, { name: 'parse' }, { name: 'serializeEvents' }]
+			pipes: [
+				{ name: 'deduplication' },
+				{ name: 'counter', params: { kinds: [1, 6, 7, 17], pubkey: $key?.pub } }
+			]
 		}
 	};
 
@@ -105,11 +112,16 @@
 	const handleEvents = (events: ParsedEvent<AnyKind>[]) => {
 		const event = events[0];
 		if (isKind7(event) || isKind17(event)) {
-			handleReactions(event);
+			reactionCount = event?.count || reactionCount;
+			liked = liked || event.you;
 		} else if (isKind1(event)) {
-			handleReplies(event);
+			replyCount = event.count || replyCount;
+			replied = replied || event.you;
+			// handleReplies(event);
 		} else if (isKind6(event)) {
-			handleReposts(event);
+			repostCount = event.count || repostCount;
+			reposted = reposted || event.you;
+			// handleReposts(event);
 		}
 	};
 
@@ -192,7 +204,7 @@
 			tabindex="0"
 		>
 			<Icon icon="iconamoon:comment-light" class="text-xl" />
-			<span>{replies?.length || ''}</span>
+			<span>{replyCount || ''}</span>
 		</div>
 
 		<!-- Repost Button -->
@@ -208,7 +220,7 @@
 			on:click|stopPropagation={() => !reposted && sendRepost()}
 		>
 			<Icon icon="ph:repeat" class="text-2xl" />
-			<span>{reposts?.length || ''}</span>
+			<span>{repostCount || ''}</span>
 		</div>
 
 		<!-- Zap Button -->
@@ -249,7 +261,7 @@
 				aria-label="React to post"
 				on:click|stopPropagation
 			>
-				<span>{reactions?.length || ''}</span>
+				<span>{reactionCount || ''}</span>
 				{#if liked}
 					{#if liked.startsWith('http')}
 						<img src={liked} alt={liked} class="w-4 h-4 inline-block" />

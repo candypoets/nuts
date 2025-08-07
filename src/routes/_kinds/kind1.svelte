@@ -18,6 +18,7 @@
 	import Note from 'src/routes/explore/note.svelte';
 	import Reply from 'src/routes/explore/reply.svelte';
 	import { getUserRelays } from 'src/routes/queries/user';
+	import { limit } from 'src/controller/pagination';
 
 	export let nevent: string;
 	export let visible: boolean;
@@ -70,50 +71,49 @@
 	}
 
 	function subscribe() {
-		timeout = setTimeout(() => {
-			if (visible && !sub) {
-				sub = useSubscription(
-					'kind1_' + data?.id,
-					[
-						{
-							kinds: [1],
-							ids: [data?.id],
-							limit: 5,
-							relays: data.relays || [],
-							cacheFirst: true
-						}
-					], // limits higher to accomodate for huge posts
-					(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) => {
-						if (kind == 'EOSE') {
-							return;
-						}
-						const [event, ...rest] = events;
-						if (!event?.parsed) return;
-						if (isKind1(event) && event.id == data.id) {
-							loading = false;
-							console.log('note events', events, data.id);
-							// profile = event;
-							headerItem = event;
-							context = rest;
-							relaysub = getUserRelays(
-								event.pubkey,
-								(relays) => {
-									feedRequests = [
-										{
-											kinds: [1],
-											tags: { '#e': [data?.id] },
-											noContext: true,
-											relays
-										}
-									];
-								},
-								'read'
-							);
-						}
+		if (visible && !sub) {
+			sub = useSubscription(
+				data?.id,
+				[
+					{
+						kinds: [1],
+						ids: [data?.id],
+						limit: 5,
+						relays: data.relays || [],
+						cacheFirst: true
 					}
-				);
-			}
-		}, 200);
+				], // limits higher to accomodate for huge posts
+				(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) => {
+					console.log(data.id, events, kind);
+					if (kind == 'EOSE') {
+						return;
+					}
+					const [event, ...rest] = events;
+					if (!event?.parsed) return;
+					if (isKind1(event) && event.id == data.id) {
+						loading = false;
+						// profile = event;
+						headerItem = event;
+						context = rest;
+						relaysub = getUserRelays(
+							event.pubkey,
+							(relays) => {
+								feedRequests = [
+									{
+										kinds: [1],
+										tags: { '#e': [data?.id] },
+										limit: $limit,
+										noContext: true,
+										relays
+									}
+								];
+							},
+							'read'
+						);
+					}
+				}
+			);
+		}
 	}
 
 	function unsubscribe() {
@@ -135,7 +135,7 @@
 </script>
 
 <Feed
-	subscriptionID={'f_' + data?.id}
+	subscriptionID={'kind1' + data?.id}
 	requests={feedRequests}
 	class="w-feed"
 	{headerItem}

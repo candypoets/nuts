@@ -1,6 +1,4 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
-	import { page } from '$app/stores';
 	import type { AnyKind, Kind1Parsed, ParsedEvent, SubscribeKind } from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import _ from 'lodash';
@@ -13,6 +11,7 @@
 	import Zap from 'src/routes/explore/_post/zap.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import { getUserRelays } from 'src/routes/queries/user';
+	import { go } from '../modals/modal';
 
 	export let main: boolean = false;
 	// if the note is a repost, this is the reposter pubkey
@@ -60,16 +59,40 @@
 		if (kind == 'EOSE') {
 			return;
 		}
+		console.log(events);
 		const [event] = events;
 		if (!event?.parsed) return;
 		context = _.uniqBy([...context, ...events], 'id');
 	}
 
+	let subed = 0;
+
 	function subscribe() {
 		timeout = setTimeout(async () => {
 			if (note && visible) {
-				if (!sub && note.requests) {
-					sub = useSubscription(note.id, note.requests, handleEvents);
+				if (!sub) {
+					subed++;
+					sub = useSubscription(
+						note.id,
+						[
+							{
+								kinds: [1],
+								ids: [note?.id],
+								limit: 5,
+								relays: relays || [],
+								cacheFirst: true
+							},
+							// fetch some replies
+							{ kinds: [1], limit: 10, tags: { '#e': [note.id] }, relays: relays || [] },
+							...(note.requests || [])
+						],
+						handleEvents,
+						{
+							initialMessage: {
+								SubscriptionEvent: { event_data: [[note]], event_type: 'BUFF_EVENT' }
+							}
+						}
+					);
 				}
 				if (!relays.length && !relaysub) {
 					relaysub = getUserRelays(
@@ -90,23 +113,19 @@
 			timeout = undefined;
 			sub?.();
 			sub = undefined;
+			subed--;
 			relaysub?.();
 			relaysub = undefined;
 		}
 	}
 
-	$: visible == true ? subscribe() : unsubscribe();
+	$: visible == true && note ? subscribe() : unsubscribe();
 
-	function go() {
+	function goto() {
 		if (isImageContext) return;
-		const currentPath = $page.url.pathname;
 		const nip19Event = nip19.neventEncode({ id: note?.id || noteId || '', relays });
 		const eventPath = `nevent:${nip19Event}`;
-
-		// Check if the current URL already ends with the profile we're trying to navigate to
-		if (!currentPath.endsWith(eventPath)) {
-			goto(`${currentPath}/${eventPath}`);
-		}
+		go(eventPath);
 	}
 
 	onDestroy(unsubscribe);
@@ -117,12 +136,14 @@
 {/if}
 
 <div
-	class="py-2 rounded-2xl relative cursor-pointer"
-	on:click|stopPropagation={go}
+	class="py-2 rounded-md relative cursor-pointer border-primary-content"
+	class:px-2={!!depth}
+	on:click|stopPropagation={goto}
+	class:border={!!depth}
 	class:hidden={depth > 3}
 >
 	{#if note}
-		<!-- <div class="break-words">{nip19.neventEncode({ id: note?.id || noteId || '', relays })}</div>
+		<!-- {subed}
 		{note.id} -->
 		{#if zaps && !depth}
 			<Zap {note} {visible} />
@@ -141,7 +162,7 @@
 		{/if} -->
 		<div class="flex gap-2">
 			<!-- {#if !depth} -->
-			<div class:!min-w-0={!!main} class="min-w-8" class:!min-w-4={!!depth} />
+			<div class:!min-w-0={!!main} class="min-w-8" class:!min-w-2={!!depth} />
 			<!-- {/if} -->
 			<div class="-mt-2" class:!mt-0={!!depth || isImageContext} class:!mt-2={!!main}>
 				<Content {note} {context} {visible} {depth} {main} />
@@ -175,6 +196,7 @@
 		</div>
 	{/if}
 </div>
+
 {#each visibleReplies as reply}
 	<svelte:self note={reply} {context} {visible} {showReplies} zaps tailing showRoot={false} />
 {/each}
