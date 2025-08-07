@@ -238,7 +238,7 @@
 	</div>
 	<div class="flex items-center shrink-0 justify-end gap-1 cursor-pointer">
 		<div class="flex items-center space-x-1">
-			{#each Object.entries(mapEmoticons)
+			<!-- {#each Object.entries(mapEmoticons)
 				.sort((a, b) => b[1] - a[1])
 				.slice(0, isMobile ? 8 : 10) as [emoji, count]}
 				{#if emoji.startsWith('http')}
@@ -248,7 +248,7 @@
 						>{emoji}</span
 					>
 				{/if}
-			{/each}
+			{/each} -->
 		</div>
 		<div>
 			<!-- Trigger Area - Bind this element -->
@@ -262,15 +262,15 @@
 				on:click|stopPropagation
 			>
 				<span>{reactionCount || ''}</span>
-				{#if liked}
+				<!-- {#if liked}
 					{#if liked.startsWith('http')}
 						<img src={liked} alt={liked} class="w-4 h-4 inline-block" />
 					{:else if !!liked && liked != 'undefined'}
 						<span class="max-w-6 inline-block overflow-hidden text-xl">{liked}</span>
 					{/if}
-				{:else}
-					<Icon icon="icon-park-outline:like" class="text-xl pointer-events-none" />
-				{/if}
+				{:else} -->
+				<Icon icon="icon-park-outline:like" class="text-xl pointer-events-none" />
+				<!-- {/if} -->
 			</div>
 
 			{#if triggerElement}
