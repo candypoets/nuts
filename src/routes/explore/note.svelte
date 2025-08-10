@@ -59,7 +59,6 @@
 		if (kind == 'EOSE') {
 			return;
 		}
-		console.log(events);
 		const [event] = events;
 		if (!event?.parsed) return;
 		context = _.uniqBy([...context, ...events], 'id');
