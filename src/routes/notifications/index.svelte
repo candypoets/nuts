@@ -23,7 +23,7 @@
 		events: ParsedEvent<AnyKind>[],
 		eventKind: SubscribeKind
 	): [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][] {
-		if (eventKind == 'EOSE') return feed;
+		if (eventKind == 'CONNECTION_STATUS') return feed;
 		const [event, ...context] = events;
 		if (event.pubkey == $key?.pub) return feed;
 		if (!event || !event.parsed) return feed;

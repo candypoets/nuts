@@ -315,13 +315,6 @@ export class NutsWallet {
 		const newBalanceByMint: Record<string, number> = {};
 
 		for (const [mintUrl, proofs] of this.unspentProofs.entries()) {
-			console.log(
-				'Proofs uniqueness check:',
-				proofs.length === _.uniqBy(proofs, 'secret').length
-					? 'All proofs are unique'
-					: 'Duplicate proofs found'
-			);
-
 			const totalAmount = proofs.reduce((sum, proof) => sum + proof.amount, 0);
 			newBalanceByMint[mintUrl] = totalAmount;
 		}
@@ -337,7 +330,6 @@ export class NutsWallet {
 		if (!wallet) {
 			const mintInstance = new CashuMint(mintUrl);
 			wallet = new CashuWallet(mintInstance);
-			console.log('fetching keysets for ', mintUrl);
 			await wallet.loadMint();
 			this.wallets.set(mintUrl, wallet);
 		}
@@ -348,12 +340,6 @@ export class NutsWallet {
 		mint = normalizeMintURL(mint);
 		if (!mint || !unspent?.length) return;
 		const usp = this.unspentProofs.get(mint) || [];
-
-		console.log(
-			'addProofs usp',
-			mint,
-			usp.reduce((acc, cur) => acc + cur.amount, 0)
-		);
 
 		this.unspentProofs.set(mint, _.uniqBy([...usp, ...unspent], 'secret'));
 
@@ -366,8 +352,6 @@ export class NutsWallet {
 
 		const usp = this.unspentProofs.get(mint) || [];
 		const allUnspentProofs = [...usp, ...proofs];
-
-		console.log(allUnspentProofs);
 
 		const event: EventTemplate = {
 			kind: 7375,

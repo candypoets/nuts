@@ -62,7 +62,7 @@
 			items = _.sortBy(items, (item) => calculateScore(item, query));
 			return;
 		}
-		if (eventKind == 'EOSE' && !eose) {
+		if (eventKind == 'CONNECTION_STATUS' && events.kind == 'EOSE' && !eose) {
 			loading = false;
 			eose = true;
 			items = _.uniqBy([...fetchedEvents, ...items], 'pubkey');

@@ -14,8 +14,11 @@
 	import Post from 'src/routes/explore/post.svelte';
 	import { go } from 'src/routes/modals/modal';
 	import Notifications from './notifications.svelte';
+	import type { ConnectionStatus } from '@candypoets/nipworker';
 
 	export let visible = true;
+
+	export let connectionStatus: { [url: string]: ConnectionStatus } = {};
 
 	let feedRequests: any[] = [];
 	let subs: string[] = [];
@@ -41,6 +44,8 @@
 			];
 		});
 	}
+
+	$: console.log('explore', connectionStatus);
 </script>
 
 <Pager rootPath="/explore" bind:subs>
@@ -49,6 +54,7 @@
 		requests={feedRequests}
 		kinds={[1, 6]}
 		backdrop
+		bind:connectionStatus
 	>
 		<svelte:fragment slot="sticky-header" let:newPosts>
 			<div class="backdrop-blur-sm bg-base-300 bg-opacity-80 md:border-b border-base-200 pt-safe">
@@ -115,7 +121,7 @@
 					</div>
 				</div>
 			</div>
-			<RelaysList relays={$readRelays} />
+			<RelaysList relays={$readRelays} {connectionStatus} />
 			<!-- <Post /> -->
 		</svelte.fragment>
 	</Feed>

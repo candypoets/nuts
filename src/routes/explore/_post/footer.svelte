@@ -3,14 +3,16 @@
 		nostrManager,
 		ReactionType,
 		type AnyKind,
+		type ConnectionStatus,
 		type Kind1Parsed,
 		type Kind6Parsed,
 		type Kind7Parsed,
 		type ParsedEvent,
+		type SubscribeKind,
 		type SubscriptionOptions
 	} from '@candypoets/nipworker';
 	import { isKind17, isKind6, isKind7, isKind1 } from '@candypoets/nipworker/utils';
-	import { useSubscription } from '@candypoets/nipworker/hooks';
+	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
 	import Icon from '@iconify/svelte';
 	import { kinds, type EventTemplate } from 'nostr-tools';
 	import { getContext, onDestroy, onMount } from 'svelte';
@@ -23,6 +25,7 @@
 	import { go } from 'src/routes/modals/modal';
 	import { getUserRelays } from 'src/routes/queries/user';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
+	import { updateSendStatus } from 'src/controller/sendStatus';
 
 	export let note: ParsedEvent<any>;
 	export let visible: boolean;
@@ -61,10 +64,7 @@
 
 	const subscriptionOptions: SubscriptionOptions = {
 		pipeline: {
-			pipes: [
-				{ name: 'deduplication' },
-				{ name: 'counter', params: { kinds: [1, 6, 7, 17], pubkey: $key?.pub } }
-			]
+			pipes: [{ name: 'counter', params: { kinds: [1, 6, 7, 17], pubkey: $key?.pub } }]
 		}
 	};
 
@@ -159,6 +159,7 @@
 	}
 
 	function sendReaction(emoji: string) {
+		let sendStatus: { [url: string]: ConnectionStatus } = {};
 		if (!$key.pub) return;
 		const event: EventTemplate = {
 			kind: kinds.Reaction,
@@ -170,7 +171,12 @@
 			created_at: now()
 		};
 
-		nostrManager.publish('reaction_' + note.id, event);
+		// nostrManager.publish('reaction_' + note.id, event);
+		usePublish('reaction_' + note.id, event, (statuses: any, kind: SubscribeKind) => {
+			console.log('send event update', sendStatus, statuses);
+			sendStatus[statuses.relay_url] = statuses.status;
+			updateSendStatus('reaction_' + note.id, sendStatus);
+		});
 	}
 
 	function sendRepost() {

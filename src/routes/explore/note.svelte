@@ -56,7 +56,7 @@
 	}
 
 	function handleEvents(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) {
-		if (kind == 'EOSE') {
+		if (kind == 'CONNECTION_STATUS') {
 			return;
 		}
 		const [event] = events;
@@ -135,15 +135,17 @@
 {/if}
 
 <div
-	class="py-2 rounded-md relative cursor-pointer border-primary-content"
+	class="py-2 rounded-tl-md relative cursor-pointer border-primary-content"
 	class:px-2={!!depth}
 	on:click|stopPropagation={goto}
-	class:border={!!depth}
+	class:border-l={!!depth}
+	class:border-t={!!depth}
 	class:hidden={depth > 3}
 >
 	{#if note}
 		<!-- {subed}
-		{note.id} -->
+		{note.id}
+		{JSON.stringify(note.requests)} -->
 		{#if zaps && !depth}
 			<Zap {note} {visible} />
 		{/if}

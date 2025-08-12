@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type {
 		AnyKind,
+		ConnectionStatus,
 		Kind1Parsed,
 		ParsedEvent,
 		Request,
@@ -33,6 +34,8 @@
 	let sub: (() => void) | undefined;
 	let relaysub: (() => void) | undefined;
 
+	let connectionStatus: { [url: string]: ConnectionStatus } = {};
+
 	const { data } = decode(nevent) as unknown as { data: EventPointer };
 
 	function updateFeed(
@@ -40,7 +43,7 @@
 		events: ParsedEvent<AnyKind>[],
 		eventKind: SubscribeKind
 	): [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][] {
-		if (eventKind == 'EOSE') return feed;
+		if (eventKind == 'CONNECTION_STATUS') return feed;
 		const [event, ...context] = events;
 		if (isKind1(event)) {
 			// only show replies to root posts
@@ -85,7 +88,7 @@
 				], // limits higher to accomodate for huge posts
 				(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) => {
 					console.log(data.id, events, kind);
-					if (kind == 'EOSE') {
+					if (kind == 'CONNECTION_STATUS') {
 						return;
 					}
 					const [event, ...rest] = events;
@@ -141,6 +144,7 @@
 	{headerItem}
 	{updateFeed}
 	{visible}
+	bind:connectionStatus
 >
 	<svelte:fragment slot="sticky-header">
 		<div
@@ -165,10 +169,11 @@
 				<span class="w-10" />
 			</div>
 		{/if}
-		<RelaysList class="px-4" relays={data.relays || []} />
+
 		{#if headerItem}
 			<Note note={headerItem} {context} {visible} zaps main />
 		{/if}
+		<RelaysList relays={data.relays || []} {connectionStatus} />
 	</svelte:fragment>
 	<svelte.fragment slot="sticky-footer">
 		<div class="md:pb-4 pb-safe pt-0 backdrop-blur-md">

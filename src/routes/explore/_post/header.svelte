@@ -33,7 +33,7 @@
 					'u_' + note.pubkey,
 					userQuery(note.pubkey),
 					(events: ParsedEvent<AnyKind>[], type: SubscribeKind) => {
-						if (type == 'EOSE') {
+						if (type == 'CONNECTION_STATUS') {
 							return;
 						}
 						const [event, ...context] = events;

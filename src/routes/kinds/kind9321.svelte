@@ -33,7 +33,7 @@
 		'u_' + zap.parsed?.recipient || '',
 		userQuery(zap.parsed?.recipient || ''),
 		(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) => {
-			if (kind == 'EOSE') {
+			if (kind == 'CONNECTION_STATUS') {
 				return;
 			}
 			const [event] = events;
@@ -89,7 +89,7 @@
 					}
 				],
 				(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) => {
-					if (kind == 'EOSE') {
+					if (kind == 'CONNECTION_STATUS') {
 						return;
 					}
 					// Removed unused 'type' and 'context' parameters

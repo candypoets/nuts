@@ -8,10 +8,9 @@
 	import VirtualListBottom from 'src/components/VirtualListBottom.svelte';
 	import { now } from 'src/lib/period';
 	import Note from './note.svelte';
-	import { formatDistanceToNow } from 'date-fns';
 	import { limit } from 'src/controller/pagination';
 	import { isKind, isKind1, isKind6 } from '@candypoets/nipworker/utils';
-	import { cleanup, type SubscriptionOptions } from '@candypoets/nipworker';
+	import { cleanup, type ConnectionStatus, type SubscriptionOptions } from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import type {
 		ParsedEvent,
@@ -40,6 +39,8 @@
 	export let fuseKeys: string[] = [];
 	export let itemHeight: number | undefined = undefined;
 	export let initialItems: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][] = [];
+
+	export let connectionStatus: { [url: string]: ConnectionStatus } = {};
 
 	let cachedFeed: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
 	let fetchedFeed: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
@@ -91,14 +92,16 @@
 				subscriptionID + '_head',
 				requests.map((r) => ({ ...r, since })),
 				(events: ParsedEvent<AnyKind>[], eventKind: SubscribeKind) => {
-					console.log('buffer full head event', events[0]);
 					handleEvents(events, eventKind);
 				}
 			);
 			return;
 		}
-		if (eventKind == 'EOSE') {
-			if (eose == false && events.remainingConnections / events.totalConnections < 1) {
+		if (eventKind == 'CONNECTION_STATUS') {
+			console.log('CONNECTION_STATUS', subscriptionID, events);
+			connectionStatus[events.relay_url] = events.status;
+			if (events.status == 'EOSE' && eose == false) {
+				// if (eose == false && events.remainingConnections / events.totalConnections < 1) {
 				loading = false;
 				eose = true;
 				if (page == 0) {
@@ -113,6 +116,7 @@
 				}
 				// makeFuse();
 				fetchedFeed = [];
+				// }
 			}
 			return;
 		}
@@ -129,6 +133,7 @@
 		}
 		const [event, ...context] = events;
 		if (!event?.parsed) return;
+		console.log('EVENT', subscriptionID, event);
 		if (updateFeed && isCorrectKind(event)) {
 			if (!eoce) {
 				cachedFeed = updateFeed(cachedFeed, events, eventKind);
@@ -261,6 +266,7 @@
 			}, noResultsCount * 1000);
 		}
 	}
+	$: console.log('FEED', subscriptionID, feed);
 </script>
 
 <div class="fixed bottom-4 left-4 text-white">

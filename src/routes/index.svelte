@@ -40,6 +40,7 @@
 	import Home from 'src/routes/home/+layout.svelte';
 	import Login from 'src/routes/login.svelte';
 	import { goBack } from 'src/routes/modals/modal';
+	import { sendStatuses } from 'src/controller/sendStatus';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
 
@@ -87,7 +88,7 @@
 				}
 			],
 			(events: ParsedEvent<unknown>[], kind: SubscribeKind) => {
-				if (kind == 'EOSE') {
+				if (kind == 'CONNECTION_STATUS') {
 					return;
 				}
 				// the first event is from the sub, everything else is contextual
@@ -139,7 +140,7 @@
 		);
 
 	function handleProfileEvents(events: ParsedEvent<AnyKind>[], eventType: SubscribeKind) {
-		if (eventType == 'EOSE') return;
+		if (eventType == 'CONNECTION_STATUS') return;
 		const [event, ...context] = events;
 		if (isKind0(event) && event.created_at > ($kind0?.created_at || 0)) $kind0 = event;
 		if (isKind3(event) && event.created_at > ($kind3?.created_at || 0)) $kind3 = event;
@@ -393,7 +394,11 @@
 	</div>
 {/if}
 {#if !homepage}
-	<Statuses />
+	{#each Object.entries($sendStatuses) as [sendId, connectionStatus]}
+		{#if connectionStatus}
+			<Statuses {connectionStatus} />
+		{/if}
+	{/each}
 	<Alert />
 	{#if $key?.pub}
 		<div

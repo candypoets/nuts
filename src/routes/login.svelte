@@ -48,7 +48,7 @@
 			'login_' + pubkey,
 			[{ kinds: [kinds.Metadata], authors: [pubkey], limit: 1, relays: [] }],
 			(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) => {
-				if (kind == 'EOSE') return;
+				if (kind == 'CONNECTION_STATUS') return;
 				const [event, ...context] = events;
 				if (isKind0(event)) {
 					loading = false;

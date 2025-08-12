@@ -1,15 +1,22 @@
 <script lang="ts">
-	import type { AnyKind, Kind39089Parsed, ParsedEvent, Request } from '@candypoets/nipworker';
+	import type {
+		AnyKind,
+		Kind39089Parsed,
+		ParsedEvent,
+		Request,
+		SubscribeKind
+	} from '@candypoets/nipworker';
 	import { isKind39089 } from '@candypoets/nipworker/utils';
 
 	import Icon from '@iconify/svelte';
-	import { formatDistanceToNow } from 'date-fns';
+	import { formatDistanceToNow, type SubBusinessDaysOptions } from 'date-fns';
 	import { followList, followPacks } from 'src/controller/feed';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import MultiSelect from 'src/routes/modals/components/MultiSelect.svelte';
 	import { getContext } from 'svelte';
+	import Sub from '../_kinds/_sub.svelte';
 
 	let animator = getContext('animator');
 
@@ -32,7 +39,7 @@
 	function updateFeed(
 		currentFeed: [ParsedEvent<Kind39089Parsed>, ParsedEvent<AnyKind>[]][],
 		newEvents: ParsedEvent<AnyKind>[],
-		eventKind: 'EVENT' | 'EOSE' | 'EOCE'
+		eventKind: SubscribeKind
 	) {
 		const [event, ...context] = newEvents;
 		if (!event?.parsed || !isKind39089(event)) return currentFeed;

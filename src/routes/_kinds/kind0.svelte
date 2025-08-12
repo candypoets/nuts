@@ -9,7 +9,8 @@
 		nostrManager,
 		type SubscribeKind,
 		type Request,
-		type ParsedEvent
+		type ParsedEvent,
+		type ConnectionStatus
 	} from '@candypoets/nipworker';
 	import Feed from 'src/routes/explore/feed.svelte';
 
@@ -33,10 +34,12 @@
 	let feedRequests: Request[] = [];
 	let timeout: NodeJS.Timeout | undefined;
 
+	let connectionStatus: { [url: string]: ConnectionStatus } = {};
+
 	let sub: (() => void) | undefined;
 
 	function handleEvents(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) {
-		if (kind == 'EOSE') {
+		if (kind == 'CONNECTION_STATUS') {
 			return;
 		}
 		const [event] = events;
@@ -120,7 +123,12 @@
 	$: visible ? subscribe() : unsubscribe();
 </script>
 
-<Feed subscriptionID={'kind0_feed_' + pubkey} requests={feedRequests} {visible}>
+<Feed
+	subscriptionID={'kind0_feed_' + pubkey}
+	requests={feedRequests}
+	{visible}
+	bind:connectionStatus
+>
 	<svelte:fragment slot="sticky-header">
 		<div class="px-4 py-3 flex items-center justify-between backdrop-blur-md pt-safe">
 			<button on:click={goBack} class="p-1 rounded-full hover:bg-base-200 mr-4">
@@ -218,7 +226,7 @@
 				{#if p?.about}
 					<p class="mb-4 opacity-1">{@html p?.about}</p>
 				{/if}
-				<RelaysList {relays} />
+				<RelaysList {relays} {connectionStatus} />
 			</div>
 
 			<div class="tabs tabs-bordered">

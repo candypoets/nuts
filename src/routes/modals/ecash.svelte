@@ -85,7 +85,7 @@
 			'wallet_' + pubkey,
 			requests,
 			(events: ParsedEvent<AnyKind>[], eventKind: SubscribeKind) => {
-				if (eventKind == 'EOSE') return;
+				if (eventKind == 'CONNECTION_STATUS') return;
 				const [event, ...context] = events;
 				if (isKind10019(event)) {
 					kind10019 = event?.parsed;

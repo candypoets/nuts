@@ -96,7 +96,6 @@
 	let proofs: () => void;
 
 	relayPromise.then(() => {
-		console.log('ohoh');
 		proofs?.();
 		proofs = useSubscription(
 			'proofs_' + $key?.pub,
@@ -105,12 +104,11 @@
 				{ kinds: [9321], tags: { '#p': [$key?.pub] }, relays: relays }
 			],
 			(message: any) => {
-				console.log('message hooks?', message);
 				addProofs(message.mint, message.proofs);
 			},
 			{
 				pipeline: {
-					pipes: [{ name: 'deduplication' }, { name: 'parse' }, { name: 'proofVerification' }]
+					pipes: [{ name: 'parse' }, { name: 'proofVerification' }]
 				}
 			}
 		);
@@ -124,7 +122,7 @@
 				{ kinds: [17375], authors: [$key?.pub], limit: 10, relays: relays }
 			],
 			(events: ParsedEvent<unknown>[], eventKind: SubscribeKind) => {
-				if (eventKind == 'EOSE') {
+				if (eventKind == 'CONNECTION_STATUS') {
 					if (events.remainingConnections / events.totalConnections <= 0.5) {
 						walletLoaded.resolve(true);
 					}
@@ -152,12 +150,12 @@
 					// 	$deletedKind7375Ids = $deletedKind7375Ids.concat(event?.parsed?.deletedIds);
 					// }
 					// $kinds7375 = $kinds7375.concat(event);
-					console.log(
-						event.parsed.mintUrl,
-						formatDistanceToNow((event?.created_at || 0) * 1000, { addSuffix: true }),
-						event.parsed.proofs.reduce((acc, cur) => (acc += cur.amount), 0),
-						event.parsed.proofs
-					);
+					// console.log(
+					// 	event.parsed.mintUrl,
+					// 	formatDistanceToNow((event?.created_at || 0) * 1000, { addSuffix: true }),
+					// 	event.parsed.proofs.reduce((acc, cur) => (acc += cur.amount), 0),
+					// 	event.parsed.proofs
+					// );
 					// addProofs(event.parsed?.mintUrl, event.parsed?.proofs);
 				}
 			},
@@ -232,7 +230,7 @@
 			],
 			(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) => {
 				const [event, ...context] = events;
-				if (kind == 'EOSE') {
+				if (kind == 'CONNECTION_STATUS') {
 					loading = false;
 					login();
 				}

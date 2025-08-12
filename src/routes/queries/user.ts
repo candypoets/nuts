@@ -38,7 +38,7 @@ export function getUserRelays(
 		'u_' + pubkey,
 		userQuery(pubkey),
 		(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) => {
-			if (kind == 'EOSE') {
+			if (kind == 'CONNECTION_STATUS') {
 				return;
 			}
 			const [event] = events;
