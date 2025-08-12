@@ -11,7 +11,9 @@
 	import type { EventTemplate, NostrEvent } from 'nostr-tools';
 	import { now } from 'src/lib/period';
 	import { composing } from 'src/controller/editor';
-	import { nostrManager } from '@candypoets/nipworker';
+	import { nostrManager, type ConnectionStatus, type SubscribeKind } from '@candypoets/nipworker';
+	import { usePublish } from '@candypoets/nipworker/hooks';
+	import { updateSendStatus } from 'src/controller/sendStatus';
 
 	export let placeholder = "What's on your mind?";
 	export let initialContent = '';
@@ -151,6 +153,11 @@
 		onSubmit(post as NostrEvent);
 
 		nostrManager.publish('post', post as NostrEvent);
+		let sendStatus: { [url: string]: ConnectionStatus } = {};
+		usePublish('post', post, (statuses: any, kind: SubscribeKind) => {
+			sendStatus[statuses.relay_url] = statuses.status;
+			updateSendStatus('post', sendStatus);
+		});
 
 		$editor.commands.clearContent();
 		isExpanded = false;

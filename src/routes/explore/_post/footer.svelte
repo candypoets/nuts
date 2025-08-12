@@ -173,7 +173,6 @@
 
 		// nostrManager.publish('reaction_' + note.id, event);
 		usePublish('reaction_' + note.id, event, (statuses: any, kind: SubscribeKind) => {
-			console.log('send event update', sendStatus, statuses);
 			sendStatus[statuses.relay_url] = statuses.status;
 			updateSendStatus('reaction_' + note.id, sendStatus);
 		});
@@ -181,6 +180,7 @@
 
 	function sendRepost() {
 		if (!$key.pub) return;
+		let sendStatus: { [url: string]: ConnectionStatus } = {};
 		const event: EventTemplate = {
 			kind: kinds.Repost,
 			tags: [
@@ -191,7 +191,10 @@
 			created_at: now()
 		};
 
-		nostrManager.publish('repost_' + note.id, event);
+		usePublish('repost_' + note.id, event, (statuses: any, kind: SubscribeKind) => {
+			sendStatus[statuses.relay_url] = statuses.status;
+			updateSendStatus('repost_' + note.id, sendStatus);
+		});
 	}
 
 	onDestroy(unsubscribe);

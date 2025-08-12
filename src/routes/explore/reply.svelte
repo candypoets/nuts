@@ -1,6 +1,5 @@
 <script lang="ts">
-	import type { AnyKind, Kind1Parsed, ParsedEvent, RelayStatus } from '@candypoets/nipworker';
-	import { nostrManager } from '@candypoets/nipworker';
+	import type { AnyKind, ConnectionStatus, Kind1Parsed, ParsedEvent } from '@candypoets/nipworker';
 	import Icon from '@iconify/svelte';
 	import type { EventTemplate, NostrEvent } from 'nostr-tools';
 	import { getContext, onDestroy, onMount } from 'svelte';
@@ -15,6 +14,8 @@
 	import { prepareEvent } from 'src/editor/utils';
 	import { now } from 'src/lib/period';
 	import User from './user.svelte';
+	import { usePublish } from '@candypoets/nipworker/hooks';
+	import { updateSendStatus } from 'src/controller/sendStatus';
 
 	export let placeholder = 'Write your reply...';
 	export let initialContent = '';
@@ -150,8 +151,11 @@
 
 		onSubmit(reply as NostrEvent);
 
-		nostrManager.publish('1' + reply.content, reply as NostrEvent, (status: RelayStatus) => {
-			// as soon as a status come back, signing is done
+		let sendStatus: { [url: string]: ConnectionStatus } = {};
+
+		usePublish('1' + reply.content, reply, (statuses: any) => {
+			sendStatus[statuses.relay_url] = statuses.status;
+			updateSendStatus('1' + reply.content, sendStatus);
 			$editor.commands.clearContent();
 			isExpanded = false;
 			showEmojiPicker = false;
