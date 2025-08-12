@@ -21,6 +21,7 @@
 	import Feed from 'src/routes/explore/feed.svelte';
 	import User from 'src/routes/explore/user.svelte';
 	import Icon from '@iconify/svelte';
+	import { chatManager } from 'src/controller/managers';
 
 	export let visible = true;
 
@@ -134,7 +135,14 @@
 </script>
 
 <Pager rootPath="/chat">
-	<Feed subscriptionID={`chat`} requests={feedRequests} {updateFeed} {subscriptionOptions} backdrop>
+	<Feed
+		subscriptionID={`chat`}
+		requests={feedRequests}
+		manager={chatManager}
+		{updateFeed}
+		{subscriptionOptions}
+		backdrop
+	>
 		<svelte:fragment slot="sticky-header">
 			<div class="relative pt-safe">
 				<div class="flex justify-between w-feed lg:m-auto h-16 items-center">

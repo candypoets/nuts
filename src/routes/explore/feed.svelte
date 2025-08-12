@@ -10,7 +10,12 @@
 	import Note from './note.svelte';
 	import { limit } from 'src/controller/pagination';
 	import { isKind, isKind1, isKind6 } from '@candypoets/nipworker/utils';
-	import { cleanup, type ConnectionStatus, type SubscriptionOptions } from '@candypoets/nipworker';
+	import {
+		cleanup,
+		type ConnectionStatus,
+		type SubscriptionOptions,
+		type NostrManager
+	} from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import type {
 		ParsedEvent,
@@ -24,6 +29,7 @@
 	export let subscriptionID: string;
 	export let requests: any[] = [];
 	export let subscriptionOptions: SubscriptionOptions | undefined = undefined;
+	export let manager: NostrManager | undefined = undefined;
 	export let updateFeed:
 		| ((
 				feed: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][],
@@ -164,7 +170,7 @@
 				eose = false;
 				cachedFeed = [];
 				// feed = [];
-				sub = useSubscription(subscriptionID, requests, handleEvents, subscriptionOptions);
+				sub = useSubscription(subscriptionID, requests, handleEvents, subscriptionOptions, manager);
 			}
 		}, 300);
 	}

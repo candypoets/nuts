@@ -23,6 +23,7 @@
 
 	import Pager from 'src/components/Pager.svelte';
 	import { key } from 'src/controller/key';
+	import { cashuManager } from 'src/controller/managers';
 	import {
 		delayedPromise,
 		kind0,
@@ -43,6 +44,7 @@
 	import Kind9321 from 'src/routes/kinds/kind9321.svelte';
 	import { go } from 'src/routes/modals/modal';
 	import { onMount } from 'svelte';
+	import Cashu from '../explore/_post/cashu.svelte';
 
 	export let visible = false;
 
@@ -110,7 +112,8 @@
 				pipeline: {
 					pipes: [{ name: 'parse' }, { name: 'proofVerification' }]
 				}
-			}
+			},
+			cashuManager
 		);
 	});
 
@@ -264,7 +267,7 @@
 </script>
 
 <Pager rootPath="/home">
-	<Feed subscriptionID="home" requests={feedRequests} {updateFeed} backdrop>
+	<Feed subscriptionID="home" requests={feedRequests} manager={cashuManager} {updateFeed} backdrop>
 		<svelte:fragment slot="header">
 			<div
 				class="relative w-feed pt-safe place-content-center m-auto z-10 backdrop"

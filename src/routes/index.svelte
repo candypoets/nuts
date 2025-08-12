@@ -41,6 +41,7 @@
 	import Login from 'src/routes/login.svelte';
 	import { goBack } from 'src/routes/modals/modal';
 	import { sendStatuses } from 'src/controller/sendStatus';
+	import { setSigner } from 'src/controller/managers';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
 
@@ -64,7 +65,7 @@
 	let carouselAnimator: CarouselAnimator;
 	let carouselItems: HTMLElement[] = [];
 
-	$: $key && $key.priv && nostrManager.setSigner('privkey', $key.priv);
+	$: $key && $key.priv && setSigner('privkey', $key.priv);
 
 	setupPagerAnimators($viewport, goBack);
 
