@@ -87,7 +87,6 @@
 					}
 				], // limits higher to accomodate for huge posts
 				(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) => {
-					console.log(data.id, events, kind);
 					if (kind == 'CONNECTION_STATUS') {
 						return;
 					}

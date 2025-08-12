@@ -87,7 +87,6 @@
 			let since = feed.length > 0 ? feed[0][0].created_at : now();
 			headsub?.();
 			cleanup();
-			console.log('buffer full', subscriptionID, feed, since);
 			headsub = useSubscription(
 				subscriptionID + '_head',
 				requests.map((r) => ({ ...r, since })),
@@ -98,7 +97,6 @@
 			return;
 		}
 		if (eventKind == 'CONNECTION_STATUS') {
-			console.log('CONNECTION_STATUS', subscriptionID, events);
 			connectionStatus[events.relay_url] = events.status;
 			if (events.status == 'EOSE' && eose == false) {
 				// if (eose == false && events.remainingConnections / events.totalConnections < 1) {
@@ -133,7 +131,6 @@
 		}
 		const [event, ...context] = events;
 		if (!event?.parsed) return;
-		console.log('EVENT', subscriptionID, event);
 		if (updateFeed && isCorrectKind(event)) {
 			if (!eoce) {
 				cachedFeed = updateFeed(cachedFeed, events, eventKind);
@@ -266,7 +263,6 @@
 			}, noResultsCount * 1000);
 		}
 	}
-	$: console.log('FEED', subscriptionID, feed);
 </script>
 
 <div class="fixed bottom-4 left-4 text-white">

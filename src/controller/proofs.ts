@@ -67,7 +67,6 @@ export const addProofs = async (mint: string, proofs: Proof[]): Promise<void> =>
 	const p2pkProofs = proofs.filter((proof) => {
 		try {
 			const secretObj = JSON.parse(proof.secret);
-			console.log(mint, secretObj);
 			return secretObj.p2pk !== undefined;
 		} catch (e) {
 			// If secret is not a valid JSON, it doesn't have p2pk field

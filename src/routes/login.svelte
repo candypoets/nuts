@@ -33,7 +33,6 @@
 	}
 
 	async function handleLogin() {
-		console.log('handleLogin');
 		// Handle login logic here
 
 		// build a key object to store in the db

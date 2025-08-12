@@ -56,7 +56,6 @@
 				const quote = await cashu.createMintQuote(Number(amount));
 				doMint = true;
 				qrCode = quote.request;
-				console.log('quote', quote);
 				$nutsWallet.saveMintQuote(now(), quote, $activeMintUrl);
 				$nutsWallet.monitorMintQuote(quote, now(), $activeMintUrl);
 				scrollTo('right');

@@ -13,8 +13,6 @@
 
 	export let mints: string[] = [];
 	export let activeMint;
-
-	$: console.log('activeMint', activeMint);
 </script>
 
 <!-- svelte-ignore a11y-no-noninteractive-tabindex -->

@@ -108,7 +108,6 @@
 
 	const computeFees = throttle(async (amount: number, fromMint: string, toMint: string) => {
 		if (fromMint && toMint && amount && toMint != fromMint) {
-			console.log('computeFees', amount);
 			// attempt a swap to a supported mint before sending
 			const fromWallet = await $nutsWallet?.getWallet(fromMint);
 			const toWallet = await $nutsWallet?.getWallet(toMint);
@@ -164,7 +163,6 @@
 				nostrManager.publish('nutszap_' + random(1000), nutszap);
 				setTimeout(() => (status = ''), 1000);
 			} finally {
-				console.log('finally', keep, change);
 				$nutsWallet?.unspentProofs.set(fromWallet, keep.concat(change));
 				$nutsWallet.updateBalanceByMint();
 				$nutsWallet.saveProofs(fromMint, keep.concat(change));
@@ -214,7 +212,6 @@
 			status = 'Generate melt quote';
 			meltquote = await fromWallet.createMeltQuote(pr);
 			status = 'Sending lighning payment';
-			console.log(unspentProofs);
 			// const { keep, send } = await fromWallet.swap(0, unspentProofs);
 			// console.log(keep, send);
 			// if (keep.length) {
@@ -232,8 +229,6 @@
 		}
 		resetState();
 	};
-
-	$: console.log(fees, balance, $activeMintUrl, $balanceByMint, fromMint);
 </script>
 
 <div class="flex items-start md:items-center fullscreen-height">

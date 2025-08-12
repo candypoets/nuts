@@ -29,10 +29,8 @@
 
 	function setFeedRequests(follows: string[]) {
 		kind3Ready.promise.then((kind3) => {
-			console.log(follows, $followPacks, kind3);
 			if (follows.length == 0 && $followPacks.length)
 				follows = kind3.parsed?.map((c) => c.pubkey) || [];
-			console.log(follows);
 			feedRequests = [
 				{
 					kinds: [1, 6],
@@ -44,8 +42,6 @@
 			];
 		});
 	}
-
-	$: console.log('explore', connectionStatus);
 </script>
 
 <Pager rootPath="/explore" bind:subs>
