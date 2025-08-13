@@ -84,7 +84,6 @@
 <Feed
 	subscriptionID="notifications"
 	requests={feedRequests}
-	manager={chatManager}
 	{updateFeed}
 	{visible}
 	headerItem={{ id: 'header' }}

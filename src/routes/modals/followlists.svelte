@@ -78,7 +78,6 @@
 		{requests}
 		{updateFeed}
 		{initialItems}
-		manager={cashuManager}
 		visible
 		search={searchQuery}
 		{fuseKeys}
