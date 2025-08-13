@@ -152,7 +152,7 @@
 			<div class="relative pt-safe">
 				<div class="flex justify-between w-feed lg:m-auto h-16 items-center">
 					<h1 class="text-2xl font-semibold">Chats</h1>
-					<button class="btn btn-circle btn-sm btn-accent">
+					<button class="btn btn-circle btn-sm btn-primary">
 						<Icon icon="teenyicons:add-outline" class="text-xl"></Icon>
 					</button>
 				</div>
@@ -162,7 +162,7 @@
 			<div class="relative pt-safe">
 				<div class="w-feed flex justify-between w-feed m-auto h-16 items-center">
 					<h1 class="text-2xl font-semibold">Chats</h1>
-					<button class="btn btn-circle btn-sm btn-accent">
+					<button class="btn btn-circle btn-sm btn-primary">
 						<Icon icon="teenyicons:add-outline" class="text-xl"></Icon>
 					</button>
 				</div>
