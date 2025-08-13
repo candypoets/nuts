@@ -11,6 +11,7 @@
 	import { processNotifications } from './notifications';
 	import Reactions from './reactions.svelte';
 	import Replies from './replies.svelte';
+	import { chatManager } from 'src/controller/managers';
 
 	export let visible = true;
 	export let goBack: () => void;
@@ -83,6 +84,7 @@
 <Feed
 	subscriptionID="notifications"
 	requests={feedRequests}
+	manager={chatManager}
 	{updateFeed}
 	{visible}
 	headerItem={{ id: 'header' }}

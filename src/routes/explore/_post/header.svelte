@@ -11,6 +11,8 @@
 	import { isMobile } from 'src/controller';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import { userQuery } from 'src/routes/queries/user';
+	import Naddr from 'src/editor/naddr.svelte';
+	import { profileManager } from 'src/controller/managers';
 
 	export let note: ParsedEvent<Kind1Parsed>;
 	export let context: ParsedEvent<AnyKind>[] = [];
@@ -42,7 +44,9 @@
 							sub?.();
 							sub = undefined;
 						}
-					}
+					},
+					{},
+					profileManager
 				);
 			}
 		}

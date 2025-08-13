@@ -17,6 +17,7 @@
 	import MultiSelect from 'src/routes/modals/components/MultiSelect.svelte';
 	import { getContext } from 'svelte';
 	import Sub from '../_kinds/_sub.svelte';
+	import { cashuManager } from 'src/controller/managers';
 
 	let animator = getContext('animator');
 
@@ -77,6 +78,7 @@
 		{requests}
 		{updateFeed}
 		{initialItems}
+		manager={cashuManager}
 		visible
 		search={searchQuery}
 		{fuseKeys}

@@ -6,6 +6,7 @@
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import { onMount } from 'svelte';
 	import { userQuery } from '../queries/user';
+	import { profileManager } from 'src/controller/managers';
 
 	// The pubkey/npub of the user
 	export let pubkey: string = '';
@@ -54,7 +55,9 @@
 						// avoid sub being called twice on unmount
 						sub = undefined;
 					}
-				}
+				},
+				{},
+				profileManager
 			);
 		}
 

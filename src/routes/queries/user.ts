@@ -1,6 +1,8 @@
 import type { AnyKind, ParsedEvent, SubscribeKind } from '@candypoets/nipworker';
 import { useSubscription } from '@candypoets/nipworker/hooks';
 import { isKind10002 } from '@candypoets/nipworker/utils';
+import { ProfileBadges } from 'nostr-tools/kinds';
+import { profileManager } from 'src/controller/managers';
 
 export const userQuery = (pubkey: string, relays: string[] = []) => [
 	{
@@ -51,7 +53,9 @@ export function getUserRelays(
 				unsubscribe?.(); // auto-unsubscribe
 				unsubscribe = undefined;
 			}
-		}
+		},
+		{},
+		profileManager
 	);
 	return unsubscribe;
 }
