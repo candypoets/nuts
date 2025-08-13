@@ -1,5 +1,11 @@
 <script lang="ts">
-	import type { AnyKind, Kind1Parsed, ParsedEvent, SubscribeKind } from '@candypoets/nipworker';
+	import type {
+		AnyKind,
+		ConnectionStatus,
+		Kind1Parsed,
+		ParsedEvent,
+		SubscribeKind
+	} from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import _ from 'lodash';
 	import { nip19 } from 'nostr-tools';
@@ -12,6 +18,7 @@
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import { getUserRelays } from 'src/routes/queries/user';
 	import { go } from '../modals/modal';
+	import RelaysList from 'src/components/RelaysList.svelte';
 
 	export let main: boolean = false;
 	// if the note is a repost, this is the reposter pubkey
@@ -36,6 +43,7 @@
 
 	let sub: (() => void) | undefined;
 	let relaysub: (() => void) | undefined;
+	let connectionStatus: { [url: string]: ConnectionStatus } = {};
 
 	let replies: ParsedEvent<Kind1Parsed>[] = [];
 
@@ -57,6 +65,7 @@
 
 	function handleEvents(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) {
 		if (kind == 'CONNECTION_STATUS') {
+			connectionStatus[events.relay_url] = events.status;
 			return;
 		}
 		const [event] = events;
@@ -157,7 +166,11 @@
 				<Avatar pubkey={repost} {context} size="sm" />
 			</div>
 		{/if}
-		<Header {note} {context} {depth} {main} />
+		<Header {note} {context} {depth} {main}>
+			{#if !main}
+				<RelaysList {relays} {connectionStatus} mini />
+			{/if}
+		</Header>
 		<!-- {#if main}
 			<div class="main">main</div>
 		{/if} -->
@@ -170,7 +183,7 @@
 			</div>
 		</div>
 		{#if footer && !depth}
-			<Footer bind:replies {note} {visible} {main} />
+			<Footer bind:replies bind:connectionStatus {note} {visible} {main} />
 		{/if}
 		{#if leading}
 			<div

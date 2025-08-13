@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type {
 		AnyKind,
+		ConnectionStatus,
 		ParsedEvent,
 		SubscribeKind,
 		WorkerToMainMessage
@@ -45,6 +46,7 @@
 	import { go } from 'src/routes/modals/modal';
 	import { onMount } from 'svelte';
 	import Cashu from '../explore/_post/cashu.svelte';
+	import RelaysList from 'src/components/RelaysList.svelte';
 
 	export let visible = false;
 
@@ -54,6 +56,8 @@
 	let privateKey: string;
 	let loading = false;
 	let extensionError = false;
+
+	let connectionStatus: { [url: string]: ConnectionStatus } = {};
 
 	$: readRelays = $kind10002?.parsed?.filter((r) => r.read).map((r) => r.url) || [];
 
@@ -267,7 +271,14 @@
 </script>
 
 <Pager rootPath="/home">
-	<Feed subscriptionID="home" requests={feedRequests} manager={cashuManager} {updateFeed} backdrop>
+	<Feed
+		subscriptionID="home"
+		requests={feedRequests}
+		manager={cashuManager}
+		{updateFeed}
+		backdrop
+		bind:connectionStatus
+	>
 		<svelte:fragment slot="header">
 			<div
 				class="relative w-feed pt-safe place-content-center m-auto z-10 backdrop"
@@ -290,9 +301,10 @@
 						</div>
 					</div>
 				</div>
+				<RelaysList {relays} {connectionStatus} />
 				{#if $nutsWallet}
 					<div
-						class="flex gap-2 items-stretch overflow-x-scroll scrollbar-hide snap-x snap-mandatory scroll-smooth"
+						class="flex gap-2 items-stretch overflow-x-scroll scrollbar-hide snap-x snap-mandatory scroll-smooth mt-2"
 						on:touchmove|stopPropagation
 					>
 						{#each $nutsWallet.mintUrls || [] as url}

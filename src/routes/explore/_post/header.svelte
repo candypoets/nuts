@@ -115,6 +115,7 @@
 					{formatDistanceToNow((note?.created_at || 0) * 1000, { addSuffix: true })}
 				</p>
 			{/if}
+			<slot />
 		</div>
 	</div>
 </div>

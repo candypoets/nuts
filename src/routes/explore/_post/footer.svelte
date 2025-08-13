@@ -41,6 +41,7 @@
 	let isImageContext = getContext('imageContext');
 	// replies are exported back to the parent, if the parent decides to show some
 	export let replies: ParsedEvent<Kind1Parsed>[] = [];
+	export let connectionStatus: { [url: string]: ConnectionStatus } = {};
 	let reposts: ParsedEvent<Kind6Parsed>[] = [];
 	let liked = '';
 	let replied = false;
@@ -74,42 +75,11 @@
 		return () => window.removeEventListener('resize', checkMobile);
 	});
 
-	const handleReactions = (event: ParsedEvent<Kind7Parsed>) => {
-		if (!event.parsed || mapReactions[event.id]) return;
-
-		if (event.pubkey == $kind0?.pubkey) {
-			if (event.parsed?.emoji) {
-				liked = event.parsed?.emoji.url;
-			} else if (event.parsed?.type == ReactionType.CUSTOM) {
-				liked = event.content;
-			}
+	const handleEvents = (events: ParsedEvent<AnyKind>[], kind: SubscribeKind) => {
+		if (kind == 'CONNECTION_STATUS') {
+			connectionStatus[events.relay_url] = events.status;
 			return;
 		}
-		mapReactions[event.id] = event;
-		if (event.parsed?.emoji) {
-			mapEmoticons[event.parsed?.emoji.url] = (mapEmoticons[event.parsed?.emoji.url] || 0) + 1;
-		} else if (event.parsed?.type == ReactionType.CUSTOM) {
-			mapEmoticons[event.content] = (mapEmoticons[event.content] || 0) + 1;
-		}
-
-		reactions = Object.values(mapReactions);
-	};
-
-	async function handleReplies(event: ParsedEvent<Kind1Parsed>) {
-		if (mapReplies[event.id]) return;
-		if (event.pubkey == $kind0?.pubkey) replied = true;
-		mapReplies[event.id] = event;
-		replies = Object.values(mapReplies);
-	}
-
-	function handleReposts(event: ParsedEvent<Kind6Parsed>) {
-		if (mapReposts[event.id]) return;
-		if (event.pubkey == $kind0?.pubkey) reposted = true;
-		mapReposts[event.id] = event;
-		reposts = Object.values(mapReposts);
-	}
-
-	const handleEvents = (events: ParsedEvent<AnyKind>[]) => {
 		const event = events[0];
 		if (isKind7(event) || isKind17(event)) {
 			reactionCount = event?.count || reactionCount;

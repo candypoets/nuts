@@ -18,7 +18,7 @@
 
 	export let visible = true;
 
-	export let connectionStatus: { [url: string]: ConnectionStatus } = {};
+	let connectionStatus: { [url: string]: ConnectionStatus } = {};
 
 	let feedRequests: any[] = [];
 	let subs: string[] = [];
