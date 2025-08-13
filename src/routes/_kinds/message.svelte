@@ -29,7 +29,10 @@
 		</div>
 	{/if}
 	<div
-		class="chat-bubble chat-bubble-primary bg-base-300 text-base-content rounded-2xl"
+		class="chat-bubble chat-bubble-primary bg-base-200 text-base-content rounded-2xl bg-gradient-to-br from-base-100 to-base-300"
+		class:!from-blue-500={!message.incoming}
+		class:!to-info={!message.incoming}
+		class:!text-primary-content={!message.incoming}
 		class:overflow-hidden={!message.isLast}
 		class:!rounded-l-md={!message.isFirst && message.incoming}
 		class:!rounded-r-md={!message.isFirst && !message.incoming}

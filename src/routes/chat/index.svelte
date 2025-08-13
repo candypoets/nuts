@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type {
 		AnyKind,
+		ConnectionStatus,
 		Kind4Parsed,
 		ParsedEvent,
 		Request,
@@ -22,6 +23,7 @@
 	import User from 'src/routes/explore/user.svelte';
 	import Icon from '@iconify/svelte';
 	import { chatManager } from 'src/controller/managers';
+	import RelaysList from 'src/components/RelaysList.svelte';
 
 	export let visible = true;
 
@@ -29,6 +31,8 @@
 	let subs: string[] = [];
 
 	let contacts: { [key: string]: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]] } = {};
+
+	let connectionStatus: { [url: string]: ConnectionStatus } = {};
 
 	const subscriptionOptions: SubscriptionOptions = {
 		pipeline: {
@@ -142,6 +146,7 @@
 		{updateFeed}
 		{subscriptionOptions}
 		backdrop
+		bind:connectionStatus
 	>
 		<svelte:fragment slot="sticky-header">
 			<div class="relative pt-safe">
@@ -161,12 +166,13 @@
 						<Icon icon="teenyicons:add-outline" class="text-xl"></Icon>
 					</button>
 				</div>
+				<RelaysList relays={_.uniq([...$writeRelays, ...$readRelays])} {connectionStatus} />
 			</div>
 		</svelte:fragment>
 		<svelte:fragment slot="item-content" let:post let:context let:visible>
 			<a
 				href={'/chat/' + 'kind4:' + correspondant(post)}
-				class="flex gap-2 h-28 overflow-hidden py-4 pr-2 cursor-pointer w-feed"
+				class="flex gap-2 h-24 overflow-hidden pt-4 pr-2 cursor-pointer w-feed"
 			>
 				<div class="flex-shrink-0">
 					<Avatar pubkey={correspondant(post)} {context} size="xl" />
@@ -178,7 +184,7 @@
 							{formatDistanceToNow(post.created_at * 1000, { addSuffix: true })}
 						</div>
 					</div>
-					<div class="text-xs lg:text-base break-words overflow-hidden max-w-full">
+					<div class="text-base break-words overflow-hidden max-w-full">
 						<span class="flex gap-1 max-h-6">
 							{#if post.pubkey == $key?.pub}<span class="text-primary">you:</span>
 							{/if}
