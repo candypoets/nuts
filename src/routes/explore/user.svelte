@@ -6,39 +6,28 @@
 
 	import { userQuery } from 'src/routes/queries/user';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
-	import type { ParsedEvent, AnyKind, Kind0Parsed, SubscribeKind } from '@candypoets/nipworker';
-	import { isKind0 } from '@candypoets/nipworker/utils';
+	import type { ParsedEvent, Kind0Parsed, WorkerMessage } from '@candypoets/nipworker';
+	import { asKind0, isKind0 } from '@candypoets/nipworker/utils';
 
 	export let pubkey: string;
 	export let link: boolean = true;
 	export let relays: string[] = [];
-	export let context: ParsedEvent<AnyKind>[] = [];
+	export let context: ParsedEvent[] = [];
 	export let query = true;
 
 	let user: Kind0Parsed | undefined;
 	let sub: (() => void) | undefined;
 
 	onMount(() => {
-		user = (context || []).find((event) => event.kind === 0 && event.pubkey === pubkey)?.parsed as
-			| Kind0Parsed
-			| undefined;
+		user = context.find((c) => asKind0(c)) as Kind0Parsed | undefined;
 		if (!user && query) {
-			sub = useSubscription(
-				'u_' + pubkey,
-				userQuery(pubkey),
-				(events: ParsedEvent<AnyKind>[], type: SubscribeKind) => {
-					if (type == 'CONNECTION_STATUS') {
-						return;
-					}
-					const [event, ...context] = events;
-					if (isKind0(event)) {
-						user = event.parsed as Kind0Parsed;
-
-						sub?.();
-						sub = undefined;
-					}
+			sub = useSubscription('u_' + pubkey, userQuery(pubkey), (message: WorkerMessage) => {
+				const kind0 = isKind0(message);
+				if (kind0) {
+					user = kind0;
+					sub?.();
 				}
-			);
+			});
 		}
 		return () => sub?.();
 	});
@@ -58,8 +47,14 @@
 	<a
 		class="text-accent whitespace-nowrap hover:underline"
 		on:click|stopPropagation|preventDefault={go}
-		>@{user?.name?.trim() || pubkey?.slice(0, 15) + '...'}</a
+		>@{user?.name?.()?.toString()?.trim() ||
+			user?.displayName?.()?.toString()?.trim() ||
+			pubkey?.slice(0, 15) + '...'}</a
 	>
 {:else}
-	<span>{user?.name?.trim() || pubkey?.slice(0, 15) + '...'}</span>
+	<span
+		>{user?.name?.()?.toString()?.trim() ||
+			user?.displayName?.()?.toString()?.trim() ||
+			pubkey?.slice(0, 15) + '...'}</span
+	>
 {/if}

@@ -1,15 +1,15 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import {
-		type AnyKind,
-		type Kind7376Parsed,
-		type Kind9321Parsed,
-		type ParsedEvent,
-		type SubscribeKind
-	} from '@candypoets/nipworker';
+	import { WorkerMessage, type ParsedEvent } from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
-	import { isKind10002, isKind7376 } from '@candypoets/nipworker/utils';
+	import {
+		asKind7376,
+		asKind9321,
+		asParsedEvent,
+		fbArray,
+		isKind10002
+	} from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { formatDate } from 'date-fns';
 	import { nip19 } from 'nostr-tools';
@@ -21,26 +21,38 @@
 	import User from 'src/routes/explore/user.svelte';
 	import { userQuery } from 'src/routes/queries/user';
 
-	export let zap: ParsedEvent<Kind9321Parsed>;
-	export let context: ParsedEvent<AnyKind>[];
+	export let zap: ParsedEvent;
+	export let context: ParsedEvent[];
 
-	let redeemed: ParsedEvent<Kind7376Parsed> | undefined;
+	let kind9321 = asKind9321(zap);
+
+	let decoded = {
+		id: zap?.id()?.toString(),
+		kind: zap?.kind(),
+		pubkey: zap?.pubkey()?.toString(),
+		createdAt: zap?.createdAt(),
+		comment: kind9321?.comment()?.toString(),
+		sender: zap?.pubkey()?.toString(),
+		eventId: kind9321?.eventId()?.toString(),
+		recipient: kind9321?.recipient()?.toString()
+	};
+
+	let redeemed: ParsedEvent | undefined;
 	let sub: (() => void) | undefined;
 
 	let relays: string[] = [];
 
 	let usub = useSubscription(
-		'u_' + zap.parsed?.recipient || '',
-		userQuery(zap.parsed?.recipient || ''),
-		(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) => {
-			if (kind == 'CONNECTION_STATUS') {
-				return;
-			}
-			const [event] = events;
-			if (isKind10002(event)) {
-				relays = event.parsed?.filter((r) => !!r.write).map((r) => r.url) || [];
+		'u_' + decoded.recipient || '',
+		userQuery(decoded.recipient || ''),
+		(message: WorkerMessage) => {
+			const kind10002 = isKind10002(message);
+			if (kind10002) {
+				relays =
+					fbArray(kind10002, 'relays')
+						.filter((r) => r.write())
+						.map((r) => r?.url()?.toString()) || [];
 				usub?.();
-				usub = undefined;
 			}
 		}
 	);
@@ -48,12 +60,10 @@
 	function go() {
 		const currentPath = $page.url.pathname;
 		let eventPath = '';
-		if (zap?.parsed?.eventId) {
-			eventPath = `nevent:${nip19.neventEncode({ id: zap?.parsed?.eventId, relays })}`;
+		if (kind9321?.eventId()) {
+			eventPath = `nevent:${nip19.neventEncode({ id: decoded?.eventId, relays })}`;
 		} else {
-			eventPath = `nprofile:${
-				zap?.parsed?.recipient == $key?.pub ? zap?.pubkey : zap?.parsed?.recipient
-			}`;
+			eventPath = `nprofile:${decoded.recipient == $key?.pub ? decoded.sender : decoded.recipient}`;
 		}
 
 		// Check if the current URL already ends with the profile we're trying to navigate to
@@ -63,41 +73,38 @@
 	}
 
 	// Helper function to prevent errors if values are null/undefined
-	const getAmount = (event: ParsedEvent<any> | undefined): number => {
-		return event?.parsed?.amount ?? 0;
+	const getAmount = (event: ParsedEvent | undefined): number => {
+		return kind9321?.amount() ?? 0;
 	};
 
 	onMount(() => {
 		// Find existing redeem event in context
-		redeemed = context.find((c) => isKind7376(c) && c.id === zap.id) as
-			| ParsedEvent<Kind7376Parsed>
-			| undefined; // Ensure correct type or undefined
+		redeemed = context.find((c) => asKind7376(c) && c.id === zap.id) as ParsedEvent | undefined; // Ensure correct type or undefined
 
-		// If not found and we are the recipient, subscribe to find it
-		if (!redeemed && zap.parsed?.recipient) {
+		// If not found and we are the decoded.recipient, subscribe to find it
+		if (!redeemed && decoded.recipient) {
 			sub = useSubscription(
-				'kind:7376:' + zap.id, // Subscription ID related to the zap
+				'kind:7376:' + zap.id()?.fnv1aHash(), // Subscription ID related to the zap
 				[
-					// Only subscribe if we are the recipient
+					// Only subscribe if we are the decoded.recipient
 					{
 						kinds: [7376],
-						authors: [zap.parsed?.recipient], // Author must be the recipient
-						tags: { '#e': [zap.id] }, // Must reference the zap event
+						authors: [decoded.recipient], // Author must be the recipient
+						tags: { '#e': [decoded?.id || ''] }, // Must reference the zap event
 						limit: 1,
 						cacheFirst: true,
-						relays: zap.relays || [] // Use relays from original zap if possible
+						relays: fbArray(zap, 'relays').map((r) => r.toString()) || [] // Use relays from original zap if possible
 					}
 				],
-				(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) => {
-					if (kind == 'CONNECTION_STATUS') {
-						return;
-					}
-					// Removed unused 'type' and 'context' parameters
-					const [event, ...context] = events;
-					if (isKind7376(event)) {
-						redeemed = event; // Assign the found redeem event
-						sub?.(); // Unsubscribe once found
-						sub = undefined;
+				(message: WorkerMessage) => {
+					const parsedEvent = asParsedEvent(message);
+					if (parsedEvent) {
+						const kind7376 = asKind7376(parsedEvent);
+						if (kind7376) {
+							// Ensure it's a valid redeem event
+							redeemed = parsedEvent;
+							sub?.(); // Unsubscribe once found
+						}
 					}
 				},
 				{ closeOnEose: true }
@@ -112,15 +119,16 @@
 
 {#if zap.isFirst}
 	<strong class="text-base mt-2 block">
-		{#if zap.created_at > new Date().setHours(0, 0, 0, 0) / 1000}
+		{#if decoded.createdAt > new Date().setHours(0, 0, 0, 0) / 1000}
 			TODAY
-		{:else if zap.created_at > new Date().setHours(0, 0, 0, 0) / 1000 - DAY}
+		{:else if decoded.createdAt > new Date().setHours(0, 0, 0, 0) / 1000 - DAY}
 			Yesterday
 		{:else}
-			{formatDate(new Date(zap.created_at * 1000), 'dd-MM-yyyy')}
+			{formatDate(new Date(decoded.createdAt * 1000), 'dd-MM-yyyy')}
 		{/if}
 	</strong>
 {/if}
+<!-- <div class="break-words">{JSON.stringify(decoded)}</div> -->
 <!-- Added role, tabindex and keydown for accessibility -->
 <div
 	class="p-4 cursor-pointer border-x border-b border-primary-content"
@@ -132,13 +140,13 @@
 	tabindex="0"
 >
 	<div class="flex items-center justify-between gap-2">
-		{#if zap.pubkey === $key?.pub}
+		{#if decoded.pubkey === $key?.pub}
 			<!-- User is the sender -->
 			<div class="flex items-center gap-2 overflow-hidden">
-				<Avatar pubkey={zap?.parsed?.recipient ?? ''} {context} size="lg" />
+				<Avatar pubkey={decoded?.recipient ?? ''} {context} size="lg" />
 				<span class="font-medium truncate"
 					>You zapped
-					<User pubkey={zap?.parsed?.recipient ?? ''} {context} />
+					<User pubkey={decoded?.recipient ?? ''} {context} />
 				</span>
 			</div>
 			<span class="flex items-center gap-1 text-primary font-bold shrink-0">
@@ -167,9 +175,9 @@
 		{:else}
 			<!-- User is the recipient -->
 			<div class="flex items-center gap-2 overflow-hidden">
-				<Avatar pubkey={zap?.pubkey ?? ''} {context} size="lg" />
+				<Avatar pubkey={decoded?.pubkey ?? ''} {context} size="lg" />
 				<span class="font-medium truncate">
-					<span class="font-bold"><User pubkey={zap?.pubkey ?? ''} {context} /></span>
+					<span class="font-bold"><User pubkey={decoded?.pubkey ?? ''} {context} /></span>
 					<span class="font-bold">zapped you</span>
 				</span>
 			</div>
@@ -200,9 +208,9 @@
 			</span>
 		{/if}
 	</div>
-	{#if zap.content}
+	{#if decoded.comment}
 		<div class="mt-2 text-sm text-base-content/70 ml-12 break-words">
-			"{zap.content}"
+			"{decoded.comment}"
 		</div>
 	{/if}
 </div>

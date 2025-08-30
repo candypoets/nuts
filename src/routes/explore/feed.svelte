@@ -1,28 +1,29 @@
 <script lang="ts">
+	import type { ParsedData, ParsedEvent, WorkerMessage } from '@candypoets/nipworker';
+	import {
+		cleanup,
+		MessageType,
+		type ConnectionStatus,
+		type NostrManager,
+		type SubscriptionOptions
+	} from '@candypoets/nipworker';
+	import { useSubscription } from '@candypoets/nipworker/hooks';
+	import {
+		asConnectionStatus,
+		asKind6,
+		asParsedEvent,
+		isKind1,
+		isKind6
+	} from '@candypoets/nipworker/utils';
 	import Fuse from 'fuse.js';
 	import _ from 'lodash';
 	import { onMount } from 'svelte';
 
-	import type { NostrEvent } from 'nostr-tools';
 	import VirtualList from 'src/components/VirtualList.svelte';
 	import VirtualListBottom from 'src/components/VirtualListBottom.svelte';
+	import { limit } from 'src/controller/pagination';
 	import { now } from 'src/lib/period';
 	import Note from './note.svelte';
-	import { limit } from 'src/controller/pagination';
-	import { isKind, isKind1, isKind6 } from '@candypoets/nipworker/utils';
-	import {
-		cleanup,
-		type ConnectionStatus,
-		type SubscriptionOptions,
-		type NostrManager
-	} from '@candypoets/nipworker';
-	import { useSubscription } from '@candypoets/nipworker/hooks';
-	import type {
-		ParsedEvent,
-		AnyKind,
-		SubscribeKind,
-		Kind1Parsed
-	} from 'node_modules/@candypoets/nipworker/dist/types';
 
 	// Props
 	export let bottom = false;
@@ -31,27 +32,23 @@
 	export let subscriptionOptions: SubscriptionOptions | undefined = undefined;
 	export let manager: NostrManager | undefined = undefined;
 	export let updateFeed:
-		| ((
-				feed: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][],
-				newEvents: ParsedEvent<AnyKind>[],
-				eventKind: SubscribeKind
-		  ) => [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][])
+		| ((feed: ParsedEvent[], newEvent: WorkerMessage) => ParsedEvent[])
 		| undefined = undefined;
-	export let feed: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
-	export let kinds: number[] | undefined = undefined;
+	export let feed: ParsedEvent[] = [];
+	export let kinds: ParsedData[] | undefined = undefined;
 	export let visible: boolean = true;
 	export let backdrop: boolean = false;
 	export let search: string = '';
 	export let fuseKeys: string[] = [];
 	export let itemHeight: number | undefined = undefined;
-	export let initialItems: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][] = [];
+	export let initialItems: ParsedEvent[] = [];
 
 	export let connectionStatus: { [url: string]: ConnectionStatus } = {};
 
-	let cachedFeed: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
-	let fetchedFeed: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
+	let cachedFeed: ParsedEvent[] = [];
+	let fetchedFeed: ParsedEvent[] = [];
 	// used in order to throttle fast incoming events
-	let bufferFeed: [ParsedEvent<Kind1Parsed>, ParsedEvent<AnyKind>[]][] = [];
+	let bufferFeed: ParsedEvent[] = [];
 	let newPosts: number = 0;
 	let timeout: NodeJS.Timeout | undefined;
 	let sub: () => void | undefined;
@@ -59,7 +56,7 @@
 	let headsub: () => void | undefined;
 
 	let fuse: Fuse<any>;
-	let filteredFeed: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][] = [];
+	let filteredFeed: ParsedEvent[] = [];
 
 	let start = 0;
 	let end = 0;
@@ -83,83 +80,92 @@
 		}
 	}
 
-	function isCorrectKind(event: NostrEvent) {
-		return kinds != undefined ? kinds.some((k) => isKind(k)?.(event)) : isKind1;
+	function isCorrectKind(event: ParsedEvent) {
+		return kinds != undefined ? kinds.some((k) => event.kind() == k) : isKind1;
 	}
 
 	// In a separate function to avoid infinite loops in the reactive block
-	const handleEvents = (events: ParsedEvent<AnyKind>[], eventKind: SubscribeKind, page = 0) => {
-		if (eventKind == 'BUFFER_FULL') {
-			let since = feed.length > 0 ? feed[0][0].created_at : now();
-			headsub?.();
-			cleanup();
-			headsub = useSubscription(
-				subscriptionID + '_head',
-				requests.map((r) => ({ ...r, since })),
-				(events: ParsedEvent<AnyKind>[], eventKind: SubscribeKind) => {
-					handleEvents(events, eventKind);
+	const handleEvents = (message: WorkerMessage, page = 0) => {
+		switch (message.type()) {
+			case MessageType.BufferFull:
+				let since = feed.length > 0 ? Number(feed[0].createdAt()) : now();
+				headsub?.();
+				cleanup();
+				headsub = useSubscription(
+					subscriptionID + '_head',
+					requests.map((r) => ({ ...r, since })),
+					handleEvents
+				);
+				break;
+			case MessageType.ConnectionStatus:
+				const status = asConnectionStatus(message);
+				if (status) {
+					connectionStatus[status.relayUrl()!.fnv1aHash()] = status;
+					if (status.status()!.toString() == 'EOSE' && eose == false) {
+						// if (eose == false && events.remainingConnections / events.totalConnections < 1) {
+						loading = false;
+						eose = true;
+						if (page == 0) {
+							feed = _.uniqBy([...fetchedFeed, ...feed], (item) => item.id()!.fnv1aHash()).sort(
+								(a, b) => Number(b.createdAt() - a.createdAt())
+							);
+						} else {
+							feed = _.uniqBy(
+								[...feed, ...fetchedFeed.sort((a, b) => Number(b.createdAt() - a.createdAt()))],
+								(item) => item.id()!.fnv1aHash()
+							);
+						}
+						fetchedFeed = [];
+					}
 				}
-			);
-			return;
-		}
-		if (eventKind == 'CONNECTION_STATUS') {
-			connectionStatus[events.relay_url] = events.status;
-			if (events.status == 'EOSE' && eose == false) {
-				// if (eose == false && events.remainingConnections / events.totalConnections < 1) {
-				loading = false;
-				eose = true;
-				if (page == 0) {
-					feed = _.uniqBy([...fetchedFeed, ...feed], (item) => item[0].id).sort(
-						(a, b) => b[0].created_at - a[0].created_at
-					);
-				} else {
-					feed = _.uniqBy(
-						[...feed, ...fetchedFeed.sort((a, b) => b[0].created_at - a[0].created_at)],
-						(item) => item[0].id
-					);
+				break;
+			case MessageType.Eoce:
+				console.log('cache received', subscriptionID);
+				if (!eoce) {
+					eoce = true;
+					if (page == 0) {
+						feed = [...feed, ...initialItems, ...cachedFeed];
+					} else {
+						feed = [...feed, ...cachedFeed];
+					}
+					console.log('cache done', subscriptionID);
+					cachedFeed = [];
+					// makeFuse();
 				}
-				// makeFuse();
-				fetchedFeed = [];
-				// }
-			}
-			return;
-		}
-		if (eventKind == 'EOCE' && !eoce) {
-			eoce = true;
-			if (page == 0) {
-				feed = [...feed, ...initialItems, ...cachedFeed];
-			} else {
-				feed = [...feed, ...cachedFeed];
-			}
-			cachedFeed = [];
-			// makeFuse();
-			return;
-		}
-		const [event, ...context] = events;
-		if (!event?.parsed) return;
-		if (updateFeed && isCorrectKind(event)) {
-			if (!eoce) {
-				cachedFeed = updateFeed(cachedFeed, events, eventKind);
-			} else if (!eose) {
-				fetchedFeed = updateFeed(fetchedFeed, events, eventKind);
-			} else {
-				feed = updateFeed(feed, events, eventKind);
-				// makeFuse();
-			}
-			return;
-		}
-		if (isCorrectKind(event)) {
-			// only show replies to root posts
-			if (event?.parsed?.reply?.id && event?.parsed?.root?.id != event?.parsed?.reply?.id) return;
-			// check if the event is already in the feed
-			if (!eoce) {
-				// cached event are filtered and sorted in the worker
-				cachedFeed = [...cachedFeed, [event, _.uniqBy(context, 'id')]];
-			} else if (!eose) {
-				fetchedFeed = [[event, _.uniqBy(context, 'id')], ...fetchedFeed];
-			} else {
-				bufferFeed.push([event, _.uniqBy(context, 'id')]);
-			}
+				break;
+			case MessageType.ParsedNostrEvent:
+				const parsedEvent = asParsedEvent(message);
+				if (updateFeed && parsedEvent && isCorrectKind(parsedEvent)) {
+					if (!eoce) {
+						cachedFeed = updateFeed(cachedFeed, message);
+					} else if (!eose) {
+						fetchedFeed = updateFeed(fetchedFeed, message);
+					} else {
+						feed = updateFeed(feed, message);
+						// makeFuse();
+					}
+					break;
+				}
+
+				const kind1 = isKind1(message);
+				if (parsedEvent && kind1) {
+					// only show replies to root posts
+					if (
+						kind1.reply()?.id() &&
+						kind1?.root()?.id()!.fnv1aHash() != kind1.reply()!.id()!.fnv1aHash()
+					)
+						return;
+					// check if the event is already in the feed
+					if (!eoce) {
+						// cached event are filtered and sorted in the worker
+						cachedFeed = [...cachedFeed, parsedEvent];
+					} else if (!eose) {
+						fetchedFeed = [parsedEvent, ...fetchedFeed];
+					} else {
+						bufferFeed.push(parsedEvent);
+					}
+				}
+				break;
 		}
 	};
 
@@ -186,8 +192,8 @@
 
 	function setBufferFeed() {
 		newPosts = start > bufferFeed.length ? bufferFeed.length : start;
-		feed = [...feed, ...fetchedFeed, ...bufferFeed].sort(
-			(a, b) => b[0].created_at - a[0].created_at
+		feed = [...feed, ...fetchedFeed, ...bufferFeed].sort((a, b) =>
+			Number(b.createdAt() - a.createdAt())
 		);
 		bufferFeed = [];
 
@@ -219,17 +225,17 @@
 	$: visible && requests && requests.length ? subscribe() : unsubscribe();
 
 	// Filter feed based on search query
-	$: {
-		if (search && fuse) {
-			const results = fuse.search(search);
-			filteredFeed = results.map((result) => result.item) as [
-				ParsedEvent<AnyKind>,
-				ParsedEvent<AnyKind>[]
-			][];
-		} else {
-			filteredFeed = feed as [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][];
-		}
-	}
+	// $: {
+	// 	if (search && fuse) {
+	// 		const results = fuse.search(search);
+	// 		filteredFeed = results.map((result) => result.item) as [
+	// 			ParsedEvent<AnyKind>,
+	// 			ParsedEvent<AnyKind>[]
+	// 		][];
+	// 	} else {
+	// 		filteredFeed = feed as [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][];
+	// 	}
+	// }
 
 	let currentPage = 0;
 	let lastFeedLength = 0;
@@ -258,13 +264,12 @@
 			setTimeout(() => {
 				pagesub?.();
 				cleanup();
-				const until = feed[Math.min(currentPage * $limit, feed.length - 1)][0].created_at;
+				const until = Number(feed[Math.min(currentPage * $limit, feed.length - 1)].createdAt());
 				const since = until - (currentPage + 2) * 24 * 60 * 60 * sinceMultiplier;
 				pagesub = useSubscription(
 					subscriptionID + since,
 					requests.map((r) => ({ ...r, until, since })),
-					(events: ParsedEvent<AnyKind>[], eventKind: SubscribeKind) =>
-						handleEvents(events, eventKind, currentPage)
+					(message) => handleEvents(message, currentPage)
 				);
 			}, noResultsCount * 1000);
 		}
@@ -310,27 +315,25 @@
 		bind:end
 		bind:viewport
 		bind:down
-		getItemId={(item) => item.data[0]?.id}
+		getItemId={(item) => item?.id().fnv1aHash()}
 		let:item
 		{itemHeight}
 		{backdrop}
 		{loading}
 	>
-		{@const repost = isKind6(item[0]) && item[0].pubkey}
+		{@const repost = asKind6(item) && item.pubkey()}
+		{@const isVisible =
+			visible &&
+			feed.findIndex((note) => note.id()?.toString() === item.id()?.toString()) >= start - 2}
 		<svelte:fragment slot="feed-header">
 			<slot name="header" visible>Missing Template</slot>
 		</svelte:fragment>
 		<div class="block w-feed m-auto px-1 max-w-full">
-			<slot
-				name="item-content"
-				post={item[0]}
-				context={item[1]}
-				visible={visible && feed.findIndex((note) => note[0]?.id === item[0].id) >= start - 2}
-			>
+			<slot name="item-content" post={item} visible={isVisible}>
 				<Note
-					note={repost ? { ...item[0]?.parsed.repostedEvent, requests: item[0].requests } : item[0]}
-					context={item[1]}
-					visible={visible && feed.findIndex((note) => note[0]?.id === item[0].id) >= start - 2}
+					note={repost ? { ...item?.parsed.repostedEvent, requests: item.requests } : item}
+					context={[]}
+					visible={isVisible}
 					{repost}
 				/>
 			</slot>

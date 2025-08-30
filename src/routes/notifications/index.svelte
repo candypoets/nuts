@@ -3,7 +3,14 @@
 	import Icon from '@iconify/svelte';
 	import _ from 'lodash';
 	import { key, kind10002, lastNotificationView, writeRelays } from 'src/controller';
-	import type { Request, SubscribeKind, AnyKind } from '@candypoets/nipworker';
+	import {
+		type Request,
+		type SubscribeKind,
+		type AnyKind,
+		type WorkerMessage,
+		type RequestObject,
+		MessageType
+	} from '@candypoets/nipworker';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import type { ParsedEvent } from '@candypoets/nipworker';
 	import { onMount } from 'svelte';
@@ -12,41 +19,37 @@
 	import Reactions from './reactions.svelte';
 	import Replies from './replies.svelte';
 	import { chatManager } from 'src/controller/managers';
+	import { asConnectionStatus, asParsedEvent } from '@candypoets/nipworker/utils';
 
 	export let visible = true;
 	export let goBack: () => void;
 	let loading = true;
 	let notificationsData = [];
-	let feedRequests: Request = [];
+	let eoce = false;
+	let feedRequests: RequestObject[] = [];
 
 	function updateFeed(
-		feed: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][],
-		events: ParsedEvent<AnyKind>[],
+		feed: ParsedEvent[],
+		message: WorkerMessage,
 		eventKind: SubscribeKind
-	): [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][] {
-		if (eventKind == 'CONNECTION_STATUS') return feed;
-		const [event, ...context] = events;
-		if (event.pubkey == $key?.pub) return feed;
-		if (!event || !event.parsed) return feed;
-
-		// Add new events to our feed for processing
-		let updatedFeed: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][];
-
-		if (eventKind === 'CACHED_EVENT') {
-			// For cached events, just add them to the feed
-			updatedFeed = [...feed, [event, _.uniqBy(context, 'id')]];
-		} else if (eventKind === 'FETCHED_EVENT') {
-			// For fetched events, add them in timestamp order
-			if (feed.length === 0 || event.created_at >= feed[0][0].created_at) {
-				updatedFeed = [[event, _.uniqBy(context, 'id')], ...feed];
-			} else {
-				// Add and sort by timestamp
-				updatedFeed = [...feed, [event, _.uniqBy(context, 'id')]].sort(
-					(a, b) => b[0].created_at - a[0].created_at
-				);
-			}
-		} else {
-			return feed;
+	): ParsedEvent[] {
+		let updatedFeed = feed;
+		switch (message.type()) {
+			case MessageType.Eoce:
+				if (!eoce) {
+					eoce = true;
+				}
+				break;
+			case MessageType.ParsedNostrEvent:
+				const parsedEvent = asParsedEvent(message);
+				if (!eoce) {
+					updatedFeed = [...feed, parsedEvent as ParsedEvent];
+				} else {
+					updatedFeed = [...feed, parsedEvent as ParsedEvent].sort(
+						(a, b) => b.createdAt() - a.createdAt()
+					);
+				}
+				break;
 		}
 		const processedFeed = processNotifications(updatedFeed);
 
@@ -113,11 +116,11 @@
 
 	<svelte:fragment slot="item-content" let:post let:context let:visible>
 		<!-- {#if visible} -->
-		{#if post.type === 'reply'}
-			<Replies {post} {visible} />
-		{:else if post.type === 'reaction'}
+		<!-- {#if post.type === 'reply'}
+			<Replies {post} {visible} /> -->
+		{#if post.type === 'reaction'}
 			<Reactions {post} {visible} />
-		{:else if post.type === 'mention'}
+			<!-- {:else if post.type === 'mention'}
 			<Mentions {post} {visible} />
 		{:else if post.type === 'repost'}
 			<div class="p-4 border-b">
@@ -135,7 +138,7 @@
 							: ''}"
 					{/if}
 				</div>
-			</div>
+			</div> -->
 			<!-- {/if} -->
 		{:else}
 			<!-- Placeholder for non-visible items to maintain scroll performance -->

@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { page } from '$app/stores';
 	import Icon from '@iconify/svelte';
 
+	import type { ConnectionStatus, Kind3Parsed } from '@candypoets/nipworker';
 	import _ from 'lodash';
 	import Pager from 'src/components/Pager.svelte';
 	import RelaysList from 'src/components/RelaysList.svelte';
@@ -14,7 +14,7 @@
 	import Post from 'src/routes/explore/post.svelte';
 	import { go } from 'src/routes/modals/modal';
 	import Notifications from './notifications.svelte';
-	import type { ConnectionStatus } from '@candypoets/nipworker';
+	import { asKind0, asKind3, fbArray } from '@candypoets/nipworker/utils';
 
 	export let visible = true;
 
@@ -30,7 +30,10 @@
 	function setFeedRequests(follows: string[]) {
 		kind3Ready.promise.then((kind3) => {
 			if (follows.length == 0 && $followPacks.length)
-				follows = kind3.parsed?.map((c) => c.pubkey) || [];
+				follows =
+					fbArray(asKind3(kind3) as Kind3Parsed, 'contacts')
+						?.map((c) => c.pubkey()?.toString())
+						.filter(Boolean) || [];
 			feedRequests = [
 				{
 					kinds: [1, 6],
@@ -78,7 +81,7 @@
 						</span>
 						<a class="cursor-pointer" on:click|stopPropagation={() => go('profile')}>
 							<img
-								src={proxyAvatarUrl($kind0?.parsed?.picture) || '/ns-naked.svg'}
+								src={proxyAvatarUrl(asKind0($kind0)?.picture()?.toString()) || '/ns-naked.svg'}
 								class="w-8 h-8 border rounded-full"
 							/>
 						</a>
@@ -110,7 +113,7 @@
 						<Notifications />
 						<div class="cursor-pointer" on:click|stopPropagation={() => go('profile')}>
 							<img
-								src={$kind0?.parsed?.picture || '/ns-naked.svg'}
+								src={proxyAvatarUrl(asKind0($kind0)?.picture()?.toString()) || '/ns-naked.svg'}
 								class="w-8 h-8 border rounded-full"
 							/>
 						</div>

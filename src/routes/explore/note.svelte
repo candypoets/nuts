@@ -1,16 +1,18 @@
 <script lang="ts">
-	import type {
-		AnyKind,
-		ConnectionStatus,
+	import {
 		Kind1Parsed,
-		ParsedEvent,
-		SubscribeKind
+		MessageType,
+		type ConnectionStatus,
+		type ParsedEvent,
+		type WorkerMessage
 	} from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
-	import _ from 'lodash';
 	import { nip19 } from 'nostr-tools';
 	import { getContext, onDestroy } from 'svelte';
 
+	import { asConnectionStatus, asKind1, asParsedEvent, fbArray } from '@candypoets/nipworker/utils';
+	import RelaysList from 'src/components/RelaysList.svelte';
+	import { toRequestObject } from 'src/lib/request';
 	import Content from 'src/routes/explore/_post/content.svelte';
 	import Footer from 'src/routes/explore/_post/footer.svelte';
 	import Header from 'src/routes/explore/_post/header.svelte';
@@ -18,23 +20,29 @@
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import { getUserRelays } from 'src/routes/queries/user';
 	import { go } from '../modals/modal';
-	import RelaysList from 'src/components/RelaysList.svelte';
+	import _ from 'lodash';
 
 	export let main: boolean = false;
 	// if the note is a repost, this is the reposter pubkey
 	export let repost: string | undefined = undefined;
 	export let noteId: string | undefined = undefined;
-	export let context: ParsedEvent<AnyKind>[] = [];
-	export let note: ParsedEvent<Kind1Parsed> | undefined = undefined;
+	export let context: ParsedEvent[] = [];
+	export let note: ParsedEvent | undefined = undefined;
 	export let zaps: boolean = false;
 	export let footer: boolean = true;
 	export let visible: boolean = false;
-	export let showReplies:
-		| ((events: ParsedEvent<Kind1Parsed>[]) => ParsedEvent<Kind1Parsed>[])
-		| undefined = undefined;
+	export let showReplies: ((events: ParsedEvent[]) => ParsedEvent[]) | undefined = undefined;
 	// for replies, show the original post above
 	export let showRoot: boolean = true;
 	export let depth = 0;
+
+	$: kind1 = note && asKind1(note as ParsedEvent);
+
+	$: decoded = {
+		noteId: note?.id()?.toString(),
+		replyID: kind1?.reply()?.id()?.toString(),
+		mentions: fbArray(kind1 as Kind1Parsed, 'mentions').map((m) => m?.id()?.toString())
+	};
 
 	// is the note leading in a thread
 	export let leading: boolean | undefined = undefined;
@@ -45,7 +53,7 @@
 	let relaysub: (() => void) | undefined;
 	let connectionStatus: { [url: string]: ConnectionStatus } = {};
 
-	let replies: ParsedEvent<Kind1Parsed>[] = [];
+	let replies: ParsedEvent[] = [];
 
 	$: visibleReplies = showReplies ? showReplies(replies) : [];
 
@@ -59,18 +67,22 @@
 
 	$: {
 		if (!note && noteId && context) {
-			note = context.find((event) => event.id === noteId) as ParsedEvent<Kind1Parsed>;
+			note = context.find((event) => event?.id()!.toString() === noteId) as ParsedEvent;
 		}
 	}
 
-	function handleEvents(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) {
-		if (kind == 'CONNECTION_STATUS') {
-			connectionStatus[events.relay_url] = events.status;
-			return;
+	function handleEvents(message: WorkerMessage) {
+		switch (message.type()) {
+			case MessageType.ConnectionStatus:
+				const status = asConnectionStatus(message);
+				connectionStatus[status?.relayUrl()!.toString() as string] = status as ConnectionStatus;
+				break;
+			case MessageType.ParsedNostrEvent:
+				context = _.uniqBy([...context, asParsedEvent(message) as ParsedEvent], (c) =>
+					c?.id()?.fnv1aHash()
+				);
+				break;
 		}
-		const [event] = events;
-		if (!event?.parsed) return;
-		context = _.uniqBy([...context, ...events], 'id');
 	}
 
 	let subed = 0;
@@ -78,33 +90,38 @@
 	function subscribe() {
 		timeout = setTimeout(async () => {
 			if (note && visible) {
-				if (!sub) {
+				const noteId = note.id()?.toString();
+				if (!sub && noteId) {
 					subed++;
+					console.log(
+						'subscribing ' + noteId,
+						fbArray(note, 'requests').map((r) => toRequestObject(r))
+					);
 					sub = useSubscription(
-						note.id,
+						noteId,
 						[
 							{
 								kinds: [1],
-								ids: [note?.id],
+								ids: [noteId],
 								limit: 5,
 								relays: relays || [],
 								cacheFirst: true
 							},
 							// fetch some replies
-							{ kinds: [1], limit: 10, tags: { '#e': [note.id] }, relays: relays || [] },
-							...(note.requests || [])
+							{ kinds: [1], limit: 10, tags: { '#e': [noteId] }, relays: relays || [] },
+							...fbArray(note, 'requests').map((r) => toRequestObject(r))
 						],
 						handleEvents,
 						{
-							initialMessage: {
-								SubscriptionEvent: { event_data: [[note]], event_type: 'BUFF_EVENT' }
-							}
+							// initialMessage: {
+							// 	SubscriptionEvent: { event_data: [[note]], event_type: 'BUFF_EVENT' }
+							// }
 						}
 					);
 				}
 				if (!relays.length && !relaysub) {
 					relaysub = getUserRelays(
-						note.pubkey,
+						note?.pubkey()?.toString() as string,
 						(result) => {
 							relays = result;
 						},
@@ -131,7 +148,7 @@
 
 	function goto() {
 		if (isImageContext) return;
-		const nip19Event = nip19.neventEncode({ id: note?.id || noteId || '', relays });
+		const nip19Event = nip19.neventEncode({ id: decoded.noteId || noteId || '', relays });
 		const eventPath = `nevent:${nip19Event}`;
 		go(eventPath);
 	}
@@ -139,8 +156,8 @@
 	onDestroy(unsubscribe);
 </script>
 
-{#if note?.parsed?.reply && !(note.parsed.mentions || []).some((m) => m.id == note?.parsed?.reply?.id) && !depth && showRoot}
-	<svelte:self noteId={note.parsed.reply.id} {context} {visible} zaps leading />
+{#if decoded.replyID && !(decoded.mentions || []).some((mId) => mId == decoded.replyID) && !depth && showRoot}
+	<svelte:self noteId={decoded.replyID} {context} {visible} zaps leading />
 {/if}
 
 <div
@@ -151,6 +168,17 @@
 	class:border-t={!!depth}
 	class:hidden={depth > 3}
 >
+	<!-- <div class="break-words">
+		{noteId} <br />
+	</div>
+	<div class="break-words">
+		context
+		{context.map((c) => c?.id()?.toString())}
+	</div>
+	<div class="break-words">
+		requests
+		{fbArray(note, 'requests').map((r) => toRequestObject(r).ids?.[0])}
+	</div> -->
 	{#if note}
 		<!-- {subed}
 		{note.id}

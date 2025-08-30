@@ -1,35 +1,36 @@
 <script lang="ts">
-	import type {
-		AnyKind,
-		ConnectionStatus,
-		Kind1Parsed,
-		ParsedEvent,
-		Request,
-		SubscribeKind
+	import {
+		MessageType,
+		type ConnectionStatus,
+		type ParsedEvent,
+		type RequestObject,
+		type WorkerMessage
 	} from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
-	import { isKind1 } from '@candypoets/nipworker/utils';
+	import { asKind1, asParsedEvent, isKind1, isParsedEvent } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
-	import _ from 'lodash';
 	import { decode, type EventPointer } from 'nostr-tools/nip19';
 	import { getContext, onDestroy } from 'svelte';
 
 	import RelaysList from 'src/components/RelaysList.svelte';
+	import { limit } from 'src/controller/pagination';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import Note from 'src/routes/explore/note.svelte';
 	import Reply from 'src/routes/explore/reply.svelte';
 	import { getUserRelays } from 'src/routes/queries/user';
-	import { limit } from 'src/controller/pagination';
 
 	export let nevent: string;
 	export let visible: boolean;
 	export let depth: number = 0;
 	export let goBack: () => void;
 
-	let headerItem: ParsedEvent<Kind1Parsed> | undefined;
-	let context: ParsedEvent<AnyKind>[] | undefined;
+	let eoce = false;
+	let eose = false;
+
+	let headerItem: ParsedEvent | undefined;
+	let context: ParsedEvent[] = [];
 	let loading = true;
-	let feedRequests: Request[] = [];
+	let feedRequests: RequestObject[] = [];
 	let timeout: NodeJS.Timeout | undefined;
 	let sub: (() => void) | undefined;
 	let relaysub: (() => void) | undefined;
@@ -38,39 +39,43 @@
 
 	const { data } = decode(nevent) as unknown as { data: EventPointer };
 
-	function updateFeed(
-		feed: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][],
-		events: ParsedEvent<AnyKind>[],
-		eventKind: SubscribeKind
-	): [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][] {
-		if (eventKind == 'CONNECTION_STATUS') return feed;
-		const [event, ...context] = events;
-		if (isKind1(event)) {
-			// only show replies to root posts
-			if (event?.parsed?.reply?.id && event.parsed?.reply?.id != data?.id) return feed;
-			if (
-				(!event?.parsed?.reply?.id || event?.parsed?.reply?.id == event?.parsed?.root?.id) &&
-				event.parsed?.root?.id != data?.id
-			)
-				return feed;
-			// check if the event is already in the feed
-			if (feed.some(([e]) => e.id === event.id)) return feed;
-			if (eventKind == 'CACHED_EVENT') {
-				// cached event are filtered in the worker
-				return [...feed, [event, _.uniqBy(context, 'id')]];
-			} else if (eventKind == 'FETCHED_EVENT') {
-				if (event.created_at >= feed?.[0]?.[0]?.created_at) {
-					return [[event, _.uniqBy(context, 'id')], ...feed];
-				} else {
-					// Add the event to the feed and sort by created_at (most recent first)
-					return [...feed, [event, _.uniqBy(context, 'id')]].sort(
-						(a, b) => b[0].created_at - a[0].created_at
-					);
+	function updateFeed(feed: ParsedEvent[], message: WorkerMessage): ParsedEvent[] {
+		switch (message.type()) {
+			case MessageType.Eoce:
+				eoce = true;
+				break;
+			case MessageType.ParsedNostrEvent:
+				const parsedEvent = asParsedEvent(message);
+				if (parsedEvent) {
+					const kind1 = asKind1(parsedEvent);
+					if (kind1) {
+						// only show replies to root posts
+						if (kind1.reply()?.id() && kind1.reply()?.id()?.toString() != data?.id) return feed;
+						if (
+							(!kind1.reply()?.id() ||
+								kind1.reply()?.id()?.toString() == kind1.root()?.id()?.toString()) &&
+							kind1?.root()?.id()?.toString() != data?.id
+						)
+							return feed;
+						// check if the event is already in the feed
+						if (feed.some((e) => e.id()?.fnv1aHash() === parsedEvent.id()?.fnv1aHash()))
+							return feed;
+						if (!eoce) {
+							// cached event are filtered in the worker
+							return [...feed, parsedEvent];
+						} else {
+							if (parsedEvent.createdAt() >= feed?.[0]?.createdAt()) {
+								return [parsedEvent, ...feed];
+							} else {
+								// Add the event to the feed and sort by created_at (most recent first)
+								return [...feed, parsedEvent].sort((a, b) => b.createdAt() - a.createdAt());
+							}
+						}
+					}
 				}
-			}
-		} else {
-			return feed;
+				break;
 		}
+		return feed;
 	}
 
 	function subscribe() {
@@ -86,19 +91,15 @@
 						cacheFirst: true
 					}
 				], // limits higher to accomodate for huge posts
-				(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) => {
-					if (kind == 'CONNECTION_STATUS') {
-						return;
-					}
-					const [event, ...rest] = events;
-					if (!event?.parsed) return;
-					if (isKind1(event) && event.id == data.id) {
+				(message: WorkerMessage) => {
+					const parsedEvent = isParsedEvent(message);
+					const kind1 = isKind1(message);
+					if (kind1 && parsedEvent && parsedEvent.id()?.toString() == data.id) {
 						loading = false;
 						// profile = event;
-						headerItem = event;
-						context = rest;
+						headerItem = parsedEvent;
 						relaysub = getUserRelays(
-							event.pubkey,
+							parsedEvent?.pubkey()?.toString(),
 							(relays) => {
 								feedRequests = [
 									{
@@ -181,7 +182,7 @@
 			{/if}
 		</div>
 	</svelte.fragment>
-	<svelte:fragment slot="item-content" let:post let:context let:visible>
+	<svelte:fragment slot="item-content" let:post let:visible>
 		<Note
 			note={post}
 			{context}

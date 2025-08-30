@@ -32,7 +32,7 @@
 	let bottom = 0;
 	let average_height;
 
-	$: visible = _.uniqBy(items.slice(0, end), (item) => item[0]?.id).map((data, i) => {
+	$: visible = _.uniqBy(items.slice(0, end), getItemId).map((data, i) => {
 		return { index: i + start, data };
 	});
 
@@ -191,7 +191,7 @@
 		<svelte-virtual-list-row>
 			<slot name="feed-header" />
 		</svelte-virtual-list-row>
-		{#each visible as row (getItemId(row))}
+		{#each visible as row (getItemId(row.data))}
 			<svelte-virtual-list-row>
 				<slot item={row.data}>Missing template</slot>
 			</svelte-virtual-list-row>

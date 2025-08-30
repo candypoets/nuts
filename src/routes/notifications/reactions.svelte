@@ -2,11 +2,11 @@
 	import type { AnyKind, ParsedEvent } from '@candypoets/nipworker';
 	import { nostrManager } from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
-	import { isKind1 } from '@candypoets/nipworker/utils';
+	import { asParsedEvent, isKind1, isParsedEvent } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { formatDistanceToNow } from 'date-fns';
 	import { nip19 } from 'nostr-tools';
-	import { onMount } from 'svelte';
+	import { getContext, onMount } from 'svelte';
 
 	import { key, readRelays, writeRelays } from 'src/controller';
 	import Content from 'src/routes/explore/_post/content.svelte';
@@ -18,8 +18,8 @@
 	export let post: ProcessedNotification;
 	export let visible: boolean;
 
-	let context: ParsedEvent<AnyKind>[] = [];
-	let originalPost: ParsedEvent<AnyKind> | null = null;
+	let context: ParsedEvent[] = [];
+	let originalPost: ParsedEvent | null = null;
 	let expanded: boolean = false;
 	let timeout: NodeJS.Timeout | undefined;
 
@@ -37,25 +37,28 @@
 				useSubscription(
 					post.id + 'reactions',
 					[
-						{
-							kinds: [0],
-							authors: post.parsed.events.map((event) => event.pubkey),
-							cacheFirst: true,
-							relays: []
-						},
+						// {
+						// 	kinds: [0],
+						// 	authors: post.parsed.events.map((event) => event.pubkey()?.toString()),
+						// 	cacheFirst: true,
+						// 	relays: []
+						// },
 						{
 							kinds: [1],
 							ids: [post.parsed.referencedPostId],
 							relays: [...$writeRelays, ...$readRelays],
 							cacheFirst: true
-						},
-						...(post.requests || [])
+						}
+						// ...(post.parsed.requests || [])
 					],
-					(events, eventType) => {
-						if (isKind1(events[0])) {
-							originalPost = events[0];
-						} else if (events[0]?.parsed) {
-							context = [...context, ...events];
+					(message) => {
+						const parsedEvent = isParsedEvent(message);
+						console.log('message parsed event', message?.type(), parsedEvent?.id()?.toString());
+						if (isKind1(message)) {
+							console.log('originalPost ok');
+							originalPost = parsedEvent;
+						} else if (parsedEvent) {
+							context = [...context, parsedEvent];
 						}
 					}
 				);
@@ -80,6 +83,7 @@
 	$: visible ? subscribe() : unsubscribe();
 </script>
 
+{post?.parsed?.referencedPostId}
 <div class="border-b border-gray-100 p-4 mb-2 transition-colors">
 	<div class="flex items-start gap-3">
 		<!-- Icon -->
@@ -93,14 +97,14 @@
 			<div class="flex justify-between items-center mb-2">
 				<div class="font-medium">
 					{post.parsed.events.length}
-					{#if originalPost && originalPost.pubkey !== $key?.pub}
+					{#if originalPost && originalPost.pubkey()?.toString() !== $key?.pub}
 						{post.parsed.events.length === 1 ? 'person' : 'people'} liked a post you were mentioned in
 					{:else}
 						{post.parsed.events.length === 1 ? 'person' : 'people'} liked your post
 					{/if}
 				</div>
 				<div class="text-xs text-gray-500">
-					{formatTime(post.parsed.events[0].created_at)}
+					{formatTime(post.parsed.events[0].createdAt())}
 				</div>
 			</div>
 
@@ -109,7 +113,12 @@
 				<a
 					class="cursor-pointer bg-base-200 p-3 rounded-md mb-3 text-sm text-primary-content line-clamp-2 w-post-1"
 					on:click={() =>
-						go(`nevent:${nip19.neventEncode({ id: originalPost.id, relays: $writeRelays })}`)}
+						go(
+							`nevent:${nip19.neventEncode({
+								id: originalPost.id().toString(),
+								relays: $writeRelays
+							})}`
+						)}
 				>
 					<Content note={originalPost} showMedia={false} showQuote={false} depth={2} {context} />
 				</a>
@@ -118,9 +127,9 @@
 				<!-- Author avatars -->
 				<div class="inline-flex -space-x-2 mb-3">
 					{#each post.parsed.events.slice(0, 5) as event}
-						<a href="/{event.pubkey}" class="relative z-0 hover:z-10">
-							<Avatar pubkey={event.pubkey} {context} />
-						</a>
+						<span class="relative z-0 hover:z-10">
+							<Avatar pubkey={event.pubkey()?.toString()} {context} link />
+						</span>
 					{/each}
 					{#if post.parsed.events.length > 5}
 						<div
@@ -136,9 +145,9 @@
 						{#if post.parsed.events.length <= 3}
 							<span>
 								{#each post.parsed.events as event, i}
-									<a href="/{event.pubkey}" class="font-medium">
-										<User pubkey={event.pubkey} link {context} />
-									</a>
+									<span class="font-medium">
+										<User pubkey={event.pubkey()?.toString()} link {context} />
+									</span>
 									{#if i < post.parsed.events.length - 2}
 										,
 									{:else if i < post.parsed.events.length - 1}
@@ -149,10 +158,10 @@
 							</span>
 						{:else}
 							<a href="/{post.parsed.events[0].pubkey}" class="font-medium">
-								<User pubkey={post.parsed.events[0].pubkey} link={false} {context} />
+								<User pubkey={post.parsed.events[0].pubkey()?.toString()} link={false} {context} />
 							</a>,
 							<a href="/{post.parsed.events[1].pubkey}" class="font-medium">
-								<User pubkey={post.parsed.events[1].pubkey} link={false} {context} />
+								<User pubkey={post.parsed.events[1].pubkey()?.toString()} link={false} {context} />
 							</a>
 							and <span class="font-medium">{post.parsed.events.length - 2} others</span> liked this
 							post

@@ -1,36 +1,38 @@
 <script lang="ts">
-	import type {
-		AnyKind,
-		ConnectionStatus,
-		Kind4Parsed,
-		ParsedEvent,
-		Request,
-		SubscribeKind,
-		SubscriptionOptions
+	import {
+		Kind3Parsed,
+		MessageType,
+		type ConnectionStatus,
+		type Kind4Parsed,
+		type ParsedEvent,
+		type RequestObject,
+		type SubscriptionOptions,
+		type WorkerMessage
 	} from '@candypoets/nipworker';
-	import { isKind4 } from '@candypoets/nipworker/utils';
+	import { asKind3, asKind4, asParsedEvent, fbArray, isKind4 } from '@candypoets/nipworker/utils';
 	import { formatDistanceToNow } from 'date-fns';
 	import _ from 'lodash';
 	import { cubicOut } from 'svelte/easing';
 	import { tweened } from 'svelte/motion';
 
+	import Icon from '@iconify/svelte';
 	import Pager from 'src/components/Pager.svelte';
+	import RelaysList from 'src/components/RelaysList.svelte';
 	import { key } from 'src/controller';
+	import { chatManager } from 'src/controller/managers';
 	import { kind3Ready, readRelays, writeRelays } from 'src/controller/nostr';
 	import Content from 'src/routes/explore/_post/content.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import User from 'src/routes/explore/user.svelte';
-	import Icon from '@iconify/svelte';
-	import { chatManager } from 'src/controller/managers';
-	import RelaysList from 'src/components/RelaysList.svelte';
 
 	export let visible = true;
 
-	let feedRequests: Request[] = [];
+	let feedRequests: RequestObject[] = [];
 	let subs: string[] = [];
+	let eoce = false;
 
-	let contacts: { [key: string]: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]] } = {};
+	let contacts: { [key: string]: ParsedEvent } = {};
 
 	let connectionStatus: { [url: string]: ConnectionStatus } = {};
 
@@ -44,58 +46,52 @@
 		}
 	};
 
-	function updateFeed(
-		feed: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][],
-		events: ParsedEvent<AnyKind>[],
-		eventKind: SubscribeKind
-	): [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][] {
-		const [event, ...context] = events;
-		if (!event || !event.parsed || !isKind4(event)) return feed;
-		// Add new events to our feed for processing
-		let updatedFeed: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][];
-
-		if (eventKind === 'CACHED_EVENT') {
-			// For cached events, just add them to the feed
-			updatedFeed = [...feed, [event, _.uniqBy(context, 'id')]];
-		} else if (eventKind === 'FETCHED_EVENT') {
-			// For fetched events, add them in timestamp order
-			if (feed.length === 0 || event.created_at >= feed[0][0].created_at) {
-				updatedFeed = [...feed, [event, _.uniqBy(context, 'id')]];
-			} else {
-				// Add and sort by timestamp
-				updatedFeed = [...feed, [event, _.uniqBy(context, 'id')]].sort(
-					(a, b) => b[0].created_at - a[0].created_at
-				);
-			}
-		} else {
-			return feed;
+	function updateFeed(feed: ParsedEvent[], message: WorkerMessage): ParsedEvent[] {
+		let updatedFeed = feed;
+		switch (message.type()) {
+			case MessageType.Eoce:
+				eoce = true;
+				break;
+			case MessageType.ParsedNostrEvent:
+				const parsedEvent = asParsedEvent(message) as ParsedEvent;
+				if (!isKind4(message)) return feed;
+				if (!eoce) {
+					updatedFeed.push(parsedEvent);
+				} else {
+					updatedFeed.unshift(parsedEvent);
+				}
+				break;
 		}
-		const processedFeed = processMessages(updatedFeed);
+
+		const processedFeed = processEvents(updatedFeed);
 
 		// Process the updated feed into grouped notifications
 		return processedFeed;
 	}
 
-	function processMessages(messages: [ParsedEvent<Kind4Parsed>, ParsedEvent<AnyKind>[]][]) {
-		messages.forEach((m) => {
-			const dm = m[0];
-
-			if (dm.parsed?.chatID) {
-				const prev = contacts[dm.parsed?.chatID]?.[0];
+	function processEvents(events: ParsedEvent[]) {
+		events.forEach((dm) => {
+			const kind4 = asKind4(dm) as Kind4Parsed;
+			if (kind4.chatId()) {
+				const prev = contacts[kind4.chatId()!.fnv1aHash()];
 				// if (dm.created_at > contacts[dm.parsed?.chatID]?.[0]?.created_at || 0) {
-				if ((prev?.created_at || 0) < dm.created_at) {
-					contacts[dm.parsed?.chatID] = m;
+				if ((prev?.createdAt() || 0) < dm.createdAt()) {
+					contacts[kind4.chatId()!.fnv1aHash()] = dm;
 				}
 			}
 		});
-		return Object.values(contacts);
+		return _.orderBy(Object.values(contacts), [(contact) => contact.createdAt()], ['desc']);
 	}
 
 	kind3Ready.promise.then((kind3) => {
+		const k3 = asKind3(kind3) as Kind3Parsed;
+		const contactPubs = (fbArray(k3, 'contacts')
+			.map((c) => c.pubkey()?.toString())
+			.filter((p) => p != $key?.pub) || []) as string[];
 		feedRequests = [
 			{
 				kinds: [4],
-				tags: { '#p': kind3.parsed?.map((c) => c.pubkey).filter((p) => p != $key?.pub) || [] },
+				tags: { '#p': contactPubs },
 				authors: [$key.pub],
 				relays: $writeRelays,
 				noContext: true
@@ -103,16 +99,17 @@
 			{
 				kinds: [4],
 				tags: { '#p': [$key.pub] },
-				authors: kind3.parsed?.map((c) => c.pubkey).filter((p) => p != $key?.pub) || [],
+				authors: contactPubs,
 				relays: $readRelays,
 				noContext: true
 			}
 		];
 	});
 
-	function correspondant(post: ParsedEvent<Kind4Parsed>) {
-		const recipient = post.parsed?.recipient;
-		return recipient == $key?.pub ? post.pubkey : (recipient as string);
+	function correspondant(post: ParsedEvent) {
+		const kind4 = asKind4(post) as Kind4Parsed;
+		const recipient = kind4.recipient()?.toString() || '';
+		return recipient == $key?.pub ? post.pubkey()!.toString() : (recipient as string);
 	}
 
 	$: tweenedValue = tweened(0, {
@@ -169,26 +166,26 @@
 				<RelaysList relays={_.uniq([...$writeRelays, ...$readRelays])} {connectionStatus} />
 			</div>
 		</svelte:fragment>
-		<svelte:fragment slot="item-content" let:post let:context let:visible>
+		<svelte:fragment slot="item-content" let:post let:visible>
 			<a
 				href={'/chat/' + 'kind4:' + correspondant(post)}
 				class="flex gap-2 h-24 overflow-hidden pt-4 pr-2 cursor-pointer w-feed"
 			>
 				<div class="flex-shrink-0">
-					<Avatar pubkey={correspondant(post)} {context} size="xl" />
+					<Avatar pubkey={correspondant(post)} size="xl" />
 				</div>
 				<div class="flex-grow border-b border-primary-content">
 					<div class="flex justify-between">
-						<User pubkey={correspondant(post)} link={false} {context} />
+						<User pubkey={correspondant(post)} link={false} />
 						<div class="text-xs shrink-0">
-							{formatDistanceToNow(post.created_at * 1000, { addSuffix: true })}
+							{formatDistanceToNow(post.createdAt() * 1000, { addSuffix: true })}
 						</div>
 					</div>
 					<div class="text-base break-words overflow-hidden max-w-full">
 						<span class="flex gap-1 max-h-6">
 							{#if post.pubkey == $key?.pub}<span class="text-primary">you:</span>
 							{/if}
-							<Content note={post} {context} class="!w-auto flex-grow" />
+							<Content note={post} class="!w-auto flex-grow" />
 						</span>
 					</div>
 				</div>

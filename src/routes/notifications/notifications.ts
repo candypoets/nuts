@@ -1,6 +1,15 @@
-import { isKind1, isKind7, isKind6 } from '@candypoets/nipworker/utils';
-import type { Request, AnyKind, ParsedEvent } from '@candypoets/nipworker';
+import {
+	Kind1Parsed,
+	Kind6Parsed,
+	ParsedData,
+	type ParsedEvent,
+	type RequestObject
+} from '@candypoets/nipworker';
+import { asKind1, asKind6, fbArray } from '@candypoets/nipworker/utils';
 import { formatDistanceToNow } from 'date-fns';
+import { key } from 'src/controller';
+import { toRequestObject } from 'src/lib/request';
+import { get } from 'svelte/store';
 
 export function formatTime(timestamp: number): string {
 	return formatDistanceToNow(new Date(timestamp * 1000), { addSuffix: true });
@@ -11,36 +20,36 @@ interface NotificationGroup {
 	type: 'reply' | 'reaction' | 'repost' | 'mention';
 	referencedPostId: string;
 	timestamp: number;
-	events: ParsedEvent<AnyKind>[];
-	context: ParsedEvent<AnyKind>[];
-	requests: Request[];
+	events: ParsedEvent[];
+	context: ParsedEvent[];
+	requests: RequestObject[];
 }
 
-export interface ProcessedNotification extends ParsedEvent<any> {
-	id: string;
+export interface ProcessedNotification {
+	id: () => { fnv1aHash: () => string };
 	type: 'reply' | 'reaction' | 'repost' | 'mention';
-	kind: 383838;
+	parsedType: () => 100;
+	kind: () => 383838;
+	createdAt: () => number;
 	tags: [];
 	content: '';
 	timestamp: number;
 	parsed: NotificationGroup;
 }
 
-export function processNotifications(
-	feed: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][]
-): [ProcessedNotification, ParsedEvent<AnyKind>[]][] {
+export function processNotifications(feed: ParsedEvent[]): ProcessedNotification[] {
 	// Clone feed to avoid mutation issues
 	const processedFeed = [...feed];
 
 	// Group by notification types and referenced posts
 	const notificationGroups: Record<string, NotificationGroup> = {};
-	for (const [event, context] of processedFeed) {
+	for (const event of processedFeed) {
 		if (!event) continue;
 
 		// Determine notification type and referenced post id
 		let notificationType: 'reply' | 'reaction' | 'repost' | 'mention' | undefined;
 		let referencedPostId: string | undefined;
-		if ('type' in event && event.kind === 383838 && (event as any).parsed?.type) {
+		if ('type' in event && event.kind() === 383838 && (event as any).parsed?.type) {
 			// This is already a ProcessedNotification, just add it directly to the result
 			// Don't reprocess it to avoid nesting
 
@@ -71,33 +80,42 @@ export function processNotifications(
 					timestamp: processedNotification.timestamp,
 					events: [...processedNotification.parsed.events],
 					requests: processedNotification.parsed.requests,
-					context: [...context]
+					context: []
 				};
 			}
 
 			// Skip the rest of the processing for this item
 			continue;
-		} else if (isKind1(event) && event.parsed?.reply?.id) {
-			if (event.parsed?.quotes?.length) {
-				notificationType = 'mention';
-				referencedPostId = 'mention-' + event.id;
-			} else {
-				// This is a reply
-				notificationType = 'reply';
-				referencedPostId = event.parsed.reply.id;
+		} else {
+			switch (event.parsedType()) {
+				case ParsedData.Kind1Parsed:
+					const kind1 = asKind1(event) as Kind1Parsed;
+					if (kind1.reply()?.id()) {
+						if (kind1?.quotesLength()) {
+							notificationType = 'mention';
+							referencedPostId = 'mention-' + event.id;
+						} else {
+							// This is a reply
+							notificationType = 'reply';
+							referencedPostId = kind1.reply()?.id()?.toString();
+						}
+					}
+					if (fbArray(kind1, 'mentions')?.some((m) => m.author()?.toString() == get(key)?.pub)) {
+						// This is a mention
+						notificationType = 'mention';
+						referencedPostId = 'mention-' + event.id;
+					}
+					break;
+				case ParsedData.Kind7Parsed:
+					notificationType = 'reaction';
+					referencedPostId = event?.id()?.toString();
+					break;
+				case ParsedData.Kind6Parsed:
+					const kind6 = asKind6(event) as Kind6Parsed;
+					notificationType = 'repost';
+					referencedPostId = kind6.repostedEvent()?.id()?.toString();
+					break;
 			}
-		} else if (isKind7(event)) {
-			// This is a reaction
-			notificationType = 'reaction';
-			referencedPostId = event.parsed?.eventId;
-		} else if (isKind6(event)) {
-			// This is a repost
-			notificationType = 'repost';
-			referencedPostId = event.parsed?.[0]?.id;
-		} else if (isKind1(event) && event.parsed?.content?.includes($key?.pub)) {
-			// This is a mention
-			notificationType = 'mention';
-			referencedPostId = 'mention-' + event.id;
 		}
 
 		if (notificationType && referencedPostId) {
@@ -108,34 +126,34 @@ export function processNotifications(
 				notificationGroups[groupKey] = {
 					type: notificationType,
 					referencedPostId: referencedPostId,
-					timestamp: event.created_at,
+					timestamp: event.createdAt(),
 					events: [],
-					context: context,
-					requests: event.requests || []
+					context: [],
+					requests: fbArray(event, 'requests').map(toRequestObject) || []
 				};
 			}
 
 			// Keep track of most recent timestamp
-			if (event.created_at > notificationGroups[groupKey].timestamp) {
-				notificationGroups[groupKey].timestamp = event.created_at;
+			if (event.createdAt() > notificationGroups[groupKey].timestamp) {
+				notificationGroups[groupKey].timestamp = event.createdAt();
 			}
 
 			// Add event to the group
 			notificationGroups[groupKey].events.push(event);
 
-			// Add context for this notification
-			if (context && context.length) {
-				notificationGroups[groupKey].context = [
-					...notificationGroups[groupKey].context,
-					...context
-				];
-			}
+			// // Add context for this notification
+			// if (context && context.length) {
+			// 	notificationGroups[groupKey].context = [
+			// 		...notificationGroups[groupKey].context,
+			// 		...context
+			// 	];
+			// }
 
 			// Add requests for this notification
 			if (event.requests && event.requests.length) {
 				notificationGroups[groupKey].requests = [
 					...(notificationGroups[groupKey].requests || []),
-					...event.requests
+					...fbArray(event, 'requests').map(toRequestObject)
 				];
 			}
 
@@ -152,19 +170,17 @@ export function processNotifications(
 			// }
 		}
 	}
-
 	// Convert groups to array and sort by timestamp (newest first)
 	return Object.values(notificationGroups)
 		.sort((a, b) => b.timestamp - a.timestamp)
-		.map((group, index): [ProcessedNotification, ParsedEvent<AnyKind>[]] => {
+		.map((group, index): ProcessedNotification => {
 			// Create a ProcessedNotification object that satisfies the interface
 			const processedNotification: ProcessedNotification = {
-				id: `notification-${index}`,
+				id: () => ({ fnv1aHash: () => `notification-${index}` }),
 				type: group.type,
-				pubkey: '', // Required by ParsedEvent
-				sig: '', // Required by ParsedEvent
-				created_at: group.timestamp,
-				kind: 383838, // Custom kind for notifications
+				createdAt: () => group.timestamp,
+				kind: () => 383838, // Custom kind for notifications
+				parsedType: () => 100,
 				tags: [],
 				content: '',
 				timestamp: group.timestamp,
@@ -178,6 +194,6 @@ export function processNotifications(
 				}
 			};
 
-			return [processedNotification, group.context];
+			return processedNotification;
 		});
 }

@@ -1,14 +1,7 @@
-import type { NostrEvent } from 'nostr-tools';
+import type { ParsedEvent } from '@candypoets/nipworker';
+import { fbArray } from '@candypoets/nipworker/utils';
 
-export function getRelaysFromNote(note: NostrEvent): string[] {
+export function getRelaysFromNote(note: ParsedEvent): string[] {
 	let relays: string[] = [];
-	// Check for relay tag
-	if (note.tags) {
-		const relayTags = note.tags.filter((tag) => tag[0] === 'relays');
-		if (relayTags.length > 0 && relayTags[0].length > 1) {
-			// Use relays from the tag, removing the first element which is 'relays'
-			return relayTags[0].slice(1);
-		}
-	}
-	return [];
+	return fbArray(note, 'relays').map((r) => r.toString());
 }

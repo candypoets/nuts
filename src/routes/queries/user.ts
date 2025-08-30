@@ -1,6 +1,6 @@
-import type { AnyKind, ParsedEvent, SubscribeKind } from '@candypoets/nipworker';
+import type { AnyKind, ParsedEvent, SubscribeKind, WorkerMessage } from '@candypoets/nipworker';
 import { useSubscription } from '@candypoets/nipworker/hooks';
-import { isKind10002 } from '@candypoets/nipworker/utils';
+import { fbArray, isKind10002 } from '@candypoets/nipworker/utils';
 import { ProfileBadges } from 'nostr-tools/kinds';
 import { profileManager } from 'src/controller/managers';
 
@@ -39,19 +39,15 @@ export function getUserRelays(
 	let unsubscribe = useSubscription(
 		'u_' + pubkey,
 		userQuery(pubkey),
-		(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) => {
-			if (kind == 'CONNECTION_STATUS') {
-				return;
-			}
-			const [event] = events;
-			if (isKind10002(event)) {
-				const relays =
-					event.parsed
-						?.filter((r) => (relayType === 'read' ? !!r.read : !!r.write))
-						.map((r) => r.url) || [];
+		(message: WorkerMessage) => {
+			const kind10002 = isKind10002(message);
+			if (kind10002) {
+				const relays = fbArray(kind10002, 'relays')
+					?.filter((r) => r.write())
+					.map((r) => r.url()?.toString())
+					.filter(Boolean) as string[];
 				onRelaysAvailable(relays);
 				unsubscribe?.(); // auto-unsubscribe
-				unsubscribe = undefined;
 			}
 		},
 		{},

@@ -2,17 +2,21 @@
 	import Icon from '@iconify/svelte';
 	import _ from 'lodash';
 
+	import type {
+		Kind3Parsed,
+		ParsedEvent,
+		Request,
+		RequestObject,
+		WorkerMessage
+	} from '@candypoets/nipworker';
 	import { kind3 } from 'src/controller/nostr';
+	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import type { Contact } from 'src/model/contact';
-	import type { AnyKind, Kind0Parsed } from '@candypoets/nipworker';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import { go } from 'src/routes/modals/modal';
+	import { asKind0, asKind3, asParsedEvent, fbArray } from '@candypoets/nipworker/utils';
 	import { getContext } from 'svelte';
-	import type { Request, SubscribeKind } from '@candypoets/nipworker';
-
-	let animator = getContext('animator');
-	import type { ParsedEvent } from '@candypoets/nipworker';
-	import { proxyAvatarUrl } from 'src/lib/proxy';
+	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
 
 	let active: string;
 	let search: string;
@@ -20,49 +24,42 @@
 
 	export let open: boolean = false;
 
-	$: {
-		if (open) {
-		} else {
-		}
-	}
-
 	let addFriend = false;
 	let scan = false;
 	let scannedNpub: string;
 
 	export let subopen: boolean = false;
 
-	let headerItem: ParsedEvent<Kind0Parsed> = { id: 'header' };
+	let headerItem: ParsedEvent;
 
 	let paymentType: '' | 'Tapcash' | 'Zap' | 'Invoice' = '';
 
 	let selectedContact: Contact;
 
-	let feedRequests: Request[] = [];
+	let animator: PagerAnimator = getContext('animator');
 
-	function updateFeed(
-		feed: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][],
-		events: ParsedEvent<AnyKind>[],
-		eventKind: SubscribeKind
-	): [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][] {
-		const [event, ...context] = events;
-		return _.uniqBy(
-			[...feed, [event, _.uniqBy(context, 'id')]].sort(
-				(a, b) => b[0].parsed?.name - a[0].parsed?.name
-			),
-			([event]) => event.pubkey
-		);
+	let feedRequests: RequestObject[] = [];
+
+	function updateFeed(feed: ParsedEvent[], message: WorkerMessage): ParsedEvent[] {
+		const parsedEvent = asParsedEvent(message);
+		let newFeed = feed;
+		if (parsedEvent) {
+			newFeed = _.uniqBy([...feed, parsedEvent], (event) => event.pubkey()?.fnv1aHash());
+		}
+		return newFeed;
 	}
 
 	$: {
 		feedRequests =
-			$kind3?.parsed?.map((p) => ({
-				kinds: [0],
-				authors: [p.pubkey],
-				cacheFirst: true,
-				noContext: true,
-				relays: []
-			})) || [];
+			($kind3 &&
+				fbArray(asKind3($kind3) as Kind3Parsed, 'contacts')?.map((p) => ({
+					kinds: [0],
+					authors: [p.pubkey()!.toString()],
+					cacheFirst: true,
+					noContext: true,
+					relays: []
+				}))) ||
+			[];
 	}
 </script>
 
@@ -72,8 +69,6 @@
 	subscriptionID="contacts"
 	requests={feedRequests}
 	kinds={[0]}
-	itemHeight={75}
-	{headerItem}
 	{updateFeed}
 >
 	<svelte:fragment slot="header">
@@ -142,26 +137,29 @@
 			<strong class="text-lg">Contacts</strong>
 		</div>
 	</svelte:fragment>
-	<svelte.fragment slot="item-content" let:post let:context>
-		{#if post.parsed}
+	<svelte.fragment slot="item-content" let:post>
+		{#if post}
+			{@const kind0 = asKind0(post)}
 			<div
 				class="flex items-center p-3 border-b hover:bg-base-200 cursor-pointer"
 				on:click={() => {
-					go('ecash:' + post.pubkey);
+					go('ecash:' + kind0?.pubkey()?.toString());
 				}}
 			>
 				<div class="avatar mr-3">
 					<div class="w-10 h-10 rounded-full">
 						<img
-							src={proxyAvatarUrl(post.parsed.picture) || 'default-avatar.png'}
-							alt={post.parsed.name || 'Contact'}
+							src={proxyAvatarUrl(kind0?.picture()?.toString()) || 'default-avatar.png'}
+							alt={kind0?.name()?.toString() || 'Contact'}
 						/>
 					</div>
 				</div>
 				<div>
-					<p class="font-medium">{post.parsed.name || 'Anonymous'}</p>
+					<p class="font-medium">{kind0?.name()?.toString() || 'Anonymous'}</p>
 				</div>
 			</div>
+		{:else}
+			no post
 		{/if}
 	</svelte.fragment>
 </Feed>

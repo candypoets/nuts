@@ -1,21 +1,20 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import type { AnyKind, Kind0Parsed, Kind1Parsed, ParsedEvent } from '@candypoets/nipworker';
+	import type { Kind0Parsed, ParsedEvent, WorkerMessage } from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
-	import { isKind0 } from '@candypoets/nipworker/utils';
+	import { isKind0, isParsedEvent } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { formatDistanceToNow } from 'date-fns';
 	import { getContext, onMount } from 'svelte';
 
 	import { isMobile } from 'src/controller';
+	import { profileManager } from 'src/controller/managers';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import { userQuery } from 'src/routes/queries/user';
-	import Naddr from 'src/editor/naddr.svelte';
-	import { profileManager } from 'src/controller/managers';
 
-	export let note: ParsedEvent<Kind1Parsed>;
-	export let context: ParsedEvent<AnyKind>[] = [];
+	export let note: ParsedEvent;
+	export let context: ParsedEvent[] = [];
 	export let depth = 0;
 	export let main = false;
 
@@ -25,24 +24,28 @@
 	let isImageContext = getContext('imageContext');
 	let sub: (() => void) | undefined;
 
+	$: notePubkey = note.pubkey()!.toString();
+
+	$: decoded = {
+		name: author?.name?.()?.toString() || author?.displayName?.()?.toString(),
+		picture: author?.picture()?.toString(),
+		nip05: author?.nip05()?.toString()
+	};
+
 	onMount(() => {
 		if (!author) {
-			author = context.find((c) => c.pubkey === note.pubkey && c.kind == 0)?.parsed as
-				| Kind0Parsed
-				| undefined;
+			author = context.find((c) => c.pubkey()!.toString() === notePubkey && c.kind() == 0)
+				?.parsed as Kind0Parsed | undefined;
 			if (!author) {
 				sub = useSubscription(
-					'u_' + note.pubkey,
-					userQuery(note.pubkey),
-					(events: ParsedEvent<AnyKind>[], type: SubscribeKind) => {
-						if (type == 'CONNECTION_STATUS') {
-							return;
-						}
-						const [event, ...context] = events;
-						if (isKind0(event)) {
-							author = event.parsed as Kind0Parsed;
+					'u_' + note.pubkey(),
+					userQuery(notePubkey),
+					(message: WorkerMessage) => {
+						const kind0 = isKind0(message);
+
+						if (kind0) {
+							author = kind0 as Kind0Parsed;
 							sub?.();
-							sub = undefined;
 						}
 					},
 					{},
@@ -56,7 +59,7 @@
 	function go() {
 		if (isImageContext) return;
 		const currentPath = $page.url.pathname;
-		const profilePath = `nprofile:${note.pubkey}`;
+		const profilePath = `nprofile:${note.pubkey()!.toString()}`;
 
 		// Check if the current URL already ends with the profile we're trying to navigate to
 		if (!currentPath.endsWith(profilePath)) {
@@ -69,8 +72,8 @@
 	<div class="w-8 min-w-8" class:!w-6={!!depth} class:!min-w-6={!!depth}>
 		<a on:click|stopPropagation|preventDefault={go} class="cursor-pointer">
 			<img
-				src={author?.picture ? proxyAvatarUrl(author.picture) : '/ns-naked.svg'}
-				alt={author?.name}
+				src={decoded?.picture ? proxyAvatarUrl(decoded.picture) : '/ns-naked.svg'}
+				alt={decoded?.name}
 				class="border w-8 h-8 rounded-full space-x-4 mx-auto z-10 object-cover"
 				class:!w-6={!!depth}
 				class:!h-6={!!depth}
@@ -85,38 +88,38 @@
 						class="whitespace-nowrap overflow-hidden text-ellipsis font-semibold text-sm"
 						class:!text-base={main}
 					>
-						{author?.name && $isMobile && author.name.length > 25
-							? author.name.slice(0, 25) + '...'
-							: author?.name || note.pubkey?.slice(0, 15) + '...'}
+						{decoded?.name && $isMobile && decoded.name.length > 25
+							? decoded.name.slice(0, 25) + '...'
+							: decoded?.name || notePubkey?.slice(0, 15) + '...'}
 					</div>
 				</a>
-				{#if author?.nip05}
+				{#if decoded?.nip05}
 					<Icon icon="bitcoin-icons:verify-filled" class="inline text-lg text-primary" />
-					<p class="text-xs opacity-50 lg:inline hidden">{author?.nip05}</p>
+					<p class="text-xs opacity-50 lg:inline hidden">{decoded?.nip05}</p>
 				{/if}
 			{:else}
 				<div class="flex-grow">
 					<div class="flex items-center">
 						<a on:click|stopPropagation|preventDefault={go} class="hover:underline cursor-pointer">
 							<div class="whitespace-nowrap overflow-hidden text-ellipsis">
-								{author?.name && $isMobile && author.name.length > 25
-									? author.name.slice(0, 25) + '...'
-									: author?.name || note.pubkey?.slice(0, 15) + '...'}
+								{decoded?.name && $isMobile && decoded.name.length > 25
+									? decoded.name.slice(0, 25) + '...'
+									: decoded?.name || notePubkey?.slice(0, 15) + '...'}
 							</div>
 						</a>
 						<Icon icon="bitcoin-icons:verify-filled" class="inline text-lg text-primary" />
 						<p class="text-xs opacity-50 ml-2">
-							{formatDistanceToNow((note?.created_at || 0) * 1000, { addSuffix: true })}
+							{formatDistanceToNow((note?.createdAt() || 0) * 1000, { addSuffix: true })}
 						</p>
 					</div>
-					{#if author?.nip05}
-						<p class="text-xs opacity-50">{author?.nip05}</p>
+					{#if decoded?.nip05}
+						<p class="text-xs opacity-50">{decoded?.nip05}</p>
 					{/if}
 				</div>
 			{/if}
-			{#if oneline && note?.created_at}
+			{#if oneline && note?.createdAt()}
 				<p class="text-xs opacity-50 ml-2">
-					{formatDistanceToNow((note?.created_at || 0) * 1000, { addSuffix: true })}
+					{formatDistanceToNow((note?.createdAt() || 0) * 1000, { addSuffix: true })}
 				</p>
 			{/if}
 			<slot />

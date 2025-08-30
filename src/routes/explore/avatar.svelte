@@ -1,12 +1,19 @@
 <script lang="ts">
 	import { useSubscription } from '@candypoets/nipworker/hooks';
-	import type { ParsedEvent, AnyKind, Kind0Parsed, SubscribeKind } from '@candypoets/nipworker';
-	import { isKind0 } from '@candypoets/nipworker/utils';
+	import {
+		type ParsedEvent,
+		type Kind0Parsed,
+		type SubscribeKind,
+		type WorkerMessage,
+		MessageType
+	} from '@candypoets/nipworker';
+	import { asKind0, isKind0 } from '@candypoets/nipworker/utils';
 
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import { onMount } from 'svelte';
 	import { userQuery } from '../queries/user';
 	import { profileManager } from 'src/controller/managers';
+	import { go } from '../modals/modal';
 
 	// The pubkey/npub of the user
 	export let pubkey: string = '';
@@ -14,8 +21,9 @@
 	export let size: 'xs' | 'sm' | 'md' | 'lg' | 'xl' = 'xs';
 	// Optional custom class to override default styling
 	export let customClass: string = '';
-	export let context: ParsedEvent<AnyKind>[] = [];
+	export let context: ParsedEvent[] = [];
 	export let query = true;
+	export let link = false;
 
 	let profile: Kind0Parsed | undefined;
 	let imageUrl: string | undefined;
@@ -33,27 +41,23 @@
 	};
 
 	onMount(() => {
-		profile = context.find((c) => c.pubkey === pubkey && c.kind == 0)?.parsed as
-			| Kind0Parsed
-			| undefined;
-		imageUrl = profile?.picture;
+		profile = context.find((c) => asKind0(c)) as Kind0Parsed | undefined;
+		imageUrl = profile?.picture()?.toString();
 		proxiedImageUrl = imageUrl ? proxyAvatarUrl(imageUrl) : undefined;
 		if (!profile && query) {
 			sub = useSubscription(
 				'u_' + pubkey,
 				userQuery(pubkey),
-				(events: ParsedEvent<AnyKind>[], type: SubscribeKind) => {
-					if (type == 'CONNECTION_STATUS') {
-						return;
-					}
-					const [event, ...context] = events;
-					if (isKind0(event)) {
-						profile = event.parsed as Kind0Parsed;
-						imageUrl = profile?.picture;
-						proxiedImageUrl = imageUrl ? proxyAvatarUrl(imageUrl) : undefined;
-						sub?.();
-						// avoid sub being called twice on unmount
-						sub = undefined;
+				(message: WorkerMessage) => {
+					switch (message.type()) {
+						case MessageType.ParsedNostrEvent:
+							const kind0 = isKind0(message);
+							if (kind0) {
+								profile = kind0;
+								imageUrl = kind0?.picture()?.toString();
+								proxiedImageUrl = imageUrl ? proxyAvatarUrl(imageUrl) : undefined;
+								sub?.();
+							}
 					}
 				},
 				{},
@@ -63,11 +67,17 @@
 
 		return () => sub?.();
 	});
+	function goto() {
+		if (!link) return;
+		const profilePath = `nprofile:${pubkey}`;
+		go(profilePath);
+	}
 </script>
 
 <!-- Profile picture with fallback and sizing -->
 <div
 	class={`${sizeClasses[size]} rounded-full overflow-hidden bg-gray-200 flex-shrink-0 ${customClass}`}
+	on:click={goto}
 >
 	{#if proxiedImageUrl}
 		<img src={proxiedImageUrl} alt="Profile" class="w-full h-full object-cover" />

@@ -1,18 +1,15 @@
 <script lang="ts">
 	import {
-		nostrManager,
-		ReactionType,
-		type AnyKind,
+		CountResponse,
+		MessageType,
+		WorkerMessage,
 		type ConnectionStatus,
-		type Kind1Parsed,
-		type Kind6Parsed,
-		type Kind7Parsed,
 		type ParsedEvent,
 		type SubscribeKind,
 		type SubscriptionOptions
 	} from '@candypoets/nipworker';
-	import { isKind17, isKind6, isKind7, isKind1 } from '@candypoets/nipworker/utils';
 	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
+	import { asConnectionStatus, asCountResponse } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { kinds, type EventTemplate } from 'nostr-tools';
 	import { getContext, onDestroy, onMount } from 'svelte';
@@ -20,14 +17,12 @@
 	import EmojiPickerContent from 'src/components/EmojiPickerContent.svelte';
 	import { key } from 'src/controller';
 	import { replying } from 'src/controller/editor';
-	import { kind0 } from 'src/controller/nostr';
+	import { updateSendStatus } from 'src/controller/sendStatus';
 	import { now } from 'src/lib/period';
 	import { go } from 'src/routes/modals/modal';
 	import { getUserRelays } from 'src/routes/queries/user';
-	import { proxyAvatarUrl } from 'src/lib/proxy';
-	import { updateSendStatus } from 'src/controller/sendStatus';
 
-	export let note: ParsedEvent<any>;
+	export let note: ParsedEvent;
 	export let visible: boolean;
 	export let main = false;
 
@@ -36,13 +31,13 @@
 
 	let relays: string[] = [];
 
-	let reactions: ParsedEvent<Kind7Parsed>[] = [];
+	let reactions: ParsedEvent[] = [];
 
 	let isImageContext = getContext('imageContext');
 	// replies are exported back to the parent, if the parent decides to show some
-	export let replies: ParsedEvent<Kind1Parsed>[] = [];
+	export let replies: ParsedEvent[] = [];
 	export let connectionStatus: { [url: string]: ConnectionStatus } = {};
-	let reposts: ParsedEvent<Kind6Parsed>[] = [];
+	let reposts: ParsedEvent[] = [];
 	let liked = '';
 	let replied = false;
 	let reposted = false;
@@ -53,10 +48,11 @@
 	let replyCount = 0;
 	let repostCount = 0;
 
-	const mapReactions: Record<string, ParsedEvent<Kind7Parsed>> = {};
-	const mapReplies: Record<string, ParsedEvent<Kind1Parsed>> = {};
-	const mapReposts: Record<string, ParsedEvent<Kind6Parsed>> = {};
-	const mapEmoticons: Record<string, number> = {};
+	let decoded = {
+		id: note.id()!.toString(),
+		pubkey: note.pubkey()!.toString()
+	};
+
 	const commonEmoticons = ['👍', '❤️', '😂', '🔥', '😍', '🙏', '💯', '🤔', '🫂', '🚀'];
 
 	function checkMobile() {
@@ -75,37 +71,44 @@
 		return () => window.removeEventListener('resize', checkMobile);
 	});
 
-	const handleEvents = (events: ParsedEvent<AnyKind>[], kind: SubscribeKind) => {
-		if (kind == 'CONNECTION_STATUS') {
-			connectionStatus[events.relay_url] = events.status;
-			return;
-		}
-		const event = events[0];
-		if (isKind7(event) || isKind17(event)) {
-			reactionCount = event?.count || reactionCount;
-			liked = liked || event.you;
-		} else if (isKind1(event)) {
-			replyCount = event.count || replyCount;
-			replied = replied || event.you;
-			// handleReplies(event);
-		} else if (isKind6(event)) {
-			repostCount = event.count || repostCount;
-			reposted = reposted || event.you;
-			// handleReposts(event);
+	const handleEvents = (message: WorkerMessage) => {
+		switch (message.type()) {
+			case MessageType.ConnectionStatus:
+				const status = asConnectionStatus(message) as ConnectionStatus;
+				connectionStatus[status.relayUrl()?.toString() as string] = status;
+				break;
+			case MessageType.CountResponse:
+				const count = asCountResponse(message) as CountResponse;
+				switch (count.kind()) {
+					case 7:
+						reactionCount = count.count() || reactionCount;
+						liked = liked || count.you();
+						break;
+					case 17:
+						reactionCount = count.count() || reactionCount;
+						liked = liked || count.you();
+						break;
+					case 1:
+						replyCount = count.count() || replyCount;
+						replied = replied || count.you();
+					case 6:
+						repostCount = count.count() || repostCount;
+						reposted = reposted || count.you();
+				}
 		}
 	};
 
 	function subscribe() {
 		timeout = setTimeout(async () => {
 			if (visible && !relaysub) {
-				relaysub = getUserRelays(note.pubkey, (result) => {
+				relaysub = getUserRelays(decoded.pubkey, (result) => {
 					relays = result;
 					sub = useSubscription(
-						'f_' + note.id,
+						'f_' + decoded.id,
 						[
 							{
 								kinds: [1, 6, 7, 17],
-								tags: { '#e': [note.id] },
+								tags: { '#e': [decoded.id] },
 								noContext: true,
 								relays
 							}
@@ -134,17 +137,17 @@
 		const event: EventTemplate = {
 			kind: kinds.Reaction,
 			tags: [
-				['e', note.id],
-				['p', note.pubkey]
+				['e', decoded.id],
+				['p', decoded.pubkey]
 			],
 			content: emoji,
 			created_at: now()
 		};
 
-		// nostrManager.publish('reaction_' + note.id, event);
-		usePublish('reaction_' + note.id, event, (statuses: any, kind: SubscribeKind) => {
+		// nostrManager.publish('reaction_' + decoded.id, event);
+		usePublish('reaction_' + decoded.id, event, (statuses: any, kind: SubscribeKind) => {
 			sendStatus[statuses.relay_url] = statuses.status;
-			updateSendStatus('reaction_' + note.id, sendStatus);
+			updateSendStatus('reaction_' + decoded.id, sendStatus);
 		});
 	}
 
@@ -154,16 +157,16 @@
 		const event: EventTemplate = {
 			kind: kinds.Repost,
 			tags: [
-				['e', note.id],
-				['p', note.pubkey]
+				['e', decoded.id],
+				['p', decoded.pubkey]
 			],
 			content: JSON.stringify(note),
 			created_at: now()
 		};
 
-		usePublish('repost_' + note.id, event, (statuses: any, kind: SubscribeKind) => {
+		usePublish('repost_' + decoded.id, event, (statuses: any, kind: SubscribeKind) => {
 			sendStatus[statuses.relay_url] = statuses.status;
-			updateSendStatus('repost_' + note.id, sendStatus);
+			updateSendStatus('repost_' + decoded.id, sendStatus);
 		});
 	}
 
@@ -208,7 +211,7 @@
 			role="button"
 			tabindex="0"
 			on:click|stopPropagation={() => {
-				go('ecash:' + note.pubkey + ':' + note.id);
+				go('ecash:' + note.pubkey + ':' + decoded.id);
 			}}
 		>
 			<Icon icon="material-symbols-light:bolt-outline-rounded" class="text-3xl" />

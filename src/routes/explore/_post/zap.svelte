@@ -1,7 +1,14 @@
 <script lang="ts">
-	import type { AnyKind, Kind9321Parsed, Kind9735Parsed, ParsedEvent } from '@candypoets/nipworker';
+	import {
+		Kind9321Parsed,
+		MessageType,
+		ParsedData,
+		type Kind9735Parsed,
+		type ParsedEvent,
+		type WorkerMessage
+	} from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
-	import { isKind9321, isKind9735 } from '@candypoets/nipworker/utils';
+	import { asKind9321, asKind9735, asParsedEvent } from '@candypoets/nipworker/utils';
 	import _ from 'lodash';
 	import { onDestroy } from 'svelte';
 
@@ -10,15 +17,16 @@
 	import { getUserRelays } from 'src/routes/queries/user';
 	import Avatar from '../avatar.svelte';
 
-	export let note: ParsedEvent<any>;
+	export let note: ParsedEvent;
 	export let visible: boolean;
 
 	let timeout: NodeJS.Timeout | undefined;
 
-	let zaps: ParsedEvent<Kind9735Parsed>[] = [];
-	let nuts: ParsedEvent<Kind9321Parsed>[] = [];
+	let zaps: Kind9735Parsed[] = [];
+	let nuts: Kind9321Parsed[] = [];
 	let zapped = false;
-	let biggestZap: ParsedEvent<Kind9735Parsed>;
+	let biggestZap: Kind9735Parsed;
+	let biggestNut: Kind9321Parsed;
 	let totalZapAmount = 0;
 	let totalNutAmount = 0;
 	let sub: (() => void) | undefined;
@@ -29,17 +37,17 @@
 	async function subscribe() {
 		timeout = setTimeout(() => {
 			if (visible && !relaysub) {
-				relaysub = getUserRelays(note.pubkey, (result) => {
+				relaysub = getUserRelays(note.pubkey()!.toString(), (result) => {
 					relays = result;
 					sub = useSubscription(
-						'z_' + note.id,
+						'z_' + note.id()!.fnv1aHash(),
 						[
 							{
 								kinds: [9735, 9321],
-								tags: { '#e': [note.id] },
+								tags: { '#e': [note.id()!.toString()] },
 								noContext: true,
 								limit: 100,
-								since: note.created_at,
+								since: note.createdAt(),
 								relays: relays || []
 							}
 						],
@@ -50,34 +58,42 @@
 		}, 200);
 	}
 
-	const handleEvents = (events: ParsedEvent<AnyKind>[]) => {
-		const event = events[0];
-		if (isKind9735(event)) {
-			handleZaps(event);
-		} else if (isKind9321(event)) {
-			handleNuts(event);
+	const handleEvents = (message: WorkerMessage) => {
+		switch (message.type()) {
+			case MessageType.ParsedNostrEvent:
+				const parsedEvent = asParsedEvent(message);
+				if (parsedEvent) {
+					switch (parsedEvent?.parsedType()) {
+						case ParsedData.Kind9735Parsed:
+							handleZaps(parsedEvent);
+							break;
+						case ParsedData.Kind9321Parsed:
+							handleNuts(parsedEvent);
+							break;
+					}
+				}
+				break;
 		}
 	};
 
-	function handleNuts(event: ParsedEvent<Kind9321Parsed>) {
-		if (!event.parsed) return;
-		if (event.pubkey == $kind0?.pubkey) zapped = true;
-		if (nuts.some((n) => n.id == event.id)) return;
-		totalNutAmount += event.parsed.amount;
+	function handleNuts(event: ParsedEvent) {
+		const kind9321 = asKind9321(event) as Kind9321Parsed;
+		if (event.pubkey()!.fnv1aHash() == $kind0?.pubkey()!.fnv1aHash()) zapped = true;
+		// if (nuts.some((n) => n.id()!.fnv1aHash() == event.id()!.fnv1aHash())) return;
+		totalNutAmount += kind9321?.amount() || 0;
 
-		// biggestNut = data.parsed.amount > (biggestNut?.parsed?.amount || 0) ? data : biggestNut;
+		biggestNut = (kind9321?.amount() || 0) > (biggestZap?.amount() || 0) ? kind9321 : biggestNut;
 		// // filter out deep replies
-		// nuts = _.sortBy([...nuts, data], (n) => n.parsed?.amount);
+		nuts = _.sortBy([...nuts, kind9321], (n) => n?.amount());
 	}
 
-	function handleZaps(event: ParsedEvent<Kind9735Parsed>) {
-		if (!event.parsed) return;
-		if (event.pubkey == $kind0?.pubkey) zapped = true;
-		if (zaps.some((z) => z.id == event.id)) return;
-		totalZapAmount += event.parsed.amount;
-		biggestZap = event.parsed.amount > (biggestZap?.parsed?.amount || 0) ? event : biggestZap;
-		// filter out deep replies
-		zaps = _.sortBy([...zaps, event], (z) => z.parsed?.amount);
+	function handleZaps(event: ParsedEvent) {
+		const kind9735 = asKind9735(event) as Kind9735Parsed;
+		if (event.pubkey()!.fnv1aHash() == $kind0?.pubkey()!.fnv1aHash()) zapped = true;
+		// if (zaps.some((n) => n.id()!.fnv1aHash() == event.id()!.fnv1aHash())) return;
+		totalZapAmount += kind9735?.amount() || 0;
+		biggestZap = (kind9735?.amount() || 0) > (biggestZap?.amount() || 0) ? kind9735 : biggestZap;
+		zaps = _.sortBy([...zaps, kind9735], (z) => z?.amount());
 	}
 
 	function unsubscribe() {
@@ -108,8 +124,8 @@
 					{zaps.length === 1 ? 'zap' : 'zaps'} · {totalZapAmount.toLocaleString()} sats
 				</div>
 				<div class="flex -space-x-2 items-center">
-					{#each zaps.slice(0, 5) as zap, i (zap.id)}
-						<Avatar pubkey={zap?.parsed?.sender} />
+					{#each zaps.slice(0, 5) as zap, i (zap.id()?.fnv1aHash())}
+						<Avatar pubkey={zap?.sender()?.toString()} />
 					{/each}
 
 					<!-- If there are more than 5 zappers, show a "+X more" badge -->
@@ -130,18 +146,18 @@
 			<!-- Biggest zapper on the left -->
 			<div class="flex shrink-0 items-center text-sm">
 				<div class="text-xs font-bold px-1 rounded-full">
-					{biggestZap.parsed?.amount} ⚡
+					{biggestZap?.amount()} ⚡
 				</div>
 				<!-- Zap amount badge for the biggest zapper -->
 				<!-- </div> -->
 
 				<!-- Zap comment from biggest zapper if any -->
-				{#if biggestZap.parsed?.content}
+				{#if biggestZap?.content()}
 					<div class="px-2 py-1 max-w-40 overflow-hidden text-ellipsis whitespace-nowrap">
-						"{biggestZap.parsed.content}"
+						"{biggestZap?.content()?.toString()}"
 					</div>
 				{/if}
-				<Avatar pubkey={biggestZap?.parsed?.sender} size="sm" />
+				<Avatar pubkey={biggestZap?.sender()?.toString()} size="sm" />
 			</div>
 		{/if}
 	</div>

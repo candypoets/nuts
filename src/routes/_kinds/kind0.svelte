@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
 	import _ from 'lodash';
-	import { kind0, kind3 } from 'src/controller/nostr';
+	import { follows, kind0, kind3 } from 'src/controller/nostr';
 	import { limit } from 'src/controller/pagination';
 	import { now } from 'src/lib/period';
 	import { proxyAvatarUrl, proxyBannerUrl } from 'src/lib/proxy';
@@ -10,12 +10,22 @@
 		type SubscribeKind,
 		type Request,
 		type ParsedEvent,
-		type ConnectionStatus
+		type ConnectionStatus,
+		type RequestObject,
+		WorkerMessage,
+		ParsedData,
+		Kind10002Parsed,
+		Kind3Parsed
 	} from '@candypoets/nipworker';
 	import Feed from 'src/routes/explore/feed.svelte';
 
-	import { type AnyKind, type Kind0Parsed } from '@candypoets/nipworker';
-	import { isKind0, isKind10002 } from '@candypoets/nipworker/utils';
+	import {
+		asKind0,
+		asKind10002,
+		asKind3,
+		asParsedEvent,
+		fbArray
+	} from '@candypoets/nipworker/utils';
 	import { onDestroy, onMount } from 'svelte';
 	import Avatar from '../explore/avatar.svelte';
 	import { go } from '../modals/modal';
@@ -29,36 +39,40 @@
 	export let goBack: () => void;
 
 	let loading = true;
-	let headerItem: ParsedEvent<Kind0Parsed> | undefined;
+	let headerItem: ParsedEvent | undefined;
 	let relays: string[] = [];
-	let feedRequests: Request[] = [];
+	let feedRequests: RequestObject[] = [];
 	let timeout: NodeJS.Timeout | undefined;
 
 	let connectionStatus: { [url: string]: ConnectionStatus } = {};
 
 	let sub: (() => void) | undefined;
 
-	function handleEvents(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) {
-		if (kind == 'CONNECTION_STATUS') {
-			return;
-		}
-		const [event] = events;
-		if (!event?.parsed) return;
-		if (isKind0(event)) {
-			loading = false;
-			headerItem = event;
-		}
-		if (isKind10002(event)) {
-			relays = event.parsed?.filter((r) => r.write).map((r) => r.url) || [];
-			feedRequests = [
-				{
-					kinds: [1],
-					authors: [pubkey],
-					limit: $limit,
-					noContext: true,
-					relays
-				}
-			];
+	function handleEvents(message: WorkerMessage) {
+		const parsedEvent = asParsedEvent(message);
+		if (parsedEvent) {
+			switch (parsedEvent.parsedType()) {
+				case ParsedData.Kind0Parsed:
+					loading = false;
+					headerItem = parsedEvent;
+					break;
+				case ParsedData.Kind10002Parsed:
+					console.log(parsedEvent, asKind10002(parsedEvent));
+					relays = fbArray(asKind10002(parsedEvent) as Kind10002Parsed, 'relays')
+						?.filter((r) => r.write())
+						.map((r) => r.url()?.toString())
+						.filter(Boolean) as string[];
+					feedRequests = [
+						{
+							kinds: [1],
+							authors: [pubkey],
+							limit: $limit,
+							noContext: true,
+							relays
+						}
+					];
+					break;
+			}
 		}
 	}
 
@@ -83,20 +97,16 @@
 
 	function updateFollowList() {
 		if (!$kind0) return;
-		if ($kind3?.parsed?.length == 0) return console.error('empty follow list');
+
+		if ($follows.length == 0) return console.error('empty follow list');
 
 		const template = {
 			kind: 3,
 			created_at: now(),
 			tags: _.uniqBy(
-				[
-					...($kind3?.parsed || []).map((c) => ['p', c.pubkey, c.relays?.[0] || '']),
-					['p', pubkey, headerItem?.parsed?.relays?.[0] || '']
-				],
+				[...$follows.map((c) => ['p', c.pubkey, c.relay || '']), ['p', pubkey, relays?.[0] || '']],
 				(c) => c[1]
-			).filter((c) =>
-				($kind3?.parsed || []).some((c) => c.pubkey === pubkey) ? c[1] !== pubkey : true
-			),
+			).filter((c) => ($follows.some((c) => c.pubkey === pubkey) ? c[1] !== pubkey : true)),
 			content: ''
 		};
 
@@ -141,7 +151,12 @@
 	</svelte:fragment>
 	<svelte:fragment slot="header">
 		<!-- {#if item.id != headerItem.id} -->
-		{@const p = headerItem?.parsed}
+		{@const p = asKind0(headerItem)}
+		{@const banner = p?.banner()?.toString()}
+		{@const name = p?.name()?.toString()}
+		{@const nip05 = p?.nip05()?.toString()}
+		{@const picture = p?.picture()?.toString()}
+		{@const about = p?.about()?.toString()}
 		<div
 			class="transition-all duration-300 w-feed mx-auto will-change-transform"
 			class:relative={visible}
@@ -152,13 +167,13 @@
 			class:right-0={!visible}
 		>
 			<!-- Banner image (only shown when header is visible) -->
-			{#if p?.banner}
+			{#if banner}
 				<div class="w-full banner-container rounded-2xl">
 					<!-- Banner image -->
 
 					<div
 						class="absolute w-full h-52 bg-cover bg-center top-0 left-0 right-0"
-						style="background-image: url('{p?.banner ? proxyBannerUrl(p.banner) : ''}');"
+						style="background-image: url('{banner ? proxyBannerUrl(banner) : ''}');"
 					>
 						<div class="w-feed h-16 flex items-center justify-between shadow-sm pt-safe">
 							<button on:click={goBack} class="p-1 z-10 rounded-full hover:bg-base-200 mr-4">
@@ -192,7 +207,7 @@
 							class="z-10 btn lg:btn-wide w-32 border border-white btn-nav lg:text-xl bg-opacity-80"
 							on:click={updateFollowList}
 						>
-							{#if $kind3?.parsed?.some((f) => f.pubkey === pubkey)}
+							{#if $follows.some((f) => f.pubkey === pubkey)}
 								<Icon icon="mdi:account-check" />
 								Unfollow
 							{:else}
@@ -211,20 +226,20 @@
 						</button>
 					</div>
 					<img
-						src={p?.picture ? proxyAvatarUrl(p.picture) : '/ns-naked.svg'}
-						alt={p?.name || 'Profile'}
+						src={picture ? proxyAvatarUrl(picture) : '/ns-naked.svg'}
+						alt={name || 'Profile'}
 						class="w-32 h-32 -mt-60 rounded-full border absolute object-cover"
 					/>
 					<div>
-						<h2 class="text-xl font-bold">{p?.name || 'Unnamed'}</h2>
+						<h2 class="text-xl font-bold">{name || 'Unnamed'}</h2>
 						<!-- {#if visible} -->
-						<p class="text-primary">@{p?.nip05 || pubkey.substring(0, 8)}</p>
+						<p class="text-primary">@{nip05 || pubkey.substring(0, 8)}</p>
 						<!-- {/if} -->
 					</div>
 				</div>
 
-				{#if p?.about}
-					<p class="mb-4 opacity-1">{@html p?.about}</p>
+				{#if about}
+					<p class="mb-4 opacity-1">{@html about}</p>
 				{/if}
 				<RelaysList {relays} {connectionStatus} />
 			</div>

@@ -19,8 +19,8 @@
 
 	export let placeholder = 'Write your reply...';
 	export let initialContent = '';
-	export let parent: ParsedEvent<Kind1Parsed>;
-	export let context: ParsedEvent<AnyKind>[] = [];
+	export let parent: ParsedEvent;
+	export let context: ParsedEvent[] = [];
 	export let onSubmit = (event: NostrEvent) => {};
 	export let actionsOnTop = false;
 
@@ -190,7 +190,7 @@
 	}
 
 	// Modified to handle click on the entire container
-	function handleEditorContainerClick(event) {
+	function handleEditorContainerClick(event: MouseEvent) {
 		// Ensure we're not interfering with other interactive elements
 		if (event.target.closest('button')) return;
 
@@ -259,7 +259,7 @@
 >
 	{#if isExpanded}
 		<div class="px-4 pt-3 text-sm text-gray-500 dark:text-gray-400">
-			Replying to <User pubkey={parent.pubkey} {context} />
+			Replying to <User pubkey={parent.pubkey()?.toString()} {context} />
 		</div>
 	{/if}
 
@@ -382,7 +382,7 @@
 					{#if isExpanded}
 						{placeholder}
 					{:else}
-						Reply to <User pubkey={parent.pubkey} {context} link={false} />...
+						Reply to <User pubkey={parent.pubkey()?.toString()} {context} link={false} />...
 					{/if}
 				</div>
 			{/if}

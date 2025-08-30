@@ -2,14 +2,14 @@
 	import 'src/app.css';
 
 	import {
-		nostrManager,
-		type AnyKind,
-		type ParsedEvent,
-		type Request,
-		type SubscribeKind
+		Kind10002Parsed,
+		Kind3Parsed,
+		ParsedData,
+		WorkerMessage,
+		type RequestObject
 	} from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
-	import { isKind0, isKind10002, isKind10019, isKind3 } from '@candypoets/nipworker/utils';
+	import { asKind10002, asKind3, fbArray, isParsedEvent } from '@candypoets/nipworker/utils';
 	import { onMount } from 'svelte';
 	import { pwaInfo } from 'virtual:pwa-info';
 
@@ -33,15 +33,15 @@
 	import { pagerAnimator, setupPagerAnimators } from 'src/controller/pager';
 	import { isMobile, viewport } from 'src/controller/viewport';
 
+	import { setSigner } from 'src/controller/managers';
+	import { sendStatuses } from 'src/controller/sendStatus';
 	import { CarouselAnimator } from 'src/lib/carousel/CarouselAnimator';
 	import Landing from 'src/routes/+page.svelte';
-	import Chat from 'src/routes/chat/index.svelte';
-	import Explore from 'src/routes/explore/index.svelte';
 	import Home from 'src/routes/home/+layout.svelte';
+	import Explore from 'src/routes/explore/index.svelte';
+	import Chat from 'src/routes/chat/index.svelte';
 	import Login from 'src/routes/login.svelte';
 	import { goBack } from 'src/routes/modals/modal';
-	import { sendStatuses } from 'src/controller/sendStatus';
-	import { setSigner } from 'src/controller/managers';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
 
@@ -88,63 +88,74 @@
 					// cacheFirst: true
 				}
 			],
-			(events: ParsedEvent<unknown>[], kind: SubscribeKind) => {
-				if (kind == 'CONNECTION_STATUS') {
-					return;
+			(message: WorkerMessage) => {
+				const parsedEvent = isParsedEvent(message);
+				if (parsedEvent) {
+					switch (parsedEvent.parsedType()) {
+						case ParsedData.Kind0Parsed:
+							$kind0 = parsedEvent;
+							kind0Ready.resolve(parsedEvent);
+							break;
+						case ParsedData.Kind3Parsed:
+							$kind3 = parsedEvent;
+							kind3Ready.resolve(parsedEvent);
+							break;
+						case ParsedData.Kind10002Parsed:
+							if (parsedEvent.createdAt() > ($kind10002?.createdAt() || 0)) {
+								$kind10002 = parsedEvent;
+								kind10002Ready.resolve(parsedEvent);
+							}
+							break;
+						case ParsedData.Kind10019Parsed:
+							if (parsedEvent.createdAt() > ($kind10019?.createdAt() || 0)) {
+								$kind10019 = parsedEvent;
+								kind10019Ready.resolve(parsedEvent);
+							}
+							break;
+					}
 				}
-				// the first event is from the sub, everything else is contextual
-				const event = events[0];
-
-				if (!event) return;
-
-				if (event.parsed) {
-					if (isKind10002(event) && event.created_at > ($kind10002?.created_at || 0)) {
-						$kind10002 = event;
-						kind10002Ready.resolve(event);
-					}
-					if (isKind10019(event) && event.created_at > ($kind10019?.created_at || 0)) {
-						$kind10019 = event;
-						kind10019Ready.resolve(event);
-					}
-					if (isKind0(event) && event.created_at > ($kind0?.created_at || 0)) {
-						$kind0 = event;
-						kind0Ready.resolve(event);
-					}
-					if (isKind3(event) && event.created_at > ($kind3?.created_at || 0)) {
-						$kind3 = event;
-						kind3Ready.resolve(event);
-					}
-				}
-				// Handle subscription updates here
 			}
 		);
 
 	$: profileSub =
-		($kind10002 || $kind10019 || $kind3) &&
+		$kind10002 &&
+		$kind3 &&
 		useSubscription(
 			'profile',
 			[
 				$kind10002 && {
 					kinds: [0, 3],
 					authors: [$key?.pub],
-					relays: $kind10002.parsed?.filter((r) => r.write).map((r) => r.url),
+					relays: fbArray(asKind10002($kind10002) as Kind10002Parsed, 'relays')
+						?.filter((r) => r.write())
+						.map((r) => r.url()?.toString()),
 					noOptimize: true
 				},
 				$kind3 && {
 					kinds: [10002],
-					authors: $kind3.parsed?.map((p) => p.pubkey),
+					authors: fbArray(asKind3($kind3) as Kind3Parsed, 'contacts')?.map((p) =>
+						p.pubkey()?.toString()
+					),
 					relays: ['wss://relay.nostr.band', 'wss://purplepag.es'],
 					noOptimize: true
 				}
-			].filter((r) => !!r) as Request[],
+			].filter((r) => !!r) as RequestObject[],
 			handleProfileEvents
 		);
 
-	function handleProfileEvents(events: ParsedEvent<AnyKind>[], eventType: SubscribeKind) {
-		if (eventType == 'CONNECTION_STATUS') return;
-		const [event, ...context] = events;
-		if (isKind0(event) && event.created_at > ($kind0?.created_at || 0)) $kind0 = event;
-		if (isKind3(event) && event.created_at > ($kind3?.created_at || 0)) $kind3 = event;
+	function handleProfileEvents(message: WorkerMessage) {
+		const parsedEvent = isParsedEvent(message);
+		if (parsedEvent) {
+			switch (parsedEvent.parsedType()) {
+				case ParsedData.Kind0Parsed:
+					if (parsedEvent.createdAt() > ($kind0?.createdAt() || 0)) $kind0 = parsedEvent;
+					break;
+
+				case ParsedData.Kind3Parsed:
+					if (parsedEvent.createdAt() > ($kind3?.createdAt() || 0)) $kind3 = parsedEvent;
+					break;
+			}
+		}
 	}
 
 	// Watch for route changes

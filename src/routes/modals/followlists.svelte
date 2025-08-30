@@ -1,25 +1,18 @@
 <script lang="ts">
-	import type {
-		AnyKind,
-		Kind39089Parsed,
-		ParsedEvent,
-		Request,
-		SubscribeKind
-	} from '@candypoets/nipworker';
-	import { isKind39089 } from '@candypoets/nipworker/utils';
+	import type { ParsedEvent, RequestObject, WorkerMessage } from '@candypoets/nipworker';
+	import { asKind39089, fbArray, isKind39089, isParsedEvent } from '@candypoets/nipworker/utils';
 
 	import Icon from '@iconify/svelte';
-	import { formatDistanceToNow, type SubBusinessDaysOptions } from 'date-fns';
+	import { formatDistanceToNow } from 'date-fns';
 	import { followList, followPacks } from 'src/controller/feed';
+	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import MultiSelect from 'src/routes/modals/components/MultiSelect.svelte';
 	import { getContext } from 'svelte';
-	import Sub from '../_kinds/_sub.svelte';
-	import { cashuManager } from 'src/controller/managers';
 
-	let animator = getContext('animator');
+	let animator: PagerAnimator = getContext('animator');
 
 	let searchQuery = '';
 	let subscriptionID = 'starterpack';
@@ -27,7 +20,7 @@
 	// Define fuseKeys for search
 	const fuseKeys = ['0.parsed.title', '0.parsed.description'];
 
-	let requests: Request[] = [
+	let requests: RequestObject[] = [
 		{
 			kinds: [39089],
 			limit: 50,
@@ -37,26 +30,18 @@
 	];
 
 	// Update feed function for kind 30000 events
-	function updateFeed(
-		currentFeed: [ParsedEvent<Kind39089Parsed>, ParsedEvent<AnyKind>[]][],
-		newEvents: ParsedEvent<AnyKind>[],
-		eventKind: SubscribeKind
-	) {
-		const [event, ...context] = newEvents;
-		if (!event?.parsed || !isKind39089(event)) return currentFeed;
+	function updateFeed(currentFeed: ParsedEvent[], message: WorkerMessage): ParsedEvent[] {
+		const parsedEvent = isParsedEvent(message);
+		const kind39089 = isKind39089(message);
+		if (!kind39089) return currentFeed;
 
 		// Ensure list has required fields
-		if (!event.parsed.list_identifier || !event.parsed?.title) return currentFeed;
+		if (!kind39089.listIdentifier() || !kind39089?.title()) return currentFeed;
 
-		// Add new event to feed if not already present
-		if (!currentFeed.some((item) => item[0].id === event.id)) {
-			return [...currentFeed, [event, context]];
-		}
-
-		return currentFeed;
+		return [...currentFeed, parsedEvent as ParsedEvent];
 	}
 
-	function toggleFollowPack(pack: ParsedEvent<Kind39089Parsed>) {
+	function toggleFollowPack(pack: ParsedEvent) {
 		// Check if the pack is already in the list
 		const packIndex = $followPacks.findIndex((p) => p.id === pack.id);
 
@@ -69,7 +54,7 @@
 		}
 	}
 
-	let initialItems = [[$followList]];
+	let initialItems = [$followList];
 </script>
 
 <div class="h-full bg-base-300 bg-opacity-85 lg:pt-4">
@@ -84,7 +69,7 @@
 	>
 		<svelte:fragment slot="sticky-header">
 			<div
-				class="backdrop-blur-md w-feed border-b border-base-200 h-16 flex items-center justify-between shadow-sm"
+				class="backdrop-blur-md pt-safe w-feed border-b border-base-200 h-16 flex items-center justify-between shadow-sm"
 			>
 				<button
 					on:click={() => {
@@ -119,7 +104,7 @@
 				<div class="px-1">
 					<MultiSelect
 						selectedLists={$followPacks}
-						getTitle={(item) => item?.parsed?.title || ''}
+						getTitle={(item) => item?.title()?.toString() || ''}
 						removeItem={(list) => {
 							$followPacks = $followPacks.filter((p) => p.id != list.id);
 						}}
@@ -130,7 +115,7 @@
 		<svelte:fragment slot="header">
 			<div>
 				<div
-					class="w-feed pt-safe border-b border-base-200 flex items-center justify-between shadow-sm"
+					class="w-feed pt-safe border-b border-base-200 h-16 flex items-center justify-between shadow-sm"
 				>
 					<button on:click={animator.goBack} class="p-1 rounded-full hover:bg-base-200 mr-4">
 						<Icon icon="mdi:arrow-left" class="text-xl" />
@@ -159,71 +144,76 @@
 				<div class="px-1">
 					<MultiSelect
 						selectedLists={$followPacks}
-						getTitle={(list) => list?.parsed?.title || ''}
+						getTitle={(list) => {
+							return list?.title()?.toString() || '';
+						}}
 						removeItem={(list) => {
-							$followPacks = $followPacks.filter((p) => p.id != list.id);
+							$followPacks = $followPacks.filter(
+								(p) => p.id()?.fnv1aHash() != list.id()?.fnv1aHash()
+							);
 						}}
 					/>
 				</div>
 			</div>
 		</svelte:fragment>
-		<svelte:fragment slot="item-content" let:post let:context let:visible>
+		<svelte:fragment slot="item-content" let:post let:visible>
+			{@const kind39089 = asKind39089(post) || post}
 			<div
 				class="cursor-pointer backdrop-blur-md p-4 border-b border-base-content hover:bg-base-300 hover:bg-opacity-90 transition-colors relative"
 				on:click={() => toggleFollowPack(post)}
 				role="button"
 				tabindex="0"
 			>
-				{#if $followPacks.some((p) => p.id === post.id)}
+				{#if $followPacks.some((p) => p.id()?.toString() === post.id()?.toString())}
 					<div class="absolute top-2 right-2">
 						<div class="badge badge-accent">Selected</div>
 					</div>
 				{/if}
-				{#if post.parsed}
-					<div class="flex items-center gap-4 mb-4">
-						{#if post.parsed.image}
-							<img
-								src={proxyAvatarUrl(post.parsed.image)}
-								alt={post.parsed.title}
-								class="w-16 h-16 rounded-full object-cover"
-							/>
-						{:else}
-							<div class="w-16 h-16 rounded-full bg-base-300 flex items-center justify-center">
-								<span class="text-2xl">📝</span>
-							</div>
+				<div class="flex items-center gap-4 mb-4">
+					{#if kind39089.image()}
+						<img
+							src={proxyAvatarUrl(kind39089.image()?.toString())}
+							alt={kind39089.title()?.toString()}
+							class="w-16 h-16 rounded-full object-cover"
+						/>
+					{:else}
+						<div class="w-16 h-16 rounded-full bg-base-300 flex items-center justify-center">
+							<span class="text-2xl">📝</span>
+						</div>
+					{/if}
+					<div>
+						<h3 class="text-xl font-bold">{kind39089.title?.()?.toString()}</h3>
+						{#if kind39089.description?.()?.toString()}
+							<p class="text-base-content/70">{kind39089.description?.()?.toString()}</p>
 						{/if}
-						<div>
-							<h3 class="text-xl font-bold">{post.parsed.title}</h3>
-							{#if post.parsed.description}
-								<p class="text-base-content/70">{post.parsed.description}</p>
+					</div>
+				</div>
+
+				{#if kind39089.peopleLength() > 0}
+					<div class="mt-4">
+						<h4 class="text-sm font-semibold mb-2">Members ({kind39089.peopleLength()})</h4>
+						<div class="flex flex-wrap gap-2 items-center">
+							<div class="flex -space-x-2">
+								{#each fbArray(kind39089, 'people').slice(0, 10) as p}
+									<Avatar pubkey={p?.toString()} />
+								{/each}
+							</div>
+							{#if kind39089.peopleLength() > 10}
+								<div
+									class="flex items-center justify-center w-10 h-10 rounded-full bg-base-300 text-sm font-medium"
+								>
+									+{kind39089.peopleLength() - 10}
+								</div>
 							{/if}
 						</div>
 					</div>
 
-					{#if post.parsed.people && post.parsed.people.length > 0}
-						<div class="mt-4">
-							<h4 class="text-sm font-semibold mb-2">Members ({post.parsed.people.length})</h4>
-							<div class="flex flex-wrap gap-2 items-center">
-								<div class="flex -space-x-2">
-									{#each post.parsed.people.slice(0, 10) as pubkey}
-										<Avatar {pubkey} />
-									{/each}
-								</div>
-								{#if post.parsed.people.length > 10}
-									<div
-										class="flex items-center justify-center w-10 h-10 rounded-full bg-base-300 text-sm font-medium"
-									>
-										+{post.parsed.people.length - 10}
-									</div>
-								{/if}
-							</div>
-						</div>
-					{/if}
-
 					<div class="mt-4 text-sm text-base-content/50">
-						List ID: {post.parsed.list_identifier}
+						List ID: {kind39089.listIdentifier()?.toString()}
 						<div class="float-right text-xs">
-							Last updated {formatDistanceToNow(post.created_at * 1000, { addSuffix: true })}
+							Last updated {formatDistanceToNow(post.createdAt() * 1000, {
+								addSuffix: true
+							})}
 						</div>
 					</div>
 				{/if}
