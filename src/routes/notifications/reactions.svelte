@@ -35,7 +35,7 @@
 		timeout = setTimeout(async () => {
 			if (visible) {
 				useSubscription(
-					post.id + 'reactions',
+					post.id()?.fnv1aHash() + 'reactions',
 					[
 						// {
 						// 	kinds: [0],
@@ -83,7 +83,6 @@
 	$: visible ? subscribe() : unsubscribe();
 </script>
 
-{post?.parsed?.referencedPostId}
 <div class="border-b border-gray-100 p-4 mb-2 transition-colors">
 	<div class="flex items-start gap-3">
 		<!-- Icon -->

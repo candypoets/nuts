@@ -5,7 +5,7 @@ import {
 	type ParsedEvent,
 	type RequestObject
 } from '@candypoets/nipworker';
-import { asKind1, asKind6, fbArray } from '@candypoets/nipworker/utils';
+import { asKind1, asKind6, asKind7, fbArray } from '@candypoets/nipworker/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { key } from 'src/controller';
 import { toRequestObject } from 'src/lib/request';
@@ -107,8 +107,9 @@ export function processNotifications(feed: ParsedEvent[]): ProcessedNotification
 					}
 					break;
 				case ParsedData.Kind7Parsed:
+					const kind7 = asKind7(event);
 					notificationType = 'reaction';
-					referencedPostId = event?.id()?.toString();
+					referencedPostId = kind7?.eventId()?.toString();
 					break;
 				case ParsedData.Kind6Parsed:
 					const kind6 = asKind6(event) as Kind6Parsed;
