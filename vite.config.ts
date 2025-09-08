@@ -4,6 +4,7 @@ import { SvelteKitPWA as VitePWA } from '@vite-pwa/sveltekit';
 
 import { defineConfig } from 'vite';
 import topLevelAwait from 'vite-plugin-top-level-await';
+import { visualizer } from 'rollup-plugin-visualizer';
 
 // Custom plugin to handle SharedArrayBuffer headers for preview mode
 const sharedArrayBufferPlugin = () => {
@@ -91,6 +92,7 @@ export default defineConfig({
 			registerType: 'autoUpdate',
 			workbox: {
 				cleanupOutdatedCaches: true,
+				maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
 				runtimeCaching: [
 					{
 						urlPattern: ({ request }) =>
