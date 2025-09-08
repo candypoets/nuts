@@ -120,7 +120,6 @@
 				}
 				break;
 			case MessageType.Eoce:
-				console.log('cache received', subscriptionID);
 				if (!eoce) {
 					eoce = true;
 					if (page == 0) {
@@ -315,7 +314,9 @@
 		bind:end
 		bind:viewport
 		bind:down
-		getItemId={(item) => item?.id().fnv1aHash()}
+		getItemId={(item) => {
+			return item?.id().fnv1aHash();
+		}}
 		let:item
 		{itemHeight}
 		{backdrop}

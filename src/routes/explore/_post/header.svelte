@@ -27,9 +27,13 @@
 	$: notePubkey = note.pubkey()!.toString();
 
 	$: decoded = {
-		name: author?.name?.()?.toString() || author?.displayName?.()?.toString(),
-		picture: author?.picture()?.toString(),
-		nip05: author?.nip05()?.toString()
+		name:
+			(typeof author?.name === 'function' ? author.name()?.toString() : author?.name?.toString()) ||
+			(typeof author?.displayName === 'function'
+				? author.displayName()?.toString()
+				: author?.displayName?.toString()),
+		picture: author?.picture?.()?.toString(),
+		nip05: author?.nip05?.()?.toString()
 	};
 
 	onMount(() => {

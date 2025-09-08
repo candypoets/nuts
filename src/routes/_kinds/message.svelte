@@ -4,8 +4,8 @@
 	import { formatDistanceToNow } from 'date-fns';
 	import Avatar from '../explore/avatar.svelte';
 
-	export let message: ParsedEvent<Kind4Parsed>;
-	export let context: ParsedEvent<AnyKind>[] = [];
+	export let message: ParsedEvent;
+	export let context: ParsedEvent[] = [];
 	export let status = 'sent';
 </script>
 
@@ -24,7 +24,7 @@
 	{#if message.isFirst}
 		<div class="chat-header">
 			<time class="text-xs opacity-50"
-				>{formatDistanceToNow(message.created_at * 1000, { addSuffix: true })}</time
+				>{formatDistanceToNow(message.createdAt() * 1000, { addSuffix: true })}</time
 			>
 		</div>
 	{/if}

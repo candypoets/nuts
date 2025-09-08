@@ -1,5 +1,5 @@
 <script>
-	import _ from 'lodash';
+	import _, { uniqBy } from 'lodash';
 	import { onMount, tick } from 'svelte';
 
 	// props
@@ -58,7 +58,7 @@
 		// startY = event.touches[0].pageY;
 	}
 
-	$: visible = _.uniqBy(items.slice(0, end), (item) => item[0]?.id).map((data, i) => {
+	$: visible = uniqBy(items.slice(0, end), getItemId).map((data, i) => {
 		return { index: i + start, data };
 	});
 
@@ -82,7 +82,7 @@
 				row = rows[i - start];
 			}
 
-			const row_height = (height_map[i] = itemHeight || row.offsetHeight);
+			const row_height = (height_map[i] = itemHeight || row?.offsetHeight) || 200;
 			content_height += row_height;
 			i += 1;
 		}
@@ -186,7 +186,7 @@
 		<svelte-virtual-list-row style="transform: rotateZ(180deg);">
 			<slot name="feed-header" />
 		</svelte-virtual-list-row>
-		{#each visible as row (getItemId(row))}
+		{#each visible as row (getItemId(row.data))}
 			<svelte-virtual-list-row style="transform: rotateZ(180deg);">
 				<slot item={row.data}>Missing template</slot>
 			</svelte-virtual-list-row>

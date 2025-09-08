@@ -90,7 +90,7 @@
 	function handleZaps(event: ParsedEvent) {
 		const kind9735 = asKind9735(event) as Kind9735Parsed;
 		if (event.pubkey()!.fnv1aHash() == $kind0?.pubkey()!.fnv1aHash()) zapped = true;
-		// if (zaps.some((n) => n.id()!.fnv1aHash() == event.id()!.fnv1aHash())) return;
+		if (zaps.some((n) => n.id()!.fnv1aHash() == event.id()!.fnv1aHash())) return;
 		totalZapAmount += kind9735?.amount() || 0;
 		biggestZap = (kind9735?.amount() || 0) > (biggestZap?.amount() || 0) ? kind9735 : biggestZap;
 		zaps = _.sortBy([...zaps, kind9735], (z) => z?.amount());

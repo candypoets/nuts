@@ -1,19 +1,19 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import _ from 'lodash';
+	import { random } from 'lodash';
 	import type { EventTemplate } from 'nostr-tools';
 
+	import type { ParsedEvent, WorkerMessage } from '@candypoets/nipworker';
+	import { nostrManager, ParsedData } from '@candypoets/nipworker';
+	import { asParsedEvent } from '@candypoets/nipworker/utils';
 	import Editor from 'src/components/Editor.svelte';
-	import { key, kind10002 } from 'src/controller';
+	import { key, readRelays, writeRelays } from 'src/controller';
 	import { parseContent } from 'src/lib';
 	import { now } from 'src/lib/period';
-	import { nostrManager, type RelayStatus, type SubscribeKind } from '@candypoets/nipworker';
 	import Message from 'src/routes/_kinds/message.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import User from 'src/routes/explore/user.svelte';
-	import type { ParsedEvent, AnyKind, Kind1Parsed } from '@candypoets/nipworker';
-	import { isKind4 } from '@candypoets/nipworker/utils';
 
 	// in a chat, pubkey is the other person's pubkey
 	export let pubkey: string;
@@ -24,45 +24,45 @@
 	let message: string = '';
 
 	let sent: EventTemplate;
-	let feed: [ParsedEvent<Kind1Parsed>, ...ParsedEvent<AnyKind>[]][] = [];
+	let feed: ParsedEvent[] = [];
 
-	function updateFeed(
-		feed: [ParsedEvent<AnyKind>, ParsedEvent<AnyKind>[]][],
-		events: ParsedEvent<AnyKind>[],
-		eventKind: SubscribeKind
-	) {
+	function updateFeed(feed: ParsedEvent[], message: WorkerMessage) {
 		// Reorder feed by created_at, most recent first
-		feed = feed.sort((a, b) => (b[0].created_at || 0) - (a[0].created_at || 0));
-		const [event, ...context] = events;
-		const lastEvent = feed?.[feed.length - 1]?.[0];
-		let firstEvent = feed?.[0]?.[0];
-		if (firstEvent && firstEvent.id == sent?.id) {
-			firstEvent = feed?.[1]?.[0];
+		feed = feed.sort((a, b) => (b.createdAt() || 0) - (a.createdAt() || 0));
+		const lastEvent = feed?.[feed.length - 1];
+		let firstEvent = feed?.[0];
+		if (firstEvent && firstEvent.id()?.toString() == sent?.id) {
+			firstEvent = feed?.[1];
 		}
-		if (isKind4(event)) {
-			if (lastEvent?.pubkey != event.pubkey) {
-				if (lastEvent) {
-					lastEvent.isFirst = true;
-				}
-				event.isLast = true;
+		const parsedEvent = asParsedEvent(message);
+		console.log('feed', feed);
+		if (parsedEvent) {
+			switch (parsedEvent?.parsedType()) {
+				case ParsedData.Kind4Parsed:
+					if (lastEvent?.pubkey?.()?.fnv1aHash() != parsedEvent.pubkey?.()?.fnv1aHash()) {
+						if (lastEvent) {
+							lastEvent.isFirst = true;
+						}
+						parsedEvent.isLast = true;
+					}
+					if (parsedEvent.pubkey?.()?.toString() == pubkey) {
+						parsedEvent.incoming = true;
+					}
+					if (parsedEvent.createdAt() == sent?.created_at) {
+						sent = undefined;
+						if (firstEvent) firstEvent.isLast = false;
+						parsedEvent.isLast = true;
+						return [parsedEvent, ...feed.slice(1)];
+					}
+					if (firstEvent?.created_at || 0 < parsedEvent.createdAt()) {
+						return [...feed, parsedEvent];
+					} else {
+						if (firstEvent) firstEvent.isLast = false;
+						return [parsedEvent, ...feed];
+					}
+				default:
+					return feed;
 			}
-			if (event.pubkey == pubkey) {
-				event.incoming = true;
-			}
-			if (event.created_at == sent?.created_at) {
-				sent = undefined;
-				if (firstEvent) firstEvent.isLast = false;
-				event.isLast = true;
-				return [[event, ...context], ...feed.slice(1)];
-			}
-			if (firstEvent?.created_at || 0 < event.created_at) {
-				return [...feed, [event, ...context]];
-			} else {
-				if (firstEvent) firstEvent.isLast = false;
-				return [[event, ...context], ...feed];
-			}
-		} else {
-			return feed;
 		}
 	}
 
@@ -74,7 +74,7 @@
 					tags: { '#p': [$key?.pub] },
 					authors: [pubkey],
 					limit: 20,
-					relays: $kind10002?.parsed?.filter((r) => r.read).map((r) => r.url) || [],
+					relays: $readRelays,
 					noOptimize: true
 				},
 				{
@@ -82,7 +82,7 @@
 					tags: { '#p': [pubkey] },
 					authors: [$key?.pub],
 					limit: 20,
-					relays: $kind10002?.parsed?.filter((r) => r.write).map((r) => r.url) || [],
+					relays: $writeRelays,
 					noOptimize: true
 				}
 			];
@@ -103,7 +103,7 @@
 			message = '';
 
 			sent = { ...event };
-			sent.id = _.random(100000);
+			sent.id = () => ({ fnv1aHash: () => random(100000) });
 			sent.isLast = true;
 			sent.incoming = false;
 			sent.parsed = {};
@@ -114,11 +114,9 @@
 				firstEvent.isLast = false;
 			}
 
-			feed = [[sent], ...feed];
+			feed = [sent, ...feed];
 
-			nostrManager.publish('4' + content, event, (status: RelayStatus) => {
-				// sent.status = 'sending';
-			});
+			nostrManager.publish('4' + content, event);
 		} catch (error) {
 			console.error('Error sending message:', error);
 		}
@@ -161,7 +159,7 @@
 	<svelte:fragment slot="header">
 		<div class="h-24 unsafe-padding-top" />
 	</svelte:fragment>
-	<svelte:fragment slot="item-content" let:post let:context let:visible>
-		<Message message={post} {context} />
+	<svelte:fragment slot="item-content" let:post let:visible>
+		<Message message={post} />
 	</svelte:fragment>
 </Feed>
