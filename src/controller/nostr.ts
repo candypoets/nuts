@@ -22,7 +22,7 @@ export const kind3: Writable<ParsedEvent | undefined> = writable();
 export const follows = derived(kind3, ($kind3) => {
 	return $kind3
 		? fbArray(asKind3($kind3) as Kind3Parsed, 'contacts').map((c) => ({
-				pubkey: c.pubkey?.toString(),
+				pubkey: c.pubkey()?.toString(),
 				relay: c.relays(0)?.toString()
 			}))
 		: [];
@@ -47,14 +47,9 @@ export const readRelays = derived(kind10002, ($kind10002) => {
 	if (!$kind10002) return relays;
 	const kind = asKind10002($kind10002);
 	if (!kind) return relays;
-	for (let i = 0; i < kind.relaysLength(); i++) {
-		if (!kind?.relays(i)?.write()) {
-			if (kind.relays(i)?.url()?.toString()) {
-				relays.push(kind.relays(i)?.url()?.toString() || '');
-			}
-		}
-	}
-	return relays;
+	return fbArray(kind, 'relays')
+		.filter((r) => r.write())
+		.map((r) => r.url()?.toString());
 });
 
 export const writeRelays = derived(kind10002, ($kind10002) => {
@@ -62,14 +57,9 @@ export const writeRelays = derived(kind10002, ($kind10002) => {
 	if (!$kind10002) return relays;
 	const kind = asKind10002($kind10002);
 	if (!kind) return relays;
-	for (let i = 0; i < kind.relaysLength(); i++) {
-		if (kind?.relays(i)?.write()) {
-			if (kind.relays(i)?.url()?.toString()) {
-				relays.push(kind.relays(i)?.url()?.toString() || '');
-			}
-		}
-	}
-	return relays;
+	return fbArray(kind, 'relays')
+		.filter((r) => !r.write())
+		.map((r) => r.url()?.toString());
 });
 
 export const delayedPromise = new Promise<void>((resolve) => {

@@ -1,5 +1,5 @@
 <script>
-	import _ from 'lodash';
+	import _, { uniqBy } from 'lodash';
 	import { onMount, tick } from 'svelte';
 
 	// props
@@ -32,7 +32,7 @@
 	let bottom = 0;
 	let average_height;
 
-	$: visible = _.uniqBy(items.slice(0, end), getItemId).map((data, i) => {
+	$: visible = uniqBy(items.slice(0, end), getItemId).map((data, i) => {
 		return { index: i + start, data };
 	});
 

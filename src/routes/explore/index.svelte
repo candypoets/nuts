@@ -45,6 +45,8 @@
 			];
 		});
 	}
+
+	$: console.log('conn status', connectionStatus, $readRelays);
 </script>
 
 <Pager rootPath="/explore" bind:subs>

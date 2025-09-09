@@ -19,13 +19,15 @@
 		showContext = !showContext;
 	}
 
+	$: console.log('$note', $note);
+
 	$: usub =
 		$note &&
 		!nevent &&
 		getUserRelays(
-			$note.pubkey,
+			$note.pubkey()?.toString(),
 			(relays) => {
-				nevent = nip19.neventEncode({ id: $note.id, relays });
+				nevent = nip19.neventEncode({ id: $note.id()?.toString(), relays });
 			},
 			'write'
 		);

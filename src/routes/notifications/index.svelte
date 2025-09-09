@@ -116,9 +116,9 @@
 
 	<svelte:fragment slot="item-content" let:post let:context let:visible>
 		<!-- {#if visible} -->
-		<!-- {#if post.type === 'reply'}
-			<Replies {post} {visible} /> -->
-		{#if post.type === 'reaction'}
+		{#if post.type === 'reply'}
+			<Replies {post} {visible} />
+		{:else if post.type === 'reaction'}
 			<Reactions {post} {visible} />
 			<!-- {:else if post.type === 'mention'}
 			<Mentions {post} {visible} />

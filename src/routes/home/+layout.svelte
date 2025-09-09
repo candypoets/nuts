@@ -132,7 +132,7 @@
 			},
 			{
 				pipeline: {
-					pipes: [{ name: 'parse' }, { name: 'proofVerification' }]
+					pipes: [{ name: 'parse' }, { name: 'saveToDb' }, { name: 'proofVerification' }]
 				}
 			},
 			cashuManager

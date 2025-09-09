@@ -14,6 +14,7 @@
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import User from 'src/routes/explore/user.svelte';
+	import { chatManager } from 'src/controller/managers';
 
 	// in a chat, pubkey is the other person's pubkey
 	export let pubkey: string;
@@ -35,7 +36,6 @@
 			firstEvent = feed?.[1];
 		}
 		const parsedEvent = asParsedEvent(message);
-		console.log('feed', feed);
 		if (parsedEvent) {
 			switch (parsedEvent?.parsedType()) {
 				case ParsedData.Kind4Parsed:
@@ -126,6 +126,7 @@
 <Feed
 	subscriptionID={'kind4_' + pubkey}
 	requests={feedRequests}
+	manager={chatManager}
 	{updateFeed}
 	{visible}
 	bottom={true}

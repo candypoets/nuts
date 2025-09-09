@@ -4,6 +4,7 @@
 	import Cashu from './cashu.svelte';
 
 	import {
+		ContentBlock,
 		ContentData,
 		type Kind1Parsed,
 		type Kind4Parsed,
@@ -44,12 +45,14 @@
 			: fbArray(kind1 || kind4, 'parsedContent') || [];
 
 	// Helper function to check if current block is the last text block
-	function isLastTextBlock(index: number, content: any[]) {
-		for (let i = index + 1; i < content.length; i++) {
-			if (content[i].type === 'text') {
-				return false;
-			}
-		}
+	function isLastTextBlock(index: number, content: ContentBlock[]) {
+		console.log(
+			'content',
+			content,
+			content.slice(index),
+			content.map((c) => c.type()?.toString())
+		);
+		if (content.slice(index + 1).some((b) => b.type()?.toString() == 'text')) return false;
 		return true;
 	}
 </script>
@@ -57,9 +60,11 @@
 <div
 	class:max-w-72={imageContext}
 	class:!w-full={main}
-	class:min-w-feed={main}
+	class:min-w-feed={main && !imageContext}
 	class={(!depth
-		? 'w-post'
+		? imageContext
+			? 'w-full'
+			: 'w-post'
 		: 'w-post-' + depth + ' text-sm text-wrap whitespace-normal break-words relative') +
 		($$props.class || '')}
 >

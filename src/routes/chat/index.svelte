@@ -41,6 +41,7 @@
 			pipes: [
 				{ name: 'npubLimiter', params: { kind: 4, limitPerNpub: 5, maxTotalNpubs: 100 } },
 				{ name: 'parse' },
+				{ name: 'saveToDb' },
 				{ name: 'serializeEvents' }
 			]
 		}

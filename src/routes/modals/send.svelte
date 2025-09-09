@@ -5,18 +5,17 @@
 	import type {
 		Kind3Parsed,
 		ParsedEvent,
-		Request,
 		RequestObject,
 		WorkerMessage
 	} from '@candypoets/nipworker';
+	import { asKind0, asKind3, asParsedEvent, fbArray } from '@candypoets/nipworker/utils';
 	import { kind3 } from 'src/controller/nostr';
+	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import type { Contact } from 'src/model/contact';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import { go } from 'src/routes/modals/modal';
-	import { asKind0, asKind3, asParsedEvent, fbArray } from '@candypoets/nipworker/utils';
 	import { getContext } from 'svelte';
-	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
 
 	let active: string;
 	let search: string;

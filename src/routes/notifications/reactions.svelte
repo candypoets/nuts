@@ -53,9 +53,7 @@
 					],
 					(message) => {
 						const parsedEvent = isParsedEvent(message);
-						console.log('message parsed event', message?.type(), parsedEvent?.id()?.toString());
 						if (isKind1(message)) {
-							console.log('originalPost ok');
 							originalPost = parsedEvent;
 						} else if (parsedEvent) {
 							context = [...context, parsedEvent];
@@ -181,7 +179,7 @@
 								<span class="font-medium text-sm">
 									<User pubkey={event.pubkey} link={false} {context} />
 								</span>
-								<span class="text-xs text-gray-500">{formatTime(event.created_at)}</span>
+								<span class="text-xs text-gray-500">{formatTime(event.createdAt())}</span>
 							</div>
 						</div>
 					{/each}

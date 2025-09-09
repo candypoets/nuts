@@ -1,37 +1,28 @@
 <script lang="ts">
+	import {
+		type ConnectionStatus,
+		Kind10002Parsed,
+		nostrManager,
+		ParsedData,
+		type ParsedEvent,
+		type RequestObject,
+		WorkerMessage
+	} from '@candypoets/nipworker';
 	import Icon from '@iconify/svelte';
 	import _ from 'lodash';
-	import { follows, kind0, kind3 } from 'src/controller/nostr';
+	import { follows, kind0 } from 'src/controller/nostr';
 	import { limit } from 'src/controller/pagination';
 	import { now } from 'src/lib/period';
 	import { proxyAvatarUrl, proxyBannerUrl } from 'src/lib/proxy';
-	import {
-		nostrManager,
-		type SubscribeKind,
-		type Request,
-		type ParsedEvent,
-		type ConnectionStatus,
-		type RequestObject,
-		WorkerMessage,
-		ParsedData,
-		Kind10002Parsed,
-		Kind3Parsed
-	} from '@candypoets/nipworker';
 	import Feed from 'src/routes/explore/feed.svelte';
 
-	import {
-		asKind0,
-		asKind10002,
-		asKind3,
-		asParsedEvent,
-		fbArray
-	} from '@candypoets/nipworker/utils';
+	import { useSubscription } from '@candypoets/nipworker/hooks';
+	import { asKind0, asKind10002, asParsedEvent, fbArray } from '@candypoets/nipworker/utils';
+	import RelaysList from 'src/components/RelaysList.svelte';
 	import { onDestroy, onMount } from 'svelte';
 	import Avatar from '../explore/avatar.svelte';
 	import { go } from '../modals/modal';
 	import { userQuery } from '../queries/user';
-	import RelaysList from 'src/components/RelaysList.svelte';
-	import { useSubscription } from '@candypoets/nipworker/hooks';
 
 	// Get pubkey from URL parameter
 	export let pubkey: string;
@@ -131,6 +122,8 @@
 	});
 
 	$: visible ? subscribe() : unsubscribe();
+
+	$: console.log('$follows', $follows);
 </script>
 
 <Feed

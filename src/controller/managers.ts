@@ -1,10 +1,10 @@
 import { createNostrManager, nostrManager } from '@candypoets/nipworker';
 
-export const chatManager = createNostrManager({ bufferKey: 'chat', maxBufferSize: 100_000_000 });
-export const cashuManager = createNostrManager({ bufferKey: 'cashu', maxBufferSize: 100_000_000 });
+export const chatManager = createNostrManager({ bufferKey: 'chat', maxBufferSize: 5_000_000 });
+export const cashuManager = createNostrManager({ bufferKey: 'cashu', maxBufferSize: 5_000_000 });
 export const profileManager = createNostrManager({
 	bufferKey: 'profiles',
-	maxBufferSize: 100_000_000
+	maxBufferSize: 5_000_000
 });
 
 export const setSigner = (kind: string, key: string) => {

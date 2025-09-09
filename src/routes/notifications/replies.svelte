@@ -2,7 +2,7 @@
 	import type { AnyKind, ParsedEvent } from '@candypoets/nipworker';
 	import { nostrManager } from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
-	import { isKind1 } from '@candypoets/nipworker/utils';
+	import { asKind1, isKind1, isParsedEvent } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { nip19 } from 'nostr-tools';
 	import { onMount } from 'svelte';
@@ -17,8 +17,8 @@
 	export let post: ProcessedNotification;
 	export let visible: boolean;
 
-	let context: ParsedEvent<AnyKind>[] = [];
-	let originalPost: ParsedEvent<AnyKind> | null = null;
+	let context: ParsedEvent[] = [];
+	let originalPost: ParsedEvent | null = null;
 	let expanded: boolean = false;
 	let timeout: NodeJS.Timeout | undefined;
 
@@ -34,7 +34,7 @@
 					[
 						{
 							kinds: [0],
-							authors: post.parsed.events.map((event) => event.pubkey),
+							authors: post.parsed.events.map((event) => event.pubkey()?.toString()),
 							cacheFirst: true,
 							relays: []
 						},
@@ -43,14 +43,14 @@
 							ids: [post.parsed.referencedPostId],
 							relays: [],
 							cacheFirst: true
-						},
-						...(post.requests || [])
+						}
 					],
-					(events, eventType) => {
-						if (isKind1(events[0])) {
-							originalPost = events[0];
-						} else if (events[0]?.parsed) {
-							context = [...context, ...events];
+					(message) => {
+						const parsedEvent = isParsedEvent(message);
+						if (isKind1(message)) {
+							originalPost = parsedEvent;
+						} else if (parsedEvent) {
+							context = [...context, parsedEvent];
 						}
 					}
 				);
@@ -89,7 +89,7 @@
 			<div class="flex justify-between items-center mb-2">
 				<div class="font-medium">
 					{post.parsed.events.length}
-					{#if originalPost && originalPost.pubkey !== $key?.pub}
+					{#if originalPost && originalPost.pubkey()?.toString() !== $key?.pub}
 						{post.parsed.events.length === 1 ? 'person' : 'people'} replied to a post you were mentioned
 						in
 					{:else}
@@ -97,7 +97,7 @@
 					{/if}
 				</div>
 				<div class="text-xs text-gray-500">
-					{formatTime(post.parsed.events[0].created_at)}
+					{formatTime(post.parsed.events[0].createdAt())}
 				</div>
 			</div>
 			<!-- Original post summary -->
@@ -105,7 +105,9 @@
 				<a
 					class="cursor-pointer bg-base-200 p-3 rounded-md mb-3 text-sm text-primary-content line-clamp-2 w-post-1"
 					on:click={() =>
-						go(`nevent:${nip19.neventEncode({ id: originalPost.id, relays: $writeRelays })}`)}
+						go(
+							`nevent:${nip19.neventEncode({ id: originalPost?.id()?.toString(), relays: $writeRelays })}`
+						)}
 				>
 					<!-- {originalPost.content.slice(0, 100)}... -->
 					<Content note={originalPost} showMedia={false} showQuote={false} depth={1} {context} />
@@ -115,8 +117,8 @@
 			<!-- Author avatars -->
 			<div class="flex -space-x-2 mb-3">
 				{#each post.parsed.events.slice(0, 5) as event}
-					<a href="/{event.pubkey}" class="relative z-0 hover:z-10">
-						<Avatar pubkey={event.pubkey} {context} />
+					<a href="/{event.pubkey()?.toString()}" class="relative z-0 hover:z-10">
+						<Avatar pubkey={event.pubkey()?.toString()} {context} />
 					</a>
 				{/each}
 				{#if post.parsed.events.length > 5}
@@ -132,9 +134,14 @@
 			{#if post.parsed.events.length > 0}
 				<div class="text-sm mb-2">
 					<span class="font-medium">
-						<User pubkey={post.parsed.events[0].pubkey} link={false} {context} />
-					</span>: {post.parsed.events[0].content.substring(0, 100)}
-					{post.parsed.events[0].content.length > 100 ? '...' : ''}
+						<User pubkey={post.parsed.events[0].pubkey()?.toString()} link={false} {context} />
+					</span>: <Content
+						note={post.parsed.events[0]}
+						showMedia={false}
+						showQuote={false}
+						depth={1}
+						{context}
+					/>
 				</div>
 			{/if}
 
@@ -143,15 +150,21 @@
 				<div class="mt-3 border-t pt-3">
 					{#each post.parsed.events.slice(1, 6) as event}
 						<div class="flex items-start gap-2 mb-3">
-							<Avatar pubkey={event.pubkey} query={false} {context} />
+							<Avatar pubkey={event.pubkey()?.toString()} query={false} {context} />
 							<div>
 								<div class="flex items-center gap-2">
 									<span class="font-medium text-sm">
-										<User pubkey={event.pubkey} link={false} {context} />
+										<User pubkey={event.pubkey()?.toString()} link={false} {context} />
 									</span>
-									<span class="text-xs">{formatTime(event.created_at)}</span>
+									<span class="text-xs">{formatTime(event.createdAt())}</span>
 								</div>
-								<p class="text-sm">{event.content}</p>
+								<Content
+									note={post.parsed.events[0]}
+									showMedia={false}
+									showQuote={false}
+									depth={1}
+									{context}
+								/>
 							</div>
 						</div>
 					{/each}

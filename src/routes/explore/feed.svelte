@@ -17,7 +17,7 @@
 	} from '@candypoets/nipworker/utils';
 	import Fuse from 'fuse.js';
 	import _ from 'lodash';
-	import { onMount } from 'svelte';
+	import { getContext, onMount } from 'svelte';
 
 	import VirtualList from 'src/components/VirtualList.svelte';
 	import VirtualListBottom from 'src/components/VirtualListBottom.svelte';
@@ -70,6 +70,8 @@
 	let eoce = false;
 	let loading = true;
 
+	const imageContext = getContext('imageContext');
+
 	function makeFuse() {
 		if (fuseKeys.length > 0 && feed.length > 0) {
 			fuse = new Fuse<any>(feed, {
@@ -100,7 +102,7 @@
 			case MessageType.ConnectionStatus:
 				const status = asConnectionStatus(message);
 				if (status) {
-					connectionStatus[status.relayUrl()!.fnv1aHash()] = status;
+					connectionStatus[status.relayUrl()!.toString()] = status;
 					if (status.status()!.toString() == 'EOSE' && eose == false) {
 						// if (eose == false && events.remainingConnections / events.totalConnections < 1) {
 						loading = false;
@@ -296,7 +298,7 @@
 		class="fixed bottom-0 z-10 w-full sticky-footer"
 		style="--footer-visible: {!down || start < 1 ? 1 : 0};"
 	>
-		<div class="w-feed m-auto">
+		<div class="m-auto" class:w-feed={!imageContext}>
 			<slot name="sticky-footer" visible={true} scrolled={true} {newPosts} />
 		</div>
 	</div>
