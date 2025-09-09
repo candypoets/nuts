@@ -6,24 +6,22 @@
 	export let relays: string[];
 	export let connectionStatus: { [relay_url: string]: ConnectionStatus | 'SUBSCRIBED' | undefined };
 
-	const normalize = (r: string) => normalizeURL(r.replace(/relay\./g, '')).replace(/\/$/, '');
+	const normalize = (r: string) =>
+		normalizeURL(r.replace(/relay\./g, ''))
+			.replace(/\/$/, '')
+			.replace(/^wss?:\/\//, '');
 
-	const isAdditionalRelay = (relay: string) => !normalizedUrls.includes(relay);
+	const isAdditionalRelay = (relay: string) => !relays.includes(relay);
 
-	$: additionalRelays = Object.keys(connectionStatus || {})
-		.map(normalize)
-		.filter((relay) => !normalizedUrls.includes(relay));
+	$: additionalRelays = Object.keys(connectionStatus || {}).filter((r) => !relays.includes(r));
 	export let mini = false;
 
 	let showAll = false;
 
-	$: normalizedUrls = relays.map(normalize);
+	let relayToShow = $isMobile ? 3 : 6;
 
-	let relayToShow = $isMobile ? 3 : 10;
+	$: displayedRelays = showAll ? relays : [...relays, ...additionalRelays].slice(0, relayToShow);
 
-	$: displayedRelays = showAll
-		? normalizedUrls
-		: [...normalizedUrls, ...additionalRelays].slice(0, relayToShow);
 	$: hasMore = relays.length > relayToShow;
 
 	function getStatusClasses(status?: ConnectionStatus) {
@@ -70,7 +68,7 @@
 						class:hidden={mini}
 						class="truncate"
 					>
-						{relay.replace('wss://', '').replace('ws://', '')}
+						{normalize(relay)}
 					</span>
 				</span>
 			{/each}
