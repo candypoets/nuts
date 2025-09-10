@@ -271,6 +271,7 @@
 	class="w-feed relative m-auto rounded-lg transition-all duration-200 pt-4 {isExpanded
 		? 'shadow-md'
 		: 'shadow-sm'}"
+	style="backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);"
 	bind:this={editorContainer}
 >
 	<div class="px-3">
@@ -370,14 +371,15 @@
 
 		<!-- Editor container -->
 		<div
-			class="min-h-[60px] rounded-md dark:bg-gray-800 relative transition-all duration-200"
+			class="min-h-[60px] rounded-md relative transition-all duration-200"
 			on:keydown|stopPropagation={handleKeyDown}
 			on:click={handleEditorContainerClick}
 			tabindex="-1"
 		>
 			<!-- Editor content -->
 			<div
-				class="min-h-[40px] prose dark:prose-invert prose-sm max-w-none p-3 md:py-3 py-2 bg-opacity-85 border bg-base-300 backdrop-blur-fix rounded-md cursor-text text-white"
+				class="min-h-[40px] prose dark:prose-invert prose-sm max-w-none p-3 md:py-3 py-2 bg-opacity-85 border bg-base-300 rounded-md cursor-text text-white"
+				style="-webkit-backdrop-filter: blur(12px);"
 				on:click|stopPropagation={focusEditor}
 			>
 				<EditorContent editor={$editor} on:focus={handleEditorFocus} />
@@ -386,7 +388,7 @@
 			<!-- Placeholder text -->
 			{#if !$editor?.getText().trim()}
 				<div
-					class="absolute md:top-3 top-2 md:left-3 left-6 text-gray-400 pointer-events-none"
+					class="absolute md:top-3 top-2 md:left-3 left-6 text-gray-400 pointer-events-none text-accent"
 					style={editorReady ? '' : 'display: none;'}
 				>
 					{placeholder}

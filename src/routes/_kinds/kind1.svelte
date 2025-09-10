@@ -145,6 +145,7 @@
 	{updateFeed}
 	{visible}
 	bind:connectionStatus
+	backdrop
 >
 	<svelte:fragment slot="sticky-header">
 		<div

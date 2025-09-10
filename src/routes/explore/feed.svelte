@@ -16,7 +16,7 @@
 		isKind6
 	} from '@candypoets/nipworker/utils';
 	import Fuse from 'fuse.js';
-	import _ from 'lodash';
+	import _, { uniqBy } from 'lodash';
 	import { getContext, onMount } from 'svelte';
 
 	import VirtualList from 'src/components/VirtualList.svelte';
@@ -108,11 +108,11 @@
 						loading = false;
 						eose = true;
 						if (page == 0) {
-							feed = _.uniqBy([...fetchedFeed, ...feed], (item) => item.id()!.fnv1aHash()).sort(
+							feed = uniqBy([...fetchedFeed, ...feed], (item) => item.id()!.fnv1aHash()).sort(
 								(a, b) => Number(b.createdAt() - a.createdAt())
 							);
 						} else {
-							feed = _.uniqBy(
+							feed = uniqBy(
 								[...feed, ...fetchedFeed.sort((a, b) => Number(b.createdAt() - a.createdAt()))],
 								(item) => item.id()!.fnv1aHash()
 							);
@@ -125,11 +125,13 @@
 				if (!eoce) {
 					eoce = true;
 					if (page == 0) {
-						feed = [...feed, ...initialItems, ...cachedFeed];
+						feed = uniqBy([...feed, ...initialItems, ...cachedFeed], (item) =>
+							item.id()!.fnv1aHash()
+						);
 					} else {
-						feed = [...feed, ...cachedFeed];
+						feed = uniqBy([...feed, ...cachedFeed], (item) => item.id()!.fnv1aHash());
 					}
-					console.log('cache done', subscriptionID);
+					console.log('cache done', subscriptionID, feed);
 					cachedFeed = [];
 					// makeFuse();
 				}
@@ -142,7 +144,7 @@
 					} else if (!eose) {
 						fetchedFeed = updateFeed(fetchedFeed, message);
 					} else {
-						feed = updateFeed(feed, message);
+						feed = uniqBy(updateFeed(feed, message), (item) => item.id()!.fnv1aHash());
 						// makeFuse();
 					}
 					break;
@@ -193,9 +195,9 @@
 
 	function setBufferFeed() {
 		newPosts = start > bufferFeed.length ? bufferFeed.length : start;
-		feed = [...feed, ...fetchedFeed, ...bufferFeed].sort((a, b) =>
-			Number(b.createdAt() - a.createdAt())
-		);
+		feed = uniqBy([...feed, ...fetchedFeed, ...bufferFeed], (item: ParsedEvent) =>
+			item?.id()?.fnv1aHash()
+		).sort((a, b) => Number(b.createdAt() - a.createdAt()));
 		bufferFeed = [];
 
 		lastBufferDump = now();
@@ -265,7 +267,11 @@
 			setTimeout(() => {
 				pagesub?.();
 				cleanup();
-				const until = Number(feed[Math.min(currentPage * $limit, feed.length - 1)].createdAt());
+				const until = Number(
+					feed[
+						Math.min(currentPage * $limit, feed.length - Math.ceil(feed.length * 0.2))
+					].createdAt()
+				);
 				const since = until - (currentPage + 2) * 24 * 60 * 60 * sinceMultiplier;
 				pagesub = useSubscription(
 					subscriptionID + since,
@@ -280,19 +286,21 @@
 <div class="fixed bottom-4 left-4 text-white">
 	{start} - {end} - {feed.length}
 </div>
-<div
-	class={'lg:pt-0 overflow-scroll scrollbar-hide h-full min-h-screen m-auto !pt-0 ' + $$props.class}
->
+
+<div class={'lg:pt-0 scrollbar-hide h-full min-h-screen m-auto !pt-0 ' + $$props.class}>
+	<!-- {#if start >= 1} -->
 	{#if start >= 1}
 		<!-- Fixed header (only visible when scrolled) -->
 		<div class="absolute z-10 w-full sticky-header" style="--header-visible: {down ? 0 : 1};">
-			<div class="w-feed m-auto" on:click={() => viewport.scrollTo({ top: 0, behavior: 'smooth' })}>
+			<div
+				class="w-feed m-auto backdrop-blur-md"
+				style="-webkit-backdrop-filter: blur(12px);"
+				on:click={() => viewport.scrollTo({ top: 0, behavior: 'smooth' })}
+			>
 				<slot name="sticky-header" visible={true} scrolled={true} {newPosts} />
 			</div>
 		</div>
 	{/if}
-
-	<!-- {#if start >= 1} -->
 	<!-- Fixed footer (only visible when scrolled) -->
 	<div
 		class="fixed bottom-0 z-10 w-full sticky-footer"
@@ -351,7 +359,7 @@
 		transition:
 			opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),
 			transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-		will-change: opacity, transform;
+		/*will-change: opacity, transform;*/
 		contain: layout style paint;
 		backface-visibility: hidden;
 		-webkit-backface-visibility: hidden;
@@ -363,7 +371,7 @@
 		transition:
 			opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),
 			transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-		will-change: opacity, transform;
+		/*will-change: opacity, transform;*/
 		contain: layout style paint;
 		backface-visibility: hidden;
 		-webkit-backface-visibility: hidden;

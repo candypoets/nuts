@@ -32,7 +32,7 @@
 	let bottom = 0;
 	let average_height;
 
-	$: visible = uniqBy(items.slice(0, end), getItemId).map((data, i) => {
+	$: visible = items.slice(0, end).map((data, i) => {
 		return { index: i + start, data };
 	});
 

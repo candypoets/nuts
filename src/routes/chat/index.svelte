@@ -92,7 +92,7 @@
 		feedRequests = [
 			{
 				kinds: [4],
-				tags: { '#p': contactPubs },
+				// tags: { '#p': contactPubs },
 				authors: [$key.pub],
 				relays: $writeRelays,
 				noContext: true
@@ -100,7 +100,7 @@
 			{
 				kinds: [4],
 				tags: { '#p': [$key.pub] },
-				authors: contactPubs,
+				// authors: contactPubs,
 				relays: $readRelays,
 				noContext: true
 			}
@@ -147,9 +147,9 @@
 		bind:connectionStatus
 	>
 		<svelte:fragment slot="sticky-header">
-			<div class="relative pt-safe">
+			<div class="relative pt-safe bg-base-300 bg-opacity-50 backdrop-blur-xl">
 				<div class="flex justify-between w-feed lg:m-auto h-16 items-center">
-					<h1 class="text-2xl font-semibold">Chats</h1>
+					<h1 class="text-2xl font-semibold">Blurred Chat</h1>
 					<button class="btn btn-circle btn-sm btn-primary">
 						<Icon icon="teenyicons:add-outline" class="text-xl"></Icon>
 					</button>
@@ -159,7 +159,33 @@
 		<svelte:fragment slot="header">
 			<div class="relative pt-safe">
 				<div class="w-feed flex justify-between w-feed m-auto h-16 items-center">
-					<h1 class="text-2xl font-semibold">Chats</h1>
+					<h1 class="text-2xl font-semibold">
+						Blurred Chat<button
+							class="btn btn-circle btn-ghost btn-xs ml-2"
+							onclick="document.getElementById('blurred_chat_info').showModal()"
+						>
+							<Icon icon="material-symbols:info-outline" class="text-lg"></Icon>
+						</button>
+						<dialog id="blurred_chat_info" class="modal">
+							<div class="modal-box bg-base-300 bg-opacity-85">
+								<h3 class="font-bold text-xl">What is Blurred Chat?</h3>
+								<p class="py-4 text-base">
+									Blurred Chat is like speaking a secret language with your conversation partner.
+									While others can see who you're talking to and how long your conversations are,
+									they can't understand a single word of what you're saying. Your messages are
+									end-to-end encrypted on the Nostr protocol.
+								</p>
+								<div class="modal-action">
+									<form method="dialog">
+										<button class="btn">Close</button>
+									</form>
+								</div>
+							</div>
+							<form method="dialog" class="modal-backdrop">
+								<button>close</button>
+							</form>
+						</dialog>
+					</h1>
 					<button class="btn btn-circle btn-sm btn-primary">
 						<Icon icon="teenyicons:add-outline" class="text-xl"></Icon>
 					</button>

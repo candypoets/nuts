@@ -4,7 +4,7 @@
 	import { fly } from 'svelte/transition';
 
 	export let relayName = '';
-	export let status: ConnectionStatus | 'SUBSCRIBED' | undefined;
+	export let status: ConnectionStatus;
 	export let size = 15; // px diameter
 
 	const dispatch = createEventDispatcher();
@@ -16,8 +16,8 @@
 	// First letter for display
 	$: firstLetter = relayName?.trim()?.charAt(0)?.toUpperCase() || '?';
 
-	function getColorClasses(s?: ConnectionStatus | 'SUBSCRIBED') {
-		switch (s) {
+	function getColorClasses(s: ConnectionStatus) {
+		switch (s.status()?.toString()) {
 			case 'EOSE':
 				return 'bg-green-500';
 			case 'FAILED':
@@ -26,6 +26,8 @@
 				return 'bg-blue-500 animate-pulse';
 			case 'OK':
 				return 'bg-green-400';
+			case 'SENT':
+				return 'bg-gray-300 opacity-50';
 			case 'CLOSED':
 				return 'bg-gray-500';
 			case 'NOTICE':
@@ -43,7 +45,7 @@
 			removalTimer = null;
 		}
 
-		if (status && status !== 'SENT' && status !== 'SUBSCRIBED') {
+		if (status && status.status()?.toString() !== 'OK') {
 			removalTimer = setTimeout(() => {
 				// Notify parent we should be removed
 				visible = false;
@@ -66,8 +68,8 @@
 
 {#if visible}
 	<div
-		out:fly={{ y: 1000, duration: 200 }}
-		in:fly={{ y: -1000, duration: 200 }}
+		out:fly={{ y: -1000, duration: 200 }}
+		in:fly={{ y: 1000, duration: 200 }}
 		class={`flex items-center border border-base-300 justify-center rounded-full text-white font-semibold select-none text-xs ${getColorClasses(
 			status
 		)}`}

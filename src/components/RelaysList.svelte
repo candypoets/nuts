@@ -40,21 +40,40 @@
 				return 'bg-gray-300 opacity-50'; // unknown or undefined
 		}
 	}
+	function sortRelaysByStatus(relays: string[]): string[] {
+		const statusOrder = {
+			'EOSE': 0,
+			'OK': 1,
+			'SUBSCRIBED': 2,
+			'FAILED': 3,
+			'CLOSED': 4
+		};
+
+		return [...relays].sort((a, b) => {
+			const statusA = connectionStatus?.[a]?.status()?.toString() || 'UNKNOWN';
+			const statusB = connectionStatus?.[b]?.status()?.toString() || 'UNKNOWN';
+
+			const orderA = statusOrder[statusA as keyof typeof statusOrder] ?? 999;
+			const orderB = statusOrder[statusB as keyof typeof statusOrder] ?? 999;
+
+			return orderA - orderB;
+		});
+	}
 </script>
 
 <div>
 	{#if relays.length > 0}
 		<div
-			class="flex gap-2 items-center flex-nowrap overflow-visible {$$props.class || ''}"
+			on:click|stopPropagation
+			class="cursor-pointer flex gap-2 items-center flex-wrap overflow-visible {$$props.class ||
+				''}"
 			class:!gap-0={mini}
 		>
 			{#each displayedRelays as relay, i}
 				<span
-					class="flex items-center text-xs px-2 py-1 bg-base-200 rounded-full whitespace-nowrap relative overflow-hidden"
+					class="flex items-center text-xs px-2 py-1 bg-base-200 rounded-full relative overflow-hidden"
 					class:!max-w-2={mini}
 					class:bg-transparent={mini || isAdditionalRelay(relay)}
-					style="z-index: {displayedRelays.length -
-						i}; max-width: calc(100% / {displayedRelays.length});"
 				>
 					<span
 						class={`w-2 h-2 mr-1 shrink-0 rounded-full ${getStatusClasses(
@@ -72,22 +91,24 @@
 					</span>
 				</span>
 			{/each}
-			{#if hasMore && !showAll}
-				<button
-					class="text-xs px-2 py-1 text-gray-500 rounded-full hover:opacity-80 transition-opacity whitespace-nowrap relative"
-					style="margin-left: -0.5rem; z-index: 0;"
-					on:click={() => (showAll = true)}
-				>
-					+{relays.length - relayToShow} more
-				</button>
-			{:else if hasMore && showAll}
-				<button
-					class="text-xs px-2 py-1 bg-base-300 rounded-full hover:opacity-80 transition-opacity whitespace-nowrap relative"
-					style="margin-left: -0.5rem; z-index: 0;"
-					on:click={() => (showAll = false)}
-				>
-					Show less
-				</button>
+			{#if !mini}
+				{#if hasMore && !showAll}
+					<button
+						class="text-xs px-2 py-1 text-gray-500 rounded-full hover:opacity-80 transition-opacity whitespace-nowrap relative"
+						style="margin-left: -0.5rem; z-index: 0;"
+						on:click={() => (showAll = true)}
+					>
+						+{relays.length - relayToShow} more
+					</button>
+				{:else if hasMore && showAll}
+					<button
+						class="text-xs px-2 py-1 bg-base-300 rounded-full hover:opacity-80 transition-opacity whitespace-nowrap relative"
+						style="margin-left: -0.5rem; z-index: 0;"
+						on:click={() => (showAll = false)}
+					>
+						Show less
+					</button>
+				{/if}
 			{/if}
 		</div>
 	{:else}

@@ -23,6 +23,7 @@
 	import Avatar from '../explore/avatar.svelte';
 	import { go } from '../modals/modal';
 	import { userQuery } from '../queries/user';
+	import { profileManager } from 'src/controller/managers';
 
 	// Get pubkey from URL parameter
 	export let pubkey: string;
@@ -72,7 +73,7 @@
 	function subscribe() {
 		timeout = setTimeout(() => {
 			if (visible && !sub) {
-				sub = useSubscription('u_' + pubkey, userQuery(pubkey), handleEvents);
+				sub = useSubscription('u_' + pubkey, userQuery(pubkey), handleEvents, {}, profileManager);
 			}
 		});
 	}
@@ -131,6 +132,7 @@
 	requests={feedRequests}
 	{visible}
 	bind:connectionStatus
+	backdrop
 >
 	<svelte:fragment slot="sticky-header">
 		<div class="px-4 py-3 flex items-center justify-between backdrop-blur-md pt-safe">

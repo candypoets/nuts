@@ -22,8 +22,10 @@
 >
 	<!-- {JSON.stringify(connectionStatus)} -->
 	{#each relays as relay}
-		<div class="pointer-events-auto">
-			<StatusCircle relayName={getRelayName(relay)} status={connectionStatus[relay]} size={30} />
-		</div>
+		{#if connectionStatus[relay]}
+			<div class="pointer-events-auto">
+				<StatusCircle relayName={getRelayName(relay)} status={connectionStatus[relay]} size={30} />
+			</div>
+		{/if}
 	{/each}
 </div>

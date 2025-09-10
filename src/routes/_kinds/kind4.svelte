@@ -131,10 +131,12 @@
 	{visible}
 	bottom={true}
 	class="w-feed"
+	backdrop
 >
 	<svelte:fragment slot="fixed-header">
 		<div
 			class="fixed pt-safe flex justify-between items-center lg:w-50vw py-2 w-full backdrop-blur-xl h-20 z-10"
+			style="-webkit-backdrop-filter: blur(12px);"
 		>
 			<div on:click={goBack} class="cursor-pointer">
 				<Icon icon="mingcute:left-line" class="text-2xl" />
@@ -147,7 +149,10 @@
 			{/key}
 			<div />
 		</div>
-		<div class="fixed bottom-0 w-feed pb-safe md:pb-4 backdrop-blur-xl">
+		<div
+			class="fixed bottom-0 w-feed pb-safe md:pb-4 backdrop-blur-xl"
+			style="-webkit-backdrop-filter: blur(12px);"
+		>
 			<Editor
 				placeholder="Message..."
 				initialContent=""

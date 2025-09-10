@@ -8,6 +8,7 @@
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import type { ParsedEvent, Kind0Parsed, WorkerMessage } from '@candypoets/nipworker';
 	import { asKind0, isKind0 } from '@candypoets/nipworker/utils';
+	import { profileManager } from 'src/controller/managers';
 
 	export let pubkey: string;
 	export let link: boolean = true;
@@ -18,16 +19,25 @@
 	let user: Kind0Parsed | undefined;
 	let sub: (() => void) | undefined;
 
+	let queried = false;
+
 	onMount(() => {
 		user = context.find((c) => asKind0(c)) as Kind0Parsed | undefined;
 		if (!user && query) {
-			sub = useSubscription('u_' + pubkey, userQuery(pubkey), (message: WorkerMessage) => {
-				const kind0 = isKind0(message);
-				if (kind0) {
-					user = kind0;
-					sub?.();
-				}
-			});
+			queried = true;
+			sub = useSubscription(
+				'u_' + pubkey,
+				userQuery(pubkey),
+				(message: WorkerMessage) => {
+					const kind0 = isKind0(message);
+					if (kind0 && kind0.pubkey()?.toString() === pubkey) {
+						user = kind0;
+						sub?.();
+					}
+				},
+				{},
+				profileManager
+			);
 		}
 		return () => sub?.();
 	});
@@ -46,6 +56,7 @@
 {#if link}
 	<a
 		class="text-accent whitespace-nowrap hover:underline"
+		class:text-red-500={!queried}
 		on:click|stopPropagation|preventDefault={go}
 		>@{user?.name?.()?.toString()?.trim() ||
 			user?.displayName?.()?.toString()?.trim() ||

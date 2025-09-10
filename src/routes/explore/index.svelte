@@ -2,7 +2,7 @@
 	import Icon from '@iconify/svelte';
 
 	import type { ConnectionStatus, Kind3Parsed } from '@candypoets/nipworker';
-	import _ from 'lodash';
+	import _, { uniq } from 'lodash';
 	import Pager from 'src/components/Pager.svelte';
 	import RelaysList from 'src/components/RelaysList.svelte';
 	import { followPacks } from 'src/controller/feed';
@@ -23,7 +23,7 @@
 	let feedRequests: any[] = [];
 	let subs: string[] = [];
 
-	$: following = _.uniq($followPacks.flatMap((pack) => pack.parsed?.people || []));
+	$: following = uniq($followPacks.flatMap((pack) => pack.parsed?.people || []));
 
 	$: setFeedRequests(following);
 
@@ -45,8 +45,6 @@
 			];
 		});
 	}
-
-	$: console.log('conn status', connectionStatus, $readRelays);
 </script>
 
 <Pager rootPath="/explore" bind:subs>

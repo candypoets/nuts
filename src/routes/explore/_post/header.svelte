@@ -85,47 +85,52 @@
 		</a>
 	</div>
 	<div class="w-full">
-		<div class="flex items-start" class:flex-wrap={isImageContext} class:items-center={oneline}>
-			{#if oneline}
-				<a on:click|stopPropagation|preventDefault={go} class="hover:underline cursor-pointer">
-					<div
-						class="whitespace-nowrap overflow-hidden text-ellipsis font-semibold text-sm"
-						class:!text-base={main}
-					>
-						{decoded?.name && $isMobile && decoded.name.length > 25
-							? decoded.name.slice(0, 25) + '...'
-							: decoded?.name || notePubkey?.slice(0, 15) + '...'}
-					</div>
-				</a>
-				{#if decoded?.nip05}
-					<Icon icon="bitcoin-icons:verify-filled" class="inline text-lg text-primary" />
-					<p class="text-xs opacity-50 lg:inline hidden">{decoded?.nip05}</p>
-				{/if}
-			{:else}
-				<div class="flex-grow">
-					<div class="flex items-center">
-						<a on:click|stopPropagation|preventDefault={go} class="hover:underline cursor-pointer">
-							<div class="whitespace-nowrap overflow-hidden text-ellipsis">
-								{decoded?.name && $isMobile && decoded.name.length > 25
-									? decoded.name.slice(0, 25) + '...'
-									: decoded?.name || notePubkey?.slice(0, 15) + '...'}
-							</div>
-						</a>
-						<Icon icon="bitcoin-icons:verify-filled" class="inline text-lg text-primary" />
-						<p class="text-xs opacity-50 ml-2">
-							{formatDistanceToNow((note?.createdAt() || 0) * 1000, { addSuffix: true })}
-						</p>
-					</div>
+		<div class="flex justify-between">
+			<div class="flex items-start" class:flex-wrap={isImageContext} class:items-center={oneline}>
+				{#if oneline}
+					<a on:click|stopPropagation|preventDefault={go} class="hover:underline cursor-pointer">
+						<div
+							class="whitespace-nowrap overflow-hidden text-ellipsis font-semibold text-sm"
+							class:!text-base={main}
+						>
+							{decoded?.name && $isMobile && decoded.name.length > 25
+								? decoded.name.slice(0, 25) + '...'
+								: decoded?.name || notePubkey?.slice(0, 15) + '...'}
+						</div>
+					</a>
 					{#if decoded?.nip05}
-						<p class="text-xs opacity-50">{decoded?.nip05}</p>
+						<Icon icon="bitcoin-icons:verify-filled" class="inline text-lg text-primary" />
+						<p class="text-xs opacity-50 lg:inline hidden">{decoded?.nip05}</p>
 					{/if}
-				</div>
-			{/if}
-			{#if oneline && note?.createdAt()}
-				<p class="text-xs opacity-50 ml-2">
-					{formatDistanceToNow((note?.createdAt() || 0) * 1000, { addSuffix: true })}
-				</p>
-			{/if}
+				{:else}
+					<div class="flex-grow">
+						<div class="flex items-center">
+							<a
+								on:click|stopPropagation|preventDefault={go}
+								class="hover:underline cursor-pointer"
+							>
+								<div class="whitespace-nowrap overflow-hidden text-ellipsis">
+									{decoded?.name && $isMobile && decoded.name.length > 25
+										? decoded.name.slice(0, 25) + '...'
+										: decoded?.name || notePubkey?.slice(0, 15) + '...'}
+								</div>
+							</a>
+							<Icon icon="bitcoin-icons:verify-filled" class="inline text-lg text-primary" />
+							<p class="text-xs opacity-50 ml-2">
+								{formatDistanceToNow((note?.createdAt() || 0) * 1000, { addSuffix: true })}
+							</p>
+						</div>
+						{#if decoded?.nip05}
+							<p class="text-xs opacity-50">{decoded?.nip05}</p>
+						{/if}
+					</div>
+				{/if}
+				{#if oneline && note?.createdAt()}
+					<p class="text-xs opacity-50 ml-2">
+						{formatDistanceToNow((note?.createdAt() || 0) * 1000, { addSuffix: true })}
+					</p>
+				{/if}
+			</div>
 			<slot />
 		</div>
 	</div>

@@ -9,7 +9,11 @@
 		type SubscriptionOptions
 	} from '@candypoets/nipworker';
 	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
-	import { asConnectionStatus, asCountResponse } from '@candypoets/nipworker/utils';
+	import {
+		asConnectionStatus,
+		asCountResponse,
+		isConnectionStatus
+	} from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { kinds, type EventTemplate } from 'nostr-tools';
 	import { getContext, onDestroy, onMount } from 'svelte';
@@ -145,9 +149,15 @@
 		};
 
 		// nostrManager.publish('reaction_' + decoded.id, event);
-		usePublish('reaction_' + decoded.id, event, (statuses: any, kind: SubscribeKind) => {
-			sendStatus[statuses.relay_url] = statuses.status;
-			updateSendStatus('reaction_' + decoded.id, sendStatus);
+		usePublish('reaction_' + decoded.id, event, (message: WorkerMessage) => {
+			const status = isConnectionStatus(message);
+			if (status) {
+				const relayUrl = status.relayUrl()?.toString();
+				if (relayUrl) {
+					sendStatus[relayUrl] = status;
+					updateSendStatus('repost_' + decoded.id, sendStatus);
+				}
+			}
 		});
 	}
 
@@ -164,9 +174,15 @@
 			created_at: now()
 		};
 
-		usePublish('repost_' + decoded.id, event, (statuses: any, kind: SubscribeKind) => {
-			sendStatus[statuses.relay_url] = statuses.status;
-			updateSendStatus('repost_' + decoded.id, sendStatus);
+		usePublish('repost_' + decoded.id, event, (message: WorkerMessage) => {
+			const status = isConnectionStatus(message);
+			if (status) {
+				const relayUrl = status.relayUrl()?.toString();
+				if (relayUrl) {
+					sendStatus[relayUrl] = status;
+					updateSendStatus('repost_' + decoded.id, sendStatus);
+				}
+			}
 		});
 	}
 
