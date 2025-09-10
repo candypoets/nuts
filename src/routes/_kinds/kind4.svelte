@@ -131,7 +131,6 @@
 	{visible}
 	bottom={true}
 	class="w-feed"
-	backdrop
 >
 	<svelte:fragment slot="fixed-header">
 		<div

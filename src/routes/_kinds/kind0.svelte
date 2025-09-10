@@ -132,7 +132,6 @@
 	requests={feedRequests}
 	{visible}
 	bind:connectionStatus
-	backdrop
 >
 	<svelte:fragment slot="sticky-header">
 		<div class="px-4 py-3 flex items-center justify-between backdrop-blur-md pt-safe">
