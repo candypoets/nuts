@@ -186,9 +186,9 @@
 		<svelte-virtual-list-row style="transform: rotateZ(180deg);">
 			<slot name="feed-header" />
 		</svelte-virtual-list-row>
-		{#each visible as row (getItemId(row.data))}
+		{#each visible as row, index (getItemId(row.data))}
 			<svelte-virtual-list-row style="transform: rotateZ(180deg);">
-				<slot item={row.data}>Missing template</slot>
+				<slot item={row.data} itemIndex={index}>Missing template</slot>
 			</svelte-virtual-list-row>
 		{/each}
 	</svelte-virtual-list-contents>

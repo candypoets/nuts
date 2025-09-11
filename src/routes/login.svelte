@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { AnyKind, ParsedEvent, SubscribeKind } from '@candypoets/nipworker';
+	import type { WorkerMessage } from '@candypoets/nipworker';
 	import { nostrManager } from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import { isKind0 } from '@candypoets/nipworker/utils';
@@ -46,10 +46,9 @@
 		const loginSub = useSubscription(
 			'login_' + pubkey,
 			[{ kinds: [kinds.Metadata], authors: [pubkey], limit: 1, relays: [] }],
-			(events: ParsedEvent<AnyKind>[], kind: SubscribeKind) => {
-				if (kind == 'CONNECTION_STATUS') return;
-				const [event, ...context] = events;
-				if (isKind0(event)) {
+			(message: WorkerMessage) => {
+				const kind0 = isKind0(message);
+				if (kind0) {
 					loading = false;
 					$key = {
 						pub: pubkey,

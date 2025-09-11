@@ -93,10 +93,6 @@
 				const noteId = note.id()?.toString();
 				if (!sub && noteId) {
 					subed++;
-					console.log(
-						'subscribing ' + noteId,
-						fbArray(note, 'requests').map((r) => toRequestObject(r))
-					);
 					sub = useSubscription(
 						noteId,
 						[
@@ -111,12 +107,7 @@
 							{ kinds: [1], limit: 10, tags: { '#e': [noteId] }, relays: relays || [] },
 							...fbArray(note, 'requests').map((r) => toRequestObject(r))
 						],
-						handleEvents,
-						{
-							// initialMessage: {
-							// 	SubscriptionEvent: { event_data: [[note]], event_type: 'BUFF_EVENT' }
-							// }
-						}
+						handleEvents
 					);
 				}
 				if (!relays.length && !relaysub) {

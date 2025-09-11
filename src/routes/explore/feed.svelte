@@ -70,6 +70,9 @@
 	let eoce = false;
 	let loading = true;
 
+	// Track seen event IDs to avoid duplicates
+	let seen_ids = new Map<number, boolean>();
+
 	const imageContext = getContext('imageContext');
 
 	function makeFuse() {
@@ -90,6 +93,12 @@
 	const handleEvents = (message: WorkerMessage, page = 0) => {
 		switch (message.type()) {
 			case MessageType.BufferFull:
+				if (page == 0) {
+					feed = [...feed, ...initialItems, ...cachedFeed];
+				} else {
+					feed = [...feed, ...cachedFeed];
+				}
+				cachedFeed = [];
 				let since = feed.length > 0 ? Number(feed[0].createdAt()) : now();
 				headsub?.();
 				cleanup();
@@ -108,14 +117,9 @@
 						loading = false;
 						eose = true;
 						if (page == 0) {
-							feed = uniqBy([...fetchedFeed, ...feed], (item) => item.id()!.fnv1aHash()).sort(
-								(a, b) => Number(b.createdAt() - a.createdAt())
-							);
+							feed = [...fetchedFeed, ...feed];
 						} else {
-							feed = uniqBy(
-								[...feed, ...fetchedFeed.sort((a, b) => Number(b.createdAt() - a.createdAt()))],
-								(item) => item.id()!.fnv1aHash()
-							);
+							feed = [...feed, ...fetchedFeed];
 						}
 						fetchedFeed = [];
 					}
@@ -125,26 +129,27 @@
 				if (!eoce) {
 					eoce = true;
 					if (page == 0) {
-						feed = uniqBy([...feed, ...initialItems, ...cachedFeed], (item) =>
-							item.id()!.fnv1aHash()
-						);
+						feed = [...feed, ...initialItems, ...cachedFeed];
 					} else {
-						feed = uniqBy([...feed, ...cachedFeed], (item) => item.id()!.fnv1aHash());
+						feed = [...feed, ...cachedFeed];
 					}
-					console.log('cache done', subscriptionID, feed);
 					cachedFeed = [];
 					// makeFuse();
 				}
 				break;
 			case MessageType.ParsedNostrEvent:
 				const parsedEvent = asParsedEvent(message);
+				if (seen_ids.has(parsedEvent?.id()?.fnv1aHash() as number)) {
+					return;
+				}
+				seen_ids.set(parsedEvent?.id()?.fnv1aHash() as number, true);
 				if (updateFeed && parsedEvent && isCorrectKind(parsedEvent)) {
 					if (!eoce) {
 						cachedFeed = updateFeed(cachedFeed, message);
 					} else if (!eose) {
 						fetchedFeed = updateFeed(fetchedFeed, message);
 					} else {
-						feed = uniqBy(updateFeed(feed, message), (item) => item.id()!.fnv1aHash());
+						feed = updateFeed(feed, message);
 						// makeFuse();
 					}
 					break;
@@ -206,6 +211,7 @@
 	}
 
 	onMount(() => {
+		initialItems.forEach((item) => seen_ids.set(item.id()?.fnv1aHash() as number, true));
 		const interval = setInterval(() => {
 			if (loading) loading = false;
 			if (now() - lastBufferDump > 2 && !!bufferFeed.length) {
@@ -328,14 +334,13 @@
 			return item?.id().fnv1aHash();
 		}}
 		let:item
+		let:itemIndex
 		{itemHeight}
 		{backdrop}
 		{loading}
 	>
 		{@const repost = asKind6(item) && item.pubkey()}
-		{@const isVisible =
-			visible &&
-			feed.findIndex((note) => note.id()?.toString() === item.id()?.toString()) >= start - 2}
+		{@const isVisible = visible && itemIndex >= start - 2}
 		<svelte:fragment slot="feed-header">
 			<slot name="header" visible>Missing Template</slot>
 		</svelte:fragment>

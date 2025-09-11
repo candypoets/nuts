@@ -40,13 +40,16 @@
 
 	let feedRequests: RequestObject[] = [];
 
+	let seen_npubs = new Map<number, boolean>();
+
 	function updateFeed(feed: ParsedEvent[], message: WorkerMessage): ParsedEvent[] {
 		const parsedEvent = asParsedEvent(message);
-		let newFeed = feed;
+		if (seen_npubs.has(parsedEvent?.pubkey()?.fnv1aHash() as number)) return feed;
+		seen_npubs.set(parsedEvent?.pubkey()?.fnv1aHash() as number, true);
 		if (parsedEvent) {
-			newFeed = _.uniqBy([...feed, parsedEvent], (event) => event.pubkey()?.fnv1aHash());
+			return [...feed, parsedEvent];
 		}
-		return newFeed;
+		return feed;
 	}
 
 	$: {

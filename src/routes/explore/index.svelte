@@ -1,8 +1,9 @@
 <script lang="ts">
-	import Icon from '@iconify/svelte';
-
 	import type { ConnectionStatus, Kind3Parsed } from '@candypoets/nipworker';
+	import { asKind0, asKind3, fbArray } from '@candypoets/nipworker/utils';
+	import Icon from '@iconify/svelte';
 	import _, { uniq } from 'lodash';
+
 	import Pager from 'src/components/Pager.svelte';
 	import RelaysList from 'src/components/RelaysList.svelte';
 	import { followPacks } from 'src/controller/feed';
@@ -14,7 +15,6 @@
 	import Post from 'src/routes/explore/post.svelte';
 	import { go } from 'src/routes/modals/modal';
 	import Notifications from './notifications.svelte';
-	import { asKind0, asKind3, fbArray } from '@candypoets/nipworker/utils';
 
 	export let visible = true;
 
@@ -49,7 +49,7 @@
 
 <Pager rootPath="/explore" bind:subs>
 	<Feed
-		subscriptionID={$followPacks.reduce((acc, cur) => acc + cur.id, '')}
+		subscriptionID={$followPacks.reduce((acc, cur) => acc + cur.id()?.fnv1aHash(), '')}
 		requests={feedRequests}
 		kinds={[1, 6]}
 		backdrop

@@ -37,6 +37,7 @@
 		}
 		const parsedEvent = asParsedEvent(message);
 		if (parsedEvent) {
+			console.log('kind4 event');
 			switch (parsedEvent?.parsedType()) {
 				case ParsedData.Kind4Parsed:
 					if (lastEvent?.pubkey?.()?.fnv1aHash() != parsedEvent.pubkey?.()?.fnv1aHash()) {

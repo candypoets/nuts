@@ -11,7 +11,7 @@
 	} from '@candypoets/nipworker';
 	import { asKind3, asKind4, asParsedEvent, fbArray, isKind4 } from '@candypoets/nipworker/utils';
 	import { formatDistanceToNow } from 'date-fns';
-	import _ from 'lodash';
+	import _, { orderBy, uniqBy } from 'lodash';
 	import { cubicOut } from 'svelte/easing';
 	import { tweened } from 'svelte/motion';
 
@@ -81,7 +81,11 @@
 				}
 			}
 		});
-		return _.orderBy(Object.values(contacts), [(contact) => contact.createdAt()], ['desc']);
+		return orderBy(
+			uniqBy(Object.values(contacts), (c) => c?.id()?.fnv1aHash()),
+			[(contact) => contact.createdAt()],
+			['desc']
+		);
 	}
 
 	kind3Ready.promise.then((kind3) => {
@@ -94,14 +98,14 @@
 				kinds: [4],
 				// tags: { '#p': contactPubs },
 				authors: [$key.pub],
-				relays: $writeRelays,
+				relays: [...$readRelays, ...$writeRelays],
 				noContext: true
 			},
 			{
 				kinds: [4],
 				tags: { '#p': [$key.pub] },
 				// authors: contactPubs,
-				relays: $readRelays,
+				relays: [...$readRelays, ...$writeRelays],
 				noContext: true
 			}
 		];
