@@ -94,7 +94,7 @@
 		switch (message.type()) {
 			case MessageType.BufferFull:
 				if (page == 0) {
-					feed = [...feed, ...initialItems, ...cachedFeed];
+					feed = [...feed, ...cachedFeed];
 				} else {
 					feed = [...feed, ...cachedFeed];
 				}
@@ -113,7 +113,6 @@
 				if (status) {
 					connectionStatus[status.relayUrl()!.toString()] = status;
 					if (status.status()!.toString() == 'EOSE' && eose == false) {
-						console.log('eose');
 						// if (eose == false && events.remainingConnections / events.totalConnections < 1) {
 						loading = false;
 						eose = true;
@@ -134,7 +133,7 @@
 				if (!eoce) {
 					eoce = true;
 					if (page == 0) {
-						feed = [...feed, ...initialItems, ...cachedFeed];
+						feed = [...feed, ...cachedFeed];
 					} else {
 						feed = [...feed, ...cachedFeed];
 					}
@@ -144,7 +143,6 @@
 				break;
 			case MessageType.ParsedNostrEvent:
 				const parsedEvent = asParsedEvent(message);
-				console.log('parsedEvent', page, seen_ids, parsedEvent?.id()?.fnv1aHash());
 				if (seen_ids.has(parsedEvent?.id()?.fnv1aHash() as number)) {
 					return;
 				}
@@ -154,7 +152,6 @@
 						cachedFeed = updateFeed(cachedFeed, message);
 					} else if (!eose) {
 						fetchedFeed = updateFeed(fetchedFeed, message);
-						console.log('feetchedFeed', fetchedFeed);
 					} else {
 						feed = updateFeed(feed, message);
 						// makeFuse();
@@ -219,6 +216,7 @@
 
 	onMount(() => {
 		initialItems.forEach((item) => seen_ids.add(item.id()?.fnv1aHash() as number));
+		feed = initialItems;
 		const interval = setInterval(() => {
 			if (loading) loading = false;
 			if (now() - lastBufferDump > 2 && !!bufferFeed.length) {

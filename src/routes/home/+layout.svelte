@@ -112,7 +112,7 @@
 			'proofs_' + $key?.pub,
 			[
 				{ kinds: [7375], authors: [$key?.pub], relays },
-				{ kinds: [9321], tags: { '#p': [$key?.pub] }, relays: relays }
+				{ kinds: [9321], tags: { '#p': [$key?.pub] }, relays }
 			],
 			(message) => {
 				const vps = isValidProofs(message);
@@ -132,7 +132,7 @@
 			},
 			{
 				pipeline: {
-					pipes: [{ name: 'parse' }, { name: 'saveToDb' }, { name: 'proofVerification' }]
+					pipes: [{ name: 'parse' }, { name: 'proofVerification' }]
 				}
 			},
 			cashuManager

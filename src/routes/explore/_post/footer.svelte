@@ -65,7 +65,10 @@
 
 	const subscriptionOptions: SubscriptionOptions = {
 		pipeline: {
-			pipes: [{ name: 'counter', params: { kinds: [1, 6, 7, 17], pubkey: $key?.pub } }]
+			pipes: [
+				{ name: 'saveToDb' },
+				{ name: 'counter', params: { kinds: [1, 6, 7, 17], pubkey: $key?.pub } }
+			]
 		}
 	};
 

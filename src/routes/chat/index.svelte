@@ -65,10 +65,10 @@
 		}
 
 		const processedFeed = processEvents(updatedFeed);
-		console.log(
-			feed.map((f) => f.id()?.fnv1aHash()),
-			processedFeed.map((f) => f.id()?.fnv1aHash())
-		);
+		// console.log(
+		// 	feed.map((f) => f.id()?.fnv1aHash()),
+		// 	processedFeed.map((f) => f.id()?.fnv1aHash())
+		// );
 		// Process the updated feed into grouped notifications
 		return uniqBy(processedFeed, (item) => item.id()?.fnv1aHash());
 	}
