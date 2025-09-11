@@ -65,9 +65,12 @@
 		}
 
 		const processedFeed = processEvents(updatedFeed);
-
+		console.log(
+			feed.map((f) => f.id()?.fnv1aHash()),
+			processedFeed.map((f) => f.id()?.fnv1aHash())
+		);
 		// Process the updated feed into grouped notifications
-		return processedFeed;
+		return uniqBy(processedFeed, (item) => item.id()?.fnv1aHash());
 	}
 
 	function processEvents(events: ParsedEvent[]) {
@@ -81,11 +84,7 @@
 				}
 			}
 		});
-		return orderBy(
-			uniqBy(Object.values(contacts), (c) => c?.id()?.fnv1aHash()),
-			[(contact) => contact.createdAt()],
-			['desc']
-		);
+		return orderBy(Object.values(contacts), [(contact) => contact.createdAt()], ['desc']);
 	}
 
 	kind3Ready.promise.then((kind3) => {

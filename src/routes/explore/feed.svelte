@@ -71,7 +71,7 @@
 	let loading = true;
 
 	// Track seen event IDs to avoid duplicates
-	let seen_ids = new Map<number, boolean>();
+	let seen_ids = new Set<number>();
 
 	const imageContext = getContext('imageContext');
 
@@ -113,12 +113,17 @@
 				if (status) {
 					connectionStatus[status.relayUrl()!.toString()] = status;
 					if (status.status()!.toString() == 'EOSE' && eose == false) {
+						console.log('eose');
 						// if (eose == false && events.remainingConnections / events.totalConnections < 1) {
 						loading = false;
 						eose = true;
 						if (page == 0) {
 							feed = [...fetchedFeed, ...feed];
 						} else {
+							console.log(
+								feed.map((f) => f.id()?.fnv1aHash()),
+								fetchedFeed.map((f) => f.id()?.fnv1aHash())
+							);
 							feed = [...feed, ...fetchedFeed];
 						}
 						fetchedFeed = [];
@@ -139,15 +144,17 @@
 				break;
 			case MessageType.ParsedNostrEvent:
 				const parsedEvent = asParsedEvent(message);
+				console.log('parsedEvent', page, seen_ids, parsedEvent?.id()?.fnv1aHash());
 				if (seen_ids.has(parsedEvent?.id()?.fnv1aHash() as number)) {
 					return;
 				}
-				seen_ids.set(parsedEvent?.id()?.fnv1aHash() as number, true);
+				seen_ids.add(parsedEvent?.id()?.fnv1aHash() as number);
 				if (updateFeed && parsedEvent && isCorrectKind(parsedEvent)) {
 					if (!eoce) {
 						cachedFeed = updateFeed(cachedFeed, message);
 					} else if (!eose) {
 						fetchedFeed = updateFeed(fetchedFeed, message);
+						console.log('feetchedFeed', fetchedFeed);
 					} else {
 						feed = updateFeed(feed, message);
 						// makeFuse();
@@ -211,7 +218,7 @@
 	}
 
 	onMount(() => {
-		initialItems.forEach((item) => seen_ids.set(item.id()?.fnv1aHash() as number, true));
+		initialItems.forEach((item) => seen_ids.add(item.id()?.fnv1aHash() as number));
 		const interval = setInterval(() => {
 			if (loading) loading = false;
 			if (now() - lastBufferDump > 2 && !!bufferFeed.length) {
