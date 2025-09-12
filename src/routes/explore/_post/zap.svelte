@@ -16,6 +16,7 @@
 	import { getRelaysFromNote } from 'src/lib/getRelaysFromNote';
 	import { getUserRelays } from 'src/routes/queries/user';
 	import Avatar from '../avatar.svelte';
+	import Icon from '@iconify/svelte';
 
 	export let note: ParsedEvent;
 	export let visible: boolean;
@@ -119,9 +120,9 @@
 		{#if zaps.length > 0}
 			<!-- Other zappers with overlapping profile pictures -->
 			<div class="flex items-center flex-grow gap-1">
-				<div class="text-xs items-center">
-					{zaps.length}
-					{zaps.length === 1 ? 'zap' : 'zaps'} · {totalZapAmount.toLocaleString()} sats
+				<div class="text-xs items-center flex mr-1">
+					<Icon icon="bitcoin-icons:satoshi-v2-filled" class="text-xl font-bold" />
+					{totalZapAmount.toLocaleString()}
 				</div>
 				<div class="flex -space-x-2 items-center">
 					{#each zaps.slice(0, 5) as zap, i (zap.id()?.fnv1aHash())}

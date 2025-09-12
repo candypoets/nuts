@@ -2,10 +2,9 @@
 	import Icon from '@iconify/svelte';
 	import { nutsWallet } from 'src/controller/proofs';
 	import { activeMintUrl, fetchMintData } from 'src/controller/wallet';
+	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import { go } from 'src/routes/modals/modal';
-	import { get } from 'svelte/store';
-	import { proxyAvatarUrl } from 'src/lib/proxy';
 
 	export let mintUrl: string | null;
 	export let size = 'lg';

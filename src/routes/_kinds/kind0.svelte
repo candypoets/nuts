@@ -24,6 +24,8 @@
 	import { go } from '../modals/modal';
 	import { userQuery } from '../queries/user';
 	import { profileManager } from 'src/controller/managers';
+	import { parseContent, type ContentBlock } from 'src/lib';
+	import About from 'src/components/About.svelte';
 
 	// Get pubkey from URL parameter
 	export let pubkey: string;
@@ -32,6 +34,7 @@
 
 	let loading = true;
 	let headerItem: ParsedEvent | undefined;
+	let parsedAbout: ContentBlock[] | undefined;
 	let relays: string[] = [];
 	let feedRequests: RequestObject[] = [];
 	let timeout: NodeJS.Timeout | undefined;
@@ -45,11 +48,12 @@
 		if (parsedEvent) {
 			switch (parsedEvent.parsedType()) {
 				case ParsedData.Kind0Parsed:
+					const kind0 = asKind0(parsedEvent);
 					loading = false;
 					headerItem = parsedEvent;
+					parseContent(kind0?.about()?.toString() || '').then((result) => (parsedAbout = result));
 					break;
 				case ParsedData.Kind10002Parsed:
-					console.log(parsedEvent, asKind10002(parsedEvent));
 					relays = fbArray(asKind10002(parsedEvent) as Kind10002Parsed, 'relays')
 						?.filter((r) => r.write())
 						.map((r) => r.url()?.toString())
@@ -123,8 +127,6 @@
 	});
 
 	$: visible ? subscribe() : unsubscribe();
-
-	$: console.log('$follows', $follows);
 </script>
 
 <Feed
@@ -233,7 +235,7 @@
 				</div>
 
 				{#if about}
-					<p class="mb-4 opacity-1">{@html about}</p>
+					<p class="mb-4 opacity-1"><About content={parsedAbout || []} /></p>
 				{/if}
 				<RelaysList {relays} {connectionStatus} />
 			</div>

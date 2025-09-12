@@ -93,13 +93,20 @@
 	const handleEvents = (message: WorkerMessage, page = 0) => {
 		switch (message.type()) {
 			case MessageType.BufferFull:
+				console.log(
+					'bufferfull',
+					subscriptionID,
+					feed.map((item) => item.id()?.fnv1aHash()),
+					cachedFeed.map((item) => item.id()?.fnv1aHash())
+				);
 				if (page == 0) {
 					feed = [...feed, ...cachedFeed];
 				} else {
 					feed = [...feed, ...cachedFeed];
 				}
 				cachedFeed = [];
-				let since = feed.length > 0 ? Number(feed[0].createdAt()) : now();
+				let since =
+					feed.length > 0 ? Math.max(...feed.map((event) => Number(event.createdAt()))) : now();
 				headsub?.();
 				cleanup();
 				headsub = useSubscription(
@@ -117,13 +124,9 @@
 						loading = false;
 						eose = true;
 						if (page == 0) {
-							feed = [...fetchedFeed, ...feed];
+							feed = uniqBy([...fetchedFeed, ...feed], (item) => item.id()?.fnv1aHash());
 						} else {
-							console.log(
-								feed.map((f) => f.id()?.fnv1aHash()),
-								fetchedFeed.map((f) => f.id()?.fnv1aHash())
-							);
-							feed = [...feed, ...fetchedFeed];
+							feed = uniqBy([...feed, ...fetchedFeed], (item) => item.id()?.fnv1aHash());
 						}
 						fetchedFeed = [];
 					}

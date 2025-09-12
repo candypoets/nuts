@@ -66,7 +66,7 @@ export function processNotifications(feed: ParsedEvent[]): ProcessedNotification
 				];
 
 				// Merge context
-				notificationGroups[key].context = [...notificationGroups[key].context, ...context];
+				notificationGroups[key].context = [...notificationGroups[key].context];
 
 				// Update timestamp if needed
 				if (processedNotification.timestamp > notificationGroups[key].timestamp) {

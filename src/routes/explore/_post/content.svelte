@@ -24,6 +24,7 @@
 
 	export let note: ParsedEvent;
 	export let context: ParsedEvent[] = [];
+	export let content: ContentBlock[] = undefined;
 	export let depth = 0;
 	export let visible: boolean = false;
 	export let showMedia = true;
@@ -38,20 +39,14 @@
 
 	let kind = kind1 || kind4;
 
-	$: hasShortened = fbArray(kind1, 'shortenedContent')?.length > 0;
+	$: hasShortened = !content && fbArray(kind1, 'shortenedContent')?.length > 0;
 	$: parsedContent =
-		hasShortened && !showFullContent
+		content || (hasShortened && !showFullContent)
 			? fbArray(kind1, 'shortenedContent') || []
 			: fbArray(kind1 || kind4, 'parsedContent') || [];
 
 	// Helper function to check if current block is the last text block
 	function isLastTextBlock(index: number, content: ContentBlock[]) {
-		console.log(
-			'content',
-			content,
-			content.slice(index),
-			content.map((c) => c.type()?.toString())
-		);
 		if (content.slice(index + 1).some((b) => b.type()?.toString() == 'text')) return false;
 		return true;
 	}
@@ -115,7 +110,7 @@
 				</a>
 			{:else}
 				<a
-					class="text-accent"
+					class="text-accent hover:underline"
 					on:click|stopPropagation
 					href={preview?.url()?.toString() || ''}
 					target="_blank"
