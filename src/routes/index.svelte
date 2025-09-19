@@ -9,7 +9,13 @@
 		type RequestObject
 	} from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
-	import { asKind10002, asKind3, fbArray, isParsedEvent } from '@candypoets/nipworker/utils';
+	import {
+		asKind0,
+		asKind10002,
+		asKind3,
+		fbArray,
+		isParsedEvent
+	} from '@candypoets/nipworker/utils';
 	import { onMount } from 'svelte';
 	import { pwaInfo } from 'virtual:pwa-info';
 

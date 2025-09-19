@@ -80,11 +80,11 @@
 	}
 </script>
 
-<div class="pt-4 bg-base-300 bg-opacity-85 h-full border rounded-xl">
+<div class="pt-safe bg-base-300 bg-opacity-85 backdrop-blur-gpu h-full rounded-xl">
 	<Alert />
-	<p class="font-bold text-xl text-center">Topup</p>
+	<p class="font-bold text-xl text-center pt-4">Topup</p>
 	{#if isLoading}
-		<div class=" h-full flex items-center justify-center gap-5 flex-col">
+		<div class="h-full flex items-center justify-center gap-5 flex-col">
 			<p>Creating lightning invoice...</p>
 		</div>
 	{:else}
@@ -106,31 +106,34 @@
 							activeMint={$activeMintUrl || $kind17375?.parsed?.mints?.[0]}
 						/>
 					</div>
-					<div class="h-52 flex flex-col items-center">
-						<input
-							autofocus
-							id="send-amt"
-							placeholder="0"
-							type="text"
-							inputmode="decimal"
-							bind:value={amount}
-							class="mt-10 text-7xl focus:outline-none text-center max-w-xs rounded-xl"
-							on:keydown={(e) => {
-								if (e.key === 'Enter') {
-									e.preventDefault();
-									if (Number(amount) > 0 && $activeMintUrl) {
-										handleCreateInvoice(); // Use combined handler
+					<div class="flex flex-col items-center">
+						<div class="join items-center mt-10">
+							<div class="join-item w-0">
+								<Icon icon="bitcoin-icons:satoshi-v2-filled" class="text-4xl" />
+							</div>
+							<input
+								autofocus
+								id="send-amt"
+								placeholder="0"
+								type="text"
+								inputmode="decimal"
+								bind:value={amount}
+								class="join-item text-7xl bg-transparent caret-transparent focus:outline-none text-center max-w-xs rounded-xl"
+								on:keydown|stopPropagation={(e) => {
+									if (e.key === 'Enter') {
+										e.preventDefault();
+										if (Number(amount) > 0 && $activeMintUrl) {
+											handleCreateInvoice(); // Use combined handler
+										}
 									}
-								}
-							}}
-						/>
-						<p />
-						<p class="font-bold text-xl">Sats</p>
+								}}
+							/>
+						</div>
 					</div>
 
-					<div class="flex join justify-center">
+					<div class="flex join justify-center lg:px-12 px-4">
 						<button
-							class="btn btn-warning flex gap-1 mt-40"
+							class="btn btn-outline join-item border flex-grow mt-10"
 							disabled={isLoading || !$activeMintUrl || !amount || Number(amount) <= 0}
 							class:loading={isLoading}
 							on:click={handleCreateInvoice}

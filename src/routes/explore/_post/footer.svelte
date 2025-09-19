@@ -1,7 +1,11 @@
 <script lang="ts">
 	import {
+		CounterPipeConfigT,
 		CountResponse,
 		MessageType,
+		PipeConfig,
+		PipeT,
+		SaveToDbPipeConfigT,
 		WorkerMessage,
 		type ConnectionStatus,
 		type ParsedEvent,
@@ -64,12 +68,10 @@
 	}
 
 	const subscriptionOptions: SubscriptionOptions = {
-		pipeline: {
-			pipes: [
-				{ name: 'saveToDb' },
-				{ name: 'counter', params: { kinds: [1, 6, 7, 17], pubkey: $key?.pub } }
-			]
-		}
+		pipeline: [
+			new PipeT(PipeConfig.SaveToDbPipeConfig, new SaveToDbPipeConfigT()),
+			new PipeT(PipeConfig.CounterPipeConfig, new CounterPipeConfigT([1, 6, 7, 17], $key?.pub))
+		]
 	};
 
 	onMount(() => {
@@ -230,7 +232,7 @@
 			role="button"
 			tabindex="0"
 			on:click|stopPropagation={() => {
-				go('ecash:' + note.pubkey + ':' + decoded.id);
+				go('ecash:' + note.pubkey()?.toString() + ':' + decoded.id);
 			}}
 		>
 			<Icon icon="material-symbols-light:bolt-outline-rounded" class="text-3xl" />

@@ -2,6 +2,11 @@
 	import {
 		MessageType,
 		ParsedData,
+		ParsePipeConfigT,
+		PipeConfig,
+		PipeT,
+		ProofVerificationPipeConfigT,
+		SaveToDbPipeConfigT,
 		type ConnectionStatus,
 		type ParsedEvent,
 		type RequestObject,
@@ -131,9 +136,11 @@
 				}
 			},
 			{
-				pipeline: {
-					pipes: [{ name: 'parse' }, { name: 'saveToDb' }, { name: 'proofVerification' }]
-				}
+				pipeline: [
+					new PipeT(PipeConfig.ParsePipeConfig, new ParsePipeConfigT()),
+					new PipeT(PipeConfig.SaveToDbPipeConfig, new SaveToDbPipeConfigT()),
+					new PipeT(PipeConfig.ProofVerificationPipeConfig, new ProofVerificationPipeConfigT(500))
+				]
 			},
 			cashuManager
 		);
@@ -158,7 +165,7 @@
 				const parsedEvent = isParsedEvent(message);
 				const wallet = isKind17375(message);
 				if (parsedEvent && wallet) {
-					console.log('wallet');
+					console.log('wallet message', wallet.p2pkPrivKey()?.toString(), wallet?.decrypted());
 					// Only update if the store is empty or the event is more recent
 					if (!$kind17375 || parsedEvent.createdAt() > $kind17375.createdAt()) {
 						$kind17375 = parsedEvent;

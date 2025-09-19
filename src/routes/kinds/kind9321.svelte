@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { WorkerMessage, type ParsedEvent } from '@candypoets/nipworker';
+	import { Kind9321Parsed, WorkerMessage, type ParsedEvent } from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import {
 		asKind7376,
@@ -36,6 +36,8 @@
 		eventId: kind9321?.eventId()?.toString(),
 		recipient: kind9321?.recipient()?.toString()
 	};
+
+	console.log('proofs', fbArray(kind9321 as Kind9321Parsed, 'proofs'));
 
 	let redeemed: ParsedEvent | undefined;
 	let sub: (() => void) | undefined;

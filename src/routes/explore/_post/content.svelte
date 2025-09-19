@@ -65,16 +65,27 @@
 >
 	{#each parsedContent as parsed, index}
 		{#if parsed.type()?.toString() == 'text'}
-			{@const text = parsed.text()?.toString() || ''}
+			{@const rawText = parsed.text()?.toString() || ''}
+			{@const text = (() => {
+				try {
+					// Attempt to unescape if the string has escaped sequences
+					return JSON.parse('"' + rawText + '"');
+				} catch (e) {
+					// If unescaping fails (e.g., due to control chars), use the raw text
+					// Optionally remove all backslashes here if that's what you want
+					return rawText.replace(/\\/g, ''); // Remove all '\' if desired
+				}
+			})()}
+
 			<!-- {#if !isImageUrl(part.content)} -->
-			<span class="break-words text-white"
-				>{@html (index == 0
+			<span class="break-words text-white">
+				{@html (index == 0
 					? text?.trimStart()
 					: index == parsedContent.length - 1
 						? text?.trimEnd()
 						: text
-				).replace(/\n/g, '<br>')}</span
-			>
+				).replace(/\r\n|\r|\n/g, '<br>')}
+			</span>
 			{#if hasShortened && isLastTextBlock(index, parsedContent)}
 				<button
 					class="text-primary text-sm font-medium ml-1 hover:underline"
@@ -126,7 +137,11 @@
 			>
 		{:else if parsed.dataType() == ContentData.NostrData}
 			{@const nostr = asNostrData(parsed)}
-			{#if nostr?.author()}
+			{@const author = nostr?.author()}
+			{#if author && nostr
+					?.entity()
+					?.toString()
+					.match(/n(profile|pub)/)}
 				<User pubkey={nostr?.author()?.toString()} {context} />
 			{:else if nostr?.id()}
 				<Note

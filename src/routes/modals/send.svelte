@@ -68,7 +68,7 @@
 
 <!-- <ScanLN bind:invoice={scannedNpub} /> -->
 <Feed
-	class="bg-base-300 bg-opacity-85"
+	class="bg-base-300 bg-opacity-85 backdrop-blur-md"
 	subscriptionID="contacts"
 	requests={feedRequests}
 	manager={profileManager}
@@ -77,7 +77,7 @@
 >
 	<svelte:fragment slot="header">
 		<div>
-			<div class="px-4 pt-4 flex justify-between unsafe-padding-top">
+			<div class="px-4 pt-safe flex justify-between h-20 items-center">
 				<div on:click={animator.goBack}>
 					<Icon icon="mingcute:down-line" class="text-xl" />
 				</div>
@@ -114,9 +114,9 @@
 					class="join-item flex-grow px-2 outline-none bg-transparent"
 				/>
 			</div>
-			<div class="my-4 rounded-lg border">
+			<div class="my-4 rounded-lg border border-primary-content">
 				<div
-					class="flex items-center justify-around py-2 border-b opacity-40"
+					class="flex items-center justify-around py-2 border-b border-primary-content opacity-40"
 					on:click={() => go('tapcash')}
 				>
 					<Icon icon="carbon:lightning" class="w-16 h-6" />
@@ -126,10 +126,7 @@
 					</div>
 					<Icon icon="carbon:arrow-right" class="w-16 h-6" />
 				</div>
-				<div
-					class="flex items-center justify-around py-2 border-b"
-					on:click={() => go('lightning')}
-				>
+				<div class="flex items-center justify-around py-2" on:click={() => go('lightning')}>
 					<Icon icon="carbon:lightning" class="w-16 h-6" />
 					<div class="flex-grow">
 						<strong>Pay an invoice</strong>
@@ -145,7 +142,7 @@
 		{#if post}
 			{@const kind0 = asKind0(post)}
 			<div
-				class="flex items-center p-3 border-b hover:bg-base-200 cursor-pointer"
+				class="flex items-center p-3 border-b border-primary-content hover:bg-base-200 cursor-pointer"
 				on:click={() => {
 					go('ecash:' + kind0?.pubkey()?.toString());
 				}}

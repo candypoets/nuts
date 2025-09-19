@@ -22,7 +22,9 @@
 	let queried = false;
 
 	onMount(() => {
-		user = context.find((c) => asKind0(c)) as Kind0Parsed | undefined;
+		user = context.find((c) => asKind0(c)?.pubkey()?.toString() == pubkey) as
+			| Kind0Parsed
+			| undefined;
 		if (!user && query) {
 			queried = true;
 			sub = useSubscription(

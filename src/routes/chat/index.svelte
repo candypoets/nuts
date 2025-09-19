@@ -2,11 +2,17 @@
 	import {
 		Kind3Parsed,
 		MessageType,
+		NpubLimiterPipeConfigT,
+		ParsePipeConfigT,
+		PipeConfig,
+		PipeT,
+		SaveToDbPipeConfigT,
+		SerializeEventsPipeConfigT,
 		type ConnectionStatus,
 		type Kind4Parsed,
 		type ParsedEvent,
 		type RequestObject,
-		type SubscriptionOptions,
+		type SubscriptionConfig,
 		type WorkerMessage
 	} from '@candypoets/nipworker';
 	import { asKind3, asKind4, asParsedEvent, fbArray, isKind4 } from '@candypoets/nipworker/utils';
@@ -36,15 +42,16 @@
 
 	let connectionStatus: { [url: string]: ConnectionStatus } = {};
 
-	const subscriptionOptions: SubscriptionOptions = {
-		pipeline: {
-			pipes: [
-				{ name: 'npubLimiter', params: { kind: 4, limitPerNpub: 5, maxTotalNpubs: 100 } },
-				{ name: 'parse' },
-				{ name: 'saveToDb' },
-				{ name: 'serializeEvents' }
-			]
-		}
+	const subscriptionOptions: SubscriptionConfig = {
+		pipeline: [
+			new PipeT(PipeConfig.NpubLimiterPipeConfig, new NpubLimiterPipeConfigT(4, 5, 100)),
+			new PipeT(PipeConfig.ParsePipeConfig, new ParsePipeConfigT()),
+			new PipeT(PipeConfig.SaveToDbPipeConfig, new SaveToDbPipeConfigT()),
+			new PipeT(
+				PipeConfig.SerializeEventsPipeConfig,
+				new SerializeEventsPipeConfigT(new TextEncoder().encode('chat'))
+			)
+		]
 	};
 
 	function updateFeed(feed: ParsedEvent[], message: WorkerMessage): ParsedEvent[] {
@@ -54,6 +61,7 @@
 				eoce = true;
 				break;
 			case MessageType.ParsedNostrEvent:
+				console.log('parsed message');
 				const parsedEvent = asParsedEvent(message) as ParsedEvent;
 				if (!isKind4(message)) return feed;
 				if (!eoce) {

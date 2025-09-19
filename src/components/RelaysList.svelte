@@ -4,7 +4,12 @@
 	import { isMobile } from 'src/controller';
 
 	export let relays: string[];
+	$: relays = relays.map((r) => r.replace(/\/$/, ''));
+
 	export let connectionStatus: { [relay_url: string]: ConnectionStatus | 'SUBSCRIBED' | undefined };
+	$: connectionStatus = Object.fromEntries(
+		Object.entries(connectionStatus || {}).map(([key, value]) => [key.replace(/\/$/, ''), value])
+	);
 
 	const normalize = (r: string) =>
 		normalizeURL(r.replace(/relay\./g, ''))
@@ -42,11 +47,11 @@
 	}
 	function sortRelaysByStatus(relays: string[]): string[] {
 		const statusOrder = {
-			'EOSE': 0,
-			'OK': 1,
-			'SUBSCRIBED': 2,
-			'FAILED': 3,
-			'CLOSED': 4
+			EOSE: 0,
+			OK: 1,
+			SUBSCRIBED: 2,
+			FAILED: 3,
+			CLOSED: 4
 		};
 
 		return [...relays].sort((a, b) => {

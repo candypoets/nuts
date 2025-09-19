@@ -25,7 +25,7 @@
 			<a
 				class="text-accent hover:underline"
 				on:click|stopPropagation
-				href={preview?.url || ''}
+				href={preview?.href || ''}
 				target="_blank"
 				rel="noopener noreferrer"
 			>

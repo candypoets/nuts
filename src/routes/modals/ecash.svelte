@@ -299,7 +299,7 @@
 										autocomplete="off"
 										bind:value={amount}
 										class="join-item text-7xl bg-transparent caret-transparent focus:outline-none text-center max-w-xs rounded-xl"
-										on:keydown={(e) => {
+										on:keydown|stopPropagation={(e) => {
 											if (!!processing) return;
 											if (e.key === 'Enter') {
 												sendEcash();
