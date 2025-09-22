@@ -10,7 +10,7 @@
 		type ConnectionStatus,
 		type ParsedEvent,
 		type SubscribeKind,
-		type SubscriptionOptions
+		type SubscriptionConfig
 	} from '@candypoets/nipworker';
 	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
 	import {
@@ -67,7 +67,7 @@
 		isMobile = window.innerWidth < 640;
 	}
 
-	const subscriptionOptions: SubscriptionOptions = {
+	const subscriptionOptions: SubscriptionConfig = {
 		pipeline: [
 			new PipeT(PipeConfig.SaveToDbPipeConfig, new SaveToDbPipeConfigT()),
 			new PipeT(PipeConfig.CounterPipeConfig, new CounterPipeConfigT([1, 6, 7, 17], $key?.pub))

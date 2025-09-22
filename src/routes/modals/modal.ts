@@ -1,6 +1,7 @@
 import { goto } from '$app/navigation';
 import { page } from '$app/stores';
-import { cleanup } from '@candypoets/nipworker';
+import { nostrManager } from '@candypoets/nipworker';
+import { profileManager } from 'src/controller/managers';
 import { get } from 'svelte/store';
 
 export const pathOptions = [
@@ -32,7 +33,8 @@ export function goBack() {
 
 	// Find the last "/" and get everything before it
 	const lastSlashIndex = currentPath.lastIndexOf('/');
-	cleanup();
+	nostrManager.cleanup();
+	profileManager.cleanup();
 	if (lastSlashIndex > 0) {
 		// Navigate to the parent path (everything before last slash)
 		const parentPath = currentPath.substring(0, lastSlashIndex);

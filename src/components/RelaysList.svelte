@@ -4,12 +4,8 @@
 	import { isMobile } from 'src/controller';
 
 	export let relays: string[];
-	$: relays = relays.map((r) => r.replace(/\/$/, ''));
 
 	export let connectionStatus: { [relay_url: string]: ConnectionStatus | 'SUBSCRIBED' | undefined };
-	$: connectionStatus = Object.fromEntries(
-		Object.entries(connectionStatus || {}).map(([key, value]) => [key.replace(/\/$/, ''), value])
-	);
 
 	const normalize = (r: string) =>
 		normalizeURL(r.replace(/relay\./g, ''))

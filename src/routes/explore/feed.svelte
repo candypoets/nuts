@@ -1,22 +1,16 @@
 <script lang="ts">
 	import type { ParsedData, ParsedEvent, WorkerMessage } from '@candypoets/nipworker';
 	import {
-		cleanup,
 		MessageType,
+		nostrManager,
 		type ConnectionStatus,
 		type NostrManager,
-		type SubscriptionOptions
+		type SubscriptionConfig
 	} from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
-	import {
-		asConnectionStatus,
-		asKind6,
-		asParsedEvent,
-		isKind1,
-		isKind6
-	} from '@candypoets/nipworker/utils';
+	import { asConnectionStatus, asKind6, asParsedEvent, isKind1 } from '@candypoets/nipworker/utils';
 	import Fuse from 'fuse.js';
-	import _, { uniqBy } from 'lodash';
+	import { uniqBy } from 'lodash';
 	import { getContext, onMount } from 'svelte';
 
 	import VirtualList from 'src/components/VirtualList.svelte';
@@ -29,8 +23,8 @@
 	export let bottom = false;
 	export let subscriptionID: string;
 	export let requests: any[] = [];
-	export let subscriptionOptions: SubscriptionOptions | undefined = undefined;
-	export let manager: NostrManager | undefined = undefined;
+	export let subscriptionOptions: SubscriptionConfig | undefined = undefined;
+	export let manager: NostrManager = nostrManager;
 	export let updateFeed:
 		| ((feed: ParsedEvent[], newEvent: WorkerMessage) => ParsedEvent[])
 		| undefined = undefined;
@@ -108,7 +102,7 @@
 				let since =
 					feed.length > 0 ? Math.max(...feed.map((event) => Number(event.createdAt()))) : now();
 				headsub?.();
-				cleanup();
+				manager.cleanup();
 				headsub = useSubscription(
 					subscriptionID + '_head',
 					requests.map((r) => ({ ...r, since })),
@@ -280,7 +274,7 @@
 			currentPage++;
 			setTimeout(() => {
 				pagesub?.();
-				cleanup();
+				manager.cleanup();
 				const until = Number(
 					feed[
 						Math.min(currentPage * $limit, feed.length - Math.ceil(feed.length * 0.2))
