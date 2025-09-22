@@ -18,6 +18,8 @@
 
 	export let visible = true;
 
+	let wasRequested = false;
+
 	let connectionStatus: { [url: string]: ConnectionStatus } = {};
 
 	let feedRequests: any[] = [];
@@ -25,7 +27,7 @@
 
 	$: following = uniq($followPacks.flatMap((pack) => pack.parsed?.people || []));
 
-	$: setFeedRequests(following);
+	$: visible && setFeedRequests(following);
 
 	function setFeedRequests(follows: string[]) {
 		kind3Ready.promise.then((kind3) => {

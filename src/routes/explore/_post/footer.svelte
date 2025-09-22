@@ -157,6 +157,7 @@
 		usePublish('reaction_' + decoded.id, event, (message: WorkerMessage) => {
 			const status = isConnectionStatus(message);
 			if (status) {
+				console.log(status?.status()?.toString(), status?.message()?.toString());
 				const relayUrl = status.relayUrl()?.toString();
 				if (relayUrl) {
 					sendStatus[relayUrl] = status;

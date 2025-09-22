@@ -56,6 +56,7 @@
 	import MintCard from 'src/routes/home/components/mintcard.svelte';
 	import Kind9321 from 'src/routes/kinds/kind9321.svelte';
 	import { go } from 'src/routes/modals/modal';
+	import { set } from 'lodash';
 
 	export let visible = false;
 
@@ -92,22 +93,26 @@
 
 	let feedRequests: RequestObject[] = [];
 
-	relayPromise.then(() => {
-		feedRequests = [
-			{
-				kinds: [9321],
-				authors: [$key?.pub],
-				limit: $limit,
-				relays: relays
-			},
-			{
-				kinds: [9321],
-				tags: { '#p': [$key?.pub] },
-				limit: $limit,
-				relays: relays
-			}
-		];
-	});
+	$: visible && setFeedRequests();
+
+	function setFeedRequests() {
+		relayPromise.then(() => {
+			feedRequests = [
+				{
+					kinds: [9321],
+					authors: [$key?.pub],
+					limit: $limit,
+					relays: relays
+				},
+				{
+					kinds: [9321],
+					tags: { '#p': [$key?.pub] },
+					limit: $limit,
+					relays: relays
+				}
+			];
+		});
+	}
 
 	let proofs: () => void;
 

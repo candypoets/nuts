@@ -440,7 +440,7 @@
 			>
 				<div class="w-full relative overflow-hidden">
 					{#key 'home'}
-						<Home visible={currentIndex == 0} />
+						<Home visible={!$isMobile || currentIndex == 0} />
 					{/key}
 				</div>
 			</div>
@@ -458,7 +458,7 @@
 				}}
 			>
 				<div class="w-full h-full relative overflow-hidden">
-					<Explore visible={currentIndex == 1} />
+					<Explore visible={!$isMobile || currentIndex == 1} />
 				</div>
 			</div>
 
@@ -474,7 +474,7 @@
 				}}
 			>
 				<div class="w-full h-screen relative overflow-hidden">
-					<Chat visible={currentIndex == 2} />
+					<Chat visible={!$isMobile || currentIndex == 2} />
 				</div>
 			</div>
 		</div>

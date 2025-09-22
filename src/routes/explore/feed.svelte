@@ -281,6 +281,7 @@
 					].createdAt()
 				);
 				const since = until - (currentPage + 2) * 24 * 60 * 60 * sinceMultiplier;
+				console.log(subscriptionID + since);
 				pagesub = useSubscription(
 					subscriptionID + since,
 					requests.map((r) => ({ ...r, until, since })),

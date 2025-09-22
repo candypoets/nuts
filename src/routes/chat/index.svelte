@@ -95,28 +95,32 @@
 		return orderBy(Object.values(contacts), [(contact) => contact.createdAt()], ['desc']);
 	}
 
-	kind3Ready.promise.then((kind3) => {
-		const k3 = asKind3(kind3) as Kind3Parsed;
-		const contactPubs = (fbArray(k3, 'contacts')
-			.map((c) => c.pubkey()?.toString())
-			.filter((p) => p != $key?.pub) || []) as string[];
-		feedRequests = [
-			{
-				kinds: [4],
-				// tags: { '#p': contactPubs },
-				authors: [$key.pub],
-				relays: [...$readRelays, ...$writeRelays],
-				noContext: true
-			},
-			{
-				kinds: [4],
-				tags: { '#p': [$key.pub] },
-				// authors: contactPubs,
-				relays: [...$readRelays, ...$writeRelays],
-				noContext: true
-			}
-		];
-	});
+	$: visible && setFeedRequests();
+
+	function setFeedRequests() {
+		kind3Ready.promise.then((kind3) => {
+			const k3 = asKind3(kind3) as Kind3Parsed;
+			const contactPubs = (fbArray(k3, 'contacts')
+				.map((c) => c.pubkey()?.toString())
+				.filter((p) => p != $key?.pub) || []) as string[];
+			feedRequests = [
+				{
+					kinds: [4],
+					// tags: { '#p': contactPubs },
+					authors: [$key.pub],
+					relays: [...$readRelays, ...$writeRelays],
+					noContext: true
+				},
+				{
+					kinds: [4],
+					tags: { '#p': [$key.pub] },
+					// authors: contactPubs,
+					relays: [...$readRelays, ...$writeRelays],
+					noContext: true
+				}
+			];
+		});
+	}
 
 	function correspondant(post: ParsedEvent) {
 		const kind4 = asKind4(post) as Kind4Parsed;
