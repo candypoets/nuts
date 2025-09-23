@@ -13,7 +13,8 @@ module.exports = {
 		'col-span-2',
 		'col-span-3',
 		'col-span-4',
-		'col-span-5'
+		'col-span-5',
+		'!hidden'
 	],
 	daisyui: {
 		themes: [

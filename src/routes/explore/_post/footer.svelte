@@ -3,6 +3,7 @@
 		CounterPipeConfigT,
 		CountResponse,
 		MessageType,
+		nostrManager,
 		PipeConfig,
 		PipeT,
 		SaveToDbPipeConfigT,
@@ -19,7 +20,7 @@
 		isConnectionStatus
 	} from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
-	import { kinds, type EventTemplate } from 'nostr-tools';
+	import { finalizeEvent, kinds, verifyEvent, type EventTemplate } from 'nostr-tools';
 	import { getContext, onDestroy, onMount } from 'svelte';
 
 	import EmojiPickerContent from 'src/components/EmojiPickerContent.svelte';
@@ -29,6 +30,7 @@
 	import { now } from 'src/lib/period';
 	import { go } from 'src/routes/modals/modal';
 	import { getUserRelays } from 'src/routes/queries/user';
+	import { hexToBytes } from 'src/lib/wallet';
 
 	export let note: ParsedEvent;
 	export let visible: boolean;
@@ -100,9 +102,11 @@
 					case 1:
 						replyCount = count.count() || replyCount;
 						replied = replied || count.you();
+						break;
 					case 6:
 						repostCount = count.count() || repostCount;
 						reposted = reposted || count.you();
+						break;
 				}
 		}
 	};
@@ -150,8 +154,16 @@
 				['p', decoded.pubkey]
 			],
 			content: emoji,
-			created_at: now()
+			created_at: 1758632627
 		};
+
+		nostrManager.signEvent(event as any, (event) => {
+			console.log('hey', event, verifyEvent(event));
+		});
+
+		const correctEvent = finalizeEvent(event, hexToBytes($key?.priv));
+
+		console.log('correctEvent', correctEvent);
 
 		// nostrManager.publish('reaction_' + decoded.id, event);
 		usePublish('reaction_' + decoded.id, event, (message: WorkerMessage) => {

@@ -41,25 +41,6 @@
 				return 'bg-gray-300 opacity-50'; // unknown or undefined
 		}
 	}
-	function sortRelaysByStatus(relays: string[]): string[] {
-		const statusOrder = {
-			EOSE: 0,
-			OK: 1,
-			SUBSCRIBED: 2,
-			FAILED: 3,
-			CLOSED: 4
-		};
-
-		return [...relays].sort((a, b) => {
-			const statusA = connectionStatus?.[a]?.status()?.toString() || 'UNKNOWN';
-			const statusB = connectionStatus?.[b]?.status()?.toString() || 'UNKNOWN';
-
-			const orderA = statusOrder[statusA as keyof typeof statusOrder] ?? 999;
-			const orderB = statusOrder[statusB as keyof typeof statusOrder] ?? 999;
-
-			return orderA - orderB;
-		});
-	}
 </script>
 
 <div>

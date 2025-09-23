@@ -25,7 +25,7 @@
 			case 'SUBSCRIBED':
 				return 'bg-blue-500 animate-pulse';
 			case 'OK':
-				return 'bg-green-400';
+				return s.message()?.toString() == 'false' ? 'bg-red-500' : 'bg-green-400';
 			case 'SENT':
 				return 'bg-gray-300 opacity-50';
 			case 'CLOSED':

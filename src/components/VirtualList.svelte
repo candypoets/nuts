@@ -37,9 +37,10 @@
 	});
 
 	// whenever `items` changes, invalidate the current heightmap
-	$: if (mounted) refresh(items, viewport_height, itemHeight);
+	$: if (mounted && items.length > 0) refresh(items, viewport_height, itemHeight);
 
 	async function refresh(items, viewport_height, itemHeight) {
+		console.log('refresh');
 		const { scrollTop } = viewport;
 
 		await tick(); // wait until the DOM is up to date
@@ -47,7 +48,8 @@
 		let content_height = top - scrollTop;
 		let i = start;
 
-		while (content_height < viewport_height * 2 && i < items.length) {
+		while (content_height < viewport_height && i < items.length) {
+			console.log('refresh loop');
 			let row = rows[i - start];
 
 			if (!row) {
@@ -108,7 +110,7 @@
 			y += height_map[i] || average_height;
 			i += 1;
 
-			if (y > scrollTop + viewport_height * 2) break;
+			if (y > scrollTop + viewport_height) break;
 		}
 		end = i;
 
