@@ -143,7 +143,7 @@
 					?.toString()
 					.match(/n(profile|pub)/)}
 				<User pubkey={nostr?.author()?.toString()} {context} />
-			{:else if nostr?.id()}
+			{:else if nostr?.id() && showQuote}
 				<Note
 					noteId={nostr?.id()?.toString()}
 					{context}

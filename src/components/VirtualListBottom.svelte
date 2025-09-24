@@ -5,6 +5,7 @@
 	// props
 	export let items;
 	export let height = '100%';
+	export let maxHeight = '100vh';
 	export let itemHeight = undefined;
 	export let className = '';
 
@@ -44,18 +45,30 @@
 
 	let startY;
 
+	let touchStartY = 0;
+	let touchStartX = 0;
+
 	function handleTouchStart(event) {
-		// startY = event.touches[0].pageY;
+		touchStartY = event.touches[0].clientY;
+		touchStartX = event.touches[0].clientX;
 	}
 
 	function handleTouchMove(event) {
-		// if (!startY) return;
-		// let deltaY = startY - event.touches[0].pageY;
-		// // Reverse the deltas
-		// deltaY = -deltaY;
-		// event.preventDefault();
-		// event.currentTarget.scrollTop += deltaY;
-		// startY = event.touches[0].pageY;
+		const touchCurrentY = event.touches[0].clientY;
+		const touchCurrentX = event.touches[0].clientX;
+
+		const deltaY = Math.abs(touchCurrentY - touchStartY);
+		const deltaX = Math.abs(touchCurrentX - touchStartX);
+
+		// Check if this is primarily a Y-axis gesture
+		const isYAxisGesture = deltaY > deltaX && deltaY > 10;
+
+		if (isYAxisGesture) {
+			// Only stop propagation if we're not at the top of the scroll
+			if (viewport.scrollTop > 0) {
+				event.stopPropagation();
+			}
+		}
 	}
 
 	$: visible = uniqBy(items.slice(0, end), getItemId).map((data, i) => {
@@ -175,7 +188,7 @@
 	bind:offsetHeight={viewport_height}
 	on:scroll={handle_scroll}
 	class="scrollbar-hide {className}"
-	style="height: {height}; max-height: 100vh; transform: rotateZ(180deg);"
+	style="height: {height}; max-height: {maxHeight}; transform: rotateZ(180deg);"
 	on:wheel={reverseScroll}
 >
 	<svelte-virtual-list-contents

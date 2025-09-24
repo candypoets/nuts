@@ -92,8 +92,13 @@
 			</div>
 		</svelte:fragment>
 		<svelte.fragment slot="sticky-footer">
-			<div class="md:pb-4 pb-safe pt-0 backdrop-blur-md">
-				<Post actionsOnTop />
+			<div class="md:pb-4 pb-safe md:px-6 px-2">
+				<div
+					on:click|stopPropagation={(_) => go('post')}
+					class="px-4 py-2 rounded-full backdrop-blur-2xl border border-accent"
+				>
+					What's up?
+				</div>
 			</div>
 		</svelte.fragment>
 		<svelte.fragment slot="header">

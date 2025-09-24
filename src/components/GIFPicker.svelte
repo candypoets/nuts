@@ -6,8 +6,9 @@
 
 	// Props
 	export let onGifSelect = (gif: any) => {}; // Callback for when a GIF is selected
-	export let apiKey = ''; // Tenor API key
+	export let apiKey = 'AIzaSyB692q5nvoGphnMusHRvm1D_98a-DSQJRA'; // Tenor API key
 	export let limit = 20;
+	export let show = false;
 	export let position = 'bottom'; // 'bottom' or 'top'
 	export let searchOnFocus = true; // Whether to start search when input is focused
 
@@ -16,7 +17,6 @@
 	let trendingGifs: any[] = [];
 	let searchTerm = '';
 	let isLoading = false;
-	let pickerElement: HTMLDivElement;
 	let searchInput: HTMLInputElement;
 
 	onMount(() => {
@@ -44,6 +44,7 @@
 	}
 
 	async function searchGifs() {
+		console.log('searchGif');
 		if (!searchTerm.trim()) {
 			gifs = trendingGifs;
 			return;
@@ -52,7 +53,7 @@
 		isLoading = true;
 		try {
 			const response = await axios.get(
-				`https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(searchTerm)}&limit=${limit}`
+				`https://tenor.googleapis.com/v2/search?key=${apiKey}&q=${encodeURIComponent(searchTerm)}&limit=${limit}`
 			);
 			gifs = response.data.results;
 		} catch (error) {
@@ -66,23 +67,44 @@
 		// Call the provided callback with the selected GIF
 		onGifSelect(gif);
 	}
-
+	let searchTimeout: NodeJS.Timeout;
 	// Handle Enter key in search input
 	function handleKeydown(event: KeyboardEvent) {
 		if (event.key === 'Enter') {
 			searchGifs();
+		} else {
+			clearTimeout(searchTimeout);
+			searchTimeout = setTimeout(() => searchGifs(), 1000);
 		}
+	}
+
+	function toggleGifPicker() {
+		show = !show;
+
+		// Focus the editor after toggling
+		// focusEditor();
 	}
 </script>
 
-<div
-	class="absolute z-50 w-80 {position === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'}"
-	bind:this={pickerElement}
-	transition:fly={{ y: position === 'top' ? 10 : -10, duration: 150 }}
-	style="transform: translateY(-25rem) translateX(-12rem);"
+<button
+	type="button"
+	class="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 {show
+		? 'bg-gray-100 dark:bg-gray-700'
+		: ''}"
+	title="Insert GIF"
+	on:click={toggleGifPicker}
+	data-gif-trigger
 >
+	<Icon icon="mage:gif" class="w-5 h-5" />
+</button>
+
+{#if show}
 	<div
-		class="fixed z-50 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-lg"
+		class="fixed z-50 bg-white dark:bg-gray-800 right-12 w-96 rounded-lg border border-gray-200 dark:border-gray-700 shadow-lg {position ===
+		'top'
+			? 'top-0'
+			: 'bottom-0'}"
+		transition:fly={{ y: position === 'top' ? 10 : -10, duration: 150 }}
 	>
 		<div class="p-2 border-b border-gray-200 dark:border-gray-700">
 			<div class="relative">
@@ -137,4 +159,5 @@
 			{/if}
 		</div>
 	</div>
-</div>
+	<div class="fixed inset-0 z-10" on:click={() => (show = false)}></div>
+{/if}

@@ -15,6 +15,7 @@
 	import Send from 'src/routes/modals/send.svelte';
 	import Tapcash from 'src/routes/modals/tapcash.svelte';
 	import Topup from 'src/routes/modals/topup.svelte';
+	import Post from 'src/routes/modals/post.svelte';
 
 	import { viewport } from 'src/controller/viewport';
 	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
@@ -183,6 +184,12 @@
 			<!-- <Zaps /> -->
 		{:else if path.includes('keys')}
 			<Keys />
+		{:else if path.includes('reply')}
+			<Post reply={path.split(':')?.[1]} />
+		{:else if path.includes('repost')}
+			<Post repost={path.split(':')?.[1]} />
+		{:else if path.includes('post')}
+			<Post />
 		{:else if path.includes('wallet')}
 			<Wallet />
 		{:else if path.includes('relays')}

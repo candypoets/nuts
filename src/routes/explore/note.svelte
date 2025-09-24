@@ -31,6 +31,7 @@
 	export let zaps: boolean = false;
 	export let footer: boolean = true;
 	export let visible: boolean = false;
+	export let showQuote = true;
 	export let showReplies: ((events: ParsedEvent[]) => ParsedEvent[]) | undefined = undefined;
 	// for replies, show the original post above
 	export let showRoot: boolean = true;
@@ -198,7 +199,7 @@
 			<div class:!min-w-0={!!main} class="min-w-8" class:!min-w-2={!!depth} />
 			<!-- {/if} -->
 			<div class="-mt-2" class:!mt-0={!!depth || isImageContext} class:!mt-2={!!main}>
-				<Content {note} {context} {visible} {depth} {main} />
+				<Content {note} {context} {visible} {depth} {main} {showQuote} />
 			</div>
 		</div>
 		{#if footer && !depth}

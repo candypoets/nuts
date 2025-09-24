@@ -213,9 +213,9 @@
 	<div class="flex items-center gap-2 cursor-pointer w-full">
 		<div
 			class="flex items-center space-x-1 hover:font-bold hover:text-accent hover:-mt-1 transition-all"
-			class:text-primary={!!replied}
+			class:text-accent={!!replied}
 			class:font-semibold={!!replied}
-			on:click={() => ($replying = !isImageContext)}
+			on:click|stopPropagation={() => go('reply:' + note.id()?.toString())}
 			role="button"
 			tabindex="0"
 		>
@@ -233,7 +233,7 @@
 			class:cursor-default={!!reposted}
 			role="button"
 			tabindex="0"
-			on:click|stopPropagation={() => !reposted && sendRepost()}
+			on:click|stopPropagation={() => go('repost:' + note.id()?.toString())}
 		>
 			<Icon icon="ph:repeat" class="text-2xl" />
 			<span>{repostCount || ''}</span>

@@ -21,6 +21,9 @@ export const pathOptions = [
 	'zaps',
 	'keys',
 	'wallet',
+	'post',
+	'reply',
+	'repost',
 	'relays',
 	'logout'
 ];

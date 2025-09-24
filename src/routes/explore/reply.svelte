@@ -16,6 +16,7 @@
 	import User from './user.svelte';
 	import { usePublish } from '@candypoets/nipworker/hooks';
 	import { updateSendStatus } from 'src/controller/sendStatus';
+	import { fbArray } from '@candypoets/nipworker/utils';
 
 	export let placeholder = 'Write your reply...';
 	export let initialContent = '';
@@ -142,9 +143,13 @@
 		const content = $editor.getText();
 
 		let reply = {
-			...parent,
+			kind: parent?.kind(),
+			id: parent?.id()?.toString(),
+			content: content.trim(),
 			created_at: now(),
-			content: content.trim()
+			tags: fbArray(parent, 'tags').map((sv) =>
+				fbArray(sv, 'items').map((item) => item?.toString())
+			)
 		} as EventTemplate;
 
 		reply = prepareEvent(reply);
