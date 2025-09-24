@@ -27,6 +27,7 @@
 	import User from '../explore/user.svelte';
 	import VirtualListBottom from 'src/components/VirtualListBottom.svelte';
 	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
+	import { isMobile } from 'src/controller';
 
 	export let placeholder = "What's on your mind?";
 	export let initialContent = '';
@@ -208,19 +209,24 @@
 	$: $composing && focusEditor();
 </script>
 
-<div class="flex items-start md:items-center fullscreen-height">
+<div class="flex items-start md:items-center h-screen">
 	<VirtualListBottom
 		items={[{ id: 'content' }]}
 		height="auto"
-		maxHeight="90vh"
+		maxHeight={$isMobile ? '100vh' : '90vh'}
 		getItemId={(item) => {
 			return item?.id;
 		}}
 	>
 		<slot name="item-content">
 			<div
-				class="bg-base-300 md:border border-primary-content bg-opacity-85 rounded-xl md:p-4 w-feed md:h-auto fullscreen-height backdrop-blur-sm pt-safe overflow-visible"
+				class="bg-base-300 md:border border-primary-content bg-opacity-85 rounded-xl px-4 w-feed md:h-auto md:min-h-fit min-h-screen backdrop-blur-sm overflow-visible"
 			>
+				<div class=" md:px-0 pt-safe flex justify-between h-20 items-center">
+					<div on:click={pagerAnimator.goBack}>
+						<Icon icon="mingcute:down-line" class="text-xl" />
+					</div>
+				</div>
 				{#if noteId && note}
 					<Note
 						{noteId}
@@ -231,6 +237,8 @@
 						context={[note]}
 					/>
 					<br />
+				{:else if $isMobile}
+					<div class="h-32" />
 				{/if}
 				<!-- Editor container -->
 				<div
@@ -268,7 +276,7 @@
 				</div>
 
 				<div
-					class="flex items-center justify-end mt-3 pt-2 border-t border-gray-100 dark:border-gray-700 transition-opacity duration-200"
+					class="flex items-center justify-end mt-3 pt-2 border-t border-primary-content dark:border-gray-700 transition-opacity duration-200 pb-safe md:pb-4"
 					transition:fly={{ y: 20, duration: 200 }}
 				>
 					<div class="flex items-center space-x-1 mr-4">

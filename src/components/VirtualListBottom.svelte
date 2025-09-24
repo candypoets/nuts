@@ -193,7 +193,7 @@
 >
 	<svelte-virtual-list-contents
 		bind:this={contents}
-		style="top: {top}px; padding-bottom: {bottom > 100 ? bottom : 100}px;"
+		style="top: {top}px; padding-bottom: {bottom > 100 ? bottom : 1}px;"
 		class={backdrop && 'bg-base-300 bg-opacity-85 w-feed-container mx-auto min-h-screen rounded-xl'}
 	>
 		<svelte-virtual-list-row style="transform: rotateZ(180deg);">
