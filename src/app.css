@@ -7,8 +7,12 @@
 	--vc: 1vh;
 	--vw: 1vw;
 	--container-top: 2rem;
-	/* --b2: transparent; */
-	/* --tw-border-opacity: 0.1; */
+	--bg-basic: url('/bg-light.jpg');
+}
+
+/* If you use DaisyUI's data-theme */
+html[data-theme='dark'] {
+	--bg-basic: url('/bg-dark.jpg');
 }
 
 @font-face {
@@ -46,7 +50,7 @@
 
 .bg-basic {
 	/* background-color: var(--fallback-b1, oklch(var(--b1) / 1)); */
-	background-image: url('/bg-dark.jpg');
+	background-image: var(--bg-basic);
 	background-size: 100% 100%;
 	background-position: center;
 	background-repeat: no-repeat;

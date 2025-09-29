@@ -1,8 +1,8 @@
 <script lang="ts">
-	import type { ConnectionStatus, Kind3Parsed } from '@candypoets/nipworker';
-	import { asKind0, asKind3, fbArray } from '@candypoets/nipworker/utils';
+	import type { ConnectionStatus, Kind39089Parsed, Kind3Parsed } from '@candypoets/nipworker';
+	import { asKind0, asKind3, asKind39089, fbArray } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
-	import _, { uniq } from 'lodash';
+	import { uniq } from 'lodash';
 
 	import Pager from 'src/components/Pager.svelte';
 	import RelaysList from 'src/components/RelaysList.svelte';
@@ -12,7 +12,6 @@
 	import { ago } from 'src/lib/period';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import Feed from 'src/routes/explore/feed.svelte';
-	import Post from 'src/routes/explore/post.svelte';
 	import { go } from 'src/routes/modals/modal';
 	import Notifications from './notifications.svelte';
 
@@ -25,7 +24,12 @@
 	let feedRequests: any[] = [];
 	let subs: string[] = [];
 
-	$: following = uniq($followPacks.flatMap((pack) => pack.parsed?.people || []));
+	$: following = uniq(
+		$followPacks.flatMap(
+			(pack) =>
+				fbArray(asKind39089(pack) as Kind39089Parsed, 'people').map((p) => p.toString()) || []
+		)
+	);
 
 	$: visible && setFeedRequests(following);
 
@@ -62,11 +66,13 @@
 				<div class="flex justify-between w-feed lg:m-auto h-16 items-center">
 					<div class="flex gap-1 items-center w-1/3">
 						{#each $followPacks as pack}
+							{@const kind39039 = asKind39089(pack)}
 							<div class="cursor-pointer" on:click|stopPropagation={() => go('followlists')}>
 								<img
-									src={proxyAvatarUrl(pack.parsed?.image) || '/followlist.png'}
+									src={proxyAvatarUrl(kind39039?.image()?.toString()) || '/followlist.png'}
 									class="w-8 h-8 border rounded-full"
-									alt={pack.parsed?.title || 'Follow pack'}
+									alt={kind39039?.title()?.toString() || 'Follow pack'}
+									title={kind39039?.title()?.toString() || 'Follow pack'}
 								/>
 							</div>
 						{/each}
@@ -106,11 +112,12 @@
 				<div class="w-feed lg:m-auto flex justify-between items-center h-16">
 					<div class="flex gap-1 items-center">
 						{#each $followPacks as pack}
+							{@const kind39039 = asKind39089(pack)}
 							<div class="cursor-pointer" on:click|stopPropagation={() => go('followlists')}>
 								<img
-									src={proxyAvatarUrl(pack.parsed?.image) || '/followlist.png'}
+									src={proxyAvatarUrl(kind39039?.image()?.toString()) || '/followlist.png'}
 									class="w-8 h-8 border rounded-full"
-									alt={pack.parsed?.title || 'Follow pack'}
+									alt={kind39039?.title()?.toString() || 'Follow pack'}
 								/>
 							</div>
 						{/each}

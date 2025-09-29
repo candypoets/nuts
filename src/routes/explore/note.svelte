@@ -110,6 +110,33 @@
 						],
 						handleEvents
 					);
+					if (showRoot && kind1?.reply()) {
+						const pubkey = kind1?.reply()?.author()?.toString();
+						const id = kind1?.reply()?.id()?.toString();
+						if (pubkey && id) {
+							getUserRelays(pubkey, (relays) => {
+								useSubscription(
+									noteId + '_root',
+									[{ kinds: [1], ids: [id], limit: 5, relays }],
+									handleEvents
+								);
+							});
+						}
+					}
+
+					if (showQuote && kind1?.mentionsLength()) {
+						const pubkey = kind1.mentions(0)?.author()?.toString();
+						const id = kind1.mentions(0)?.id()?.toString();
+						if (pubkey && id) {
+							getUserRelays(pubkey, (relays) => {
+								useSubscription(
+									noteId + '_quote',
+									[{ kinds: [1], ids: [id], limit: 5, relays }],
+									handleEvents
+								);
+							});
+						}
+					}
 				}
 				if (!relays.length && !relaysub) {
 					relaysub = getUserRelays(

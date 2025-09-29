@@ -10,12 +10,14 @@
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import MultiSelect from 'src/routes/modals/components/MultiSelect.svelte';
-	import { getContext } from 'svelte';
+	import { getContext, onDestroy } from 'svelte';
 
 	let animator: PagerAnimator = getContext('animator');
 
 	let searchQuery = '';
 	let subscriptionID = 'starterpack';
+
+	let fps = $followPacks;
 
 	// Define fuseKeys for search
 	const fuseKeys = ['0.parsed.title', '0.parsed.description'];
@@ -38,21 +40,30 @@
 		// Ensure list has required fields
 		if (!kind39089.listIdentifier() || !kind39089?.title()) return currentFeed;
 
-		return [...currentFeed, parsedEvent as ParsedEvent];
+		return [...currentFeed, parsedEvent as ParsedEvent].sort(
+			(a, b) => b.createdAt() - a.createdAt()
+		);
 	}
 
 	function toggleFollowPack(pack: ParsedEvent) {
 		// Check if the pack is already in the list
-		const packIndex = $followPacks.findIndex((p) => p.id === pack.id);
+		const packIndex = fps.findIndex((p) => p.id()?.fnv1aHash() === pack.id()?.fnv1aHash());
 
 		if (packIndex !== -1) {
 			// Pack exists, remove it
-			$followPacks = $followPacks.filter((_, i) => i !== packIndex);
+			fps = fps.filter((_, i) => i !== packIndex);
 		} else {
 			// Pack doesn't exist, add it
-			$followPacks = [...$followPacks, pack];
+			fps = [...fps, pack];
 		}
 	}
+
+	onDestroy(() => {
+		if (fps.length == 0) {
+			fps.push($followList);
+		}
+		$followPacks = fps;
+	});
 
 	let initialItems = [$followList];
 </script>
@@ -103,10 +114,14 @@
 				</div>
 				<div class="px-1">
 					<MultiSelect
-						selectedLists={$followPacks}
-						getTitle={(item) => item?.title()?.toString() || ''}
+						selectedLists={fps}
+						getTitle={(list) => {
+							const kind39089 = asKind39089(list);
+
+							return kind39089?.title()?.toString() || '';
+						}}
 						removeItem={(list) => {
-							$followPacks = $followPacks.filter((p) => p.id != list.id);
+							fps = fps.filter((p) => p.id()?.fnv1aHash() != list.id()?.fnv1aHash());
 						}}
 					/>
 				</div>
@@ -143,14 +158,14 @@
 				</div>
 				<div class="px-1">
 					<MultiSelect
-						selectedLists={$followPacks}
+						selectedLists={fps}
 						getTitle={(list) => {
-							return list?.title()?.toString() || '';
+							const kind39089 = asKind39089(list);
+
+							return kind39089?.title()?.toString() || '';
 						}}
 						removeItem={(list) => {
-							$followPacks = $followPacks.filter(
-								(p) => p.id()?.fnv1aHash() != list.id()?.fnv1aHash()
-							);
+							fps = fps.filter((p) => p.id()?.fnv1aHash() != list.id()?.fnv1aHash());
 						}}
 					/>
 				</div>
@@ -164,9 +179,9 @@
 				role="button"
 				tabindex="0"
 			>
-				{#if $followPacks.some((p) => p.id()?.toString() === post.id()?.toString())}
+				{#if fps.some((p) => p.id()?.toString() === post.id()?.toString())}
 					<div class="absolute top-2 right-2">
-						<div class="badge badge-accent">Selected</div>
+						<Icon icon="mdi:check" class="text-accent text-2xl" />
 					</div>
 				{/if}
 				<div class="flex items-center gap-4 mb-4">
@@ -184,7 +199,17 @@
 					<div>
 						<h3 class="text-xl font-bold">{kind39089.title?.()?.toString()}</h3>
 						{#if kind39089.description?.()?.toString()}
-							<p class="text-base-content/70">{kind39089.description?.()?.toString()}</p>
+							{@const text = (() => {
+								try {
+									// Attempt to unescape if the string has escaped sequences
+									return JSON.parse('"' + kind39089.description?.()?.toString() + '"');
+								} catch (e) {
+									// If unescaping fails (e.g., due to control chars), use the raw text
+									// Optionally remove all backslashes here if that's what you want
+									return kind39089.description?.()?.toString().replace(/\\/g, ''); // Remove all '\' if desired
+								}
+							})()}
+							<p class="text-base-content/70">{text}</p>
 						{/if}
 					</div>
 				</div>

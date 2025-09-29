@@ -41,28 +41,32 @@
 	};
 
 	onMount(() => {
-		profile = context.find((c) => asKind0(c)) as Kind0Parsed | undefined;
-		imageUrl = profile?.picture()?.toString();
-		proxiedImageUrl = imageUrl ? proxyAvatarUrl(imageUrl) : undefined;
-		if (!profile && query) {
-			sub = useSubscription(
-				'u_' + pubkey,
-				userQuery(pubkey),
-				(message: WorkerMessage) => {
-					switch (message.type()) {
-						case MessageType.ParsedNostrEvent:
-							const kind0 = isKind0(message);
-							if (kind0) {
-								profile = kind0;
-								imageUrl = kind0?.picture()?.toString();
-								proxiedImageUrl = imageUrl ? proxyAvatarUrl(imageUrl) : undefined;
-								sub?.();
-							}
-					}
-				},
-				{},
-				profileManager
-			);
+		try {
+			profile = context.find((c) => asKind0(c)) as Kind0Parsed | undefined;
+			imageUrl = profile?.picture && profile?.picture()?.toString();
+			proxiedImageUrl = imageUrl ? proxyAvatarUrl(imageUrl) : undefined;
+			if (!profile && query) {
+				sub = useSubscription(
+					'u_' + pubkey,
+					userQuery(pubkey),
+					(message: WorkerMessage) => {
+						switch (message.type()) {
+							case MessageType.ParsedNostrEvent:
+								const kind0 = isKind0(message);
+								if (kind0) {
+									profile = kind0;
+									imageUrl = kind0?.picture && kind0.picture()?.toString();
+									proxiedImageUrl = imageUrl ? proxyAvatarUrl(imageUrl) : undefined;
+									sub?.();
+								}
+						}
+					},
+					{},
+					profileManager
+				);
+			}
+		} catch (error) {
+			console.error(error);
 		}
 
 		return () => sub?.();

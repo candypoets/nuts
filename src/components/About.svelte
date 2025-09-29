@@ -12,7 +12,7 @@
 		{#if parsed.type == 'text'}
 			{@const text = parsed.text || ''}
 			<!-- {#if !isImageUrl(part.content)} -->
-			<span class="break-words text-white"
+			<span class="break-words text-highlight"
 				>{@html (index == 0
 					? text?.trimStart()
 					: index == content.length - 1

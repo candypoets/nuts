@@ -18,6 +18,7 @@
 	import { limit } from 'src/controller/pagination';
 	import { now } from 'src/lib/period';
 	import Note from './note.svelte';
+	import { formatDistanceToNow } from 'date-fns';
 
 	// Props
 	export let bottom = false;
@@ -87,27 +88,24 @@
 	const handleEvents = (message: WorkerMessage, page = 0) => {
 		switch (message.type()) {
 			case MessageType.BufferFull:
-				console.log(
-					'bufferfull',
-					subscriptionID,
-					feed.map((item) => item.id()?.fnv1aHash()),
-					cachedFeed.map((item) => item.id()?.fnv1aHash())
-				);
-				if (page == 0) {
-					feed = [...feed, ...cachedFeed];
+				if (page <= 0) {
+					feed = uniqBy([...feed, ...cachedFeed], (item) => item.id()?.fnv1aHash()).sort(
+						(a, b) => b.createdAt() - a.createdAt()
+					);
+
+					let since =
+						feed.length > 0 ? Math.max(...feed.map((event) => Number(event.createdAt()))) : now();
+					sub?.();
+					manager.cleanup();
+					sub = useSubscription(
+						subscriptionID + '_head',
+						requests.map((r) => ({ ...r, since })),
+						(message) => handleEvents(message, -1)
+					);
 				} else {
 					feed = [...feed, ...cachedFeed];
 				}
 				cachedFeed = [];
-				let since =
-					feed.length > 0 ? Math.max(...feed.map((event) => Number(event.createdAt()))) : now();
-				headsub?.();
-				manager.cleanup();
-				headsub = useSubscription(
-					subscriptionID + '_head',
-					requests.map((r) => ({ ...r, since })),
-					handleEvents
-				);
 				break;
 			case MessageType.ConnectionStatus:
 				const status = asConnectionStatus(message);
@@ -117,8 +115,11 @@
 						// if (eose == false && events.remainingConnections / events.totalConnections < 1) {
 						loading = false;
 						eose = true;
-						if (page == 0) {
-							feed = uniqBy([...fetchedFeed, ...feed], (item) => item.id()?.fnv1aHash());
+						if (page <= 0) {
+							feed = uniqBy(
+								[...fetchedFeed, ...feed].sort((a, b) => b.createdAt() - a.createdAt()),
+								(item) => item.id()?.fnv1aHash()
+							);
 						} else {
 							feed = uniqBy([...feed, ...fetchedFeed], (item) => item.id()?.fnv1aHash());
 						}
@@ -132,12 +133,13 @@
 					if (page == 0) {
 						feed = [...feed, ...cachedFeed];
 					} else {
-						feed = [...feed, ...cachedFeed];
+						feed = uniqBy([...feed, ...cachedFeed], (item) => item.id()?.fnv1aHash());
 					}
 					cachedFeed = [];
 					// makeFuse();
 				}
 				break;
+
 			case MessageType.ParsedNostrEvent:
 				const parsedEvent = asParsedEvent(message);
 				if (seen_ids.has(parsedEvent?.id()?.fnv1aHash() as number)) {
@@ -170,7 +172,7 @@
 						cachedFeed = [...cachedFeed, parsedEvent];
 					} else if (!eose) {
 						fetchedFeed = [parsedEvent, ...fetchedFeed];
-					} else {
+					} else if (page <= 0) {
 						bufferFeed.push(parsedEvent);
 					}
 				}
@@ -201,13 +203,24 @@
 
 	function setBufferFeed() {
 		newPosts = start > bufferFeed.length ? bufferFeed.length : start;
-		feed = uniqBy([...feed, ...fetchedFeed, ...bufferFeed], (item: ParsedEvent) =>
-			item?.id()?.fnv1aHash()
-		).sort((a, b) => Number(b.createdAt() - a.createdAt()));
+		if (feed.length > 0) {
+			const mostRecentTime = feed[0].createdAt();
+			const allIncoming = [...bufferFeed, ...fetchedFeed];
+			let moreRecent: ParsedEvent[] = [];
+			let leastRecent: ParsedEvent[] = [];
+			for (const item of allIncoming) {
+				if (item.createdAt() > mostRecentTime) {
+					moreRecent.push(item);
+				} else {
+					leastRecent.push(item);
+				}
+			}
+			feed = [...moreRecent, ...feed, ...leastRecent];
+		}
+		feed = uniqBy(feed, (item: ParsedEvent) => item?.id()?.fnv1aHash());
 		bufferFeed = [];
-
+		fetchedFeed = [];
 		lastBufferDump = now();
-
 		// makeFuse();
 	}
 
@@ -233,7 +246,9 @@
 
 	$: start < newPosts && decreaseNewPosts();
 
-	$: visible && requests && requests.length ? subscribe() : unsubscribe();
+	$: visible && subscriptionID && requests && requests.length ? subscribe() : unsubscribe();
+
+	$: (subscriptionID, (feed = []));
 
 	// Filter feed based on search query
 	// $: {
@@ -253,41 +268,133 @@
 	let noResultsCount = 0;
 	let sinceMultiplier = 1;
 
-	$: {
-		if (start != 0 && end == feed.length && !!eose && noResultsCount <= 3) {
-			eoce = false;
-			eose = false;
-			setTimeout(() => (eose = true), 2000);
-			// Check if the last pagesub yielded new results
-			if (lastFeedLength == feed.length) {
-				noResultsCount++;
-				// Exponential increase in since range
-				sinceMultiplier *= 5;
-			} else {
-				// Reset counters if we got new results
-				noResultsCount = 0;
-				sinceMultiplier = 1;
+	let paging = false;
+	let baselineLen = 0;
+	let lastUntil: number | null = null;
+	let pageTimer: ReturnType<typeof setTimeout> | null = null;
+
+	function finalizePage(reason: 'eose' | 'timeout') {
+		if (pageTimer) {
+			clearTimeout(pageTimer);
+			pageTimer = null;
+		}
+
+		// decide success/failure for the page we just requested
+		if (feed.length === baselineLen) {
+			noResultsCount++;
+			sinceMultiplier *= 5; // widen lookback only when we truly got nothing
+		} else {
+			noResultsCount = 0;
+			sinceMultiplier = 1;
+		}
+		lastFeedLength = feed.length;
+
+		// allow next cycle
+		paging = false;
+		eose = true;
+	}
+
+	function startPage() {
+		// gate
+		if (paging) return;
+		paging = true;
+		eose = false;
+
+		// record baseline for THIS page
+		baselineLen = feed.length;
+
+		// tear down previous
+		pagesub?.();
+		manager.cleanup();
+
+		// compute a robust "older" window
+		const sortedFeed = [...feed].sort((a, b) => b.createdAt() - a.createdAt());
+		if (sortedFeed.length === 0) {
+			// nothing yet; give it a moment and release gate
+			pageTimer = setTimeout(() => finalizePage('timeout'), 5000);
+			return;
+		}
+
+		const pageLimit = $limit ?? 20;
+
+		// quantile near the tail + page boundary, then pick the newer to avoid huge jumps
+		const baseQ = 0.85;
+		const q = Math.min(0.97, baseQ + noResultsCount * 0.05);
+		const idxQ = Math.max(
+			0,
+			Math.min(sortedFeed.length - 1, Math.floor((sortedFeed.length - 1) * q))
+		);
+		const tsQ = sortedFeed[idxQ]?.createdAt?.() ?? Math.floor(Date.now() / 1000);
+
+		const pageEndIdx = Math.max(0, Math.min(sortedFeed.length - 1, currentPage * pageLimit - 1));
+		const tsPage = sortedFeed[pageEndIdx]?.createdAt?.() ?? tsQ;
+
+		const anchor = Math.max(tsQ, tsPage);
+		const until = lastUntil != null ? Math.min(lastUntil - 1, anchor - 1) : anchor - 1;
+
+		const oneDay = 24 * 60 * 60;
+		const windowSeconds = (currentPage + 2) * oneDay * sinceMultiplier;
+		const since = Math.max(0, until - windowSeconds);
+
+		console.log(
+			'pagination (older)',
+			formatDistanceToNow((since || 0) * 1000, { addSuffix: true }),
+			formatDistanceToNow((until || 0) * 1000, { addSuffix: true }),
+			{
+				currentPage,
+				len: sortedFeed.length,
+				pageLimit,
+				idxQ,
+				pageEndIdx,
+				tsQ,
+				tsPage,
+				anchor,
+				lastUntil,
+				windowSeconds,
+				sinceMultiplier
 			}
+		);
 
-			lastFeedLength = feed.length;
+		// start the page subscription
+		const subId = subscriptionID + ':until:' + until;
+		currentPage++;
+		lastUntil = until;
 
-			currentPage++;
-			setTimeout(() => {
-				pagesub?.();
-				manager.cleanup();
-				const until = Number(
-					feed[
-						Math.min(currentPage * $limit, feed.length - Math.ceil(feed.length * 0.2))
-					].createdAt()
-				);
-				const since = until - (currentPage + 2) * 24 * 60 * 60 * sinceMultiplier;
-				console.log(subscriptionID + since);
-				pagesub = useSubscription(
-					subscriptionID + since,
-					requests.map((r) => ({ ...r, until, since })),
-					(message) => handleEvents(message, currentPage)
-				);
-			}, noResultsCount * 1000);
+		pagesub = useSubscription(
+			subId,
+			requests.map((r) => ({ ...r, until, since })),
+			(message) => {
+				// your existing event handler
+				handleEvents(message, currentPage);
+
+				// If you can detect EOSE here, call finalizePage('eose') exactly once.
+				// Example patterns (adjust to your actual message format):
+				// if (message === 'EOSE' || message?.type === 'EOSE') {
+				//   if (paging) finalizePage('eose');
+				// }
+			}
+		);
+
+		// Fallback finalize in case EOSE isn't exposed; give results time to arrive.
+		// Increase with noResultsCount so we wait longer when probing deeper.
+		pageTimer = setTimeout(
+			() => {
+				if (paging) finalizePage('timeout');
+			},
+			2000 + noResultsCount * 1000
+		);
+	}
+
+	$: {
+		// Replace your old reactive pagination block with this trigger:
+		// Only kick a new page when:
+		// - user scrolled to the end (end == feed.length)
+		// - we’re not already paging
+		// - attempts are within cap
+		// - we actually have something loaded (start != 0)
+		if (start != 0 && end == feed.length && !paging && noResultsCount <= 3) {
+			console.log('pagination', noResultsCount);
+			startPage();
 		}
 	}
 </script>
@@ -325,7 +432,7 @@
 			<slot name="fixed-header" {start} />
 		</div>
 	</div>
-
+	<!-- {#key subscriptionID} -->
 	<svelte:component
 		this={bottom ? VirtualListBottom : VirtualList}
 		items={search ? filteredFeed : feed}
@@ -358,6 +465,7 @@
 			</slot>
 		</div>
 	</svelte:component>
+	<!-- {/key} -->
 </div>
 
 <style>

@@ -21,13 +21,14 @@ module.exports = {
 			{
 				light: {
 					primary: '#158777',
-					'primary-content': '#d6e9e5',
+					'primary-content': '#9b9ea4',
 					secondary: '#D926AA',
 					'secondary-content': '#c1cad6',
 					'base-100': '#f9fafb',
 					'base-200': '#f2f2f3',
 					'base-300': '#dddcdc',
 					'error-content': '#d9c2c2',
+					highlight: '#ffffff',
 					accent: '#6d28d9',
 					neutral: '#2a323c',
 					info: '#00b5ff',
@@ -43,6 +44,7 @@ module.exports = {
 					'base-100': '#131716',
 					'base-300': '#1f2937',
 					'text-gray-500': '#9b9ea4',
+					highlight: '#000000',
 					accent: '#c19bfd',
 					neutral: '#2a323c',
 					info: '#00b5ff',

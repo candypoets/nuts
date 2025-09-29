@@ -78,7 +78,7 @@
 			})()}
 
 			<!-- {#if !isImageUrl(part.content)} -->
-			<span class="break-words text-white">
+			<span class="break-words text-highlight">
 				{@html (index == 0
 					? text?.trimStart()
 					: index == parsedContent.length - 1

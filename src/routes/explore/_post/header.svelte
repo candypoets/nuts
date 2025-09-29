@@ -3,7 +3,7 @@
 	import { page } from '$app/stores';
 	import type { Kind0Parsed, ParsedEvent, WorkerMessage } from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
-	import { isKind0, isParsedEvent } from '@candypoets/nipworker/utils';
+	import { asKind0, isKind0, isParsedEvent } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { formatDistanceToNow } from 'date-fns';
 	import { getContext, onMount } from 'svelte';
@@ -38,9 +38,11 @@
 
 	onMount(() => {
 		if (!author) {
-			author = context.find((c) => c.pubkey()!.toString() === notePubkey && c.kind() == 0)
-				?.parsed as Kind0Parsed | undefined;
-			if (!author) {
+			const authorEvent = context.find(
+				(c) => c.pubkey()!.toString() === notePubkey && c.kind() == 0
+			);
+
+			if (!authorEvent) {
 				sub = useSubscription(
 					'u_' + note.pubkey(),
 					userQuery(notePubkey),
@@ -55,6 +57,8 @@
 					{},
 					profileManager
 				);
+			} else {
+				author = asKind0(authorEvent) as Kind0Parsed;
 			}
 		}
 		return () => sub?.();

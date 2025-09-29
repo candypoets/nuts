@@ -5,10 +5,14 @@
 	import { getContext } from 'svelte';
 	import { go } from 'src/routes/modals/modal';
 	import { kind0 } from 'src/controller/nostr';
+	import { asKind0 } from '@candypoets/nipworker/utils';
 
 	let animator = getContext('animator');
 	let search: string;
+
+	$: k0 = asKind0($kind0);
 	// export let encodedToken: string = '';
+	//
 </script>
 
 <div class="h-full bg-base-300 bg-opacity-85 lg:pt-4">
@@ -19,7 +23,7 @@
 			</div>
 		</div>
 		<div class="flex justify-between">
-			<h2 class="text-xl font-bold px-4 pt-4">{$kind0?.parsed?.name || 'Profile'}</h2>
+			<h2 class="text-xl font-bold px-4 pt-4">{k0?.name()?.toString() || 'Profile'}</h2>
 			<Theme />
 		</div>
 	</div>

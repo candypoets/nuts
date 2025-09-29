@@ -7,14 +7,15 @@ import { isMobile } from './viewport';
 // 	: createNostrManager({ bufferKey: 'chat', maxBufferSize: 5_000_000 });
 export const chatManager = nostrManager;
 export const cashuManager = nostrManager;
-export const profileManager = createNostrManager({
-	bufferKey: 'profiles',
-	maxBufferSize: 5_000_000
-});
+export const profileManager = nostrManager;
+// export const profileManager = createNostrManager({
+// 	bufferKey: 'profiles',
+// 	maxBufferSize: 5_000_000
+// });
 
 export const setSigner = (kind: string, key: string) => {
 	// chatManager.setSigner(kind, key);
 	nostrManager.setSigner(kind, key);
 	// cashuManager.setSigner(kind, key);
-	profileManager.setSigner(kind, key);
+	// profileManager.setSigner(kind, key);
 };

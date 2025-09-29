@@ -248,7 +248,7 @@
 				>
 					<!-- Editor content -->
 					<div
-						class="min-h-[80px] border border-primary-content prose dark:prose-invert prose-sm max-w-none p-3 md:py-3 py-2 bg-opacity-85 bg-base-100 rounded-md cursor-text text-white"
+						class="min-h-[80px] border border-primary-content prose dark:prose-invert prose-sm max-w-none p-3 md:py-3 py-2 bg-opacity-85 bg-base-100 rounded-md cursor-text text-highlight"
 						style="-webkit-backdrop-filter: blur(12px);"
 						on:click|stopPropagation={focusEditor}
 					>
@@ -320,7 +320,7 @@
 
 						<button
 							type="button"
-							class="px-4 py-2 bg-blue-500 text-white rounded-full font-medium hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300 dark:focus:ring-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+							class="px-4 py-2 bg-blue-500 text-highlight rounded-full font-medium hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300 dark:focus:ring-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
 							on:click={handleSubmit}
 							disabled={!editorReady || isSubmitting || (!$editor?.getText().trim() && !repost)}
 						>

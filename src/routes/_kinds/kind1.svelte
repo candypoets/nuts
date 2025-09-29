@@ -7,7 +7,13 @@
 		type WorkerMessage
 	} from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
-	import { asKind1, asParsedEvent, isKind1, isParsedEvent } from '@candypoets/nipworker/utils';
+	import {
+		asKind1,
+		asParsedEvent,
+		fbArray,
+		isKind1,
+		isParsedEvent
+	} from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { decode, type EventPointer } from 'nostr-tools/nip19';
 	import { getContext, onDestroy } from 'svelte';
@@ -57,8 +63,11 @@
 							kind1?.root()?.id()?.toString() != data?.id
 						)
 							return feed;
-						// check if the event is already in the feed
+						// if replies are quote return the feed
+						if (fbArray(kind1, 'mentions').some((q) => q.id()?.toString() == data.id)) return feed;
+
 						if (feed.some((e) => e.id()?.fnv1aHash() === parsedEvent.id()?.fnv1aHash()))
+							// check if the event is already in the feed
 							return feed;
 						if (!eoce) {
 							// cached event are filtered in the worker
