@@ -55,7 +55,7 @@
 	},
 	"type": "module",
 	"dependencies": {
-		"@candypoets/nipworker": "^0.0.51",
+		"@candypoets/nipworker": "^0.0.53",
 		"@cashu/cashu-ts": "2.5.2",
 		"@gandlaf21/bc-ur": "^1.1.12",
 		"@gandlaf21/bolt11-decode": "^3.1.1",
@@ -70,7 +70,6 @@
 		"@tiptap/suggestion": "^2.11.5",
 		"classnames": "^2.5.1",
 		"date-fns": "^4.1.0",
-		"dexie": "^4.0.8",
 		"emoji-picker-element": "^1.26.1",
 		"express": "^5.1.0",
 		"flatbuffers": "^25.9.23",

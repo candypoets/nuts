@@ -110,7 +110,7 @@
 			y += height_map[i] || average_height;
 			i += 1;
 
-			if (y > scrollTop + viewport_height) break;
+			if (y > scrollTop + viewport_height * 2) break;
 		}
 		end = i;
 
