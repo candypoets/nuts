@@ -1,4 +1,3 @@
-import { nostrManager } from '@candypoets/nipworker';
 import {
 	CashuMint,
 	CashuWallet,
@@ -19,6 +18,7 @@ import { go } from 'src/routes/modals/modal';
 import type { Mint } from 'src/types/mint';
 import { fetchMintData } from './wallet';
 import { normalizeMintURL } from 'src/lib/utils';
+import { usePublish } from '@candypoets/nipworker/hooks';
 
 export type MintQuote = MintQuoteResponse & {
 	mintUrl: string;
@@ -363,7 +363,7 @@ export class NutsWallet {
 			created_at: now()
 		};
 
-		nostrManager.publish('savenuts' + random(1000), event);
+		usePublish('savenuts' + random(1000), event);
 
 		this.addProofs(mint, proofs);
 	};

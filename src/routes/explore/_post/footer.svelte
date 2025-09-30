@@ -3,14 +3,12 @@
 		CounterPipeConfigT,
 		CountResponse,
 		MessageType,
-		nostrManager,
 		PipeConfig,
 		PipeT,
 		SaveToDbPipeConfigT,
 		WorkerMessage,
 		type ConnectionStatus,
 		type ParsedEvent,
-		type SubscribeKind,
 		type SubscriptionConfig
 	} from '@candypoets/nipworker';
 	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
@@ -25,12 +23,11 @@
 
 	import EmojiPickerContent from 'src/components/EmojiPickerContent.svelte';
 	import { key } from 'src/controller';
-	import { replying } from 'src/controller/editor';
 	import { updateSendStatus } from 'src/controller/sendStatus';
 	import { now } from 'src/lib/period';
+	import { hexToBytes } from 'src/lib/wallet';
 	import { go } from 'src/routes/modals/modal';
 	import { getUserRelays } from 'src/routes/queries/user';
-	import { hexToBytes } from 'src/lib/wallet';
 
 	export let note: ParsedEvent;
 	export let visible: boolean;
@@ -157,15 +154,10 @@
 			created_at: 1758632627
 		};
 
-		nostrManager.signEvent(event as any, (event) => {
-			console.log('hey', event, verifyEvent(event));
-		});
-
 		const correctEvent = finalizeEvent(event, hexToBytes($key?.priv));
 
 		console.log('correctEvent', correctEvent);
 
-		// nostrManager.publish('reaction_' + decoded.id, event);
 		usePublish('reaction_' + decoded.id, event, (message: WorkerMessage) => {
 			const status = isConnectionStatus(message);
 			if (status) {

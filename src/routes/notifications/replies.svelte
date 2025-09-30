@@ -1,6 +1,5 @@
 <script lang="ts">
-	import type { AnyKind, ParsedEvent } from '@candypoets/nipworker';
-	import { nostrManager } from '@candypoets/nipworker';
+	import type { ParsedEvent } from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import { asKind1, isKind1, isParsedEvent } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
@@ -22,6 +21,8 @@
 	let expanded: boolean = false;
 	let timeout: NodeJS.Timeout | undefined;
 
+	let sub: () => void;
+
 	function toggleExpanded() {
 		expanded = !expanded;
 	}
@@ -29,8 +30,8 @@
 	function subscribe() {
 		timeout = setTimeout(async () => {
 			if (visible) {
-				useSubscription(
-					post.id + 'replies',
+				sub = useSubscription(
+					post.id()?.fnv1aHash() + 'replies',
 					[
 						{
 							kinds: [0],
@@ -62,7 +63,7 @@
 		if (timeout) {
 			clearTimeout(timeout);
 			timeout = undefined;
-			nostrManager.unsubscribe(post.id + 'replies');
+			sub?.();
 		}
 	}
 

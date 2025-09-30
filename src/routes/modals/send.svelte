@@ -16,7 +16,6 @@
 	import Feed from 'src/routes/explore/feed.svelte';
 	import { go } from 'src/routes/modals/modal';
 	import { getContext } from 'svelte';
-	import { profileManager } from 'src/controller/managers';
 
 	let active: string;
 	let search: string;
@@ -71,7 +70,6 @@
 	class="bg-base-300 bg-opacity-85 backdrop-blur-md"
 	subscriptionID="contacts"
 	requests={feedRequests}
-	manager={profileManager}
 	kinds={[0]}
 	{updateFeed}
 >

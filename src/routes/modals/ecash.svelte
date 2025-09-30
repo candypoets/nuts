@@ -14,16 +14,22 @@
 	import User from 'src/routes/explore/user.svelte';
 
 	import {
-		nostrManager,
-		type AnyKind,
-		type Kind0Parsed,
+		Kind10002Parsed,
+		ParsedData,
+		WorkerMessage,
 		type Kind10019Parsed,
-		type Kind1Parsed,
 		type ParsedEvent,
+		type RequestObject,
 		type SubscribeKind
 	} from '@candypoets/nipworker';
-	import { useSubscription } from '@candypoets/nipworker/hooks';
-	import { isKind0, isKind1, isKind10002, isKind10019 } from '@candypoets/nipworker/utils';
+	import { usePublish, useSignEvent, useSubscription } from '@candypoets/nipworker/hooks';
+	import {
+		asKind10002,
+		asKind10019,
+		asKind17375,
+		fbArray,
+		isParsedEvent
+	} from '@candypoets/nipworker/utils';
 	import { MintQuoteState, type MeltQuoteResponse, type MintQuoteResponse } from '@cashu/cashu-ts';
 	import { random, throttle } from 'lodash';
 	import { nutsWallet } from 'src/controller/proofs';
@@ -37,8 +43,8 @@
 	let memo: string = '';
 
 	let amount: number | undefined = undefined;
-	let note: ParsedEvent<Kind1Parsed>;
-	let kind0: ParsedEvent<Kind0Parsed>;
+	let note: ParsedEvent;
+	let kind0: ParsedEvent;
 
 	let processing = '';
 	let scroller: HTMLElement;
@@ -58,7 +64,7 @@
 
 	let balanceByMint = $nutsWallet?.balanceByMint;
 
-	let fromMint = $activeMintUrl || $kind17375?.parsed?.mints?.[0];
+	let fromMint = $activeMintUrl || ($kind17375 && asKind17375($kind17375)?.mints(0)?.toString());
 	let toMint: string;
 	let fees: number = 0;
 	let meltquote: MeltQuoteResponse;
@@ -75,35 +81,37 @@
 	$: amountPlusFees = Number(amount || 0) + Number(fees || 0);
 
 	onMount(() => {
-		const requests: Request[] = [
+		const requests: RequestObject[] = [
 			{ kinds: [0], authors: [pubkey], limit: 1, cacheFirst: true, relays: [] },
 			{ kinds: [10002], authors: [pubkey], limit: 3, cacheFirst: true, relays: [] },
 			{ kinds: [10019], authors: [pubkey], limit: 3, cacheFirst: true, relays: [] }
 		];
 		if (noteId) requests.push({ kinds: [1], ids: [noteId], cacheFirst: true, relays: [] });
-		useSubscription(
-			'wallet_' + pubkey,
-			requests,
-			(events: ParsedEvent<AnyKind>[], eventKind: SubscribeKind) => {
-				if (eventKind == 'CONNECTION_STATUS') return;
-				const [event, ...context] = events;
-				if (isKind10019(event)) {
-					kind10019 = event?.parsed;
-					toMint = kind10019?.trustedMints?.[0]?.url;
-					zap = false;
-				}
-				if (isKind10002(event)) {
-					receiptRelays = event.parsed?.map((r) => r.read && r.url).filter(Boolean) || [];
-				}
-				if (isKind1(event)) {
-					note = event;
-					tick().then(() => scrollTo({ top: 10000 }));
-				}
-				if (isKind0(event)) {
-					kind0 = event;
+		useSubscription('wallet_' + pubkey, requests, (message: WorkerMessage) => {
+			const parsedEvent = isParsedEvent(message);
+			if (parsedEvent) {
+				switch (parsedEvent.parsedType()) {
+					case ParsedData.Kind10019Parsed:
+						kind10019 = asKind10019(parsedEvent) as Kind10019Parsed;
+						toMint = kind10019?.trustedMints(0)?.url()?.toString() as string;
+						zap = false;
+						break;
+					case ParsedData.Kind10002Parsed:
+						const kind1002 = asKind10002(parsedEvent) as Kind10002Parsed;
+						receiptRelays = (fbArray(kind1002, 'relays')
+							?.map((r) => r.read() && r.url()?.toString())
+							.filter(Boolean) || []) as string[];
+						break;
+					case ParsedData.Kind1Parsed:
+						note = parsedEvent;
+						tick().then(() => scrollTo({ top: 10000 }));
+						break;
+					case ParsedData.Kind0Parsed:
+						kind0 = parsedEvent;
+						break;
 				}
 			}
-		);
+		});
 	});
 
 	const computeFees = throttle(async (amount: number, fromMint: string, toMint: string) => {
@@ -112,7 +120,7 @@
 			const fromWallet = await $nutsWallet?.getWallet(fromMint);
 			const toWallet = await $nutsWallet?.getWallet(toMint);
 			if (toWallet && fromWallet && kind10019?.p2pkPubkey) {
-				mintquote = await toWallet.createMintQuote(amount, kind10019.p2pkPubkey);
+				mintquote = await toWallet.createMintQuote(amount, kind10019.p2pkPubkey()?.toString());
 				meltquote = await fromWallet.createMeltQuote(mintquote.request);
 				fees = meltquote.fee_reserve;
 			}
@@ -145,7 +153,7 @@
 
 				const sendRes = await toWallet.send(Number(amount), proofsToSend, {
 					includeFees: false,
-					p2pk: { pubkey: kind10019.p2pkPubkey as string }
+					p2pk: { pubkey: kind10019.p2pkPubkey()?.toString() as string }
 				});
 
 				const nutszap: EventTemplate = {
@@ -160,7 +168,7 @@
 					].filter((t) => !!t[1])
 				};
 				status = 'Success!! Publishing nutszap';
-				nostrManager.publish('nutszap_' + random(1000), nutszap);
+				usePublish('nutszap_' + random(1000), nutszap);
 				setTimeout(() => (status = ''), 1000);
 			} finally {
 				$nutsWallet?.unspentProofs.set(fromWallet, keep.concat(change));
@@ -169,7 +177,7 @@
 			}
 		} else if (fromMint == toMint && fromWallet && unspentProofs) {
 			const { keep, send } = await fromWallet.send(Number(amount), unspentProofs, {
-				p2pk: { pubkey: kind10019?.p2pkPubkey }
+				p2pk: { pubkey: kind10019?.p2pkPubkey()?.toString() }
 			});
 
 			const nutszap: EventTemplate = {
@@ -184,7 +192,7 @@
 				].filter((t) => !!t[1])
 			};
 			status = 'Success!! Publishing nutszap';
-			nostrManager.publish('nutszap_' + random(), nutszap);
+			usePublish('nutszap_' + random(), nutszap);
 			setTimeout(() => (status = ''), 1000);
 			$nutsWallet?.unspentProofs.set(fromWallet, keep);
 			$nutsWallet?.updateBalanceByMint();
@@ -205,27 +213,29 @@
 				].filter((t) => !!t[1])
 			};
 			status = 'Signing zap request';
-			const signed = await nostrManager.signEvent(zapRequest);
+			// const signed = await nostrManager.signEvent(zapRequest);
 
-			status = 'Generate zap invoice';
-			const { pr } = await getInvoiceFromProfile(kind0, Number(amount), signed);
-			status = 'Generate melt quote';
-			meltquote = await fromWallet.createMeltQuote(pr);
-			status = 'Sending lighning payment';
-			// const { keep, send } = await fromWallet.swap(0, unspentProofs);
-			// console.log(keep, send);
-			// if (keep.length) {
-			// 	$nutsWallet?.saveProofs(fromMint, keep);
-			// } else {
-			// 	$nutsWallet?.saveProofs(fromMint, send);
-			// }
-			const { change } = await fromWallet.meltProofs(meltquote, unspentProofs);
-			status = 'Success! Publishing zap request';
-			nostrManager.publish('zap' + pubkey, zapRequest);
-			setTimeout(() => (status = ''), 1000);
-			$nutsWallet?.unspentProofs.set(fromWallet, change);
-			$nutsWallet?.updateBalanceByMint();
-			$nutsWallet?.saveProofs(fromMint, change);
+			useSignEvent(zapRequest, async (signed) => {
+				status = 'Generate zap invoice';
+				const { pr } = await getInvoiceFromProfile(kind0, Number(amount), signed);
+				status = 'Generate melt quote';
+				meltquote = await fromWallet.createMeltQuote(pr);
+				status = 'Sending lighning payment';
+				// const { keep, send } = await fromWallet.swap(0, unspentProofs);
+				// console.log(keep, send);
+				// if (keep.length) {
+				// 	$nutsWallet?.saveProofs(fromMint, keep);
+				// } else {
+				// 	$nutsWallet?.saveProofs(fromMint, send);
+				// }
+				const { change } = await fromWallet.meltProofs(meltquote, unspentProofs);
+				status = 'Success! Publishing zap request';
+				usePublish('zap' + pubkey, zapRequest);
+				setTimeout(() => (status = ''), 1000);
+				$nutsWallet?.unspentProofs.set(fromWallet, change);
+				$nutsWallet?.updateBalanceByMint();
+				$nutsWallet?.saveProofs(fromMint, change);
+			});
 		}
 		resetState();
 	};

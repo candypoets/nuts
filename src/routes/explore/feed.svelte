@@ -2,9 +2,8 @@
 	import type { ParsedData, ParsedEvent, WorkerMessage } from '@candypoets/nipworker';
 	import {
 		MessageType,
-		nostrManager,
+		nipWorker,
 		type ConnectionStatus,
-		type NostrManager,
 		type SubscriptionConfig
 	} from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
@@ -25,7 +24,6 @@
 	export let subscriptionID: string;
 	export let requests: any[] = [];
 	export let subscriptionOptions: SubscriptionConfig | undefined = undefined;
-	export let manager: NostrManager = nostrManager;
 	export let updateFeed:
 		| ((feed: ParsedEvent[], newEvent: WorkerMessage) => ParsedEvent[])
 		| undefined = undefined;
@@ -96,7 +94,7 @@
 					let since =
 						feed.length > 0 ? Math.max(...feed.map((event) => Number(event.createdAt()))) : now();
 					sub?.();
-					manager.cleanup();
+					nipWorker.cleanup();
 					sub = useSubscription(
 						subscriptionID + '_head',
 						requests.map((r) => ({ ...r, since })),
@@ -187,7 +185,7 @@
 				eose = false;
 				cachedFeed = [];
 				// feed = [];
-				sub = useSubscription(subscriptionID, requests, handleEvents, subscriptionOptions, manager);
+				sub = useSubscription(subscriptionID, requests, handleEvents, subscriptionOptions);
 			}
 		}, 300);
 	}
@@ -305,7 +303,7 @@
 
 		// tear down previous
 		pagesub?.();
-		manager.cleanup();
+		nipWorker.cleanup();
 
 		// compute a robust "older" window
 		const sortedFeed = [...feed].sort((a, b) => b.createdAt() - a.createdAt());

@@ -1,10 +1,11 @@
 <script lang="ts">
-	import { nostrManager } from '@candypoets/nipworker';
-	import type { AnyKind, ParsedEvent } from '@candypoets/nipworker/';
+	import type { ParsedEvent } from '@candypoets/nipworker/';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import Icon from '@iconify/svelte';
 	import { onMount } from 'svelte';
 
+	import { isKind1, isParsedEvent } from '@candypoets/nipworker/utils';
+	import { readRelays, writeRelays } from 'src/controller';
 	import Content from 'src/routes/explore/_post/content.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import User from 'src/routes/explore/user.svelte';
@@ -13,9 +14,12 @@
 	export let post: ProcessedNotification;
 	export let visible: boolean;
 
-	let context: ParsedEvent<AnyKind>[] = post.parsed.context || [];
+	let context: ParsedEvent[] = [];
+	let originalPost: ParsedEvent | null = null;
 	let expanded: boolean = false;
 	let timeout: NodeJS.Timeout | undefined;
+
+	let sub: () => void;
 
 	function toggleExpanded() {
 		expanded = !expanded;
@@ -24,19 +28,23 @@
 	function subscribe() {
 		timeout = setTimeout(async () => {
 			if (visible) {
-				useSubscription(
-					post.id + 'mentions',
+				sub = useSubscription(
+					post.id()?.fnv1aHash() + 'mentions',
 					[
-						// {
-						// 	kinds: [0],
-						// 	authors: post.parsed.events.map((event) => event.pubkey),
-						// 	relays: []
-						// },
-						...(post.requests || [])
+						{
+							kinds: [1],
+							ids: [post.parsed.referencedPostId],
+							limit: 5,
+							relays: [...$writeRelays, ...$readRelays],
+							cacheFirst: true
+						}
 					],
-					(events, eventType) => {
-						if (events[0]?.parsed) {
-							context = [...context, ...events];
+					(message) => {
+						const parsedEvent = isParsedEvent(message);
+						if (isKind1(message)) {
+							originalPost = parsedEvent;
+						} else if (parsedEvent) {
+							context = [...context, parsedEvent];
 						}
 					}
 				);
@@ -48,7 +56,7 @@
 		if (timeout) {
 			clearTimeout(timeout);
 			timeout = undefined;
-			nostrManager.unsubscribe(post.id + 'mentions');
+			sub?.();
 		}
 	}
 
@@ -78,21 +86,21 @@
 						: `You were mentioned in ${post.parsed.events.length} posts`}
 				</div>
 				<div class="text-xs text-gray-500">
-					{formatTime(post.parsed.events[0].created_at)}
+					{formatTime(post.parsed.events[0].createdAt())}
 				</div>
 			</div>
 
 			<!-- Latest mention preview -->
 			<div class="bg-base-100 p-3 rounded-md mb-3">
 				<div class="flex items-start gap-2 mb-1">
-					<Avatar pubkey={post.parsed.events[0].pubkey} query={false} {context} />
+					<Avatar pubkey={post.parsed.events[0].pubkey()?.toString()} query={false} {context} />
 					<div>
 						<div class="flex items-center gap-2">
 							<span class="font-medium text-sm">
-								<User pubkey={post.parsed.events[0].pubkey} link={false} {context} />
+								<User pubkey={post.parsed.events[0].pubkey()?.toString()} link={false} {context} />
 							</span>
 							<span class="text-xs text-gray-500">
-								{formatTime(post.parsed.events[0].created_at)}
+								{formatTime(post.parsed.events[0].createdAt())}
 							</span>
 						</div>
 						<p class="text-sm text-gray-700 w-post-2 overflow-hidden">
@@ -107,7 +115,7 @@
 				<div class="flex -space-x-2 mb-3">
 					{#each post.parsed.events.slice(0, 5) as event}
 						<a href="/{event.pubkey}" class="relative z-0 hover:z-10">
-							<Avatar pubkey={event.pubkey} query={false} {context} />
+							<Avatar pubkey={event.pubkey()?.toString()} query={false} {context} />
 						</a>
 					{/each}
 					{#if post.parsed.events.length > 5}
@@ -125,15 +133,15 @@
 				<div class="mt-3 border-t pt-3">
 					{#each post.parsed.events.slice(1, 6) as event}
 						<div class="flex items-start gap-2 mb-3">
-							<Avatar pubkey={event.pubkey} query={false} {context} />
+							<Avatar pubkey={event.pubkey()?.toString()} query={false} {context} />
 							<div>
 								<div class="flex items-center gap-2">
 									<span class="font-medium text-sm">
-										<User pubkey={event.pubkey} link={false} {context} />
+										<User pubkey={event.pubkey()?.toString()} link={false} {context} />
 									</span>
-									<span class="text-xs text-gray-500">{formatTime(event.created_at)}</span>
+									<span class="text-xs text-gray-500">{formatTime(event.createdAt())}</span>
 								</div>
-								<p class="text-sm text-gray-700">{event.content}</p>
+								<!-- <p class="text-sm text-gray-700">{event.content()?.toString()}</p> -->
 							</div>
 						</div>
 					{/each}

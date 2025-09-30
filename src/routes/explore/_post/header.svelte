@@ -3,13 +3,12 @@
 	import { page } from '$app/stores';
 	import type { Kind0Parsed, ParsedEvent, WorkerMessage } from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
-	import { asKind0, isKind0, isParsedEvent } from '@candypoets/nipworker/utils';
+	import { asKind0, isKind0 } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { formatDistanceToNow } from 'date-fns';
 	import { getContext, onMount } from 'svelte';
 
 	import { isMobile } from 'src/controller';
-	import { profileManager } from 'src/controller/managers';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import { userQuery } from 'src/routes/queries/user';
 
@@ -54,8 +53,7 @@
 							sub?.();
 						}
 					},
-					{},
-					profileManager
+					{}
 				);
 			} else {
 				author = asKind0(authorEvent) as Kind0Parsed;

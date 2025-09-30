@@ -1,11 +1,12 @@
 <script lang="ts">
+	import { MessageType, type ParsedEvent, type WorkerMessage } from '@candypoets/nipworker';
+	import { useSubscription } from '@candypoets/nipworker/hooks';
+	import { asKind0, asParsedEvent, isKind0 } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
-	import _ from 'lodash';
+	import { sortBy, throttle, uniqBy } from 'lodash';
 	import { nip19 } from 'nostr-tools';
 	import { SEARCH_RELAYS } from 'src/lib/env';
-	import type { AnyKind, Kind0Parsed, ParsedEvent, SubscribeKind } from '@candypoets/nipworker';
-	import { isKind0 } from '@candypoets/nipworker/utils';
-	import { useSubscription } from '@candypoets/nipworker/hooks';
+	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import { onDestroy } from 'svelte';
 
 	// Props from the mention suggestion plugin
@@ -19,29 +20,29 @@
 
 	let selectedIndex = 0;
 	let loading = true;
-	let items: ParsedEvent<Kind0Parsed>[] = [];
+	let items: ParsedEvent[] = [];
 	let sub: () => void | undefined;
 
 	let eose = false;
 	let eoce = false;
 
-	let cachedEvents: ParsedEvent<Kind0Parsed>[] = [];
-	let fetchedEvents: ParsedEvent<Kind0Parsed>[] = [];
+	let cachedEvents: ParsedEvent[] = [];
+	let fetchedEvents: ParsedEvent[] = [];
 
 	// Function to select an item and trigger the command
 	function selectItem(index: number) {
 		const item = items[index];
 		if (item) {
 			command({
-				pubkey: item.pubkey,
+				pubkey: item.pubkey()?.toString(),
 				type: 'nprofile',
-				bech32: nip19.nprofileEncode({ pubkey: item.pubkey, relays: [] }),
+				bech32: nip19.nprofileEncode({ pubkey: item.pubkey()?.toString(), relays: [] }),
 				relays: []
 			});
 		}
 	}
 
-	function calculateScore(item: ParsedEvent<Kind0Parsed>, searchQuery: string): number {
+	function calculateScore(item: ParsedEvent, searchQuery: string): number {
 		if (!item.parsed?.name || !searchQuery) return 0; // No name or query means no match score
 
 		const lowerName = item.parsed.name.toLowerCase();
@@ -55,36 +56,36 @@
 		return score;
 	}
 
-	const handleEvents = (events: ParsedEvent<AnyKind>[], eventKind: SubscribeKind) => {
-		if (eventKind == 'EOCE' && !eoce) {
-			eoce = true;
-			items = _.uniqBy(cachedEvents, 'pubkey');
-			items = _.sortBy(items, (item) => calculateScore(item, query));
-			return;
-		}
-		if (eventKind == 'CONNECTION_STATUS' && events.kind == 'EOSE' && !eose) {
-			loading = false;
-			eose = true;
-			items = _.uniqBy([...fetchedEvents, ...items], 'pubkey');
-			items = _.sortBy(items, (item) => -calculateScore(item, query));
-			return;
-		}
-		const [event, ...context] = events;
-		if (isKind0(event)) {
-			// check if the event is already in the feed
-			if (!eoce) {
-				// cached event are filtered and sorted in the worker
-				cachedEvents = [event, ...cachedEvents];
-			} else if (!eose) {
-				fetchedEvents = [event, ...fetchedEvents];
-			} else {
-				items = _.uniqBy([event, ...items], 'pubkey');
-				items = _.sortBy(items, (item) => -calculateScore(item, query));
-			}
+	const handleEvents = (message: WorkerMessage) => {
+		switch (message.type()) {
+			case MessageType.ConnectionStatus:
+				loading = false;
+				eose = true;
+				items = uniqBy([...fetchedEvents, ...items], (item) => item.pubkey()?.fnv1aHash());
+				items = sortBy(items, (item) => -calculateScore(item, query));
+				break;
+			case MessageType.Eoce:
+				eoce = true;
+				items = uniqBy(cachedEvents, (item) => item.pubkey()?.fnv1aHash());
+				items = sortBy(items, (item) => calculateScore(item, query));
+				break;
+			case MessageType.ParsedNostrEvent:
+				if (isKind0(message)) {
+					const parsedEvent = asParsedEvent(message) as ParsedEvent;
+					if (!eoce) {
+						// cached event are filtered and sorted in the worker
+						cachedEvents = [parsedEvent, ...cachedEvents];
+					} else if (!eose) {
+						fetchedEvents = [parsedEvent, ...fetchedEvents];
+					} else {
+						items = uniqBy([parsedEvent, ...items], (item) => item?.pubkey()?.fnv1aHash());
+						items = sortBy(items, (item) => -calculateScore(item, query));
+					}
+				}
 		}
 	};
 
-	const subscribe = _.throttle((search: string) => {
+	const subscribe = throttle((search: string) => {
 		cachedEvents = [];
 		fetchedEvents = [];
 		eoce = false;
@@ -139,6 +140,7 @@
 		<div class="py-3 px-4 text-center text-gray-500">No matching profiles found</div>
 	{:else}
 		{#each items as item, index}
+			{@const kind0 = asKind0(item)}
 			<button
 				class="w-full px-3 py-2 flex items-center gap-2 hover:bg-gray-100 text-left {selectedIndex ===
 				index
@@ -146,9 +148,9 @@
 					: ''}"
 				on:click={() => selectItem(index)}
 			>
-				{#if item.parsed?.picture}
+				{#if kind0?.picture()}
 					<img
-						src={item.parsed.picture}
+						src={proxyAvatarUrl(kind0.picture()?.toString())}
 						alt=""
 						class="w-8 h-8 rounded-full object-cover flex-shrink-0"
 					/>
@@ -162,14 +164,16 @@
 
 				<div class="flex-1 min-w-0">
 					<div class="font-medium text-gray-900 truncate flex items-center">
-						<span>{item.parsed?.name}</span>
-						{#if cachedEvents.some((cachedItem) => cachedItem.pubkey === item.pubkey)}
+						<span>{kind0?.name()?.toString()}</span>
+						{#if cachedEvents.some((cachedItem) => cachedItem.pubkey()?.fnv1aHash() === item
+									.pubkey()
+									?.fnv1aHash())}
 							<Icon icon="mdi:check" class="ml-1 w-4 h-4 text-green-500 flex-shrink-0" />
 						{/if}
 					</div>
 					<div class="text-xs text-gray-500">
-						{item.parsed?.pubkey
-							? `${item.parsed.pubkey.slice(0, 4)}...${item.parsed.pubkey.slice(-4)}`
+						{item?.pubkey()
+							? `${item.pubkey()?.toString().slice(0, 4)}...${item.pubkey()?.toString().slice(-4)}`
 							: ''}
 					</div>
 				</div>

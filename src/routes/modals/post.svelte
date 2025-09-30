@@ -1,33 +1,25 @@
 <script lang="ts">
-	import { getContext, onMount } from 'svelte';
-	import { extensions } from 'src/editor';
-	import { Editor, EditorContent, createEditor } from 'svelte-tiptap';
+	import { ParsedEvent, WorkerMessage, type ConnectionStatus } from '@candypoets/nipworker';
+	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
+	import { asParsedEvent, fbArray, isConnectionStatus } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
-	import { fly } from 'svelte/transition';
-	import type { Readable } from 'svelte/store';
+	import { nip19, type EventTemplate, type NostrEvent } from 'nostr-tools';
 	import EmojiPicker from 'src/components/EmojiPicker.svelte';
 	import GifPicker from 'src/components/GIFPicker.svelte';
-	import { prepareEvent } from 'src/editor/utils';
-	import { nip19, type EventTemplate, type NostrEvent } from 'nostr-tools';
-	import { now } from 'src/lib/period';
+	import VirtualListBottom from 'src/components/VirtualListBottom.svelte';
+	import { isMobile } from 'src/controller';
 	import { composing } from 'src/controller/editor';
-	import {
-		Kind1Parsed,
-		nostrManager,
-		ParsedData,
-		ParsedEvent,
-		WorkerMessage,
-		type ConnectionStatus,
-		type SubscribeKind
-	} from '@candypoets/nipworker';
-	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
 	import { updateSendStatus } from 'src/controller/sendStatus';
-	import { asKind1, asParsedEvent, fbArray, isConnectionStatus } from '@candypoets/nipworker/utils';
+	import { extensions } from 'src/editor';
+	import { prepareEvent } from 'src/editor/utils';
+	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
+	import { now } from 'src/lib/period';
+	import { getContext, onMount } from 'svelte';
+	import { createEditor, Editor, EditorContent } from 'svelte-tiptap';
+	import type { Readable } from 'svelte/store';
+	import { fly } from 'svelte/transition';
 	import Note from '../explore/note.svelte';
 	import User from '../explore/user.svelte';
-	import VirtualListBottom from 'src/components/VirtualListBottom.svelte';
-	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
-	import { isMobile } from 'src/controller';
 
 	export let placeholder = "What's on your mind?";
 	export let initialContent = '';

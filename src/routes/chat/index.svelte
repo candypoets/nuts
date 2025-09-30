@@ -25,7 +25,6 @@
 	import Pager from 'src/components/Pager.svelte';
 	import RelaysList from 'src/components/RelaysList.svelte';
 	import { key } from 'src/controller';
-	import { chatManager } from 'src/controller/managers';
 	import { kind3Ready, readRelays, writeRelays } from 'src/controller/nostr';
 	import Content from 'src/routes/explore/_post/content.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
@@ -155,7 +154,6 @@
 	<Feed
 		subscriptionID={`chat`}
 		requests={feedRequests}
-		manager={chatManager}
 		{updateFeed}
 		{subscriptionOptions}
 		backdrop

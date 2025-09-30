@@ -45,7 +45,7 @@
 					kinds: [1, 6],
 					authors: follows,
 					limit: $limit,
-					since: ago(2 * 24 * 60 * 60),
+					// since: ago(2 * 24 * 60 * 60),
 					relays: $readRelays
 				}
 			];

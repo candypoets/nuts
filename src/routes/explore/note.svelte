@@ -225,7 +225,7 @@
 			<!-- {#if !depth} -->
 			<div class:!min-w-0={!!main} class="min-w-8" class:!min-w-2={!!depth} />
 			<!-- {/if} -->
-			<div class="-mt-2" class:!mt-0={!!depth || isImageContext} class:!mt-2={!!main}>
+			<div class="-mt-3" class:!mt-0={!!depth || isImageContext} class:!mt-2={!!main}>
 				<Content {note} {context} {visible} {depth} {main} {showQuote} />
 			</div>
 		</div>

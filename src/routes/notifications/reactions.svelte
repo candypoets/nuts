@@ -1,12 +1,11 @@
 <script lang="ts">
-	import type { AnyKind, ParsedEvent } from '@candypoets/nipworker';
-	import { nostrManager } from '@candypoets/nipworker';
+	import type { ParsedEvent } from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
-	import { asParsedEvent, isKind1, isParsedEvent } from '@candypoets/nipworker/utils';
+	import { isKind1, isParsedEvent } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { formatDistanceToNow } from 'date-fns';
 	import { nip19 } from 'nostr-tools';
-	import { getContext, onMount } from 'svelte';
+	import { onMount } from 'svelte';
 
 	import { key, readRelays, writeRelays } from 'src/controller';
 	import Content from 'src/routes/explore/_post/content.svelte';
@@ -23,6 +22,8 @@
 	let expanded: boolean = false;
 	let timeout: NodeJS.Timeout | undefined;
 
+	let sub: () => void;
+
 	function toggleExpanded() {
 		expanded = !expanded;
 	}
@@ -34,7 +35,7 @@
 	function subscribe() {
 		timeout = setTimeout(async () => {
 			if (visible) {
-				useSubscription(
+				sub = useSubscription(
 					post.id()?.fnv1aHash() + 'reactions',
 					[
 						// {
@@ -68,7 +69,7 @@
 		if (timeout) {
 			clearTimeout(timeout);
 			timeout = undefined;
-			nostrManager.unsubscribe(post.id + 'reactions');
+			sub?.();
 		}
 	}
 

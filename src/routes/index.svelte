@@ -4,6 +4,7 @@
 	import {
 		Kind10002Parsed,
 		Kind3Parsed,
+		nipWorker,
 		ParsedData,
 		WorkerMessage,
 		type RequestObject
@@ -39,7 +40,6 @@
 	import { pagerAnimator, setupPagerAnimators } from 'src/controller/pager';
 	import { isMobile, viewport } from 'src/controller/viewport';
 
-	import { setSigner } from 'src/controller/managers';
 	import { sendStatuses } from 'src/controller/sendStatus';
 	import { CarouselAnimator } from 'src/lib/carousel/CarouselAnimator';
 	import Landing from 'src/routes/+page.svelte';
@@ -71,7 +71,7 @@
 	let carouselAnimator: CarouselAnimator;
 	let carouselItems: HTMLElement[] = [];
 
-	$: $key && $key.priv && setSigner('privkey', $key.priv);
+	$: $key && $key.priv && nipWorker.setSigner('privkey', $key.priv);
 
 	setupPagerAnimators($viewport, goBack);
 

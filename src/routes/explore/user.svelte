@@ -8,7 +8,6 @@
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import type { ParsedEvent, Kind0Parsed, WorkerMessage } from '@candypoets/nipworker';
 	import { asKind0, isKind0 } from '@candypoets/nipworker/utils';
-	import { profileManager } from 'src/controller/managers';
 
 	export let pubkey: string;
 	export let link: boolean = true;
@@ -37,8 +36,7 @@
 						sub?.();
 					}
 				},
-				{},
-				profileManager
+				{}
 			);
 		}
 		return () => sub?.();

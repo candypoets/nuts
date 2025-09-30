@@ -9,7 +9,7 @@ import Tweet from './tweet.svelte';
 import Video from './video.svelte';
 
 import { NostrMention } from './mention';
-import { nostrManager } from '@candypoets/nipworker';
+import { useSignEvent } from '@candypoets/nipworker/hooks';
 
 export const extensions = [
 	StarterKit,
@@ -28,7 +28,7 @@ export const extensions = [
 			immediateUpload: true, // It will automatically upload when a file is added to the editor, if false, call `editor.commands.uploadFiles()` manually
 			sign: async (event) => {
 				return new Promise((resolve) => {
-					nostrManager.signEvent(event, (signedEvent) => {
+					useSignEvent(event, (signedEvent) => {
 						resolve(signedEvent);
 					});
 				});

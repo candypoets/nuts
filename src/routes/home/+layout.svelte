@@ -35,7 +35,6 @@
 	import Pager from 'src/components/Pager.svelte';
 	import RelaysList from 'src/components/RelaysList.svelte';
 	import { key } from 'src/controller/key';
-	import { cashuManager } from 'src/controller/managers';
 	import {
 		delayedPromise,
 		kind0,
@@ -146,8 +145,7 @@
 					new PipeT(PipeConfig.SaveToDbPipeConfig, new SaveToDbPipeConfigT()),
 					new PipeT(PipeConfig.ProofVerificationPipeConfig, new ProofVerificationPipeConfigT(500))
 				]
-			},
-			cashuManager
+			}
 		);
 	});
 
@@ -312,14 +310,7 @@
 </script>
 
 <Pager rootPath="/home">
-	<Feed
-		subscriptionID="home"
-		requests={feedRequests}
-		manager={cashuManager}
-		{updateFeed}
-		backdrop
-		bind:connectionStatus
-	>
+	<Feed subscriptionID="home" requests={feedRequests} {updateFeed} backdrop bind:connectionStatus>
 		<svelte:fragment slot="header">
 			<div
 				class="relative w-feed pt-safe place-content-center m-auto z-10 backdrop"

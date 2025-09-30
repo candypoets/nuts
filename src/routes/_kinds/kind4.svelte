@@ -4,7 +4,7 @@
 	import type { EventTemplate } from 'nostr-tools';
 
 	import type { ParsedEvent, WorkerMessage } from '@candypoets/nipworker';
-	import { nostrManager, ParsedData } from '@candypoets/nipworker';
+	import { ParsedData } from '@candypoets/nipworker';
 	import { asParsedEvent } from '@candypoets/nipworker/utils';
 	import Editor from 'src/components/Editor.svelte';
 	import { key, readRelays, writeRelays } from 'src/controller';
@@ -14,7 +14,7 @@
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import User from 'src/routes/explore/user.svelte';
-	import { chatManager } from 'src/controller/managers';
+	import { usePublish } from '@candypoets/nipworker/hooks';
 
 	// in a chat, pubkey is the other person's pubkey
 	export let pubkey: string;
@@ -117,7 +117,7 @@
 
 			feed = [sent, ...feed];
 
-			nostrManager.publish('4' + content, event);
+			usePublish('4' + content, event);
 		} catch (error) {
 			console.error('Error sending message:', error);
 		}
@@ -127,7 +127,6 @@
 <Feed
 	subscriptionID={'kind4_' + pubkey}
 	requests={feedRequests}
-	manager={chatManager}
 	{updateFeed}
 	{visible}
 	bottom={true}

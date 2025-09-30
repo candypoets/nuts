@@ -24,6 +24,8 @@
 	import Note from 'src/routes/explore/note.svelte';
 	import Reply from 'src/routes/explore/reply.svelte';
 	import { getUserRelays } from 'src/routes/queries/user';
+	import { go } from '../modals/modal';
+	import User from '../explore/user.svelte';
 
 	export let nevent: string;
 	export let visible: boolean;
@@ -185,12 +187,25 @@
 		<RelaysList relays={data.relays || []} {connectionStatus} />
 	</svelte:fragment>
 	<svelte.fragment slot="sticky-footer">
+		<div class="md:pb-6 pb-safe md:px-6 px-2">
+			<div
+				on:click|stopPropagation={(_) => go('reply:' + headerItem.id()?.toString())}
+				class="px-4 py-2 rounded-full backdrop-blur-2xl border border-accent"
+			>
+				Reply to
+				{#if headerItem}
+					<User pubkey={headerItem.pubkey()?.toString()} {context} />
+				{/if}
+			</div>
+		</div>
+	</svelte.fragment>
+	<!-- <svelte.fragment slot="sticky-footer">
 		<div class="md:pb-4 pb-safe pt-0 backdrop-blur-md">
 			{#if headerItem}
 				<Reply parent={headerItem} {context} actionsOnTop />
 			{/if}
 		</div>
-	</svelte.fragment>
+	</svelte.fragment> -->
 	<svelte:fragment slot="item-content" let:post let:visible>
 		<Note
 			note={post}

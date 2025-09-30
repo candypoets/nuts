@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { nostrManager, type RelayStatus } from '@candypoets/nipworker';
+	import {} from '@candypoets/nipworker';
 	import Icon from '@iconify/svelte';
 	import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 	import _ from 'lodash';
@@ -10,6 +10,7 @@
 	import { kind17375 } from 'src/controller/nostr';
 	import { isMintUrlValid } from 'src/lib/mint';
 	import { now } from 'src/lib/period';
+	import { usePublish } from '@candypoets/nipworker/hooks';
 
 	let animator = getContext('animator');
 
@@ -205,12 +206,8 @@
 			tags: [...selectedMints.map((sm) => ['mint', sm]), ['pubkey', pubkey]]
 		};
 
-		nostrManager.publish('newWallet', newWallet, (relayStatus: RelayStatus) =>
-			console.log('newWallet', relayStatus)
-		);
-		nostrManager.publish('trustedMints', trustedMints, (relayStatus: RelayStatus) =>
-			console.log('trustedMints', relayStatus)
-		);
+		usePublish('newWallet', newWallet, (message) => console.log('newWallet', message));
+		usePublish('trustedMints', trustedMints, (message) => console.log('trustedMints', message));
 	}
 </script>
 

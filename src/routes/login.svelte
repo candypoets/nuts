@@ -1,7 +1,6 @@
 <script lang="ts">
 	import type { WorkerMessage } from '@candypoets/nipworker';
-	import { nostrManager } from '@candypoets/nipworker';
-	import { useSubscription } from '@candypoets/nipworker/hooks';
+	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
 	import { isKind0 } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { schnorr } from '@noble/curves/secp256k1';
@@ -87,7 +86,7 @@
 			created_at: now()
 		};
 
-		nostrManager.publish('signup', event);
+		usePublish('signup', event);
 	}
 
 	onMount(async () => {

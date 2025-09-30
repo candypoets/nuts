@@ -1,25 +1,21 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import Icon from '@iconify/svelte';
-	import _ from 'lodash';
-	import { key, kind10002, lastNotificationView, writeRelays } from 'src/controller';
+	import type { ParsedEvent } from '@candypoets/nipworker';
 	import {
-		type Request,
-		type SubscribeKind,
-		type AnyKind,
-		type WorkerMessage,
 		type RequestObject,
+		type SubscribeKind,
+		type WorkerMessage,
 		MessageType
 	} from '@candypoets/nipworker';
+	import { asParsedEvent } from '@candypoets/nipworker/utils';
+	import Icon from '@iconify/svelte';
+	import { key, lastNotificationView, writeRelays } from 'src/controller';
 	import Feed from 'src/routes/explore/feed.svelte';
-	import type { ParsedEvent } from '@candypoets/nipworker';
 	import { onMount } from 'svelte';
-	import Mentions from './mentions.svelte';
 	import { processNotifications } from './notifications';
 	import Reactions from './reactions.svelte';
 	import Replies from './replies.svelte';
-	import { chatManager } from 'src/controller/managers';
-	import { asConnectionStatus, asParsedEvent } from '@candypoets/nipworker/utils';
+	import Mentions from './mentions.svelte';
 
 	export let visible = true;
 	export let goBack: () => void;
@@ -120,7 +116,7 @@
 			<Replies {post} {visible} />
 		{:else if post.type === 'reaction'}
 			<Reactions {post} {visible} />
-			<!-- {:else if post.type === 'mention'}
+		{:else if post.type === 'mention'}
 			<Mentions {post} {visible} />
 		{:else if post.type === 'repost'}
 			<div class="p-4 border-b">
@@ -138,11 +134,7 @@
 							: ''}"
 					{/if}
 				</div>
-			</div> -->
-			<!-- {/if} -->
-		{:else}
-			<!-- Placeholder for non-visible items to maintain scroll performance -->
-			<div class="p-4 border-b h-32"></div>
+			</div>
 		{/if}
 	</svelte:fragment>
 </Feed>

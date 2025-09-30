@@ -12,7 +12,6 @@
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import { onMount } from 'svelte';
 	import { userQuery } from '../queries/user';
-	import { profileManager } from 'src/controller/managers';
 	import { go } from '../modals/modal';
 
 	// The pubkey/npub of the user
@@ -61,8 +60,7 @@
 								}
 						}
 					},
-					{},
-					profileManager
+					{}
 				);
 			}
 		} catch (error) {

@@ -2,7 +2,6 @@
 	import {
 		type ConnectionStatus,
 		Kind10002Parsed,
-		nostrManager,
 		ParsedData,
 		type ParsedEvent,
 		type RequestObject,
@@ -16,14 +15,13 @@
 	import { proxyAvatarUrl, proxyBannerUrl } from 'src/lib/proxy';
 	import Feed from 'src/routes/explore/feed.svelte';
 
-	import { useSubscription } from '@candypoets/nipworker/hooks';
+	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
 	import { asKind0, asKind10002, asParsedEvent, fbArray } from '@candypoets/nipworker/utils';
 	import RelaysList from 'src/components/RelaysList.svelte';
 	import { onDestroy, onMount } from 'svelte';
 	import Avatar from '../explore/avatar.svelte';
 	import { go } from '../modals/modal';
 	import { userQuery } from '../queries/user';
-	import { profileManager } from 'src/controller/managers';
 	import { parseContent, type ContentBlock } from 'src/lib';
 	import About from 'src/components/About.svelte';
 
@@ -77,7 +75,7 @@
 	function subscribe() {
 		timeout = setTimeout(() => {
 			if (visible && !sub) {
-				sub = useSubscription('u_' + pubkey, userQuery(pubkey), handleEvents, {}, profileManager);
+				sub = useSubscription('u_' + pubkey, userQuery(pubkey), handleEvents, {});
 			}
 		});
 	}
@@ -106,7 +104,7 @@
 			content: ''
 		};
 
-		nostrManager.publish('follow_' + pubkey, template);
+		usePublish('follow_' + pubkey, template);
 	}
 
 	onMount(() => {
