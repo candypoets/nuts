@@ -21,7 +21,7 @@
 	import Note from '../explore/note.svelte';
 	import User from '../explore/user.svelte';
 
-	export let placeholder = "What's on your mind?";
+	export let placeholder = "Speak your mind it's Nostr";
 	export let initialContent = '';
 	export let onSubmit = (event: NostrEvent) => {};
 	export let actionsOnTop = false;

@@ -60,6 +60,7 @@
 		kinds={[1, 6]}
 		backdrop
 		bind:connectionStatus
+		pullToRefresh
 	>
 		<svelte:fragment slot="sticky-header" let:newPosts>
 			<div class="backdrop-blur-sm bg-base-300 bg-opacity-80 md:border-b border-base-200 pt-safe">

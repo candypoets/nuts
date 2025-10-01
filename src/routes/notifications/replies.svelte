@@ -77,7 +77,7 @@
 </script>
 
 <!-- {post.parsed.referencedPostId} -->
-<div class=" border-b border-gray-100 p-4 mb-4 transition-colors">
+<div class=" border-b border-gray-100 p-4 mb-4 transition-colors relative">
 	<div class="flex items-start gap-3">
 		<!-- Icon -->
 		<div class="bg-blue-100 p-2 rounded-full flex-shrink-0">
@@ -87,7 +87,7 @@
 		<!-- Content -->
 		<div class="flex-grow">
 			<!-- Header with reply count -->
-			<div class="flex justify-between items-center mb-2">
+			<div class="md:flex justify-between items-center mb-2">
 				<div class="font-medium">
 					{post.parsed.events.length}
 					{#if originalPost && originalPost.pubkey()?.toString() !== $key?.pub}
@@ -97,7 +97,7 @@
 						{post.parsed.events.length === 1 ? 'person' : 'people'} replied to your post
 					{/if}
 				</div>
-				<div class="text-xs text-gray-500">
+				<div class="text-xs text-gray-500 right-4 top-1">
 					{formatTime(post.parsed.events[0].createdAt())}
 				</div>
 			</div>

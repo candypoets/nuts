@@ -35,6 +35,7 @@
 	export let fuseKeys: string[] = [];
 	export let itemHeight: number | undefined = undefined;
 	export let initialItems: ParsedEvent[] = [];
+	export let pullToRefresh = false;
 
 	export let connectionStatus: { [url: string]: ConnectionStatus } = {};
 
@@ -395,13 +396,28 @@
 			startPage();
 		}
 	}
+
+	function refreshHead() {
+		if (bufferFeed.length || fetchedFeed.length) {
+			setBufferFeed();
+		}
+		const since = feed.length ? Number(feed[0].createdAt()) : now();
+		const subId = subscriptionID + '_pull_' + Date.now();
+		sub?.();
+		nipWorker.cleanup();
+		sub = useSubscription(
+			subId,
+			requests.map((r) => ({ ...r, since })),
+			(message) => handleEvents(message, -1)
+		);
+	}
 </script>
 
 <div class="fixed bottom-4 left-4 text-white">
 	{start} - {end} - {feed.length}
 </div>
 
-<div class={'lg:pt-0 scrollbar-hide h-full min-h-screen m-auto !pt-0 ' + $$props.class}>
+<div class={'lg:pt-0 h-full min-h-screen m-auto !pt-0 ' + $$props.class}>
 	<!-- {#if start >= 1} -->
 	{#if start >= 1}
 		<!-- Fixed header (only visible when scrolled) -->
@@ -446,6 +462,8 @@
 		{itemHeight}
 		{backdrop}
 		{loading}
+		onRefresh={refreshHead}
+		{pullToRefresh}
 	>
 		{@const repost = asKind6(item) && item.pubkey()}
 		{@const isVisible = visible && itemIndex >= start - 2}

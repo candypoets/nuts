@@ -89,7 +89,7 @@
 >
 	<svelte:fragment slot="sticky-header">
 		<div
-			class=" w-feed border-b border-base-200 px-4 py-3 h-16 flex items-center justify-between backdrop-blur"
+			class="w-feed pt-safe border-b border-primary-content h-20 pb-2 flex items-center justify-between shadow-sm"
 		>
 			<button on:click={() => goBack()} class="p-1 rounded-full hover:bg-base-200 mr-4">
 				<Icon icon="mdi:arrow-left" class="text-xl" />
@@ -100,7 +100,7 @@
 	</svelte:fragment>
 	<svelte:fragment slot="header">
 		<div
-			class="w-feed unsafe-padding-top border-b border-base-200 h-16 flex items-center justify-between shadow-sm"
+			class="w-feed pt-safe border-b border-primary-content h-20 pb-2 flex items-center justify-between shadow-sm"
 		>
 			<button on:click={() => goBack()} class="p-1 rounded-full hover:bg-base-200 mr-4">
 				<Icon icon="mdi:arrow-left" class="text-xl" />

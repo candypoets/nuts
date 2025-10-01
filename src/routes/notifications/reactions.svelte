@@ -92,7 +92,7 @@
 		<!-- Content -->
 		<div class="flex-grow">
 			<!-- Header with like count -->
-			<div class="flex justify-between items-center mb-2">
+			<div class="md:flex justify-between items-center mb-2">
 				<div class="font-medium">
 					{post.parsed.events.length}
 					{#if originalPost && originalPost.pubkey()?.toString() !== $key?.pub}
