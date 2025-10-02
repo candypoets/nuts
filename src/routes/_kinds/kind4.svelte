@@ -134,7 +134,7 @@
 >
 	<svelte:fragment slot="fixed-header">
 		<div
-			class="fixed pt-safe flex justify-between items-center lg:w-50vw py-2 w-full backdrop-blur-xl h-20 z-10"
+			class="fixed pt-safe flex justify-between items-center lg:w-50vw py-2 w-full h-20 z-10 bg-base-300 bg-opacity-85 backdrop-blur-gpu rounded-lg"
 			style="-webkit-backdrop-filter: blur(12px);"
 		>
 			<div on:click={goBack} class="cursor-pointer">

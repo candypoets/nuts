@@ -165,6 +165,12 @@
 
 	$: visible == true && note ? subscribe() : unsubscribe();
 
+	$: hasRoot =
+		decoded.replyID &&
+		!(decoded.mentions || []).some((mId) => mId == decoded.replyID) &&
+		!depth &&
+		showRoot;
+
 	function goto() {
 		if (isImageContext) return;
 		const nip19Event = nip19.neventEncode({ id: decoded.noteId || noteId || '', relays });
@@ -175,16 +181,19 @@
 	onDestroy(unsubscribe);
 </script>
 
-{#if decoded.replyID && !(decoded.mentions || []).some((mId) => mId == decoded.replyID) && !depth && showRoot}
+{#if hasRoot}
 	<svelte:self noteId={decoded.replyID} {context} {visible} zaps leading />
 {/if}
 
 <div
-	class="py-2 rounded-tl-md relative cursor-pointer border-primary-content"
+	class="py-2 rounded-tl-md border-primary-content relative cursor-pointer bg-base-300 bg-opacity-85 backdrop-blur-gpu mt-1 rounded-lg"
+	class:!mt-0={hasRoot}
 	class:px-2={!!depth}
 	on:click|stopPropagation={goto}
 	class:border-l={!!depth}
 	class:border-t={!!depth}
+	class:!rounded-t-none={hasRoot}
+	class:!rounded-b-none={leading}
 	class:hidden={depth > 3}
 >
 	<!-- <div class="break-words">
@@ -207,6 +216,9 @@
 		{/if}
 		{#if leading || visibleReplies.length}
 			<div class="absolute border-primary-content left-4 h-full border-r-2" />
+		{/if}
+		{#if hasRoot}
+			<div class="absolute border-primary-content left-4 h-8 border-r-2 -mt-8" />
 		{/if}
 		{#if repost}
 			<div class="translate-x-1">

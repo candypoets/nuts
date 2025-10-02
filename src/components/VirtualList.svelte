@@ -279,8 +279,7 @@
 	<svelte-virtual-list-contents
 		bind:this={contents}
 		style="top: {top}px; padding-bottom: {bottom > 100 ? bottom : 100}px;"
-		class={backdrop &&
-			'bg-base-300 bg-opacity-85 w-feed-container mx-auto min-h-screen rounded-xl backdrop-blur-gpu isolate'}
+		class={backdrop && 'w-feed-container mx-auto min-h-screen rounded-xl isolate'}
 	>
 		<svelte-virtual-list-row>
 			<slot name="feed-header" />

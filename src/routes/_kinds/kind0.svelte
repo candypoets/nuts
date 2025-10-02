@@ -152,7 +152,7 @@
 		{@const picture = p?.picture()?.toString()}
 		{@const about = p?.about()?.toString()}
 		<div
-			class="transition-all duration-300 w-feed mx-auto will-change-transform"
+			class="transition-all duration-300 w-feed mx-auto will-change-transform bg-base-300 bg-opacity-85 backdrop-blur-gpu rounded-lg"
 			class:relative={visible}
 			class:shadow-md={!visible}
 			class:z-20={!visible}
@@ -162,7 +162,7 @@
 		>
 			<!-- Banner image (only shown when header is visible) -->
 			{#if banner}
-				<div class="w-full banner-container rounded-2xl">
+				<div class="w-full banner-container rounded-lg">
 					<!-- Banner image -->
 
 					<div
@@ -238,8 +238,8 @@
 				<RelaysList {relays} {connectionStatus} />
 			</div>
 
-			<div class="tabs tabs-bordered">
-				<a class="tab tab-active">Posts</a>
+			<div class="tabs">
+				<a class="tab border-t border-primary-content">Posts</a>
 				<a class="tab">Follows</a>
 			</div>
 			<!-- <h3 class="text-lg font-medium mb-4 px-4">Posts</h3> -->

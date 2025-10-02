@@ -170,8 +170,10 @@
 			</div>
 		</svelte:fragment>
 		<svelte:fragment slot="header">
-			<div class="relative pt-safe">
-				<div class="w-feed flex justify-between w-feed m-auto h-16 items-center">
+			<div
+				class="w-feed relative pt-safe bg-base-300 bg-opacity-85 backdrop-blur-gpu rounded-lg pb-2 px-1"
+			>
+				<div class="flex justify-between m-auto h-16 items-center">
 					<h1 class="text-2xl font-semibold">
 						Blurred Chat<button
 							class="btn btn-circle btn-ghost btn-xs ml-2"
@@ -199,7 +201,7 @@
 							</form>
 						</dialog>
 					</h1>
-					<button class="btn btn-circle btn-sm btn-primary">
+					<button class="btn btn-circle btn-sm btn-accent">
 						<Icon icon="teenyicons:add-outline" class="text-xl"></Icon>
 					</button>
 				</div>
@@ -209,12 +211,12 @@
 		<svelte:fragment slot="item-content" let:post let:visible>
 			<a
 				href={'/chat/' + 'kind4:' + correspondant(post)}
-				class="flex gap-2 h-24 overflow-hidden pt-4 pr-2 cursor-pointer w-feed"
+				class="flex gap-2 h-24 overflow-hidden pt-4 pr-4 pl-1 cursor-pointer bg-base-300 bg-opacity-85 backdrop-blur-gpu rounded-lg mt-1"
 			>
 				<div class="flex-shrink-0">
 					<Avatar pubkey={correspondant(post)} size="xl" />
 				</div>
-				<div class="flex-grow border-b border-primary-content">
+				<div class="flex-grow">
 					<div class="flex justify-between">
 						<User pubkey={correspondant(post)} link={false} />
 						<div class="text-xs shrink-0">

@@ -131,7 +131,7 @@
 
 <div class="absolute right-0 top-0 h-screen lg:p-2 z-20" bind:this={element} data-kind="sub">
 	<div
-		class="lg:border bg-base-300 bg-opacity-80 border-base-300 h-screen lg:rounded-xl overflow-hidden lg:px-2 backdrop-blur-gpu transition-gpu"
+		class="h-screen lg:rounded-xl overflow-hidden lg:px-2 backdrop-blur-gpu transition-gpu"
 		style="backface-visibility: hidden;
 			-webkit-backface-visibility: hidden;"
 		on:touchstart|stopPropagation={handleTouchStart}

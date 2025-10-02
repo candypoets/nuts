@@ -109,8 +109,10 @@
 			</div>
 		</svelte.fragment>
 		<svelte.fragment slot="header">
-			<div class="relative pt-safe">
-				<div class="w-feed lg:m-auto flex justify-between items-center h-16">
+			<div
+				class="w-feed relative pt-safe bg-base-300 bg-opacity-85 backdrop-blur-gpu rounded-lg pb-1 px-1"
+			>
+				<div class="lg:m-auto flex justify-between items-center h-16">
 					<div class="flex gap-1 items-center">
 						{#each $followPacks as pack}
 							{@const kind39039 = asKind39089(pack)}
@@ -134,8 +136,8 @@
 						</div>
 					</div>
 				</div>
+				<RelaysList relays={$readRelays} {connectionStatus} />
 			</div>
-			<RelaysList relays={$readRelays} {connectionStatus} />
 			<!-- <Post /> -->
 		</svelte.fragment>
 	</Feed>

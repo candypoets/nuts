@@ -47,7 +47,7 @@
 	{#if relays.length > 0}
 		<div
 			on:click|stopPropagation
-			class="cursor-pointer flex gap-2 items-center flex-wrap overflow-visible {$$props.class ||
+			class="cursor-pointer flex gap-2 items-center justify-end flex-wrap overflow-visible pt-1 {$$props.class ||
 				''}"
 			class:!gap-0={mini}
 		>

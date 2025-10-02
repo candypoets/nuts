@@ -312,138 +312,140 @@
 <Pager rootPath="/home">
 	<Feed subscriptionID="home" requests={feedRequests} {updateFeed} backdrop bind:connectionStatus>
 		<svelte:fragment slot="header">
-			<div
-				class="relative w-feed pt-safe place-content-center m-auto z-10 backdrop"
-				class:shadow-md={scrollY > 0}
-			>
-				<div class="flex justify-between w-feed lg:m-auto h-16 items-center">
-					<h1 class="text-2xl font-semibold">Home</h1>
-					<div class="flex gap-2 items-center">
-						<div on:click={() => (isViewing = !isViewing)}>
-							<Icon icon={isViewing ? 'ph:eye-closed' : 'ph:eye'} class="text-2xl" />
-						</div>
-						<button on:click|stopPropagation={() => go('qr')}
-							><Icon icon="ph:qr-code" class="text-2xl" /></button
-						>
-						<div on:click|stopPropagation={() => go('profile')} class="cursor-pointer">
-							<img
-								src={asKind0($kind0)?.picture()?.toString() || '/ns-naked.svg'}
-								class="w-8 h-8 border rounded-full"
-							/>
+			<div class="w-feed bg-base-300 bg-opacity-85 backdrop-blur-gpu rounded-lg px-1">
+				<div
+					class="relative pt-safe place-content-center m-auto z-10"
+					class:shadow-md={scrollY > 0}
+				>
+					<div class="flex justify-between lg:m-auto h-16 items-center">
+						<h1 class="text-2xl font-semibold">Home</h1>
+						<div class="flex gap-2 items-center">
+							<div on:click={() => (isViewing = !isViewing)}>
+								<Icon icon={isViewing ? 'ph:eye-closed' : 'ph:eye'} class="text-2xl" />
+							</div>
+							<button on:click|stopPropagation={() => go('qr')}
+								><Icon icon="ph:qr-code" class="text-2xl" /></button
+							>
+							<div on:click|stopPropagation={() => go('profile')} class="cursor-pointer">
+								<img
+									src={asKind0($kind0)?.picture()?.toString() || '/ns-naked.svg'}
+									class="w-8 h-8 border rounded-full"
+								/>
+							</div>
 						</div>
 					</div>
+					<RelaysList {relays} {connectionStatus} />
+					{#if $nutsWallet}
+						<div
+							class="flex gap-2 items-stretch overflow-x-scroll scrollbar-hide snap-x snap-mandatory scroll-smooth mt-2"
+							on:touchmove|stopPropagation
+						>
+							{#each $nutsWallet.mintUrls || [] as url}
+								<MintCard mintUrl={url} navigate />
+							{/each}
+						</div>
+					{:else}
+						<div class="w-full p-4 rounded-lg mb-4 bg-base-200">
+							<div class="flex items-center justify-between">
+								<div>
+									<h3 class="font-semibold text-lg">Setup Your Wallet</h3>
+									<p class="text-sm text-secondary-content">Configure your wallet to get started</p>
+								</div>
+								<button class="btn btn-primary" on:click|stopPropagation={() => go('wallet')}>
+									<Icon icon="ph:wallet-bold" class="mr-2" />
+									Setup Wallet
+								</button>
+							</div>
+						</div>
+					{/if}
 				</div>
-				<RelaysList {relays} {connectionStatus} />
-				{#if $nutsWallet}
+				<div class="flex lg:gap-8 gap-4 px-4 py-2 mt-2 w-feed m-auto">
+					<div class="text-center">
+						<button
+							class="btn w-14 h-14 btn-primary btn-circle text-base-100"
+							on:click|stopPropagation={() => go('receive')}
+						>
+							<Icon icon="teenyicons:add-outline" class="text-2xl" />
+						</button>
+						<div class="text-sm mt-1 font-semibold">Receive</div>
+					</div>
+					<div class="text-center">
+						<button
+							class="btn w-14 h-14 btn-primary btn-circle text-base-100"
+							on:click|stopPropagation={() => go('send')}
+						>
+							<Icon icon="ph:arrow-right" class="w-8 h-8" />
+						</button>
+						<div class="text-sm mt-1 font-semibold">Send</div>
+					</div>
+					<div class="text-center">
+						<a
+							class="btn w-14 h-14 btn-outline btn-circle"
+							on:click|stopPropagation={() => go('scan')}
+						>
+							<Icon icon="teenyicons:scan-solid" class="text-2xl" />
+						</a>
+						<div class="text-sm mt-1 font-semibold">Scan</div>
+					</div>
+					<div class="flex-grow w-1/4" />
+				</div>
+				{#if $key}
 					<div
-						class="flex gap-2 items-stretch overflow-x-scroll scrollbar-hide snap-x snap-mandatory scroll-smooth mt-2"
-						on:touchmove|stopPropagation
+						class="h-auto lg:pt-0 overflow-scroll scrollbar-hide"
+						on:scroll={(e) => (scrollY = e?.target?.scrollTop)}
 					>
-						{#each $nutsWallet.mintUrls || [] as url}
-							<MintCard mintUrl={url} navigate />
-						{/each}
+						<!-- <slot /> -->
 					</div>
 				{:else}
-					<div class="w-full p-4 rounded-lg mb-4 bg-base-200">
-						<div class="flex items-center justify-between">
-							<div>
-								<h3 class="font-semibold text-lg">Setup Your Wallet</h3>
-								<p class="text-sm text-secondary-content">Configure your wallet to get started</p>
+					<div class="w-feed m-auto h-auto lg:pt-0 px-4">
+						<div class="mt-4">Log in with your nsec</div>
+						<form class="mt-4" on:submit|preventDefault={handleLogin}>
+							<div class="join w-full border">
+								<div class="btn join-item btn-link"><Icon icon="ri:key-fill" /></div>
+								<input
+									placeholder="nsec"
+									class="join-item flex-grow px-2"
+									type="text"
+									bind:value={privateKey}
+								/>
+								<button class="btn join-item btn-primary" type="submit">
+									{#if !loading}<Icon icon="mdi:login" />
+									{:else}
+										<div class="loading" />
+									{/if}
+								</button>
 							</div>
-							<button class="btn btn-primary" on:click|stopPropagation={() => go('wallet')}>
-								<Icon icon="ph:wallet-bold" class="mr-2" />
-								Setup Wallet
-							</button>
+						</form>
+						<div class="flex items-center gap-2 my-4">
+							<div class="border-b w-full" />
+							<div>OR</div>
+							<div class="border-b w-full" />
 						</div>
+						<button
+							class="btn btn-outline mt-4 m-auto block w-full"
+							class:btn-error={extensionError}
+							on:click={async () => {
+								const pubKey = await window?.nostr?.getPublicKey();
+								if (!pubKey) {
+									extensionError = true;
+									return;
+								}
+								if (pubKey == $key?.pub) return;
+								$key = {
+									pub: pubKey,
+									npub: nip19.npubEncode(pubKey)
+								};
+							}}
+						>
+							{#if !extensionError}
+								Log in with an extension
+							{:else}
+								Extension not found
+							{/if}
+						</button>
 					</div>
 				{/if}
 			</div>
-			<div class="flex lg:gap-8 gap-4 px-4 py-4 w-feed m-auto">
-				<div class="text-center">
-					<button
-						class="btn w-14 h-14 btn-primary btn-circle text-base-100"
-						on:click|stopPropagation={() => go('receive')}
-					>
-						<Icon icon="teenyicons:add-outline" class="text-2xl" />
-					</button>
-					<div class="text-sm mt-1 font-semibold">Receive</div>
-				</div>
-				<div class="text-center">
-					<button
-						class="btn w-14 h-14 btn-primary btn-circle text-base-100"
-						on:click|stopPropagation={() => go('send')}
-					>
-						<Icon icon="ph:arrow-right" class="w-8 h-8" />
-					</button>
-					<div class="text-sm mt-1 font-semibold">Send</div>
-				</div>
-				<div class="text-center">
-					<a
-						class="btn w-14 h-14 btn-outline btn-circle"
-						on:click|stopPropagation={() => go('scan')}
-					>
-						<Icon icon="teenyicons:scan-solid" class="text-2xl" />
-					</a>
-					<div class="text-sm mt-1 font-semibold">Scan</div>
-				</div>
-				<div class="flex-grow w-1/4" />
-			</div>
-			{#if $key}
-				<div
-					class="h-auto lg:pt-0 overflow-scroll scrollbar-hide"
-					on:scroll={(e) => (scrollY = e?.target?.scrollTop)}
-				>
-					<!-- <slot /> -->
-				</div>
-			{:else}
-				<div class="w-feed m-auto h-auto lg:pt-0 px-4">
-					<div class="mt-4">Log in with your nsec</div>
-					<form class="mt-4" on:submit|preventDefault={handleLogin}>
-						<div class="join w-full border">
-							<div class="btn join-item btn-link"><Icon icon="ri:key-fill" /></div>
-							<input
-								placeholder="nsec"
-								class="join-item flex-grow px-2"
-								type="text"
-								bind:value={privateKey}
-							/>
-							<button class="btn join-item btn-primary" type="submit">
-								{#if !loading}<Icon icon="mdi:login" />
-								{:else}
-									<div class="loading" />
-								{/if}
-							</button>
-						</div>
-					</form>
-					<div class="flex items-center gap-2 my-4">
-						<div class="border-b w-full" />
-						<div>OR</div>
-						<div class="border-b w-full" />
-					</div>
-					<button
-						class="btn btn-outline mt-4 m-auto block w-full"
-						class:btn-error={extensionError}
-						on:click={async () => {
-							const pubKey = await window?.nostr?.getPublicKey();
-							if (!pubKey) {
-								extensionError = true;
-								return;
-							}
-							if (pubKey == $key?.pub) return;
-							$key = {
-								pub: pubKey,
-								npub: nip19.npubEncode(pubKey)
-							};
-						}}
-					>
-						{#if !extensionError}
-							Log in with an extension
-						{:else}
-							Extension not found
-						{/if}
-					</button>
-				</div>
-			{/if}
 		</svelte:fragment>
 		<div slot="item-content" let:post let:visible>
 			{#if post}

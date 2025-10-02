@@ -120,21 +120,22 @@
 </script>
 
 {#if zap.isFirst}
-	<strong class="text-base mt-2 block">
-		{#if decoded.createdAt > new Date().setHours(0, 0, 0, 0) / 1000}
-			TODAY
-		{:else if decoded.createdAt > new Date().setHours(0, 0, 0, 0) / 1000 - DAY}
-			Yesterday
-		{:else}
-			{formatDate(new Date(decoded.createdAt * 1000), 'dd-MM-yyyy')}
-		{/if}
-	</strong>
+	<div class="flex justify-end">
+		<strong class=" my-1 bg-base-300 bg-opacity-85 backdrop-blur-gpu rounded-lg px-2 text-sm">
+			{#if decoded.createdAt > new Date().setHours(0, 0, 0, 0) / 1000}
+				TODAY
+			{:else if decoded.createdAt > new Date().setHours(0, 0, 0, 0) / 1000 - DAY}
+				Yesterday
+			{:else}
+				{formatDate(new Date(decoded.createdAt * 1000), 'dd-MM-yyyy')}
+			{/if}
+		</strong>
+	</div>
 {/if}
 <!-- <div class="break-words">{JSON.stringify(decoded)}</div> -->
 <!-- Added role, tabindex and keydown for accessibility -->
 <div
-	class="p-4 cursor-pointer border-x border-b border-primary-content"
-	class:border-t={zap.isFirst}
+	class="p-4 cursor-pointer border-x border-b border-primary-content bg-base-300 bg-opacity-85 backdrop-blur-gpu"
 	class:rounded-t-lg={zap.isFirst}
 	on:click|stopPropagation={go}
 	on:keydown={(e) => e.key === 'Enter' && go()}

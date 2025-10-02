@@ -171,22 +171,25 @@
 	<svelte:fragment slot="header">
 		{#if !imageContext}
 			<div
-				class="w-feed pt-safe border-b border-primary-content h-20 pb-2 flex items-center justify-between shadow-sm"
+				class="w-feed pt-safe border-primary-content h-20 flex items-center justify-between backdrop-blur bg-base-300 bg-opacity-90 rounded-lg px-4"
 			>
-				<button on:click={goBack} class="p-1 rounded-full hover:bg-base-200 mr-4">
+				<button
+					on:click={goBack}
+					class="p-1 rounded-full bg-base-200 bg-opacity-85 backdrop-blur-gpu mr-4"
+				>
 					<Icon icon="mdi:arrow-left" class="text-xl" />
 				</button>
-				<h1 class="text-lg font-semibold">Post</h1>
-				<span class="w-10" />
+				<!-- <h1 class="text-lg font-semibold">Post</h1> -->
+				<RelaysList relays={data.relays || []} {connectionStatus} />
+				<!-- <span class="w-10" /> -->
 			</div>
 		{/if}
 
 		{#if headerItem}
 			<Note note={headerItem} {context} {visible} zaps main />
 		{/if}
-		<RelaysList relays={data.relays || []} {connectionStatus} />
 	</svelte:fragment>
-	<svelte.fragment slot="sticky-footer">
+	<!-- <svelte.fragment slot="sticky-footer">
 		<div class="md:pb-6 pb-safe md:px-6 px-2">
 			<div
 				on:click|stopPropagation={(_) => go('reply:' + headerItem.id()?.toString())}
@@ -198,7 +201,7 @@
 				{/if}
 			</div>
 		</div>
-	</svelte.fragment>
+	</svelte.fragment> -->
 	<!-- <svelte.fragment slot="sticky-footer">
 		<div class="md:pb-4 pb-safe pt-0 backdrop-blur-md">
 			{#if headerItem}
