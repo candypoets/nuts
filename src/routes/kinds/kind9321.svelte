@@ -37,8 +37,6 @@
 		recipient: kind9321?.recipient()?.toString()
 	};
 
-	console.log('proofs', fbArray(kind9321 as Kind9321Parsed, 'proofs'));
-
 	let redeemed: ParsedEvent | undefined;
 	let sub: (() => void) | undefined;
 
