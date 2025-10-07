@@ -29,6 +29,8 @@
 
 	export let subopen: boolean = false;
 
+	let feed: ParsedEvent[] = [];
+
 	let headerItem: ParsedEvent;
 
 	let paymentType: '' | 'Tapcash' | 'Zap' | 'Invoice' = '';
@@ -43,9 +45,9 @@
 
 	function updateFeed(feed: ParsedEvent[], message: WorkerMessage): ParsedEvent[] {
 		const parsedEvent = asParsedEvent(message);
-		if (seen_npubs.has(parsedEvent?.pubkey()?.fnv1aHash() as number)) return feed;
-		seen_npubs.set(parsedEvent?.pubkey()?.fnv1aHash() as number, true);
 		if (parsedEvent) {
+			if (seen_npubs.has(parsedEvent?.pubkey()?.fnv1aHash() as number)) return feed;
+			seen_npubs.set(parsedEvent?.pubkey()?.fnv1aHash() as number, true);
 			return [...feed, parsedEvent];
 		}
 		return feed;
@@ -63,6 +65,14 @@
 				}))) ||
 			[];
 	}
+
+	$: feed = feed
+		.filter((c) => asKind0(c)?.name())
+		.sort((a, b) => {
+			const nameA = asKind0(a)?.name()?.toString()?.trim() ?? '';
+			const nameB = asKind0(b)?.name()?.toString()?.trim() ?? '';
+			return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
+		});
 </script>
 
 <!-- <ScanLN bind:invoice={scannedNpub} /> -->
@@ -72,6 +82,7 @@
 	requests={feedRequests}
 	kinds={[0]}
 	{updateFeed}
+	bind:feed
 >
 	<svelte:fragment slot="header">
 		<div>
@@ -136,29 +147,43 @@
 			<strong class="text-lg">Contacts</strong>
 		</div>
 	</svelte:fragment>
-	<svelte.fragment slot="item-content" let:post>
-		{#if post}
-			{@const kind0 = asKind0(post)}
-			<div
-				class="flex items-center p-3 border-b border-primary-content hover:bg-base-200 cursor-pointer"
-				on:click={() => {
-					go('ecash:' + kind0?.pubkey()?.toString());
-				}}
-			>
-				<div class="avatar mr-3">
-					<div class="w-10 h-10 rounded-full">
-						<img
-							src={proxyAvatarUrl(kind0?.picture()?.toString()) || 'default-avatar.png'}
-							alt={kind0?.name()?.toString() || 'Contact'}
-						/>
-					</div>
-				</div>
-				<div>
-					<p class="font-medium">{kind0?.name()?.toString() || 'Anonymous'}</p>
+	<svelte.fragment slot="item-content" let:post let:index>
+		{@const kind0 = asKind0(post)}
+		{@const prevKind0 = asKind0(feed[index - 1])}
+		{@const nextKind0 = asKind0(feed[index + 1])}
+		{@const isFirst =
+			!prevKind0 ||
+			prevKind0?.name()?.toString().trim().toLowerCase().slice(0, 1) !==
+				kind0?.name()?.toString().trim().toLowerCase().slice(0, 1)}
+		{@const isLast =
+			!nextKind0 ||
+			nextKind0?.name()?.toString().trim().toLowerCase().slice(0, 1) !==
+				kind0?.name()?.toString().trim().toLowerCase().slice(0, 1)}
+		{#if isFirst}
+			<strong class="px-2">
+				{kind0?.name()?.toString().trim().slice(0, 1).toUpperCase()}
+			</strong>
+		{/if}
+		<div
+			class="flex items-center p-3 border border-primary-content hover:bg-base-200 cursor-pointer"
+			class:border-b-0={!isLast}
+			class:rounded-t-lg={isFirst}
+			class:rounded-b-lg={isLast}
+			on:click={() => {
+				go('ecash:' + kind0?.pubkey()?.toString());
+			}}
+		>
+			<div class="avatar mr-3">
+				<div class="w-10 h-10 rounded-full">
+					<img
+						src={proxyAvatarUrl(kind0?.picture()?.toString()) || 'default-avatar.png'}
+						alt={kind0?.name()?.toString() || 'Contact'}
+					/>
 				</div>
 			</div>
-		{:else}
-			no post
-		{/if}
+			<div>
+				<p class="font-medium">{kind0?.name()?.toString() || 'Anonymous'}</p>
+			</div>
+		</div>
 	</svelte.fragment>
 </Feed>

@@ -1,19 +1,29 @@
 <script lang="ts">
-	import Content from 'src/routes/explore/_post/content.svelte';
-	import type { AnyKind, Kind4Parsed, ParsedEvent } from '@candypoets/nipworker';
+	import type { ParsedEvent } from '@candypoets/nipworker';
 	import { formatDistanceToNow } from 'date-fns';
-	import Avatar from '../explore/avatar.svelte';
+	import Content from 'src/routes/explore/_post/content.svelte';
 
 	export let message: ParsedEvent;
-	export let context: ParsedEvent[] = [];
+
 	export let status = 'sent';
+	export let incoming = false;
+	export let isFirst = false;
+	export let isLast = false;
+	export let lastSent = false;
+	export let date = false;
 </script>
 
-<div
-	class="chat ml-2 mr-4 pb-0"
-	class:chat-start={message.incoming}
-	class:chat-end={!message.incoming}
->
+{#if date}
+	<div class="flex justify-center my-2">
+		<div class="bg-base-300 px-2 py-1 rounded-full">
+			<div class="text-xs">
+				{formatDistanceToNow(message.createdAt() * 1000, { addSuffix: true })}
+			</div>
+		</div>
+	</div>
+{/if}
+
+<div class="chat ml-2 mr-4 pb-0" class:chat-start={incoming} class:chat-end={!incoming}>
 	<!-- {#if !last}
 		<div class="chat-image avatar">
 			<div class="w-10 rounded-full">
@@ -21,28 +31,22 @@
 			</div>
 		</div>
 	{/if} -->
-	{#if message.isFirst}
-		<div class="chat-header">
-			<time class="text-xs opacity-50"
-				>{formatDistanceToNow(message.createdAt() * 1000, { addSuffix: true })}</time
-			>
-		</div>
-	{/if}
+
 	<div
-		class="chat-bubble chat-bubble-primary bg-base-200 text-base-content rounded-2xl bg-gradient-to-br from-base-100 to-base-300"
-		class:!from-blue-500={!message.incoming}
-		class:!to-info={!message.incoming}
-		class:overflow-hidden={!message.isLast}
-		class:!rounded-l-md={!message.isFirst && message.incoming}
-		class:!rounded-r-md={!message.isFirst && !message.incoming}
-		class:!rounded-br-none={message.isLast && !message.incoming}
-		class:!rounded-bl-none={message.isLast && message.incoming}
-		class:!rounded-br-md={message.isFirst && !message.incoming}
-		class:!rounded-bl-md={message.isFirst && message.incoming}
+		class="px-4 py-2 bg-base-200 text-base-content rounded-2xl bg-gradient-to-br from-base-100 to-base-300 max-w-[85%]"
+		class:!from-blue-400={!incoming}
+		class:!to-blue-300={!incoming}
+		class:overflow-hidden={!isLast}
+		class:!rounded-l-md={!isFirst && incoming}
+		class:!rounded-r-md={!isFirst && !incoming}
+		class:!rounded-br-none={isLast && !incoming}
+		class:!rounded-bl-none={isLast && incoming}
+		class:!rounded-br-md={isFirst && !incoming}
+		class:!rounded-bl-md={isFirst && incoming}
 	>
 		<Content note={message} class="!w-auto" />
 	</div>
-	{#if !message.incoming && message.isLast}
-		<div class="chat-footer opacity-50">{message.status || status}</div>
+	{#if !incoming && lastSent}
+		<div class="chat-footer opacity-50">{status || status}</div>
 	{/if}
 </div>

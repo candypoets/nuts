@@ -65,7 +65,13 @@
 	let privateKey: string;
 	let loading = false;
 	let extensionError = false;
-	let eoce = false;
+	let feed: ParsedEvent[] = [];
+
+	function oneDayDiff(firstTimestampInSeconds: number, secondTimestampInSeconds: number): boolean {
+		const differenceInSeconds = Math.abs(firstTimestampInSeconds - secondTimestampInSeconds);
+
+		return differenceInSeconds > 86_400;
+	}
 
 	let connectionStatus: { [url: string]: ConnectionStatus } = {};
 
@@ -203,8 +209,6 @@
 	});
 
 	function updateFeed(feed: ParsedEvent[], message: WorkerMessage): ParsedEvent[] {
-		const lastEvent = feed?.[feed.length - 1];
-
 		// Add new events to our feed for processing
 		let updatedFeed: ParsedEvent[] = feed;
 
@@ -213,29 +217,7 @@
 				const event = asParsedEvent(message);
 				const kind9321 = isKind9321(message);
 				if (!kind9321 || !event) break;
-				if (!lastEvent) {
-					(event as any).isFirst = true;
-				} else {
-					if (Number(lastEvent!.createdAt()) > Number(event!.createdAt()) + DAY) {
-						if (lastEvent) {
-							(lastEvent as any).isFirst = true;
-						}
-					}
-				}
-				if (!eoce) {
-					// For cached events, just add them to the feed
-					updatedFeed = [...updatedFeed, event];
-				} else {
-					// For fetched events, add them in timestamp order
-					if (feed.length === 0 || event.createdAt() >= feed[0].createdAt()) {
-						updatedFeed = [event, ...feed];
-					} else {
-						// Add and sort by timestamp
-						updatedFeed = [...feed, event].sort(
-							(a, b) => Number(b.createdAt()) - Number(a.createdAt())
-						);
-					}
-				}
+				updatedFeed = [...updatedFeed, event];
 				break;
 			case MessageType.Eoce:
 				eoce = true;
@@ -307,10 +289,19 @@
 	onMount(() => {
 		walletLoaded.then(() => console.log('walletLoaded', nutsWallets));
 	});
+
+	$: feed = feed.sort((a, b) => b.createdAt() - a.createdAt());
 </script>
 
 <Pager rootPath="/home">
-	<Feed subscriptionID="home" requests={feedRequests} {updateFeed} backdrop bind:connectionStatus>
+	<Feed
+		subscriptionID="home"
+		requests={feedRequests}
+		{updateFeed}
+		backdrop
+		bind:connectionStatus
+		bind:feed
+	>
 		<svelte:fragment slot="header">
 			<div class="w-feed bg-base-300 bg-opacity-85 backdrop-blur-gpu rounded-lg px-1">
 				<div
@@ -447,10 +438,16 @@
 				{/if}
 			</div>
 		</svelte:fragment>
-		<div slot="item-content" let:post let:visible>
-			{#if post}
-				<Kind9321 zap={post} context={[]} />
-			{/if}
+		<div slot="item-content" let:post let:visible let:index>
+			<!-- {#if post} -->
+			<Kind9321
+				zap={post}
+				context={[]}
+				isFirst={index == 0 || oneDayDiff(post.createdAt(), feed[index - 1]?.createdAt())}
+				isLast={index == feed.length - 1 ||
+					oneDayDiff(post.createdAt(), feed[index + 1]?.createdAt())}
+			/>
+			<!-- {/if} -->
 		</div>
 		<!-- <svelte:fragment slot="item-content" let:post let:context let:visible>
 		</svelte:fragment> -->

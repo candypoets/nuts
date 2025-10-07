@@ -23,6 +23,8 @@
 
 	export let zap: ParsedEvent;
 	export let context: ParsedEvent[];
+	export let isFirst: boolean = false;
+	export let isLast: boolean = false;
 
 	let kind9321 = asKind9321(zap);
 
@@ -117,29 +119,31 @@
 	});
 </script>
 
-{#if zap.isFirst}
-	<div class="flex justify-center">
-		<strong class="bg-base-300 bg-opacity-85 backdrop-blur-gpu px-2 text-xs">
-			{#if decoded.createdAt > new Date().setHours(0, 0, 0, 0) / 1000}
-				TODAY
-			{:else if decoded.createdAt > new Date().setHours(0, 0, 0, 0) / 1000 - DAY}
-				Yesterday
-			{:else}
-				{formatDate(new Date(decoded.createdAt * 1000), 'dd-MM-yyyy')}
-			{/if}
-		</strong>
-	</div>
-{/if}
 <!-- <div class="break-words">{JSON.stringify(decoded)}</div> -->
 <!-- Added role, tabindex and keydown for accessibility -->
 <div
 	class="p-4 cursor-pointer border-x border-b border-primary-content bg-base-300 bg-opacity-85 backdrop-blur-gpu"
-	class:rounded-t-lg={zap.isFirst}
+	class:rounded-t-lg={isFirst}
+	class:rounded-b-lg={isLast}
+	class:mt-1={isFirst}
 	on:click|stopPropagation={go}
 	on:keydown={(e) => e.key === 'Enter' && go()}
 	role="link"
 	tabindex="0"
 >
+	{#if isFirst}
+		<div class="flex justify-center">
+			<strong class="absolute px-2 text-xs top-0 text-base-content/70 mt-1">
+				{#if decoded.createdAt > new Date().setHours(0, 0, 0, 0) / 1000}
+					TODAY
+				{:else if decoded.createdAt > new Date().setHours(0, 0, 0, 0) / 1000 - DAY}
+					Yesterday
+				{:else}
+					{formatDate(new Date(decoded.createdAt * 1000), 'dd-MM-yyyy')}
+				{/if}
+			</strong>
+		</div>
+	{/if}
 	<div class="flex items-center justify-between gap-2">
 		{#if decoded.pubkey === $key?.pub && decoded.recipient}
 			<!-- User is the sender -->

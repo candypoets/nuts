@@ -27,8 +27,6 @@
 		| ((feed: ParsedEvent[], newEvent: WorkerMessage) => ParsedEvent[])
 		| undefined = undefined;
 
-	// Legacy prop; internally we use feedList
-	export let feed: ParsedEvent[] = [];
 	export let kinds: ParsedData[] | undefined = undefined;
 	export let visible: boolean = true;
 	export let backdrop: boolean = false;
@@ -41,7 +39,7 @@
 	export let connectionStatus: { [url: string]: ConnectionStatus } = {};
 
 	// Canonical feed: keep a sorted list (desc by createdAt) + a Map index for O(1) existence
-	let feedList: ParsedEvent[] = [];
+	export let feed: ParsedEvent[] = [];
 	const feedMap = new Map<number, ParsedEvent>();
 
 	// Stage buffers in Maps for O(1) dedupe and cheap merges
@@ -103,7 +101,7 @@
 		if (dirtyScheduled) return;
 		dirtyScheduled = true;
 		Promise.resolve().then(() => {
-			feedList = feedList; // reassign to trigger reactivity
+			feed = feed; // reassign to trigger reactivity
 			dirtyScheduled = false;
 		});
 	}
@@ -122,23 +120,23 @@
 		feedMap.set(id, e);
 		const ts = e.createdAt?.() ?? 0;
 
-		if (feedList.length === 0) {
-			feedList.push(e);
+		if (feed.length === 0) {
+			feed.push(e);
 			return true;
 		}
-		const headTs = feedList[0]?.createdAt?.() ?? 0;
+		const headTs = feed[0]?.createdAt?.() ?? 0;
 		if (ts >= headTs) {
-			feedList.unshift(e);
+			feed.unshift(e);
 			return true;
 		}
-		const tailTs = feedList[feedList.length - 1]?.createdAt?.() ?? 0;
+		const tailTs = feed[feed.length - 1]?.createdAt?.() ?? 0;
 		if (ts <= tailTs) {
-			feedList.push(e);
+			feed.push(e);
 			return true;
 		}
 
-		const idx = binarySearchDescByTs(feedList, ts);
-		feedList.splice(idx, 0, e);
+		const idx = binarySearchDescByTs(feed, ts);
+		feed.splice(idx, 0, e);
 		return true;
 	}
 
@@ -172,7 +170,7 @@
 					mergeMapIntoFeed(cachedMap);
 
 					// resume head subscription with "since"
-					const since = feedList.length > 0 ? (feedList[0]?.createdAt?.() ?? now()) : now();
+					const since = feed.length > 0 ? (feed[0]?.createdAt?.() ?? now()) : now();
 					sub?.();
 					nipWorker.cleanup();
 					sub = useSubscription(
@@ -230,15 +228,15 @@
 						for (const e of after) fetchedMap.set(getHash(e)!, e);
 					} else {
 						// live: apply to feedList; mirror map once
-						const out = updateFeed(feedList, message) || feedList;
-						if (out !== feedList) {
-							feedList = out; // reassignment already invalidates
+						const out = updateFeed(feed, message) || feed;
+						if (out !== feed) {
+							feed = out; // reassignment already invalidates
 							feedMap.clear();
-							for (const e of feedList) feedMap.set(getHash(e)!, e);
+							for (const e of feed) feedMap.set(getHash(e)!, e);
 						} else {
 							// ensure map consistency if updater mutated in place
 							let changed = false;
-							for (const e of feedList) {
+							for (const e of feed) {
 								const hid = getHash(e);
 								if (hid && !feedMap.has(hid)) {
 									feedMap.set(hid, e);
@@ -306,8 +304,8 @@
 
 		let changed = false;
 
-		if (feedList.length > 0) {
-			const mostRecentTime = feedList[0].createdAt?.() ?? 0;
+		if (feed.length > 0) {
+			const mostRecentTime = feed[0].createdAt?.() ?? 0;
 
 			// Fast-path newer head events first
 			for (const [key, e] of bufferMap) {
@@ -336,7 +334,7 @@
 
 	onMount(() => {
 		// bootstrap from initial items
-		feedList = [];
+		feed = [];
 		feedMap.clear();
 		let changed = false;
 		initialItems.forEach((item) => {
@@ -375,14 +373,14 @@
 		// unsubscribe();
 		sub?.();
 		previousSubscriptionID = subscriptionID;
-		feedList = [];
+		feed = [];
 		feedMap.clear();
 	}
 
 	// Search: default to full feed if fuse is not ready.
 	$: {
-		if (fuseKeys.length > 0 && feedList.length > 0) {
-			fuse = new Fuse<any>(feedList, {
+		if (fuseKeys.length > 0 && feed.length > 0) {
+			fuse = new Fuse<any>(feed, {
 				keys: fuseKeys,
 				threshold: 0.4,
 				includeScore: true
@@ -394,7 +392,7 @@
 		if (search && fuse) {
 			filteredFeed = fuse.search(search).map((r) => r.item);
 		} else {
-			filteredFeed = feedList;
+			filteredFeed = feed;
 		}
 	}
 
@@ -416,14 +414,14 @@
 		}
 
 		// decide success/failure for the page we just requested
-		if (feedList.length === baselineLen) {
+		if (feed.length === baselineLen) {
 			noResultsCount++;
 			sinceMultiplier *= 5; // widen lookback only when we truly got nothing
 		} else {
 			noResultsCount = 0;
 			sinceMultiplier = 1;
 		}
-		lastFeedLength = feedList.length;
+		lastFeedLength = feed.length;
 
 		// allow next cycle
 		paging = false;
@@ -437,14 +435,14 @@
 		eose = false;
 
 		// record baseline for THIS page
-		baselineLen = feedList.length;
+		baselineLen = feed.length;
 
 		// tear down previous
 		pagesub?.();
 		nipWorker.cleanup();
 
 		// compute a robust "older" window
-		const sortedFeed = feedList; // already sorted desc
+		const sortedFeed = feed; // already sorted desc
 		if (sortedFeed.length === 0) {
 			// nothing yet; give it a moment and release gate
 			pageTimer = setTimeout(() => finalizePage('timeout'), 5000);
@@ -520,7 +518,7 @@
 		// - we’re not already paging
 		// - attempts are within cap
 		// - we actually have something loaded (start != 0)
-		if (start != 0 && end == feedList.length && !paging && noResultsCount <= 3) {
+		if (start != 0 && end == feed.length && !paging && noResultsCount <= 3) {
 			console.log('pagination', noResultsCount);
 			startPage();
 		}
@@ -530,7 +528,7 @@
 		if (bufferMap.size || fetchedMap.size) {
 			setBufferFeed();
 		}
-		const since = feedList.length ? Number(feedList[0].createdAt()) : now();
+		const since = feed.length ? Number(feed[0].createdAt()) : now();
 		const subId = subscriptionID + '_pull_' + Date.now();
 		sub?.();
 		nipWorker.cleanup();
@@ -543,7 +541,7 @@
 </script>
 
 <div class="fixed bottom-4 left-4 text-white">
-	{start} - {end} - {feedList.length}
+	{start} - {end} - {feed.length}
 </div>
 
 <div class={'lg:pt-0 h-full min-h-screen m-auto !pt-0 ' + $$props.class}>
@@ -575,7 +573,7 @@
 	</div>
 	<svelte:component
 		this={bottom ? VirtualListBottom : VirtualList}
-		items={search ? filteredFeed : feedList}
+		items={search ? filteredFeed : feed}
 		bind:start
 		bind:end
 		bind:viewport
@@ -597,7 +595,7 @@
 			<slot name="header" visible>Missing Template</slot>
 		</svelte:fragment>
 		<div class="block w-feed m-auto px-1 max-w-full">
-			<slot name="item-content" post={item} visible={isVisible}>
+			<slot name="item-content" post={item} visible={isVisible} index={itemIndex}>
 				<Note
 					note={repost ? { ...item?.parsed.repostedEvent, requests: item.requests } : item}
 					context={[]}

@@ -29,7 +29,7 @@
 
 	function updateFeed(feed: ParsedEvent[], message: WorkerMessage) {
 		// Reorder feed by created_at, most recent first
-		feed = feed.sort((a, b) => (b.createdAt() || 0) - (a.createdAt() || 0));
+		// feed = feed.sort((a, b) => (b.createdAt() || 0) - (a.createdAt() || 0));
 		const lastEvent = feed?.[feed.length - 1];
 		let firstEvent = feed?.[0];
 		if (firstEvent && firstEvent.id()?.toString() == sent?.id) {
@@ -37,30 +37,9 @@
 		}
 		const parsedEvent = asParsedEvent(message);
 		if (parsedEvent) {
-			console.log('kind4 event');
 			switch (parsedEvent?.parsedType()) {
 				case ParsedData.Kind4Parsed:
-					if (lastEvent?.pubkey?.()?.fnv1aHash() != parsedEvent.pubkey?.()?.fnv1aHash()) {
-						if (lastEvent) {
-							lastEvent.isFirst = true;
-						}
-						parsedEvent.isLast = true;
-					}
-					if (parsedEvent.pubkey?.()?.toString() == pubkey) {
-						parsedEvent.incoming = true;
-					}
-					if (parsedEvent.createdAt() == sent?.created_at) {
-						sent = undefined;
-						if (firstEvent) firstEvent.isLast = false;
-						parsedEvent.isLast = true;
-						return [parsedEvent, ...feed.slice(1)];
-					}
-					if (firstEvent?.created_at || 0 < parsedEvent.createdAt()) {
-						return [...feed, parsedEvent];
-					} else {
-						if (firstEvent) firstEvent.isLast = false;
-						return [parsedEvent, ...feed];
-					}
+					return [parsedEvent, ...feed];
 				default:
 					return feed;
 			}
@@ -122,6 +101,14 @@
 			console.error('Error sending message:', error);
 		}
 	}
+
+	function oneDayDiff(firstTimestampInSeconds: number, secondTimestampInSeconds: number): boolean {
+		const differenceInSeconds = Math.abs(firstTimestampInSeconds - secondTimestampInSeconds);
+
+		return differenceInSeconds > 86_400;
+	}
+
+	$: feed = feed.sort((a, b) => b.createdAt() - a.createdAt());
 </script>
 
 <Feed
@@ -130,6 +117,7 @@
 	{updateFeed}
 	{visible}
 	bottom={true}
+	bind:feed
 	class="w-feed"
 >
 	<svelte:fragment slot="fixed-header">
@@ -164,7 +152,16 @@
 	<svelte:fragment slot="header">
 		<div class="h-24 unsafe-padding-top" />
 	</svelte:fragment>
-	<svelte:fragment slot="item-content" let:post let:visible>
-		<Message message={post} />
+	<svelte:fragment slot="item-content" let:post let:visible let:index>
+		<Message
+			message={post}
+			isFirst={index === 0 ||
+				feed[index + 1]?.pubkey?.()?.fnv1aHash() != post.pubkey?.()?.fnv1aHash()}
+			isLast={index === feed.length - 1 ||
+				feed[index - 1]?.pubkey?.()?.fnv1aHash() != post.pubkey?.()?.fnv1aHash()}
+			incoming={post.pubkey()?.toString() == pubkey}
+			lastSent={post.pubkey()?.toString() == pubkey && index == feed.length - 1}
+			date={feed.length - 1 == index || oneDayDiff(post.createdAt(), feed[index - 1]?.createdAt())}
+		/>
 	</svelte:fragment>
 </Feed>
