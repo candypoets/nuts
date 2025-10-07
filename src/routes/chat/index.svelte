@@ -60,7 +60,6 @@
 				eoce = true;
 				break;
 			case MessageType.ParsedNostrEvent:
-				console.log('parsed message');
 				const parsedEvent = asParsedEvent(message) as ParsedEvent;
 				if (!isKind4(message)) return feed;
 				if (!eoce) {
