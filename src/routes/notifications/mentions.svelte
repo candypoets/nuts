@@ -69,7 +69,7 @@
 	$: visible ? subscribe() : unsubscribe();
 </script>
 
-<div class="border-b shadow-sm border-gray-100 p-4 mb-4 transition-colors">
+<div class="p-4 transition-colors">
 	<div class="flex items-start gap-3">
 		<!-- Icon -->
 		<div class="bg-purple-100 p-2 rounded-full flex-shrink-0">
@@ -91,7 +91,7 @@
 			</div>
 
 			<!-- Latest mention preview -->
-			<div class="bg-base-100 p-3 rounded-md mb-3">
+			<div class=" bg-primary-content bg-opacity-85 p-3 rounded-md mb-3">
 				<div class="flex items-start gap-2 mb-1">
 					<Avatar pubkey={post.parsed.events[0].pubkey()?.toString()} query={false} {context} />
 					<div>
@@ -103,8 +103,14 @@
 								{formatTime(post.parsed.events[0].createdAt())}
 							</span>
 						</div>
-						<p class="text-sm text-gray-700 w-post-2 overflow-hidden">
-							<Content note={post.parsed.events?.[0]} {context} />
+						<p class="w-post-2 overflow-hidden">
+							<Content
+								note={post.parsed.events?.[0]}
+								{context}
+								showMedia={false}
+								showQuote={false}
+								depth={2}
+							/>
 						</p>
 					</div>
 				</div>

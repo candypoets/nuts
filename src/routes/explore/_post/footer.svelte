@@ -42,7 +42,6 @@
 
 	let isImageContext = getContext('imageContext');
 	// replies are exported back to the parent, if the parent decides to show some
-	export let replies: ParsedEvent[] = [];
 	export let connectionStatus: { [url: string]: ConnectionStatus } = {};
 	let reposts: ParsedEvent[] = [];
 	let liked = '';

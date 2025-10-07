@@ -149,7 +149,7 @@
 </script>
 
 <Feed
-	subscriptionID={'kind1' + data?.id}
+	subscriptionID={'kind1_' + data?.id}
 	requests={feedRequests}
 	class="w-feed"
 	{headerItem}
@@ -215,8 +215,27 @@
 			{context}
 			{visible}
 			showRoot={false}
-			showReplies={(replies) =>
-				replies.filter((r) => r.pubkey == headerItem?.pubkey || r.pubkey == post?.pubkey)}
+			showReplies={(newPost) => (replies) => {
+				// const postKind1 = asKind1(newPost);
+				const rep = replies.filter((r) => {
+					const kind1 = asKind1(r);
+					return (
+						(r.pubkey()?.fnv1aHash() == post?.pubkey()?.fnv1aHash() ||
+							r.pubkey()?.fnv1aHash() == headerItem?.pubkey()?.fnv1aHash()) &&
+						kind1?.reply()?.id()?.fnv1aHash() == newPost?.id()?.fnv1aHash()
+					);
+				});
+				if (!rep.length) {
+					return rep;
+				}
+				let oldest = rep[0];
+				for (const r of rep) {
+					if (r.createdAt() < oldest.createdAt()) {
+						oldest = r;
+					}
+				}
+				return [oldest];
+			}}
 			zaps
 		/>
 	</svelte:fragment>

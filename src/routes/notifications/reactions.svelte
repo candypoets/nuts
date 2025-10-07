@@ -82,7 +82,7 @@
 	$: visible ? subscribe() : unsubscribe();
 </script>
 
-<div class="border-b border-gray-100 p-4 mb-2 transition-colors">
+<div class=" p-4 transition-colors">
 	<div class="flex items-start gap-3">
 		<!-- Icon -->
 		<div class="bg-red-100 p-2 rounded-full flex-shrink-0">
@@ -109,7 +109,7 @@
 			<!-- Original post summary -->
 			{#if originalPost}
 				<a
-					class="cursor-pointer bg-base-200 p-3 rounded-md mb-3 text-sm text-primary-content line-clamp-2 w-post-1"
+					class="cursor-pointer bg-primary-content bg-opacity-85 p-3 rounded-md mb-3 text-sm line-clamp-2 w-post-1"
 					on:click={() =>
 						go(
 							`nevent:${nip19.neventEncode({

@@ -89,7 +89,7 @@
 >
 	<svelte:fragment slot="sticky-header">
 		<div
-			class="w-feed pt-safe border-b border-primary-content h-20 pb-2 flex items-center justify-between shadow-sm"
+			class="w-feed pt-safe bg-base-300 bg-opacity-85 backdrop-blur-gpu mt-1 rounded-lg h-20 pb-2 flex items-center justify-between shadow-sm"
 		>
 			<button on:click={() => goBack()} class="p-1 rounded-full hover:bg-base-200 mr-4">
 				<Icon icon="mdi:arrow-left" class="text-xl" />
@@ -100,7 +100,7 @@
 	</svelte:fragment>
 	<svelte:fragment slot="header">
 		<div
-			class="w-feed pt-safe border-b border-primary-content h-20 pb-2 flex items-center justify-between shadow-sm"
+			class="w-feed pt-safe bg-base-300 bg-opacity-85 backdrop-blur-gpu mt-1 rounded-lg h-20 pb-2 flex items-center justify-between shadow-sm mb-1"
 		>
 			<button on:click={() => goBack()} class="p-1 rounded-full hover:bg-base-200 mr-4">
 				<Icon icon="mdi:arrow-left" class="text-xl" />
@@ -111,31 +111,33 @@
 	</svelte:fragment>
 
 	<svelte:fragment slot="item-content" let:post let:context let:visible>
-		<!-- {#if visible} -->
-		{#if post.type === 'reply'}
-			<Replies {post} {visible} />
-		{:else if post.type === 'reaction'}
-			<Reactions {post} {visible} />
-		{:else if post.type === 'mention'}
-			<Mentions {post} {visible} />
-		{:else if post.type === 'repost'}
-			<div class="p-4 border-b">
-				<div class="flex items-center">
-					<Icon icon="mdi:repeat" class="text-green-500 mr-2" />
-					<span>
-						{post.events.length}
-						{post.events.length === 1 ? 'person' : 'people'} reposted your content
-					</span>
+		<div class="bg-base-300 bg-opacity-85 backdrop-blur-gpu rounded-lg mb-1">
+			<!-- {#if visible} -->
+			{#if post.type === 'reply'}
+				<Replies {post} {visible} />
+			{:else if post.type === 'reaction'}
+				<Reactions {post} {visible} />
+			{:else if post.type === 'mention'}
+				<Mentions {post} {visible} />
+			{:else if post.type === 'repost'}
+				<div class="p-4 border-b">
+					<div class="flex items-center">
+						<Icon icon="mdi:repeat" class="text-green-500 mr-2" />
+						<span>
+							{post.events.length}
+							{post.events.length === 1 ? 'person' : 'people'} reposted your content
+						</span>
+					</div>
+					<div class="mt-2 pl-6 text-sm text-gray-600">
+						{#if post.originalPost}
+							"{post.originalPost.content.substring(0, 100)}{post.originalPost.content.length > 100
+								? '...'
+								: ''}"
+						{/if}
+					</div>
 				</div>
-				<div class="mt-2 pl-6 text-sm text-gray-600">
-					{#if post.originalPost}
-						"{post.originalPost.content.substring(0, 100)}{post.originalPost.content.length > 100
-							? '...'
-							: ''}"
-					{/if}
-				</div>
-			</div>
-		{/if}
+			{/if}
+		</div>
 	</svelte:fragment>
 </Feed>
 

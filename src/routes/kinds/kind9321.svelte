@@ -120,8 +120,8 @@
 </script>
 
 {#if zap.isFirst}
-	<div class="flex justify-end">
-		<strong class=" my-1 bg-base-300 bg-opacity-85 backdrop-blur-gpu rounded-lg px-2 text-sm">
+	<div class="flex justify-center">
+		<strong class="bg-base-300 bg-opacity-85 backdrop-blur-gpu px-2 text-xs">
 			{#if decoded.createdAt > new Date().setHours(0, 0, 0, 0) / 1000}
 				TODAY
 			{:else if decoded.createdAt > new Date().setHours(0, 0, 0, 0) / 1000 - DAY}
@@ -143,7 +143,7 @@
 	tabindex="0"
 >
 	<div class="flex items-center justify-between gap-2">
-		{#if decoded.pubkey === $key?.pub}
+		{#if decoded.pubkey === $key?.pub && decoded.recipient}
 			<!-- User is the sender -->
 			<div class="flex items-center gap-2 overflow-hidden">
 				<Avatar pubkey={decoded?.recipient ?? ''} {context} size="lg" />
