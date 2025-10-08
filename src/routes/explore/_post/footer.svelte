@@ -155,8 +155,6 @@
 
 		const correctEvent = finalizeEvent(event, hexToBytes($key?.priv));
 
-		console.log('correctEvent', correctEvent);
-
 		usePublish('reaction_' + decoded.id, event, (message: WorkerMessage) => {
 			const status = isConnectionStatus(message);
 			if (status) {

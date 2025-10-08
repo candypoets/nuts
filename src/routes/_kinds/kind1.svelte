@@ -92,7 +92,7 @@
 	function subscribe() {
 		if (visible && !sub) {
 			sub = useSubscription(
-				data?.id,
+				'kind1_' + data?.id,
 				[
 					{
 						kinds: [1],
@@ -149,7 +149,7 @@
 </script>
 
 <Feed
-	subscriptionID={'kind1_' + data?.id}
+	subscriptionID={'replies_' + data?.id}
 	requests={feedRequests}
 	class="w-feed"
 	{headerItem}

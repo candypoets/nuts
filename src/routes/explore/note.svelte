@@ -125,7 +125,7 @@
 						if (pubkey && id) {
 							getUserRelays(pubkey, (relays) => {
 								useSubscription(
-									noteId + '_root',
+									'root_' + noteId,
 									[{ kinds: [1], ids: [id], limit: 5, relays }],
 									handleEvents
 								);
@@ -139,7 +139,7 @@
 						if (pubkey && id) {
 							getUserRelays(pubkey, (relays) => {
 								useSubscription(
-									noteId + '_quote',
+									'quote_' + noteId,
 									[{ kinds: [1], ids: [id], limit: 5, relays }],
 									handleEvents
 								);
