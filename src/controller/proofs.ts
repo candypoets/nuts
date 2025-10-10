@@ -16,7 +16,7 @@ import { now } from 'src/lib/period';
 import { decodePrivKey } from 'src/lib/wallet';
 import { go } from 'src/routes/modals/modal';
 import type { Mint } from 'src/types/mint';
-import { fetchMintData } from './wallet';
+import { fetchMintData, walletLoaded } from './wallet';
 import { normalizeMintURL } from 'src/lib/utils';
 import { usePublish } from '@candypoets/nipworker/hooks';
 
@@ -45,6 +45,7 @@ export const setNutsWallet = (
 ): void => {
 	// Only set the wallet if it doesn't already exist in the map
 	if (!nutsWallets.has(pubkey)) {
+		console.log('set nuts wallet', pubkey);
 		try {
 			const wallet = new NutsWallet(privkey, pubkey, mints, createdAt);
 			nutsWallets.set(wallet.pubkey, wallet);
@@ -61,6 +62,7 @@ export const setNutsWallet = (
 };
 
 export const addProofs = async (mint: string, proofs: Proof[]): Promise<void> => {
+	console.log('add general proofs', mint, proofs.length, get(nutsWallet));
 	if (!mint || !proofs?.length) return;
 
 	// Filter proofs that have p2pk field in the secret and extract pubkeys
@@ -89,7 +91,7 @@ export const addProofs = async (mint: string, proofs: Proof[]): Promise<void> =>
 
 	// Add non-p2pk proofs to the most recent wallet
 	if (nonP2pkProofs.length > 0 && nuts) {
-		await nuts.addProofs(mint, nonP2pkProofs);
+		nuts.addProofs(mint, nonP2pkProofs);
 	}
 
 	if (p2pkProofs.length === 0) return;
@@ -125,7 +127,7 @@ export const addProofs = async (mint: string, proofs: Proof[]): Promise<void> =>
 				}
 			});
 			if (proofsForThisWallet.length > 0) {
-				await wallet.addProofs(mint, proofsForThisWallet);
+				wallet.addProofs(mint, proofsForThisWallet);
 			}
 		} else {
 			// Collect proofs that couldn't be distributed
@@ -144,7 +146,7 @@ export const addProofs = async (mint: string, proofs: Proof[]): Promise<void> =>
 	const zeroWallet = Array.from(nutsWallets.values()).find((wallet) => wallet.createdAt === 0);
 	// Add undistributed proofs to the "0" wallet
 	if (undistributedProofs.length > 0 && zeroWallet) {
-		await zeroWallet.addProofs(mint, undistributedProofs);
+		zeroWallet.addProofs(mint, undistributedProofs);
 	}
 };
 
@@ -200,7 +202,7 @@ export const dispatchProofs = async (mintUrl: string): Promise<void> => {
 	if (nonP2pkProofs.length > 0 && nuts) {
 		nuts.addProofs(mintUrl, nonP2pkProofs);
 		// Remove proofs from zero wallet
-		await zeroWallet.removeProofs(mintUrl, nonP2pkProofs);
+		zeroWallet.removeProofs(mintUrl, nonP2pkProofs);
 	}
 
 	if (p2pkProofs.length === 0) return;
@@ -338,6 +340,12 @@ export class NutsWallet {
 	public addProofs = (mint: string, unspent: Proof[]) => {
 		mint = normalizeMintURL(mint);
 		if (!mint || !unspent?.length) return;
+		console.log(
+			'add proofs',
+			mint,
+			this.pubkey,
+			unspent.reduce((acc, cur) => (acc += cur.amount), 0)
+		);
 		const usp = this.unspentProofs.get(mint) || [];
 
 		this.unspentProofs.set(mint, _.uniqBy([...usp, ...unspent], 'secret'));

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import {
+		Kind10019Parsed,
 		MessageType,
 		ParsedData,
 		ParsePipeConfigT,
@@ -16,6 +17,7 @@
 	import {
 		asConnectionStatus,
 		asKind0,
+		asKind10019,
 		asParsedEvent,
 		ConnectionTracker,
 		fbArray,
@@ -75,9 +77,11 @@
 
 	let connectionStatus: { [url: string]: ConnectionStatus } = {};
 
-	$: walletRelays = $kind10019?.parsed?.readRelays;
+	$: walletRelays =
+		$kind10019 &&
+		fbArray(asKind10019($kind10019) as Kind10019Parsed, 'readRelays').map((r) => r.toString());
 
-	let defaultRelays;
+	let defaultRelays: string[];
 
 	const connectionTracker = new ConnectionTracker();
 
@@ -120,14 +124,15 @@
 	}
 
 	let proofs: () => void;
+	let zaps: () => void;
 
-	relayPromise.then(() => {
+	walletLoaded.then(() => {
 		proofs?.();
 		proofs = useSubscription(
 			'proofs_' + $key?.pub,
 			[
-				{ kinds: [7375], authors: [$key?.pub], relays },
-				{ kinds: [9321], tags: { '#p': [$key?.pub] }, relays }
+				{ kinds: [7375], authors: [$key?.pub], relays }
+				// { kinds: [9321], tags: { '#p': [$key?.pub] }, relays }
 			],
 			(message) => {
 				const vps = isValidProofs(message);
@@ -153,9 +158,51 @@
 				]
 			}
 		);
+		zaps = useSubscription(
+			'nutszap_' + $key?.pub,
+			[
+				// { kinds: [7375], authors: [$key?.pub], relays }
+				{ kinds: [9321], tags: { '#p': [$key?.pub] }, relays }
+			],
+			(message) => {
+				const vps = isValidProofs(message);
+				if (vps) {
+					for (const mintProofs of fbIterable(vps, 'proofs')) {
+						console.log(
+							fbArray(mintProofs, 'proofs').map((p) => ({
+								C: p.c()!.toString(),
+								amount: Number(p.amount()),
+								id: p.id()!.toString(),
+								secret: p.secret()!.toString(),
+								// p.
+								witness: p.witness()!.toString()
+							}))
+						);
+						// for every unspent proofs that comes here, swap them to the main mint
+						// addProofs(
+						// 	mintProofs.mint()!.toString(),
+						// 	fbArray(mintProofs, 'proofs').map((p) => ({
+						// 		C: p.c()!.toString(),
+						// 		amount: Number(p.amount()),
+						// 		id: p.id()!.toString(),
+						// 		secret: p.secret()!.toString()
+						// 	}))
+						// );
+					}
+				}
+			},
+			{
+				pipeline: [
+					new PipeT(PipeConfig.ParsePipeConfig, new ParsePipeConfigT()),
+					new PipeT(PipeConfig.SaveToDbPipeConfig, new SaveToDbPipeConfigT()),
+					new PipeT(PipeConfig.ProofVerificationPipeConfig, new ProofVerificationPipeConfigT(500))
+				]
+			}
+		);
 	});
 
 	let walletSub = Promise.race([kind10019Ready.promise, delayedPromise]).then((event) => {
+		console.log('heeey', relays);
 		useSubscription(
 			'active_wallet',
 			[

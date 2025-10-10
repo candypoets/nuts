@@ -1,7 +1,9 @@
 <script lang="ts">
 	import {
 		type ConnectionStatus,
+		Contact,
 		Kind10002Parsed,
+		Kind3Parsed,
 		ParsedData,
 		type ParsedEvent,
 		type RequestObject,
@@ -16,7 +18,13 @@
 	import Feed from 'src/routes/explore/feed.svelte';
 
 	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
-	import { asKind0, asKind10002, asParsedEvent, fbArray } from '@candypoets/nipworker/utils';
+	import {
+		asKind0,
+		asKind10002,
+		asKind3,
+		asParsedEvent,
+		fbArray
+	} from '@candypoets/nipworker/utils';
 	import RelaysList from 'src/components/RelaysList.svelte';
 	import { onDestroy, onMount } from 'svelte';
 	import Avatar from '../explore/avatar.svelte';
@@ -30,16 +38,20 @@
 	export let visible: boolean;
 	export let goBack: () => void;
 
-	let loading = true;
 	let headerItem: ParsedEvent | undefined;
 	let parsedAbout: ContentBlock[] | undefined;
-	let relays: string[] = [];
-	let feedRequests: RequestObject[] = [];
+	let writeRelays: string[] = [];
+	let readRelays: string[] = [];
+	let feedProfileRequests: RequestObject[] = [];
+	let feedFollowRequests: RequestObject[] = [];
+	let contacts: Contact[] = [];
 	let timeout: NodeJS.Timeout | undefined;
+	let mode = 'profile';
 
 	let connectionStatus: { [url: string]: ConnectionStatus } = {};
 
 	let sub: (() => void) | undefined;
+	let contactSub: (() => void) | undefined;
 
 	function handleEvents(message: WorkerMessage) {
 		const parsedEvent = asParsedEvent(message);
@@ -47,24 +59,61 @@
 			switch (parsedEvent.parsedType()) {
 				case ParsedData.Kind0Parsed:
 					const kind0 = asKind0(parsedEvent);
-					loading = false;
 					headerItem = parsedEvent;
 					parseContent(kind0?.about()?.toString() || '').then((result) => (parsedAbout = result));
 					break;
 				case ParsedData.Kind10002Parsed:
-					relays = fbArray(asKind10002(parsedEvent) as Kind10002Parsed, 'relays')
+					console.log('10002');
+					writeRelays = fbArray(asKind10002(parsedEvent) as Kind10002Parsed, 'relays')
 						?.filter((r) => r.write())
 						.map((r) => r.url()?.toString())
 						.filter(Boolean) as string[];
-					feedRequests = [
+					readRelays = fbArray(asKind10002(parsedEvent) as Kind10002Parsed, 'relays')
+						?.filter((r) => r.read())
+						.map((r) => r.url()?.toString())
+						.filter(Boolean) as string[];
+					if (!contacts.length) {
+						contactSub = useSubscription(
+							'c_' + pubkey,
+							[{ kinds: [3], authors: [pubkey], limit: 30, relays: writeRelays }],
+							handleEvents,
+							{}
+						);
+					} else {
+						feedFollowRequests = [
+							{
+								kinds: [1],
+								authors: contacts.map((c) => c.pubkey()?.toString()) as string[],
+								limit: $limit,
+								noContext: true,
+								relays: readRelays
+							}
+						];
+					}
+					feedProfileRequests = [
 						{
 							kinds: [1],
 							authors: [pubkey],
 							limit: $limit,
 							noContext: true,
-							relays
+							relays: writeRelays
 						}
 					];
+
+					break;
+				case ParsedData.Kind3Parsed:
+					contacts = fbArray(asKind3(parsedEvent) as Kind3Parsed, 'contacts');
+					if (readRelays) {
+						feedFollowRequests = [
+							{
+								kinds: [1],
+								authors: contacts.map((c) => c.pubkey()?.toString()) as string[],
+								limit: $limit,
+								noContext: true,
+								relays: readRelays
+							}
+						];
+					}
 					break;
 			}
 		}
@@ -98,7 +147,10 @@
 			kind: 3,
 			created_at: now(),
 			tags: _.uniqBy(
-				[...$follows.map((c) => ['p', c.pubkey, c.relay || '']), ['p', pubkey, relays?.[0] || '']],
+				[
+					...$follows.map((c) => ['p', c.pubkey, c.relay || '']),
+					['p', pubkey, writeRelays?.[0] || '']
+				],
 				(c) => c[1]
 			).filter((c) => ($follows.some((c) => c.pubkey === pubkey) ? c[1] !== pubkey : true)),
 			content: ''
@@ -110,14 +162,14 @@
 	onMount(() => {
 		// set a time out after which we set the feedRequests whatever happen
 		setTimeout(() => {
-			if (!feedRequests.length) {
-				feedRequests = [
+			if (!feedProfileRequests.length) {
+				feedProfileRequests = [
 					{
 						kinds: [1],
 						authors: [pubkey],
 						limit: $limit,
 						noContext: true,
-						relays
+						relays: writeRelays
 					}
 				];
 			}
@@ -125,11 +177,13 @@
 	});
 
 	$: visible ? subscribe() : unsubscribe();
+
+	$: console.log(feedFollowRequests);
 </script>
 
 <Feed
-	subscriptionID={'kind0_feed_' + pubkey}
-	requests={feedRequests}
+	subscriptionID={mode == 'profile' ? 'kind0P_' + pubkey : 'kind0F_' + pubkey}
+	requests={mode == 'profile' ? feedProfileRequests : feedFollowRequests}
 	{visible}
 	bind:connectionStatus
 >
@@ -235,12 +289,23 @@
 				{#if about}
 					<p class="mb-4 opacity-1"><About content={parsedAbout || []} /></p>
 				{/if}
-				<RelaysList {relays} {connectionStatus} />
+				<RelaysList relays={mode == 'profile' ? writeRelays : readRelays} {connectionStatus} />
 			</div>
 
 			<div class="tabs">
-				<a class="tab border-t border-primary-content">Posts</a>
-				<a class="tab">Follows</a>
+				<a
+					class="tab"
+					class:border-t={mode == 'profile'}
+					class:border-primary-content={mode == 'profile'}
+					on:click={(_) => (mode = 'profile')}>Posts</a
+				>
+				<a
+					class="tab"
+					class:tab-disabled={!contacts.length}
+					class:border-t={mode == 'follows'}
+					class:border-primary-content={mode == 'follows'}
+					on:click={(_) => (mode = 'follows')}>Feed</a
+				>
 			</div>
 			<!-- <h3 class="text-lg font-medium mb-4 px-4">Posts</h3> -->
 		</div>

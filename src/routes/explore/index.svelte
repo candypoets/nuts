@@ -35,6 +35,7 @@
 
 	function setFeedRequests(follows: string[]) {
 		kind3Ready.promise.then((kind3) => {
+			console.log('kind3Ready');
 			if (follows.length == 0 && $followPacks.length)
 				follows =
 					fbArray(asKind3(kind3) as Kind3Parsed, 'contacts')

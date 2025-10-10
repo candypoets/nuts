@@ -134,17 +134,41 @@
 					}
 
 					if (showQuote && kind1?.mentionsLength()) {
-						const pubkey = kind1.mentions(0)?.author()?.toString();
-						const id = kind1.mentions(0)?.id()?.toString();
-						if (pubkey && id) {
-							getUserRelays(pubkey, (relays) => {
-								useSubscription(
-									'quote_' + noteId,
-									[{ kinds: [1], ids: [id], limit: 5, relays }],
-									handleEvents
-								);
-							});
+						const mentions = [];
+						for (let i = 0; i < kind1.mentionsLength(); i++) {
+							const mention = kind1.mentions(i);
+							const pubkey = mention?.author()?.toString();
+							const id = mention?.id()?.toString();
+							if (pubkey && id) {
+								mentions.push({ pubkey, id });
+							}
 						}
+						const uniquePubkeys = [...new Set(mentions.map((m) => m.pubkey))];
+						const allIds = mentions.map((m) => m.id);
+						let allRelays = new Set<string>();
+						let fetched = 0;
+						const total = uniquePubkeys.length;
+						if (total === 0) return;
+						uniquePubkeys.forEach((pubkey) => {
+							getUserRelays(pubkey, (relays) => {
+								relays.forEach((r) => allRelays.add(r));
+								fetched++;
+								if (fetched === total) {
+									useSubscription(
+										'quote_' + noteId,
+										[
+											{
+												kinds: [1],
+												ids: allIds,
+												limit: 5 * allIds.length,
+												relays: Array.from(allRelays)
+											}
+										],
+										handleEvents
+									);
+								}
+							});
+						});
 					}
 				}
 				if (!relays.length && !relaysub) {
