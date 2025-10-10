@@ -48,7 +48,13 @@
 		readRelays
 	} from 'src/controller/nostr';
 	import { limit } from 'src/controller/pagination';
-	import { addProofs, nutsWallet, nutsWallets, setNutsWallet } from 'src/controller/proofs';
+	import {
+		addProofs,
+		nutsWallet,
+		nutsWallets,
+		receiveProofs,
+		setNutsWallet
+	} from 'src/controller/proofs';
 	import { activeMintUrl, walletLoaded } from 'src/controller/wallet';
 	import { DAY } from 'src/lib/period';
 	import { normalizeMintURL } from 'src/lib/utils';
@@ -96,7 +102,7 @@
 		3000
 	);
 
-	$: relays = walletRelays || $readRelays || defaultRelays;
+	$: relays = (walletRelays?.length && walletRelays) || $readRelays || defaultRelays;
 
 	const relayPromise = Promise.race([kind10019Ready.promise, delayedPromise]);
 
@@ -106,17 +112,18 @@
 
 	function setFeedRequests() {
 		relayPromise.then(() => {
+			console.log('relays', relays);
 			feedRequests = [
 				{
 					kinds: [9321],
 					authors: [$key?.pub],
-					limit: $limit,
+					limit: 50,
 					relays: relays
 				},
 				{
 					kinds: [9321],
 					tags: { '#p': [$key?.pub] },
-					limit: $limit,
+					limit: 50,
 					relays: relays
 				}
 			];
@@ -144,7 +151,12 @@
 								C: p.c()!.toString(),
 								amount: Number(p.amount()),
 								id: p.id()!.toString(),
-								secret: p.secret()!.toString()
+								secret: p.secret()!.toString(),
+								dleq: {
+									e: p.dleq()?.e()?.toString() as string,
+									r: p.dleq()?.r()?.toString() as string,
+									s: p.dleq()?.s()?.toString() as string
+								}
 							}))
 						);
 					}
@@ -168,26 +180,20 @@
 				const vps = isValidProofs(message);
 				if (vps) {
 					for (const mintProofs of fbIterable(vps, 'proofs')) {
-						console.log(
+						receiveProofs(
+							mintProofs.mint()!.toString(),
 							fbArray(mintProofs, 'proofs').map((p) => ({
 								C: p.c()!.toString(),
 								amount: Number(p.amount()),
 								id: p.id()!.toString(),
 								secret: p.secret()!.toString(),
-								// p.
-								witness: p.witness()!.toString()
+								dleq: {
+									e: p.dleq()?.e()?.toString() as string,
+									r: p.dleq()?.r()?.toString() as string,
+									s: p.dleq()?.s()?.toString() as string
+								}
 							}))
 						);
-						// for every unspent proofs that comes here, swap them to the main mint
-						// addProofs(
-						// 	mintProofs.mint()!.toString(),
-						// 	fbArray(mintProofs, 'proofs').map((p) => ({
-						// 		C: p.c()!.toString(),
-						// 		amount: Number(p.amount()),
-						// 		id: p.id()!.toString(),
-						// 		secret: p.secret()!.toString()
-						// 	}))
-						// );
 					}
 				}
 			},
@@ -202,7 +208,6 @@
 	});
 
 	let walletSub = Promise.race([kind10019Ready.promise, delayedPromise]).then((event) => {
-		console.log('heeey', relays);
 		useSubscription(
 			'active_wallet',
 			[
@@ -338,6 +343,8 @@
 	});
 
 	$: feed = feed.sort((a, b) => b.createdAt() - a.createdAt());
+
+	$: console.log('relays', relays, walletRelays);
 </script>
 
 <Pager rootPath="/home">

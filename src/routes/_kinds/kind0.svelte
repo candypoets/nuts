@@ -177,8 +177,6 @@
 	});
 
 	$: visible ? subscribe() : unsubscribe();
-
-	$: console.log(feedFollowRequests);
 </script>
 
 <Feed

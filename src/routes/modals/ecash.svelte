@@ -140,7 +140,6 @@
 			const { change } = await fromWallet.meltProofs(meltquote, send);
 			try {
 				let response = await toWallet?.checkMintQuote(mintquote.quote);
-				console.log(response);
 				while (response.state !== MintQuoteState.PAID) {
 					status = 'Waiting for mint quote to be paid...';
 					await new Promise((resolve) => setTimeout(resolve, 1000));

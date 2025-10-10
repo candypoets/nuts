@@ -1,7 +1,6 @@
 import {
 	CashuMint,
 	CashuWallet,
-	CheckStateEnum,
 	MintQuoteState,
 	type MintQuoteResponse,
 	type Proof
@@ -11,14 +10,14 @@ import { bytesToHex } from '@noble/hashes/utils';
 import type { EventTemplate } from 'nostr-tools';
 import { derived, get, writable } from 'svelte/store';
 
+import { usePublish } from '@candypoets/nipworker/hooks';
 import _, { random } from 'lodash';
 import { now } from 'src/lib/period';
+import { normalizeMintURL } from 'src/lib/utils';
 import { decodePrivKey } from 'src/lib/wallet';
 import { go } from 'src/routes/modals/modal';
 import type { Mint } from 'src/types/mint';
-import { fetchMintData, walletLoaded } from './wallet';
-import { normalizeMintURL } from 'src/lib/utils';
-import { usePublish } from '@candypoets/nipworker/hooks';
+import { fetchMintData } from './wallet';
 
 export type MintQuote = MintQuoteResponse & {
 	mintUrl: string;
@@ -150,6 +149,75 @@ export const addProofs = async (mint: string, proofs: Proof[]): Promise<void> =>
 	}
 };
 
+// to be used when receiving a zap
+export const receiveProofs = async (mint: string, proofs: Proof[]): Promise<void> => {
+	const p2pkProofs = proofs.filter((proof) => {
+		try {
+			const secretObj = JSON.parse(proof.secret);
+			return secretObj.p2pk !== undefined;
+		} catch (e) {
+			// If secret is not a valid JSON, it doesn't have p2pk field
+			return false;
+		}
+	});
+	const pubkeys = [
+		...new Set(
+			p2pkProofs
+				.map((proof) => {
+					try {
+						const secretObj = JSON.parse(proof.secret);
+						return secretObj.p2pk;
+					} catch (e) {
+						return null;
+					}
+				})
+				.filter(Boolean)
+		)
+	] as string[];
+
+	let undistributedProofs: Proof[] = [];
+
+	for (const pubkey of pubkeys) {
+		const wallet = getNutsWallet(pubkey);
+		if (wallet) {
+			const proofsForThisWallet = p2pkProofs.filter((proof) => {
+				try {
+					const secretObj = JSON.parse(proof.secret);
+					return secretObj.p2pk === pubkey;
+				} catch (e) {
+					return false;
+				}
+			});
+			if (proofsForThisWallet.length > 0) {
+				const cashuWallet = await wallet.getWallet(mint);
+
+				const proofs = await cashuWallet.receive({ mint, proofs: proofsForThisWallet });
+				await wallet.saveProofs(mint, proofs);
+			}
+		} else {
+			// Collect proofs that couldn't be distributed
+			const proofsForThisPubkey = p2pkProofs.filter((proof) => {
+				try {
+					const secretObj = JSON.parse(proof.secret);
+					return secretObj.p2pk === pubkey;
+				} catch (e) {
+					return false;
+				}
+			});
+			undistributedProofs = [...undistributedProofs, ...proofsForThisPubkey];
+		}
+	}
+
+	// Find the zero wallet (created at 0)
+	const zeroWallet = Array.from(nutsWallets.values()).find((wallet) => wallet.createdAt === 0);
+	// Add undistributed proofs to the "0" wallet
+	if (undistributedProofs.length > 0 && zeroWallet) {
+		const cashuWallet = await zeroWallet.getWallet(mint);
+		const proofs = await cashuWallet.receive({ mint, proofs: undistributedProofs });
+		await zeroWallet.saveProofs(mint, proofs);
+	}
+};
+
 // Function to dispatch all proofs from the zero wallet to their respective wallets
 export const dispatchAllProofs = async (): Promise<void> => {
 	if (!nutsWallet) return;
@@ -236,9 +304,9 @@ export const dispatchProofs = async (mintUrl: string): Promise<void> => {
 				}
 			});
 			if (proofsForThisWallet.length > 0) {
-				await wallet.addProofs(mintUrl, proofsForThisWallet);
+				wallet.addProofs(mintUrl, proofsForThisWallet);
 				// Remove proofs from zero wallet
-				await zeroWallet.removeProofs(mintUrl, proofsForThisWallet);
+				zeroWallet.removeProofs(mintUrl, proofsForThisWallet);
 			}
 		}
 	}
