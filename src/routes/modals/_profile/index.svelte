@@ -15,7 +15,7 @@
 	//
 </script>
 
-<div class="h-full bg-base-300 bg-opacity-85 lg:pt-4">
+<div class="h-full bg-base-300 bg-opacity-85 backdrop-blur-md lg:pt-4">
 	<div class="w-feed">
 		<div class="px-4 flex justify-between">
 			<div on:click={animator.goBack}>

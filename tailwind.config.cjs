@@ -26,7 +26,7 @@ module.exports = {
 					'secondary-content': '#c1cad6',
 					'base-100': '#f9fafb',
 					'base-200': '#f2f2f3',
-					'base-300': '#dddcdc',
+					'base-300': '#cdede9',
 					'error-content': '#d9c2c2',
 					highlight: '#ffffff',
 					accent: '#6d28d9',

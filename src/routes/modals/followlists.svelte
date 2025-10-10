@@ -68,7 +68,7 @@
 	let initialItems = [$followList];
 </script>
 
-<div class="h-full bg-base-300 bg-opacity-85 lg:pt-4">
+<div class="h-full bg-base-300 bg-opacity-85 backdrop-blur-md lg:pt-4">
 	<Feed
 		{subscriptionID}
 		{requests}
@@ -79,28 +79,26 @@
 		{fuseKeys}
 	>
 		<svelte:fragment slot="sticky-header">
-			<div
-				class="backdrop-blur-md pt-safe w-feed border-b border-base-200 h-16 flex items-center justify-between shadow-sm"
-			>
+			<div class="pt-safe w-feed h-20 flex items-center justify-between shadow-sm px-4">
 				<button
 					on:click={() => {
 						animator?.goBack();
 					}}
 					class="p-1 rounded-full hover:bg-base-200 mr-4"
 				>
-					<Icon icon="mdi:arrow-left" class="text-xl" />
+					<Icon icon="mingcute:down-line" class="text-xl" />
 				</button>
 				<h1 class="text-lg font-semibold">Follow Packs</h1>
-				<span />
+				<span class="w-12" />
 			</div>
-			<div on:click|stopPropagation class="backdrop-blur-md">
+			<div on:click|stopPropagation>
 				<div class="px-4 pt-2">
 					<div class="relative">
 						<input
 							type="text"
 							bind:value={searchQuery}
 							placeholder="Search follow packs..."
-							class="input input-bordered w-full"
+							class="outline-none w-full rounded-full px-4 bg-primary-content text-black placeholder-gray-600"
 						/>
 						{#if searchQuery}
 							<button
@@ -118,7 +116,8 @@
 						getTitle={(list) => {
 							const kind39089 = asKind39089(list);
 
-							return kind39089?.title()?.toString() || '';
+							const title = kind39089?.title()?.toString() || '';
+							return title.length > 20 ? title.slice(0, 20) + '...' : title;
 						}}
 						removeItem={(list) => {
 							fps = fps.filter((p) => p.id()?.fnv1aHash() != list.id()?.fnv1aHash());
@@ -130,21 +129,21 @@
 		<svelte:fragment slot="header">
 			<div>
 				<div
-					class="w-feed pt-safe border-b border-base-200 h-16 flex items-center justify-between shadow-sm"
+					class="w-feed px-4 pt-safe border-primary-content h-20 flex items-center justify-between shadow-sm"
 				>
 					<button on:click={animator.goBack} class="p-1 rounded-full hover:bg-base-200 mr-4">
-						<Icon icon="mdi:arrow-left" class="text-xl" />
+						<Icon icon="mingcute:down-line" class="text-xl" />
 					</button>
 					<h1 class="text-lg font-semibold">Follow Packs</h1>
 					<span class="w-12" />
 				</div>
-				<div class="px-4 pt-2">
+				<div class="px-4 pb-3">
 					<div class="relative">
 						<input
 							type="text"
 							bind:value={searchQuery}
-							placeholder="Search follow packs..."
-							class="input input-bordered w-full"
+							placeholder="Search..."
+							class="outline-none w-full rounded-full px-4 bg-primary-content text-black placeholder-gray-600"
 						/>
 						{#if searchQuery}
 							<button
@@ -162,7 +161,8 @@
 						getTitle={(list) => {
 							const kind39089 = asKind39089(list);
 
-							return kind39089?.title()?.toString() || '';
+							const title = kind39089?.title()?.toString() || '';
+							return title.length > 20 ? title.slice(0, 20) + '...' : title;
 						}}
 						removeItem={(list) => {
 							fps = fps.filter((p) => p.id()?.fnv1aHash() != list.id()?.fnv1aHash());
@@ -174,30 +174,51 @@
 		<svelte:fragment slot="item-content" let:post let:visible>
 			{@const kind39089 = asKind39089(post) || post}
 			<div
-				class="cursor-pointer backdrop-blur-md p-4 border-b border-base-content hover:bg-base-300 hover:bg-opacity-90 transition-colors relative"
+				class="cursor-pointer p-4 border-b border-primary-content relative"
 				on:click={() => toggleFollowPack(post)}
 				role="button"
 				tabindex="0"
 			>
 				{#if fps.some((p) => p.id()?.toString() === post.id()?.toString())}
-					<div class="absolute top-2 right-2">
-						<Icon icon="mdi:check" class="text-accent text-2xl" />
+					<div class="absolute top-2 left-2">
+						<Icon icon="mdi:check-circle" class="text-primary text-2xl" />
 					</div>
 				{/if}
-				<div class="flex items-center gap-4 mb-4">
+				<div class="flex items-start gap-4 mb-4">
 					{#if kind39089.image()}
 						<img
 							src={proxyAvatarUrl(kind39089.image()?.toString())}
 							alt={kind39089.title()?.toString()}
-							class="w-16 h-16 rounded-full object-cover"
+							class="w-16 h-16 rounded-lg object-cover"
 						/>
 					{:else}
-						<div class="w-16 h-16 rounded-full bg-base-300 flex items-center justify-center">
+						<div class="w-16 h-16 rounded-lg bg-base-300 flex items-center justify-center">
 							<span class="text-2xl">📝</span>
 						</div>
 					{/if}
-					<div>
-						<h3 class="text-xl font-bold">{kind39089.title?.()?.toString()}</h3>
+					<div class="flex-grow">
+						<div class="flex justify-between items-start">
+							<h3 class="text-xl font-bold">{kind39089.title?.()?.toString()}</h3>
+							{#if kind39089.peopleLength() > 0}
+								<div class="">
+									<!-- <h4 class="text-sm font-semibold mb-2">Members ({kind39089.peopleLength()})</h4> -->
+									<div class="flex flex-wrap gap-2 items-center">
+										<div class="flex -space-x-2">
+											{#each fbArray(kind39089, 'people').slice(0, 10) as p}
+												<Avatar pubkey={p?.toString()} />
+											{/each}
+										</div>
+										{#if kind39089.peopleLength() > 10}
+											<div
+												class="flex items-center justify-center px-1 -ml-3 rounded-full bg-base-300 text-sm font-medium"
+											>
+												+{kind39089.peopleLength() - 10}
+											</div>
+										{/if}
+									</div>
+								</div>
+							{/if}
+						</div>
 						{#if kind39089.description?.()?.toString()}
 							{@const text = (() => {
 								try {
@@ -213,35 +234,6 @@
 						{/if}
 					</div>
 				</div>
-
-				{#if kind39089.peopleLength() > 0}
-					<div class="mt-4">
-						<h4 class="text-sm font-semibold mb-2">Members ({kind39089.peopleLength()})</h4>
-						<div class="flex flex-wrap gap-2 items-center">
-							<div class="flex -space-x-2">
-								{#each fbArray(kind39089, 'people').slice(0, 10) as p}
-									<Avatar pubkey={p?.toString()} />
-								{/each}
-							</div>
-							{#if kind39089.peopleLength() > 10}
-								<div
-									class="flex items-center justify-center w-10 h-10 rounded-full bg-base-300 text-sm font-medium"
-								>
-									+{kind39089.peopleLength() - 10}
-								</div>
-							{/if}
-						</div>
-					</div>
-
-					<div class="mt-4 text-sm text-base-content/50">
-						List ID: {kind39089.listIdentifier()?.toString()}
-						<div class="float-right text-xs">
-							Last updated {formatDistanceToNow(post.createdAt() * 1000, {
-								addSuffix: true
-							})}
-						</div>
-					</div>
-				{/if}
 			</div>
 		</svelte:fragment>
 	</Feed>

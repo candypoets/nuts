@@ -13,6 +13,7 @@
 	import User from 'src/routes/explore/user.svelte';
 	import { go } from 'src/routes/modals/modal';
 	import type { ProcessedNotification } from './notifications';
+	import { getUserRelays } from '../queries/user';
 
 	export let post: ProcessedNotification;
 	export let visible: boolean;
@@ -111,11 +112,13 @@
 				<a
 					class="cursor-pointer bg-primary-content bg-opacity-85 p-3 rounded-md mb-3 text-sm line-clamp-2 w-post-1"
 					on:click={() =>
-						go(
-							`nevent:${nip19.neventEncode({
-								id: originalPost.id().toString(),
-								relays: $writeRelays
-							})}`
+						getUserRelays(originalPost?.pubkey().toString(), (relays) =>
+							go(
+								`nevent:${nip19.neventEncode({
+									id: originalPost?.id().toString(),
+									relays
+								})}`
+							)
 						)}
 				>
 					<Content note={originalPost} showMedia={false} showQuote={false} depth={2} {context} />
