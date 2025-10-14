@@ -24,6 +24,7 @@ export const pathOptions = [
 	'reply',
 	'repost',
 	'relays',
+	'share',
 	'logout'
 ];
 

@@ -227,7 +227,42 @@
 			<Icon icon="ph:repeat" class="text-2xl" />
 			<span>{repostCount || ''}</span>
 		</div>
+		<div
+			bind:this={triggerElement}
+			class="reaction-trigger flex items-center space-x-1 hover:text-accent hover:-mt-1 transition-all cursor-pointer"
+			class:text-accent={liked}
+			class:font-semibold={liked}
+			title={liked ? 'You reacted' : 'React to this post'}
+			aria-label="React to post"
+			on:click|stopPropagation
+		>
+			<!-- {#if liked}
+				{#if liked.startsWith('http')}
+					<img src={liked} alt={liked} class="w-4 h-4 inline-block" />
+				{:else if !!liked && liked != 'undefined'}
+					<span class="max-w-6 inline-block overflow-hidden text-xl">{liked}</span>
+				{/if}
+			{:else} -->
+			<Icon icon="icon-park-outline:like" class="text-xl pointer-events-none" />
+			<span>{reactionCount || ''}</span>
+			<!-- {/if} -->
+		</div>
 
+		{#if triggerElement}
+			<EmojiPickerContent {triggerElement} emojis={commonEmoticons} onSelect={sendReaction} />
+		{/if}
+		<div
+			class="flex items-center space-x-1 hover:font-bold hover:text-accent hover:-mt-1 transition-all"
+			role="button"
+			tabindex="0"
+			on:click|stopPropagation={() => go('share:' + note.id()?.toString())}
+		>
+			<Icon icon="ph:paper-plane-tilt" class="text-xl" />
+			<span></span>
+		</div>
+	</div>
+	<div>
+		<!-- Trigger Area - Bind this element -->
 		<!-- Zap Button -->
 		<div
 			class="flex items-center space-x-1 hover:font-bold hover:text-accent hover:-mt-1 transition-all"
@@ -237,50 +272,8 @@
 				go('ecash:' + note.pubkey()?.toString() + ':' + decoded.id);
 			}}
 		>
-			<Icon icon="material-symbols-light:bolt-outline-rounded" class="text-3xl" />
+			<img src="/nutscash.svg" class="w-6 h-6" />
 			<span></span>
-		</div>
-	</div>
-	<div class="flex items-center shrink-0 justify-end gap-1 cursor-pointer">
-		<div class="flex items-center space-x-1">
-			<!-- {#each Object.entries(mapEmoticons)
-				.sort((a, b) => b[1] - a[1])
-				.slice(0, isMobile ? 8 : 10) as [emoji, count]}
-				{#if emoji.startsWith('http')}
-					<img src={proxyAvatarUrl(emoji)} alt={emoji} class="w-3 h-3 sm:w-4 sm:h-4 inline-block" />
-				{:else if !!emoji && emoji != 'undefined'}
-					<span class="max-w-3 sm:max-w-4 inline-block overflow-hidden text-sm sm:text-base"
-						>{emoji}</span
-					>
-				{/if}
-			{/each} -->
-		</div>
-		<div>
-			<!-- Trigger Area - Bind this element -->
-			<div
-				bind:this={triggerElement}
-				class="reaction-trigger flex items-center space-x-1 hover:text-accent hover:-mt-1 transition-all cursor-pointer"
-				class:text-accent={liked}
-				class:font-semibold={liked}
-				title={liked ? 'You reacted' : 'React to this post'}
-				aria-label="React to post"
-				on:click|stopPropagation
-			>
-				<span>{reactionCount || ''}</span>
-				<!-- {#if liked}
-					{#if liked.startsWith('http')}
-						<img src={liked} alt={liked} class="w-4 h-4 inline-block" />
-					{:else if !!liked && liked != 'undefined'}
-						<span class="max-w-6 inline-block overflow-hidden text-xl">{liked}</span>
-					{/if}
-				{:else} -->
-				<Icon icon="icon-park-outline:like" class="text-xl pointer-events-none" />
-				<!-- {/if} -->
-			</div>
-
-			{#if triggerElement}
-				<EmojiPickerContent {triggerElement} emojis={commonEmoticons} onSelect={sendReaction} />
-			{/if}
 		</div>
 	</div>
 </div>

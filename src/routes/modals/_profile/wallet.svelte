@@ -1,5 +1,5 @@
 <script lang="ts">
-	import {} from '@candypoets/nipworker';
+	import { Kind17375Parsed } from '@candypoets/nipworker';
 	import Icon from '@iconify/svelte';
 	import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 	import _ from 'lodash';
@@ -11,6 +11,7 @@
 	import { isMintUrlValid } from 'src/lib/mint';
 	import { now } from 'src/lib/period';
 	import { usePublish } from '@candypoets/nipworker/hooks';
+	import { asKind17375, fbArray } from '@candypoets/nipworker/utils';
 
 	let animator = getContext('animator');
 
@@ -26,11 +27,18 @@
 
 	$: selectableMints = availableMints.filter((am) => !selectedMints.some((sm) => sm == am.url));
 
-	let secretKey =
-		($kind17375?.parsed?.p2pkPrivKey && hexToBytes($kind17375?.parsed?.p2pkPrivKey)) ||
+	$: k17375 = $kind17375 && asKind17375($kind17375);
+
+	$: secretKey =
+		(k17375?.p2pkPrivKey()?.toString() &&
+			hexToBytes(k17375?.p2pkPrivKey()?.toString() as string)) ||
 		generateSecretKey();
 
-	let pubkey = getPublicKey(secretKey);
+	$: mints = fbArray(k17375 as Kind17375Parsed, 'mints');
+
+	$: console.log('secretKey', secretKey);
+
+	$: pubkey = secretKey && getPublicKey(secretKey);
 
 	interface MintInfo {
 		title: string;
@@ -211,18 +219,18 @@
 	}
 </script>
 
-<div class="h-full bg-base-300 bg-opacity-85 pt-4">
+<div class="h-full bg-base-300 bg-opacity-85 backdrop-blur-md pt-4">
 	<div class="flex justify-between mb-12 px-4">
 		<button class="w-1/4" aria-label="Return to previous screen" on:click={animator.goBack}>
 			<Icon icon="iconamoon:arrow-down-2-light" class="w-6 h-6" />
 		</button>
-		<h2 class="font-bold text-xl">eCash Wallet</h2>
+		<h2 class="font-bold text-xl">Cashu Wallet</h2>
 		<div class="w-1/4"></div>
 	</div>
 
 	<div class="space-y-6 px-4">
 		<!-- Wallet Address Section -->
-		<div class="bg-base-200 p-4 rounded-lg">
+		<div class="bg-base-300 p-4 rounded-lg border-primary-content border">
 			<h3 class="font-semibold mb-2">Wallet Address</h3>
 			<div class="flex items-center">
 				<input type="text" readonly value={pubkey} class="input input-bordered w-full text-sm" />
@@ -243,8 +251,8 @@
 		</div>
 
 		<!-- Mint Selection Section -->
-		<div class="bg-base-200 p-4 rounded-lg">
-			<h3 class="font-semibold mb-3">Available Mints</h3>
+		<div class="bg-base-300 border-primary-content border p-4 rounded-lg">
+			<h3 class="font-semibold mb-3">Mints</h3>
 
 			<div class="relative w-full mb-4">
 				<div class="join w-full">
@@ -278,7 +286,7 @@
 					>
 						{#each filteredMints as mint}
 							<button
-								class="w-full text-left p-3 hover:bg-base-300 cursor-pointer border-b flex items-center"
+								class="w-full text-left p-3 hover:bg-base-300 cursor-pointer border-b border-primary-content flex items-center"
 								on:click={() => {
 									selectMint(mint);
 									addMint();

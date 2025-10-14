@@ -20,6 +20,7 @@
 	import { fly } from 'svelte/transition';
 	import Note from '../explore/note.svelte';
 	import User from '../explore/user.svelte';
+	import { getUserRelays } from '../queries/user';
 
 	export let placeholder = "Speak your mind it's Nostr";
 	export let initialContent = '';
@@ -151,10 +152,27 @@
 				post.kind = 1;
 			}
 			post.content += '\n\nnostr:' + nip19.neventEncode({ id: repost });
-			post.tags = [
-				['e', repost, 'wss://relay.example', 'mention'],
-				['p', note.pubkey()!.toString()]
-			];
+			const timeoutPromise = new Promise<null>((resolve) => {
+				setTimeout(() => resolve(null), 2000);
+			});
+
+			const relaysPromise = new Promise<string[]>((resolve) => {
+				getUserRelays(note.pubkey()!.toString(), resolve);
+			});
+
+			await Promise.race([timeoutPromise, relaysPromise]).then((result) => {
+				if (result === null) {
+					post.tags = [
+						['e', repost, '', 'mention'],
+						['p', note!.pubkey()!.toString()]
+					];
+				} else {
+					post.tags = [
+						['e', repost, result[0], 'mention'],
+						['p', note!.pubkey()!.toString()]
+					];
+				}
+			});
 		}
 
 		post = prepareEvent(post);

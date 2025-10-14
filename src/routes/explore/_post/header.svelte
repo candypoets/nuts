@@ -78,7 +78,7 @@
 	<div class="w-8 min-w-8" class:!w-6={!!depth} class:!min-w-6={!!depth}>
 		<a on:click|stopPropagation|preventDefault={go} class="cursor-pointer">
 			<img
-				src={decoded?.picture ? proxyAvatarUrl(decoded.picture) : '/ns-naked.svg'}
+				src={decoded?.picture ? proxyAvatarUrl(decoded.picture) : '/miss-profile.png'}
 				alt={decoded?.name}
 				class="border w-8 h-8 rounded-full space-x-4 mx-auto z-10 object-cover"
 				class:!w-6={!!depth}

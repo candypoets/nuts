@@ -8,6 +8,7 @@
 	--vw: 1vw;
 	--container-top: 2rem;
 	--bg-basic: url('/bg-light.jpg');
+	--miss-profile: url('/miss-profile.png');
 }
 
 /* If you use DaisyUI's data-theme */

@@ -21,6 +21,7 @@
 	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
 	import { getContext, onMount } from 'svelte';
 	import Followlists from './followlists.svelte';
+	import Share from './share.svelte';
 
 	export let path: string;
 	export let visible: boolean;
@@ -190,6 +191,8 @@
 			<Post repost={path.split(':')?.[1]} />
 		{:else if path.includes('post')}
 			<Post />
+		{:else if path.includes('share')}
+			<Share noteId={path.split(':')?.[1]} />
 		{:else if path.includes('wallet')}
 			<Wallet />
 		{:else if path.includes('relays')}
