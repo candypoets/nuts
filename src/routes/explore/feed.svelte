@@ -32,9 +32,14 @@
 	export let backdrop: boolean = false;
 	export let search: string = '';
 	export let fuseKeys: string[] = [];
+	export let fuseResolver:
+		| ((item: any, key: string) => string | string[] | null | undefined)
+		| undefined = undefined;
 	export let itemHeight: number | undefined = undefined;
 	export let initialItems: ParsedEvent[] = [];
 	export let pullToRefresh = false;
+	export let itemsPerRow = 1;
+	export let stickyFooterVisible = false;
 
 	export let connectionStatus: { [url: string]: ConnectionStatus } = {};
 
@@ -377,13 +382,18 @@
 		feedMap.clear();
 	}
 
-	// Search: default to full feed if fuse is not ready.
+	// Search: only enable when fuseResolver and fuseKeys exist
 	$: {
-		if (fuseKeys.length > 0 && feed.length > 0) {
+		if (fuseResolver && fuseKeys.length > 0 && feed.length > 0) {
 			fuse = new Fuse<any>(feed, {
 				keys: fuseKeys,
 				threshold: 0.4,
-				includeScore: true
+				includeScore: true,
+				getFn: (obj, p) => {
+					const key = Array.isArray(p) ? p.join('.') : (p as string);
+					const out = fuseResolver(obj, key);
+					return out == null ? '' : out;
+				}
 			});
 		} else {
 			fuse = undefined;
@@ -470,25 +480,6 @@
 		const windowSeconds = (currentPage + 2) * oneDay * sinceMultiplier;
 		const since = Math.max(0, until - windowSeconds);
 
-		console.log(
-			'pagination (older)',
-			formatDistanceToNow((since || 0) * 1000, { addSuffix: true }),
-			formatDistanceToNow((until || 0) * 1000, { addSuffix: true }),
-			{
-				currentPage,
-				len: sortedFeed.length,
-				pageLimit,
-				idxQ,
-				pageEndIdx,
-				tsQ,
-				tsPage,
-				anchor,
-				lastUntil,
-				windowSeconds,
-				sinceMultiplier
-			}
-		);
-
 		// start the page subscription
 		const subId = subscriptionID + ':until:' + until;
 		currentPage++;
@@ -544,7 +535,7 @@
 	{start} - {end} - {feed.length}
 </div>
 
-<div class={'lg:pt-0 h-full min-h-screen m-auto !pt-0 ' + $$props.class}>
+<div class={'lg:pt-0 h-full min-h-screen mx-auto !pt-0 ' + $$props.class}>
 	{#if start >= 1}
 		<!-- Fixed header (only visible when scrolled) -->
 		<div class="absolute z-10 w-full sticky-header" style="--header-visible: {down ? 0 : 1};">
@@ -560,7 +551,7 @@
 	<!-- Fixed footer (only visible when scrolled) -->
 	<div
 		class="fixed bottom-0 z-10 w-full sticky-footer"
-		style="--footer-visible: {!down || start < 1 ? 1 : 0};"
+		style="--footer-visible: {stickyFooterVisible || !down || (start < 1 ? 1 : 0)};"
 	>
 		<div class="m-auto" class:w-feed={!imageContext}>
 			<slot name="sticky-footer" visible={true} scrolled={true} {newPosts} />
@@ -582,7 +573,9 @@
 			return item?.id().fnv1aHash();
 		}}
 		let:item
+		let:items
 		let:itemIndex
+		{itemsPerRow}
 		{itemHeight}
 		{backdrop}
 		{loading}
@@ -595,7 +588,13 @@
 			<slot name="header" visible>Missing Template</slot>
 		</svelte:fragment>
 		<div class="block w-feed m-auto px-1 max-w-full">
-			<slot name="item-content" post={item} visible={isVisible} index={itemIndex}>
+			<slot
+				name="item-content"
+				post={item}
+				posts={itemsPerRow > 1 ? items : undefined}
+				visible={isVisible}
+				index={itemIndex}
+			>
 				<Note
 					note={repost ? { ...item?.parsed.repostedEvent, requests: item.requests } : item}
 					context={[]}

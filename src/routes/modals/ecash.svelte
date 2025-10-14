@@ -15,6 +15,7 @@
 
 	import {
 		Kind10002Parsed,
+		Kind17375Parsed,
 		ParsedData,
 		WorkerMessage,
 		type Kind10019Parsed,
@@ -260,7 +261,9 @@
 						<div class="flex md:gap-4 items-center justify-around">
 							<div class="w-1/3 text-center">
 								<MintSelector
-									mints={$kind17375?.parsed?.mints}
+									mints={($kind17375 && fbArray(asKind17375($kind17375), 'mints')).map((mint) =>
+										mint?.toString()
+									) || []}
 									pubkey={$key?.pub}
 									bind:activeMint={fromMint}
 								/>
@@ -273,7 +276,8 @@
 								{#if kind10019}
 									<MintSelector
 										{pubkey}
-										mints={kind10019?.trustedMints?.map((m) => m.url) || []}
+										mints={fbArray(kind10019, 'trustedMints')?.map((m) => m.url()?.toString()) ||
+											[]}
 										chevron="right"
 										bind:activeMint={toMint}
 									/>

@@ -1,55 +1,50 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import _ from 'lodash';
 	import { getContext, onMount } from 'svelte';
 	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
 	import { go } from 'src/routes/modals/modal';
-	import { asKind0, asKind3, asParsedEvent, fbArray } from '@candypoets/nipworker/utils';
 	import {
-	MessageType,
-		type Kind3Parsed,
-		type ParsedEvent,
-		type RequestObject,
-		type WorkerMessage
+		asKind0,
+		asKind3,
+		asParsedEvent,
+		fbArray,
+		isConnectionStatus
+	} from '@candypoets/nipworker/utils';
+	import type {
+		ConnectionStatus,
+		Kind3Parsed,
+		ParsedEvent,
+		RequestObject,
+		WorkerMessage
 	} from '@candypoets/nipworker';
 	import { kind3 } from 'src/controller/nostr';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
-	import { useSubscription } from '@candypoets/nipworker/hooks';
+	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
+
+	// NEW: Use Feed and mobile breakpoint
+	import Feed from 'src/routes/explore/feed.svelte';
+	import { isMobile } from 'src/controller';
+	import { nip19, type EventTemplate } from 'nostr-tools';
+	import { now } from 'src/lib/period';
+	import { getUserRelays } from 'src/routes/queries/user';
+	import { updateSendStatus } from 'src/controller/sendStatus';
 
 	export let open: boolean = false;
 	export let noteId: string | undefined = undefined;
 
 	let animator: PagerAnimator = getContext('animator');
 	let search: string = '';
+	let message: string = '';
 	let feed: ParsedEvent[] = [];
-	let cachedFeed: ParsedEvent[] = [];
-	let eoce = false;
 	let selectedContact: ParsedEvent | undefined = undefined;
 
 	let feedRequests: RequestObject[] = [];
 	let seen_npubs = new Map<number, boolean>();
 
-	function updateFeed(message: WorkerMessage): ParsedEvent[] {
-	switch (message.type()) {
-	case MessageType.Eoce: {
-		if (!eoce) {
-			eoce = true;
-			// Move cached into feed after cache phase closes
-			mergeMapIntoFeed(cachedMap);
-		}
-		break;
-	}
-	}
-		const parsedEvent = asParsedEvent(message);
-		if (parsedEvent) {
-			if (seen_npubs.has(parsedEvent?.pubkey()?.fnv1aHash() as number)) return feed;
-			seen_npubs.set(parsedEvent?.pubkey()?.fnv1aHash() as number, true);
-			return [...feed, parsedEvent];
-		}
-		return feed;
-	}
-
-	let note: ParsedEvent;
+	let note: ParsedEvent | undefined = undefined;
+	let relays: string[] = [];
+	let copiedNevent = false;
+	let copiedWebLink = false;
 
 	$: {
 		feedRequests =
@@ -64,51 +59,78 @@
 			[];
 	}
 
-	$: feedRequests.length && useSubscription('contacts', feedRequests, updateFeed);
-
-	$: filteredContacts = feed
-		.filter((c) => asKind0(c)?.name())
-		.sort((a, b) => {
-			const nameA = asKind0(a)?.name()?.toString()?.trim() ?? '';
-			const nameB = asKind0(b)?.name()?.toString()?.trim() ?? '';
-			return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
-		})
-		.filter((contact) => {
-			const kind0 = asKind0(contact);
-			const name = kind0?.name()?.toString()?.toLowerCase() || '';
-			const pubkey = kind0?.pubkey()?.toString()?.toLowerCase() || '';
-			const lowerSearch = search.toLowerCase();
-			return name.includes(lowerSearch) || pubkey.includes(lowerSearch);
-		});
-
-	function handleContactSelect(contact: ParsedEvent) {
-		selectedContact = contact;
+	function updateFeed(feed: ParsedEvent[], message: WorkerMessage): ParsedEvent[] {
+		const parsedEvent = asParsedEvent(message);
+		if (parsedEvent) {
+			if (seen_npubs.has(parsedEvent?.pubkey()?.fnv1aHash() as number)) return feed;
+			seen_npubs.set(parsedEvent?.pubkey()?.fnv1aHash() as number, true);
+			return [...feed, parsedEvent];
+		}
+		return feed;
 	}
 
-	function handleSendMessage() {
-		// Logic to send blurred message
-		console.log('Sending blurred message to', asKind0(selectedContact)?.name());
-		// After sending, maybe close the modal or clear selected contact
-		selectedContact = undefined;
+	function toggleContactSelect(contact: ParsedEvent) {
+		if (selectedContact?.pubkey()?.fnv1aHash() === contact?.pubkey()?.fnv1aHash()) {
+			selectedContact = undefined;
+		} else {
+			selectedContact = contact;
+		}
 	}
 
 	function copyNevent() {
-		if (note) {
-			// Logic to copy nevent
-			console.log('Copying nevent for note:', note);
-		}
+		// console.log('Sending blurred message to', asKind0(selectedContact)?.name());
+		// selectedContact = undefined;
+		navigator.clipboard.writeText(
+			'nostr:' +
+				nip19.neventEncode({
+					id: noteId as string,
+					author: note?.pubkey()?.toString(),
+					relays
+				})
+		);
+		copiedNevent = true;
+		setTimeout(() => (copiedNevent = false), 2500);
 	}
 
 	function copyWebLink() {
-		if (note) {
-			// Logic to copy web link
-			console.log('Copying web link for note:', note);
-		}
+		navigator.clipboard.writeText(
+			`${window.location.origin}/explore/nevent:${nip19.neventEncode({
+				id: noteId as string,
+				author: note?.pubkey()?.toString(),
+				relays
+			})}`
+		);
+		copiedWebLink = true;
+		setTimeout(() => (copiedWebLink = false), 2500);
+	}
+
+	function handleSendMessage() {
+		let post: EventTemplate = {
+			kind: 4,
+			created_at: now(),
+			content: message,
+			tags: [['p', selectedContact!.pubkey()!.toString()]]
+		};
+
+		// post.tags = [['e', noteId as string, result[0], 'mention']];
+		post.content +=
+			'\n\nnostr:' +
+			nip19.neventEncode({ id: noteId as string, author: note?.pubkey()?.toString(), relays });
+
+		let sendStatus: { [url: string]: ConnectionStatus } = {};
+		const id = Math.random().toString(36).substring(2, 9);
+		usePublish(id, post, (message: WorkerMessage) => {
+			const status = isConnectionStatus(message);
+			if (status) {
+				const relayUrl = status.relayUrl()?.toString();
+				sendStatus[relayUrl] = status;
+				updateSendStatus(id, sendStatus);
+			}
+		});
 	}
 
 	function downloadImage() {
 		if (note) {
-			// Logic to download image
 			console.log('Downloading image for note:', note);
 		}
 	}
@@ -119,6 +141,7 @@
 				const parsedEvent = asParsedEvent(message);
 				if (parsedEvent && parsedEvent?.id()?.toString() == noteId) {
 					note = parsedEvent;
+					getUserRelays(note.pubkey()!.toString(), (result) => (relays = result));
 					replySub?.();
 				}
 			});
@@ -126,98 +149,149 @@
 	});
 </script>
 
-<div class="h-screen flex md:items-center items-end">
-	<div
-		class="bg-base-300 bg-opacity-85 backdrop-blur-md w-full h-1/2 rounded-t-2xl md:rounded-xl md:h-1/2 md:flex md:flex-col"
-		role="dialog"
-		aria-modal="true"
+<div class="h-screen flex items-end">
+	<!-- Feed-backed modal content -->
+	<Feed
+		class="bg-base-300 bg-opacity-85 backdrop-blur-md w-full !h-2/3 !min-h-fit rounded-t-2xl md:rounded-xl md:h-1/2"
+		subscriptionID="share-contacts"
+		requests={feedRequests}
+		{updateFeed}
+		kinds={[0]}
+		stickyFooterVisible={!!selectedContact}
+		itemsPerRow={$isMobile ? 3 : 6}
+		fuseKeys={['content', 'pubkey', 'name']}
+		fuseResolver={(item, key) => {
+			switch (key) {
+				case 'content':
+					return item?.content?.()?.toString() ?? '';
+				case 'pubkey':
+					return item?.pubkey?.()?.toString() ?? '';
+				case 'name': {
+					const k0 = asKind0(item);
+					return k0?.name?.()?.toString() ?? '';
+				}
+				default:
+					return '';
+			}
+		}}
+		{search}
+		bind:feed
 	>
-		<!-- Header -->
-		<div class="px-4 pt-safe flex justify-between h-16 items-center">
-			<div on:click={animator.goBack}>
-				<Icon icon="mingcute:down-line" class="text-xl" />
-			</div>
-			<h2 class="text-xl font-bold">Share</h2>
-			<div></div>
-			<!-- Spacer for centering title -->
-		</div>
-
-		<!-- Search Bar -->
-		<div class="p-4">
-			<div class="join bg-base-200 rounded-md w-full">
-				<div class="join-item p-2">
-					<Icon icon="carbon:search" />
+		<!-- Header + search moved into Feed header slot -->
+		<svelte:fragment slot="header">
+			<div class="px-4 pt-safe flex justify-between h-16 items-center">
+				<div on:click={animator.goBack}>
+					<Icon icon="mingcute:down-line" class="text-xl" />
 				</div>
-				<input
-					placeholder="Search"
-					bind:value={search}
-					class="join-item flex-grow px-2 outline-none bg-transparent"
-				/>
+				<h2 class="text-xl font-bold">Share</h2>
+				<div></div>
 			</div>
-		</div>
+			<div class="p-4">
+				<div class="join bg-base-200 rounded-md w-full">
+					<div class="join-item p-2">
+						<Icon icon="carbon:search" />
+					</div>
+					<input
+						placeholder="Search"
+						bind:value={search}
+						class="join-item flex-grow px-2 outline-none bg-transparent"
+					/>
+				</div>
+			</div>
+		</svelte:fragment>
 
-		<!-- Contacts Grid -->
-		<div class="flex-grow overflow-y-auto p-4">
-			<div class="grid grid-cols-3 gap-4 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
-				{#each filteredContacts as contact (asKind0(contact)?.pubkey())}
+		<!-- Grid rendering using multi-item rows -->
+		<svelte:fragment slot="item-content" let:posts>
+			<div
+				class="grid gap-4 px-4 py-4"
+				style="grid-template-columns: repeat({$isMobile ? 3 : 6}, minmax(0, 1fr));"
+			>
+				{#each posts as contact (asKind0(contact)?.pubkey())}
 					{@const kind0 = asKind0(contact)}
+					{@const selected = selectedContact?.pubkey()?.fnv1aHash() == kind0?.pubkey()?.fnv1aHash()}
 					<button
 						class="flex flex-col items-center text-center"
-						on:click={() => handleContactSelect(contact)}
+						on:click={() => toggleContactSelect(contact)}
 					>
 						<div class="avatar">
-							<div class="w-16 h-16 rounded-full">
+							<div
+								class="w-16 h-16 rounded-full"
+								class:border-2={selected}
+								class:border-accent={selected}
+							>
 								<img
 									src={proxyAvatarUrl(kind0?.picture()?.toString()) || 'default-avatar.png'}
 									alt={kind0?.name()?.toString() || 'Contact'}
 								/>
 							</div>
 						</div>
-						<p class="text-sm mt-1 truncate w-full">{kind0?.name() || 'Anonymous'}</p>
+						<p class="text-sm mt-1 truncate w-full" class:font-bold={selected}>
+							{kind0?.name() || 'Anonymous'}
+						</p>
 					</button>
 				{/each}
 			</div>
-		</div>
+		</svelte:fragment>
 
-		<!-- Bottom Actions -->
-		<div class="p-4 border-t border-base-content">
-			{#if selectedContact}
-				<div class="flex items-center space-x-2">
-					<input
-						type="text"
-						placeholder="Send a bm (blurred message)"
-						class="input input-bordered flex-grow"
-					/>
-					<button class="btn btn-primary" on:click={handleSendMessage}>Send</button>
-				</div>
-			{:else}
-				<div class="flex gap-4">
-					<div class="flex flex-col items-center">
-						<button class="btn btn-circle" on:click={copyNevent}>
-							<Icon icon="carbon:copy" />
-						</button>
-						<p class="text-xs">Nostr event</p>
+		<!-- Bottom actions moved into Feed sticky-footer slot -->
+		<svelte:fragment slot="sticky-footer">
+			<div class="p-4 bg-base-300/60 backdrop-blur-md">
+				{#if selectedContact}
+					{@const kind0 = asKind0(selectedContact)}
+					<div class="flex items-center space-x-2">
+						<input
+							type="text"
+							placeholder="Send as BM to {kind0?.name()?.toString()}"
+							class="input input-bordered flex-grow"
+							bind:value={message}
+						/>
+						<button class="btn btn-primary" on:click={handleSendMessage}>Send</button>
 					</div>
-					<div class="flex flex-col items-center">
-						<button class="btn btn-circle" on:click={copyWebLink}>
-							<Icon icon="carbon:link" />
-						</button>
-						<p class="text-xs">Web link</p>
-					</div>
-					<!-- {#if note && note.tags && note.tags?.some((tag) => tag[0] === 'image')}
+				{:else}
+					<div class="flex justify-around">
+						<div class="flex flex-col items-center">
+							<button
+								class="btn btn-circle btn-outline relative"
+								on:click={() => {
+									copyNevent();
+								}}
+							>
+								<Icon icon="carbon:copy" />
+								{#if copiedNevent}
+									<div class="absolute top-full mt-1 bg-black text-white text-xs px-2 py-1 rounded">
+										Copied!
+									</div>
+								{/if}
+							</button>
+							<p class="text-xs mt-1">Copy note ID (nevent)</p>
+						</div>
+						<div class="flex flex-col items-center">
+							<button
+								class="btn btn-circle btn-outline relative"
+								on:click={() => {
+									copyWebLink();
+								}}
+							>
+								<Icon icon="carbon:link" />
+								{#if copiedWebLink}
+									<div class="absolute top-full mt-1 bg-black text-white text-xs px-2 py-1 rounded">
+										Copied!
+									</div>
+								{/if}
+							</button>
+							<p class="text-xs mt-1">Copy web link</p>
+						</div>
+						<!-- {#if note && note.tags && note.tags?.some((tag) => tag[0] === 'image')}
 						<div class="flex flex-col items-center">
 							<button class="btn btn-circle btn-outline" on:click={downloadImage}>
 								<Icon icon="carbon:download" />
 							</button>
-							<p class="text-sm">Download image</p>
+							<p class="text-xs">Download image</p>
 						</div>
 					{/if} -->
-				</div>
-			{/if}
-		</div>
-	</div>
+					</div>
+				{/if}
+			</div>
+		</svelte:fragment>
+	</Feed>
 </div>
-
-<style>
-	/* Add any specific styles here if needed, though Tailwind should handle most */
-</style>
