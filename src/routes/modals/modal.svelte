@@ -11,6 +11,7 @@
 	import Minted from 'src/routes/modals/minted.svelte';
 	import Minting from 'src/routes/modals/minting.svelte';
 	import QR from 'src/routes/modals/qr.svelte';
+	import RelayInfos from 'src/routes/modals/relayinfos.svelte';
 	import Scan from 'src/routes/modals/scan.svelte';
 	import Send from 'src/routes/modals/send.svelte';
 	import Tapcash from 'src/routes/modals/tapcash.svelte';
@@ -185,6 +186,8 @@
 			<!-- <Zaps /> -->
 		{:else if path.includes('keys')}
 			<Keys />
+		{:else if path.includes('relayinfos')}
+			<RelayInfos />
 		{:else if path.includes('reply')}
 			<Post reply={path.split(':')?.[1]} />
 		{:else if path.includes('repost')}

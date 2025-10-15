@@ -5,6 +5,7 @@
 	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
 	import { dimensions } from 'src/controller';
+	import { initRelayTracking } from 'src/controller/relay';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
 
@@ -22,6 +23,7 @@
 	onMount(() => {
 		let theme = localStorage.getItem('theme') || 'dark';
 		setViewport();
+		initRelayTracking();
 		document.getElementsByTagName('html')[0].setAttribute('data-theme', theme);
 		document
 			.querySelector('meta[name="theme-color"]')

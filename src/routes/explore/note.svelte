@@ -41,8 +41,10 @@
 
 	$: kind1 = note && asKind1(note as ParsedEvent);
 
+	$: nid = noteId || note?.id()?.toString();
+
 	$: decoded = {
-		noteId: note?.id()?.toString(),
+		noteId: nid,
 		replyID: kind1?.reply()?.id()?.toString(),
 		mentions: fbArray(kind1 as Kind1Parsed, 'mentions').map((m) => m?.id()?.toString())
 	};
@@ -64,7 +66,7 @@
 
 	let isImageContext = getContext('imageContext');
 
-	let relays: string[] = [];
+	export let relays: string[] = [];
 
 	let subscribing = false;
 
@@ -99,22 +101,21 @@
 
 	function subscribe() {
 		timeout = setTimeout(async () => {
-			if (note && visible) {
-				const noteId = note.id()?.toString();
-				if (!sub && noteId) {
+			if (visible) {
+				if (!sub && nid) {
 					subed++;
 					sub = useSubscription(
-						noteId,
+						nid,
 						[
 							{
 								kinds: [1],
-								ids: [noteId],
+								ids: [nid],
 								limit: 5,
 								relays: relays || [],
 								cacheFirst: true
 							},
 							// fetch some replies
-							{ kinds: [1], limit: 10, tags: { '#e': [noteId] }, relays: relays || [] },
+							{ kinds: [1], limit: 10, tags: { '#e': [nid] }, relays: relays || [] },
 							...fbArray(note, 'requests').map((r) => toRequestObject(r))
 						],
 						handleEvents
@@ -125,7 +126,7 @@
 						if (pubkey && id) {
 							getUserRelays(pubkey, (relays) => {
 								useSubscription(
-									'root_' + noteId,
+									'root_' + nid,
 									[{ kinds: [1], ids: [id], limit: 5, relays }],
 									handleEvents
 								);
@@ -155,7 +156,7 @@
 								fetched++;
 								if (fetched === total) {
 									useSubscription(
-										'quote_' + noteId,
+										'quote_' + nid,
 										[
 											{
 												kinds: [1],
@@ -196,7 +197,7 @@
 		}
 	}
 
-	$: visible == true && note ? subscribe() : unsubscribe();
+	$: visible == true && nid ? subscribe() : unsubscribe();
 
 	$: hasRoot =
 		decoded.replyID &&
@@ -206,7 +207,7 @@
 
 	function goto() {
 		if (isImageContext) return;
-		const nip19Event = nip19.neventEncode({ id: decoded.noteId || noteId || '', relays });
+		const nip19Event = nip19.neventEncode({ id: decoded.noteId || nid || '', relays });
 		const eventPath = `nevent:${nip19Event}`;
 		go(eventPath);
 	}
@@ -241,7 +242,7 @@
 		{fbArray(note, 'requests').map((r) => toRequestObject(r).ids?.[0])}
 	</div> -->
 	{#if note}
-		<!-- {subed}
+		<!--
 		{note.id}
 		{JSON.stringify(note.requests)} -->
 		{#if zaps && !depth}

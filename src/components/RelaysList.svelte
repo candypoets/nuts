@@ -2,6 +2,7 @@
 	import type { ConnectionStatus } from '@candypoets/nipworker';
 	import { normalizeURL } from 'nostr-tools/utils';
 	import { isMobile } from 'src/controller';
+	import { go } from 'src/routes/modals/modal';
 
 	export let relays: string[];
 
@@ -46,7 +47,7 @@
 <div>
 	{#if relays.length > 0}
 		<div
-			on:click|stopPropagation
+			on:click|stopPropagation={(_) => go('relayinfos')}
 			class="cursor-pointer flex gap-2 items-center justify-end flex-wrap overflow-visible pt-1 {$$props.class ||
 				''}"
 			class:!gap-0={mini}

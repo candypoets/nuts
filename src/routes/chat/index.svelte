@@ -161,7 +161,7 @@
 		<svelte:fragment slot="sticky-header">
 			<div class="relative pt-safe bg-base-300 bg-opacity-50 backdrop-blur-xl">
 				<div class="flex justify-between w-feed lg:m-auto h-16 items-center">
-					<h1 class="text-2xl font-semibold">Blurred Chat</h1>
+					<h1 class="text-2xl font-semibold">BM</h1>
 					<button class="btn btn-circle btn-sm btn-primary">
 						<Icon icon="teenyicons:add-outline" class="text-xl"></Icon>
 					</button>
@@ -174,7 +174,7 @@
 			>
 				<div class="flex justify-between m-auto h-16 items-center">
 					<h1 class="text-2xl font-semibold">
-						Blurred Chat<button
+						BM<button
 							class="btn btn-circle btn-ghost btn-xs ml-2"
 							onclick="document.getElementById('blurred_chat_info').showModal()"
 						>

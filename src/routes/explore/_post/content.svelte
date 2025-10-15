@@ -19,6 +19,7 @@
 		asNostrData,
 		fbArray
 	} from '@candypoets/nipworker/utils';
+	import { Relaysets } from 'nostr-tools/kinds';
 	import ImageGrid from 'src/components/ImageGrid.svelte';
 	import { getContext } from 'svelte';
 
@@ -149,6 +150,7 @@
 					{context}
 					{visible}
 					depth={depth + 1}
+					relays={fbArray(nostr, 'relays').map((r) => r.toString())}
 					footer={false}
 				/>
 			{/if}

@@ -1,20 +1,29 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
 	import { random } from 'lodash';
-	import type { EventTemplate } from 'nostr-tools';
+	import { getEventHash, type EventTemplate, type UnsignedEvent } from 'nostr-tools';
 
 	import type { ParsedEvent, WorkerMessage } from '@candypoets/nipworker';
-	import { ParsedData } from '@candypoets/nipworker';
-	import { asParsedEvent } from '@candypoets/nipworker/utils';
+	import {
+		ContentBlockT,
+		ContentData,
+		Kind4ParsedT,
+		MessageType,
+		ParsedData,
+		ParsedEventT,
+		Message as FBMessage,
+		WorkerMessageT
+	} from '@candypoets/nipworker';
+	import { asParsedEvent, parseContent } from '@candypoets/nipworker/utils';
 	import Editor from 'src/components/Editor.svelte';
 	import { key, readRelays, writeRelays } from 'src/controller';
-	import { parseContent } from 'src/lib';
 	import { now } from 'src/lib/period';
 	import Message from 'src/routes/_kinds/message.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import User from 'src/routes/explore/user.svelte';
 	import { usePublish } from '@candypoets/nipworker/hooks';
+	import { toParsedEvent } from 'src/controller/feed';
 
 	// in a chat, pubkey is the other person's pubkey
 	export let pubkey: string;
@@ -24,19 +33,19 @@
 	let feedRequests: any[] = [];
 	let message: string = '';
 
-	let sent: EventTemplate;
+	let sent: ParsedEvent;
 	let feed: ParsedEvent[] = [];
 
+	let sendingMap = new Map<number, number>();
+
 	function updateFeed(feed: ParsedEvent[], message: WorkerMessage) {
-		// Reorder feed by created_at, most recent first
-		// feed = feed.sort((a, b) => (b.createdAt() || 0) - (a.createdAt() || 0));
-		const lastEvent = feed?.[feed.length - 1];
-		let firstEvent = feed?.[0];
-		if (firstEvent && firstEvent.id()?.toString() == sent?.id) {
-			firstEvent = feed?.[1];
-		}
 		const parsedEvent = asParsedEvent(message);
 		if (parsedEvent) {
+			if (sendingMap.has(parsedEvent.createdAt())) {
+				// firstEvent = feed?.[1];
+				sendingMap.set(parsedEvent.createdAt(), 0);
+				return feed;
+			}
 			switch (parsedEvent?.parsedType()) {
 				case ParsedData.Kind4Parsed:
 					return [parsedEvent, ...feed];
@@ -68,35 +77,52 @@
 			];
 		}
 	}
+
+	function getEventId(event: ParsedEvent) {
+		return event.createdAt();
+	}
 	async function handleMessageSubmit(content: string) {
 		if (!content.trim()) return;
 
 		try {
-			const event: EventTemplate = {
+			const event: UnsignedEvent = {
 				kind: 4,
+				pubkey: $key?.pub,
 				content: content.trim(),
 				created_at: now(),
 				tags: [['p', pubkey]]
 			};
 
+			// event.id = getEventHash(event);
+			const textEncoder = new TextEncoder();
+			const parsed = await parseContent(event.content);
+
+			const parsedT = new Kind4ParsedT(
+				parsed,
+				textEncoder.encode(event.content),
+				textEncoder.encode('chatId'),
+				textEncoder.encode(pubkey)
+			);
+
+			const eventT = new ParsedEventT(
+				textEncoder.encode(getEventHash(event)),
+				textEncoder.encode(event.pubkey),
+				event.kind,
+				event.created_at,
+				ParsedData.Kind4Parsed,
+				parsedT
+			);
+
 			// Reset message after sending
 			message = '';
 
-			sent = { ...event };
-			sent.id = () => ({ fnv1aHash: () => random(100000) });
-			sent.isLast = true;
-			sent.incoming = false;
-			sent.parsed = {};
-			sent.parsed.parsedContent = await parseContent(event.content);
-			sent.status = 'pending';
-			const firstEvent = feed?.[0]?.[0];
-			if (firstEvent) {
-				firstEvent.isLast = false;
-			}
+			const newEvent = toParsedEvent(eventT);
 
-			feed = [sent, ...feed];
+			sendingMap.set(newEvent.createdAt(), event.created_at);
 
-			usePublish('4' + content, event);
+			feed = [newEvent, ...feed];
+
+			usePublish('4' + event.content, event);
 		} catch (error) {
 			console.error('Error sending message:', error);
 		}
@@ -122,14 +148,14 @@
 >
 	<svelte:fragment slot="fixed-header">
 		<div
-			class="fixed pt-safe flex justify-between items-center lg:w-50vw py-2 w-full h-20 z-10 bg-base-300 bg-opacity-85 backdrop-blur-gpu rounded-lg"
+			class="fixed pt-safe flex justify-between items-center lg:w-50vw py-2 w-full h-20 z-10 rounded-lg"
 			style="-webkit-backdrop-filter: blur(12px);"
 		>
-			<div on:click={goBack} class="cursor-pointer">
+			<button on:click={goBack} class="btn btn-sm btn-circle">
 				<Icon icon="mingcute:left-line" class="text-2xl" />
-			</div>
+			</button>
 			{#key pubkey}
-				<div class="flex items-center gap-4">
+				<div class="flex items-center gap-2 bg-base-300 pr-2 rounded-full border">
 					<Avatar pubkey={pubkey || ''} size="lg" context={[]} />
 					<User pubkey={pubkey || ''} link={false} context={[]} />
 				</div>
@@ -162,6 +188,7 @@
 			incoming={post.pubkey()?.toString() == pubkey}
 			lastSent={post.pubkey()?.toString() == pubkey && index == feed.length - 1}
 			date={feed.length - 1 == index || oneDayDiff(post.createdAt(), feed[index - 1]?.createdAt())}
+			sent={sendingMap.get(post.createdAt())}
 		/>
 	</svelte:fragment>
 </Feed>
