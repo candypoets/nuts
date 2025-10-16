@@ -105,7 +105,7 @@
 	});
 </script>
 
-<main class="w-full flex place-content-center mobile-height">
+<main class="w-full flex place-content-center h-screen">
 	{#if kind == 'login'}
 		<div class="h-1/2 w-full md:w-1/2 xl:w-1/3 py-48">
 			<h1 class="text-3xl text-center font-bold px-4 text-slate-700">
@@ -115,7 +115,6 @@
 				To give <strong>nuts.cash</strong> full access to your Nostr identity, enter your Nostr private
 				key below.
 			</p>
-			{loading}
 			<form class="px-8 mt-8" on:submit|preventDefault={handleLogin}>
 				<div class="join w-full">
 					<div class="btn join-item btn-link"><Icon icon="ri:key-fill" /></div>
