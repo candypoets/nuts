@@ -26,6 +26,8 @@
 	import { getUserRelays } from 'src/routes/queries/user';
 	import { go } from '../modals/modal';
 	import User from '../explore/user.svelte';
+	import { isMobile } from 'src/controller';
+	import { normalizeURL } from 'nostr-tools/utils';
 
 	export let nevent: string;
 	export let visible: boolean;
@@ -151,7 +153,7 @@
 <Feed
 	subscriptionID={'replies_' + data?.id}
 	requests={feedRequests}
-	class="w-feed"
+	class={imageContext ? 'w-full' : 'w-feed'}
 	{headerItem}
 	{updateFeed}
 	{visible}
@@ -180,7 +182,11 @@
 					<Icon icon="mdi:arrow-left" class="text-xl" />
 				</button>
 				<!-- <h1 class="text-lg font-semibold">Post</h1> -->
-				<RelaysList relays={data.relays || []} {connectionStatus} />
+				<RelaysList
+					relays={(data.relays || []).map(normalizeURL)}
+					{connectionStatus}
+					mini={$isMobile}
+				/>
 				<!-- <span class="w-10" /> -->
 			</div>
 		{/if}

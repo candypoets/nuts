@@ -1,7 +1,7 @@
 import { useRelayStatus } from '@candypoets/nipworker/hooks';
 import { normalizeURL } from 'nostr-tools/utils';
 import { proxyUrl } from 'src/lib/proxy';
-import { writable, get } from 'svelte/store';
+import { writable, get, type Readable, derived, readable } from 'svelte/store';
 
 // NIP-11 relay information type
 export type RelayInfo = {
@@ -15,9 +15,25 @@ export type RelayInfo = {
 	version?: string;
 };
 
+// Per-key selector helper that only emits when the selected key's value actually changes
+export function selectMapKey<K, V>(mapStore: Readable<Map<K, V>>, key: K): Readable<V | undefined> {
+	return readable<V | undefined>(undefined, (set) => {
+		let prev: V | undefined;
+		const unsubscribe = mapStore.subscribe((m) => {
+			const next = m.get(key);
+			if (next !== prev) {
+				prev = next;
+				set(next);
+			}
+		});
+		return unsubscribe;
+	});
+}
+
 // Svelte stores
 export const relayInfos = writable<Map<string, RelayInfo>>(new Map());
 export const relayStatusMap = writable<Map<string, string>>(new Map());
+export const relaySubs = writable<Map<string, string[]>>(new Map());
 
 // Track fetch attempts to avoid duplicate requests
 const fetchAttempts = new Set<string>();
@@ -36,6 +52,19 @@ function setRelayStatus(key: string, status: string) {
 		n.set(key, status);
 		return n;
 	});
+}
+
+export function setSubRelays(subId: string, relays: string[]) {
+	relaySubs.update((m) => {
+		const n = new Map(m);
+		n.set(subId, relays);
+		return n;
+	});
+}
+
+// Per-key selector; emits only when that key's value actually changes
+export function relaySub(sub: string): Readable<string[] | undefined> {
+	return selectMapKey(relaySubs, sub);
 }
 
 async function fetchRelayInfo(relayUrl: string): Promise<RelayInfo | null> {
@@ -104,7 +133,6 @@ async function fetchRelayInfo(relayUrl: string): Promise<RelayInfo | null> {
 export function initRelayTracking() {
 	useRelayStatus((status, url) => {
 		const key = normalizeURL(url);
-		console.log(key, status);
 		setRelayStatus(key, status);
 		fetchRelayInfo(key);
 	});

@@ -32,6 +32,7 @@
 	import { userQuery } from '../queries/user';
 	import { parseContent, type ContentBlock } from 'src/lib';
 	import About from 'src/components/About.svelte';
+	import { normalizeURL } from 'nostr-tools/utils';
 
 	// Get pubkey from URL parameter
 	export let pubkey: string;
@@ -272,7 +273,7 @@
 						</button>
 					</div>
 					<img
-						src={picture ? proxyAvatarUrl(picture) : '/ns-naked.svg'}
+						src={picture ? proxyAvatarUrl(picture) : '/miss-profile.png'}
 						alt={name || 'Profile'}
 						class="w-32 h-32 -mt-60 rounded-full border absolute object-cover"
 					/>
@@ -287,7 +288,10 @@
 				{#if about}
 					<p class="mb-4 opacity-1"><About content={parsedAbout || []} /></p>
 				{/if}
-				<RelaysList relays={mode == 'profile' ? writeRelays : readRelays} {connectionStatus} />
+				<RelaysList
+					relays={(mode == 'profile' ? writeRelays : readRelays).map(normalizeURL)}
+					{connectionStatus}
+				/>
 			</div>
 
 			<div class="tabs">

@@ -1,27 +1,32 @@
 <script lang="ts">
-	import type { ConnectionStatus, Kind39089Parsed, Kind3Parsed } from '@candypoets/nipworker';
+	import type {
+		ConnectionStatus,
+		Kind39089Parsed,
+		Kind3Parsed,
+		RequestObject
+	} from '@candypoets/nipworker';
 	import { asKind0, asKind3, asKind39089, fbArray } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
-	import { uniq } from 'lodash';
+	import { isEqual, uniq } from 'lodash';
 
 	import Pager from 'src/components/Pager.svelte';
 	import RelaysList from 'src/components/RelaysList.svelte';
 	import { followPacks } from 'src/controller/feed';
 	import { kind0, kind3Ready, readRelays } from 'src/controller/nostr';
 	import { limit } from 'src/controller/pagination';
-	import { ago } from 'src/lib/period';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import { go } from 'src/routes/modals/modal';
 	import Notifications from './notifications.svelte';
+	import { relaySub } from 'src/controller/relay';
+	import { ago } from 'src/lib/period';
+	import { normalizeURL } from 'nostr-tools/utils';
 
 	export let visible = true;
 
-	let wasRequested = false;
-
 	let connectionStatus: { [url: string]: ConnectionStatus } = {};
 
-	let feedRequests: any[] = [];
+	let feedRequests: RequestObject[] = [];
 	let subs: string[] = [];
 
 	$: following = uniq(
@@ -33,9 +38,29 @@
 
 	$: visible && setFeedRequests(following);
 
+	$: subId = $followPacks.reduce((acc, cur) => acc + cur.id()?.fnv1aHash(), '');
+
+	$: relays = $readRelays;
+
+	let relayCounter = 0;
+
+	function handleSubRelays(subRelays: string[] | undefined) {
+		if (subRelays && !isEqual(relays, subRelays)) {
+			relays = subRelays;
+			setFeedRequests(following);
+			relayCounter += 1;
+			connectionStatus = {};
+		}
+	}
+
+	$: subId &&
+		relaySub(subId).subscribe((subRelays) => {
+			console.log(subRelays, subId);
+			handleSubRelays(subRelays);
+		});
+
 	function setFeedRequests(follows: string[]) {
 		kind3Ready.promise.then((kind3) => {
-			console.log('kind3Ready');
 			if (follows.length == 0 && $followPacks.length)
 				follows =
 					fbArray(asKind3(kind3) as Kind3Parsed, 'contacts')
@@ -46,17 +71,20 @@
 					kinds: [1, 6],
 					authors: follows,
 					limit: $limit,
-					// since: ago(2 * 24 * 60 * 60),
-					relays: $readRelays
+					since: ago(31 * 24 * 60 * 60),
+					noCache: true,
+					relays
 				}
 			];
 		});
 	}
+
+	$: console.log(connectionStatus, relays);
 </script>
 
 <Pager rootPath="/explore" bind:subs>
 	<Feed
-		subscriptionID={$followPacks.reduce((acc, cur) => acc + cur.id()?.fnv1aHash(), '')}
+		subscriptionID={subId + relayCounter}
 		requests={feedRequests}
 		kinds={[1, 6]}
 		backdrop
@@ -137,7 +165,7 @@
 						</div>
 					</div>
 				</div>
-				<RelaysList relays={$readRelays} {connectionStatus} />
+				<RelaysList {subId} relays={relays.map(normalizeURL)} {connectionStatus} />
 			</div>
 			<!-- <Post /> -->
 		</svelte.fragment>

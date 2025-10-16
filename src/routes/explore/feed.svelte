@@ -17,6 +17,7 @@
 	import { now } from 'src/lib/period';
 	import Note from './note.svelte';
 	import { formatDistanceToNow } from 'date-fns';
+	import { normalizeURL } from 'nostr-tools/utils';
 
 	// Props
 	export let bottom = false;
@@ -192,7 +193,7 @@
 			case MessageType.ConnectionStatus: {
 				const status = asConnectionStatus(message);
 				if (status) {
-					connectionStatus[status.relayUrl()!.toString()] = status;
+					connectionStatus[normalizeURL(status.relayUrl()!.toString())] = status;
 					if (status.status()!.toString() == 'EOSE' && eose == false) {
 						loading = false;
 						eose = true;
@@ -284,10 +285,13 @@
 	};
 
 	function subscribe() {
+		console.log('subscribefeed');
 		timeout = setTimeout(() => {
 			if (visible) {
 				eoce = false;
 				eose = false;
+				bufferMap.clear();
+				fetchedMap.clear();
 				cachedMap.clear();
 				sub = useSubscription(subscriptionID, requests, handleEvents, subscriptionOptions);
 			}
@@ -380,6 +384,7 @@
 		previousSubscriptionID = subscriptionID;
 		feed = [];
 		feedMap.clear();
+		seen_ids.clear();
 	}
 
 	// Search: only enable when fuseResolver and fuseKeys exist

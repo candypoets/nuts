@@ -56,13 +56,7 @@
 <div
 	class:max-w-72={imageContext}
 	class:!w-full={main}
-	class:min-w-feed={main && !imageContext}
-	class={(!depth
-		? imageContext
-			? 'w-full'
-			: 'w-post'
-		: 'w-post-' + depth + ' text-sm text-wrap whitespace-normal break-words relative') +
-		($$props.class || '')}
+	class={'w-full text-wrap whitespace-normal break-words relative' + ($$props.class || '')}
 >
 	{#each parsedContent as parsed, index}
 		{#if parsed.type()?.toString() == 'text'}

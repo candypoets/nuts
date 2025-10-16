@@ -2,9 +2,11 @@
 	import type { ConnectionStatus } from '@candypoets/nipworker';
 	import { normalizeURL } from 'nostr-tools/utils';
 	import { isMobile } from 'src/controller';
+	import { relaySub, relaySubs } from 'src/controller/relay';
 	import { go } from 'src/routes/modals/modal';
 
-	export let relays: string[];
+	export let subId = '';
+	export let relays: string[] = [];
 
 	export let connectionStatus: { [relay_url: string]: ConnectionStatus | 'SUBSCRIBED' | undefined };
 
@@ -47,7 +49,10 @@
 <div>
 	{#if relays.length > 0}
 		<div
-			on:click|stopPropagation={(_) => go('relayinfos')}
+			on:click|stopPropagation={(_) => {
+				$relaySubs.set(subId, relays);
+				go(`relayinfos:${subId}`);
+			}}
 			class="cursor-pointer flex gap-2 items-center justify-end flex-wrap overflow-visible pt-1 {$$props.class ||
 				''}"
 			class:!gap-0={mini}
@@ -79,7 +84,7 @@
 					<button
 						class="text-xs px-2 py-1 text-gray-500 rounded-full hover:opacity-80 transition-opacity whitespace-nowrap relative"
 						style="margin-left: -0.5rem; z-index: 0;"
-						on:click={() => (showAll = true)}
+						on:click|stopPropagation={() => (showAll = true)}
 					>
 						+{relays.length - relayToShow} more
 					</button>
@@ -87,7 +92,7 @@
 					<button
 						class="text-xs px-2 py-1 bg-base-300 rounded-full hover:opacity-80 transition-opacity whitespace-nowrap relative"
 						style="margin-left: -0.5rem; z-index: 0;"
-						on:click={() => (showAll = false)}
+						on:click|stopPropagation={() => (showAll = false)}
 					>
 						Show less
 					</button>

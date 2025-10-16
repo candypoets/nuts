@@ -20,7 +20,9 @@
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import { getUserRelays } from 'src/routes/queries/user';
 	import { go } from '../modals/modal';
-	import _, { uniqBy } from 'lodash';
+	import _, { isEqual, uniqBy } from 'lodash';
+	import { relaySub } from 'src/controller/relay';
+	import { normalizeURL } from 'nostr-tools/utils';
 
 	export let main: boolean = false;
 	// if the note is a repost, this is the reposter pubkey
@@ -80,7 +82,8 @@
 		switch (message.type()) {
 			case MessageType.ConnectionStatus:
 				const status = asConnectionStatus(message);
-				connectionStatus[status?.relayUrl()!.toString() as string] = status as ConnectionStatus;
+				connectionStatus[normalizeURL(status?.relayUrl()!.toString() as string)] =
+					status as ConnectionStatus;
 				break;
 			case MessageType.ParsedNostrEvent:
 				const parsedEvent = asParsedEvent(message) as ParsedEvent;
@@ -99,13 +102,13 @@
 
 	let subed = 0;
 
-	function subscribe() {
+	function subscribe(subId?: string) {
 		timeout = setTimeout(async () => {
 			if (visible) {
 				if (!sub && nid) {
 					subed++;
 					sub = useSubscription(
-						nid,
+						subId || nid,
 						[
 							{
 								kinds: [1],
@@ -126,7 +129,7 @@
 						if (pubkey && id) {
 							getUserRelays(pubkey, (relays) => {
 								useSubscription(
-									'root_' + nid,
+									'root_' + subId || nid,
 									[{ kinds: [1], ids: [id], limit: 5, relays }],
 									handleEvents
 								);
@@ -156,7 +159,7 @@
 								fetched++;
 								if (fetched === total) {
 									useSubscription(
-										'quote_' + nid,
+										'quote_' + subId || nid,
 										[
 											{
 												kinds: [1],
@@ -213,6 +216,19 @@
 	}
 
 	onDestroy(unsubscribe);
+
+	let relayCounter = 0;
+
+	$: nid &&
+		relaySub(nid).subscribe((subRelays) => {
+			if (subRelays && !isEqual(relays, subRelays)) {
+				relays = subRelays;
+				unsubscribe();
+				subscribe(nid + relayCounter);
+				relayCounter++;
+				connectionStatus = {};
+			}
+		});
 </script>
 
 {#if hasRoot}
@@ -220,7 +236,7 @@
 {/if}
 
 <div
-	class="py-2 rounded-tl-md border-primary-content relative cursor-pointer bg-base-300 bg-opacity-85 backdrop-blur-gpu mt-1 rounded-lg"
+	class="py-2 rounded-tl-md border-primary-content relative cursor-pointer bg-base-300 bg-opacity-85 backdrop-blur-gpu mt-1 rounded-lg w-full"
 	class:!mt-0={hasRoot || tailing}
 	class:px-2={!!depth}
 	on:click|stopPropagation={goto}
@@ -261,17 +277,21 @@
 		{/if}
 		<Header {note} {context} {depth} {main}>
 			{#if !main}
-				<RelaysList {relays} {connectionStatus} mini />
+				<RelaysList subId={nid} {relays} {connectionStatus} mini />
 			{/if}
 		</Header>
 		<!-- {#if main}
 			<div class="main">main</div>
 		{/if} -->
-		<div class="flex gap-2">
+		<div class="flex gap-2 w-full">
 			<!-- {#if !depth} -->
 			<div class:!min-w-0={!!main} class="min-w-8" class:!min-w-2={!!depth} />
 			<!-- {/if} -->
-			<div class="-mt-3" class:!mt-0={!!depth || isImageContext} class:!mt-2={!!main}>
+			<div
+				class="-mt-3 pr-2 flex-grow"
+				class:!mt-0={!!depth || isImageContext}
+				class:!mt-2={!!main}
+			>
 				<!-- {kind1?.reply()?.id()?.toString()} -->
 				<!-- {!!showReplies && note?.id()?.toString()} -->
 				<Content {note} {context} {visible} {depth} {main} {showQuote} />

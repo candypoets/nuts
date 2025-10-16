@@ -187,7 +187,7 @@
 		{:else if path.includes('keys')}
 			<Keys />
 		{:else if path.includes('relayinfos')}
-			<RelayInfos />
+			<RelayInfos subId={path.split(':')?.[1]} />
 		{:else if path.includes('reply')}
 			<Post reply={path.split(':')?.[1]} />
 		{:else if path.includes('repost')}

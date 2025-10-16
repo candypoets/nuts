@@ -28,6 +28,7 @@
 	import { hexToBytes } from 'src/lib/wallet';
 	import { go } from 'src/routes/modals/modal';
 	import { getUserRelays } from 'src/routes/queries/user';
+	import Nutscash from 'src/components/Nutscash.svelte';
 
 	export let note: ParsedEvent;
 	export let visible: boolean;
@@ -272,7 +273,7 @@
 				go('ecash:' + note.pubkey()?.toString() + ':' + decoded.id);
 			}}
 		>
-			<img src="/nutscash.svg" class="w-6 h-6" />
+			<Nutscash />
 			<span></span>
 		</div>
 	</div>

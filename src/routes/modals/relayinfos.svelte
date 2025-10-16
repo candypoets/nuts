@@ -1,17 +1,28 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import { getContext, onMount } from 'svelte';
+	import { getContext, onDestroy, onMount } from 'svelte';
 	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
 	import { isMobile } from 'src/controller';
-	import { initRelayTracking, relayInfos, relayStatusMap } from 'src/controller/relay';
+	import {
+		initRelayTracking,
+		relayInfos,
+		relayStatusMap,
+		setSubRelays,
+		relaySubs
+	} from 'src/controller/relay';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import { normalizeURL } from 'nostr-tools/utils';
 	import VirtualList from 'src/components/VirtualList.svelte';
+	import { goBack } from './modal';
 
-	export let open: boolean = false;
+	export let subId: string = '';
 
 	let animator: PagerAnimator = getContext('animator');
 	let search = '';
+
+	let relaysSelected = $relaySubs.get(subId)?.map(normalizeURL) || [];
+
+	let relaysToFilter = $relaySubs.get(subId)?.map(normalizeURL) || [];
 
 	type RelayItem = {
 		url: string;
@@ -25,30 +36,49 @@
 		const info = $relayInfos.get(key);
 		return { url: key, status, info } as RelayItem;
 	});
-
+	let sorted = false;
 	// Filter based on search
-	$: filteredRelays = relays.filter((r) => {
-		const name = r.info?.name ?? '';
-		const desc = r.info?.description ?? '';
-		const url = r.url ?? '';
-		return (
-			!search ||
-			name.toLowerCase().includes(search.toLowerCase()) ||
-			desc.toLowerCase().includes(search.toLowerCase()) ||
-			url.toLowerCase().includes(search.toLowerCase())
-		);
-	});
+	$: filteredRelays = relays
+		.filter((r) => {
+			const name = r.info?.name ?? '';
+			const desc = r.info?.description ?? '';
+			const url = r.url ?? '';
+			return (
+				!search ||
+				name.toLowerCase().includes(search.toLowerCase()) ||
+				desc.toLowerCase().includes(search.toLowerCase()) ||
+				url.toLowerCase().includes(search.toLowerCase())
+			);
+		})
+		.sort((a, b) => {
+			// if (sorted) return 0;
+			// sorted = true;
+			const aSelected = relaysToFilter?.includes(a.url) ? 1 : 0;
+			const bSelected = relaysToFilter?.includes(b.url) ? 1 : 0;
+			return bSelected - aSelected;
+		});
 
 	function relayName(r: RelayItem) {
 		return r.info?.name ?? new URL(r.url.replace(/^wss?:\/\//, 'https://')).host;
 	}
 
 	const getItemId = (r: RelayItem) => r.url;
+
+	function toggleSelected(url: string) {
+		if (relaysSelected.includes(url)) {
+			relaysSelected = relaysSelected.filter((u) => u !== url);
+		} else {
+			relaysSelected = [...relaysSelected, url];
+		}
+	}
+
+	onDestroy(() => setSubRelays(subId, relaysSelected));
 </script>
 
-<div class="h-screen flex items-end">
+<div class="h-screen flex items-end" on:click={animator.goBack}>
 	<div
 		class="bg-base-300 bg-opacity-85 backdrop-blur-md w-full !h-2/3 !min-h-fit rounded-t-2xl md:rounded-xl md:h-1/2 flex flex-col"
+		on:click|stopPropagation
 	>
 		<!-- Header -->
 		<div class="px-4 pt-safe flex justify-between h-16 items-center shrink-0">
@@ -90,7 +120,12 @@
 						style="grid-template-columns: repeat({$isMobile ? 2 : 3}, minmax(0, 1fr));"
 					>
 						{#each items as r (r.url)}
-							<div class="card bg-base-200 shadow-sm">
+							<div
+								class="bg-base-200 rounded-xl relative cursor-pointer"
+								on:click|stopPropagation={(_) => toggleSelected(r.url)}
+								class:border={relaysSelected?.includes(r.url)}
+								class:border-accent={relaysSelected?.includes(r.url)}
+							>
 								<div class="card-body p-4">
 									<div class="flex items-center gap-3">
 										{#if r.info?.icon}
@@ -119,10 +154,10 @@
 												<Icon icon="mingcute:check-circle-fill" class="text-success" />
 											{:else if r.status === 'connecting'}
 												<Icon icon="mingcute:time-line" class="text-warning" />
-											{:else if r.status === 'close' || r.status === 'failed'}
-												<Icon icon="codicon:debug-disconnect" class="text-accent" />
-											{:else if r.status === "failed"}
-												<Icon icon="codicon:debug-disconnect" class="text-accent" />
+											{:else if r.status === 'close'}
+												<Icon icon="codicon:debug-disconnect" />
+											{:else if r.status === 'failed'}
+												<Icon icon="icon-park-solid:applet-closed" class="text-red-500" />
 											{/if}
 										</div>
 									</div>
