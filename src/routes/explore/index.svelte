@@ -21,6 +21,7 @@
 	import { relaySub } from 'src/controller/relay';
 	import { ago } from 'src/lib/period';
 	import { normalizeURL } from 'nostr-tools/utils';
+	import { page } from '$app/stores';
 
 	export let visible = true;
 
@@ -28,6 +29,47 @@
 
 	let feedRequests: RequestObject[] = [];
 	let subs: string[] = [];
+
+	// Observable array of tags derived from the current URL.
+	let tags: string[] = [];
+	function extractTagsFromUrl(url: URL): string[] {
+		const sp = url.searchParams;
+		const out: string[] = [];
+
+		// ?tag=foo (repeated allowed) and comma-separated lists ?tag=foo,bar
+		for (const val of sp.getAll('tag')) {
+			out.push(
+				...val
+					.split(',')
+					.map((s) => s.trim())
+					.filter(Boolean)
+			);
+		}
+		// Optional support for ?tags=foo,bar as well
+		for (const val of sp.getAll('tags')) {
+			out.push(
+				...val
+					.split(',')
+					.map((s) => s.trim())
+					.filter(Boolean)
+			);
+		}
+		// Support bare query keys like ?podcast (no value)
+		sp.forEach((value, key) => {
+			if (value === '' && sp.has(key)) out.push(key);
+		});
+
+		return Array.from(new Set(out));
+	}
+	$: tags = extractTagsFromUrl($page.url);
+
+	function handleNewTags() {
+		if (tags.length > 0) {
+			setFeedRequests(following);
+		}
+	}
+
+	$: (tags, handleNewTags());
 
 	$: following = uniq(
 		$followPacks.flatMap(
@@ -38,7 +80,7 @@
 
 	$: visible && setFeedRequests(following);
 
-	$: subId = $followPacks.reduce((acc, cur) => acc + cur.id()?.fnv1aHash(), '');
+	$: subId = $followPacks.reduce((acc, cur) => acc + cur.id()?.fnv1aHash(), '') + tags.join(',');
 
 	$: relays = $readRelays;
 
@@ -72,14 +114,13 @@
 					authors: follows,
 					limit: $limit,
 					since: ago(31 * 24 * 60 * 60),
-					noCache: true,
+					noCache: !!relayCounter,
+					tags: { '#t': tags },
 					relays
 				}
 			];
 		});
 	}
-
-	$: console.log(connectionStatus, relays);
 </script>
 
 <Pager rootPath="/explore" bind:subs>
@@ -167,6 +208,19 @@
 				</div>
 				<RelaysList {subId} relays={relays.map(normalizeURL)} {connectionStatus} />
 			</div>
+			{#if tags.length}
+				<div class="bg-base-300 bg-opacity-85 backdrop-blur-gpu rounded-lg pb-1 px-1 mt-1">
+					<div class="flex gap-1 items-center">
+						{#each tags as tag}
+							<span
+								class=" px-2 py-1 bg-base-200 rounded-full relative overflow-hidden text-primary"
+							>
+								#{tag}
+							</span>
+						{/each}
+					</div>
+				</div>
+			{/if}
 			<!-- <Post /> -->
 		</svelte.fragment>
 	</Feed>

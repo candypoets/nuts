@@ -91,7 +91,7 @@
 		<div
 			class="w-feed pt-safe bg-base-300 bg-opacity-85 backdrop-blur-gpu mt-1 rounded-lg h-20 pb-2 flex items-center justify-between shadow-sm"
 		>
-			<button on:click={() => goBack()} class="p-1 rounded-full hover:bg-base-200 mr-4">
+			<button on:click={() => goBack()} class="p-1 rounded-full hover:bg-base-200 mx-4">
 				<Icon icon="mdi:arrow-left" class="text-xl" />
 			</button>
 			<h1 class="text-lg font-semibold">Notifications</h1>
@@ -102,7 +102,7 @@
 		<div
 			class="w-feed pt-safe bg-base-300 bg-opacity-85 backdrop-blur-gpu mt-1 rounded-lg h-20 pb-2 flex items-center justify-between shadow-sm mb-1"
 		>
-			<button on:click={() => goBack()} class="p-1 rounded-full hover:bg-base-200 mr-4">
+			<button on:click={() => goBack()} class="btn btn-sm btn-circle mx-4">
 				<Icon icon="mdi:arrow-left" class="text-xl" />
 			</button>
 			<h1 class="text-lg font-semibold">Notifications</h1>

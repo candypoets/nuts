@@ -9,7 +9,7 @@
 	} from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import { asKind9321, asKind9735, asParsedEvent } from '@candypoets/nipworker/utils';
-	import _ from 'lodash';
+	import _, { sortBy } from 'lodash';
 	import { onDestroy } from 'svelte';
 
 	import { kind0 } from 'src/controller/nostr';
@@ -23,7 +23,7 @@
 
 	let timeout: NodeJS.Timeout | undefined;
 
-	let zaps: Kind9735Parsed[] = [];
+	let zaps: (Kind9735Parsed | Kind9321Parsed)[] = [];
 	let nuts: Kind9321Parsed[] = [];
 	let zapped = false;
 	let biggestZap: Kind9735Parsed;
@@ -78,14 +78,14 @@
 	};
 
 	function handleNuts(event: ParsedEvent) {
+		console.log('handleNuts');
 		const kind9321 = asKind9321(event) as Kind9321Parsed;
 		if (event.pubkey()!.fnv1aHash() == $kind0?.pubkey()!.fnv1aHash()) zapped = true;
-		// if (nuts.some((n) => n.id()!.fnv1aHash() == event.id()!.fnv1aHash())) return;
-		totalNutAmount += kind9321?.amount() || 0;
+		if (nuts.some((n) => n.id()!.fnv1aHash() == event.id()!.fnv1aHash())) return;
+		totalZapAmount += kind9321?.amount() || 0;
 
-		biggestNut = (kind9321?.amount() || 0) > (biggestZap?.amount() || 0) ? kind9321 : biggestNut;
-		// // filter out deep replies
-		nuts = _.sortBy([...nuts, kind9321], (n) => n?.amount());
+		biggestNut = (kind9321?.amount() || 0) > (biggestNut?.amount() || 0) ? kind9321 : biggestNut;
+		zaps = sortBy([...zaps, kind9321], (n) => n?.amount());
 	}
 
 	function handleZaps(event: ParsedEvent) {
@@ -94,7 +94,7 @@
 		if (zaps.some((n) => n.id()!.fnv1aHash() == event.id()!.fnv1aHash())) return;
 		totalZapAmount += kind9735?.amount() || 0;
 		biggestZap = (kind9735?.amount() || 0) > (biggestZap?.amount() || 0) ? kind9735 : biggestZap;
-		zaps = _.sortBy([...zaps, kind9735], (z) => z?.amount());
+		zaps = sortBy([...zaps, kind9735], (z) => z?.amount());
 	}
 
 	function unsubscribe() {
@@ -125,7 +125,7 @@
 					{totalZapAmount.toLocaleString()}
 				</div>
 				<div class="flex -space-x-2 items-center">
-					{#each zaps.slice(0, 5) as zap, i (zap.id()?.fnv1aHash())}
+					{#each zaps.slice(0, 5) as zap (zap.id()?.fnv1aHash())}
 						<Avatar pubkey={zap?.sender()?.toString()} />
 					{/each}
 
@@ -142,24 +142,46 @@
 			<!-- <!-- Line separating biggest zapper from others -->
 			<!-- <div class="w-full flex-grow border-t border-gray-300 mx-2"></div> -->
 		{/if}
-
-		{#if biggestZap}
-			<!-- Biggest zapper on the left -->
-			<div class="flex shrink-0 items-center text-sm">
-				<div class="text-xs font-bold px-1 rounded-full">
-					{biggestZap?.amount()} ⚡
-				</div>
-				<!-- Zap amount badge for the biggest zapper -->
-				<!-- </div> -->
-
-				<!-- Zap comment from biggest zapper if any -->
-				{#if biggestZap?.content()}
-					<div class="px-2 py-1 max-w-40 overflow-hidden text-ellipsis whitespace-nowrap">
-						"{biggestZap?.content()?.toString()}"
+		{#if biggestZap || biggestNut}
+			{#if (biggestZap?.amount() || 0) >= (biggestNut?.amount() || 0)}
+				{@const comment = biggestZap.content()?.toString()}
+				{@const sender = biggestZap?.sender()?.toString()}
+				<!-- Biggest zapper on the left -->
+				<div class="flex shrink-0 items-center text-sm">
+					<div class="text-xs font-bold px-1 rounded-full">
+						{biggestZap?.amount()} ⚡
 					</div>
-				{/if}
-				<Avatar pubkey={biggestZap?.sender()?.toString()} size="sm" />
-			</div>
+					<!-- Zap amount badge for the biggest zapper -->
+					<!-- </div> -->
+
+					<!-- Zap comment from biggest zapper if any -->
+					{#if comment}
+						<div class="px-2 py-1 max-w-40 overflow-hidden text-ellipsis whitespace-nowrap">
+							"{comment}"
+						</div>
+					{/if}
+					<Avatar pubkey={sender} size="sm" />
+				</div>
+			{:else}
+				{@const comment = biggestNut.comment()?.toString()}
+				{@const sender = biggestNut?.sender()?.toString()}
+				<!-- Biggest zapper on the left -->
+				<div class="flex shrink-0 items-center text-sm">
+					<div class="text-xs font-bold px-1 rounded-full">
+						{biggestNut?.amount()} 🥜
+					</div>
+					<!-- Zap amount badge for the biggest zapper -->
+					<!-- </div> -->
+
+					<!-- Zap comment from biggest zapper if any -->
+					{#if comment}
+						<div class="px-2 py-1 max-w-40 overflow-hidden text-ellipsis whitespace-nowrap">
+							"{comment}"
+						</div>
+					{/if}
+					<Avatar pubkey={sender} size="sm" />
+				</div>
+			{/if}
 		{/if}
 	</div>
 	<!-- </div> -->

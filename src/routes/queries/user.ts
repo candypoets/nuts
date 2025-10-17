@@ -34,17 +34,26 @@ export function getUserRelays(
 	onRelaysAvailable: (relays: string[]) => void,
 	relayType: 'read' | 'write' = 'write'
 ) {
+	let called = false;
+	const timeout = setTimeout(() => {
+		if (!called) {
+			onRelaysAvailable([]);
+			called = true;
+		}
+	}, 2000);
 	let unsubscribe = useSubscription(
 		'u_' + pubkey,
 		userQuery(pubkey),
 		(message: WorkerMessage) => {
 			const kind10002 = isKind10002(message);
-			if (kind10002) {
+			if (kind10002 && !called) {
 				const relays = fbArray(kind10002, 'relays')
 					?.filter((r) => r.write())
 					.map((r) => r.url()?.toString())
 					.filter(Boolean) as string[];
 				onRelaysAvailable(relays);
+				called = true;
+				clearTimeout(timeout);
 				unsubscribe?.(); // auto-unsubscribe
 			}
 		},

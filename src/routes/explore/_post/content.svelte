@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import Note from '../note.svelte';
 	import User from '../user.svelte';
 	import Cashu from './cashu.svelte';
@@ -127,9 +128,13 @@
 			{/if}
 		{:else if parsed.dataType() == ContentData.HashtagData}
 			{@const hashtag = asHashtagData(parsed)}
-			<a class="font-semibold text-primary" href={'/search/' + hashtag?.tag()?.toString()}
-				>{parsed.text()?.toString()}</a
-			>
+			<a
+				on:click|stopPropagation|preventDefault={() =>
+					goto(`?tag=${encodeURIComponent(hashtag?.tag()?.toString() ?? '')}`)}
+				class="font-semibold text-primary"
+				href={`?tag=${encodeURIComponent(hashtag?.tag()?.toString() ?? '')}`}
+				>{parsed.text()?.toString()}
+			</a>
 		{:else if parsed.dataType() == ContentData.NostrData}
 			{@const nostr = asNostrData(parsed)}
 			{@const author = nostr?.author()}

@@ -49,9 +49,9 @@
 	const feedMap = new Map<number, ParsedEvent>();
 
 	// Stage buffers in Maps for O(1) dedupe and cheap merges
-	const cachedMap = new Map<number, ParsedEvent>();
-	const fetchedMap = new Map<number, ParsedEvent>();
-	const bufferMap = new Map<number, ParsedEvent>();
+	let cachedMap = new Map<number, ParsedEvent>();
+	let fetchedMap = new Map<number, ParsedEvent>();
+	let bufferMap = new Map<number, ParsedEvent>();
 
 	// Track seen ids early to avoid reprocessing
 	const seen_ids = new Set<number>();
@@ -207,6 +207,8 @@
 			case MessageType.Eoce: {
 				if (!eoce) {
 					eoce = true;
+					// Make fetchedMap inherit everything processed during the cache phase
+					fetchedMap = cachedMap;
 					// Move cached into feed after cache phase closes
 					mergeMapIntoFeed(cachedMap);
 				}

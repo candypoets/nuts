@@ -282,9 +282,9 @@ html[data-theme='dark'] {
 .shimmer {
 	background: linear-gradient(
 		to right,
-		rgba(246, 247, 248, 0.8) 8%,
-		rgba(237, 238, 241, 0.8) 18%,
-		rgba(246, 247, 248, 0.8) 33%
+		rgba(246, 247, 248, 0.7) 8%,
+		rgba(237, 238, 241, 0.5) 18%,
+		rgba(246, 247, 248, 0.3) 33%
 	);
 	background-size: 1000px 100%;
 	animation: shimmer 2s infinite linear;

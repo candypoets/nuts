@@ -134,6 +134,6 @@ export function initRelayTracking() {
 	useRelayStatus((status, url) => {
 		const key = normalizeURL(url);
 		setRelayStatus(key, status);
-		fetchRelayInfo(key);
+		// fetchRelayInfo(key);
 	});
 }

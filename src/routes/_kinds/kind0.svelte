@@ -223,7 +223,7 @@
 						style="background-image: url('{banner ? proxyBannerUrl(banner) : ''}');"
 					>
 						<div class="w-feed h-16 flex items-center justify-between shadow-sm pt-safe">
-							<button on:click={goBack} class="p-1 z-10 rounded-full btn btn-sm btn-circle ml-4">
+							<button on:click={goBack} class="p-1 z-10 btn btn-sm btn-circle ml-4">
 								<Icon icon="mdi:arrow-left" class="text-xl" />
 							</button>
 						</div>

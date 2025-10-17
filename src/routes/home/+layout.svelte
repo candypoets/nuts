@@ -211,7 +211,7 @@
 		useSubscription(
 			'active_wallet',
 			[
-				{ kinds: [7375], authors: [$key?.pub], limit: 10, relays: relays },
+				// { kinds: [7375], authors: [$key?.pub], limit: 10, relays: relays },
 				{ kinds: [17375], authors: [$key?.pub], limit: 10, relays: relays }
 			],
 			(message) => {
@@ -343,8 +343,6 @@
 	});
 
 	$: feed = feed.sort((a, b) => b.createdAt() - a.createdAt());
-
-	$: console.log('relays', relays, walletRelays);
 </script>
 
 <Pager rootPath="/home">

@@ -44,7 +44,6 @@ export const setNutsWallet = (
 ): void => {
 	// Only set the wallet if it doesn't already exist in the map
 	if (!nutsWallets.has(pubkey)) {
-		console.log('set nuts wallet', pubkey);
 		try {
 			const wallet = new NutsWallet(privkey, pubkey, mints, createdAt);
 			nutsWallets.set(wallet.pubkey, wallet);
@@ -52,6 +51,7 @@ export const setNutsWallet = (
 			// Update the most recent wallet if this one is newer
 			if (!nuts || createdAt > nuts.createdAt) {
 				nutsWallet.set(wallet);
+				dispatchAllProofs(nuts || undefined);
 			}
 		} catch (error) {
 			console.error('Error creating NutsWallet:', error);
@@ -61,7 +61,6 @@ export const setNutsWallet = (
 };
 
 export const addProofs = async (mint: string, proofs: Proof[]): Promise<void> => {
-	console.log('add general proofs', mint, proofs.length, get(nutsWallet));
 	if (!mint || !proofs?.length) return;
 
 	// Filter proofs that have p2pk field in the secret and extract pubkeys
@@ -219,31 +218,38 @@ export const receiveProofs = async (mint: string, proofs: Proof[]): Promise<void
 };
 
 // Function to dispatch all proofs from the zero wallet to their respective wallets
-export const dispatchAllProofs = async (): Promise<void> => {
+export const dispatchAllProofs = async (previousWallet?: NutsWallet): Promise<void> => {
 	if (!nutsWallet) return;
 
-	const zeroWallet = Array.from(nutsWallets.values()).find((wallet) => wallet.createdAt === 0);
-	if (!zeroWallet) return;
+	if (!previousWallet) {
+		previousWallet = Array.from(nutsWallets.values()).find((wallet) => wallet.createdAt === 0);
+	}
+	if (!previousWallet) return;
 
 	// Get all mint URLs from the zero wallet's unspent proofs
-	const mintUrls = Array.from(zeroWallet.unspentProofs.keys());
+	const mintUrls = Array.from(previousWallet.unspentProofs.keys());
 
 	// Call dispatchProofs for each mint URL
 	for (const mintUrl of mintUrls) {
-		await dispatchProofs(mintUrl);
+		await dispatchProofs(mintUrl, previousWallet);
 	}
 };
 
 // Function to dispatch proofs from the zero wallet to their respective wallets based on mint URL
-export const dispatchProofs = async (mintUrl: string): Promise<void> => {
+export const dispatchProofs = async (
+	mintUrl: string,
+	previousWallet?: NutsWallet
+): Promise<void> => {
 	const nuts = get(nutsWallet);
 	if (!nuts) return;
 
-	const zeroWallet = Array.from(nutsWallets.values()).find((wallet) => wallet.createdAt === 0);
-	if (!zeroWallet) return;
+	if (!previousWallet) {
+		previousWallet = Array.from(nutsWallets.values()).find((wallet) => wallet.createdAt === 0);
+	}
+	if (!previousWallet) return;
 
 	// Get unspent proofs for the specific mint from the zero wallet
-	const unspentProofs = zeroWallet.unspentProofs.get(mintUrl) || [];
+	const unspentProofs = previousWallet.unspentProofs.get(mintUrl) || [];
 
 	// Filter proofs that have p2pk field in the secret
 	const p2pkProofs = unspentProofs.filter((proof) => {
@@ -270,7 +276,7 @@ export const dispatchProofs = async (mintUrl: string): Promise<void> => {
 	if (nonP2pkProofs.length > 0 && nuts) {
 		nuts.addProofs(mintUrl, nonP2pkProofs);
 		// Remove proofs from zero wallet
-		zeroWallet.removeProofs(mintUrl, nonP2pkProofs);
+		previousWallet.removeProofs(mintUrl, nonP2pkProofs);
 	}
 
 	if (p2pkProofs.length === 0) return;
@@ -306,7 +312,7 @@ export const dispatchProofs = async (mintUrl: string): Promise<void> => {
 			if (proofsForThisWallet.length > 0) {
 				wallet.addProofs(mintUrl, proofsForThisWallet);
 				// Remove proofs from zero wallet
-				zeroWallet.removeProofs(mintUrl, proofsForThisWallet);
+				previousWallet.removeProofs(mintUrl, proofsForThisWallet);
 			}
 		}
 	}
@@ -490,7 +496,6 @@ export class NutsWallet {
 				const response = await wallet.checkMintQuote(quote.quote);
 				if (response.state === MintQuoteState.PAID) {
 					isPaid = true; // Set flag to stop further checks
-					console.log('Quote has been paid:', quote.quote);
 					const proofs = await wallet.mintProofs(quote.amount, quote.quote);
 					const mintIndex = this.mintUrls.indexOf(mintUrl);
 					const mint = this.mints[mintIndex];

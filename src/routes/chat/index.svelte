@@ -76,7 +76,7 @@
 		// 	processedFeed.map((f) => f.id()?.fnv1aHash())
 		// );
 		// Process the updated feed into grouped notifications
-		return uniqBy(processedFeed, (item) => item.id()?.fnv1aHash());
+		return processedFeed;
 	}
 
 	function processEvents(events: ParsedEvent[]) {
@@ -208,6 +208,7 @@
 			</div>
 		</svelte:fragment>
 		<svelte:fragment slot="item-content" let:post let:visible>
+			{@const k4 = asKind4(post)}
 			<a
 				href={'/chat/' + 'kind4:' + correspondant(post)}
 				class="flex gap-2 h-24 overflow-hidden pt-4 pr-4 pl-1 cursor-pointer bg-base-300 bg-opacity-85 backdrop-blur-gpu rounded-lg mt-1"

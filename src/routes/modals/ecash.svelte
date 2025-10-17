@@ -14,6 +14,7 @@
 	import User from 'src/routes/explore/user.svelte';
 
 	import {
+		ConnectionStatus,
 		Kind10002Parsed,
 		Kind17375Parsed,
 		ParsedData,
@@ -29,12 +30,15 @@
 		asKind10019,
 		asKind17375,
 		fbArray,
+		isConnectionStatus,
 		isParsedEvent
 	} from '@candypoets/nipworker/utils';
 	import { MintQuoteState, type MeltQuoteResponse, type MintQuoteResponse } from '@cashu/cashu-ts';
 	import { random, throttle } from 'lodash';
 	import { nutsWallet } from 'src/controller/proofs';
 	import { fly } from 'svelte/transition';
+	import { updateSendStatus } from 'src/controller/sendStatus';
+	import { getUserRelays } from '../queries/user';
 
 	// export let active: string;
 	export let pubkey: string;
@@ -88,30 +92,32 @@
 			{ kinds: [10019], authors: [pubkey], limit: 3, cacheFirst: true, relays: [] }
 		];
 		if (noteId) requests.push({ kinds: [1], ids: [noteId], cacheFirst: true, relays: [] });
-		useSubscription('wallet_' + pubkey, requests, (message: WorkerMessage) => {
-			const parsedEvent = isParsedEvent(message);
-			if (parsedEvent) {
-				switch (parsedEvent.parsedType()) {
-					case ParsedData.Kind10019Parsed:
-						kind10019 = asKind10019(parsedEvent) as Kind10019Parsed;
-						toMint = kind10019?.trustedMints(0)?.url()?.toString() as string;
-						zap = false;
-						break;
-					case ParsedData.Kind10002Parsed:
-						const kind1002 = asKind10002(parsedEvent) as Kind10002Parsed;
-						receiptRelays = (fbArray(kind1002, 'relays')
-							?.map((r) => r.read() && r.url()?.toString())
-							.filter(Boolean) || []) as string[];
-						break;
-					case ParsedData.Kind1Parsed:
-						note = parsedEvent;
-						tick().then(() => scrollTo({ top: 10000 }));
-						break;
-					case ParsedData.Kind0Parsed:
-						kind0 = parsedEvent;
-						break;
+		getUserRelays(pubkey, (relays: string[]) => {
+			useSubscription('wallet_' + pubkey, requests, (message: WorkerMessage) => {
+				const parsedEvent = isParsedEvent(message);
+				if (parsedEvent) {
+					switch (parsedEvent.parsedType()) {
+						case ParsedData.Kind10019Parsed:
+							kind10019 = asKind10019(parsedEvent) as Kind10019Parsed;
+							toMint = kind10019?.trustedMints(0)?.url()?.toString() as string;
+							zap = false;
+							break;
+						case ParsedData.Kind10002Parsed:
+							const kind1002 = asKind10002(parsedEvent) as Kind10002Parsed;
+							receiptRelays = (fbArray(kind1002, 'relays')
+								?.map((r) => r.read() && r.url()?.toString())
+								.filter(Boolean) || []) as string[];
+							break;
+						case ParsedData.Kind1Parsed:
+							note = parsedEvent;
+							tick().then(() => scrollTo({ top: 10000 }));
+							break;
+						case ParsedData.Kind0Parsed:
+							kind0 = parsedEvent;
+							break;
+					}
 				}
-			}
+			});
 		});
 	});
 
@@ -125,20 +131,37 @@
 				meltquote = await fromWallet.createMeltQuote(mintquote.request);
 				fees = meltquote.fee_reserve;
 			}
+		} else {
+			meltquote = undefined;
+			fees = 0;
 		}
-	}, 1000);
+	}, 300);
 
 	$: computeFees(amount, fromMint, toMint);
 
 	const sendEcash = async () => {
+		let sendStatus: { [url: string]: ConnectionStatus } = {};
+		if (!fromMint) return;
 		processing = 'true';
 		const fromWallet = await $nutsWallet?.getWallet(fromMint);
-		const unspentProofs = fromWallet && $nutsWallet?.unspentProofs.get(fromWallet);
-		if (meltquote && unspentProofs && amount && fromMint && toMint && $nutsWallet) {
+		const unspentProofs = fromWallet && $nutsWallet?.unspentProofs.get(fromMint);
+		console.log('send ecash', fromWallet, fromMint, unspentProofs, $nutsWallet?.unspentProofs);
+		if (
+			meltquote &&
+			unspentProofs &&
+			amount &&
+			fromMint &&
+			toMint &&
+			$nutsWallet &&
+			fromMint != toMint
+		) {
 			status = 'Swap from ' + fromMint + ' to ' + toMint;
 			const toWallet = await $nutsWallet.getWallet(toMint);
+			console.log(toWallet, amountPlusFees, unspentProofs);
 			const { keep, send } = fromWallet?.selectProofsToSend(unspentProofs, amountPlusFees, true);
+			console.log('hi');
 			const { change } = await fromWallet.meltProofs(meltquote, send);
+			console.log('hoy');
 			try {
 				let response = await toWallet?.checkMintQuote(mintquote.quote);
 				while (response.state !== MintQuoteState.PAID) {
@@ -168,10 +191,20 @@
 					].filter((t) => !!t[1])
 				};
 				status = 'Success!! Publishing nutszap';
-				usePublish('nutszap_' + random(1000), nutszap);
+				const sendId = 'nutszap_' + random(1000);
+				usePublish(sendId, nutszap, (message: WorkerMessage) => {
+					const status = isConnectionStatus(message);
+					if (status) {
+						const relayUrl = status.relayUrl()?.toString();
+						if (relayUrl) {
+							sendStatus[relayUrl] = status;
+							updateSendStatus(sendId, sendStatus);
+						}
+					}
+				});
 				setTimeout(() => (status = ''), 1000);
 			} finally {
-				$nutsWallet?.unspentProofs.set(fromWallet, keep.concat(change));
+				$nutsWallet?.unspentProofs.set(fromMint, keep.concat(change));
 				$nutsWallet.updateBalanceByMint();
 				$nutsWallet.saveProofs(fromMint, keep.concat(change));
 			}
@@ -191,10 +224,21 @@
 					['p', pubkey]
 				].filter((t) => !!t[1])
 			};
+			console.log(nutszap);
 			status = 'Success!! Publishing nutszap';
-			usePublish('nutszap_' + random(), nutszap);
+			const sendId = 'nutszap_' + random();
+			usePublish(sendId, nutszap, (message: WorkerMessage) => {
+				const status = isConnectionStatus(message);
+				if (status) {
+					const relayUrl = status.relayUrl()?.toString();
+					if (relayUrl) {
+						sendStatus[relayUrl] = status;
+						updateSendStatus(sendId, sendStatus);
+					}
+				}
+			});
 			setTimeout(() => (status = ''), 1000);
-			$nutsWallet?.unspentProofs.set(fromWallet, keep);
+			$nutsWallet?.unspentProofs.set(fromMint, keep);
 			$nutsWallet?.updateBalanceByMint();
 			$nutsWallet?.saveProofs(fromMint, keep);
 		} else if (fromMint && fromWallet && unspentProofs) {
@@ -230,16 +274,43 @@
 				// }
 				const { change } = await fromWallet.meltProofs(meltquote, unspentProofs);
 				status = 'Success! Publishing zap request';
-				usePublish('zap' + pubkey, zapRequest);
+				const sendId = 'zap' + pubkey;
+				usePublish(sendId, zapRequest, (message: WorkerMessage) => {
+					const status = isConnectionStatus(message);
+					if (status) {
+						const relayUrl = status.relayUrl()?.toString();
+						if (relayUrl) {
+							sendStatus[relayUrl] = status;
+							updateSendStatus(sendId, sendStatus);
+						}
+					}
+				});
+				setTimeout(() => (status = 'ZAPPED'), 1000);
 				setTimeout(() => (status = ''), 1000);
-				$nutsWallet?.unspentProofs.set(fromWallet, change);
+				$nutsWallet?.unspentProofs.set(fromMint, change);
 				$nutsWallet?.updateBalanceByMint();
 				$nutsWallet?.saveProofs(fromMint, change);
 			});
 		}
+
 		resetState();
 	};
 </script>
+
+<svelte:window
+	on:keydown={(e) => {
+		// Command (Meta) + Enter or Ctrl + Enter
+		if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+			// Mirror disabled conditions
+			if (!!processing) return;
+			if (!amount || !Number(amount) || amountPlusFees > (balance || 0) || !!status) return;
+
+			e.preventDefault();
+			e.stopPropagation();
+			sendEcash();
+		}
+	}}
+/>
 
 <div class="flex items-start md:items-center h-screen">
 	<div
@@ -251,12 +322,12 @@
 					<button on:click={animator.goBack} class="btn btn-ghost btn-sm">
 						<Icon icon="mingcute:down-line" class="text-xl" />
 					</button>
-					{#if note}
+					<!-- {#if note}
 						<div class="p-4">
 							<Note {note} context={[]} footer={false} showRoot={false} visible />
 						</div>
 						<div class="mx-8 mt-4 border-b border-gray-600"></div>
-					{/if}
+					{/if} -->
 					<div class="md:p-4">
 						<div class="flex md:gap-4 items-center justify-around">
 							<div class="w-1/3 text-center">
@@ -273,7 +344,7 @@
 								<Icon icon="mdi:arrow-right" class="text-5xl text-gray-400" />
 							</div>
 							<div class="w-1/3">
-								{#if kind10019}
+								{#if kind10019 && !zap}
 									<MintSelector
 										{pubkey}
 										mints={fbArray(kind10019, 'trustedMints')?.map((m) => m.url()?.toString()) ||

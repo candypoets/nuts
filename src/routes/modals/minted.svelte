@@ -1,13 +1,17 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
+	import { getContext } from 'svelte';
 
 	export let amount: string = '';
 	export let mint: string = '';
+
+	let animator = getContext('animator');
 </script>
 
-<div class="h-screen w-feed flex items-end py-8">
+<div class="h-screen w-feed flex items-end py-8" on:click={() => animator?.goBack()}>
 	<div
 		class="w-feed flex flex-col items-center justify-center p-8 bg-white rounded-xl shadow-xl text-center"
+		on:click|stopPropagation
 	>
 		<!-- Animated Checkmark Icon -->
 		<!-- Using Tailwind's bounce animation for a 'satisfying' feel -->

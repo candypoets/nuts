@@ -1,4 +1,5 @@
 import type { Kind0Parsed, ParsedEvent } from '@candypoets/nipworker';
+import { asKind0 } from '@candypoets/nipworker/utils';
 import { hexToBytes } from '@noble/hashes/utils';
 import { bech32 } from 'bech32';
 import { nip19, type NostrEvent } from 'nostr-tools';
@@ -47,22 +48,21 @@ export function isNostr(content: string): boolean {
  * @param {any} profile - User profile containing Lightning Address or LNURL
  * @returns {string | null} - Returns the LNURL if found, null otherwise
  */
-export function GetLNURLFromProfile(profile: ParsedEvent<Kind0Parsed>): string | null {
-	if (!profile || !profile.content) {
+export function GetLNURLFromProfile(profile: ParsedEvent): string | null {
+	const kind0 = asKind0(profile);
+	if (!kind0) {
 		return null;
 	}
 
-	// Parse the content if it's a string
-	const content = profile.parsed;
-
+	const lud06 = kind0?.lud06()?.toString();
 	// First check if LUD06 (direct LNURL) is available
-	if (content?.lud06) {
-		return content.lud06;
+	if (lud06) {
+		return lud06;
 	}
-
+	const lud16 = kind0?.lud16()?.toString();
 	// Check for Lightning Address (LUD16)
-	if (content?.lud16) {
-		const addressParts = content.lud16.split('@');
+	if (lud16) {
+		const addressParts = lud16.split('@');
 		if (addressParts.length === 2) {
 			return `https://${addressParts[1]}/.well-known/lnurlp/${addressParts[0]}`;
 		}
@@ -72,28 +72,26 @@ export function GetLNURLFromProfile(profile: ParsedEvent<Kind0Parsed>): string |
 }
 
 export const getInvoiceFromProfile = async (
-	profile: ParsedEvent<Kind0Parsed>,
+	profile: ParsedEvent,
 	amount: number,
 	event: NostrEvent
 ): Promise<{ pr: string; lnurl: string; maxSendable: number; minSendable: number }> => {
-	if (!profile.content) {
+	const kind0 = asKind0(profile);
+	if (!kind0) {
 		throw new Error('Profile has no content');
 	}
-
-	// Parse the content if it's a string
-	const content =
-		typeof profile.content === 'string' ? JSON.parse(profile.content) : profile.content;
-
+	const lud16 = kind0?.lud16()?.toString();
 	// Prefer LUD16 (Lightning Address) if available
-	if (content.lud16) {
-		const res = await getInvoiceFromAddress(content.lud16, amount);
+	if (lud16) {
+		const res = await getInvoiceFromAddress(lud16, amount);
 		return res;
 	}
 
+	const lud06 = kind0?.lud06()?.toString();
 	// Fall back to LUD06 (LNURL)
-	if (content.lud06) {
-		const res = await getInvoiceFromLNURL(content.lud06, amount);
-		return { ...res, lnurl: content.lud06 };
+	if (lud06) {
+		const res = await getInvoiceFromLNURL(lud06, amount);
+		return { ...res, lnurl: lud06 };
 	}
 
 	throw new Error('Profile has no Lightning Address (LUD16) or LNURL (LUD06)');
