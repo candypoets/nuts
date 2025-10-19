@@ -10,19 +10,16 @@
 	import { now } from 'src/lib/period';
 	import { getInvoiceFromProfile, GetLNURLFromProfile } from 'src/lib/wallet';
 	import Avatar from 'src/routes/explore/avatar.svelte';
-	import Note from 'src/routes/explore/note.svelte';
 	import User from 'src/routes/explore/user.svelte';
 
 	import {
 		ConnectionStatus,
 		Kind10002Parsed,
-		Kind17375Parsed,
 		ParsedData,
 		WorkerMessage,
 		type Kind10019Parsed,
 		type ParsedEvent,
-		type RequestObject,
-		type SubscribeKind
+		type RequestObject
 	} from '@candypoets/nipworker';
 	import { usePublish, useSignEvent, useSubscription } from '@candypoets/nipworker/hooks';
 	import {
@@ -36,8 +33,8 @@
 	import { MintQuoteState, type MeltQuoteResponse, type MintQuoteResponse } from '@cashu/cashu-ts';
 	import { random, throttle } from 'lodash';
 	import { nutsWallet } from 'src/controller/proofs';
-	import { fly } from 'svelte/transition';
 	import { updateSendStatus } from 'src/controller/sendStatus';
+	import { fly } from 'svelte/transition';
 	import { getUserRelays } from '../queries/user';
 
 	// export let active: string;
@@ -314,7 +311,7 @@
 
 <div class="flex items-start md:items-center h-screen">
 	<div
-		class="bg-base-300 bg-opacity-85 md:border rounded-xl md:p-4 w-feed md:max-h-[90vh] lg:h-auto fullscreen-height backdrop-blur-sm pt-safe overflow-hidden"
+		class="bg-base-300 bg-opacity-85 md:border rounded-xl md:p-4 w-feed md:max-h-[90vh] lg:h-auto backdrop-blur-sm pt-safe overflow-hidden"
 	>
 		<VirtualList items={[]} height="100%" bind:viewport={scroller} getItemId={() => 'header'}>
 			<div slot="feed-header">
