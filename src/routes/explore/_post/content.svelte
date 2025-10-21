@@ -117,7 +117,7 @@
 				</a>
 			{:else}
 				<a
-					class="text-accent hover:underline"
+					class="text-accent hover:underline break-words break-all max-w-full w-full"
 					on:click|stopPropagation
 					href={preview?.url()?.toString() || ''}
 					target="_blank"

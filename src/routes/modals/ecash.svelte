@@ -311,7 +311,7 @@
 
 <div class="flex items-start md:items-center h-screen">
 	<div
-		class="bg-base-300 bg-opacity-85 md:border rounded-xl md:p-4 w-feed md:max-h-[90vh] lg:h-auto backdrop-blur-sm pt-safe overflow-hidden"
+		class="bg-base-300 bg-opacity-85 md:border rounded-xl md:p-4 w-feed md:max-h-[90vh] md:h-auto backdrop-blur-sm pt-safe h-screen"
 	>
 		<VirtualList items={[]} height="100%" bind:viewport={scroller} getItemId={() => 'header'}>
 			<div slot="feed-header">
@@ -372,7 +372,6 @@
 										<Icon icon="bitcoin-icons:satoshi-v2-filled" class="text-4xl" />
 									</div>
 									<input
-										autofocus
 										id="send-amt"
 										placeholder="0"
 										type="text"
