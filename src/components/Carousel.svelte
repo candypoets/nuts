@@ -2,6 +2,7 @@
 	import Icon from '@iconify/svelte';
 	import { onMount } from 'svelte';
 	import { proxyImageUrl, proxyVideoUrl, ImagePresets } from 'src/lib/proxy';
+	import { spring } from 'svelte/motion';
 
 	export let items: any[] = [];
 	export let onClose: () => void = undefined;
@@ -37,10 +38,58 @@
 		}
 	}
 
+	let translateY = spring(0);
+	let touchPrevX: number | null = null;
+	let touchPrevY: number | null = null;
+
+	function onTouchEnd(event: WheelEvent | TouchEvent) {
+		$translateY = 0;
+		let touchPrevX: number | null = null;
+		let touchPrevY: number | null = null;
+	}
+
 	function handleScroll(event: WheelEvent | TouchEvent) {
-		if (processedItems.length > 1 && currentIndex !== processedItems.length - 1) {
-			event.stopPropagation();
+		// Handle wheel events (mouse/trackpad)
+		if ('deltaY' in event) {
+			const wheel = event as WheelEvent;
+			const dx = wheel.deltaX ?? 0;
+			const dy = wheel.deltaY ?? 0;
+
+			// If vertical scroll dominates, update translateY
+			if (Math.abs(dy) > Math.abs(dx)) {
+				translateY.set($translateY + dy, { hard: true });
+				if (noScroll) wheel.preventDefault();
+			}
+		} else {
+			// Handle touch events
+			const touchEvent = event as TouchEvent;
+
+			if (touchEvent.type === 'touchmove') {
+				const touch = touchEvent.touches[0];
+				if (touch) {
+					if (touchPrevX === null || touchPrevY === null) {
+						touchPrevX = touch.clientX;
+						touchPrevY = touch.clientY;
+					} else {
+						const dx = touch.clientX - touchPrevX;
+						const dy = touch.clientY - touchPrevY;
+
+						// If vertical movement dominates, update translateY
+						if (Math.abs(dy) > Math.abs(dx)) {
+							translateY.set($translateY + dy, { hard: true });
+							if (noScroll) touchEvent.preventDefault();
+						}
+
+						touchPrevX = touch.clientX;
+						touchPrevY = touch.clientY;
+					}
+				}
+			} else if (touchEvent.type === 'touchend') {
+				touchPrevX = null;
+				touchPrevY = null;
+			}
 		}
+
 		if (carouselElement) {
 			currentIndex = Math.round(carouselElement.scrollLeft / carouselElement.offsetWidth);
 		}
@@ -80,7 +129,11 @@
 		bind:this={carouselElement}
 		on:wheel={handleScroll}
 		on:touchmove={handleScroll}
-		on:touchend={handleScroll}
+		on:touchend={(e) => {
+			onTouchEnd(e);
+			handleScroll(e);
+		}}
+		style={`transform: translateY(${$translateY}px)`}
 	>
 		{#each processedItems as item, index}
 			<div

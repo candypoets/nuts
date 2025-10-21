@@ -24,7 +24,7 @@
 	let showGifPicker = false;
 
 	// Tenor API key
-	const TENOR_API_KEY = 'YOUR_TENOR_API_KEY';
+	const TENOR_API_KEY = 'AIzaSyB692q5nvoGphnMusHRvm1D_98a-DSQJRA';
 
 	onMount(async () => {
 		editor = createEditor({
@@ -41,10 +41,12 @@
 		// Focus the editor if there's initial content
 		if (initialContent) {
 			setTimeout(() => {
-				$editor.commands.focus();
+				focusEditor();
 				isExpanded = true;
 			}, 100);
 		}
+
+		focusEditor();
 
 		// In compact mode, always show expanded
 		if (isCompact) {
@@ -52,10 +54,30 @@
 		}
 	});
 
+	// Added a dedicated function to handle editor focusing
+	function focusEditor() {
+		if (!$editor) return;
+
+		// Use requestAnimationFrame for better timing
+		requestAnimationFrame(() => {
+			$editor.commands.focus();
+			// Force focus on the actual DOM element for mobile keyboard
+			const editorElement = $editor.view.dom;
+			if (editorElement && editorElement.focus) {
+				editorElement.focus();
+				// For mobile devices, ensure the input is focusable
+				if (editorElement.setAttribute) {
+					editorElement.setAttribute('contenteditable', 'true');
+				}
+			}
+		});
+	}
+
 	function handleEmojiSelect(emoji: string) {
 		if (editor && $editor) {
-			$editor.commands.focus();
 			$editor.commands.insertContent(emoji);
+
+			focusEditor();
 		}
 		showEmojiPicker = false;
 	}
@@ -64,14 +86,10 @@
 		// Get the GIF URL
 		const gifUrl = gif.media_formats.gif.url;
 
-		// Insert the GIF into the editor
-		$editor.commands.focus();
 		$editor.commands.insertContent(
 			`<img src="${gifUrl}" alt="${gif.content_description || 'GIF'}" />`
 		);
-
-		// Close the GIF picker
-		showGifPicker = false;
+		focusEditor();
 	}
 
 	async function handleSubmit() {
@@ -118,52 +136,12 @@
 	function handleEditorFocus() {
 		isExpanded = true;
 	}
-
-	function handleClickOutside(event: any) {
-		// Close pickers when clicking outside
-		if (showEmojiPicker && !event?.target.closest('[data-emoji-trigger]')) {
-			showEmojiPicker = false;
-		}
-
-		if (showGifPicker && !event?.target.closest('[data-gif-trigger]')) {
-			showGifPicker = false;
-		}
-
-		// If editor is expanded and click is outside editor container
-		// and there's no content, minimize the editor in non-compact mode
-		if (
-			!isCompact &&
-			isExpanded &&
-			editorContainer &&
-			!editorContainer.contains(event?.target) &&
-			editor &&
-			!$editor.getText().trim()
-		) {
-			isExpanded = false;
-			$editor.commands.blur();
-		}
-	}
-
-	function toggleEmojiPicker() {
-		showEmojiPicker = !showEmojiPicker;
-		if (showEmojiPicker) showGifPicker = false;
-	}
-
-	function toggleGifPicker() {
-		showGifPicker = !showGifPicker;
-		if (showGifPicker) showEmojiPicker = false;
-	}
 </script>
-
-<svelte:window on:click={handleClickOutside} />
 
 {#if isCompact}
 	<!-- Compact chat-style editor -->
-	<div
-		class="message-editor w-full rounded-lg border border-primary-content"
-		bind:this={editorContainer}
-	>
-		<div class="flex items-center bg-base-300 rounded-xl">
+	<div class="message-editor w-full px-4" bind:this={editorContainer}>
+		<div class="flex items-center bg-base-300 rounded-xl rounded-lg border border-primary-content">
 			<!-- Editor container -->
 			<div
 				class="flex-grow min-h-[40px] rounded-l-xl relative"
@@ -190,44 +168,12 @@
 			<div class="flex items-center pr-2">
 				<!-- Emoji picker button -->
 				<div class="relative">
-					<button
-						type="button"
-						class="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 {showEmojiPicker
-							? 'bg-gray-100 dark:bg-gray-700'
-							: ''}"
-						title="Insert emoji"
-						on:click={toggleEmojiPicker}
-						data-emoji-trigger
-					>
-						<Icon icon="carbon:face-satisfied" class="w-5 h-5" />
-					</button>
-
-					{#if showEmojiPicker}
-						<div class="relative">
-							<EmojiPicker onEmojiSelect={handleEmojiSelect} position="top" />
-						</div>
-					{/if}
+					<EmojiPicker onEmojiSelect={handleEmojiSelect} position="bottom" />
 				</div>
 
 				<!-- GIF picker button -->
 				<div class="relative">
-					<button
-						type="button"
-						class="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 {showGifPicker
-							? 'bg-gray-100 dark:bg-gray-700'
-							: ''}"
-						title="Insert GIF"
-						on:click={toggleGifPicker}
-						data-gif-trigger
-					>
-						<Icon icon="mage:gif" class="w-5 h-5" />
-					</button>
-
-					{#if showGifPicker}
-						<div class="relative">
-							<GifPicker apiKey={TENOR_API_KEY} onGifSelect={handleGifSelect} position="top" />
-						</div>
-					{/if}
+					<GifPicker apiKey={TENOR_API_KEY} onGifSelect={handleGifSelect} position="bottom" />
 				</div>
 
 				<!-- Image upload button -->

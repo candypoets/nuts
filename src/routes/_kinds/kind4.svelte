@@ -24,6 +24,7 @@
 	import User from 'src/routes/explore/user.svelte';
 	import { usePublish } from '@candypoets/nipworker/hooks';
 	import { toParsedEvent } from 'src/controller/feed';
+	import { go } from '../modals/modal';
 
 	// in a chat, pubkey is the other person's pubkey
 	export let pubkey: string;
@@ -149,13 +150,15 @@
 	<svelte:fragment slot="fixed-header">
 		<div
 			class="fixed pt-safe flex justify-between items-center lg:w-50vw py-2 w-full h-20 z-10 rounded-lg"
-			style="-webkit-backdrop-filter: blur(12px);"
 		>
 			<button on:click={goBack} class="btn btn-sm btn-circle">
 				<Icon icon="mingcute:left-line" class="text-2xl" />
 			</button>
 			{#key pubkey}
-				<div class="flex items-center gap-2 bg-base-300 pr-2 rounded-full border">
+				<div
+					class="flex items-center gap-2 bg-base-300 pr-2 rounded-full border"
+					on:click={() => go('nprofile:' + pubkey)}
+				>
 					<Avatar pubkey={pubkey || ''} size="lg" context={[]} />
 					<User pubkey={pubkey || ''} link={false} context={[]} />
 				</div>
