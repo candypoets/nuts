@@ -39,16 +39,15 @@
 			{#if item.type === 'image'}
 				<img
 					class="m-auto h-full max-w-full rounded-lg object-contain max-w-[80%]"
-					class:max-w-[80%]={!showContext && !$isMobile}
-					class:max-w-[75%]={showContext && !$isMobile}
+					class:max-w-[95%]={!showContext && !$isMobile}
 					src={item?.src}
 					on:click={(e) => e.stopPropagation()}
 				/>
 			{:else}
 				<video
 					class="m-auto h-full max-w-full rounded-lg object-contain"
-					class:max-w-[80%]={!showContext && !$isMobile}
-					class:max-w-[75%]={showContext && !$isMobile}
+					class:max-w-[95%]={showContext && !$isMobile}
+					class:rounded-xl={showContext && !$isMobile}
 					src={item?.src}
 					on:click|preventDefault|stopPropagation
 					autoplay

@@ -7,7 +7,7 @@ export const pagerAnimators = writable<Record<string, PagerAnimator>>({});
 
 // Default animation configuration
 const DEFAULT_ANIMATION_CONFIG = {
-	duration: 0.3,
+	duration: 0.2,
 	in: {
 		sub: {
 			x: ['100%', '0%'],
@@ -25,7 +25,7 @@ const DEFAULT_ANIMATION_CONFIG = {
 	out: {
 		sub: {
 			x: '100%',
-			opacity: 0.5
+			opacity: 0.3
 		},
 		modal: {
 			y: '100%',

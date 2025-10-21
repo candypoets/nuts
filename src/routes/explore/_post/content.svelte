@@ -55,7 +55,7 @@
 </script>
 
 <div
-	class:max-w-72={imageContext}
+	class:pr-2={imageContext}
 	class:!w-full={main}
 	class={'w-full text-wrap whitespace-normal break-words relative' + ($$props.class || '')}
 >

@@ -36,8 +36,8 @@
 
 	<div
 		class="px-4 py-2 bg-base-200 text-base-content rounded-2xl bg-gradient-to-br from-base-100 to-base-300 max-w-[85%]"
-		class:!from-blue-400={!incoming}
-		class:!to-blue-300={!incoming}
+		class:!from-purple-500={!incoming}
+		class:!to-purple-400={!incoming}
 		class:overflow-hidden={!isLast}
 		class:!rounded-l-md={!isFirst && incoming}
 		class:!rounded-r-md={!isFirst && !incoming}

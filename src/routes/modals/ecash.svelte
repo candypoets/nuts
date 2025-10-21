@@ -40,11 +40,11 @@
 	// export let active: string;
 	export let pubkey: string;
 	export let noteId: string;
+	export let amount = 21;
 
 	let animator = getContext('animator');
 	let memo: string = '';
 
-	let amount: number | undefined = undefined;
 	let note: ParsedEvent;
 	let kind0: ParsedEvent;
 
@@ -386,6 +386,44 @@
 											}
 										}}
 									/>
+								</div>
+								<div class="flex items-center justify-center gap-6 mt-4">
+									<button
+										type="button"
+										class="btn btn-ghost text-3xl"
+										title="Set amount to 21"
+										on:click={() => {
+											if (!!processing) return;
+											amount = 21;
+										}}>🥜</button
+									>
+									<button
+										type="button"
+										class="btn btn-ghost text-3xl"
+										title="Set amount to 42"
+										on:click={() => {
+											if (!!processing) return;
+											amount = 42;
+										}}>🍫</button
+									>
+									<button
+										type="button"
+										class="btn btn-ghost text-3xl"
+										title="Set amount to 69"
+										on:click={() => {
+											if (!!processing) return;
+											amount = 69;
+										}}>⚡️</button
+									>
+									<button
+										type="button"
+										class="btn btn-ghost text-3xl"
+										title="Set amount to 420"
+										on:click={() => {
+											if (!!processing) return;
+											amount = 420;
+										}}>🚀</button
+									>
 								</div>
 							{:else}
 								<div class="md:mt-10 w-1/2 text-center text-primary p-4">
