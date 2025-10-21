@@ -389,6 +389,7 @@
 				scrollerWidth
 			);
 			(bar as HTMLElement).style.transform = `scaleY(${ratio})`;
+			(bar as HTMLElement).style.transform = `scaleX(${ratio})`;
 			(bar as HTMLElement).style.opacity = ratio.toString();
 		});
 	}
@@ -397,8 +398,8 @@
 <!-- <Debug /> -->
 <!-- <ImageZoom /> -->
 {#if $isMobile && $page.url.pathname.split('/').length < 3}
-	<div class="absolute w-full z-10 unsafe-padding-top">
-		<div class="flex space-x-2">
+	<div class="absolute w-full z-10 unsafe-padding-top margin-auto">
+		<div class="flex space-x-2 w-1/2 m-auto">
 			<div
 				class="h-1 bg-white bg-opacity-30 w-1/3 rounded-full will-change-transform progress-bar"
 			></div>

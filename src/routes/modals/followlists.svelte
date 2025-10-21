@@ -204,7 +204,7 @@
 									<!-- <h4 class="text-sm font-semibold mb-2">Members ({kind39089.peopleLength()})</h4> -->
 									<div class="flex flex-wrap gap-2 items-center">
 										<div class="flex -space-x-2">
-											{#each fbArray(kind39089, 'people').slice(0, 10) as p}
+											{#each fbArray(kind39089, 'people').slice(0, 5) as p}
 												<Avatar pubkey={p?.toString()} />
 											{/each}
 										</div>
