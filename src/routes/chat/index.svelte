@@ -17,7 +17,7 @@
 	} from '@candypoets/nipworker';
 	import { asKind3, asKind4, asParsedEvent, fbArray, isKind4 } from '@candypoets/nipworker/utils';
 	import { formatDistanceToNow } from 'date-fns';
-	import _, { orderBy, uniqBy } from 'lodash';
+	import _, { orderBy, uniq, uniqBy } from 'lodash';
 	import { cubicOut } from 'svelte/easing';
 	import { tweened } from 'svelte/motion';
 
@@ -204,7 +204,7 @@
 						<Icon icon="teenyicons:add-outline" class="text-xl"></Icon>
 					</button>
 				</div>
-				<RelaysList relays={_.uniq([...$writeRelays, ...$readRelays])} {connectionStatus} />
+				<RelaysList relays={uniq([...$writeRelays, ...$readRelays])} {connectionStatus} />
 			</div>
 		</svelte:fragment>
 		<svelte:fragment slot="item-content" let:post let:visible>

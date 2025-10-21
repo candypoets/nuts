@@ -26,7 +26,8 @@ export const pathOptions = [
 	'relays',
 	'relayinfos',
 	'share',
-	'logout'
+	'logout',
+	'zoom'
 ];
 
 export function goBack() {

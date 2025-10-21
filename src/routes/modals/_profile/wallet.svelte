@@ -2,7 +2,7 @@
 	import { Kind17375Parsed } from '@candypoets/nipworker';
 	import Icon from '@iconify/svelte';
 	import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
-	import _ from 'lodash';
+	import _, { uniq } from 'lodash';
 	import { generateSecretKey, getPublicKey, type EventTemplate } from 'nostr-tools';
 	import { normalizeURL } from 'nostr-tools/utils';
 	import { getContext, onMount } from 'svelte';
@@ -12,10 +12,11 @@
 	import { now } from 'src/lib/period';
 	import { usePublish } from '@candypoets/nipworker/hooks';
 	import { asKind17375, fbArray } from '@candypoets/nipworker/utils';
+	import { areStringListEqual } from 'src/lib/utils';
 
 	let animator = getContext('animator');
 
-	let newMintUrl = '';
+	let search = '';
 	let loading = false;
 	let isInvalid = false;
 	let searchFocused = false;
@@ -23,7 +24,6 @@
 
 	let newMints: string[] = [];
 	let availableMints: MintInfo[] = []; // Initialize as empty array
-	let selectedMints = $kind17375?.parsed?.mints || [];
 
 	$: selectableMints = availableMints.filter((am) => !selectedMints.some((sm) => sm == am.url));
 
@@ -34,9 +34,9 @@
 			hexToBytes(k17375?.p2pkPrivKey()?.toString() as string)) ||
 		generateSecretKey();
 
-	$: mints = fbArray(k17375 as Kind17375Parsed, 'mints');
+	$: mints = fbArray(k17375 as Kind17375Parsed, 'mints').map((m) => m.toString());
 
-	$: console.log('secretKey', secretKey);
+	$: selectedMints = mints || [];
 
 	$: pubkey = secretKey && getPublicKey(secretKey);
 
@@ -122,12 +122,12 @@
 	}
 
 	function filterMints() {
-		if (!newMintUrl.trim()) {
+		if (!search.trim()) {
 			filteredMints = [];
 			return;
 		}
 
-		const searchTerm = newMintUrl.toLowerCase();
+		const searchTerm = search.toLowerCase();
 		filteredMints = selectableMints.filter(
 			(mint) =>
 				mint.title.toLowerCase().includes(searchTerm) ||
@@ -136,16 +136,15 @@
 		);
 	}
 
-	async function addMint() {
+	async function addMint(newMint: string) {
 		loading = true;
-		const isValid = await isMintUrlValid(newMintUrl);
+		// const isValid = await isMintUrlValid(newMintUrl);
 		loading = false;
-		isInvalid = !isValid;
-		if (isValid) {
-			selectedMints.unshift(newMintUrl);
-			selectedMints = _.uniq(selectedMints);
-			newMintUrl = '';
-		}
+		// isInvalid = !isValid;
+		// if (isValid) {
+		selectedMints.unshift(newMint);
+		selectedMints = uniq(selectedMints);
+		// }
 	}
 
 	function removeMint(url: string) {
@@ -163,9 +162,8 @@
 
 	function handleKeyDown(event: KeyboardEvent) {
 		if (event.key === 'Enter' && filteredMints.length > 0) {
-			newMintUrl = filteredMints[0].url;
 			filteredMints = [];
-			addMint();
+			addMint(filteredMints[0].url);
 		}
 	}
 
@@ -217,9 +215,14 @@
 		usePublish('newWallet', newWallet, (message) => console.log('newWallet', message));
 		usePublish('trustedMints', trustedMints, (message) => console.log('trustedMints', message));
 	}
+
+	$: console.log('selected mints', selectedMints, mints);
 </script>
 
-<div class="h-full bg-base-300 bg-opacity-85 backdrop-blur-md pt-4">
+<div
+	class="h-full bg-base-300 bg-opacity-85 backdrop-blur-md pt-4 overflow-scroll"
+	on:touchmove|stopPropagation
+>
 	<div class="flex justify-between mb-12 px-4">
 		<button class="w-1/4" aria-label="Return to previous screen" on:click={animator.goBack}>
 			<Icon icon="iconamoon:arrow-down-2-light" class="w-6 h-6" />
@@ -255,11 +258,11 @@
 			<h3 class="font-semibold mb-3">Mints</h3>
 
 			<div class="relative w-full mb-4">
-				<div class="join w-full">
+				<div class="join w-full border">
 					<input
 						class="w-full join-item px-2"
 						type="text"
-						bind:value={newMintUrl}
+						bind:value={search}
 						on:keydown={handleKeyDown}
 						on:input={filterMints}
 						on:focus={() => {
@@ -276,7 +279,7 @@
 					{#if loading}
 						<button class="btn join-item"><span class="loading loading-dots"></span></button>
 					{:else}
-						<button class="btn join-item" on:click={() => addMint()}>Add</button>
+						<button class="btn join-item">Add</button>
 					{/if}
 				</div>
 
@@ -289,7 +292,6 @@
 								class="w-full text-left p-3 hover:bg-base-300 cursor-pointer border-b border-primary-content flex items-center"
 								on:click={() => {
 									selectMint(mint);
-									addMint();
 								}}
 							>
 								<div class="flex items-start space-x-2 flex-1 min-w-0">
@@ -330,7 +332,7 @@
 			{/if}
 
 			<!-- Suggested Mints -->
-			{#if !searchFocused && selectableMints.length > 0 && !newMintUrl}
+			<!-- {#if !searchFocused && selectableMints.length > 0 && !newMintUrl}
 				<div class="mb-4">
 					<h4 class="text-sm font-medium mb-2">Suggested Mints</h4>
 					<div class="max-h-40 overflow-y-auto">
@@ -373,10 +375,10 @@
 						{/each}
 					</div>
 				</div>
-			{/if}
+			{/if} -->
 
 			<h4 class="text-sm font-medium mb-2">Your Mints</h4>
-			<div class="max-h-60 overflow-y-auto">
+			<div class="">
 				{#each selectedMints as mint}
 					{@const nurl = normalizeURL(mint)}
 					{@const mintInfo = availableMints.find((m) => m.url === nurl)}
@@ -408,9 +410,9 @@
 												<span class="opacity-70">{getStatsText(mintInfo)}</span>
 											{/if}
 										</div>
-										<span class="text-primary font-semibold">
+										<!-- <span class="text-primary font-semibold">
 											{mint['balance'] ? mint['balance'] : '0.00'} sats
-										</span>
+										</span> -->
 									</div>
 								</div>
 							</div>
@@ -420,9 +422,9 @@
 								<div class="flex-1 min-w-0">
 									<div class="font-medium truncate">{nurl}</div>
 									<div class="text-xs mt-1">
-										<span class="text-primary font-semibold">
+										<!-- <span class="text-primary font-semibold">
 											{mint['balance'] ? mint['balance'] : '0.00'} sats
-										</span>
+										</span> -->
 									</div>
 								</div>
 							</div>
@@ -440,8 +442,11 @@
 	</div>
 	<div class="flex justify-center mt-6 px-4 mb-8">
 		<button
-			class="btn btn-primary w-full"
-			disabled={!selectedMints.length}
+			class="btn btn-primary w-full text-white"
+			disabled={areStringListEqual(
+				selectedMints,
+				fbArray(k17375, 'mints').map((m) => m.toString())
+			)}
 			on:click={() => {
 				saveWallet();
 				// You could add a success toast or redirect here

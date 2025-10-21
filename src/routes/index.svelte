@@ -395,7 +395,7 @@
 </script>
 
 <!-- <Debug /> -->
-<ImageZoom />
+<!-- <ImageZoom /> -->
 {#if $isMobile && $page.url.pathname.split('/').length < 3}
 	<div class="absolute w-full z-10 unsafe-padding-top">
 		<div class="flex space-x-2">

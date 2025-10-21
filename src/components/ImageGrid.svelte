@@ -9,6 +9,7 @@
 	import type { AnyKind, Kind1Parsed, ParsedEvent } from 'src/types';
 	import { proxyMediaLinks, ImagePresets } from 'src/lib/proxy';
 	import { getContext } from 'svelte';
+	import { go } from 'src/routes/modals/modal';
 
 	export let links: { src: string; type?: 'image' | 'video' }[];
 	export let note: ParsedEvent<Kind1Parsed> | undefined = undefined;
@@ -37,6 +38,7 @@
 		$zoomedStore = zoom;
 		$noteStore = note;
 		$contextStore = context;
+		go('zoom');
 	}
 </script>
 

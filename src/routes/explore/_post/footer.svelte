@@ -273,7 +273,7 @@
 				go('ecash:' + note.pubkey()?.toString() + ':' + decoded.id);
 			}}
 		>
-			<Nutscash />
+			<Nutscash class="h-5 w-5" />
 			<span></span>
 		</div>
 	</div>

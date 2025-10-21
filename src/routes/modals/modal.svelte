@@ -23,6 +23,7 @@
 	import { getContext, onMount } from 'svelte';
 	import Followlists from './followlists.svelte';
 	import Share from './share.svelte';
+	import ImageZoom from 'src/components/ImageZoom.svelte';
 
 	export let path: string;
 	export let visible: boolean;
@@ -147,7 +148,7 @@
 	bind:this={element}
 	on:click|stopPropagation={pagerAnimator?.goBack}
 	style="width: {$viewport.vw * 100}px;"
-	data-kind="modal"
+	data-kind={path.includes('zoom') ? 'zoom' : 'modal'}
 >
 	<div
 		class="m-auto relative overflow-hidden w-feed h-full"
@@ -202,6 +203,8 @@
 			<Relays />
 		{:else if path.includes('logout')}
 			<Logout />
+		{:else if path.includes('zoom')}
+			<ImageZoom />
 		{/if}
 	</div>
 </div>

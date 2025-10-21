@@ -53,11 +53,11 @@
 	<!-- Context panel -->
 	{#if showContext && $zoomed !== undefined}
 		<div
-			class="md:block hidden h-full w-1/4 min-w-96 overflow-auto bg-base-100 border-l border-base-300"
+			class="md:block hidden h-full w-1/4 min-w-96 overflow-auto border-l border-base-300"
 			transition:slide={{ duration: 200, axis: 'x' }}
 			on:click|stopPropagation
 		>
-			<div class="p-4 overflow-y-auto h-full">
+			<div class="overflow-y-auto h-full">
 				{#if nevent.length}
 					<Kind1 {nevent} visible />
 				{/if}

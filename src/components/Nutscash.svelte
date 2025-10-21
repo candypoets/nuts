@@ -4,13 +4,13 @@
 	// - color: optional CSS color; if not provided, inherits currentColor (e.g., Tailwind's text-* classes)
 	// - title: accessible label
 	// - strokeWidth: set > 0 if your SVG uses strokes and you want them to track currentColor
-	export let size: number | string = '1.5em';
+	// export let size: number | string = '1.5em';
 	export let color: string | undefined = undefined;
 	export let title: string = 'NutsCash icon';
 	export let strokeWidth: number | string = 0;
 
-	$: sizeStyle = typeof size === 'number' ? `${size}px` : size;
-	$: styleAttr = `width:${sizeStyle};height:${sizeStyle};${color ? `color:${color};` : ''}`;
+	// $: sizeStyle = typeof size === 'number' ? `${size}px` : size;
+	// $: styleAttr = `width:${sizeStyle};height:${sizeStyle};${color ? `color:${color};` : ''}`;
 </script>
 
 <svg
@@ -18,7 +18,6 @@
 	role="img"
 	aria-label={title}
 	class={`inline-block align-middle flex-shrink-0 ${$$props.class}`}
-	style={styleAttr}
 	viewBox="0 0 517.000000 483.000000"
 	fill="currentColor"
 	stroke={+strokeWidth ? 'currentColor' : 'none'}

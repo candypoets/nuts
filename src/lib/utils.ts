@@ -1,3 +1,4 @@
+import { isEqual } from 'lodash';
 import type { NostrEvent } from 'nostr-tools';
 import { normalizeURL } from 'nostr-tools/utils';
 
@@ -26,6 +27,12 @@ export function parseEmojiContent(
 	}
 
 	return undefined;
+}
+
+export function areStringListEqual(list1: string[], list2: string[]): boolean {
+	const sorted1 = [...list1].sort();
+	const sorted2 = [...list2].sort();
+	return isEqual(sorted1, sorted2);
 }
 
 export function normalizeMintURL(mintUrl: string) {

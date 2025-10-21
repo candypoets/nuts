@@ -104,6 +104,8 @@
 
 	$: relays = (walletRelays?.length && walletRelays) || $readRelays || defaultRelays;
 
+	$: console.log(walletRelays, $readRelays, defaultRelays);
+
 	const relayPromise = Promise.race([kind10019Ready.promise, delayedPromise]);
 
 	let feedRequests: RequestObject[] = [];
