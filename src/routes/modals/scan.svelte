@@ -73,4 +73,6 @@
 	});
 </script>
 
-<div id="reader" class="w-full bg-white blur-0 h-auto"></div>
+<div class="h-screen bg-base-300 bg-opacity-85 backdrop-blur-md flex items-center">
+	<div id="reader" class="w-full bg-white blur-0 h-auto"></div>
+</div>
