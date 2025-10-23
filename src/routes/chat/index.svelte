@@ -30,10 +30,12 @@
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import User from 'src/routes/explore/user.svelte';
+	import Empty from './empty.svelte';
 
 	export let visible = true;
 
 	let feedRequests: RequestObject[] = [];
+	let feed: ParsedEvent[] = [];
 	let subs: string[] = [];
 	let eoce = false;
 
@@ -96,28 +98,22 @@
 	$: visible && setFeedRequests();
 
 	function setFeedRequests() {
-		kind3Ready.promise.then((kind3) => {
-			const k3 = asKind3(kind3) as Kind3Parsed;
-			const contactPubs = (fbArray(k3, 'contacts')
-				.map((c) => c.pubkey()?.toString())
-				.filter((p) => p != $key?.pub) || []) as string[];
-			feedRequests = [
-				{
-					kinds: [4],
-					// tags: { '#p': contactPubs },
-					authors: [$key.pub],
-					relays: [...$readRelays, ...$writeRelays],
-					noContext: true
-				},
-				{
-					kinds: [4],
-					tags: { '#p': [$key.pub] },
-					// authors: contactPubs,
-					relays: [...$readRelays, ...$writeRelays],
-					noContext: true
-				}
-			];
-		});
+		feedRequests = [
+			{
+				kinds: [4],
+				// tags: { '#p': contactPubs },
+				authors: [$key.pub],
+				relays: [...$readRelays, ...$writeRelays],
+				noContext: true
+			},
+			{
+				kinds: [4],
+				tags: { '#p': [$key.pub] },
+				// authors: contactPubs,
+				relays: [...$readRelays, ...$writeRelays],
+				noContext: true
+			}
+		];
 	}
 
 	function correspondant(post: ParsedEvent) {
@@ -147,6 +143,8 @@
 
 	// Update the tweened value when depth changes
 	$: depthTranslation.set(subs.length * 30);
+
+	$: feed = uniqBy(feed, (message) => asKind4(message)?.chatId()?.fnv1aHash());
 </script>
 
 <Pager rootPath="/chat">
@@ -155,8 +153,9 @@
 		requests={feedRequests}
 		{updateFeed}
 		{subscriptionOptions}
-		backdrop
+		backdrop={!feed.length}
 		bind:connectionStatus
+		bind:feed
 	>
 		<svelte:fragment slot="sticky-header">
 			<div class="relative pt-safe bg-base-300 bg-opacity-50 backdrop-blur-xl">
@@ -172,7 +171,7 @@
 			<div
 				class="w-feed relative pt-safe bg-base-300 bg-opacity-85 backdrop-blur-gpu rounded-lg pb-2 px-1"
 			>
-				<div class="flex justify-between m-auto h-16 items-center">
+				<div class="flex justify-between m-auto h-16 items-center px-1">
 					<h1 class="text-2xl font-semibold">
 						BM<button
 							class="btn btn-circle btn-ghost btn-xs ml-2"
@@ -200,12 +199,17 @@
 							</form>
 						</dialog>
 					</h1>
-					<button class="btn btn-circle btn-sm btn-accent">
-						<Icon icon="teenyicons:add-outline" class="text-xl"></Icon>
+					<button class="btn btn-circle btn-sm btn-accent btn-outline">
+						<Icon icon="material-symbols:chat-add-on-outline-rounded" class="text-xl" />
+						<!-- <Icon icon="teenyicons:add-outline" class="text-xl"></Icon> -->
 					</button>
 				</div>
 				<RelaysList relays={uniq([...$writeRelays, ...$readRelays])} {connectionStatus} />
 			</div>
+		</svelte:fragment>
+		<svelte:fragment slot="empty-content">
+			<br />
+			<Empty />
 		</svelte:fragment>
 		<svelte:fragment slot="item-content" let:post let:visible>
 			{@const k4 = asKind4(post)}

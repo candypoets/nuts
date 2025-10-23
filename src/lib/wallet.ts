@@ -1,8 +1,12 @@
 import type { Kind0Parsed, ParsedEvent } from '@candypoets/nipworker';
 import { asKind0 } from '@candypoets/nipworker/utils';
-import { hexToBytes } from '@noble/hashes/utils';
+import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 import { bech32 } from 'bech32';
-import { nip19, type NostrEvent } from 'nostr-tools';
+import { getPublicKey, nip19, type NostrEvent } from 'nostr-tools';
+import { generateMnemonic, validateMnemonic, mnemonicToSeedSync } from '@scure/bip39';
+import { wordlist } from '@scure/bip39/wordlists/english';
+import { HDKey } from '@scure/bip32';
+import { normalizeURL } from 'nostr-tools/utils';
 
 export function decodePrivKey(value: string): Uint8Array {
 	let pk;
@@ -178,5 +182,214 @@ const formatSats = (amount: number, withSuffix: boolean): string => {
 		(withSuffix ? ' ' + (amount > 1 ? 'sats' : 'sat') : '')
 	);
 };
+
+// NIP-06 base derivation path for Nostr
+const NOSTR_BASE = "m/44'/1237'/0'/0";
+
+export interface MintInfo {
+	title: string;
+	url: string;
+	description: string;
+	publishDate: Date;
+	iconUrl: string | null;
+	state: string;
+	rating: number; // Lower is better (errors per operation)
+	n_mints?: number;
+	n_melts?: number;
+	n_errors?: number;
+}
+
+/**
+ * Derive a Nostr secret key from a BIP-39 mnemonic using path m/44'/1237'/0'/0/index
+ * Returns null if inputs are invalid.
+ */
+export function deriveFromMnemonic(m: string, pass: string, index: number): Uint8Array | null {
+	const phrase = (m || '').trim().replace(/\s+/g, ' ');
+	if (!phrase) {
+		return null;
+	}
+	if (!validateMnemonic(phrase, wordlist)) {
+		return null;
+	}
+	if (index < 0 || !Number.isFinite(index)) {
+		return null;
+	}
+	try {
+		const seed = mnemonicToSeedSync(phrase, pass || undefined);
+		const root = HDKey.fromMasterSeed(seed);
+		const account = root.derive("m/44'/1237'/17375'");
+		const chain = account.deriveChild(0);
+		const child = chain.deriveChild(index);
+		if (!child.privateKey) {
+			return null;
+		}
+		return child.privateKey;
+	} catch (e) {
+		console.log('error', e);
+		return null;
+	}
+}
+
+/**
+ * Parse a private key string (hex or nsec) into a 32-byte Uint8Array.
+ * Returns null if invalid.
+ */
+export function parsePrivkey(input: string): Uint8Array | null {
+	const s = (input || '').trim();
+	if (!s) {
+		return null;
+	}
+	try {
+		if (s.toLowerCase().startsWith('nsec')) {
+			const decoded = nip19.decode(s);
+			if (decoded.type !== 'nsec' || typeof decoded.data !== 'string') {
+				return null;
+			}
+			const hex = decoded.data;
+			if (!/^[0-9a-f]{64}$/i.test(hex)) {
+				return null;
+			}
+			return hexToBytes(hex);
+		}
+		const hex = s.replace(/^0x/i, '');
+		if (!/^[0-9a-f]{64}$/i.test(hex)) {
+			return null;
+		}
+		return hexToBytes(hex);
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Fetch available mints from the audit API and return enriched, sorted MintInfo[]
+ */
+export async function fetchAvailableMints(): Promise<MintInfo[]> {
+	try {
+		const response = await fetch('https://api.audit.8333.space/mints/');
+		if (!response.ok) {
+			throw new Error(`HTTP error! status: ${response.status}`);
+		}
+		const jsonData = await response.json();
+
+		const availableMints: MintInfo[] = jsonData.map((mintData: any) => {
+			let description = '';
+			let title = mintData.name || 'Unknown Mint';
+			let iconUrl: string | null = null;
+
+			try {
+				if (mintData.info) {
+					const infoObj = JSON.parse(mintData.info);
+					description = infoObj.description || '';
+					if (infoObj.name) {
+						title = infoObj.name;
+					}
+					if (infoObj.icon_url) {
+						iconUrl = infoObj.icon_url;
+					}
+				}
+			} catch {
+				// ignore bad info payloads
+			}
+
+			const operations = (mintData.n_mints || 0) + (mintData.n_melts || 0);
+			let rating = 1; // default worst rating
+			if (operations > 0) {
+				rating = (mintData.n_errors || 0) / operations;
+			} else if ((mintData.n_errors || 0) === 0) {
+				rating = 0; // perfect if no errors and no ops
+			}
+
+			return {
+				title,
+				url: normalizeURL(mintData.url),
+				description,
+				publishDate: new Date(mintData.updated_at || 0),
+				iconUrl,
+				state: mintData.state || 'UNKNOWN',
+				rating,
+				n_mints: mintData.n_mints || 0,
+				n_melts: mintData.n_melts || 0,
+				n_errors: mintData.n_errors || 0
+			};
+		});
+
+		// OK first, then by best rating (lowest error ratio first)
+		availableMints.sort((a, b) => {
+			if (a.state === 'OK' && b.state !== 'OK') return -1;
+			if (a.state !== 'OK' && b.state === 'OK') return 1;
+			return a.rating - b.rating;
+		});
+
+		return availableMints;
+	} catch {
+		return [];
+	}
+}
+
+/**
+ * Visual helper for mint state -> CSS color class
+ */
+export function getStatusColor(state: string): string {
+	switch (state) {
+		case 'OK':
+			return 'bg-success';
+		case 'ERROR':
+			return 'bg-error';
+		default:
+			return 'bg-warning';
+	}
+}
+
+/**
+ * Display helper for rating as stars
+ */
+export function getRatingDisplay(rating: number): string {
+	if (rating === 0) return '★★★★★';
+	if (rating < 0.01) return '★★★★☆';
+	if (rating < 0.05) return '★★★☆☆';
+	if (rating < 0.1) return '★★☆☆☆';
+	return '★☆☆☆☆';
+}
+
+/**
+ * Build a compact stats text for a mint
+ */
+export function getStatsText(mint: MintInfo): string {
+	const operations = (mint.n_mints || 0) + (mint.n_melts || 0);
+	if (operations === 0) return 'No operations';
+	return `${operations} ops, ${mint.n_errors || 0} errors`;
+}
+
+/**
+ * Default preselected mints for new users.
+ * Minibits and Coinos as requested.
+ */
+export const DEFAULT_MINTS: string[] = [
+	normalizeURL('https://mint.minibits.cash/Bitcoin'),
+	normalizeURL('https://mint.coinos.io')
+];
+
+export function resolveNpubNsecFromStorage(): { npub: string; nsec: string } | null {
+	if (typeof localStorage === 'undefined') return null;
+
+	const mnemonic = localStorage.getItem('wallet/mnemonic');
+	if (!mnemonic) return null;
+
+	const indexStr = localStorage.getItem('wallet/mnemonic_index') ?? '0';
+	const passphrase = localStorage.getItem('wallet/mnemonic_passphrase') ?? '';
+
+	let index = Number.parseInt(indexStr, 10);
+	if (!Number.isFinite(index) || index < 0) index = 0;
+
+	const sk = deriveFromMnemonic(mnemonic, passphrase, index);
+	if (!sk) return null;
+
+	const pubkey = getPublicKey(sk);
+	return {
+		npub: nip19.npubEncode(pubkey),
+		nsec: nip19.nsecEncode(sk)
+	};
+}
 
 export { hexToBytes };

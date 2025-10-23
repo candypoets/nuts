@@ -93,11 +93,11 @@
 		selectedIndex = 0;
 		loading = true;
 		sub = useSubscription(
-			'mentionlist_nocache',
-			[{ kinds: [0], search, limit: 10, relays: SEARCH_RELAYS }],
+			'mentionlist_' + search,
+			[{ kinds: [0], search, limit: 10, relays: SEARCH_RELAYS, noCache: true }],
 			handleEvents
 		);
-	}, 300);
+	}, 600);
 
 	// Reset selection when query changes
 	$: query && subscribe(query);

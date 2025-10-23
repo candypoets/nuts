@@ -2,6 +2,7 @@ import { goto } from '$app/navigation';
 import { page } from '$app/stores';
 import { nipWorker } from '@candypoets/nipworker';
 import { get } from 'svelte/store';
+import { key } from 'src/controller';
 
 export const pathOptions = [
 	'receive',
@@ -11,6 +12,7 @@ export const pathOptions = [
 	'ecash',
 	'followlists',
 	'lightning',
+	'login',
 	'minting',
 	'minted',
 	'melt',
@@ -28,6 +30,34 @@ export const pathOptions = [
 	'share',
 	'logout',
 	'zoom'
+];
+
+export const pathNeedsLogin = [
+	'receive',
+	'send',
+	// 'scan',
+	// 'qr',
+	'ecash',
+	'followlists',
+	'lightning',
+	// 'login',
+	'minting',
+	'minted',
+	'melt',
+	'melted',
+	'tapcash',
+	'profile',
+	'zaps',
+	'keys',
+	'wallet',
+	'post',
+	'reply',
+	'repost',
+	'relays',
+	// 'relayinfos',
+	'share',
+	'logout'
+	// 'zoom'
 ];
 
 export function goBack() {
@@ -50,6 +80,12 @@ export function goBack() {
 }
 
 export function go(eventPath: string) {
+	console.log('go', !get(key)?.pub, eventPath);
+	if (!get(key)?.pub && pathNeedsLogin.some((p) => eventPath.includes(p))) {
+		console.log('login');
+		eventPath = 'login';
+	}
+
 	const currentPath = get(page).url.pathname;
 
 	// Check if the current URL already ends with the profile we're trying to navigate to

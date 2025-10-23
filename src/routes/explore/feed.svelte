@@ -1,9 +1,9 @@
 <script lang="ts">
 	import type { ParsedData, ParsedEvent, WorkerMessage } from '@candypoets/nipworker';
 	import {
+		ConnectionStatus,
 		MessageType,
 		nipWorker,
-		type ConnectionStatus,
 		type SubscriptionConfig
 	} from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
@@ -287,7 +287,6 @@
 	};
 
 	function subscribe() {
-		console.log('subscribefeed');
 		timeout = setTimeout(() => {
 			if (visible) {
 				eoce = false;
@@ -538,10 +537,6 @@
 	}
 </script>
 
-<div class="fixed bottom-4 left-4 text-white">
-	{start} - {end} - {feed.length}
-</div>
-
 <div class={'lg:pt-0 h-full min-h-screen mx-auto !pt-0 ' + $$props.class}>
 	{#if start >= 1}
 		<!-- Fixed header (only visible when scrolled) -->
@@ -593,6 +588,9 @@
 		{@const isVisible = visible && itemIndex >= start - 2}
 		<svelte:fragment slot="feed-header">
 			<slot name="header" visible>Missing Template</slot>
+		</svelte:fragment>
+		<svelte:fragment slot="empty-content">
+			<slot name="empty-content" />
 		</svelte:fragment>
 		<div class="block w-feed m-auto px-1 max-w-full">
 			<slot

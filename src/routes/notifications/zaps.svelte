@@ -68,7 +68,7 @@
 			<div class="flex -space-x-2 mb-2">
 				{#each uniqueAuthors.slice(0, 5) as author}
 					<img
-						src={author.picture || '/ns-naked.svg'}
+						src={author.picture || '/miss-profile.png'}
 						alt={author.name || 'User'}
 						class="w-8 h-8 rounded-full border-2 border-white"
 					/>
@@ -99,7 +99,7 @@
 									<td class="py-2">
 										<div class="flex items-center gap-2">
 											<img
-												src={zap.picture || '/ns-naked.svg'}
+												src={zap.picture || '/miss-profile.png'}
 												alt={zap.name || 'User'}
 												class="w-6 h-6 rounded-full"
 											/>

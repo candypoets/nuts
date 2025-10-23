@@ -16,7 +16,7 @@
 </script>
 
 <div class="h-screen bg-base-300 bg-opacity-85 backdrop-blur-md">
-	<div class="w-feed lg:pt-4 pt-safe">
+	<div class="w-feed md:pt-4 pt-safe">
 		<div class="px-4 flex justify-between">
 			<div on:click={animator.goBack}>
 				<Icon icon="mingcute:down-line" class="text-xl" />

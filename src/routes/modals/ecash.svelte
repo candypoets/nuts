@@ -309,9 +309,9 @@
 	}}
 />
 
-<div class="flex items-start md:items-center h-screen">
+<div class="flex items-start md:items-center h-screen" on:click|stopPropagation={animator.goBack}>
 	<div
-		class="bg-base-300 bg-opacity-85 md:border rounded-xl md:p-4 w-feed md:max-h-[90vh] md:h-auto backdrop-blur-sm pt-safe h-screen"
+		class="bg-base-300 bg-opacity-85 md:border border-primary-content rounded-xl md:p-4 w-feed md:max-h-[90vh] md:h-auto backdrop-blur-sm pt-safe h-screen"
 	>
 		<VirtualList items={[]} height="100%" bind:viewport={scroller} getItemId={() => 'header'}>
 			<div slot="feed-header">
@@ -329,7 +329,7 @@
 						<div class="flex md:gap-4 items-center justify-around">
 							<div class="w-1/3 text-center">
 								<MintSelector
-									mints={($kind17375 && fbArray(asKind17375($kind17375), 'mints')).map((mint) =>
+									mints={($kind17375 && fbArray(asKind17375($kind17375), 'mints'))?.map((mint) =>
 										mint?.toString()
 									) || []}
 									pubkey={$key?.pub}

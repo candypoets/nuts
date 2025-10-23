@@ -7,7 +7,7 @@
 </script>
 
 <div class="h-full lg:py-8 pt-4">
-	<div class="bg-base-300 lg:border lg:rounded-xl h-full">
+	<div class="bg-base-300 md:border border-primary-content lg:rounded-xl h-full">
 		<div class="p-4">
 			<div on:click={animator.goBack}>
 				<Icon icon="mdi:close" class="w-6 h-6" />
@@ -15,8 +15,11 @@
 		</div>
 		<div class="p-4">
 			<h2 class="text-xl font-bold">Add Money</h2>
-			<div class="my-4 rounded-lg border">
-				<div class="flex items-center justify-around py-2 border-b" on:click={() => go('minting')}>
+			<div class="my-4 rounded-lg border border-primary-content">
+				<div
+					class="flex items-center justify-around py-2 border-b border-primary-content"
+					on:click={() => go('minting')}
+				>
 					<Icon icon="carbon:lightning" class="w-6 h-6" />
 					<div>
 						<strong>Add money instantly</strong>
@@ -25,7 +28,9 @@
 					<Icon icon="carbon:arrow-right" class="w-6 h-6" />
 				</div>
 
-				<div class="flex items-center justify-around py-2 border-b opacity-40">
+				<div
+					class="flex items-center justify-around py-2 border-b border-primary-content opacity-40"
+				>
 					<Icon icon="carbon:user" class="w-6 h-6" />
 					<div>
 						<strong>Request from friends</strong>

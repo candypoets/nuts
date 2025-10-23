@@ -47,7 +47,7 @@
 </script>
 
 <div>
-	{#if relays.length > 0}
+	{#if displayedRelays.length > 0}
 		<div
 			on:click|stopPropagation={(_) => {
 				$relaySubs.set(subId, relays);

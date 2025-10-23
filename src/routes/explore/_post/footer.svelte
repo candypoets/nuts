@@ -68,7 +68,10 @@
 	const subscriptionOptions: SubscriptionConfig = {
 		pipeline: [
 			new PipeT(PipeConfig.SaveToDbPipeConfig, new SaveToDbPipeConfigT()),
-			new PipeT(PipeConfig.CounterPipeConfig, new CounterPipeConfigT([1, 6, 7, 17], $key?.pub))
+			new PipeT(
+				PipeConfig.CounterPipeConfig,
+				new CounterPipeConfigT([1, 6, 7, 17], $key?.pub || '')
+			)
 		]
 	};
 

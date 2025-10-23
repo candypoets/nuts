@@ -13,7 +13,7 @@
 		type RequestObject,
 		type WorkerMessage
 	} from '@candypoets/nipworker';
-	import { useSubscription } from '@candypoets/nipworker/hooks';
+	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
 	import {
 		asConnectionStatus,
 		asKind0,
@@ -47,7 +47,6 @@
 		kind3,
 		readRelays
 	} from 'src/controller/nostr';
-	import { limit } from 'src/controller/pagination';
 	import {
 		addProofs,
 		nutsWallet,
@@ -56,14 +55,18 @@
 		setNutsWallet
 	} from 'src/controller/proofs';
 	import { activeMintUrl, walletLoaded } from 'src/controller/wallet';
-	import { DAY } from 'src/lib/period';
 	import { normalizeMintURL } from 'src/lib/utils';
 	import { decodePrivKey } from 'src/lib/wallet';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import MintCard from 'src/routes/home/components/mintcard.svelte';
 	import Kind9321 from 'src/routes/kinds/kind9321.svelte';
 	import { go } from 'src/routes/modals/modal';
-	import { set } from 'lodash';
+	import Wallet from '../modals/_profile/wallet.svelte';
+	import LoginForm from 'src/components/LoginForm.svelte';
+	import { now } from 'src/lib/period';
+	import { pronounceable } from 'src/lib/randomName';
+	import EmptyWallet from './emptyWallet.svelte';
+	import Connect from 'src/components/Connect.svelte';
 
 	export let visible = false;
 
@@ -73,6 +76,7 @@
 	let privateKey: string;
 	let loading = false;
 	let extensionError = false;
+	let showLinkProfile = true;
 	let feed: ParsedEvent[] = [];
 
 	function oneDayDiff(firstTimestampInSeconds: number, secondTimestampInSeconds: number): boolean {
@@ -97,14 +101,13 @@
 				'wss://relay.damus.io',
 				'wss://nos.lol',
 				'wss://relay.primal.net',
-				'wss://relay.nostr.band'
+				'wss://relay.nostr.band',
+				'wss://relay.nuts.cash'
 			]),
 		3000
 	);
 
 	$: relays = (walletRelays?.length && walletRelays) || $readRelays || defaultRelays;
-
-	$: console.log(walletRelays, $readRelays, defaultRelays);
 
 	const relayPromise = Promise.race([kind10019Ready.promise, delayedPromise]);
 
@@ -114,7 +117,6 @@
 
 	function setFeedRequests() {
 		relayPromise.then(() => {
-			console.log('relays', relays);
 			feedRequests = [
 				{
 					kinds: [9321],
@@ -135,7 +137,8 @@
 	let proofs: () => void;
 	let zaps: () => void;
 
-	walletLoaded.then(() => {
+	$: if ($key?.pub && !loading) {
+		// console.log('oy');
 		proofs?.();
 		proofs = useSubscription(
 			'proofs_' + $key?.pub,
@@ -207,60 +210,60 @@
 				]
 			}
 		);
-	});
+	}
 
-	let walletSub = Promise.race([kind10019Ready.promise, delayedPromise]).then((event) => {
+	$: if ($key?.pub && relays.length) {
 		useSubscription(
 			'active_wallet',
 			[
 				// { kinds: [7375], authors: [$key?.pub], limit: 10, relays: relays },
 				{ kinds: [17375], authors: [$key?.pub], limit: 10, relays: relays }
 			],
-			(message) => {
-				const status = isConnectionStatus(message);
-				if (status) {
-					connectionTracker.handleMessage(message);
-					if (connectionTracker.resolutionRate > 0.5) {
-						walletLoaded.resolve(true);
-					}
-					connectionStatus[status?.relayUrl()!.toString()] = status;
-				}
-				const parsedEvent = isParsedEvent(message);
-				const wallet = isKind17375(message);
-				if (parsedEvent && wallet) {
-					console.log('wallet message', wallet.p2pkPrivKey()?.toString(), wallet?.decrypted());
-					// Only update if the store is empty or the event is more recent
-					if (!$kind17375 || parsedEvent.createdAt() > $kind17375.createdAt()) {
-						$kind17375 = parsedEvent;
-						$activeMintUrl =
-							wallet.mints(0).toString() && normalizeMintURL(wallet.mints(0).toString());
-					}
-					if (wallet.p2pkPrivKey()) {
-						setNutsWallet(
-							wallet.p2pkPrivKey()!.toString(),
-							wallet.p2pkPubKey()!.toString(),
-							fbArray(wallet, 'mints').map((m) => normalizeMintURL(m.toString())),
-							Number(parsedEvent.createdAt())
-						);
-					}
-				}
-				// if (isKind7375(event) && event?.parsed?.mintUrl) {
-				// if (event?.parsed?.deletedIds?.length) {
-				// 	$deletedKind7375Ids = $deletedKind7375Ids.concat(event?.parsed?.deletedIds);
-				// }
-				// $kinds7375 = $kinds7375.concat(event);
-				// console.log(
-				// 	event.parsed.mintUrl,
-				// 	formatDistanceToNow((event?.created_at || 0) * 1000, { addSuffix: true }),
-				// 	event.parsed.proofs.reduce((acc, cur) => (acc += cur.amount), 0),
-				// 	event.parsed.proofs
-				// );
-				// addProofs(event.parsed?.mintUrl, event.parsed?.proofs);
-				// }
-			},
+			handleWalletEvents,
 			{ bytesPerEvent: 6144 }
 		);
-	});
+	}
+
+	function handleWalletEvents(message: WorkerMessage) {
+		const status = isConnectionStatus(message);
+		if (status) {
+			connectionTracker.handleMessage(message);
+			if (connectionTracker.resolutionRate > 0.5) {
+				walletLoaded.resolve(true);
+			}
+			connectionStatus[status?.relayUrl()!.toString()] = status;
+		}
+		const parsedEvent = isParsedEvent(message);
+		const wallet = isKind17375(message);
+		if (parsedEvent && wallet) {
+			// Only update if the store is empty or the event is more recent
+			if (!$kind17375 || parsedEvent.createdAt() > $kind17375.createdAt()) {
+				$kind17375 = parsedEvent;
+				$activeMintUrl = wallet.mints(0).toString() && normalizeMintURL(wallet.mints(0).toString());
+			}
+			if (wallet.p2pkPrivKey()) {
+				setNutsWallet(
+					wallet.p2pkPrivKey()!.toString(),
+					wallet.p2pkPubKey()!.toString(),
+					fbArray(wallet, 'mints').map((m) => normalizeMintURL(m.toString())),
+					Number(parsedEvent.createdAt())
+				);
+			}
+		}
+		// if (isKind7375(event) && event?.parsed?.mintUrl) {
+		// if (event?.parsed?.deletedIds?.length) {
+		// 	$deletedKind7375Ids = $deletedKind7375Ids.concat(event?.parsed?.deletedIds);
+		// }
+		// $kinds7375 = $kinds7375.concat(event);
+		// console.log(
+		// 	event.parsed.mintUrl,
+		// 	formatDistanceToNow((event?.created_at || 0) * 1000, { addSuffix: true }),
+		// 	event.parsed.proofs.reduce((acc, cur) => (acc += cur.amount), 0),
+		// 	event.parsed.proofs
+		// );
+		// addProofs(event.parsed?.mintUrl, event.parsed?.proofs);
+		// }
+	}
 
 	function updateFeed(feed: ParsedEvent[], message: WorkerMessage): ParsedEvent[] {
 		// Add new events to our feed for processing
@@ -280,68 +283,8 @@
 		return updatedFeed;
 	}
 
-	async function handleLogin() {
-		// Handle login logic here
-
-		// build a key object to store in the db
-		const pk = decodePrivKey(privateKey);
-
-		const pubkey = bytesToHex(schnorr.getPublicKey(pk));
-		const privkey = bytesToHex(pk);
-
-		loading = true;
-
-		const login = useSubscription(
-			'login_' + pubkey,
-			[
-				{
-					kinds: [0, 3, 10002],
-					authors: [pubkey],
-					limit: 10,
-					cacheFirst: true,
-					relays: []
-				}
-			],
-			(message: WorkerMessage) => {
-				switch (message.type()) {
-					case MessageType.ParsedNostrEvent:
-						const parsedEvent = asParsedEvent(message);
-						switch (parsedEvent?.parsedType()) {
-							case ParsedData.Kind0Parsed:
-								$kind0 = parsedEvent;
-								loading = false;
-								try {
-									$key = {
-										pub: pubkey,
-										priv: privkey,
-										npub: nip19.npubEncode(pubkey),
-										nsec: nip19.nsecEncode(pk)
-									};
-								} catch (error) {
-									console.warn(error);
-								}
-								break;
-							case ParsedData.Kind3Parsed:
-								$kind3 = parsedEvent;
-								break;
-							case ParsedData.Kind10002Parsed:
-								$kind10002 = parsedEvent;
-								break;
-						}
-					case MessageType.ConnectionStatus:
-						const status = asConnectionStatus(message);
-						if (status?.status()?.toString() == 'EOSE') {
-							loading = false;
-							login();
-						}
-						break;
-				}
-			}
-		);
-	}
-
 	onMount(() => {
-		walletLoaded.then(() => console.log('walletLoaded', nutsWallets));
+		walletLoaded.then(() => (loading = false));
 	});
 
 	$: feed = feed.sort((a, b) => b.createdAt() - a.createdAt());
@@ -352,7 +295,7 @@
 		subscriptionID="home"
 		requests={feedRequests}
 		{updateFeed}
-		backdrop
+		backdrop={!feed.length}
 		bind:connectionStatus
 		bind:feed
 	>
@@ -373,30 +316,32 @@
 							>
 							<div on:click|stopPropagation={() => go('profile')} class="cursor-pointer">
 								<img
-									src={asKind0($kind0)?.picture()?.toString() || '/ns-naked.svg'}
+									src={asKind0($kind0)?.picture()?.toString() || '/miss-profile.png'}
 									class="w-8 h-8 border rounded-full"
 								/>
 							</div>
 						</div>
 					</div>
 					<RelaysList {relays} {connectionStatus} />
-					{#if $nutsWallet}
+					{#if loading}
+						loading
+					{:else if $nutsWallet}
 						<div
-							class="flex gap-2 items-stretch overflow-x-scroll scrollbar-hide snap-x snap-mandatory scroll-smooth mt-2"
+							class="flex items-stretch justify-start overflow-x-scroll scrollbar-hide snap-x snap-mandatory scroll-smooth mt-2"
 							on:touchmove|stopPropagation
 						>
 							{#each $nutsWallet.mintUrls || [] as url}
 								<MintCard mintUrl={url} navigate />
 							{/each}
 						</div>
-					{:else}
-						<div class="w-full p-4 rounded-lg mb-4 bg-base-200">
+					{:else if $key?.pub}
+						<div class="w-full p-4 rounded-lg mb-4 border border-primary-content mt-4">
 							<div class="flex items-center justify-between">
 								<div>
 									<h3 class="font-semibold text-lg">Setup Your Wallet</h3>
 									<p class="text-sm text-secondary-content">Configure your wallet to get started</p>
 								</div>
-								<button class="btn btn-primary" on:click|stopPropagation={() => go('wallet')}>
+								<button class="btn btn-accent" on:click|stopPropagation={() => go('wallet')}>
 									<Icon icon="ph:wallet-bold" class="mr-2" />
 									Setup Wallet
 								</button>
@@ -404,93 +349,47 @@
 						</div>
 					{/if}
 				</div>
-				<div class="flex lg:gap-8 gap-4 px-4 py-2 mt-2 w-feed m-auto">
-					<div class="text-center">
-						<button
-							class="btn w-14 h-14 btn-primary btn-circle text-base-100"
-							on:click|stopPropagation={() => go('receive')}
-						>
-							<Icon icon="teenyicons:add-outline" class="text-2xl" />
-						</button>
-						<div class="text-sm mt-1 font-semibold">Receive</div>
-					</div>
-					<div class="text-center">
-						<button
-							class="btn w-14 h-14 btn-primary btn-circle text-base-100"
-							on:click|stopPropagation={() => go('send')}
-						>
-							<Icon icon="ph:arrow-right" class="w-8 h-8" />
-						</button>
-						<div class="text-sm mt-1 font-semibold">Send</div>
-					</div>
-					<div class="text-center">
-						<a
-							class="btn w-14 h-14 btn-outline btn-circle"
-							on:click|stopPropagation={() => go('scan')}
-						>
-							<Icon icon="teenyicons:scan-solid" class="text-2xl" />
-						</a>
-						<div class="text-sm mt-1 font-semibold">Scan</div>
-					</div>
-					<div class="flex-grow w-1/4" />
-				</div>
-				{#if $key}
-					<div
-						class="h-auto lg:pt-0 overflow-scroll scrollbar-hide"
-						on:scroll={(e) => (scrollY = e?.target?.scrollTop)}
-					>
-						<!-- <slot /> -->
-					</div>
-				{:else}
-					<div class="w-feed m-auto h-auto lg:pt-0 px-4">
-						<div class="mt-4">Log in with your nsec</div>
-						<form class="mt-4" on:submit|preventDefault={handleLogin}>
-							<div class="join w-full border">
-								<div class="btn join-item btn-link"><Icon icon="ri:key-fill" /></div>
-								<input
-									placeholder="nsec"
-									class="join-item flex-grow px-2"
-									type="text"
-									bind:value={privateKey}
-								/>
-								<button class="btn join-item btn-primary" type="submit">
-									{#if !loading}<Icon icon="mdi:login" />
-									{:else}
-										<div class="loading" />
-									{/if}
-								</button>
-							</div>
-						</form>
-						<div class="flex items-center gap-2 my-4">
-							<div class="border-b w-full" />
-							<div>OR</div>
-							<div class="border-b w-full" />
+				{#if $nutsWallet}
+					<div class="flex lg:gap-8 gap-4 px-4 py-2 mt-2 w-feed m-auto">
+						<div class="text-center">
+							<button
+								class="btn w-14 h-14 btn-primary btn-circle text-base-100"
+								on:click|stopPropagation={() => go('receive')}
+							>
+								<Icon icon="teenyicons:add-outline" class="text-2xl" />
+							</button>
+							<div class="text-sm mt-1 font-semibold">Receive</div>
 						</div>
-						<button
-							class="btn btn-outline mt-4 m-auto block w-full"
-							class:btn-error={extensionError}
-							on:click={async () => {
-								const pubKey = await window?.nostr?.getPublicKey();
-								if (!pubKey) {
-									extensionError = true;
-									return;
-								}
-								if (pubKey == $key?.pub) return;
-								$key = {
-									pub: pubKey,
-									npub: nip19.npubEncode(pubKey)
-								};
-							}}
-						>
-							{#if !extensionError}
-								Log in with an extension
-							{:else}
-								Extension not found
-							{/if}
-						</button>
+						<div class="text-center">
+							<button
+								class="btn w-14 h-14 btn-primary btn-circle text-base-100"
+								on:click|stopPropagation={() => go('send')}
+							>
+								<Icon icon="ph:arrow-right" class="w-8 h-8" />
+							</button>
+							<div class="text-sm mt-1 font-semibold">Send</div>
+						</div>
+						<div class="text-center">
+							<a
+								class="btn w-14 h-14 btn-outline btn-circle"
+								on:click|stopPropagation={() => go('scan')}
+							>
+								<Icon icon="teenyicons:scan-solid" class="text-2xl" />
+							</a>
+							<div class="text-sm mt-1 font-semibold">Scan</div>
+						</div>
+						<div class="flex-grow w-1/4" />
 					</div>
 				{/if}
 			</div>
+		</svelte:fragment>
+		<svelte:fragment slot="empty-content">
+			<br />
+			{#if !$key?.pub}
+				<Connect />
+			{:else}
+				<EmptyWallet hasWallet={!!$kind17375} />
+			{/if}
 		</svelte:fragment>
 		<div slot="item-content" let:post let:visible let:index>
 			<!-- {#if post} -->

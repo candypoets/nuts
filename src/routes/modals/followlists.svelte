@@ -59,9 +59,10 @@
 	}
 
 	onDestroy(() => {
-		if (fps.length == 0) {
-			fps.push($followList);
-		}
+		console.log(fps, $followPacks);
+		// if (fps.length == 0) {
+		// 	fps.push($followList);
+		// }
 		$followPacks = fps;
 	});
 

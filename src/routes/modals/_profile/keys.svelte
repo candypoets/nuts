@@ -28,7 +28,7 @@
 		<div class="flex p-4 bg-base-200 my-4 rounded-lg items-center">
 			<div class="w-1/5">
 				<img
-					src={$kind0?.parsed?.picture || '/ns-naked.svg'}
+					src={$kind0?.parsed?.picture || '/miss-profile.png'}
 					class="w-10 h-10 border-2 rounded-full"
 				/>
 			</div>

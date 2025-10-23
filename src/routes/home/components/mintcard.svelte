@@ -49,6 +49,7 @@
 		class:w-72={size == 'lg'}
 		class:w-32={size == 'sm'}
 		class:w-40={size == 'sm'}
+		class:!mx-4={size == 'lg'}
 		class:cursor-pointer={navigate}
 		on:click={goto}
 	>

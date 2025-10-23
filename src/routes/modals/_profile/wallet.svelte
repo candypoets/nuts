@@ -1,21 +1,109 @@
 <script lang="ts">
-	import { Kind17375Parsed } from '@candypoets/nipworker';
+	import { ConnectionStatus, Kind17375Parsed, nipWorker } from '@candypoets/nipworker';
 	import Icon from '@iconify/svelte';
 	import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 	import _, { uniq } from 'lodash';
-	import { generateSecretKey, getPublicKey, type EventTemplate } from 'nostr-tools';
+	import { generateSecretKey, getPublicKey, type EventTemplate, nip19 } from 'nostr-tools';
 	import { normalizeURL } from 'nostr-tools/utils';
 	import { getContext, onMount } from 'svelte';
+	import { generateMnemonic, validateMnemonic, mnemonicToSeedSync } from '@scure/bip39';
+	import { wordlist } from '@scure/bip39/wordlists/english';
+	import { HDKey } from '@scure/bip32';
 
 	import { kind17375 } from 'src/controller/nostr';
 	import { isMintUrlValid } from 'src/lib/mint';
 	import { now } from 'src/lib/period';
 	import { usePublish } from '@candypoets/nipworker/hooks';
-	import { asKind17375, fbArray } from '@candypoets/nipworker/utils';
+	import { asKind17375, fbArray, isConnectionStatus } from '@candypoets/nipworker/utils';
 	import { areStringListEqual } from 'src/lib/utils';
+
+	// New imports from wallet utils
+	import {
+		deriveFromMnemonic,
+		parsePrivkey,
+		fetchAvailableMints,
+		getStatusColor,
+		getRatingDisplay,
+		getStatsText,
+		DEFAULT_MINTS,
+		type MintInfo
+	} from 'src/lib/wallet';
+	import { key, walletMnemonic, walletMnemonicIndex, walletPassphrase } from 'src/controller';
+	import { updateSendStatus } from 'src/controller/sendStatus';
+	import { proxyAvatarUrl } from 'src/lib/proxy';
+	import { setNutsWallet } from 'src/controller/proofs';
+
+	export let header = true;
 
 	let animator = getContext('animator');
 
+	// ------------------
+	// Wallet source UI
+	// ------------------
+	type WalletMode = 'mnemonic' | 'privkey' | 'create';
+	let walletMode: WalletMode = 'create';
+
+	const CASHU_BASE_PATH = "m/44'/1237'/17375'/0";
+
+	// Mnemonic inputs
+	let inputMnemonic = '';
+	let inputPassphrase = '';
+	let mnemonicIndex = 0;
+	let mnemonicError: string | null = null;
+
+	// Private key input
+	let inputPrivkey = '';
+	let privkeyError: string | null = null;
+
+	// A single stable fallback secret key (used when no user input and no existing wallet)
+	const fallbackSecretKey: Uint8Array = generateSecretKey();
+
+	// Kind17375 and selected secret
+	$: k17375 = $kind17375 && asKind17375($kind17375);
+
+	// User-selected secret key based on the mode
+	$: derivedMnemonicSK =
+		walletMode === 'mnemonic'
+			? deriveFromMnemonic(inputMnemonic, inputPassphrase, mnemonicIndex)
+			: null;
+
+	$: derivedPrivkeySK = walletMode === 'privkey' ? parsePrivkey(inputPrivkey) : null;
+
+	// Create mode: generate mnemonic once if empty, allow regenerate via button
+	function ensureGeneratedMnemonic() {
+		if (!inputMnemonic.trim()) {
+			inputMnemonic = generateMnemonic(wordlist, 128);
+			mnemonicIndex = 0;
+		}
+	}
+	function regenerateMnemonic() {
+		inputMnemonic = generateMnemonic(wordlist, 128);
+		mnemonicIndex = 0;
+	}
+
+	// When switching to create mode, generate a mnemonic if none present yet
+	$: if (walletMode === 'create') {
+		ensureGeneratedMnemonic();
+	}
+
+	// Use existing k17375 priv key if present (hex string), otherwise fallback
+	$: defaultSecretKey =
+		(k17375?.p2pkPrivKey()?.toString() &&
+			hexToBytes(k17375?.p2pkPrivKey()?.toString() as string)) ||
+		fallbackSecretKey;
+
+	// The effective secret key: preference order is user-provided (mnemonic/privkey/create) then existing or fallback
+	$: userSecretKey =
+		(walletMode === 'mnemonic' && derivedMnemonicSK) ||
+		(walletMode === 'privkey' && derivedPrivkeySK) ||
+		(walletMode === 'create' && derivedMnemonicSK) ||
+		null;
+
+	$: secretKey = userSecretKey || defaultSecretKey;
+
+	// ------------------
+	// Remainder of original component state
+	// ------------------
 	let search = '';
 	let loading = false;
 	let isInvalid = false;
@@ -27,99 +115,19 @@
 
 	$: selectableMints = availableMints.filter((am) => !selectedMints.some((sm) => sm == am.url));
 
-	$: k17375 = $kind17375 && asKind17375($kind17375);
-
-	$: secretKey =
-		(k17375?.p2pkPrivKey()?.toString() &&
-			hexToBytes(k17375?.p2pkPrivKey()?.toString() as string)) ||
-		generateSecretKey();
-
+	// Mints from existing event (if any)
 	$: mints = fbArray(k17375 as Kind17375Parsed, 'mints').map((m) => m.toString());
+	// Preselect defaults (Minibits, Coinos) if no saved mints
+	$: selectedMints = mints && mints.length > 0 ? mints : DEFAULT_MINTS.slice();
 
-	$: selectedMints = mints || [];
-
+	// Pubkey/npub/nsec
 	$: pubkey = secretKey && getPublicKey(secretKey);
-
-	interface MintInfo {
-		title: string;
-		url: string;
-		description: string;
-		publishDate: Date;
-		iconUrl: string | null;
-		state: string;
-		rating: number; // Lower is better (errors per operation)
-		n_mints?: number;
-		n_melts?: number;
-		n_errors?: number;
-	}
+	$: npub = pubkey ? nip19.npubEncode(pubkey) : '';
+	$: nsec = secretKey ? nip19.nsecEncode(secretKey) : '';
 
 	onMount(async () => {
-		await fetchAvailableMints();
+		availableMints = await fetchAvailableMints();
 	});
-
-	async function fetchAvailableMints() {
-		try {
-			const response = await fetch('https://api.audit.8333.space/mints/');
-			if (!response.ok) {
-				throw new Error(`HTTP error! status: ${response.status}`);
-			}
-			const jsonData = await response.json();
-
-			availableMints = jsonData.map((mintData: any) => {
-				let description = '';
-				let title = mintData.name || 'Unknown Mint';
-				let iconUrl = null;
-
-				try {
-					if (mintData.info) {
-						const infoObj = JSON.parse(mintData.info);
-						description = infoObj.description || '';
-						if (infoObj.name) {
-							title = infoObj.name;
-						}
-						if (infoObj.icon_url) {
-							iconUrl = infoObj.icon_url;
-						}
-					}
-				} catch (e) {
-					console.error('Error parsing mint info JSON for ' + mintData.url + ':', e);
-				}
-
-				const operations = (mintData.n_mints || 0) + (mintData.n_melts || 0);
-				let rating = 1; // Default bad rating (high error rate)
-				if (operations > 0) {
-					rating = (mintData.n_errors || 0) / operations;
-				} else if ((mintData.n_errors || 0) === 0) {
-					rating = 0; // Perfect rating if no errors and no ops
-				}
-
-				return {
-					title: title,
-					url: normalizeURL(mintData.url),
-					description: description,
-					publishDate: new Date(mintData.updated_at || 0), // Add fallback for missing date
-					iconUrl: iconUrl,
-					state: mintData.state || 'UNKNOWN',
-					rating: rating,
-					n_mints: mintData.n_mints || 0,
-					n_melts: mintData.n_melts || 0,
-					n_errors: mintData.n_errors || 0
-				};
-			});
-
-			// First sort by state (OK first), then by rating (lower is better)
-			availableMints.sort((a, b) => {
-				// Sort OK state first
-				if (a.state === 'OK' && b.state !== 'OK') return -1;
-				if (a.state !== 'OK' && b.state === 'OK') return 1;
-				// Then sort by rating (lower score is better)
-				return a.rating - b.rating;
-			});
-		} catch (error) {
-			console.error('Error fetching or parsing mints:', error);
-			availableMints = [];
-		}
-	}
 
 	function filterMints() {
 		if (!search.trim()) {
@@ -167,34 +175,6 @@
 		}
 	}
 
-	// Helper function for status color
-	function getStatusColor(state: string): string {
-		switch (state) {
-			case 'OK':
-				return 'bg-success';
-			case 'ERROR':
-				return 'bg-error';
-			default:
-				return 'bg-warning'; // UNKNOWN or other states
-		}
-	}
-
-	// Helper function for rating display (e.g., stars)
-	function getRatingDisplay(rating: number): string {
-		if (rating === 0) return '★★★★★'; // Perfect
-		if (rating < 0.01) return '★★★★☆'; // Very Good
-		if (rating < 0.05) return '★★★☆☆'; // Good
-		if (rating < 0.1) return '★★☆☆☆'; // Fair
-		return '★☆☆☆☆'; // Poor
-	}
-
-	// Get stats text for mint
-	function getStatsText(mint: MintInfo): string {
-		const operations = (mint.n_mints || 0) + (mint.n_melts || 0);
-		if (operations === 0) return 'No operations';
-		return `${operations} ops, ${mint.n_errors || 0} errors`;
-	}
-
 	function saveWallet() {
 		const newWallet: EventTemplate = {
 			kind: 17375,
@@ -212,45 +192,169 @@
 			tags: [...selectedMints.map((sm) => ['mint', sm]), ['pubkey', pubkey]]
 		};
 
-		usePublish('newWallet', newWallet, (message) => console.log('newWallet', message));
+		// Persist mnemonic locally when applicable
+		if (walletMode === 'mnemonic' || walletMode === 'create') {
+			const trimmed = (inputMnemonic || '').trim();
+			if (trimmed && validateMnemonic(trimmed, wordlist)) {
+				$walletMnemonic = trimmed;
+				$walletMnemonicIndex = mnemonicIndex;
+				if (inputPassphrase) {
+					$walletPassphrase = inputPassphrase;
+				}
+			}
+		}
+
+		let sendStatus: { [url: string]: ConnectionStatus } = {};
+
+		usePublish('newWallet', newWallet, (message) => {
+			const status = isConnectionStatus(message);
+			if (status) {
+				const relayUrl = status.relayUrl()?.toString();
+				if (relayUrl) {
+					sendStatus[relayUrl] = status;
+					updateSendStatus('newWallet_' + pubkey, sendStatus);
+				}
+				console.log('relayUrl', relayUrl);
+				// $key.pub = pubkey;
+				setNutsWallet(bytesToHex(secretKey), pubkey, selectedMints, now());
+			}
+		});
 		usePublish('trustedMints', trustedMints, (message) => console.log('trustedMints', message));
 	}
 
-	$: console.log('selected mints', selectedMints, mints);
+	// $: console.log('selectedMints', selectedMints);
 </script>
 
 <div
-	class="h-full bg-base-300 bg-opacity-85 backdrop-blur-md pt-4 overflow-scroll"
+	class="h-screen bg-base-300 bg-opacity-85 backdrop-blur-md pt-4 overflow-scroll"
 	on:touchmove|stopPropagation
 >
-	<div class="flex justify-between mb-12 px-4">
-		<button class="w-1/4" aria-label="Return to previous screen" on:click={animator.goBack}>
-			<Icon icon="iconamoon:arrow-down-2-light" class="w-6 h-6" />
-		</button>
-		<h2 class="font-bold text-xl">Cashu Wallet</h2>
-		<div class="w-1/4"></div>
-	</div>
+	{#if header}
+		<div class="flex justify-between mb-6 px-4">
+			<button class="w-1/4" aria-label="Return to previous screen" on:click={animator.goBack}>
+				<Icon icon="iconamoon:arrow-down-2-light" class="w-6 h-6" />
+			</button>
+			<h2 class="font-bold text-xl">Cashu Wallet</h2>
+			<div class="w-1/4"></div>
+		</div>
+	{/if}
 
 	<div class="space-y-6 px-4">
-		<!-- Wallet Address Section -->
-		<div class="bg-base-300 p-4 rounded-lg border-primary-content border">
-			<h3 class="font-semibold mb-2">Wallet Address</h3>
-			<div class="flex items-center">
-				<input type="text" readonly value={pubkey} class="input input-bordered w-full text-sm" />
+		<!-- Wallet Source Section -->
+		<div class="bg-base-300 p-4 rounded-lg border-primary-content border space-y-3">
+			<h3 class="font-semibold">Wallet source</h3>
+
+			<div class="join">
 				<button
-					class="btn btn-square ml-2"
-					on:click={() => navigator.clipboard.writeText('ecash:walletpublicaddress123456789')}
+					class="btn join-item {walletMode === 'create' ? 'btn-accent' : 'btn-ghost'}"
+					on:click={() => (walletMode = 'create')}
 				>
+					Create new
+				</button>
+				<button
+					class="btn join-item {walletMode === 'mnemonic' ? 'btn-accent' : 'btn-ghost'}"
+					on:click={() => (walletMode = 'mnemonic')}
+				>
+					Import mnemonic
+				</button>
+				<button
+					class="btn join-item {walletMode === 'privkey' ? 'btn-accent' : 'btn-ghost'}"
+					on:click={() => (walletMode = 'privkey')}
+				>
+					Import private key
+				</button>
+			</div>
+
+			{#if walletMode === 'mnemonic' || walletMode === 'create'}
+				<div class="space-y-3">
+					<label class="text-sm opacity-80">BIP-39 mnemonic</label>
+					<textarea
+						class="textarea textarea-bordered w-full"
+						rows="3"
+						placeholder="treat dwarf wealth gasp brass outside high rent blood crowd make end"
+						bind:value={inputMnemonic}
+					/>
+					<div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+						<div class="col-span-1">
+							<label class="text-sm opacity-80">Passphrase (optional)</label>
+							<input
+								class="input input-bordered w-full"
+								type="password"
+								placeholder="Optional BIP-39 passphrase"
+								bind:value={inputPassphrase}
+							/>
+						</div>
+						<div class="col-span-1">
+							<label class="text-sm opacity-80">Derivation path</label>
+							<input
+								class="input input-bordered w-full"
+								readonly
+								value={`${CASHU_BASE_PATH}/${mnemonicIndex}`}
+							/>
+						</div>
+						<div class="col-span-1">
+							<label class="text-sm opacity-80">Index</label>
+							<input
+								class="input input-bordered w-full"
+								type="number"
+								min="0"
+								bind:value={mnemonicIndex}
+							/>
+						</div>
+					</div>
+					{#if walletMode === 'create'}
+						<div class="flex gap-2">
+							<button class="btn btn-outline btn-sm" on:click={regenerateMnemonic}>
+								Regenerate
+							</button>
+							<button
+								class="btn btn-outline btn-sm"
+								on:click={() => navigator.clipboard.writeText(inputMnemonic)}
+							>
+								Copy mnemonic
+								<Icon icon="material-symbols:content-copy" class="w-4 h-4 ml-1" />
+							</button>
+						</div>
+					{/if}
+					{#if mnemonicError}
+						<div class="text-error text-sm">{mnemonicError}</div>
+					{/if}
+				</div>
+			{:else if walletMode === 'privkey'}
+				<div class="space-y-3">
+					<label class="text-sm opacity-80">Private key (hex 64 chars or nsec...)</label>
+					<input
+						class="input input-bordered w-full"
+						type="text"
+						placeholder="nsec1... or 64-char hex"
+						bind:value={inputPrivkey}
+					/>
+					{#if privkeyError}
+						<div class="text-error text-sm">{privkeyError}</div>
+					{/if}
+				</div>
+			{/if}
+		</div>
+
+		<!-- Wallet Address Section -->
+		<div class="bg-base-300 p-4 rounded-lg border-primary-content border space-y-3">
+			<h3 class="font-semibold">Wallet Address</h3>
+
+			<label class="text-sm opacity-80">npub (shareable)</label>
+			<div class="flex items-center">
+				<input type="text" readonly value={npub} class="input input-bordered w-full text-sm" />
+				<button class="btn btn-square ml-2" on:click={() => navigator.clipboard.writeText(npub)}>
 					<Icon icon="material-symbols:content-copy" class="w-5 h-5" />
 				</button>
 			</div>
-			<button
-				class="btn btn-sm btn-outline mt-3"
-				on:click={() => navigator.clipboard.writeText('privatekey123456789')}
-			>
-				Copy Private Key
-				<Icon icon="material-symbols:key" class="w-4 h-4 ml-1" />
-			</button>
+
+			<label class="text-sm opacity-80 mt-2">nsec (private)</label>
+			<div class="flex items-center">
+				<input type="text" readonly value={nsec} class="input input-bordered w-full text-sm" />
+				<button class="btn btn-square ml-2" on:click={() => navigator.clipboard.writeText(nsec)}>
+					<Icon icon="material-symbols:content-copy" class="w-5 h-5" />
+				</button>
+			</div>
 		</div>
 
 		<!-- Mint Selection Section -->
@@ -331,52 +435,6 @@
 				<div class="text-error text-sm mb-2">Invalid mint URL. Please enter a valid URL.</div>
 			{/if}
 
-			<!-- Suggested Mints -->
-			<!-- {#if !searchFocused && selectableMints.length > 0 && !newMintUrl}
-				<div class="mb-4">
-					<h4 class="text-sm font-medium mb-2">Suggested Mints</h4>
-					<div class="max-h-40 overflow-y-auto">
-						{#each selectableMints.slice(0, 5) as mint}
-							<button
-								class="w-full text-left p-3 hover:bg-base-300 cursor-pointer border-b flex justify-between items-center"
-								on:click={() => {
-									selectMint(mint);
-									// addMint();
-								}}
-							>
-								<div class="flex items-start space-x-2 flex-1 min-w-0">
-									{#if mint.iconUrl}
-										<img
-											src={mint.iconUrl}
-											alt="Mint icon"
-											class="w-6 h-6 rounded-full flex-shrink-0"
-										/>
-									{:else}
-										<div class="w-6 h-6 rounded-full bg-gray-300 flex-shrink-0"></div>
-									{/if}
-									<div class="flex-1 min-w-0">
-										<div class="font-medium truncate flex items-center gap-4">
-											<span>{mint.title}</span>
-											<span>{getRatingDisplay(mint.rating)}</span>
-										</div>
-										<div class="text-xs truncate opacity-70">{mint.url}</div>
-										<div class="text-xs mt-1">
-											<div class="flex items-center gap-2">
-												<span class={`w-2 h-2 rounded-full ${getStatusColor(mint.state)}`}></span>
-												<span class="opacity-70">{getStatsText(mint)}</span>
-											</div>
-										</div>
-									</div>
-								</div>
-								<span class="btn btn-sm btn-ghost flex-shrink-0 ml-2">
-									<Icon icon="material-symbols:add" class="w-4 h-4" />
-								</span>
-							</button>
-						{/each}
-					</div>
-				</div>
-			{/if} -->
-
 			<h4 class="text-sm font-medium mb-2">Your Mints</h4>
 			<div class="">
 				{#each selectedMints as mint}
@@ -389,7 +447,7 @@
 							<div class="flex items-start space-x-2 flex-1 min-w-0">
 								{#if mintInfo?.iconUrl}
 									<img
-										src={mintInfo.iconUrl}
+										src={proxyAvatarUrl(mintInfo.iconUrl)}
 										alt="Mint icon"
 										class="w-6 h-6 rounded-full flex-shrink-0"
 									/>
@@ -410,9 +468,6 @@
 												<span class="opacity-70">{getStatsText(mintInfo)}</span>
 											{/if}
 										</div>
-										<!-- <span class="text-primary font-semibold">
-											{mint['balance'] ? mint['balance'] : '0.00'} sats
-										</span> -->
 									</div>
 								</div>
 							</div>
@@ -421,11 +476,7 @@
 								<div class="w-6 h-6 rounded-full bg-gray-300 flex-shrink-0"></div>
 								<div class="flex-1 min-w-0">
 									<div class="font-medium truncate">{nurl}</div>
-									<div class="text-xs mt-1">
-										<!-- <span class="text-primary font-semibold">
-											{mint['balance'] ? mint['balance'] : '0.00'} sats
-										</span> -->
-									</div>
+									<div class="text-xs mt-1"></div>
 								</div>
 							</div>
 						{/if}
@@ -440,6 +491,7 @@
 			</div>
 		</div>
 	</div>
+
 	<div class="flex justify-center mt-6 px-4 mb-8">
 		<button
 			class="btn btn-primary w-full text-white"
@@ -449,11 +501,9 @@
 			)}
 			on:click={() => {
 				saveWallet();
-				// You could add a success toast or redirect here
 			}}
 		>
 			Save Wallet
-			<!-- <Icon icon="material-symbols:save" class="w-5 h-5 ml-2" /> -->
 		</button>
 	</div>
 </div>

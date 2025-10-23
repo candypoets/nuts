@@ -46,7 +46,7 @@
 			{:else}
 				<video
 					class="m-auto h-full max-w-full w-full rounded-lg object-contain"
-					class:max-w-[95%]={showContext && !$isMobile}
+					class:!max-w-[95%]={!showContext && !$isMobile}
 					src={item?.src}
 					on:click|preventDefault|stopPropagation
 					autoplay

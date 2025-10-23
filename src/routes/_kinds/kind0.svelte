@@ -10,8 +10,8 @@
 		WorkerMessage
 	} from '@candypoets/nipworker';
 	import Icon from '@iconify/svelte';
-	import _ from 'lodash';
-	import { follows, kind0 } from 'src/controller/nostr';
+	import _, { uniqBy } from 'lodash';
+	import { follows, kind0, kind3Ready } from 'src/controller/nostr';
 	import { limit } from 'src/controller/pagination';
 	import { now } from 'src/lib/period';
 	import { proxyAvatarUrl, proxyBannerUrl } from 'src/lib/proxy';
@@ -142,12 +142,12 @@
 	function updateFollowList() {
 		if (!$kind0) return;
 
-		if ($follows.length == 0) return console.error('empty follow list');
-
+		// kind3Ready.promise.then((_) => {
+		console.log('hey');
 		const template = {
 			kind: 3,
 			created_at: now(),
-			tags: _.uniqBy(
+			tags: uniqBy(
 				[
 					...$follows.map((c) => ['p', c.pubkey, c.relay || '']),
 					['p', pubkey, writeRelays?.[0] || '']
@@ -158,6 +158,7 @@
 		};
 
 		usePublish('follow_' + pubkey, template);
+		// });
 	}
 
 	onMount(() => {

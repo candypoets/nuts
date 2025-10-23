@@ -14,7 +14,9 @@
 		asKind0,
 		asKind10002,
 		asKind3,
+		ConnectionTracker,
 		fbArray,
+		isConnectionStatus,
 		isParsedEvent
 	} from '@candypoets/nipworker/utils';
 	import { onMount } from 'svelte';
@@ -75,6 +77,8 @@
 
 	setupPagerAnimators($viewport, goBack);
 
+	const connectionTracker = new ConnectionTracker();
+
 	$: $key &&
 		$key.pub &&
 		useSubscription(
@@ -94,34 +98,44 @@
 					// cacheFirst: true
 				}
 			],
-			(message: WorkerMessage) => {
-				const parsedEvent = isParsedEvent(message);
-				if (parsedEvent) {
-					switch (parsedEvent.parsedType()) {
-						case ParsedData.Kind0Parsed:
-							$kind0 = parsedEvent;
-							kind0Ready.resolve(parsedEvent);
-							break;
-						case ParsedData.Kind3Parsed:
-							$kind3 = parsedEvent;
-							kind3Ready.resolve(parsedEvent);
-							break;
-						case ParsedData.Kind10002Parsed:
-							if (parsedEvent.createdAt() > ($kind10002?.createdAt() || 0)) {
-								$kind10002 = parsedEvent;
-								kind10002Ready.resolve(parsedEvent);
-							}
-							break;
-						case ParsedData.Kind10019Parsed:
-							if (parsedEvent.createdAt() > ($kind10019?.createdAt() || 0)) {
-								$kind10019 = parsedEvent;
-								kind10019Ready.resolve(parsedEvent);
-							}
-							break;
-					}
-				}
-			}
+			handleRelayEvents
 		);
+
+	function handleRelayEvents(message: WorkerMessage) {
+		console.log('relayEvents');
+		const status = isConnectionStatus(message);
+		if (status) {
+			connectionTracker.handleMessage(message);
+			if (connectionTracker.resolutionRate > 0.5) {
+				kind3Ready.resolve($kind3);
+			}
+		}
+		const parsedEvent = isParsedEvent(message);
+		if (parsedEvent) {
+			switch (parsedEvent.parsedType()) {
+				case ParsedData.Kind0Parsed:
+					$kind0 = parsedEvent;
+					kind0Ready.resolve(parsedEvent);
+					break;
+				case ParsedData.Kind3Parsed:
+					$kind3 = parsedEvent;
+					kind3Ready.resolve(parsedEvent);
+					break;
+				case ParsedData.Kind10002Parsed:
+					if (parsedEvent.createdAt() > ($kind10002?.createdAt() || 0)) {
+						$kind10002 = parsedEvent;
+						kind10002Ready.resolve(parsedEvent);
+					}
+					break;
+				case ParsedData.Kind10019Parsed:
+					if (parsedEvent.createdAt() > ($kind10019?.createdAt() || 0)) {
+						$kind10019 = parsedEvent;
+						kind10019Ready.resolve(parsedEvent);
+					}
+					break;
+			}
+		}
+	}
 
 	$: profileSub =
 		$kind10002 &&
@@ -150,6 +164,7 @@
 		);
 
 	function handleProfileEvents(message: WorkerMessage) {
+		console.log('profile event');
 		const parsedEvent = isParsedEvent(message);
 		if (parsedEvent) {
 			switch (parsedEvent.parsedType()) {
@@ -419,69 +434,69 @@
 		{/if}
 	{/each}
 	<Alert />
-	{#if $key?.pub}
+	<!-- {#if $key?.pub} -->
+	<div
+		class="carousel-container"
+		bind:this={scroller}
+		on:touchstart={handleTouchStart}
+		on:touchmove={handleTouchMove}
+		on:touchend={handleTouchEnd}
+	>
+		<!-- Home Section -->
 		<div
-			class="carousel-container"
-			bind:this={scroller}
-			on:touchstart={handleTouchStart}
-			on:touchmove={handleTouchMove}
-			on:touchend={handleTouchEnd}
+			class="carousel-item w-[100vw] will-change-transform carousel-item-0"
+			class:z-10={currentIndex == 0}
+			on:click={(e) => {
+				if (currentIndex != 0) {
+					e.preventDefault();
+					e.stopPropagation();
+					moveToIndex(0);
+				}
+			}}
 		>
-			<!-- Home Section -->
-			<div
-				class="carousel-item w-[100vw] will-change-transform carousel-item-0"
-				class:z-10={currentIndex == 0}
-				on:click={(e) => {
-					if (currentIndex != 0) {
-						e.preventDefault();
-						e.stopPropagation();
-						moveToIndex(0);
-					}
-				}}
-			>
-				<div class="w-full relative overflow-hidden">
-					{#key 'home'}
-						<Home visible={!$isMobile || currentIndex == 0} />
-					{/key}
-				</div>
-			</div>
-
-			<!-- Explore Section -->
-			<div
-				class="carousel-item w-[100vw] h-full will-change-transform carousel-item-1"
-				class:z-10={currentIndex == 1}
-				on:click={(e) => {
-					if (currentIndex != 1) {
-						e.preventDefault();
-						e.stopPropagation();
-						moveToIndex(1);
-					}
-				}}
-			>
-				<div class="w-full h-full relative overflow-hidden">
-					<Explore visible={!$isMobile || currentIndex == 1} />
-				</div>
-			</div>
-
-			<div
-				class="carousel-item w-[100vw] h-full will-change-transform carousel-item-2"
-				class:z-10={currentIndex == 2}
-				on:click={(e) => {
-					if (currentIndex != 2) {
-						e.preventDefault();
-						e.stopPropagation();
-						moveToIndex(2);
-					}
-				}}
-			>
-				<div class="w-full h-screen relative overflow-hidden">
-					<Chat visible={!$isMobile || currentIndex == 2} />
-				</div>
+			<div class="w-full relative overflow-hidden">
+				{#key 'home'}
+					<Home visible={!$isMobile || currentIndex == 0} />
+				{/key}
 			</div>
 		</div>
-	{:else}
-		<Login />
-	{/if}
+
+		<!-- Explore Section -->
+		<div
+			class="carousel-item w-[100vw] h-full will-change-transform carousel-item-1"
+			class:z-10={currentIndex == 1}
+			on:click={(e) => {
+				if (currentIndex != 1) {
+					e.preventDefault();
+					e.stopPropagation();
+					moveToIndex(1);
+				}
+			}}
+		>
+			<div class="w-full h-full relative overflow-hidden">
+				<Explore visible={!$isMobile || currentIndex == 1} />
+			</div>
+		</div>
+
+		<div
+			class="carousel-item w-[100vw] h-full will-change-transform carousel-item-2"
+			class:z-10={currentIndex == 2}
+			on:click={(e) => {
+				if (currentIndex != 2) {
+					e.preventDefault();
+					e.stopPropagation();
+					moveToIndex(2);
+				}
+			}}
+		>
+			<div class="w-full h-screen relative overflow-hidden">
+				<Chat visible={!$isMobile || currentIndex == 2} />
+			</div>
+		</div>
+	</div>
+	<!-- {:else}
+		<Login /> -->
+	<!-- {/if} -->
 {:else}
 	<Landing />
 {/if}

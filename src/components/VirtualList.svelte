@@ -1,6 +1,6 @@
 <script>
 	import _, { uniqBy } from 'lodash';
-	import { onMount, tick } from 'svelte';
+	import { getContext, onMount, tick } from 'svelte';
 
 	// props
 	export let items;
@@ -58,6 +58,8 @@
 
 	// whenever `items` changes, invalidate the current heightmap
 	$: if (mounted && items.length > 0) refresh(items, viewport_height, itemHeight);
+
+	const isImageContext = getContext('imageContext');
 
 	async function refresh(items, viewport_height, itemHeight) {
 		const { scrollTop } = viewport;
@@ -289,7 +291,8 @@
 	<svelte-virtual-list-contents
 		bind:this={contents}
 		style="top: {top}px; padding-bottom: {bottom > 100 ? bottom : 100}px;"
-		class={backdrop && 'w-feed-container mx-auto min-h-screen rounded-xl isolate'}
+		class:!w-full={isImageContext}
+		class="w-feed mx-auto min-h-screen rounded-xl isolate"
 	>
 		<svelte-virtual-list-row>
 			<slot name="feed-header" />
@@ -302,6 +305,8 @@
 				<!-- Always provide both: item (first) and items (array) -->
 				<slot item={row.data[0]} items={row.data} itemIndex={index}>Missing template</slot>
 			</svelte-virtual-list-row>
+		{:else}
+			<slot name="empty-content" />
 		{/each}
 
 		{#if loading}

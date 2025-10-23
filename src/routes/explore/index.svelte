@@ -7,12 +7,12 @@
 	} from '@candypoets/nipworker';
 	import { asKind0, asKind3, asKind39089, fbArray } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
-	import { isEqual, uniq } from 'lodash';
+	import { isEqual, throttle, uniq } from 'lodash';
 
 	import Pager from 'src/components/Pager.svelte';
 	import RelaysList from 'src/components/RelaysList.svelte';
 	import { followPacks } from 'src/controller/feed';
-	import { kind0, kind3Ready, readRelays } from 'src/controller/nostr';
+	import { kind0, kind3, kind3Ready, readRelays } from 'src/controller/nostr';
 	import { limit } from 'src/controller/pagination';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import Feed from 'src/routes/explore/feed.svelte';
@@ -22,6 +22,7 @@
 	import { ago } from 'src/lib/period';
 	import { normalizeURL } from 'nostr-tools/utils';
 	import { page } from '$app/stores';
+	import { key } from 'src/controller';
 
 	export let visible = true;
 
@@ -71,16 +72,21 @@
 
 	$: (tags, handleNewTags());
 
-	$: following = uniq(
-		$followPacks.flatMap(
+	// $: follows =
+	// 	$kind3 && fbArray(asKind3($kind3) as Kind3Parsed, 'contacts').map((c) => c.pubkey.toString());
+
+	$: following = uniq([
+		...$followPacks.flatMap(
 			(pack) =>
 				fbArray(asKind39089(pack) as Kind39089Parsed, 'people').map((p) => p.toString()) || []
 		)
-	);
+		// ...(follows || [])
+	]);
 
 	$: visible && setFeedRequests(following);
 
-	$: subId = $followPacks.reduce((acc, cur) => acc + cur.id()?.fnv1aHash(), '') + tags.join(',');
+	$: subId =
+		$followPacks.reduce((acc, cur) => acc + cur.id()?.fnv1aHash(), 'feed') + tags.join(',');
 
 	$: relays = $readRelays;
 
@@ -101,13 +107,8 @@
 			handleSubRelays(subRelays);
 		});
 
-	function setFeedRequests(follows: string[]) {
-		kind3Ready.promise.then((kind3) => {
-			if (follows.length == 0 && $followPacks.length)
-				follows =
-					fbArray(asKind3(kind3) as Kind3Parsed, 'contacts')
-						?.map((c) => c.pubkey()?.toString())
-						.filter(Boolean) || [];
+	const setFeedRequests = (follows: string[]) => {
+		if ($key?.pub) {
 			feedRequests = [
 				{
 					kinds: [1, 6],
@@ -119,8 +120,20 @@
 					relays
 				}
 			];
-		});
-	}
+		} else {
+			feedRequests = [
+				{
+					kinds: [1, 6],
+					authors: follows,
+					limit: $limit,
+					since: ago(31 * 24 * 60 * 60),
+					noCache: !!relayCounter,
+					tags: { '#t': tags },
+					relays
+				}
+			];
+		}
+	};
 </script>
 
 <Pager rootPath="/explore" bind:subs>
@@ -128,7 +141,6 @@
 		subscriptionID={subId + relayCounter}
 		requests={feedRequests}
 		kinds={[1, 6]}
-		backdrop
 		bind:connectionStatus
 		pullToRefresh
 	>
@@ -146,6 +158,16 @@
 									title={kind39039?.title()?.toString() || 'Follow pack'}
 								/>
 							</div>
+						{:else}
+							<div
+								class="cursor-pointer"
+								on:click|stopPropagation={() => go('followlists')}
+								title="Follow lists"
+							>
+								<div class="w-8 h-8 border rounded-full flex items-center justify-center">
+									<Icon icon="mdi:infinity" class="text-2xl" />
+								</div>
+							</div>
 						{/each}
 					</div>
 					<div class="text-primary cursor-pointer flex-grow text-center">
@@ -160,7 +182,7 @@
 						</span>
 						<a class="cursor-pointer" on:click|stopPropagation={() => go('profile')}>
 							<img
-								src={proxyAvatarUrl(asKind0($kind0)?.picture()?.toString()) || '/ns-naked.svg'}
+								src={proxyAvatarUrl(asKind0($kind0)?.picture()?.toString()) || '/miss-profile.png'}
 								class="w-8 h-8 border rounded-full"
 							/>
 						</a>
@@ -193,6 +215,16 @@
 									alt={kind39039?.title()?.toString() || 'Follow pack'}
 								/>
 							</div>
+						{:else}
+							<div
+								class="cursor-pointer"
+								on:click|stopPropagation={() => go('followlists')}
+								title="Follow lists"
+							>
+								<div class="w-8 h-8 border rounded-full flex items-center justify-center">
+									<Icon icon="mdi:infinity" class="text-2xl" />
+								</div>
+							</div>
 						{/each}
 					</div>
 					<div class="flex gap-2 items-center">
@@ -200,7 +232,7 @@
 						<Notifications />
 						<div class="cursor-pointer" on:click|stopPropagation={() => go('profile')}>
 							<img
-								src={proxyAvatarUrl(asKind0($kind0)?.picture()?.toString()) || '/ns-naked.svg'}
+								src={proxyAvatarUrl(asKind0($kind0)?.picture()?.toString()) || '/miss-profile.png'}
 								class="w-8 h-8 border rounded-full"
 							/>
 						</div>

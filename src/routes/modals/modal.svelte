@@ -24,6 +24,7 @@
 	import Followlists from './followlists.svelte';
 	import Share from './share.svelte';
 	import ImageZoom from 'src/components/ImageZoom.svelte';
+	import Login from './_profile/login.svelte';
 
 	export let path: string;
 	export let visible: boolean;
@@ -171,6 +172,8 @@
 			<Followlists />
 		{:else if path.includes('lightning')}
 			<Lightning invoice={path.split(':')?.[1]} />
+		{:else if path.includes('login')}
+			<Login />
 		{:else if path.includes('minting')}
 			<Minting />
 		{:else if path.includes('minted')}
