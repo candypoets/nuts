@@ -77,7 +77,7 @@
 
 <div class="h-screen flex items-end" on:click={animator.goBack}>
 	<div
-		class="bg-base-300 bg-opacity-85 backdrop-blur-md w-full !h-2/3 !min-h-fit rounded-t-2xl md:rounded-xl md:h-1/2 flex flex-col"
+		class="bg-base-300 bg-opacity-85 backdrop-blur-md w-full !h-2/3 !min-h-fit rounded-t-2xl md:rounded-xl md:h-1/2 flex flex-col shadow-widget"
 		on:click|stopPropagation
 	>
 		<!-- Header -->
