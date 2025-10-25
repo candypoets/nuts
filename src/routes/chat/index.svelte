@@ -215,7 +215,7 @@
 			{@const k4 = asKind4(post)}
 			<a
 				href={'/chat/' + 'kind4:' + correspondant(post)}
-				class="flex gap-2 h-24 overflow-hidden pt-4 pr-4 pl-1 cursor-pointer bg-base-300 bg-opacity-85 backdrop-blur-gpu rounded-lg mt-1"
+				class="flex gap-2 h-24 overflow-hidden pt-4 pr-4 pl-1 cursor-pointer bg-base-300 bg-opacity-85 backdrop-blur-md rounded-lg mt-1 shadow-widget"
 			>
 				<div class="flex-shrink-0">
 					<Avatar pubkey={correspondant(post)} size="xl" />

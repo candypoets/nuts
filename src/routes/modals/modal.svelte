@@ -20,7 +20,7 @@
 
 	import { viewport } from 'src/controller/viewport';
 	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
-	import { getContext, onMount } from 'svelte';
+	import { getContext, onMount, setContext } from 'svelte';
 	import Followlists from './followlists.svelte';
 	import Share from './share.svelte';
 	import ImageZoom from 'src/components/ImageZoom.svelte';
@@ -50,6 +50,8 @@
 			pagerAnimator.registerElement(element);
 		}
 	});
+
+	setContext('modal', true);
 
 	function handleTouchStart(e: TouchEvent) {
 		touchStartX = e.touches[0].clientX;
@@ -152,7 +154,7 @@
 	data-kind={path.includes('zoom') ? 'zoom' : 'modal'}
 >
 	<div
-		class="m-auto relative overflow-hidden w-feed h-full"
+		class="m-auto relative overflow-hidden h-full w-feed"
 		on:click|stopPropagation
 		on:touchstart|stopPropagation={handleTouchStart}
 		on:touchmove|stopPropagation={handleTouchMove}

@@ -34,7 +34,7 @@ export function updateSendStatus(sendId: string, statusMap: Record<string, Conne
 			return { ...all };
 		});
 		delete expiryTimers[sendId];
-	}, 5000);
+	}, 5200);
 }
 
 export function clearSendStatus(sendId: string) {

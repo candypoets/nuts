@@ -25,7 +25,7 @@
 	}
 </script>
 
-<div class="w-feed m-auto bg-base-300 bg-opacity-85 backdrop-blur-gpu rounded-xl p-6">
+<div class="w-feed m-auto bg-base-300 bg-opacity-85 backdrop-blur-md rounded-xl p-6 shadow-widget">
 	<div class="flex flex-col items-center text-center">
 		<div class="mb-3">
 			<span

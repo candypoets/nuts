@@ -334,7 +334,7 @@
 								<MintCard mintUrl={url} navigate />
 							{/each}
 						</div>
-					{:else if $key?.pub}
+					{:else if $key?.pub && feed.length}
 						<div class="w-full p-4 rounded-lg mb-4 border border-primary-content mt-4">
 							<div class="flex items-center justify-between">
 								<div>
@@ -387,7 +387,7 @@
 			<br />
 			{#if !$key?.pub}
 				<Connect />
-			{:else}
+			{:else if !feed.length}
 				<EmptyWallet hasWallet={!!$kind17375} />
 			{/if}
 		</svelte:fragment>

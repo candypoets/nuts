@@ -60,6 +60,7 @@
 	$: if (mounted && items.length > 0) refresh(items, viewport_height, itemHeight);
 
 	const isImageContext = getContext('imageContext');
+	const isModalContext = getContext('modal');
 
 	async function refresh(items, viewport_height, itemHeight) {
 		const { scrollTop } = viewport;
@@ -291,7 +292,7 @@
 	<svelte-virtual-list-contents
 		bind:this={contents}
 		style="top: {top}px; padding-bottom: {bottom > 100 ? bottom : 100}px;"
-		class:!w-full={isImageContext}
+		class:!w-full={isImageContext || isModalContext}
 		class="w-feed mx-auto min-h-screen rounded-xl isolate"
 	>
 		<svelte-virtual-list-row>

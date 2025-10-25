@@ -10,6 +10,7 @@
 	import { proxyMediaLinks, ImagePresets } from 'src/lib/proxy';
 	import { getContext } from 'svelte';
 	import { go } from 'src/routes/modals/modal';
+	import VideoTile from './VideoTile.svelte';
 
 	export let links: { src: string; type?: 'image' | 'video' }[];
 	export let note: ParsedEvent<Kind1Parsed> | undefined = undefined;
@@ -53,23 +54,24 @@
 >
 	{#each displayLinks as link, i}
 		{#if link.type === 'video'}
-			<video
-				class:max-h-[50vh]={displayLinks.length == 1}
-				class:!w-auto={displayLinks.length == 1}
-				class:m-auto={displayLinks.length == 1}
-				class={cx(
-					i == 0 ? 'col-span-' + getSpan(i == 0 ? displayLinks.length - 1 : i) : '',
-					'h-96 w-full object-cover'
-				)}
-				on:click|preventDefault|stopPropagation={() => setZoom(i)}
-				src={link.src.toString()}
-				muted
-				autoplay={proxiedLinks.length == 1 || i == 0}
-				loop
-				playsinline
-				webkit-playsinline
-				disablePictureInPicture
-			/>
+			<span>
+				<VideoTile
+					src={link.src.toString()}
+					autoplay={proxiedLinks.length == 1 || i == 0}
+					loop={true}
+					muted={true}
+					className={cx(
+						i == 0 ? 'col-span-' + getSpan(i == 0 ? displayLinks.length - 1 : i) : '',
+						'max-h-[50vh]:data-[single=true] !w-auto:data-[single=true] m-auto:data-[single=true] h-96 w-full'
+					)}
+					onClick={(e) => {
+						e.stopPropagation();
+						e.preventDefault();
+						console.log('click');
+						setZoom(i);
+					}}
+				/>
+			</span>
 		{:else}
 			<div class="relative">
 				<img

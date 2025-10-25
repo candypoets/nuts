@@ -6,7 +6,8 @@
 	export let connectionStatus: { [relayUrl: string]: ConnectionStatus | 'SUBSCRIBED' | undefined } =
 		{};
 
-	$: relays = Object.keys(connectionStatus);
+	$: relays = Object.keys(connectionStatus) || ['damus'];
+
 	function getRelayName(url: string): string {
 		try {
 			const domain = new URL(url).hostname;
@@ -24,7 +25,7 @@
 	{#each relays as relay}
 		{#if connectionStatus[relay]}
 			<div class="pointer-events-auto">
-				<StatusCircle relayName={getRelayName(relay)} status={connectionStatus[relay]} size={30} />
+				<StatusCircle relayName={getRelayName(relay)} status={connectionStatus[relay]} size={10} />
 			</div>
 		{/if}
 	{/each}

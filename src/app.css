@@ -9,6 +9,11 @@
 	--container-top: 2rem;
 	--bg-basic: url('/bg-light.jpg');
 	--miss-profile: url('/miss-profile.png');
+	--tw-ring-offset-width: 0px;
+	--tw-ring-offset-color: #fff;
+	--tw-ring-color: #3b82f67f;
+	--tw-ring-offset-shadow: 0 0 #0000;
+	--tw-ring-shadow: 0 0 #0000;
 }
 
 /* If you use DaisyUI's data-theme */

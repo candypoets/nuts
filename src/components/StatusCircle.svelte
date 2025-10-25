@@ -5,7 +5,7 @@
 
 	export let relayName = '';
 	export let status: ConnectionStatus;
-	export let size = 15; // px diameter
+	export let size = 10; // px diameter
 
 	const dispatch = createEventDispatcher();
 
@@ -25,6 +25,7 @@
 			case 'SUBSCRIBED':
 				return 'bg-blue-500 animate-pulse';
 			case 'OK':
+				console.log(s.message()?.toString());
 				return s.message()?.toString() == 'false' ? 'bg-red-500' : 'bg-green-400';
 			case 'SENT':
 				return 'bg-gray-300 opacity-50';
@@ -47,9 +48,8 @@
 
 		if (status && status.status()?.toString() !== 'OK') {
 			removalTimer = setTimeout(() => {
-				// Notify parent we should be removed
 				visible = false;
-			}, 2000);
+			}, 5000);
 		}
 	}
 
@@ -57,7 +57,7 @@
 		visible = true;
 		absoluteMaxTimer = setTimeout(() => {
 			visible = false;
-		}, 4000);
+		}, 5000);
 	});
 
 	onDestroy(() => {
@@ -70,12 +70,10 @@
 	<div
 		out:fly={{ y: -1000, duration: 200 }}
 		in:fly={{ y: 1000, duration: 200 }}
-		class={`flex items-center border border-base-300 justify-center rounded-full text-white font-semibold select-none text-xs ${getColorClasses(
-			status
-		)}`}
+		class={`rounded-full select-none ${getColorClasses(status)}`}
 		style="width:{size}px;height:{size}px;"
 		title={relayName}
 	>
-		{firstLetter}
+		<!-- {firstLetter} -->
 	</div>
 {/if}

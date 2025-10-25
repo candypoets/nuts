@@ -311,7 +311,8 @@
 
 <div class="flex items-start md:items-center h-screen" on:click|stopPropagation={animator.goBack}>
 	<div
-		class="bg-base-300 bg-opacity-85 md:border border-primary-content rounded-xl md:p-4 w-feed md:max-h-[90vh] md:h-auto backdrop-blur-sm pt-safe h-screen"
+		class="bg-base-300 bg-opacity-85 md:border border-primary-content w-full rounded-xl md:p-4 md:max-h-[90vh] md:h-auto backdrop-blur-sm pt-safe h-screen"
+		on:click|stopPropagation
 	>
 		<VirtualList items={[]} height="100%" bind:viewport={scroller} getItemId={() => 'header'}>
 			<div slot="feed-header">
