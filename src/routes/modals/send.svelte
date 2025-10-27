@@ -176,12 +176,12 @@
 			nextKind0?.name()?.toString().trim().toLowerCase().slice(0, 1) !==
 				kind0?.name()?.toString().trim().toLowerCase().slice(0, 1)}
 		{#if isFirst && !search}
-			<strong class="px-2">
+			<strong class="px-6">
 				{kind0?.name()?.toString().trim().slice(0, 1).toUpperCase()}
 			</strong>
 		{/if}
 		<div
-			class="flex items-center p-3 border border-primary-content hover:bg-base-200 cursor-pointer"
+			class="flex items-center p-3 mx-4 border border-primary-content hover:bg-base-200 cursor-pointer"
 			class:border-b-0={!isLast}
 			class:rounded-t-lg={isFirst}
 			class:rounded-b-lg={isLast}
