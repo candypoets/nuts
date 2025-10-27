@@ -380,7 +380,7 @@
 			// Always animate to target position with smooth transition
 			const targetX = targetIndex * scrollerWidth;
 			carouselAnimator.setCurrentIndex(targetIndex);
-			carouselAnimator.animateToPosition(targetX, 300, $isMobile);
+			carouselAnimator.animateToPosition(targetX, 250, $isMobile);
 
 			if (targetIndex !== currentIndex) {
 				currentIndex = targetIndex;
