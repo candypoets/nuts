@@ -83,6 +83,22 @@
 	kinds={[0]}
 	{updateFeed}
 	bind:feed
+	fuseKeys={['content', 'pubkey', 'name']}
+	fuseResolver={(item, key) => {
+		switch (key) {
+			case 'content':
+				return item?.content?.()?.toString() ?? '';
+			case 'pubkey':
+				return item?.pubkey?.()?.toString() ?? '';
+			case 'name': {
+				const k0 = asKind0(item);
+				return k0?.name?.()?.toString() ?? '';
+			}
+			default:
+				return '';
+		}
+	}}
+	{search}
 >
 	<svelte:fragment slot="header">
 		<div>
