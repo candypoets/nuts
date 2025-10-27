@@ -1,37 +1,35 @@
 <script lang="ts">
-	import { ConnectionStatus, Kind17375Parsed, nipWorker } from '@candypoets/nipworker';
+	import { ConnectionStatus, Kind17375Parsed } from '@candypoets/nipworker';
 	import Icon from '@iconify/svelte';
 	import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
-	import _, { uniq } from 'lodash';
-	import { generateSecretKey, getPublicKey, type EventTemplate, nip19 } from 'nostr-tools';
+	import { generateMnemonic, validateMnemonic } from '@scure/bip39';
+	import { wordlist } from '@scure/bip39/wordlists/english';
+	import { uniq } from 'lodash';
+	import { generateSecretKey, getPublicKey, nip19, type EventTemplate } from 'nostr-tools';
 	import { normalizeURL } from 'nostr-tools/utils';
 	import { getContext, onMount } from 'svelte';
-	import { generateMnemonic, validateMnemonic, mnemonicToSeedSync } from '@scure/bip39';
-	import { wordlist } from '@scure/bip39/wordlists/english';
-	import { HDKey } from '@scure/bip32';
 
+	import { usePublish } from '@candypoets/nipworker/hooks';
+	import { asKind17375, fbArray, isConnectionStatus } from '@candypoets/nipworker/utils';
 	import { kind17375 } from 'src/controller/nostr';
 	import { isMintUrlValid } from 'src/lib/mint';
 	import { now } from 'src/lib/period';
-	import { usePublish } from '@candypoets/nipworker/hooks';
-	import { asKind17375, fbArray, isConnectionStatus } from '@candypoets/nipworker/utils';
 	import { areStringListEqual } from 'src/lib/utils';
-
 	// New imports from wallet utils
-	import {
-		deriveFromMnemonic,
-		parsePrivkey,
-		fetchAvailableMints,
-		getStatusColor,
-		getRatingDisplay,
-		getStatsText,
-		DEFAULT_MINTS,
-		type MintInfo
-	} from 'src/lib/wallet';
-	import { key, walletMnemonic, walletMnemonicIndex, walletPassphrase } from 'src/controller';
+	import { walletMnemonic, walletMnemonicIndex, walletPassphrase } from 'src/controller';
+	import { nutsWallet, setNutsWallet } from 'src/controller/proofs';
 	import { updateSendStatus } from 'src/controller/sendStatus';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
-	import { setNutsWallet } from 'src/controller/proofs';
+	import {
+		DEFAULT_MINTS,
+		deriveFromMnemonic,
+		fetchAvailableMints,
+		getRatingDisplay,
+		getStatsText,
+		getStatusColor,
+		parsePrivkey,
+		type MintInfo
+	} from 'src/lib/wallet';
 
 	export let header = true;
 
@@ -165,7 +163,7 @@
 		const isValid = await isMintUrlValid(mint.url);
 		loading = false;
 		selectedMints.unshift(mint.url);
-		selectedMints = _.uniq(selectedMints);
+		selectedMints = uniq(selectedMints);
 	}
 
 	function handleKeyDown(event: KeyboardEvent) {
@@ -230,7 +228,7 @@
 	on:touchmove|stopPropagation
 >
 	{#if header}
-		<div class="flex justify-between mb-6 px-4">
+		<div class="flex justify-between mb-6 px-4 pt-safe">
 			<button class="w-1/4" aria-label="Return to previous screen" on:click={animator.goBack}>
 				<Icon icon="iconamoon:arrow-down-2-light" class="w-6 h-6" />
 			</button>
@@ -240,101 +238,103 @@
 	{/if}
 
 	<div class="space-y-6 px-4">
-		<!-- Wallet Source Section -->
-		<div class="bg-base-300 p-4 rounded-lg border-primary-content border space-y-3">
-			<h3 class="font-semibold">Wallet source</h3>
+		{#if !$nutsWallet}
+			<!-- Wallet Source Section -->
+			<div class="bg-base-300 p-4 rounded-lg border-primary-content border space-y-3">
+				<h3 class="font-semibold">Wallet source</h3>
 
-			<div class="join">
-				<button
-					class="btn join-item {walletMode === 'create' ? 'btn-accent' : 'btn-ghost'}"
-					on:click={() => (walletMode = 'create')}
-				>
-					Create new
-				</button>
-				<button
-					class="btn join-item {walletMode === 'mnemonic' ? 'btn-accent' : 'btn-ghost'}"
-					on:click={() => (walletMode = 'mnemonic')}
-				>
-					Import mnemonic
-				</button>
-				<button
-					class="btn join-item {walletMode === 'privkey' ? 'btn-accent' : 'btn-ghost'}"
-					on:click={() => (walletMode = 'privkey')}
-				>
-					Import private key
-				</button>
-			</div>
+				<div class="join">
+					<button
+						class="btn join-item {walletMode === 'create' ? 'btn-accent' : 'btn-ghost'}"
+						on:click={() => (walletMode = 'create')}
+					>
+						New
+					</button>
+					<button
+						class="btn join-item {walletMode === 'mnemonic' ? 'btn-accent' : 'btn-ghost'}"
+						on:click={() => (walletMode = 'mnemonic')}
+					>
+						Mnemonic
+					</button>
+					<button
+						class="btn join-item {walletMode === 'privkey' ? 'btn-accent' : 'btn-ghost'}"
+						on:click={() => (walletMode = 'privkey')}
+					>
+						Private key
+					</button>
+				</div>
 
-			{#if walletMode === 'mnemonic' || walletMode === 'create'}
-				<div class="space-y-3">
-					<label class="text-sm opacity-80">BIP-39 mnemonic</label>
-					<textarea
-						class="textarea textarea-bordered w-full"
-						rows="3"
-						placeholder="treat dwarf wealth gasp brass outside high rent blood crowd make end"
-						bind:value={inputMnemonic}
-					/>
-					<div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-						<div class="col-span-1">
-							<label class="text-sm opacity-80">Passphrase (optional)</label>
-							<input
-								class="input input-bordered w-full"
-								type="password"
-								placeholder="Optional BIP-39 passphrase"
-								bind:value={inputPassphrase}
-							/>
+				{#if walletMode === 'mnemonic' || walletMode === 'create'}
+					<div class="space-y-3">
+						<label class="text-sm opacity-80">BIP-39 mnemonic</label>
+						<textarea
+							class="textarea textarea-bordered w-full"
+							rows="3"
+							placeholder="treat dwarf wealth gasp brass outside high rent blood crowd make end"
+							bind:value={inputMnemonic}
+						/>
+						<div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+							<div class="col-span-1">
+								<label class="text-sm opacity-80">Passphrase (optional)</label>
+								<input
+									class="input input-bordered w-full"
+									type="password"
+									placeholder="Optional BIP-39 passphrase"
+									bind:value={inputPassphrase}
+								/>
+							</div>
+							<div class="col-span-1">
+								<label class="text-sm opacity-80">Derivation path</label>
+								<input
+									class="input input-bordered w-full"
+									readonly
+									value={`${CASHU_BASE_PATH}/${mnemonicIndex}`}
+								/>
+							</div>
+							<div class="col-span-1">
+								<label class="text-sm opacity-80">Index</label>
+								<input
+									class="input input-bordered w-full"
+									type="number"
+									min="0"
+									bind:value={mnemonicIndex}
+								/>
+							</div>
 						</div>
-						<div class="col-span-1">
-							<label class="text-sm opacity-80">Derivation path</label>
-							<input
-								class="input input-bordered w-full"
-								readonly
-								value={`${CASHU_BASE_PATH}/${mnemonicIndex}`}
-							/>
-						</div>
-						<div class="col-span-1">
-							<label class="text-sm opacity-80">Index</label>
-							<input
-								class="input input-bordered w-full"
-								type="number"
-								min="0"
-								bind:value={mnemonicIndex}
-							/>
-						</div>
+						{#if walletMode === 'create'}
+							<div class="flex gap-2">
+								<button class="btn btn-outline btn-sm" on:click={regenerateMnemonic}>
+									Regenerate
+								</button>
+								<button
+									class="btn btn-outline btn-sm"
+									on:click={() => navigator.clipboard.writeText(inputMnemonic)}
+								>
+									Copy mnemonic
+									<Icon icon="material-symbols:content-copy" class="w-4 h-4 ml-1" />
+								</button>
+							</div>
+						{/if}
+						{#if mnemonicError}
+							<div class="text-error text-sm">{mnemonicError}</div>
+						{/if}
 					</div>
-					{#if walletMode === 'create'}
-						<div class="flex gap-2">
-							<button class="btn btn-outline btn-sm" on:click={regenerateMnemonic}>
-								Regenerate
-							</button>
-							<button
-								class="btn btn-outline btn-sm"
-								on:click={() => navigator.clipboard.writeText(inputMnemonic)}
-							>
-								Copy mnemonic
-								<Icon icon="material-symbols:content-copy" class="w-4 h-4 ml-1" />
-							</button>
-						</div>
-					{/if}
-					{#if mnemonicError}
-						<div class="text-error text-sm">{mnemonicError}</div>
-					{/if}
-				</div>
-			{:else if walletMode === 'privkey'}
-				<div class="space-y-3">
-					<label class="text-sm opacity-80">Private key (hex 64 chars or nsec...)</label>
-					<input
-						class="input input-bordered w-full"
-						type="text"
-						placeholder="nsec1... or 64-char hex"
-						bind:value={inputPrivkey}
-					/>
-					{#if privkeyError}
-						<div class="text-error text-sm">{privkeyError}</div>
-					{/if}
-				</div>
-			{/if}
-		</div>
+				{:else if walletMode === 'privkey'}
+					<div class="space-y-3">
+						<label class="text-sm opacity-80">Private key (hex 64 chars or nsec...)</label>
+						<input
+							class="input input-bordered w-full"
+							type="text"
+							placeholder="nsec1... or 64-char hex"
+							bind:value={inputPrivkey}
+						/>
+						{#if privkeyError}
+							<div class="text-error text-sm">{privkeyError}</div>
+						{/if}
+					</div>
+				{/if}
+			</div>
+		{/if}
 
 		<!-- Wallet Address Section -->
 		<div class="bg-base-300 p-4 rounded-lg border-primary-content border space-y-3">
