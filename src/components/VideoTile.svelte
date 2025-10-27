@@ -13,7 +13,6 @@
 	onMount(async () => {
 		await import('media-chrome'); // npm i media-chrome
 	});
-	$: console.log(onClick);
 </script>
 
 <!--
