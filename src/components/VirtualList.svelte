@@ -1,4 +1,5 @@
 <script>
+	import Icon from '@iconify/svelte';
 	import _, { uniqBy } from 'lodash';
 	import { getContext, onMount, tick } from 'svelte';
 
@@ -311,7 +312,9 @@
 		{/each}
 
 		{#if loading}
-			<!-- unchanged loading skeleton -->
+			<div class="flex justify-center items-center w-full h-20">
+				<Icon icon="ei:spinner" class="animate-spin w-8 h-8" />
+			</div>
 		{/if}
 	</svelte-virtual-list-contents>
 </svelte-virtual-list-viewport>

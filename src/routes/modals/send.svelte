@@ -175,7 +175,7 @@
 			!nextKind0 ||
 			nextKind0?.name()?.toString().trim().toLowerCase().slice(0, 1) !==
 				kind0?.name()?.toString().trim().toLowerCase().slice(0, 1)}
-		{#if isFirst}
+		{#if isFirst && !search}
 			<strong class="px-2">
 				{kind0?.name()?.toString().trim().slice(0, 1).toUpperCase()}
 			</strong>
@@ -185,6 +185,7 @@
 			class:border-b-0={!isLast}
 			class:rounded-t-lg={isFirst}
 			class:rounded-b-lg={isLast}
+			class:mt-1={search}
 			on:click={() => {
 				go('ecash:' + kind0?.pubkey()?.toString());
 			}}

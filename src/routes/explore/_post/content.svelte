@@ -22,6 +22,7 @@
 	} from '@candypoets/nipworker/utils';
 	import { Relaysets } from 'nostr-tools/kinds';
 	import ImageGrid from 'src/components/ImageGrid.svelte';
+	import { go } from 'src/routes/modals/modal';
 	import { getContext } from 'svelte';
 
 	export let note: ParsedEvent;
@@ -130,9 +131,8 @@
 			{@const hashtag = asHashtagData(parsed)}
 			<a
 				on:click|stopPropagation|preventDefault={() =>
-					goto(`?tag=${encodeURIComponent(hashtag?.tag()?.toString() ?? '')}`)}
+					go(`tags:${encodeURIComponent(hashtag?.tag()?.toString() ?? '')}`)}
 				class="font-semibold text-primary"
-				href={`?tag=${encodeURIComponent(hashtag?.tag()?.toString() ?? '')}`}
 				>{parsed.text()?.toString()}
 			</a>
 		{:else if parsed.dataType() == ContentData.NostrData}

@@ -62,25 +62,18 @@
 
 		return Array.from(new Set(out));
 	}
-	$: tags = extractTagsFromUrl($page.url);
 
-	function handleNewTags() {
-		if (tags.length > 0) {
-			setFeedRequests(following);
-		}
-	}
-
-	$: (tags, handleNewTags());
-
-	// $: follows =
-	// 	$kind3 && fbArray(asKind3($kind3) as Kind3Parsed, 'contacts').map((c) => c.pubkey.toString());
+	$: follows =
+		$kind3 && fbArray(asKind3($kind3) as Kind3Parsed, 'contacts').map((c) => c.pubkey().toString());
 
 	$: following = uniq([
 		...$followPacks.flatMap(
 			(pack) =>
 				fbArray(asKind39089(pack) as Kind39089Parsed, 'people').map((p) => p.toString()) || []
-		)
-		// ...(follows || [])
+		),
+		...(($followPacks.some((fp) => asKind39089(fp)?.title()?.toString() == 'followlist') &&
+			follows) ||
+			[])
 	]);
 
 	$: visible && setFeedRequests(following);
@@ -134,6 +127,8 @@
 			];
 		}
 	};
+
+	$: console.log('follows', follows, following);
 </script>
 
 <Pager rootPath="/explore" bind:subs>

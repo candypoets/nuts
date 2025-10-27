@@ -11,7 +11,7 @@
 
 	export let modals: string[] = [];
 
-	const subPaths = ['nprofile', 'nevent', 'kind4', 'notifications'];
+	const subPaths = ['nprofile', 'nevent', 'kind4', 'notifications', 'tags'];
 
 	// Update subs based on route
 	$: {

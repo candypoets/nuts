@@ -2,11 +2,12 @@
 	import Kind0 from 'src/routes/_kinds/kind0.svelte';
 	import Kind1 from 'src/routes/_kinds/kind1.svelte';
 	import Kind4 from 'src/routes/_kinds/kind4.svelte';
+	import Tags from 'src/routes/_kinds/tags.svelte';
 	import Notifications from 'src/routes/notifications/index.svelte';
 
 	import { onMount, onDestroy, getContext } from 'svelte';
 	import { viewport } from 'src/controller/viewport';
-	import { goBack } from '../modals/modal';
+	import { goBack } from 'src/routes/modals/modal';
 	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
 
 	export let path: string;
@@ -131,7 +132,7 @@
 
 <div class="absolute right-0 top-0 h-screen lg:p-2 z-20" bind:this={element} data-kind="sub">
 	<div
-		class="h-screen lg:rounded-xl overflow-hidden lg:px-2 backdrop-blur-gpu transition-gpu"
+		class="h-screen lg:rounded-xl overflow-hidden lg:px-2 backdrop-blur-md"
 		style="backface-visibility: hidden;
 			-webkit-backface-visibility: hidden;"
 		on:touchstart|stopPropagation={handleTouchStart}
@@ -146,6 +147,8 @@
 			<Kind4 pubkey={path.split(':')?.[1]} {visible} goBack={pagerAnimator?.goBack} />
 		{:else if path.includes('notifications')}
 			<Notifications goBack={pagerAnimator?.goBack} />
+		{:else if path.includes('tags')}
+			<Tags tags={[path.split(':')?.[1]]} goBack={pagerAnimator?.goBack} />
 		{/if}
 
 		<!-- Debug overlay -->
@@ -159,11 +162,3 @@
 		</div> -->
 	</div>
 </div>
-
-<style>
-	.transition-gpu {
-		transform-origin: center center;
-		contain: layout style paint;
-		will-change: transform;
-	}
-</style>
