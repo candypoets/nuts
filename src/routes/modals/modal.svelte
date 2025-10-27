@@ -25,6 +25,7 @@
 	import Share from './share.svelte';
 	import ImageZoom from 'src/components/ImageZoom.svelte';
 	import Login from './_profile/login.svelte';
+	import Newchat from './newchat.svelte';
 
 	export let path: string;
 	export let visible: boolean;
@@ -184,6 +185,8 @@
 			<Melted mint={path.split(':')?.[1]} amount={path.split(':')?.[2]} />
 		{:else if path.startsWith('melt')}
 			<Melt invoice={path.split(':')?.[1]} />
+		{:else if path.startsWith('newchat')}
+			<Newchat />
 		{:else if path.includes('tapcash')}
 			<Tapcash />
 		{:else if path.includes('profile')}

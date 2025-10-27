@@ -1,6 +1,5 @@
 <script lang="ts">
 	import {
-		Kind3Parsed,
 		MessageType,
 		NpubLimiterPipeConfigT,
 		ParsePipeConfigT,
@@ -15,21 +14,22 @@
 		type SubscriptionConfig,
 		type WorkerMessage
 	} from '@candypoets/nipworker';
-	import { asKind3, asKind4, asParsedEvent, fbArray, isKind4 } from '@candypoets/nipworker/utils';
+	import { asKind4, asParsedEvent, isKind4 } from '@candypoets/nipworker/utils';
+	import Icon from '@iconify/svelte';
 	import { formatDistanceToNow } from 'date-fns';
-	import _, { orderBy, uniq, uniqBy } from 'lodash';
+	import { orderBy, uniq, uniqBy } from 'lodash';
 	import { cubicOut } from 'svelte/easing';
 	import { tweened } from 'svelte/motion';
 
-	import Icon from '@iconify/svelte';
 	import Pager from 'src/components/Pager.svelte';
 	import RelaysList from 'src/components/RelaysList.svelte';
 	import { key } from 'src/controller';
-	import { kind3Ready, readRelays, writeRelays } from 'src/controller/nostr';
+	import { readRelays, writeRelays } from 'src/controller/nostr';
 	import Content from 'src/routes/explore/_post/content.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import User from 'src/routes/explore/user.svelte';
+	import { go } from 'src/routes/modals/modal';
 	import Empty from './empty.svelte';
 
 	export let visible = true;
@@ -199,7 +199,10 @@
 							</form>
 						</dialog>
 					</h1>
-					<button class="btn btn-circle btn-sm btn-accent btn-outline">
+					<button
+						class="btn btn-circle btn-sm btn-primary btn-outline"
+						on:click|stopPropagation={() => go('newchat')}
+					>
 						<Icon icon="material-symbols:chat-add-on-outline-rounded" class="text-xl" />
 						<!-- <Icon icon="teenyicons:add-outline" class="text-xl"></Icon> -->
 					</button>
