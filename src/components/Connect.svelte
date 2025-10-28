@@ -4,7 +4,7 @@
 	import { go } from 'src/routes/modals/modal';
 
 	// Optional props to tweak copy or layout
-	export let headline = 'Own your presence on Nostr';
+	export let headline = 'Nostr is for you';
 	export let subtext =
 		'Connect your keys to send encrypted messages, hold eCash, and zap. No accounts. No email. Just keys.';
 	export let ctaLabel = 'Connect your keys';
@@ -24,7 +24,7 @@
 	}
 </script>
 
-<div class="w-feed m-auto bg-base-300 bg-opacity-85 backdrop-blur-gpu rounded-xl p-6">
+<div class="m-auto bg-base-300 bg-opacity-85 backdrop-blur-gpu rounded-xl p-6 mx-1 shadow-widget">
 	<div class="flex flex-col items-center text-center">
 		<div class="mb-3">
 			<span

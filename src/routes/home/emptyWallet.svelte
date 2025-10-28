@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
+	import { carouselAnimator } from 'src/controller/carrousel';
 	import { go } from 'src/routes/modals/modal';
 
 	// If the user already has a wallet configured (e.g., $nutsWallet), set to true
@@ -25,7 +26,7 @@
 	}
 </script>
 
-<div class="w-feed m-auto bg-base-300 bg-opacity-85 backdrop-blur-md rounded-xl p-6 shadow-widget">
+<div class="bg-base-300 bg-opacity-85 backdrop-blur-md rounded-xl p-6 shadow-widget mx-1">
 	<div class="flex flex-col items-center text-center">
 		<div class="mb-3">
 			<span
@@ -69,7 +70,13 @@
 					Setup Wallet
 				</button>
 				{#if showExploreLink}
-					<a href="/explore" class="btn btn-ghost w-full mt-2">Explore people and posts</a>
+					<a
+						href="/explore"
+						class="btn btn-ghost w-full mt-2"
+						on:click|stopPropagation={() => carouselAnimator.moveToIndex(1)}
+					>
+						Explore people and posts
+					</a>
 				{/if}
 			</div>
 		{/if}

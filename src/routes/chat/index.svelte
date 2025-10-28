@@ -169,7 +169,7 @@
 		</svelte:fragment>
 		<svelte:fragment slot="header">
 			<div
-				class="w-feed relative pt-safe bg-base-300 bg-opacity-85 backdrop-blur-gpu rounded-lg pb-2 px-1"
+				class="w-feed relative pt-safe bg-base-300 bg-opacity-85 backdrop-blur-md rounded-lg pb-2 px-1 shadow-widget-down"
 			>
 				<div class="flex justify-between m-auto h-16 items-center px-1">
 					<h1 class="text-2xl font-semibold">

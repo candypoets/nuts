@@ -300,7 +300,9 @@
 		bind:feed
 	>
 		<svelte:fragment slot="header">
-			<div class="w-feed bg-base-300 bg-opacity-85 backdrop-blur-gpu rounded-lg px-1">
+			<div
+				class="w-feed bg-base-300 bg-opacity-85 backdrop-blur-md rounded-lg px-1 shadow-widget-down"
+			>
 				<div
 					class="relative pt-safe place-content-center m-auto z-10"
 					class:shadow-md={scrollY > 0}
@@ -385,7 +387,7 @@
 		</svelte:fragment>
 		<svelte:fragment slot="empty-content">
 			<br />
-			{#if !$key?.pub}
+			{#if $key?.pub}
 				<Connect />
 			{:else if !feed.length}
 				<EmptyWallet hasWallet={!!$kind17375} />
