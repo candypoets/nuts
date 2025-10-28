@@ -58,11 +58,15 @@
 
 	let status = '';
 
+	// let status = 'Swap from ' + 'fromMint' + ' to ' + 'toMint';
+
 	$: {
 		if (!/^[0-9]*$/.test(amount)) {
 			amount = '';
 		}
 	}
+
+	let progress = 0.9;
 
 	let balanceByMint = $nutsWallet?.balanceByMint;
 
@@ -77,6 +81,8 @@
 		meltquote = undefined;
 		mintquote = undefined;
 		processing = '';
+		status = '';
+		progress = 0;
 	};
 
 	$: balance = $balanceByMint?.[fromMint || ''];
@@ -136,13 +142,17 @@
 
 	$: computeFees(amount, fromMint, toMint);
 
+	$: lnurl = GetLNURLFromProfile(kind0);
+
+	$: disabled =
+		!amount || !Number(amount) || amountPlusFees > balance || !!status || (!kind10019 && !lnurl);
+
 	const sendEcash = async () => {
 		let sendStatus: { [url: string]: ConnectionStatus } = {};
 		if (!fromMint) return;
 		processing = 'true';
 		const fromWallet = await $nutsWallet?.getWallet(fromMint);
 		const unspentProofs = fromWallet && $nutsWallet?.unspentProofs.get(fromMint);
-		console.log('send ecash', fromWallet, fromMint, unspentProofs, $nutsWallet?.unspentProofs);
 		if (
 			meltquote &&
 			unspentProofs &&
@@ -152,17 +162,17 @@
 			$nutsWallet &&
 			fromMint != toMint
 		) {
+			progress = 0;
 			status = 'Swap from ' + fromMint + ' to ' + toMint;
+			progress = 0.1;
 			const toWallet = await $nutsWallet.getWallet(toMint);
-			console.log(toWallet, amountPlusFees, unspentProofs);
 			const { keep, send } = fromWallet?.selectProofsToSend(unspentProofs, amountPlusFees, true);
-			console.log('hi');
 			const { change } = await fromWallet.meltProofs(meltquote, send);
-			console.log('hoy');
 			try {
 				let response = await toWallet?.checkMintQuote(mintquote.quote);
 				while (response.state !== MintQuoteState.PAID) {
 					status = 'Waiting for mint quote to be paid...';
+					progress = 0.4;
 					await new Promise((resolve) => setTimeout(resolve, 1000));
 					response = await toWallet?.checkMintQuote(mintquote.quote);
 				}
@@ -170,6 +180,7 @@
 				const proofsToSend = await toWallet.mintProofs(amount, mintquote.quote);
 
 				status = 'Swap successful';
+				progress = 0.7;
 
 				const sendRes = await toWallet.send(Number(amount), proofsToSend, {
 					includeFees: false,
@@ -187,15 +198,18 @@
 						['p', pubkey]
 					].filter((t) => !!t[1])
 				};
-				status = 'Success!! Publishing nutszap';
+				status = 'Sending nutszap';
+				progress = 0.9;
 				const sendId = 'nutszap_' + random(1000);
 				usePublish(sendId, nutszap, (message: WorkerMessage) => {
-					const status = isConnectionStatus(message);
-					if (status) {
-						const relayUrl = status.relayUrl()?.toString();
+					const connectionStatus = isConnectionStatus(message);
+					if (connectionStatus) {
+						const relayUrl = connectionStatus.relayUrl()?.toString();
 						if (relayUrl) {
-							sendStatus[relayUrl] = status;
+							sendStatus[relayUrl] = connectionStatus;
 							updateSendStatus(sendId, sendStatus);
+							status = 'Success!';
+							progress = 1;
 						}
 					}
 				});
@@ -206,6 +220,7 @@
 				$nutsWallet.saveProofs(fromMint, keep.concat(change));
 			}
 		} else if (fromMint == toMint && fromWallet && unspentProofs) {
+			progress = 0;
 			const { keep, send } = await fromWallet.send(Number(amount), unspentProofs, {
 				p2pk: { pubkey: kind10019?.p2pkPubkey()?.toString() }
 			});
@@ -221,16 +236,20 @@
 					['p', pubkey]
 				].filter((t) => !!t[1])
 			};
-			console.log(nutszap);
-			status = 'Success!! Publishing nutszap';
+
+			status = 'Sending nutszap';
+			progress = 0.9;
+
 			const sendId = 'nutszap_' + random();
 			usePublish(sendId, nutszap, (message: WorkerMessage) => {
-				const status = isConnectionStatus(message);
-				if (status) {
-					const relayUrl = status.relayUrl()?.toString();
+				const connectionStatus = isConnectionStatus(message);
+				if (connectionStatus) {
+					const relayUrl = connectionStatus.relayUrl()?.toString();
 					if (relayUrl) {
-						sendStatus[relayUrl] = status;
+						sendStatus[relayUrl] = connectionStatus;
 						updateSendStatus(sendId, sendStatus);
+						status = 'Success';
+						progress = 1;
 					}
 				}
 			});
@@ -238,8 +257,8 @@
 			$nutsWallet?.unspentProofs.set(fromMint, keep);
 			$nutsWallet?.updateBalanceByMint();
 			$nutsWallet?.saveProofs(fromMint, keep);
-		} else if (fromMint && fromWallet && unspentProofs) {
-			const lnurl = GetLNURLFromProfile(kind0);
+		} else if (fromMint && fromWallet && unspentProofs && lnurl) {
+			progress = 0;
 			const zapRequest: EventTemplate = {
 				kind: 9734,
 				content: memo,
@@ -254,14 +273,18 @@
 				].filter((t) => !!t[1])
 			};
 			status = 'Signing zap request';
+			progress = 0.3;
 			// const signed = await nostrManager.signEvent(zapRequest);
 
 			useSignEvent(zapRequest, async (signed) => {
 				status = 'Generate zap invoice';
+				progress = 0.5;
 				const { pr } = await getInvoiceFromProfile(kind0, Number(amount), signed);
 				status = 'Generate melt quote';
+				progress = 0.7;
 				meltquote = await fromWallet.createMeltQuote(pr);
 				status = 'Sending lighning payment';
+				progress = 0.9;
 				// const { keep, send } = await fromWallet.swap(0, unspentProofs);
 				// console.log(keep, send);
 				// if (keep.length) {
@@ -270,15 +293,18 @@
 				// 	$nutsWallet?.saveProofs(fromMint, send);
 				// }
 				const { change } = await fromWallet.meltProofs(meltquote, unspentProofs);
-				status = 'Success! Publishing zap request';
+				status = 'Sending zap request';
+				progress = 0.95;
 				const sendId = 'zap' + pubkey;
 				usePublish(sendId, zapRequest, (message: WorkerMessage) => {
-					const status = isConnectionStatus(message);
-					if (status) {
-						const relayUrl = status.relayUrl()?.toString();
+					const connectionStatus = isConnectionStatus(message);
+					if (connectionStatus) {
+						const relayUrl = connectionStatus.relayUrl()?.toString();
 						if (relayUrl) {
-							sendStatus[relayUrl] = status;
+							sendStatus[relayUrl] = connectionStatus;
 							updateSendStatus(sendId, sendStatus);
+							status = 'Success!';
+							progress = 1;
 						}
 					}
 				});
@@ -427,8 +453,14 @@
 									>
 								</div>
 							{:else}
-								<div class="md:mt-10 w-1/2 text-center text-primary p-4">
-									{status}
+								<div
+									class="md:mt-16 w-1/2 text-center text-primary p-4 border border-primary-content rounded-lg relative overflow-hidden"
+								>
+									<div
+										class="absolute bg-gradient-to-r to-bg-base-300 from-primary-content h-full top-0 left-0 transition-all"
+										style="width: {progress * 100}%"
+									/>
+									<div class="relative z-30">{status}</div>
 								</div>
 							{/if}
 						</div>
@@ -465,7 +497,11 @@
 
 							<button
 								class="btn btn-outline join-item border flex-grow"
-								disabled={!amount || !Number(amount) || amountPlusFees > balance || !!status}
+								disabled={!amount ||
+									!Number(amount) ||
+									amountPlusFees > balance ||
+									!!status ||
+									(!kind10019 && !lnurl)}
 								on:click={sendEcash}
 							>
 								{#if Number(amountPlusFees) > balance}

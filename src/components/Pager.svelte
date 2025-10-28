@@ -1,36 +1,61 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { onMount, onDestroy, setContext } from 'svelte';
+	import { page } from '$app/stores';
 
-	import Kind from 'src/routes/_kinds/index.svelte';
-	import Modal from 'src/routes/modals/index.svelte';
+	// Use the item-level components instead of their index aggregators
+	import Sub from 'src/routes/_kinds/_sub.svelte';
+	import Modal from 'src/routes/modals/modal.svelte';
+
 	import { viewport } from 'src/controller/viewport';
 	import { PagerAnimator } from 'src/lib/animations/PagerAnimator';
-	import { goBack } from 'src/routes/modals/modal';
 	import { pagerAnimators } from 'src/controller/pager';
+	import { pathOptions } from 'src/routes/modals/modal';
 
 	export let rootPath: string;
 
-	export let subs: string[] = [];
-	let modals: string[] = [];
+	// Interleaved stack derived from the current URL
+	type StackItem = { type: 'sub' | 'modal'; value: string };
+	let stack: StackItem[] = [];
 
-	let depth = 0;
+	// Matchers copied from the original Kind index
+	const subPaths = ['nprofile', 'nevent', 'kind4', 'notifications', 'tags'];
+
 	let mainElement: HTMLElement;
 
 	const animator = $pagerAnimators[rootPath.replace('/', '')];
 
-	// Set context immediately since pagerAnimator is now available
+	// Provide animator to children (Sub/Modal use getContext('animator'))
 	setContext('animator', animator);
 
-	// Set main content when element is ready
 	onMount(() => {
 		if (mainElement && animator) {
 			animator?.setMainContent(mainElement);
 		}
 	});
 
-	// React to viewport changes
+	// Update animator viewport on resize
 	$: animator?.updateViewport($viewport);
+
+	// Recompute the interleaved stack from the URL
+	$: {
+		if ($page.url.pathname.startsWith(rootPath)) {
+			const segments = $page.url.pathname.split('/').slice(2).filter(Boolean);
+
+			stack = segments
+				.filter((seg) => {
+					const isSub = subPaths.some((p) => seg.includes(p));
+					const isModal = pathOptions.some((opt) => seg.split(':')[0] === opt);
+					return isSub || isModal;
+				})
+				.map((seg) => {
+					const isModal = pathOptions.some((opt) => seg.split(':')[0] === opt);
+					return { type: isModal ? 'modal' : 'sub', value: seg };
+				});
+		} else {
+			stack = [];
+		}
+	}
 </script>
 
 <div
@@ -45,14 +70,10 @@
 	<slot />
 </div>
 
-<Kind {rootPath} bind:subs {modals} />
-
-<Modal {rootPath} bind:modals bind:depth />
-
-<style>
-	.transition-gpu {
-		transform-origin: center center;
-		contain: layout style paint;
-		will-change: transform;
-	}
-</style>
+{#each stack as item, index (item.value)}
+	{#if item.type === 'sub'}
+		<Sub path={item.value} visible={index === stack.length - 1} depth={stack.length - 1 - index} />
+	{:else}
+		<Modal path={item.value} depth={stack.length - 1 - index} visible />
+	{/if}
+{/each}

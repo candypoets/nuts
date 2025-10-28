@@ -1,11 +1,6 @@
 <script lang="ts">
-	import Icon from '@iconify/svelte';
-	import { isMobile, key, kind10019, kind17375 } from 'src/controller';
-	import { nutsWallet } from 'src/controller/proofs';
-	import { activeMintUrl } from 'src/controller/wallet';
+	import { isMobile, key } from 'src/controller';
 	import { normalizeMintURL } from 'src/lib/utils';
-	import Avatar from 'src/routes/explore/avatar.svelte';
-	import User from 'src/routes/explore/user.svelte';
 	import Mintcard from 'src/routes/home/components/mintcard.svelte';
 
 	export let pubkey: string = '';

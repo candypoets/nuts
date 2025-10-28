@@ -2,7 +2,6 @@
 	import {
 		Kind10019Parsed,
 		MessageType,
-		ParsedData,
 		ParsePipeConfigT,
 		PipeConfig,
 		PipeT,
@@ -13,9 +12,8 @@
 		type RequestObject,
 		type WorkerMessage
 	} from '@candypoets/nipworker';
-	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
+	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import {
-		asConnectionStatus,
 		asKind0,
 		asKind10019,
 		asParsedEvent,
@@ -29,44 +27,28 @@
 		isValidProofs
 	} from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
-	import { schnorr } from '@noble/curves/secp256k1';
-	import { bytesToHex } from '@noble/hashes/utils';
-	import { nip19 } from 'nostr-tools';
 	import { onMount } from 'svelte';
 
+	import Connect from 'src/components/Connect.svelte';
 	import Pager from 'src/components/Pager.svelte';
 	import RelaysList from 'src/components/RelaysList.svelte';
 	import { key } from 'src/controller/key';
 	import {
 		delayedPromise,
 		kind0,
-		kind10002,
 		kind10019,
 		kind10019Ready,
 		kind17375,
-		kind3,
 		readRelays
 	} from 'src/controller/nostr';
-	import {
-		addProofs,
-		nutsWallet,
-		nutsWallets,
-		receiveProofs,
-		setNutsWallet
-	} from 'src/controller/proofs';
+	import { addProofs, nutsWallet, receiveProofs, setNutsWallet } from 'src/controller/proofs';
 	import { activeMintUrl, walletLoaded } from 'src/controller/wallet';
 	import { normalizeMintURL } from 'src/lib/utils';
-	import { decodePrivKey } from 'src/lib/wallet';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import MintCard from 'src/routes/home/components/mintcard.svelte';
 	import Kind9321 from 'src/routes/kinds/kind9321.svelte';
 	import { go } from 'src/routes/modals/modal';
-	import Wallet from '../modals/_profile/wallet.svelte';
-	import LoginForm from 'src/components/LoginForm.svelte';
-	import { now } from 'src/lib/period';
-	import { pronounceable } from 'src/lib/randomName';
 	import EmptyWallet from './emptyWallet.svelte';
-	import Connect from 'src/components/Connect.svelte';
 
 	export let visible = false;
 
@@ -298,6 +280,7 @@
 		backdrop={!feed.length}
 		bind:connectionStatus
 		bind:feed
+		pullToRefresh
 	>
 		<svelte:fragment slot="header">
 			<div

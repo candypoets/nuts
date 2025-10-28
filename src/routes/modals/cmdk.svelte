@@ -149,7 +149,7 @@
 </script>
 
 <div
-	class="backdrop-blur-sm flex items-start md:items-center justify-center p-4"
+	class="backdrop-blur-sm flex items-start md:items-center justify-center p-4 h-screen"
 	on:keydown={onKey}
 >
 	<!-- Container -->

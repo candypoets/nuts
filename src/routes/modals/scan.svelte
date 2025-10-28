@@ -41,6 +41,7 @@
 			scannedPubkey = nip19.decode(decodedText.slice(6)).data as string;
 			gopub(scannedPubkey);
 		}
+		stop();
 	};
 	const qrCodeErrorCallback: QrcodeErrorCallback = (decodedText, decodedResult) => {
 		/* handle success */
@@ -73,6 +74,6 @@
 	});
 </script>
 
-<div class="h-screen bg-base-300 bg-opacity-85 backdrop-blur-md flex items-center">
+<div class="h-screen bg-base-300 bg-opacity-85 backdrop-blur-md flex items-center pt-safe">
 	<div id="reader" class="w-full bg-white blur-0 h-auto"></div>
 </div>

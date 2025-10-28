@@ -9,7 +9,7 @@
 </script>
 
 <div
-	class="fixed top-0 w-full flex items-center justify-center z-10 mobile-height bg-base-300 bg-opacity-85"
+	class="fixed top-0 w-full flex items-center justify-center z-10 mobile-height bg-base-300 bg-opacity-85 pt-safe"
 >
 	<div class="absolute left-4 top-4 cursor-pointer" on:click|stopPropagation={animator.goBack}>
 		<Icon icon="mingcute:down-line" class="text-xl" />

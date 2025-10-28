@@ -392,4 +392,88 @@ export function resolveNpubNsecFromStorage(): { npub: string; nsec: string } | n
 	};
 }
 
+export type LnurlPayMeta = {
+	callback: string;
+	minSendable: number; // msats
+	maxSendable: number; // msats
+	metadata: string; // stringified JSON
+	commentAllowed?: number;
+	tag: 'payRequest';
+	// Optional LNURLp extras:
+	payerData?: unknown;
+	allowsNostr?: boolean;
+	nostrPubkey?: string;
+	status?: 'OK' | 'ERROR';
+	reason?: string;
+};
+
+export type LnurlPayInvoiceResponse = {
+	pr: string; // BOLT11
+	routes?: unknown[];
+	successAction?: unknown;
+};
+
+export function isLightningAddress(input: string): boolean {
+	// Basic sanity check; refine as needed
+	return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(input);
+}
+
+export async function fetchLnurlpMeta(address: string): Promise<LnurlPayMeta> {
+	const [name, domain] = address.split('@');
+	if (!name || !domain) throw new Error('Invalid Lightning Address');
+
+	// Most providers require https
+	const url = `https://${domain}/.well-known/lnurlp/${encodeURIComponent(name)}`;
+
+	const res = await fetch(url, {
+		method: 'GET',
+		headers: { accept: 'application/json' }
+	});
+	if (!res.ok) throw new Error(`LNURLp metadata fetch failed: ${res.status}`);
+	const meta = (await res.json()) as LnurlPayMeta;
+
+	if (meta.status === 'ERROR') {
+		throw new Error(meta.reason || 'LNURLp error');
+	}
+	if (!meta.callback || meta.tag !== 'payRequest') {
+		throw new Error('Invalid LNURLp response');
+	}
+	return meta;
+}
+
+export async function getInvoiceFromLightningAddress(
+	address: string,
+	sats: number,
+	opts?: { comment?: string }
+): Promise<{ pr: string }> {
+	if (!isLightningAddress(address)) throw new Error('Not a Lightning Address');
+	if (!sats || sats < 1) throw new Error('Amount must be > 0 sats');
+
+	const meta = await fetchLnurlpMeta(address);
+
+	const msats = BigInt(sats) * 1000n;
+	const min = BigInt(meta.minSendable);
+	const max = BigInt(meta.maxSendable);
+
+	if (msats < min) throw new Error(`Amount below minSendable (${Number(min / 1000n)} sats)`);
+	if (msats > max) throw new Error(`Amount above maxSendable (${Number(max / 1000n)} sats)`);
+
+	const cb = new URL(meta.callback);
+	cb.searchParams.set('amount', msats.toString());
+
+	if (opts?.comment && meta.commentAllowed && opts.comment.length <= meta.commentAllowed) {
+		cb.searchParams.set('comment', opts.comment);
+	}
+
+	const invRes = await fetch(cb.toString(), {
+		method: 'GET',
+		headers: { accept: 'application/json' }
+	});
+	if (!invRes.ok) throw new Error(`LNURLp invoice fetch failed: ${invRes.status}`);
+	const payload = (await invRes.json()) as LnurlPayInvoiceResponse;
+
+	if (!payload.pr) throw new Error("LNURLp invoice response missing 'pr'");
+	return { pr: payload.pr };
+}
+
 export { hexToBytes };

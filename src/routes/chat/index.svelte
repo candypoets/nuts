@@ -156,6 +156,7 @@
 		backdrop={!feed.length}
 		bind:connectionStatus
 		bind:feed
+		pullToRefresh
 	>
 		<svelte:fragment slot="sticky-header">
 			<div class="relative pt-safe bg-base-300 bg-opacity-50 backdrop-blur-xl">

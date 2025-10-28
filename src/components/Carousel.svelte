@@ -127,7 +127,6 @@
 	<div
 		class="bg-transparent scrollbar-hide flex h-full snap-x snap-mandatory items-center gap-4 overflow-x-scroll scroll-smooth rounded-xl"
 		bind:this={carouselElement}
-		on:wheel={handleScroll}
 		on:touchmove={handleScroll}
 		on:touchend={(e) => {
 			onTouchEnd(e);

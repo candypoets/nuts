@@ -1,18 +1,18 @@
 <script lang="ts">
-	import { fade } from 'svelte/transition';
 	import Carousel from 'src/components/Carousel.svelte';
 	import ImageZoomContext from 'src/components/ImageZoomContext.svelte';
-	import type { AnyKind, ParsedEvent, Kind1Parsed } from 'src/types';
-	import { context, links, note, zoomed } from 'src/controller/image';
-	import { goBack } from 'src/routes/modals/modal';
-	import { getContext } from 'svelte';
 	import { isMobile } from 'src/controller';
+	import { context, links, note, zoomed } from 'src/controller/image';
 	import Footer from 'src/routes/explore/_post/footer.svelte';
+	import { getContext } from 'svelte';
+	import { fade } from 'svelte/transition';
 
 	// Toggle for showing the context sidebar
 	let showContext: boolean = true;
 
 	const animator = getContext('animator');
+
+	$: console.log($zoomed);
 
 	// The links are already proxied when stored in the store from ImageGrid
 </script>
@@ -22,7 +22,6 @@
 		class="z-50 fixed left-0 top-0 h-full w-full overflow-auto backdrop-blur-md flex"
 		transition:fade={{ duration: 200 }}
 		on:click|preventDefault|stopPropagation={() => {
-			$zoomed = undefined;
 			animator?.goBack();
 		}}
 	>
@@ -32,7 +31,6 @@
 			currentIndex={$zoomed}
 			let:item
 			onClose={() => {
-				$zoomed = undefined;
 				animator?.goBack();
 			}}
 		>

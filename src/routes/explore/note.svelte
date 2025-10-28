@@ -209,7 +209,7 @@
 		showRoot;
 
 	function goto() {
-		if (isImageContext) return;
+		// if (isImageContext) return;
 		const nip19Event = nip19.neventEncode({ id: decoded.noteId || nid || '', relays });
 		const eventPath = `nevent:${nip19Event}`;
 		go(eventPath);
