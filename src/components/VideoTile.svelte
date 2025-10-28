@@ -24,16 +24,21 @@
 	<!-- Native video element as usual -->
 	<video
 		slot="media"
-		on:click={onClick}
 		{src}
 		{poster}
 		{autoplay}
 		{loop}
 		{muted}
 		playsinline
-		webkit-playsinline
 		class="h-96 w-full object-cover"
 		disablePictureInPicture
+	/>
+
+	<!-- Transparent tap overlay to intercept mobile taps -->
+	<div
+		class="absolute inset-0 z-[1]"
+		on:click|stopPropagation={(e) => onClick(e)}
+		on:touchstart|preventDefault|stopPropagation={(e) => onClick(e)}
 	/>
 
 	<!-- Always-visible quick Unmute button (Twitter-like) -->
