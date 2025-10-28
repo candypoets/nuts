@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Cmdk from 'src/routes/modals/cmdk.svelte';
 	import Profile from 'src/routes/modals/_profile/index.svelte';
 	import Keys from 'src/routes/modals/_profile/keys.svelte';
 	import Logout from 'src/routes/modals/_profile/logout.svelte';
@@ -31,7 +32,7 @@
 	export let visible: boolean;
 	export let depth: number = 0;
 
-	let pagerAnimator: PagerAnimator | undefined = getContext('animator');
+	let pager: PagerAnimator | undefined = getContext('animator');
 	let element: HTMLElement;
 
 	// Touch gesture variables
@@ -47,8 +48,8 @@
 	}
 
 	onMount(() => {
-		if (pagerAnimator && element) {
-			pagerAnimator.registerElement(element);
+		if (pager && element) {
+			pager.registerElement(element);
 		}
 	});
 
@@ -60,12 +61,12 @@
 		touchStartTime = Date.now();
 		isSwiping = false;
 		isVerticalGesture = false;
-		addLog(`Touch start: y=${touchStartY}, element=${!!element}, animator=${!!pagerAnimator}`);
+		addLog(`Touch start: y=${touchStartY}, element=${!!element}, animator=${!!pager}`);
 	}
 
 	function handleTouchMove(e: TouchEvent) {
-		if (!element || !pagerAnimator) {
-			addLog(`Touch move blocked: element=${!!element}, animator=${!!pagerAnimator}`);
+		if (!element || !pager) {
+			addLog(`Touch move blocked: element=${!!element}, animator=${!!pager}`);
 			return;
 		}
 
@@ -107,12 +108,12 @@
 			addLog(`Tracking swipe: deltaY=${deltaY}`);
 
 			// Use PagerAnimator for real-time gesture tracking
-			pagerAnimator.trackSwipeDismiss(0, deltaY);
+			pager.trackSwipeDismiss(0, deltaY);
 		}
 	}
 
 	function handleTouchEnd(e: TouchEvent) {
-		if (!element || !pagerAnimator) return;
+		if (!element || !pager) return;
 
 		// Always handle touch end for vertical gestures
 		if (isVerticalGesture) {
@@ -133,11 +134,11 @@
 			if (isSwiping && (distanceThreshold || velocityThreshold)) {
 				// Complete swipe dismiss with WAAPI out animation, then call goBack
 				addLog(`Dismissing: distance=${distanceThreshold}, velocity=${velocityThreshold}`);
-				pagerAnimator.completeSwipeDismiss();
+				pager.completeSwipeDismiss();
 			} else {
 				// Cancel swipe dismiss - animate back to original position
 				addLog('Canceling swipe dismiss');
-				pagerAnimator.cancelSwipeDismiss();
+				pager.cancelSwipeDismiss();
 			}
 		}
 
@@ -150,7 +151,7 @@
 <div
 	class="fixed right-0 top-0 h-screen z-20"
 	bind:this={element}
-	on:click|stopPropagation={pagerAnimator?.goBack}
+	on:click|stopPropagation={pager?.goBack}
 	style="width: {$viewport.vw * 100}px;"
 	data-kind={path.includes('zoom') ? 'zoom' : 'modal'}
 >
@@ -161,7 +162,9 @@
 		on:touchmove|stopPropagation={handleTouchMove}
 		on:touchend|stopPropagation={handleTouchEnd}
 	>
-		{#if path.includes('receive')}
+		{#if path.includes('cmdk')}
+			<Cmdk goBack={pager?.goBack} />
+		{:else if path.includes('receive')}
 			<Topup />
 		{:else if path.includes('send')}
 			<Send />

@@ -9,6 +9,7 @@
 		WorkerMessage,
 		type RequestObject
 	} from '@candypoets/nipworker';
+	import { go } from 'src/routes/modals/modal';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import {
 		asKind10002,
@@ -255,6 +256,9 @@
 			carouselAnimator.moveLeft();
 		} else if (e.key === 'ArrowRight') {
 			carouselAnimator.moveRight();
+		} else if (e.metaKey && e.key === 'k') {
+			e.preventDefault();
+			go('cmdk');
 		}
 	}
 

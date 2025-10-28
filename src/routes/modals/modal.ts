@@ -10,6 +10,7 @@ export const pathOptions = [
 	'scan',
 	'qr',
 	'ecash',
+	'cmdk',
 	'followlists',
 	'lightning',
 	'login',
