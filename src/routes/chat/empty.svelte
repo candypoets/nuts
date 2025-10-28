@@ -5,6 +5,7 @@
 
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import User from 'src/routes/explore/user.svelte';
+	import { carouselAnimator } from 'src/controller/carrousel';
 
 	// Optional: provide a list of suggested contacts as hex pubkeys
 	export let contacts: string[] = [];
@@ -95,7 +96,11 @@
 				Start a new chat
 			</button>
 
-			<a href="/explore" class="btn btn-ghost w-full mt-2">Find people to chat with</a>
+			<button
+				class="btn btn-ghost w-full mt-2"
+				on:click|stopPropagation={() => carouselAnimator.moveLeft()}
+				>Find people to chat with</button
+			>
 		</div>
 
 		{#if contacts?.length}

@@ -70,13 +70,12 @@
 					Setup Wallet
 				</button>
 				{#if showExploreLink}
-					<a
-						href="/explore"
+					<button
 						class="btn btn-ghost w-full mt-2"
-						on:click|stopPropagation={() => carouselAnimator.moveToIndex(1)}
+						on:click|stopPropagation={() => carouselAnimator.moveLeft()}
 					>
 						Explore people and posts
-					</a>
+					</button>
 				{/if}
 			</div>
 		{/if}

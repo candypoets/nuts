@@ -2,6 +2,7 @@
 	import Icon from '@iconify/svelte';
 	import { onMount } from 'svelte';
 	import { go } from 'src/routes/modals/modal';
+	import { carouselAnimator } from 'src/controller/carrousel';
 
 	// Optional props to tweak copy or layout
 	export let headline = 'Nostr is for you';
@@ -51,7 +52,10 @@
 			</button>
 
 			{#if showExploreLink}
-				<a href="/explore" class="btn btn-ghost w-full mt-2">Explore without keys</a>
+				<button
+					on:click|stopPropagation={() => carouselAnimator.moveRight()}
+					class="btn btn-ghost w-full mt-2">Explore without keys</button
+				>
 			{/if}
 		</div>
 
