@@ -370,9 +370,9 @@
 		</svelte:fragment>
 		<svelte:fragment slot="empty-content">
 			<br />
-			{#if $key?.pub}
+			{#if !$key?.pub}
 				<Connect />
-			{:else if !feed.length}
+			{:else}
 				<EmptyWallet hasWallet={!!$kind17375} />
 			{/if}
 		</svelte:fragment>
