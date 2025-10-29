@@ -28,8 +28,9 @@ export class CarouselAnimator {
 	private progressContainer: HTMLElement | null = null;
 	private progressBars: HTMLElement[] = [];
 
-	// Mobile-only visibility control (which items are display'ed)
+	// Mobile visibility management
 	private visibleIndices: Set<number> = new Set();
+	private isAnimating = false;
 
 	constructor(scrollerWidth: number = 1080) {
 		this.scrollerWidth = scrollerWidth;
@@ -123,9 +124,7 @@ export class CarouselAnimator {
 		if (this.pages[index] != get(page).url.pathname) {
 			this.pages[this._currentIndex] = get(page).url.pathname;
 		}
-		// Capture origin before changing current index so we can keep both visible on mobile during animation
 		const fromIndex = this._currentIndex;
-
 		this.setCurrentIndex(index);
 		const targetX = index * this.scrollerWidth;
 		this.animateToPosition(targetX, duration, isMobile, fromIndex);
@@ -245,8 +244,8 @@ export class CarouselAnimator {
 		// Keep progress bars in sync during programmatic animations
 		this.updateProgressBars(virtualXPosition);
 
-		// On mobile, ensure only origin + target are visible during the transition
-		if (isMobile && this.items.length) {
+		// On mobile, only keep origin + target visible during animation
+		if (isMobile) {
 			const originIndex = fromIndex ?? this._currentIndex;
 			const visible = Array.from(new Set([originIndex, this._currentIndex])).filter(
 				(i) => i >= 0 && i < this.items.length
@@ -255,9 +254,10 @@ export class CarouselAnimator {
 		}
 
 		let pending = 0;
+		this.isAnimating = false;
 
 		this.items.forEach((item, index) => {
-			// On mobile, skip hidden items to save work
+			// If mobile and this item isn't visible, skip any work
 			if (isMobile && !this.visibleIndices.has(index)) {
 				item.style.display = 'none';
 				return;
@@ -321,33 +321,34 @@ export class CarouselAnimator {
 						fill: 'forwards'
 					}
 				);
-			} else {
-				item.style.transform = targetTransform;
-				item.style.opacity = targetOpacity;
-				this.currentStates[index] = {
-					transform: targetTransform,
-					opacity: targetOpacity
-				};
-			}
 
-			if (this.currentAnimations[index]) {
 				this.currentAnimations[index].addEventListener('finish', () => {
 					this.currentStates[index] = {
 						transform: targetTransform,
 						opacity: targetOpacity
 					};
 					pending--;
-					// Once all animations for this transition are done, hide neighbors on mobile
-					if (pending === 0 && isMobile) {
-						this.finalizeMobileVisibilityIdle();
+					if (pending === 0) {
+						this.isAnimating = false;
+						if (isMobile) this.finalizeMobileVisibilityIdle();
 					}
 				});
+			} else {
+				item.style.transform = targetTransform;
+				item.style.opacity = targetOpacity;
+
+				this.currentStates[index] = {
+					transform: targetTransform,
+					opacity: targetOpacity
+				};
 			}
 		});
 
-		// If nothing animated, still finalize immediately for mobile
-		if (pending === 0 && isMobile) {
-			this.finalizeMobileVisibilityIdle();
+		if (pending > 0) {
+			this.isAnimating = true;
+		} else {
+			// No animations were needed: finalize immediately
+			if (isMobile) this.finalizeMobileVisibilityIdle();
 		}
 	}
 
@@ -358,13 +359,13 @@ export class CarouselAnimator {
 		}
 
 		this.touchRAF = requestAnimationFrame(() => {
-			// On mobile, only current + neighbor should be visible while dragging
+			// Ensure only current + neighbor are visible during drag on mobile
 			if (isMobile) {
 				this.ensureVisibleForSwipeMobile(virtualXPosition);
 			}
 
 			this.items.forEach((item, index) => {
-				// Skip if hidden on mobile
+				// Skip non-visible items on mobile
 				if (isMobile && !this.visibleIndices.has(index)) {
 					item.style.display = 'none';
 					return;
@@ -453,9 +454,8 @@ export class CarouselAnimator {
 		return 1 / (distanceInWidths + 1);
 	}
 
-	// ===== Mobile-only visibility helpers =====
+	// ===== Mobile visibility helpers =====
 
-	// Make only the provided indices visible; all others get display: none (mobile only)
 	private setVisibleIndicesMobile(visible: number[]) {
 		const bounded = visible.filter((i) => i >= 0 && i < this.items.length);
 		const nextSet = new Set<number>(bounded);
@@ -465,8 +465,9 @@ export class CarouselAnimator {
 			const isVisible = this.visibleIndices.has(index);
 
 			if (shouldBeVisible && !isVisible) {
-				// Show it and restore last known transform/opacity so it doesn't jump
+				// Show it
 				item.style.display = '';
+				// Restore last known transform/opacity so it doesn't jump
 				const st = this.currentStates[index];
 				if (st) {
 					item.style.transform = st.transform || '';
@@ -484,7 +485,6 @@ export class CarouselAnimator {
 		this.visibleIndices = nextSet;
 	}
 
-	// During drag/track, ensure only current and neighbor in swipe direction are visible
 	private ensureVisibleForSwipeMobile(virtualXPosition: number) {
 		const baseIndex = this._currentIndex;
 		const basePos = baseIndex * this.scrollerWidth;
@@ -503,7 +503,6 @@ export class CarouselAnimator {
 		}
 	}
 
-	// After animation settles on mobile, show only the current page
 	private finalizeMobileVisibilityIdle() {
 		this.setVisibleIndicesMobile([this._currentIndex]);
 	}
