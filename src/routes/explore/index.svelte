@@ -7,22 +7,21 @@
 	} from '@candypoets/nipworker';
 	import { asKind0, asKind3, asKind39089, fbArray } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
-	import { isEqual, throttle, uniq } from 'lodash';
+	import { isEqual, uniq } from 'lodash';
 
+	import { normalizeURL } from 'nostr-tools/utils';
 	import Pager from 'src/components/Pager.svelte';
 	import RelaysList from 'src/components/RelaysList.svelte';
+	import { key } from 'src/controller';
 	import { followPacks } from 'src/controller/feed';
-	import { kind0, kind3, kind3Ready, readRelays } from 'src/controller/nostr';
+	import { kind0, kind3, readRelays } from 'src/controller/nostr';
 	import { limit } from 'src/controller/pagination';
+	import { relaySub } from 'src/controller/relay';
+	import { ago } from 'src/lib/period';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import { go } from 'src/routes/modals/modal';
 	import Notifications from './notifications.svelte';
-	import { relaySub } from 'src/controller/relay';
-	import { ago } from 'src/lib/period';
-	import { normalizeURL } from 'nostr-tools/utils';
-	import { page } from '$app/stores';
-	import { key } from 'src/controller';
 
 	export let visible = true;
 

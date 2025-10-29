@@ -1,19 +1,12 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import { getContext, onDestroy, onMount } from 'svelte';
-	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
-	import { isMobile } from 'src/controller';
-	import {
-		initRelayTracking,
-		relayInfos,
-		relayStatusMap,
-		setSubRelays,
-		relaySubs
-	} from 'src/controller/relay';
-	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import { normalizeURL } from 'nostr-tools/utils';
 	import VirtualList from 'src/components/VirtualList.svelte';
-	import { goBack } from './modal';
+	import { isMobile } from 'src/controller';
+	import { relayInfos, relayStatusMap, relaySubs, setSubRelays } from 'src/controller/relay';
+	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
+	import { proxyAvatarUrl } from 'src/lib/proxy';
+	import { getContext, onDestroy } from 'svelte';
 
 	export let subId: string = '';
 
