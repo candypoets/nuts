@@ -15,9 +15,11 @@
 	import { now } from 'src/lib/period';
 	import { pronounceable } from 'src/lib/randomName';
 	import { decodePrivKey, DEFAULT_MINTS, deriveFromMnemonic } from 'src/lib/wallet';
-	import { onMount } from 'svelte';
+	import { getContext, onMount } from 'svelte';
 
 	export let inline = false;
+
+	const animator = getContext('animator');
 
 	let privateKey = '';
 	let name = pronounceable({ min: 6, max: 8 });
@@ -68,6 +70,7 @@
 						nsec: nip19.nsecEncode(pk)
 					};
 					loginSub();
+					animator?.goBack();
 				}
 			}
 		);
