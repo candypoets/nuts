@@ -13,6 +13,46 @@
 	onMount(async () => {
 		await import('media-chrome'); // npm i media-chrome
 	});
+
+	// Avoid triggering overlay while scrolling on touch devices.
+	let startX = 0;
+	let startY = 0;
+	let isTouchTap = false;
+	let suppressNextClick = false;
+	const TAP_MOVE_THRESHOLD = 10; // px
+
+	function onPointerDown(e: PointerEvent) {
+		if (e.pointerType === 'touch' || e.pointerType === 'pen') {
+			isTouchTap = true;
+			startX = e.clientX;
+			startY = e.clientY;
+		}
+	}
+
+	function onPointerMove(e: PointerEvent) {
+		if (!isTouchTap) return;
+		const dx = Math.abs(e.clientX - startX);
+		const dy = Math.abs(e.clientY - startY);
+		if (dx > TAP_MOVE_THRESHOLD || dy > TAP_MOVE_THRESHOLD) {
+			// Consider it a scroll/drag; don't treat as a tap.
+			isTouchTap = false;
+		}
+	}
+
+	function onPointerUp(e: PointerEvent) {
+		if (isTouchTap) {
+			suppressNextClick = true;
+			onClick(e as unknown as MouseEvent);
+			// Reset suppression on the next tick so the synthesized click doesn't fire.
+			queueMicrotask(() => (suppressNextClick = false));
+		}
+		isTouchTap = false;
+	}
+
+	function onOverlayClick(e: MouseEvent) {
+		if (suppressNextClick) return;
+		onClick(e);
+	}
 </script>
 
 <!--
@@ -37,8 +77,11 @@
 	<!-- Transparent tap overlay to intercept mobile taps -->
 	<div
 		class="absolute inset-0 z-[1]"
-		on:click|stopPropagation={(e) => onClick(e)}
-		on:touchstart|preventDefault|stopPropagation={(e) => onClick(e)}
+		style="touch-action: pan-y;"
+		on:click|stopPropagation={onOverlayClick}
+		on:pointerdown|stopPropagation={onPointerDown}
+		on:pointermove|stopPropagation={onPointerMove}
+		on:pointerup|stopPropagation={onPointerUp}
 	/>
 
 	<!-- Always-visible quick Unmute button (Twitter-like) -->
