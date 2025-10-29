@@ -31,6 +31,7 @@
 	import User from 'src/routes/explore/user.svelte';
 	import { go } from 'src/routes/modals/modal';
 	import Empty from './empty.svelte';
+	import { normalizeURL } from 'nostr-tools/utils';
 
 	export let visible = true;
 
@@ -208,7 +209,10 @@
 						<!-- <Icon icon="teenyicons:add-outline" class="text-xl"></Icon> -->
 					</button>
 				</div>
-				<RelaysList relays={uniq([...$writeRelays, ...$readRelays])} {connectionStatus} />
+				<RelaysList
+					relays={uniq([...$writeRelays, ...$readRelays]).map(normalizeURL)}
+					{connectionStatus}
+				/>
 			</div>
 		</svelte:fragment>
 		<svelte:fragment slot="empty-content">
