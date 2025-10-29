@@ -32,6 +32,11 @@ export class PagerAnimator {
 	private goBackRouter: () => void;
 	private options: AnimationOptions = { duration: 0.3 };
 
+	// Mobile mode and visibility tracking
+	private isMobileMode = false;
+	private visibleStackIndices: Set<number> = new Set(); // indices into this.stack
+	private showMain = true; // whether main is visible
+
 	constructor(
 		viewport: { vw: number; vh: number },
 		goBackRouter: () => void,
@@ -42,6 +47,81 @@ export class PagerAnimator {
 		if (options) {
 			this.options = options;
 		}
+		// Auto-detect mobile by default; you can override with setMobileMode()
+		this.isMobileMode = this.detectMobile();
+	}
+
+	// Allow explicit override. If not provided, re-detect.
+	public setMobileMode(isMobile?: boolean) {
+		this.isMobileMode = isMobile ?? this.detectMobile();
+		this.applyCombinedVisibility();
+	}
+
+	private detectMobile(): boolean {
+		if (typeof window === 'undefined') return false;
+		try {
+			if (window.matchMedia('(pointer: coarse)').matches) return true;
+			if (window.matchMedia('(max-width: 768px)').matches) return true;
+		} catch {
+			// ignore
+		}
+		const ua = navigator.userAgent || '';
+		return /Mobi|Android|iPhone|iPad|iPod|Phone/i.test(ua);
+	}
+
+	/**
+	 * Compute which elements should be visible considering the combined order [main, ...stack]
+	 */
+	private computeCombinedVisibility(): { showMain: boolean; visibleStack: Set<number> } {
+		const total = 1 + this.stack.length; // 1 = main
+		if (!this.isMobileMode) {
+			return {
+				showMain: true,
+				visibleStack: new Set(this.stack.map((_, i) => i))
+			};
+		}
+		// Show only the last 2 in the combined sequence [main, stack[0], ..., stack[n-1]]
+		const start = Math.max(0, total - 2);
+		const showMain = start === 0;
+		const visibleStack = new Set<number>();
+		for (let combinedIdx = start; combinedIdx < total; combinedIdx++) {
+			if (combinedIdx === 0) continue; // main handled separately
+			const stackIdx = combinedIdx - 1;
+			if (stackIdx >= 0) visibleStack.add(stackIdx);
+		}
+		return { showMain, visibleStack };
+	}
+
+	/**
+	 * Apply visibility (display) to main and stack according to mobile rule
+	 */
+	private applyCombinedVisibility() {
+		const { showMain, visibleStack } = this.computeCombinedVisibility();
+		this.showMain = showMain;
+		this.visibleStackIndices = visibleStack;
+
+		// Main
+		if (this.main) {
+			this.main.style.display = this.showMain ? '' : 'none';
+		}
+
+		// Stack
+		this.stack.forEach((el, idx) => {
+			if (this.visibleStackIndices.has(idx)) {
+				if (el.style.display === 'none') el.style.display = '';
+			} else {
+				el.style.display = 'none';
+			}
+		});
+	}
+
+	private showAll() {
+		if (this.main) this.main.style.display = '';
+		this.stack.forEach((el) => {
+			el.style.display = '';
+		});
+		this.showMain = true;
+		this.visibleStackIndices = new Set(this.stack.map((_, i) => i));
 	}
 
 	/**
@@ -49,6 +129,8 @@ export class PagerAnimator {
 	 */
 	setMainContent(element: HTMLElement) {
 		this.main = element;
+		// Ensure visibility applied if mode was decided before main arrived
+		this.applyCombinedVisibility();
 	}
 
 	/**
@@ -56,6 +138,8 @@ export class PagerAnimator {
 	 */
 	updateViewport(viewport: { vw: number; vh: number }) {
 		this.viewport = viewport;
+		// Optionally re-evaluate on viewport change if you prefer dynamic switching:
+		// this.setMobileMode();
 	}
 
 	goBack = () => {
@@ -80,6 +164,9 @@ export class PagerAnimator {
 	}
 
 	animateIn(element: HTMLElement) {
+		// Make sure it's visible when animating in
+		element.style.display = '';
+
 		// Get the element's data-kind attribute to determine animation type
 		const kind = element.getAttribute('data-kind') || 'default';
 
@@ -141,6 +228,9 @@ export class PagerAnimator {
 	registerElement(element: HTMLElement) {
 		this.stack.push(element);
 
+		// Apply visibility rules first
+		this.applyCombinedVisibility();
+
 		this.updateMainContent();
 		this.updateAllSubElements(0, 0, 'in');
 	}
@@ -152,7 +242,13 @@ export class PagerAnimator {
 		// Remove from stack
 		const lastElement = this.stack.pop();
 
-		this.animateOut(lastElement);
+		// Animate out the element that was on top (lastElement)
+		if (lastElement) {
+			this.animateOut(lastElement);
+		}
+
+		// Re-apply visibility to keep at most two visible (considering main)
+		this.applyCombinedVisibility();
 
 		this.updateAllSubElements(0, 0);
 		this.updateMainContent();
@@ -170,13 +266,25 @@ export class PagerAnimator {
 
 	/**
 	 * Get current navigation depth (number of sub elements)
+	 * - On mobile, counts only visible stack items
 	 */
 	subDepth(): number {
-		return this.stack.filter((item) => item.getAttribute('data-kind') === 'sub').length;
+		return this.stack.filter(
+			(item, idx) =>
+				(!this.isMobileMode || this.visibleStackIndices.has(idx)) &&
+				item.getAttribute('data-kind') === 'sub'
+		).length;
 	}
 
+	/**
+	 * Modal depth; see subDepth for mobile visibility handling
+	 */
 	modalDepth(): number {
-		return this.stack.filter((item) => item.getAttribute('data-kind') === 'modal').length;
+		return this.stack.filter(
+			(item, idx) =>
+				(!this.isMobileMode || this.visibleStackIndices.has(idx)) &&
+				item.getAttribute('data-kind') === 'modal'
+		).length;
 	}
 
 	/**
@@ -184,6 +292,9 @@ export class PagerAnimator {
 	 */
 	private updateMainContent(deltaX: number = 0, deltaY: number = 0) {
 		if (!this.main) return;
+
+		// Skip animating main if hidden on mobile
+		if (this.isMobileMode && !this.showMain) return;
 
 		const subDepth = this.subDepth();
 		const modalDepth = this.modalDepth();
@@ -194,10 +305,6 @@ export class PagerAnimator {
 
 		const swipeProgressX = deltaX > 0 ? this.getSwipeProgress(deltaX, 0) : 0;
 		const swipeProgressY = deltaY > 0 ? this.getSwipeProgress(0, deltaY) : 0;
-
-		// this.addDebugToElement(
-		// 	`updateMainContent called: deltaX=${deltaX}, deltaY=${deltaY}, viewport=${this.viewport.vw} subTweened=${subTweened}, swipeProgressX=${swipeProgressX}, swipeProgressY=${swipeProgressY}`
-		// );
 
 		const translateX = -(subTweened - swipeProgressX) * (this.viewport.vw * 20 + subDepth * 30);
 		const translateY = (modalDepth - swipeProgressY) * 30;
@@ -223,15 +330,28 @@ export class PagerAnimator {
 	/**
 	 * Update all sub elements based on current registration
 	 */
-	private updateAllSubElements(deltaX: number = 0, deltaY: number = 0, animate?: 'in' | 'out') {
+	private updateAllSubElements(deltaX: number = 0, deltaY: number = 0, animateKind?: 'in' | 'out') {
+		// Ensure visibility is applied before animating
+		this.applyCombinedVisibility();
+
 		let subDepth = 0;
 		let modalDepth = 0;
 		for (let i = this.stack.length - 1; i >= 0; i--) {
 			const element = this.stack[i];
+
+			// On mobile: skip non-visible elements to save work
+			if (this.isMobileMode && !this.visibleStackIndices.has(i)) {
+				element.style.display = 'none';
+				continue;
+			} else {
+				element.style.display = '';
+			}
+
 			const effectiveSubDepth = subDepth - this.getSwipeProgress(deltaX, deltaY);
 			const effectiveModalDepth = modalDepth - this.getSwipeProgress(deltaX, deltaY);
-			if (animate && !subDepth && !modalDepth) {
-				animate == 'in' ? this.animateIn(element) : this.animateOut(element);
+
+			if (animateKind && subDepth === 0 && modalDepth === 0) {
+				animateKind == 'in' ? this.animateIn(element) : this.animateOut(element);
 			} else {
 				this.updateSubElement(
 					element,
@@ -343,6 +463,8 @@ export class PagerAnimator {
 	 * Cleanup method
 	 */
 	destroy() {
+		// Show everything again in case caller reuses elements
+		this.showAll();
 		// Motion One automatically handles cleanup, but we can clear our arrays
 		this.stack = [];
 	}

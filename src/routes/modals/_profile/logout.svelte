@@ -14,8 +14,8 @@
 	let animator = getContext('animator');
 </script>
 
-<div class="h-full py-4 flex items-center">
-	<div class="border rounded-xl h-full w-feed lg:h-auto bg-base-300 bg-opacity-85 py-4">
+<div class="h-screen flex items-center">
+	<div class="w-feed lg:h-auto h-screen bg-base-300 bg-opacity-85 backdrop-blur-md md:pt-4 pt-safe">
 		<div class="px-4">
 			<div on:click={animator.goBack}>
 				<Icon icon="mdi:close" class="w-6 h-6" />

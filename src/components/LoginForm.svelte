@@ -155,7 +155,7 @@
 </script>
 
 <main
-	class="w-full md:h-screen flex justify-center items-center"
+	class="w-full h-screen flex justify-center items-center"
 	class:!block={inline}
 	class:!h-auto={inline}
 >
@@ -170,7 +170,7 @@
 			<span class="text-purple-600">Up</span>
 		</h1>
 		{#if kind == 'login'}
-			<div class="w-full">
+			<div class="w-full mt-32">
 				<form class="px-4 mt-8" class:!mt-0={inline} on:submit|preventDefault={handleLogin}>
 					<div class="join w-full">
 						<!-- <div class="btn join-item btn-link"><Icon icon="ri:key-fill" /></div> -->

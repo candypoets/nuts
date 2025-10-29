@@ -175,6 +175,8 @@
 			document.getElementsByTagName('html')[0].setAttribute('data-theme', theme);
 		}
 
+		// carouselAnimator.setMobileMode($isMobile);
+
 		if (progressContainer) {
 			carouselAnimator.setProgressContainer(progressContainer);
 		}
