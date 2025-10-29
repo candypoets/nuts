@@ -3,8 +3,7 @@
 	import type { ConnectionStatus } from '@candypoets/nipworker';
 	import { normalizeURL } from 'nostr-tools/utils';
 
-	export let connectionStatus: { [relayUrl: string]: ConnectionStatus | 'SUBSCRIBED' | undefined } =
-		{};
+	export let connectionStatus: { [relayUrl: string]: ConnectionStatus } = {};
 
 	$: relays = Object.keys(connectionStatus) || ['damus'];
 

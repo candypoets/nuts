@@ -1,38 +1,22 @@
 <script lang="ts">
 	import type { ConnectionStatus } from '@candypoets/nipworker';
-	import { createEventDispatcher, onDestroy, onMount } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import { fly } from 'svelte/transition';
 
 	export let relayName = '';
 	export let status: ConnectionStatus;
 	export let size = 10; // px diameter
 
-	const dispatch = createEventDispatcher();
-
 	let removalTimer: ReturnType<typeof setTimeout> | null = null;
 	let absoluteMaxTimer: ReturnType<typeof setTimeout> | null = null;
 	let visible = false;
 
-	// First letter for display
-	$: firstLetter = relayName?.trim()?.charAt(0)?.toUpperCase() || '?';
-
 	function getColorClasses(s: ConnectionStatus) {
-		switch (s.status()?.toString()) {
-			case 'EOSE':
+		switch (s?.status()?.toString()) {
+			case 'true':
 				return 'bg-green-500';
-			case 'FAILED':
+			case 'false':
 				return 'bg-red-500';
-			case 'SUBSCRIBED':
-				return 'bg-blue-500 animate-pulse';
-			case 'OK':
-				console.log(s.message()?.toString());
-				return s.message()?.toString() == 'false' ? 'bg-red-500' : 'bg-green-400';
-			case 'SENT':
-				return 'bg-gray-300 opacity-50';
-			case 'CLOSED':
-				return 'bg-gray-500';
-			case 'NOTICE':
-				return 'bg-yellow-500';
 			default:
 				return 'bg-gray-300 opacity-50';
 		}
@@ -46,7 +30,7 @@
 			removalTimer = null;
 		}
 
-		if (status && status.status()?.toString() !== 'OK') {
+		if (status) {
 			removalTimer = setTimeout(() => {
 				visible = false;
 			}, 5000);
