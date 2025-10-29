@@ -1,14 +1,7 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
 	import { getContext } from 'svelte';
-	import {
-		key,
-		kind0,
-		kind17375,
-		walletMnemonic,
-		walletMnemonicIndex,
-		walletPassphrase
-	} from 'src/controller';
+	import { key, kind0, kind17375, kind3, walletMnemonic, walletPassphrase } from 'src/controller';
 
 	export let subopen: boolean = false;
 	let animator = getContext('animator');
@@ -36,6 +29,7 @@
 					$walletPassphrase = '';
 					$kind0 = undefined;
 					$kind17375 = undefined;
+					$kind3 = undefined;
 				}}
 			>
 				Log Out
