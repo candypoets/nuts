@@ -1,6 +1,9 @@
 import type { WorkerMessage } from '@candypoets/nipworker';
 import { useSubscription } from '@candypoets/nipworker/hooks';
 import { fbArray, isKind10002 } from '@candypoets/nipworker/utils';
+import { normalizeURL } from 'nostr-tools/utils';
+import { relayStatusMap } from 'src/controller/relay';
+import { get } from 'svelte/store';
 
 export const userQuery = (pubkey: string, relays: string[] = []) => [
 	{
@@ -48,9 +51,16 @@ export function getUserRelays(
 			const kind10002 = isKind10002(message);
 			if (kind10002 && !called) {
 				const relays = fbArray(kind10002, 'relays')
-					?.filter((r) => r.write())
+					?.filter((r) => (relayType == 'write' ? r.write() : r.read()))
 					.map((r) => r.url()?.toString())
-					.filter(Boolean) as string[];
+					.filter(Boolean)
+					.sort((a, b) => {
+						const aOpen = get(relayStatusMap).get(normalizeURL(a as string)) == 'open';
+						const bOpen = get(relayStatusMap).get(normalizeURL(b as string)) == 'open';
+						if (aOpen && !bOpen) return -1;
+						if (!aOpen && bOpen) return 1;
+						return 0;
+					}) as string[];
 				onRelaysAvailable(relays);
 				called = true;
 				clearTimeout(timeout);

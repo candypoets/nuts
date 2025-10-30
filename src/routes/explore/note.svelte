@@ -23,6 +23,7 @@
 	import _, { isEqual, uniqBy } from 'lodash';
 	import { relaySub } from 'src/controller/relay';
 	import { normalizeURL } from 'nostr-tools/utils';
+	import { isMobile } from 'src/controller';
 
 	export let main: boolean = false;
 	// if the note is a repost, this is the reposter pubkey
@@ -114,7 +115,7 @@
 								kinds: [1],
 								ids: [nid],
 								limit: 5,
-								relays: relays || [],
+								relays: relays.slice(0, 5) || [],
 								cacheFirst: true
 							},
 							// fetch some replies
@@ -155,7 +156,7 @@
 						if (total === 0) return;
 						uniquePubkeys.forEach((pubkey) => {
 							getUserRelays(pubkey, (relays) => {
-								relays.forEach((r) => allRelays.add(r));
+								relays.slice(0, 3).forEach((r) => allRelays.add(r));
 								fetched++;
 								if (fetched === total) {
 									useSubscription(
@@ -179,13 +180,13 @@
 					relaysub = getUserRelays(
 						note?.pubkey()?.toString() as string,
 						(result) => {
-							relays = result;
+							relays = result.slice(0, $isMobile ? 3 : 5);
 						},
 						'read'
 					);
 				}
 			}
-		}, 200);
+		}, 500);
 	}
 
 	function unsubscribe() {

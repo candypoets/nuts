@@ -18,6 +18,7 @@
 	import Note from './note.svelte';
 	import { formatDistanceToNow } from 'date-fns';
 	import { normalizeURL } from 'nostr-tools/utils';
+	import Placeholder from 'src/components/Placeholder.svelte';
 
 	// Props
 	export let bottom = false;
@@ -585,7 +586,8 @@
 		{pullToRefresh}
 	>
 		{@const repost = asKind6(item) && item.pubkey()}
-		{@const isVisible = visible && itemIndex >= start - 2}
+		{@const screenVisible = visible && itemIndex >= start - 5}
+		{@const subVisible = visible}
 		<svelte:fragment slot="feed-header">
 			<slot name="header" visible>Missing Template</slot>
 		</svelte:fragment>
@@ -593,20 +595,22 @@
 			<slot name="empty-content" />
 		</svelte:fragment>
 		<div class="block w-feed m-auto px-1 max-w-full">
-			<slot
-				name="item-content"
-				post={item}
-				posts={itemsPerRow > 1 ? items : undefined}
-				visible={isVisible}
-				index={itemIndex}
-			>
-				<Note
-					note={repost ? { ...item?.parsed.repostedEvent, requests: item.requests } : item}
-					context={[]}
-					visible={isVisible}
-					{repost}
-				/>
-			</slot>
+			<Placeholder visible={screenVisible}>
+				<slot
+					name="item-content"
+					post={item}
+					posts={itemsPerRow > 1 ? items : undefined}
+					visible={subVisible}
+					index={itemIndex}
+				>
+					<Note
+						note={repost ? { ...item?.parsed.repostedEvent, requests: item.requests } : item}
+						context={[]}
+						visible={subVisible}
+						{repost}
+					/>
+				</slot>
+			</Placeholder>
 		</div>
 	</svelte:component>
 </div>

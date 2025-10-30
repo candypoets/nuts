@@ -181,7 +181,7 @@
 			</strong>
 		{/if}
 		<div
-			class="flex items-center p-3 mx-4 border border-primary-content hover:bg-base-200 cursor-pointer"
+			class="flex items-center p-3 mx-3 border border-primary-content hover:bg-base-200 cursor-pointer"
 			class:border-b-0={!isLast}
 			class:rounded-t-lg={isFirst}
 			class:rounded-b-lg={isLast}

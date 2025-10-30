@@ -22,7 +22,7 @@
 	import { getContext, onDestroy, onMount } from 'svelte';
 
 	import EmojiPickerContent from 'src/components/EmojiPickerContent.svelte';
-	import { key } from 'src/controller';
+	import { isMobile, key } from 'src/controller';
 	import { updateSendStatus } from 'src/controller/sendStatus';
 	import { now } from 'src/lib/period';
 	import { hexToBytes } from 'src/lib/wallet';
@@ -49,7 +49,6 @@
 	let reposted = false;
 	let timeout: NodeJS.Timeout | undefined;
 	let triggerElement: HTMLElement;
-	let isMobile = false;
 	let reactionCount = 0;
 	let replyCount = 0;
 	let repostCount = 0;
@@ -61,10 +60,6 @@
 
 	const commonEmoticons = ['👍', '❤️', '😂', '🔥', '😍', '🙏', '💯', '🤔', '🫂', '🚀'];
 
-	function checkMobile() {
-		isMobile = window.innerWidth < 640;
-	}
-
 	const subscriptionOptions: SubscriptionConfig = {
 		pipeline: [
 			new PipeT(PipeConfig.SaveToDbPipeConfig, new SaveToDbPipeConfigT()),
@@ -74,12 +69,6 @@
 			)
 		]
 	};
-
-	onMount(() => {
-		checkMobile();
-		window.addEventListener('resize', checkMobile);
-		return () => window.removeEventListener('resize', checkMobile);
-	});
 
 	const handleEvents = (message: WorkerMessage) => {
 		switch (message.type()) {
@@ -110,11 +99,14 @@
 		}
 	};
 
+	let subed = 0;
+
 	function subscribe() {
 		timeout = setTimeout(async () => {
 			if (visible && !relaysub) {
+				subed++;
 				relaysub = getUserRelays(decoded.pubkey, (result) => {
-					relays = result;
+					relays = result.slice(0, $isMobile ? 3 : 5);
 					sub = useSubscription(
 						'f_' + decoded.id,
 						[
@@ -130,7 +122,7 @@
 					);
 				});
 			}
-		}, 200);
+		}, 700);
 	}
 
 	function unsubscribe() {
@@ -140,6 +132,7 @@
 			sub?.();
 			relaysub?.();
 			relaysub = undefined;
+			subed--;
 		}
 	}
 

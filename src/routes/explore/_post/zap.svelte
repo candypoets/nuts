@@ -9,7 +9,7 @@
 	} from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import { asKind9321, asKind9735, asParsedEvent } from '@candypoets/nipworker/utils';
-	import _, { sortBy } from 'lodash';
+	import { sortBy, uniqBy } from 'lodash';
 	import { onDestroy } from 'svelte';
 
 	import { kind0 } from 'src/controller/nostr';
@@ -17,6 +17,7 @@
 	import { getUserRelays } from 'src/routes/queries/user';
 	import Avatar from '../avatar.svelte';
 	import Icon from '@iconify/svelte';
+	import { isMobile } from 'src/controller';
 
 	export let note: ParsedEvent;
 	export let visible: boolean;
@@ -35,11 +36,14 @@
 
 	$: relays = getRelaysFromNote(note);
 
+	let subed = 0;
+
 	async function subscribe() {
 		timeout = setTimeout(() => {
 			if (visible && !relaysub) {
+				subed++;
 				relaysub = getUserRelays(note.pubkey()!.toString(), (result) => {
-					relays = result;
+					relays = result.slice(0, $isMobile ? 3 : 5);
 					sub = useSubscription(
 						'z_' + note.id()!.fnv1aHash(),
 						[
@@ -56,7 +60,7 @@
 					);
 				});
 			}
-		}, 200);
+		}, 1000);
 	}
 
 	const handleEvents = (message: WorkerMessage) => {
@@ -78,23 +82,26 @@
 	};
 
 	function handleNuts(event: ParsedEvent) {
-		console.log('handleNuts');
 		const kind9321 = asKind9321(event) as Kind9321Parsed;
 		if (event.pubkey()!.fnv1aHash() == $kind0?.pubkey()!.fnv1aHash()) zapped = true;
-		if (nuts.some((n) => n.id()!.fnv1aHash() == event.id()!.fnv1aHash())) return;
 		totalZapAmount += kind9321?.amount() || 0;
 
 		biggestNut = (kind9321?.amount() || 0) > (biggestNut?.amount() || 0) ? kind9321 : biggestNut;
-		zaps = sortBy([...zaps, kind9321], (n) => n?.amount());
+		zaps = sortBy(
+			uniqBy([...zaps, kind9321], (z) => z?.id()?.fnv1aHash()),
+			(n) => n?.amount()
+		);
 	}
 
 	function handleZaps(event: ParsedEvent) {
 		const kind9735 = asKind9735(event) as Kind9735Parsed;
 		if (event.pubkey()!.fnv1aHash() == $kind0?.pubkey()!.fnv1aHash()) zapped = true;
-		if (zaps.some((n) => n.id()!.fnv1aHash() == event.id()!.fnv1aHash())) return;
 		totalZapAmount += kind9735?.amount() || 0;
 		biggestZap = (kind9735?.amount() || 0) > (biggestZap?.amount() || 0) ? kind9735 : biggestZap;
-		zaps = sortBy([...zaps, kind9735], (z) => z?.amount());
+		zaps = sortBy(
+			uniqBy([...zaps, kind9735], (z) => z?.id()?.fnv1aHash()),
+			(z) => z?.amount()
+		);
 	}
 
 	function unsubscribe() {
@@ -103,6 +110,7 @@
 			timeout = undefined;
 			sub?.();
 			relaysub?.();
+			subed--;
 		}
 	}
 

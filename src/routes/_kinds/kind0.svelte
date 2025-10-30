@@ -142,8 +142,6 @@
 	function updateFollowList() {
 		if (!$kind0) return;
 
-		// kind3Ready.promise.then((_) => {
-		console.log('hey');
 		const template = {
 			kind: 3,
 			created_at: now(),
@@ -158,7 +156,6 @@
 		};
 
 		usePublish('follow_' + pubkey, template);
-		// });
 	}
 
 	onMount(() => {
