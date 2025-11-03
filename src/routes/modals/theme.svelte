@@ -5,7 +5,7 @@
 	const animator = getContext('animator');
 
 	// List of available themes from tailwind.config.cjs
-	const themes = ['light', 'dark', 'matteblack', 'zedokai', 'downfox'];
+	const themes = ['light', 'dark', 'matteblack', 'snowwhite', 'downfox'];
 
 	// Writable store for the current theme (could be moved to src/controller/theme.ts for global use)
 	export const theme = writable<string>('light'); // Default to 'light'
@@ -29,7 +29,7 @@
 	// Function to apply the theme to the document
 	function applyTheme(selectedTheme: string) {
 		document.documentElement.setAttribute('data-theme', selectedTheme);
-		localStorage.setItem('theme', theme);
+		localStorage.setItem('theme', $theme);
 	}
 
 	// Handler for theme selection
