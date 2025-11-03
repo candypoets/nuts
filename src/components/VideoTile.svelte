@@ -87,7 +87,7 @@
 	<!-- Always-visible quick Unmute button (Twitter-like) -->
 	<media-mute-button
 		class="absolute top-3 right-3 z-10 rounded-full bg-black/60 text-white p-2
-           hover:bg-black/80 transition-opacity"
+           hover:bg-black/80 transition-opacity opacity-100"
 		aria-label="Toggle mute"
 		on:click|stopPropagation
 	></media-mute-button>

@@ -51,6 +51,60 @@ module.exports = {
 					success: '#00a96e',
 					warning: '#ffbe00',
 					error: '#ff5861'
+				},
+				matteblack: {
+					// Base matte black theme: dark, muted, low-contrast colors for a sleek, non-glossy look
+					primary: '#1a1a1a', // Deep matte black
+					'primary-content': '#a0a0a0', // Muted gray for text on primary
+					secondary: '#333333', // Dark gray secondary
+					'secondary-content': '#b0b0b0',
+					'base-100': '#3b3b3b', // Almost black background
+					'base-200': '#1a1a1a',
+					'base-300': '#262626',
+					'error-content': '#cc0000', // Muted red for errors
+					highlight: '#333333', // Subtle highlight
+					accent: '#4d4d4d', // Muted accent
+					neutral: '#1a1a1a',
+					info: '#4d4d4d',
+					success: '#006600', // Dark green
+					warning: '#cc6600', // Dark orange
+					error: '#990000' // Dark red
+				},
+				zedokai: {
+					// Zedokai variant: Inspired by code editor dark themes (e.g., Zed-like), matte black with subtle blues/grays for a focused, developer-friendly vibe
+					primary: '#0f0f0f',
+					'primary-content': '#b3b3b3',
+					secondary: '#2b2b2b',
+					'secondary-content': '#cccccc',
+					'base-100': '#080808',
+					'base-200': '#121212',
+					'base-300': '#1e1e1e',
+					'error-content': '#b30000',
+					highlight: '#2b2b2b',
+					accent: '#004d99', // Subtle blue accent for highlights/code
+					neutral: '#0f0f0f',
+					info: '#0066cc',
+					success: '#005500',
+					warning: '#b35900',
+					error: '#800000'
+				},
+				downfox: {
+					// Downfox variant: Another matte black take, perhaps with earthy tones (assuming "downfox" as a custom name; adjusted for muted, fox-like warm grays/blacks)
+					primary: '#141414',
+					'primary-content': '#999999',
+					secondary: '#282828',
+					'secondary-content': '#b3b3b3',
+					'base-100': '#0a0a0a',
+					'base-200': '#161616',
+					'base-300': '#222222',
+					'error-content': '#b34700', // Warm muted error
+					highlight: '#282828',
+					accent: '#663300', // Earthy brown accent
+					neutral: '#141414',
+					info: '#336699',
+					success: '#004d00',
+					warning: '#996600',
+					error: '#660000'
 				}
 			}
 		]

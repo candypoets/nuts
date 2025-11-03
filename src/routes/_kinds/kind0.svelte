@@ -11,7 +11,7 @@
 	} from '@candypoets/nipworker';
 	import Icon from '@iconify/svelte';
 	import _, { uniqBy } from 'lodash';
-	import { follows, kind0, kind3Ready } from 'src/controller/nostr';
+	import { follows, kind0 } from 'src/controller/nostr';
 	import { limit } from 'src/controller/pagination';
 	import { now } from 'src/lib/period';
 	import { proxyAvatarUrl, proxyBannerUrl } from 'src/lib/proxy';

@@ -31,6 +31,7 @@ export const pathOptions = [
 	'relayinfos',
 	'share',
 	'logout',
+	'theme',
 	'zoom'
 ];
 

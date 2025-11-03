@@ -77,8 +77,7 @@ export function GetLNURLFromProfile(profile: ParsedEvent): string | null {
 
 export const getInvoiceFromProfile = async (
 	profile: ParsedEvent,
-	amount: number,
-	event: NostrEvent
+	amount: number
 ): Promise<{ pr: string; lnurl: string; maxSendable: number; minSendable: number }> => {
 	const kind0 = asKind0(profile);
 	if (!kind0) {

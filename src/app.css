@@ -7,7 +7,7 @@
 	--vc: 1vh;
 	--vw: 1vw;
 	--container-top: 2rem;
-	--bg-basic: url('/bg-light.jpg');
+
 	--miss-profile: url('/miss-profile.png');
 	--tw-ring-offset-width: 0px;
 	--tw-ring-offset-color: #fff;
@@ -19,6 +19,16 @@
 /* If you use DaisyUI's data-theme */
 html[data-theme='dark'] {
 	--bg-basic: url('/bg-dark.jpg');
+}
+html[data-theme='light'] {
+	--bg-basic: url('/bg-light.jpg');
+}
+html[data-theme='matteblack'] {
+	--bg-basic: url('/');
+}
+html[data-theme='zedokai'] {
+	--bg-basic: url('/');
+	--bg: linear-gradient(180deg, #000000 0%, #1a1a1a 100%);
 }
 
 @font-face {

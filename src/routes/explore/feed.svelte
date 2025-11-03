@@ -586,7 +586,7 @@
 		{pullToRefresh}
 	>
 		{@const repost = asKind6(item) && item.pubkey()}
-		{@const screenVisible = visible && itemIndex >= start - 5}
+		{@const screenVisible = itemIndex >= start - 5}
 		{@const subVisible = visible}
 		<svelte:fragment slot="feed-header">
 			<slot name="header" visible>Missing Template</slot>

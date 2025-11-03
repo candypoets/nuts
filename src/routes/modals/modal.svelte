@@ -27,6 +27,7 @@
 	import ImageZoom from 'src/components/ImageZoom.svelte';
 	import Login from './_profile/login.svelte';
 	import Newchat from './newchat.svelte';
+	import Theme from './theme.svelte';
 
 	export let path: string;
 	export let visible: boolean;
@@ -212,6 +213,8 @@
 			<Wallet />
 		{:else if path.includes('relays')}
 			<Relays />
+		{:else if path.includes('theme')}
+			<Theme />
 		{:else if path.includes('logout')}
 			<Logout />
 		{:else if path.includes('zoom')}

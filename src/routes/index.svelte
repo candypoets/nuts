@@ -261,6 +261,12 @@
 		} else if (e.metaKey && e.key === 'k') {
 			e.preventDefault();
 			go('cmdk');
+		} else if (e.metaKey && e.key === 'p') {
+			e.preventDefault();
+			go('post');
+		} else if (e.metaKey && e.key === 'y') {
+			e.preventDefault();
+			go('theme');
 		}
 	}
 

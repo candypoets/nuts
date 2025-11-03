@@ -14,7 +14,7 @@
 	import RelaysList from 'src/components/RelaysList.svelte';
 	import { key } from 'src/controller';
 	import { followPacks } from 'src/controller/feed';
-	import { kind0, kind3, readRelays } from 'src/controller/nostr';
+	import { kind0, kind3, kind3Ready, readRelays } from 'src/controller/nostr';
 	import { limit } from 'src/controller/pagination';
 	import { relaySub } from 'src/controller/relay';
 	import { ago } from 'src/lib/period';
@@ -32,35 +32,6 @@
 
 	// Observable array of tags derived from the current URL.
 	let tags: string[] = [];
-	function extractTagsFromUrl(url: URL): string[] {
-		const sp = url.searchParams;
-		const out: string[] = [];
-
-		// ?tag=foo (repeated allowed) and comma-separated lists ?tag=foo,bar
-		for (const val of sp.getAll('tag')) {
-			out.push(
-				...val
-					.split(',')
-					.map((s) => s.trim())
-					.filter(Boolean)
-			);
-		}
-		// Optional support for ?tags=foo,bar as well
-		for (const val of sp.getAll('tags')) {
-			out.push(
-				...val
-					.split(',')
-					.map((s) => s.trim())
-					.filter(Boolean)
-			);
-		}
-		// Support bare query keys like ?podcast (no value)
-		sp.forEach((value, key) => {
-			if (value === '' && sp.has(key)) out.push(key);
-		});
-
-		return Array.from(new Set(out));
-	}
 
 	$: follows =
 		$kind3 && fbArray(asKind3($kind3) as Kind3Parsed, 'contacts').map((c) => c.pubkey().toString());
@@ -100,18 +71,25 @@
 		});
 
 	const setFeedRequests = (follows: string[]) => {
-		if ($key?.pub) {
-			feedRequests = [
-				{
-					kinds: [1, 6],
-					authors: follows,
-					limit: $limit,
-					since: ago(31 * 24 * 60 * 60),
-					noCache: !!relayCounter,
-					tags: { '#t': tags },
-					relays
-				}
-			];
+		if ($key?.pub && !follows.length && $followPacks.length) {
+			Promise.race([
+				kind3Ready.promise,
+				new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 1000))
+			]).then((event) => {
+				feedRequests = [
+					{
+						kinds: [1, 6],
+						authors: fbArray(asKind3(event) as Kind3Parsed, 'contacts').map((p) =>
+							p.pubkey()?.toString()
+						),
+						limit: $limit,
+						since: ago(31 * 24 * 60 * 60),
+						noCache: !!relayCounter,
+						tags: { '#t': tags },
+						relays
+					}
+				];
+			});
 		} else {
 			feedRequests = [
 				{

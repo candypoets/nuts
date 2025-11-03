@@ -294,7 +294,7 @@
 		bind:this={contents}
 		style="top: {top}px; padding-bottom: {bottom > 100 ? bottom : 100}px;"
 		class:!w-full={isImageContext || isModalContext}
-		class="w-feed mx-auto min-h-screen rounded-xl isolate"
+		class="w-feed mx-auto rounded-xl isolate"
 	>
 		<svelte-virtual-list-row>
 			<slot name="feed-header" />
