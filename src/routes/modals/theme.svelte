@@ -5,7 +5,7 @@
 	const animator = getContext('animator');
 
 	// List of available themes from tailwind.config.cjs
-	const themes = ['light', 'dark', 'matteblack', 'snowwhite', 'downfox'];
+	const themes = ['touchgrass', 'nightsky', 'downfox', 'sunset', 'matteblack', 'snowwhite'];
 
 	// Writable store for the current theme (could be moved to src/controller/theme.ts for global use)
 	export const theme = writable<string>('light'); // Default to 'light'
@@ -75,10 +75,14 @@
 
 		<div class="grid grid-cols-1 gap-4">
 			{#each themes as t, index}
+				{@const active = $theme === t}
+				{@const highlighted = highlightedIndex === index}
 				<button
-					class="btn btn-outline
-            {$theme === t ? 'btn-active' : ''}
-            {highlightedIndex === index ? 'ring-2 ring-primary' : ''}"
+					class="btn btn-outline"
+					class:btn-active={active}
+					class:ring-accent={highlighted}
+					class:scale-y-105={highlighted}
+					class:border-2={highlighted}
 					on:click={() => selectTheme(t)}
 				>
 					{t.charAt(0).toUpperCase() + t.slice(1)}

@@ -128,6 +128,7 @@
 	const computeFees = throttle(async (amount: number, fromMint: string, toMint: string) => {
 		console.log('computefees', amount, fromMint, toMint, kind0);
 		if (fromMint && toMint && amount && toMint != fromMint) {
+			processing = 'generating invoice';
 			// attempt a swap to a supported mint before sending
 			const fromWallet = await $nutsWallet?.getWallet(fromMint);
 			const toWallet = await $nutsWallet?.getWallet(toMint);
@@ -135,13 +136,22 @@
 				mintquote = await toWallet.createMintQuote(amount, kind10019.p2pkPubkey()?.toString());
 				meltquote = await fromWallet.createMeltQuote(mintquote.request);
 				fees = meltquote.fee_reserve;
+				processing = '';
 			}
 		} else if (fromMint && amount && kind0) {
-			const { pr } = await getInvoiceFromProfile(kind0, Number(amount));
-			const fromWallet = await $nutsWallet?.getWallet(fromMint);
-			meltquote = await fromWallet!.createMeltQuote(pr);
-			console.log('computedFees', amount, fromMint, meltquote);
-			fees = meltquote.fee_reserve;
+			processing = 'generating invoice';
+			try {
+				const { pr } = await getInvoiceFromProfile(kind0, Number(amount));
+				console.log(pr);
+				const fromWallet = await $nutsWallet?.getWallet(fromMint);
+				console.log(fromWallet);
+				meltquote = await fromWallet!.createMeltQuote(pr);
+				console.log('computedFees', amount, fromMint, meltquote);
+				fees = meltquote.fee_reserve;
+				processing = '';
+			} catch (e) {
+				console.log('error', e);
+			}
 		}
 	}, 300);
 
@@ -300,15 +310,13 @@
 				useSignEvent(zapRequest, async (signed) => {
 					status = 'Sending lighning payment';
 					progress = 0.9;
-					// const { keep, send } = await fromWallet.swap(0, unspentProofs);
-					// console.log(keep, send);
-					// if (keep.length) {
-					// 	$nutsWallet?.saveProofs(fromMint, keep);
-					// } else {
-					// 	$nutsWallet?.saveProofs(fromMint, send);
-					// }
-
-					const { change } = await fromWallet.meltProofs(meltquote, proofsToSend);
+					try {
+						const { change } = await fromWallet.meltProofs(meltquote, proofsToSend);
+					} catch (error) {
+						status = 'Error sending lighning payment';
+						setTimeout(() => (status = ''), 1000);
+						return;
+					}
 					status = 'Sending zap request';
 					progress = 0.95;
 					const sendId = 'zap' + pubkey;
@@ -329,13 +337,12 @@
 					$nutsWallet?.unspentProofs.set(fromMint, proofsToKeep.concat(change));
 					$nutsWallet?.updateBalanceByMint();
 					$nutsWallet?.saveProofs(fromMint, change);
+					resetState();
 				});
 			} else {
 				status = `${fromMint} ${fromWallet} ${unspentProofs.length} ${lnurl}`;
 			}
 		}
-
-		resetState();
 	};
 </script>
 
@@ -479,7 +486,14 @@
 										class="absolute bg-gradient-to-r to-bg-base-300 from-primary-content h-full top-0 left-0 transition-all"
 										style="width: {progress * 100}%"
 									/>
-									<div class="relative z-30">{status}</div>
+									<div class="relative z-30">
+										{status}
+										<span class="inline-flex ml-1">
+											<span class="animate-pulse text-lg">.</span>
+											<span class="animate-pulse text-lg" style="animation-delay: 0.2s">.</span>
+											<span class="animate-pulse text-lg" style="animation-delay: 0.4s">.</span>
+										</span>
+									</div>
 								</div>
 							{/if}
 						</div>
@@ -519,7 +533,9 @@
 								{disabled}
 								on:click={sendEcash}
 							>
-								{#if Number(amountPlusFees) > balance}
+								{#if processing}
+									{processing}
+								{:else if Number(amountPlusFees) > balance}
 									Not enough funds
 								{:else if !!status}
 									Sending...

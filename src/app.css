@@ -17,18 +17,23 @@
 }
 
 /* If you use DaisyUI's data-theme */
-html[data-theme='dark'] {
-	--bg-basic: url('/bg-dark.jpg');
+html[data-theme='nightsky'] {
+	--bg-basic: url('/nightsky.jpg');
 }
-html[data-theme='light'] {
-	--bg-basic: url('/bg-light.jpg');
+html[data-theme='touchgrass'] {
+	--bg-basic: url('/touchgrass.jpg');
 }
 html[data-theme='matteblack'] {
 	--bg-basic: url('/');
 }
 html[data-theme='snowwhite'] {
 	--bg-basic: url('/');
-	--bg: linear-gradient(180deg, #000000 0%, #1a1a1a 100%);
+}
+html[data-theme='downfox'] {
+	--bg-basic: url('/downfox.jpg');
+}
+html[data-theme='sunset'] {
+	--bg-basic: url('/beach.jpg');
 }
 
 @font-face {

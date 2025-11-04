@@ -19,14 +19,14 @@ module.exports = {
 	daisyui: {
 		themes: [
 			{
-				light: {
+				touchgrass: {
 					primary: '#158777',
 					'primary-content': '#9b9ea4',
 					secondary: '#D926AA',
 					'secondary-content': '#c1cad6',
 					'base-100': '#f9fafb',
 					'base-200': '#f2f2f3',
-					'base-300': '#cdede9',
+					'base-300': '#f8fdfd',
 					'error-content': '#d9c2c2',
 					highlight: '#ffffff',
 					accent: '#6d28d9',
@@ -40,7 +40,7 @@ module.exports = {
 					'--shadow-inset-highlight': 'rgba(255, 255, 255, 0.3)', // Brighter inset
 					'--shadow-inset-subtle': 'rgba(255, 255, 255, 0.08)'
 				},
-				dark: {
+				nightsky: {
 					primary: '#1fb092',
 					'primary-content': '#48505a',
 					secondary: '#D926AA',
@@ -62,7 +62,7 @@ module.exports = {
 				},
 				matteblack: {
 					// Base matte black theme: dark, muted, low-contrast colors for a sleek, non-glossy look
-					primary: '#1fb092', // Vivid yellow (as per your updated file)
+					primary: '#1fb092',
 					'primary-content': '#a0a0a0', // Muted gray for text on primary
 					secondary: '#333333', // Dark gray secondary
 					'secondary-content': '#b0b0b0',
@@ -84,7 +84,7 @@ module.exports = {
 				},
 				snowwhite: {
 					// snowwhite variant: Light theme with white bases and subtle cool tones for a clean, snowy vibe
-					primary: '#f0f0f0',
+					primary: '#158777',
 					'primary-content': '#e0e0e0',
 					secondary: '#d4d4d4',
 					'secondary-content': '#343434',
@@ -93,7 +93,7 @@ module.exports = {
 					'base-300': '#ffffff',
 					'error-content': '#4d0000',
 					highlight: '#d4d4d4',
-					accent: '#99ccff', // Light blue accent for highlights/code
+					accent: '#3366ff',
 					neutral: '#f0f0f0',
 					info: '#99ddff',
 					success: '#aaffaa',
@@ -106,16 +106,16 @@ module.exports = {
 				},
 				downfox: {
 					// Downfox variant: Another matte black take, perhaps with earthy tones (assuming "downfox" as a custom name; adjusted for muted, fox-like warm grays/blacks)
-					primary: '#141414',
+					primary: '#ADD8E6',
 					'primary-content': '#999999',
 					secondary: '#282828',
 					'secondary-content': '#b3b3b3',
-					'base-100': '#0a0a0a',
+					'base-100': '#00213f',
 					'base-200': '#161616',
-					'base-300': '#222222',
+					'base-300': '#3441597a',
 					'error-content': '#b34700', // Warm muted error
 					highlight: '#282828',
-					accent: '#663300', // Earthy brown accent
+					accent: '#f7931a', // Bitcoin orange accent
 					neutral: '#141414',
 					info: '#336699',
 					success: '#004d00',
@@ -125,7 +125,30 @@ module.exports = {
 					'--shadow-outer-color': 'rgba(0, 0, 0, 0.65)', // Warm deep shadow
 					'--shadow-inset-highlight': 'rgba(255, 255, 255, 0.06)', // Minimal warm inset
 					'--shadow-inset-subtle': 'rgba(255, 255, 255, 0.012)'
+				},
+				sunset: {
+					// Sunset Beach variant: Warm, tropical colors inspired by a beach at sunset with sandy bases, vibrant oranges, and ocean blues
+					primary: '#ff6347', // Vibrant sunset orange
+					'primary-content': '#f5f5dc', // Beige text on primary
+					secondary: '#ffb347', // Soft peach secondary
+					'secondary-content': '#4a4a4a',
+					'base-100': '#f4e4bc', // Sandy beige background
+					'base-200': '#e8d5a8', // Lighter sand
+					'base-300': '#f7f2f3d9', // Deeper sand
+					'error-content': '#8b0000', // Dark red for errors
+					highlight: '#ffe4b5', // Light peach highlight
+					accent: '#1e90ff', // Ocean blue accent
+					neutral: '#daa520', // Golden neutral
+					info: '#87ceeb', // Sky blue info
+					success: '#32cd32', // Lime green success
+					warning: '#ffa500', // Orange warning
+					error: '#dc143c', // Crimson error
+					// Custom shadow variables for sunsetbeach (warm, beachy shadows with a hint of glow)
+					'--shadow-outer-color': 'rgba(255, 69, 0, 0.2)', // Warm orange-tinted shadow
+					'--shadow-inset-highlight': 'rgba(255, 255, 255, 0.2)', // Bright inset for sandy glow
+					'--shadow-inset-subtle': 'rgba(255, 255, 255, 0.05)'
 				}
+
 				// Add more "etc." themes here if needed, e.g., another variant:
 				// midnightmatte: { ... similar structure ... }
 			}
@@ -139,9 +162,9 @@ module.exports = {
 			},
 			boxShadow: {
 				widget:
-					'0px 20px 30px 0px var(--shadow-outer-color), 0 1px 0 0 var(--shadow-inset-highlight) inset, 1px 0 0 0 var(--shadow-inset-subtle) inset, -1px 0 0 0 var(--shadow-inset-subtle) inset',
+					'0px 2px 3px 0px var(--shadow-outer-color), 0 1px 0 0 var(--shadow-inset-highlight) inset, 1px 0 0 0 var(--shadow-inset-subtle) inset, -1px 0 0 0 var(--shadow-inset-subtle) inset',
 				'widget-down':
-					'12px 20px 30px 0px var(--shadow-outer-color), 0 -1px 0 0 var(--shadow-inset-highlight) inset, 1px 0 0 0 var(--shadow-inset-subtle) inset, -1px 0 0 0 var(--shadow-inset-subtle) inset'
+					'2px 2px 3px 0px var(--shadow-outer-color), 0 -1px 0 0 var(--shadow-inset-highlight) inset, 1px 0 0 0 var(--shadow-inset-subtle) inset, -1px 0 0 0 var(--shadow-inset-subtle) inset'
 			}
 		}
 	},
