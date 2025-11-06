@@ -10,7 +10,13 @@
 	import { nip19 } from 'nostr-tools';
 	import { getContext, onDestroy } from 'svelte';
 
-	import { asConnectionStatus, asKind1, asParsedEvent, fbArray } from '@candypoets/nipworker/utils';
+	import {
+		asConnectionStatus,
+		asKind1,
+		asParsedEvent,
+		ConnectionTracker,
+		fbArray
+	} from '@candypoets/nipworker/utils';
 	import RelaysList from 'src/components/RelaysList.svelte';
 	import { toRequestObject } from 'src/lib/request';
 	import Content from 'src/routes/explore/_post/content.svelte';
@@ -21,7 +27,7 @@
 	import { getUserRelays } from 'src/routes/queries/user';
 	import { go } from '../modals/modal';
 	import _, { isEqual, uniqBy } from 'lodash';
-	import { relaySub } from 'src/controller/relay';
+	import { relaySub, setSubRelays } from 'src/controller/relay';
 	import { normalizeURL } from 'nostr-tools/utils';
 	import { isMobile } from 'src/controller';
 
@@ -79,10 +85,21 @@
 		}
 	}
 
+	const connectionTracker = new ConnectionTracker();
+
 	function handleEvents(message: WorkerMessage) {
 		switch (message.type()) {
 			case MessageType.ConnectionStatus:
 				const status = asConnectionStatus(message);
+				connectionTracker.handleMessage(message);
+				if (connectionTracker.resolutionRate > 0.5 && !note) {
+					setSubRelays(nid as string, [
+						'wss://nostr.wine',
+						'wss://relay.snort.social',
+						'wss://relay.damus.io',
+						'wss://relay.primal.net'
+					]);
+				}
 				connectionStatus[normalizeURL(status?.relayUrl()!.toString() as string)] =
 					status as ConnectionStatus;
 				break;
@@ -309,9 +326,12 @@
 		{/if} -->
 	{:else}
 		<div class="flex flex-col gap-2">
-			<div class="flex items-center gap-2">
-				<div class="w-8 h-8 shimmer rounded-full"></div>
-				<div class="h-4 shimmer rounded w-24"></div>
+			<div class="flex items-start justify-between gap-2">
+				<div class="flex gap-2 items-center">
+					<div class="w-8 h-8 shimmer rounded-full"></div>
+					<div class="h-4 shimmer rounded w-24"></div>
+				</div>
+				<RelaysList subId={nid} {relays} {connectionStatus} mini />
 			</div>
 			{#if leading}
 				<div class="absolute border-gray-300 left-4 h-full border-r-2" />
