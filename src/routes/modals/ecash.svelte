@@ -171,7 +171,7 @@
 	const sendEcash = async () => {
 		let sendStatus: { [url: string]: ConnectionStatus } = {};
 		if (!fromMint) return;
-		processing = 'true';
+		processing = 'sending';
 		const fromWallet = await $nutsWallet?.getWallet(fromMint);
 		const unspentProofs = fromWallet && $nutsWallet?.unspentProofs.get(fromMint);
 		if (unspentProofs && $nutsWallet) {
@@ -312,32 +312,33 @@
 					progress = 0.9;
 					try {
 						const { change } = await fromWallet.meltProofs(meltquote, proofsToSend);
+						status = 'Sending zap request';
+						progress = 0.95;
+						const sendId = 'zap' + pubkey;
+						usePublish(sendId, zapRequest, (message: WorkerMessage) => {
+							const connectionStatus = isConnectionStatus(message);
+							if (connectionStatus) {
+								const relayUrl = connectionStatus.relayUrl()?.toString();
+								if (relayUrl) {
+									sendStatus[relayUrl] = connectionStatus;
+									updateSendStatus(sendId, sendStatus);
+									status = 'Success!';
+									progress = 1;
+								}
+							}
+						});
+						setTimeout(() => (status = 'ZAPPED'), 1000);
+						setTimeout(() => (status = ''), 1000);
+						$nutsWallet?.unspentProofs.set(fromMint, proofsToKeep.concat(change));
+						$nutsWallet?.updateBalanceByMint();
+						$nutsWallet?.saveProofs(fromMint, change);
+						resetState();
 					} catch (error) {
 						status = 'Error sending lighning payment';
 						setTimeout(() => (status = ''), 1000);
+						resetStatus();
 						return;
 					}
-					status = 'Sending zap request';
-					progress = 0.95;
-					const sendId = 'zap' + pubkey;
-					usePublish(sendId, zapRequest, (message: WorkerMessage) => {
-						const connectionStatus = isConnectionStatus(message);
-						if (connectionStatus) {
-							const relayUrl = connectionStatus.relayUrl()?.toString();
-							if (relayUrl) {
-								sendStatus[relayUrl] = connectionStatus;
-								updateSendStatus(sendId, sendStatus);
-								status = 'Success!';
-								progress = 1;
-							}
-						}
-					});
-					setTimeout(() => (status = 'ZAPPED'), 1000);
-					setTimeout(() => (status = ''), 1000);
-					$nutsWallet?.unspentProofs.set(fromMint, proofsToKeep.concat(change));
-					$nutsWallet?.updateBalanceByMint();
-					$nutsWallet?.saveProofs(fromMint, change);
-					resetState();
 				});
 			} else {
 				status = `${fromMint} ${fromWallet} ${unspentProofs.length} ${lnurl}`;
