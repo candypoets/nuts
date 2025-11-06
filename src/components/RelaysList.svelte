@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { ConnectionStatus } from '@candypoets/nipworker';
+	import Icon from '@iconify/svelte';
 	import { normalizeURL } from 'nostr-tools/utils';
 	import { isMobile } from 'src/controller';
 	import { relaySub, relaySubs } from 'src/controller/relay';
@@ -47,60 +48,59 @@
 </script>
 
 <div>
-	{#if displayedRelays.length > 0}
-		<div
-			on:click|stopPropagation={(_) => {
-				$relaySubs.set(subId, relays);
-				go(`relayinfos:${subId}`);
-			}}
-			class="cursor-pointer flex gap-2 items-center justify-end flex-wrap overflow-visible pt-1 {$$props.class ||
-				''}"
-			class:!gap-0={mini}
-		>
-			{#each displayedRelays as relay, i}
+	<div
+		on:click|stopPropagation={(_) => {
+			$relaySubs.set(subId, relays);
+			go(`relayinfos:${subId}`);
+		}}
+		class="cursor-pointer flex gap-2 items-center justify-end flex-wrap overflow-visible pt-1 {$$props.class ||
+			''}"
+		class:!gap-0={mini}
+	>
+		{#each displayedRelays as relay, i}
+			<span
+				class="flex items-center text-xs px-2 py-1 bg-base-200 rounded-full relative overflow-hidden"
+				class:!max-w-2={mini}
+				class:bg-transparent={mini || isAdditionalRelay(relay)}
+			>
 				<span
-					class="flex items-center text-xs px-2 py-1 bg-base-200 rounded-full relative overflow-hidden"
-					class:!max-w-2={mini}
-					class:bg-transparent={mini || isAdditionalRelay(relay)}
-				>
-					<span
-						class={`w-2 h-2 mr-1 shrink-0 rounded-full ${getStatusClasses(
-							connectionStatus?.[relay]
-						)}`}
-						class:!w-1={mini}
-						class:!h-1={mini}
-					></span>
-					<span
-						class:text-gray-500={!connectionStatus?.[relay]}
-						class:hidden={mini}
-						class="truncate"
-					>
-						{normalize(relay)}
-					</span>
+					class={`w-2 h-2 mr-1 shrink-0 rounded-full ${getStatusClasses(
+						connectionStatus?.[relay]
+					)}`}
+					class:!w-1={mini}
+					class:!h-1={mini}
+				></span>
+				<span class:text-gray-500={!connectionStatus?.[relay]} class:hidden={mini} class="truncate">
+					{normalize(relay)}
 				</span>
-			{/each}
-			{#if !mini}
-				{#if hasMore && !showAll}
-					<button
-						class="text-xs px-2 py-1 text-gray-500 rounded-full hover:opacity-80 transition-opacity whitespace-nowrap relative"
-						style="margin-left: -0.5rem; z-index: 0;"
-						on:click|stopPropagation={() => (showAll = true)}
-					>
-						+{relays.length - relayToShow} more
-					</button>
-				{:else if hasMore && showAll}
-					<button
-						class="text-xs px-2 py-1 bg-base-300 rounded-full hover:opacity-80 transition-opacity whitespace-nowrap relative"
-						style="margin-left: -0.5rem; z-index: 0;"
-						on:click|stopPropagation={() => (showAll = false)}
-					>
-						Show less
-					</button>
-				{/if}
+			</span>
+		{:else}
+			{#if !$isMobile}
+				<span class="text-xs opacity-60 {$$props.class || ''}"
+					><Icon icon="streamline-ultimate:server-add" /></span
+				>
+			{:else}
+				<span class="text-xs opacity-60 {$$props.class || ''}">No relays found</span>
 			{/if}
-		</div>
-	{:else}
-		<span class:hidden={mini} class="text-xs opacity-60 {$$props.class || ''}">No relays found</span
-		>
-	{/if}
+		{/each}
+		{#if !mini}
+			{#if hasMore && !showAll}
+				<button
+					class="text-xs px-2 py-1 text-gray-500 rounded-full hover:opacity-80 transition-opacity whitespace-nowrap relative"
+					style="margin-left: -0.5rem; z-index: 0;"
+					on:click|stopPropagation={() => (showAll = true)}
+				>
+					+{relays.length - relayToShow} more
+				</button>
+			{:else if hasMore && showAll}
+				<button
+					class="text-xs px-2 py-1 bg-base-300 rounded-full hover:opacity-80 transition-opacity whitespace-nowrap relative"
+					style="margin-left: -0.5rem; z-index: 0;"
+					on:click|stopPropagation={() => (showAll = false)}
+				>
+					Show less
+				</button>
+			{/if}
+		{/if}
+	</div>
 </div>

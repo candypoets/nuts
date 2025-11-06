@@ -243,9 +243,9 @@
 	});
 </script>
 
-<!-- <button class="fixed bottom-4 left-4 cursor-pointer z-50" on:click={refresh}>
+<button class="fixed bottom-4 left-4 cursor-pointer z-50" on:click={refresh}>
 	<Icon icon="ei:spinner" class=" w-8 h-8" />
-</button> -->
+</button>
 <svelte-virtual-list-viewport
 	bind:this={viewport}
 	bind:offsetHeight={viewport_height}
