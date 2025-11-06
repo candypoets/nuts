@@ -193,7 +193,7 @@
 	$: visible ? subscribe() : unsubscribe();
 </script>
 
-<div class="flex-grow flex px-2 w-full h-6 pl-10" class:!pl-2={main}>
+<div class="flex-grow flex px-2 w-full h-6 pl-10 mt-2" class:!pl-2={main}>
 	<div class="flex items-center gap-2 cursor-pointer w-full">
 		<div
 			class="flex items-center space-x-1 hover:font-bold hover:text-accent hover:-mt-1 transition-all"
