@@ -53,6 +53,10 @@
 		items.slice(i * itemsPerRow, (i + 1) * itemsPerRow)
 	);
 
+	$: rowIds = rowsData.map((row) =>
+		itemsPerRow === 1 ? getItemId(row[0]) : row.map(getItemId).join('-')
+	);
+
 	$: visible = rowsData.slice(0, end).map((data, i) => {
 		return { index: i + start, data }; // data is an array of items for the row
 	});
@@ -75,14 +79,12 @@
 
 		while (content_height < viewport_height && i < totalRows) {
 			let row = rows[i - start];
-
 			if (!row) {
 				end = i + 1;
 				await tick(); // render the newly visible row
 				row = rows[i - start];
 			}
-
-			const row_height = (height_map[i] = itemHeight || row?.offsetHeight) || 200;
+			const row_height = (height_map[rowIds[i - start]] = itemHeight || row?.offsetHeight) || 200;
 			content_height += row_height;
 			i += 1;
 		}
@@ -93,7 +95,7 @@
 		average_height = (top + content_height) / (end || 1);
 
 		bottom = remaining * average_height;
-		height_map.length = totalRows;
+		height_map.length = totalRows || 0;
 	}
 
 	let lastScrollTop = 0;
@@ -107,7 +109,9 @@
 		lastScrollTop = down ? scrollTop - 5 : scrollTop + 5;
 
 		for (let v = 0; v < rows.length; v += 1) {
-			height_map[v] = itemHeight || rows[v].offsetHeight;
+			const row = rows[v];
+
+			height_map[rowIds[v]] = itemHeight || rows[v].offsetHeight;
 		}
 
 		const totalRows = Math.ceil(items.length / itemsPerRow);
@@ -116,7 +120,7 @@
 		let y = 0;
 
 		while (i < totalRows) {
-			const row_height = height_map[i] || average_height;
+			const row_height = height_map[rowIds[i]] || average_height;
 			if (y + row_height > scrollTop) {
 				start = i;
 				top = y;
@@ -127,7 +131,7 @@
 			i += 1;
 		}
 		while (i < totalRows) {
-			y += height_map[i] || average_height;
+			y += height_map[rowIds[i]] || average_height;
 			i += 1;
 
 			if (y > scrollTop + viewport_height * 2) break;
@@ -137,7 +141,7 @@
 		const remaining = totalRows - end;
 		average_height = y / (end || 1);
 
-		while (i < totalRows) height_map[i++] = average_height;
+		while (i < totalRows) height_map[rowIds[i++]] = average_height;
 		bottom = remaining * average_height;
 	}
 
@@ -239,6 +243,9 @@
 	});
 </script>
 
+<!-- <button class="fixed bottom-4 left-4 cursor-pointer z-50" on:click={refresh}>
+	<Icon icon="ei:spinner" class=" w-8 h-8" />
+</button> -->
 <svelte-virtual-list-viewport
 	bind:this={viewport}
 	bind:offsetHeight={viewport_height}
