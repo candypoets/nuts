@@ -123,6 +123,12 @@ export const getInvoiceFromLNURL = async (
 	return await LNURLLookup(endpoint, amount, event);
 };
 
+const decodeLNURL = async (lnurl: string): Promise<string> => {
+	const { prefix: hrp, words: dataPart } = bech32.decode(lnurl, 2000);
+	const requestByteArray = bech32.fromWords(dataPart);
+	return new TextDecoder().decode(Uint8Array.from(requestByteArray));
+};
+
 const LNURLLookup = async (endpoint: string, amount: number, event?: NostrEvent) => {
 	const { callback, maxSendable, minSendable } = (await (await fetch(endpoint)).json()) as {
 		callback: string;
@@ -180,6 +186,40 @@ const formatSats = (amount: number, withSuffix: boolean): string => {
 		new Intl.NumberFormat('en-US').format(amount) +
 		(withSuffix ? ' ' + (amount > 1 ? 'sats' : 'sat') : '')
 	);
+};
+
+export const getZapInvoice = async (
+	lnurl: string,
+	amount: number,
+	zapRequest: NostrEvent
+): Promise<{ pr: string }> => {
+	// Decode LNURL to get the endpoint
+	const endpoint = isValidLNURL(lnurl) ? await decodeLNURL(lnurl) : lnurl; // If it's already a URL endpoint
+
+	// Fetch LNURL metadata first
+	const metaResponse = await fetch(endpoint);
+	const meta = await metaResponse.json();
+
+	if (!meta.callback) {
+		throw new Error('No callback URL found in LNURL metadata');
+	}
+
+	// Build callback URL with zap request
+	let callbackUrl = meta.callback;
+	callbackUrl += callbackUrl.includes('?') ? '&' : '?';
+	callbackUrl += `amount=${amount * 1000}`; // Convert to millisats
+	callbackUrl += `&nostr=${encodeURIComponent(JSON.stringify(zapRequest))}`;
+	callbackUrl += `&lnurl=${encodeURIComponent(lnurl)}`;
+
+	// Get the invoice from the callback
+	const invoiceResponse = await fetch(callbackUrl);
+	const invoiceData = await invoiceResponse.json();
+
+	if (!invoiceData.pr) {
+		throw new Error('No payment request in LNURL response');
+	}
+
+	return { pr: invoiceData.pr };
 };
 
 // NIP-06 base derivation path for Nostr

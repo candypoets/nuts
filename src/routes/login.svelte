@@ -22,7 +22,7 @@
 		</div>
 	</div>
 	<div class="md:w-1/2">
-		<LoginForm />
+		<LoginForm redirect />
 	</div>
 	<btn class="btn text-accent btn-link p-4 md:text-xl absolute md:right-4 right-2 top-4 pt-safe">
 		{'<>'}

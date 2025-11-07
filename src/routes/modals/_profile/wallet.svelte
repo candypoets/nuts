@@ -30,6 +30,7 @@
 		parsePrivkey,
 		type MintInfo
 	} from 'src/lib/wallet';
+	import { DEFAULT_RELAYS } from 'src/lib/env';
 
 	export let header = true;
 
@@ -204,20 +205,28 @@
 
 		let sendStatus: { [url: string]: ConnectionStatus } = {};
 
-		usePublish('newWallet', newWallet, (message) => {
-			const status = isConnectionStatus(message);
-			if (status) {
-				const relayUrl = status.relayUrl()?.toString();
-				if (relayUrl) {
-					sendStatus[relayUrl] = status;
-					updateSendStatus('newWallet_' + pubkey, sendStatus);
+		usePublish(
+			'newWallet',
+			newWallet,
+			(message) => {
+				const status = isConnectionStatus(message);
+				if (status) {
+					const relayUrl = status.relayUrl()?.toString();
+					if (relayUrl) {
+						sendStatus[relayUrl] = status;
+						updateSendStatus('newWallet_' + pubkey, sendStatus);
+					}
+					console.log('relayUrl', relayUrl);
+					// $key.pub = pubkey;
+					setNutsWallet(bytesToHex(secretKey), pubkey, selectedMints, now());
 				}
-				console.log('relayUrl', relayUrl);
-				// $key.pub = pubkey;
-				setNutsWallet(bytesToHex(secretKey), pubkey, selectedMints, now());
-			}
+			},
+			{ trackStatus: true, defaultRelays: DEFAULT_RELAYS }
+		);
+		usePublish('trustedMints', trustedMints, (message) => console.log('trustedMints', message), {
+			trackStatus: true,
+			defaultRelays: DEFAULT_RELAYS
 		});
-		usePublish('trustedMints', trustedMints, (message) => console.log('trustedMints', message));
 	}
 
 	// $: console.log('selectedMints', selectedMints);

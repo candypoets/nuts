@@ -71,7 +71,7 @@ module.exports = {
 					'base-300': '#333333',
 					'error-content': '#cc0000', // Muted red for errors
 					highlight: '#333333', // Subtle highlight
-					accent: '#6d28d9', // Muted accent (updated)
+					accent: '#a855f7', // Muted accent (updated)
 					neutral: '#1a1a1a',
 					info: '#4d4d4d',
 					success: '#006600', // Dark green

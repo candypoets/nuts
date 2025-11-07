@@ -49,6 +49,8 @@
 	import Kind9321 from 'src/routes/kinds/kind9321.svelte';
 	import { go } from 'src/routes/modals/modal';
 	import EmptyWallet from './emptyWallet.svelte';
+	import { DEFAULT_MINTS } from 'src/lib/wallet';
+	import { DEFAULT_RELAYS } from 'src/lib/env';
 
 	export let visible = false;
 
@@ -77,19 +79,12 @@
 
 	const connectionTracker = new ConnectionTracker();
 
-	setTimeout(
-		() =>
-			(defaultRelays = [
-				'wss://relay.damus.io',
-				'wss://nos.lol',
-				'wss://relay.primal.net',
-				'wss://relay.nostr.band',
-				'wss://relay.nuts.cash'
-			]),
-		3000
-	);
+	setTimeout(() => (defaultRelays = DEFAULT_RELAYS), 3000);
 
-	$: relays = (walletRelays?.length && walletRelays) || $readRelays || defaultRelays;
+	$: relays =
+		(walletRelays?.length && walletRelays) || ($readRelays?.length && $readRelays) || defaultRelays;
+
+	$: console.log('relays', relays);
 
 	const relayPromise = Promise.race([kind10019Ready.promise, delayedPromise]);
 
@@ -194,7 +189,7 @@
 		);
 	}
 
-	$: if ($key?.pub && relays.length) {
+	$: if ($key?.pub && relays?.length) {
 		useSubscription(
 			'active_wallet',
 			[

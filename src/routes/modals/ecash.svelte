@@ -8,7 +8,7 @@
 	import { key, kind17375 } from 'src/controller';
 	import { activeMintUrl } from 'src/controller/wallet';
 	import { now } from 'src/lib/period';
-	import { getInvoiceFromProfile, GetLNURLFromProfile } from 'src/lib/wallet';
+	import { getInvoiceFromProfile, GetLNURLFromProfile, getZapInvoice } from 'src/lib/wallet';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import User from 'src/routes/explore/user.svelte';
 
@@ -305,38 +305,44 @@
 				};
 				status = 'Signing zap request';
 				progress = 0.3;
-				// const signed = await nostrManager.signEvent(zapRequest);
 
 				useSignEvent(zapRequest, async (signed) => {
-					status = 'Sending lighning payment';
-					progress = 0.9;
+					status = 'Getting zap invoice';
+					progress = 0.5;
 					try {
-						const { change } = await fromWallet.meltProofs(meltquote, proofsToSend);
-						status = 'Sending zap request';
-						progress = 0.95;
-						const sendId = 'zap' + pubkey;
-						usePublish(sendId, zapRequest, (message: WorkerMessage) => {
-							const connectionStatus = isConnectionStatus(message);
-							if (connectionStatus) {
-								const relayUrl = connectionStatus.relayUrl()?.toString();
-								if (relayUrl) {
-									sendStatus[relayUrl] = connectionStatus;
-									updateSendStatus(sendId, sendStatus);
-									status = 'Success!';
-									progress = 1;
-								}
-							}
-						});
+						// Send the signed zap request to the LNURL callback to get a zap invoice
+						const zapInvoice = await getZapInvoice(lnurl || '', Number(amount), signed);
+
+						if (!zapInvoice || !zapInvoice.pr) {
+							throw new Error('Failed to get zap invoice from LNURL service');
+						}
+
+						// Create melt quote for the zap invoice
+						const zapMeltQuote = await fromWallet.createMeltQuote(zapInvoice.pr);
+
+						status = 'Sending lightning payment';
+						progress = 0.8;
+
+						// Pay the zap invoice
+						const { change } = await fromWallet.meltProofs(zapMeltQuote, proofsToSend);
+
+						status = 'Success! Zap receipt will be published by the service';
+						progress = 1;
+
+						// The LNURL service will automatically create and publish the zap receipt (kind 9735)
+						// after confirming the payment
+
 						setTimeout(() => (status = 'ZAPPED'), 1000);
-						setTimeout(() => (status = ''), 1000);
+						setTimeout(() => (status = ''), 2000);
+
 						$nutsWallet?.unspentProofs.set(fromMint, proofsToKeep.concat(change));
 						$nutsWallet?.updateBalanceByMint();
 						$nutsWallet?.saveProofs(fromMint, change);
 						resetState();
 					} catch (error) {
-						status = 'Error sending lighning payment';
-						setTimeout(() => (status = ''), 1000);
-						resetStatus();
+						status = 'Error sending zap: ' + (error as Error).message;
+						setTimeout(() => (status = ''), 3000);
+						resetState();
 						return;
 					}
 				});

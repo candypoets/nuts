@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import { ConnectionStatus, nipWorker, type WorkerMessage } from '@candypoets/nipworker';
 	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
 	import { isConnectionStatus, isKind0 } from '@candypoets/nipworker/utils';
@@ -12,12 +13,14 @@
 	import { key, walletMnemonic, walletMnemonicIndex, walletPassphrase } from 'src/controller';
 	import { setNutsWallet } from 'src/controller/proofs';
 	import { updateSendStatus } from 'src/controller/sendStatus';
+	import { DEFAULT_RELAYS } from 'src/lib/env';
 	import { now } from 'src/lib/period';
 	import { pronounceable } from 'src/lib/randomName';
 	import { decodePrivKey, DEFAULT_MINTS, deriveFromMnemonic } from 'src/lib/wallet';
 	import { getContext, onMount } from 'svelte';
 
 	export let inline = false;
+	export let redirect = false;
 
 	const animator = getContext('animator');
 
@@ -77,6 +80,7 @@
 	}
 
 	function saveWallet() {
+		console.log('saving wallet');
 		const selectedMints = DEFAULT_MINTS.slice();
 		const inputMnemonic = generateMnemonic(wordlist, 128);
 		const mnemonicIndex = 0;
@@ -108,20 +112,32 @@
 
 		let sendStatus: { [url: string]: ConnectionStatus } = {};
 
-		usePublish('newWallet', newWallet, (message) => {
-			const status = isConnectionStatus(message);
-			if (status) {
-				const relayUrl = status.relayUrl()?.toString();
-				if (relayUrl) {
-					sendStatus[relayUrl] = status;
-					updateSendStatus('newWallet_' + pubkey, sendStatus);
+		usePublish(
+			'newWallet',
+			newWallet,
+			(message) => {
+				const status = isConnectionStatus(message);
+				if (status) {
+					const relayUrl = status.relayUrl()?.toString();
+					if (relayUrl) {
+						sendStatus[relayUrl] = status;
+						updateSendStatus('newWallet_' + pubkey, sendStatus);
+					}
+					console.log(relayUrl, status.message()?.toString());
+					// $key.pub = pubkey;
+					setNutsWallet(bytesToHex(secretKey), pubkey, selectedMints, now());
+					if (redirect) {
+						goto('/home');
+					}
 				}
-				console.log(relayUrl, status.message()?.toString());
-				// $key.pub = pubkey;
-				setNutsWallet(bytesToHex(secretKey), pubkey, selectedMints, now());
-			}
+			},
+			{ trackStatus: true, defaultRelays: DEFAULT_RELAYS }
+		);
+
+		usePublish('trustedMints', trustedMints, (message) => console.log('trustedMints', message), {
+			trackStatus: true,
+			defaultRelays: DEFAULT_RELAYS
 		});
-		usePublish('trustedMints', trustedMints, (message) => console.log('trustedMints', message));
 	}
 
 	async function handleSignup() {
@@ -150,10 +166,24 @@
 			}),
 			created_at: now()
 		};
-
-		usePublish('signup', event, (message) => {
-			saveWallet();
-		});
+		console.log('singing up', DEFAULT_RELAYS);
+		usePublish(
+			'signup',
+			event,
+			(message: WorkerMessage) => {
+				console.log('message', message);
+				const connectionStatus = isConnectionStatus(message);
+				if (connectionStatus) {
+					console.log(
+						'relayUrl',
+						connectionStatus.relayUrl?.toString(),
+						connectionStatus.status.toString()
+					);
+				}
+				saveWallet();
+			},
+			{ trackStatus: true, defaultRelays: DEFAULT_RELAYS }
+		);
 	}
 </script>
 
