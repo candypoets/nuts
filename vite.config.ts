@@ -5,6 +5,7 @@ import { SvelteKitPWA as VitePWA } from '@vite-pwa/sveltekit';
 import { defineConfig } from 'vite';
 import topLevelAwait from 'vite-plugin-top-level-await';
 import { visualizer } from 'rollup-plugin-visualizer';
+import compression from 'vite-plugin-compression';
 
 // Custom plugin to handle SharedArrayBuffer headers for preview mode
 const sharedArrayBufferPlugin = () => {
@@ -111,6 +112,20 @@ export default defineConfig({
 					}
 				]
 			}
+		}),
+		compression({
+			verbose: true,
+			algorithm: 'gzip',
+			threshold: 1024,
+			filter: /\.(js|mjs|json|css|html|wasm|svg|jpg|jpeg|png|gif)$/i,
+			deleteOriginFile: false
+		}),
+		compression({
+			verbose: true,
+			algorithm: 'brotliCompress',
+			threshold: 1024,
+			filter: /\.(js|mjs|json|css|html|wasm|svg|jpg|jpeg|png|gif)$/i,
+			deleteOriginFile: false
 		})
 	],
 	resolve: {

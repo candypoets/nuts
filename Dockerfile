@@ -1,4 +1,4 @@
-# Multi-stage build for NutsCash SvelteKit Node.js application
+# Multi-stage build for NutsCash SvelteKit application (build with Node, run with Bun)
 FROM node:20-alpine AS builder
 
 WORKDIR /app

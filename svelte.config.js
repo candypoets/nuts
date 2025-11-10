@@ -7,7 +7,8 @@ const config = {
 
 	kit: {
 		adapter: adapter({
-			out: 'build'
+			out: 'build',
+			precompress: true
 		}),
 		serviceWorker: {
 			register: false
