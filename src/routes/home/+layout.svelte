@@ -190,6 +190,7 @@
 	}
 
 	$: if ($key?.pub && relays?.length) {
+		console.log('active_wallet', relays);
 		useSubscription(
 			'active_wallet',
 			[

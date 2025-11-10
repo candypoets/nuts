@@ -11,10 +11,12 @@
 
 	export let connectionStatus: { [relay_url: string]: ConnectionStatus | 'SUBSCRIBED' | undefined };
 
-	const normalize = (r: string) =>
-		normalizeURL(r.replace(/relay\./g, ''))
+	const normalize = (r: string = '') => {
+		if (r == '') return '';
+		return normalizeURL(r.replace(/relay\./g, ''))
 			.replace(/\/$/, '')
 			.replace(/^wss?:\/\//, '');
+	};
 
 	const isAdditionalRelay = (relay: string) => !relays.includes(relay);
 

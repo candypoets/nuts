@@ -75,21 +75,35 @@
 			Promise.race([
 				kind3Ready.promise,
 				new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 1000))
-			]).then((event) => {
-				feedRequests = [
-					{
-						kinds: [1, 6],
-						authors: fbArray(asKind3(event) as Kind3Parsed, 'contacts').map((p) =>
-							p.pubkey()?.toString()
-						),
-						limit: $limit,
-						since: ago(31 * 24 * 60 * 60),
-						noCache: !!relayCounter,
-						tags: { '#t': tags },
-						relays
-					}
-				];
-			});
+			])
+				.then((event) => {
+					feedRequests = [
+						{
+							kinds: [1, 6],
+							authors: fbArray(asKind3(event) as Kind3Parsed, 'contacts').map((p) =>
+								p.pubkey()?.toString()
+							),
+							limit: $limit,
+							since: ago(31 * 24 * 60 * 60),
+							noCache: !!relayCounter,
+							tags: { '#t': tags },
+							relays
+						}
+					];
+				})
+				.catch((e) => {
+					feedRequests = [
+						{
+							kinds: [1, 6],
+							authors: [],
+							limit: $limit,
+							since: ago(31 * 24 * 60 * 60),
+							noCache: !!relayCounter,
+							tags: { '#t': tags },
+							relays
+						}
+					];
+				});
 		} else {
 			feedRequests = [
 				{

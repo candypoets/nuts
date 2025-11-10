@@ -80,7 +80,6 @@
 	}
 
 	function saveWallet() {
-		console.log('saving wallet');
 		const selectedMints = DEFAULT_MINTS.slice();
 		const inputMnemonic = generateMnemonic(wordlist, 128);
 		const mnemonicIndex = 0;
@@ -127,7 +126,7 @@
 					// $key.pub = pubkey;
 					setNutsWallet(bytesToHex(secretKey), pubkey, selectedMints, now());
 					if (redirect) {
-						goto('/home');
+						// goto('/home');
 					}
 				}
 			},
@@ -141,8 +140,8 @@
 	}
 
 	async function handleSignup() {
-		const priv = schnorr.utils.randomPrivateKey();
-		const privkey = $key?.priv || bytesToHex(priv);
+		const priv = schnorr.utils.randomSecretKey();
+		const privkey = bytesToHex(priv);
 		const pubkey = bytesToHex(schnorr.getPublicKey(priv));
 
 		// Handle signup logic here
@@ -166,7 +165,6 @@
 			}),
 			created_at: now()
 		};
-		console.log('singing up', DEFAULT_RELAYS);
 		usePublish(
 			'signup',
 			event,
