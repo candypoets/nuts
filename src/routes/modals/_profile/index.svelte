@@ -6,11 +6,13 @@
 	import { go } from 'src/routes/modals/modal';
 	import { kind0 } from 'src/controller/nostr';
 	import { asKind0 } from '@candypoets/nipworker/utils';
+	import type { ParsedEvent } from '@candypoets/nipworker';
+	import { proxyAvatarUrl } from 'src/lib/proxy';
 
 	let animator = getContext('animator');
 	let search: string;
 
-	$: k0 = asKind0($kind0);
+	$: k0 = asKind0($kind0 as ParsedEvent);
 	// export let encodedToken: string = '';
 	//
 </script>
@@ -23,7 +25,12 @@
 			</div>
 		</div>
 		<div class="flex justify-between">
-			<h2 class="text-xl font-bold px-4 pt-4">{k0?.name()?.toString() || 'Profile'}</h2>
+			<button class="mt-4 mx-4" on:click={() => go('kind0')}>
+				<img
+					class="w-12 h-12 border rounded-full"
+					src={proxyAvatarUrl(asKind0($kind0)?.picture()?.toString()) || '/miss-profile.png'}
+				/></button
+			>
 			<Theme />
 		</div>
 	</div>

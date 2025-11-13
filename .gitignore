@@ -6,6 +6,8 @@ node_modules
 /android
 /ios
 !.env.example
+.env
+lnuts.db
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 

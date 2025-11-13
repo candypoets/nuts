@@ -18,17 +18,17 @@
 		isConnectionStatus
 	} from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
-	import { finalizeEvent, kinds, verifyEvent, type EventTemplate } from 'nostr-tools';
-	import { getContext, onDestroy, onMount } from 'svelte';
+	import { finalizeEvent, kinds, type EventTemplate } from 'nostr-tools';
+	import { onDestroy } from 'svelte';
 
 	import EmojiPickerContent from 'src/components/EmojiPickerContent.svelte';
+	import Nutscash from 'src/components/Nutscash.svelte';
 	import { isMobile, key } from 'src/controller';
 	import { updateSendStatus } from 'src/controller/sendStatus';
 	import { now } from 'src/lib/period';
 	import { hexToBytes } from 'src/lib/wallet';
 	import { go } from 'src/routes/modals/modal';
 	import { getUserRelays } from 'src/routes/queries/user';
-	import Nutscash from 'src/components/Nutscash.svelte';
 
 	export let note: ParsedEvent;
 	export let visible: boolean;

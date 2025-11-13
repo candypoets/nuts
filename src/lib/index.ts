@@ -1,4 +1,5 @@
 export * from './parseContent';
+export * from './upload';
 
 export const nutKinds = {
 	Nutzap: 9321,

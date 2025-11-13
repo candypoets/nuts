@@ -8,15 +8,16 @@
 	import { generateSecretKey, getPublicKey, nip19, type EventTemplate } from 'nostr-tools';
 	import { normalizeURL } from 'nostr-tools/utils';
 	import { getContext, onMount } from 'svelte';
+	import { constructClaimEvent, postClaimEvent } from '@candypoets/lnuts/utils';
 
-	import { usePublish } from '@candypoets/nipworker/hooks';
+	import { usePublish, useSignEvent } from '@candypoets/nipworker/hooks';
 	import { asKind17375, fbArray, isConnectionStatus } from '@candypoets/nipworker/utils';
-	import { kind17375 } from 'src/controller/nostr';
+	import { kind17375, readRelays } from 'src/controller/nostr';
 	import { isMintUrlValid } from 'src/lib/mint';
 	import { now } from 'src/lib/period';
 	import { areStringListEqual } from 'src/lib/utils';
 	// New imports from wallet utils
-	import { walletMnemonic, walletMnemonicIndex, walletPassphrase } from 'src/controller';
+	import { key, walletMnemonic, walletMnemonicIndex, walletPassphrase } from 'src/controller';
 	import { nutsWallet, setNutsWallet } from 'src/controller/proofs';
 	import { updateSendStatus } from 'src/controller/sendStatus';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
@@ -31,6 +32,7 @@
 		type MintInfo
 	} from 'src/lib/wallet';
 	import { DEFAULT_RELAYS } from 'src/lib/env';
+	import { env } from '$env/dynamic/public';
 
 	export let header = true;
 
@@ -124,6 +126,8 @@
 	$: npub = pubkey ? nip19.npubEncode(pubkey) : '';
 	$: nsec = secretKey ? nip19.nsecEncode(secretKey) : '';
 
+	let lnurlHandle = '';
+
 	onMount(async () => {
 		availableMints = await fetchAvailableMints();
 	});
@@ -141,6 +145,19 @@
 				mint.url.toLowerCase().includes(searchTerm) ||
 				mint.description.toLowerCase().includes(searchTerm)
 		);
+	}
+
+	function claimLNURL(handle: string) {
+		console.log('claim', env);
+		const claimEvent = constructClaimEvent(handle, $key?.pub, selectedMints[0], $readRelays);
+
+		useSignEvent(claimEvent, async (signed) => {
+			const result = await postClaimEvent(signed, env.PUBLIC_LNUTS_DOMAIN);
+			console.log(result);
+		});
+
+		console.log('hey');
+		console.log(claimEvent);
 	}
 
 	async function addMint(newMint: string) {
@@ -228,8 +245,6 @@
 			defaultRelays: DEFAULT_RELAYS
 		});
 	}
-
-	// $: console.log('selectedMints', selectedMints);
 </script>
 
 <div
@@ -362,6 +377,30 @@
 				<input type="text" readonly value={nsec} class="input input-bordered w-full text-sm" />
 				<button class="btn btn-square ml-2" on:click={() => navigator.clipboard.writeText(nsec)}>
 					<Icon icon="material-symbols:content-copy" class="w-5 h-5" />
+				</button>
+			</div>
+		</div>
+
+		<!-- LNURL section -->
+		<div class="bg-base-300 p-4 rounded-lg border-primary-content border space-y-3">
+			<h3 class="font-semibold">LNURL</h3>
+
+			<label class="text-sm opacity-80">Handle</label>
+			<div class="flex items-center">
+				<div class="join flex-grow">
+					<input
+						type="text"
+						bind:value={lnurlHandle}
+						class="input input-bordered join-item text-sm w-full"
+					/>
+					<div
+						class="indicator-item px-4 flex items-center border border-primary-content rounded-r-lg bg-base-200"
+					>
+						@nuts.cash
+					</div>
+				</div>
+				<button class="btn ml-2 text-lg px-4" on:click={() => claimLNURL(lnurlHandle)}>
+					Claim
 				</button>
 			</div>
 		</div>

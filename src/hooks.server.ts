@@ -1,18 +1,21 @@
+import { sequence } from '@sveltejs/kit/hooks';
 import type { Handle } from '@sveltejs/kit';
+import LnutsHandler from '@candypoets/lnuts';
 
-export const handle: Handle = async ({ event, resolve }) => {
+// Initialize lnuts handler
+const lnuts = new LnutsHandler();
+
+// Middleware 1: Security Headers
+const securityHeaders: Handle = async ({ event, resolve }) => {
 	const { setHeaders, url } = event;
 
-	console.log('🚀 Server hook executed for:', url.pathname);
-	console.log('🔍 Method:', event.request.method);
+	console.log('🚀 Security headers middleware for:', url.pathname);
 
-	// Set COOP/COEP headers for SharedArrayBuffer support
 	const headers: Record<string, string> = {
 		'Cross-Origin-Embedder-Policy': 'require-corp',
 		'Cross-Origin-Opener-Policy': 'same-origin'
 	};
 
-	// Add CORP headers for static assets (WASM files, workers, etc.)
 	const isStaticAsset =
 		url.pathname.includes('.wasm') ||
 		url.pathname.includes('worker') ||
@@ -22,15 +25,12 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 	if (isStaticAsset) {
 		headers['Cross-Origin-Resource-Policy'] = 'same-origin';
-		console.log('📦 Adding CORP header for static asset:', url.pathname);
 	}
 
 	setHeaders(headers);
-	console.log('🏷️  Headers set for', url.pathname, ':', Object.keys(headers));
 
-	const response = await resolve(event, {
+	return resolve(event, {
 		filterSerializedResponseHeaders: (name) => {
-			// Ensure our security headers are preserved for static assets
 			return (
 				name === 'cross-origin-embedder-policy' ||
 				name === 'cross-origin-opener-policy' ||
@@ -40,28 +40,21 @@ export const handle: Handle = async ({ event, resolve }) => {
 			);
 		},
 		transformPageChunk: ({ html }) => {
-			// Ensure HTML has proper meta tags for COOP/COEP
 			if (html.includes('<head>') && !html.includes('Cross-Origin-Embedder-Policy')) {
-				console.log('🔧 Transforming HTML to add COOP/COEP meta tags');
 				return html.replace(
 					'<head>',
 					`<head>
-					<meta http-equiv="Cross-Origin-Embedder-Policy" content="require-corp">
-					<meta http-equiv="Cross-Origin-Opener-Policy" content="same-origin">`
+          <meta http-equiv="Cross-Origin-Embedder-Policy" content="require-corp">
+          <meta http-equiv="Cross-Origin-Opener-Policy" content="same-origin">`
 				);
 			}
 			return html;
 		}
 	});
-
-	// Log response headers for debugging
-	console.log(
-		'📤 Response headers for',
-		url.pathname,
-		':',
-		Array.from(response.headers.entries()).map(([k, v]) => `${k}: ${v}`)
-	);
-
-	console.log('✅ Response status:', response.status);
-	return response;
 };
+
+// Middleware 2: Lnuts Handler
+const lnutsHandler: Handle = lnuts.handle;
+
+// Chain them using sequence
+export const handle = sequence(securityHeaders, lnutsHandler);

@@ -28,6 +28,7 @@
 	import Login from './_profile/login.svelte';
 	import Newchat from './newchat.svelte';
 	import Theme from './theme.svelte';
+	import Kind0 from './_profile/kind0.svelte';
 
 	export let path: string;
 	export let visible: boolean;
@@ -177,6 +178,8 @@
 			<Ecash pubkey={path.split(':')?.[1]} noteId={path.split(':')?.[2]} />
 		{:else if path.includes('followlist')}
 			<Followlists />
+		{:else if path.includes('kind0')}
+			<Kind0 />
 		{:else if path.includes('lightning')}
 			<Lightning invoice={path.split(':')?.[1]} />
 		{:else if path.includes('login')}
