@@ -17,6 +17,9 @@
 	} from '@candypoets/nipworker';
 	import { uploadFile } from 'src/lib';
 	import { updateSendStatus } from 'src/controller/sendStatus';
+	import Editor from 'src/components/Editor.svelte';
+	import type { Editor as TipTapEditor } from 'svelte-tiptap';
+	import type { Readable } from 'svelte/store';
 
 	// Get the animator context for navigation
 	let animator: any = getContext('animator');
@@ -54,11 +57,14 @@
 	let picture: string = currentProfileData?.picture()?.toString() || '';
 	let banner: string = currentProfileData?.banner()?.toString() || '';
 
+	// Editor instance for about field
+	let aboutEditor: Readable<TipTapEditor>;
+
 	// Reactive statement to update updatedProfile based on form fields
 	$: updatedProfile = {
 		name: name.trim() || '',
 		nip05: nip05.trim() || '',
-		about: about.trim() || '',
+		about: aboutEditor ? $aboutEditor.getText().trim() || '' : about.trim() || '',
 		website: website.trim() || '',
 		lud16: lnAddress.trim() || '',
 		picture: picture.trim() || '',
@@ -150,6 +156,11 @@
 		lnAddress = currentProfileData?.lud16()?.toString() || '';
 		picture = currentProfileData?.picture()?.toString() || '';
 		banner = currentProfileData?.banner()?.toString() || '';
+
+		// Update editor content
+		if (aboutEditor && $aboutEditor) {
+			$aboutEditor.commands.setContent(about);
+		}
 	}
 
 	// Handle file selection for avatar
@@ -377,14 +388,11 @@
 				<label class="label">
 					<span class="label-text">About</span>
 				</label>
-				<textarea
-					class="textarea textarea-bordered w-full h-32"
-					bind:value={about}
-					placeholder="Tell others about yourself..."
-					on:keydown|stopPropagation
-					on:keyup|stopPropagation
-					on:keypress|stopPropagation
-				></textarea>
+				<div class="min-h-32">
+					<Editor bind:editor={aboutEditor} initialContent={about}>
+						Tell others about yourself...
+					</Editor>
+				</div>
 			</div>
 
 			<!-- Website Field -->

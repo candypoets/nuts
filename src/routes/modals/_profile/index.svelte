@@ -8,6 +8,7 @@
 	import { asKind0 } from '@candypoets/nipworker/utils';
 	import type { ParsedEvent } from '@candypoets/nipworker';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
+	import { key } from 'src/controller';
 
 	let animator = getContext('animator');
 	let search: string;
@@ -67,6 +68,16 @@
 		</div>
 		<h3 class="font-bold">Profile</h3>
 		<div class="my-4 rounded-lg border">
+			<div
+				class="flex items-center justify-around py-4 border-b last:border-none"
+				on:click|stopPropagation={() => go('nprofile:' + $key?.pub)}
+			>
+				<Icon icon="mdi:account-outline" class="w-16 h-6" />
+				<div class="flex-grow">
+					<strong>My Profile</strong>
+				</div>
+				<Icon icon="carbon:arrow-right" class="w-16 h-6" />
+			</div>
 			<div
 				class="flex items-center justify-around py-4 border-b last:border-none"
 				on:click|stopPropagation={() => go('keys')}
