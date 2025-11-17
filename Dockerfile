@@ -9,6 +9,9 @@ COPY package*.json ./
 # Install dependencies
 RUN npm ci
 
+# Explicitly install the missing optional dependency for Linux musl
+RUN npm install --no-save @rollup/rollup-linux-x64-musl
+
 # Copy source code
 COPY . .
 
