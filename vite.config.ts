@@ -112,21 +112,21 @@ export default defineConfig({
 					}
 				]
 			}
-		}),
-		compression({
-			verbose: true,
-			algorithm: 'gzip',
-			threshold: 1024,
-			filter: /\.(js|mjs|json|css|html|wasm|svg|jpg|jpeg|png|gif)$/i,
-			deleteOriginFile: false
-		}),
-		compression({
-			verbose: true,
-			algorithm: 'brotliCompress',
-			threshold: 1024,
-			filter: /\.(js|mjs|json|css|html|wasm|svg|jpg|jpeg|png|gif)$/i,
-			deleteOriginFile: false
 		})
+		// compression({
+		// 	verbose: true,
+		// 	algorithm: 'gzip',
+		// 	threshold: 1024,
+		// 	filter: /\.(js|mjs|json|css|html|wasm|svg|jpg|jpeg|png|gif)$/i,
+		// 	deleteOriginFile: false
+		// }),
+		// compression({
+		// 	verbose: true,
+		// 	algorithm: 'brotliCompress',
+		// 	threshold: 1024,
+		// 	filter: /\.(js|mjs|json|css|html|wasm|svg|jpg|jpeg|png|gif)$/i,
+		// 	deleteOriginFile: false
+		// })
 	],
 	resolve: {
 		alias: {

@@ -1,5 +1,17 @@
-.git
-Dockerfile
+# Ignore node_modules (reinstalled in Docker anyway)
 node_modules
-docs
-README.md
+
+# Ignore build outputs (generated during build)
+build
+dist
+
+# Ignore logs and temp files
+*.log
+.tmp
+temp/
+
+# Ignore Git and editor files
+.git
+.gitignore
+.vscode
+.idea
