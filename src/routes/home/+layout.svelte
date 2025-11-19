@@ -51,6 +51,7 @@
 	import EmptyWallet from './emptyWallet.svelte';
 	import { DEFAULT_MINTS } from 'src/lib/wallet';
 	import { DEFAULT_RELAYS } from 'src/lib/env';
+	import { proxyAvatarUrl } from 'src/lib/proxy';
 
 	export let visible = false;
 
@@ -297,7 +298,9 @@
 							>
 							<div on:click|stopPropagation={() => go('profile')} class="cursor-pointer">
 								<img
-									src={asKind0($kind0)?.picture()?.toString() || '/miss-profile.png'}
+									src={proxyAvatarUrl(
+										asKind0($kind0)?.picture()?.toString() || '/miss-profile.png'
+									)}
 									class="w-8 h-8 border rounded-full"
 								/>
 							</div>
