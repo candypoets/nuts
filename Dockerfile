@@ -3,11 +3,21 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+ARG VITE_INDEXER_RELAYS="wss://relay.nostr.band,wss://purplepag.es,wss://relay.damus.io"
+ARG VITE_SEARCH_RELAYS="wss://relay.nostr.band"
+ARG VITE_DEFAULT_RELAYS="wss://relay.thibautduchene.fr,wss://relay.damus.io,wss://nos.lol"
+ARG PUBLIC_LNUTS_DOMAIN="nuts.cash"
+ARG VITE_ENABLE_SSL="false"
+
+# Set environment variables from build arguments
+ENV VITE_INDEXER_RELAYS=$VITE_INDEXER_RELAYS
+ENV VITE_SEARCH_RELAYS=$VITE_SEARCH_RELAYS
+ENV VITE_DEFAULT_RELAYS=$VITE_DEFAULT_RELAYS
+ENV PUBLIC_LNUTS_DOMAIN=$PUBLIC_LNUTS_DOMAIN
+ENV VITE_ENABLE_SSL=$VITE_ENABLE_SSL
+
 # Copy package files first (for dep installation)
 COPY package*.json ./
-
-# Install all dependencies (for build) - use npm install to handle platform-specific deps
-RUN npm install
 
 # Copy source code
 COPY . .

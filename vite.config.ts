@@ -40,8 +40,6 @@ export default defineConfig(({ mode }) => {
 	const env = loadEnv(mode, process.cwd(), 'VITE_');
 	const enableSsl = env.VITE_ENABLE_SSL === 'true';
 
-	console.log(enableSsl);
-
 	return {
 		ssr: {
 			// noExternal: ['idb']
