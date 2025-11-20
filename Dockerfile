@@ -41,6 +41,9 @@ COPY package*.json ./
 # Install only production dependencies
 RUN npm ci --only=production && npm cache clean --force
 
+# CRITICAL: Rebuild sharp for production
+RUN npm rebuild sharp --update-binary
+
 # Copy built application (includes build/index.js and all subfolders/files)
 COPY --from=builder /app/build ./build
 

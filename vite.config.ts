@@ -7,35 +7,6 @@ import topLevelAwait from 'vite-plugin-top-level-await';
 import { visualizer } from 'rollup-plugin-visualizer';
 import compression from 'vite-plugin-compression';
 
-// Custom plugin to handle SharedArrayBuffer headers for preview mode
-const sharedArrayBufferPlugin = () => {
-	return {
-		name: 'shared-array-buffer-headers',
-		configurePreviewServer(server) {
-			server.middlewares.use((req, res, next) => {
-				// Set headers for all requests
-				res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
-				res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
-
-				// Set CORP headers for static assets
-				if (
-					req.url?.includes('.wasm') ||
-					req.url?.includes('worker') ||
-					req.url?.includes('.js') ||
-					req.url?.includes('/static/') ||
-					req.url?.includes('/_app/')
-				) {
-					res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
-				}
-
-				next();
-			});
-		}
-	};
-};
-
-// Custom plugin to handle SharedArrayBuffer headers for @fs routes
-
 export default defineConfig(({ mode }) => {
 	const env = loadEnv(mode, process.cwd(), 'VITE_');
 	const enableSsl = env.VITE_ENABLE_SSL === 'true';
@@ -74,7 +45,7 @@ export default defineConfig(({ mode }) => {
 		plugins: [
 			...(enableSsl ? [basicSsl()] : []),
 			topLevelAwait(),
-			sharedArrayBufferPlugin(), // Add our custom plugin
+			// sharedArrayBufferPlugin(), // Add our custom plugin
 			sveltekit(),
 			VitePWA({
 				devOptions: {
