@@ -50,6 +50,7 @@
 	}
 
 	function onOverlayClick(e: MouseEvent) {
+		muted = true;
 		if (suppressNextClick) return;
 		onClick(e);
 	}
@@ -94,8 +95,8 @@
 
 	<!-- Control bar only on hover -->
 	<media-control-bar
-		on:click|stopPropagation
-		class="pointer-events-none opacity-0 group-hover:opacity-100 group-hover:pointer-events-auto
+		on:click|stopPropagation={() => (muted = false)}
+		class="z-10 pointer-events-none opacity-0 group-hover:opacity-100 group-hover:pointer-events-auto
            transition-opacity duration-150 absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/50 to-transparent p-2"
 	>
 		<div class="flex items-center gap-2 w-full">
