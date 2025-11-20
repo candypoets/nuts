@@ -14,6 +14,7 @@
 	export let pubkey: string = undefined;
 
 	function generateColorFromUrl(url: string, opacity: number = 1): string {
+		url = url.replace(/cash/gi, '');
 		// Create a simple hash from the url
 		let hash = 0;
 		for (let i = 0; i < url.length; i++) {
@@ -73,7 +74,7 @@
 							<img
 								src={proxyAvatarUrl(mint.parsedInfo.icon_url)}
 								alt="Mint Icon"
-								class="w-6 h-6"
+								class="w-6 h-6 rounded"
 								on:error={(e) => (e.target.style.display = 'none')}
 							/>
 						{/if}

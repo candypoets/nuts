@@ -184,6 +184,25 @@
 		selectedMints = uniq(selectedMints);
 	}
 
+	async function selectMintUrl(url: string) {
+		if (url.startsWith('http')) {
+			//force https
+			url = url.replace(/^http:/, 'https:');
+		} else if (!url.startsWith('https://')) {
+			url = 'https://' + url;
+		}
+		loading = true;
+		const isValid = await isMintUrlValid(url);
+		loading = false;
+		if (isValid) {
+			selectedMints.unshift(url);
+			selectedMints = uniq(selectedMints);
+			isInvalid = false;
+		} else {
+			isInvalid = true;
+		}
+	}
+
 	function handleKeyDown(event: KeyboardEvent) {
 		if (event.key === 'Enter' && filteredMints.length > 0) {
 			filteredMints = [];
@@ -431,7 +450,7 @@
 					{#if loading}
 						<button class="btn join-item"><span class="loading loading-dots"></span></button>
 					{:else}
-						<button class="btn join-item">Add</button>
+						<button class="btn join-item" on:click={(_) => selectMintUrl(search)}>Add</button>
 					{/if}
 				</div>
 

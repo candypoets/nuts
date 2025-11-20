@@ -14,9 +14,11 @@ export async function fetchMintData(mint: string): Promise<Mint> {
 		if (!response.ok) {
 			throw new Error('Failed to fetch mint data');
 		}
+		const info = await fetch(`${normalizeURL(mint).replace(/\/$/, '')}/v1/info`);
+		const infores = await info.json();
 		const res = await response.json();
-		res.parsedInfo = JSON.parse(res.info);
-		res.name = res.name.replace(/mint/gi, '').replace(/cashu/gi, '');
+		res.parsedInfo = infores;
+		res.name = infores.name.replace(/mint/gi, '').replace(/cashu/gi, '');
 		return res;
 	} catch (err) {
 		return {

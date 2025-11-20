@@ -202,6 +202,7 @@
 		{@const nip05 = p?.nip05()?.toString()}
 		{@const picture = p?.picture()?.toString()}
 		{@const about = p?.about()?.toString()}
+		{@const lnaddress = p?.lud16()?.toString() || p?.lud06()?.toString()}
 		<div
 			class="transition-all duration-300 w-feed mx-auto will-change-transform bg-base-300 bg-opacity-85 backdrop-blur-gpu rounded-lg"
 			class:relative={visible}
@@ -278,8 +279,15 @@
 					<div>
 						<h2 class="text-xl font-bold">{name || 'Unnamed'}</h2>
 						<!-- {#if visible} -->
-						<p class="text-primary">@{nip05 || pubkey.substring(0, 8)}</p>
+						<p class="text-primary flex items-center gap-1">
+							<Icon icon="mdi:link" />{nip05 || pubkey.substring(0, 8)}
+						</p>
 						<!-- {/if} -->
+						{#if lnaddress}
+							<p class="text-primary flex items-center gap-1">
+								<Icon icon="ion:flash" />{lnaddress}
+							</p>
+						{/if}
 					</div>
 				</div>
 
