@@ -1,9 +1,11 @@
 import {
 	CashuMint,
 	CashuWallet,
+	getEncodedToken,
 	MintQuoteState,
 	type MintQuoteResponse,
-	type Proof
+	type Proof,
+	type Token
 } from '@cashu/cashu-ts';
 import { schnorr } from '@noble/curves/secp256k1';
 import { bytesToHex } from '@noble/hashes/utils';
@@ -414,12 +416,6 @@ export class NutsWallet {
 	public addProofs = (mint: string, unspent: Proof[]) => {
 		mint = normalizeMintURL(mint);
 		if (!mint || !unspent?.length) return;
-		console.log(
-			'add proofs',
-			mint,
-			this.pubkey,
-			unspent.reduce((acc, cur) => (acc += cur.amount), 0)
-		);
 		const usp = this.unspentProofs.get(mint) || [];
 
 		this.unspentProofs.set(mint, _.uniqBy([...usp, ...unspent], 'secret'));
@@ -505,6 +501,9 @@ export class NutsWallet {
 						go(`minted:${mintUrl}:${quote.amount}`);
 					}
 					this.deleteMintQuote(createdAt);
+					const token: Token = { mint: mintUrl, proofs };
+					const tokenString = getEncodedToken(token);
+					console.log('Cashu token:', tokenString);
 					// save proofs in the nostr
 					this.saveProofs(mintUrl, proofs);
 				}

@@ -57,12 +57,6 @@ export const writeRelays = derived(kind10002, ($kind10002) => {
 	if (!$kind10002) return relays;
 	const kind = asKind10002($kind10002);
 	if (!kind) return relays;
-	console.log(
-		'write',
-		fbArray(kind, 'relays').filter((r) => r.write()),
-		fbArray(kind, 'relays').filter((r) => r.read()),
-		fbArray(kind, 'relays').map((r) => r.url()?.toString())
-	);
 	return fbArray(kind, 'relays')
 		.filter((r) => r.write())
 		.map((r) => r.url()?.toString());
