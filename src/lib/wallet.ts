@@ -68,6 +68,9 @@ export function GetLNURLFromProfile(profile: ParsedEvent): string | null {
 	if (lud16) {
 		const addressParts = lud16.split('@');
 		if (addressParts.length === 2) {
+			if (addressParts[1] == 'nuts.cash') {
+				addressParts[1] = 'localhost:5173';
+			}
 			return `https://${addressParts[1]}/.well-known/lnurlp/${addressParts[0]}`;
 		}
 	}
@@ -106,6 +109,11 @@ export const getInvoiceFromAddress = async (
 	event?: NostrEvent
 ): Promise<{ pr: string; maxSendable: number; minSendable: number; lnurl: string }> => {
 	const addressParts = address.split('@');
+	console.log('aa', addressParts[1]);
+	if (addressParts[1] == 'nuts.cash') {
+		addressParts[1] = 'localhost:5173';
+	}
+	console.log('ab', addressParts[1]);
 	const endpoint = `https://${addressParts[1]}/.well-known/lnurlp/${addressParts[0]}`;
 	const result = await LNURLLookup(endpoint, amount, event);
 	return { ...result, lnurl: endpoint };
@@ -130,6 +138,7 @@ const decodeLNURL = async (lnurl: string): Promise<string> => {
 };
 
 const LNURLLookup = async (endpoint: string, amount: number, event?: NostrEvent) => {
+	console.log('ep', endpoint);
 	const { callback, maxSendable, minSendable } = (await (await fetch(endpoint)).json()) as {
 		callback: string;
 		maxSendable: number;
@@ -138,6 +147,8 @@ const LNURLLookup = async (endpoint: string, amount: number, event?: NostrEvent)
 	if (!callback) {
 		throw new Error('No callback url found.');
 	}
+
+	console.log('cb', callback);
 	let cb = callback + (callback.includes('?') ? `&` : `?`) + `amount=${amount * 1000}`;
 	if (event) {
 		cb += `nostr=${JSON.stringify(event)}`;
@@ -405,8 +416,8 @@ export function getStatsText(mint: MintInfo): string {
  * Minibits and Coinos as requested.
  */
 export const DEFAULT_MINTS: string[] = [
-	normalizeURL('https://mint.minibits.cash/Bitcoin'),
-	normalizeURL('https://mint.coinos.io')
+	normalizeURL('https://mint.nuts.cash'),
+	normalizeURL('https://mint.minibits.cash/Bitcoin')
 ];
 
 export function resolveNpubNsecFromStorage(): { npub: string; nsec: string } | null {

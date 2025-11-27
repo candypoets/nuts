@@ -37,6 +37,8 @@ export class PagerAnimator {
 	private visibleStackIndices: Set<number> = new Set(); // indices into this.stack
 	private showMain = true; // whether main is visible
 
+	private rafId: number | null = null;
+
 	constructor(
 		viewport: { vw: number; vh: number },
 		goBackRouter: () => void,
@@ -129,6 +131,9 @@ export class PagerAnimator {
 	 */
 	setMainContent(element: HTMLElement) {
 		this.main = element;
+		// GPU acceleration hints
+		this.main.style.willChange = 'transform, opacity';
+		this.main.style.backfaceVisibility = 'hidden';
 		// Ensure visibility applied if mode was decided before main arrived
 		this.applyCombinedVisibility();
 	}
@@ -226,6 +231,10 @@ export class PagerAnimator {
 	 * Register a sub element
 	 */
 	registerElement(element: HTMLElement) {
+		// GPU acceleration hints
+		element.style.willChange = 'transform, opacity';
+		element.style.backfaceVisibility = 'hidden';
+
 		this.stack.push(element);
 
 		// Apply visibility rules first
@@ -409,11 +418,16 @@ export class PagerAnimator {
 			return;
 		}
 
-		// Update all sub elements with the deltaX and deltaY
-		this.updateAllSubElements(Math.max(0, deltaX), Math.max(0, deltaY));
+		if (this.rafId) cancelAnimationFrame(this.rafId);
 
-		// Also update main content with deltaX and deltaY influence
-		this.updateMainContent(Math.max(0, deltaX), Math.max(0, deltaY));
+		this.rafId = requestAnimationFrame(() => {
+			// Update all sub elements with the deltaX and deltaY
+			this.updateAllSubElements(Math.max(0, deltaX), Math.max(0, deltaY));
+
+			// Also update main content with deltaX and deltaY influence
+			this.updateMainContent(Math.max(0, deltaX), Math.max(0, deltaY));
+			this.rafId = null;
+		});
 	}
 
 	/**
@@ -441,6 +455,11 @@ export class PagerAnimator {
 	 * Handle swipe dismiss completion - animate elements to final positions
 	 */
 	completeSwipeDismiss() {
+		if (this.rafId) {
+			cancelAnimationFrame(this.rafId);
+			this.rafId = null;
+		}
+
 		// Get the last element from the stack (top element)
 		const topElement = this.stack[this.stack.length - 1];
 
@@ -454,6 +473,11 @@ export class PagerAnimator {
 	 * Handle swipe dismiss cancellation - animate back to original positions
 	 */
 	async cancelSwipeDismiss(): Promise<void> {
+		if (this.rafId) {
+			cancelAnimationFrame(this.rafId);
+			this.rafId = null;
+		}
+
 		// Reset all elements to their original positions (deltaX = 0, deltaY = 0)
 		this.updateAllSubElements(0, 0);
 		this.updateMainContent(0, 0);
@@ -463,6 +487,10 @@ export class PagerAnimator {
 	 * Cleanup method
 	 */
 	destroy() {
+		if (this.rafId) {
+			cancelAnimationFrame(this.rafId);
+			this.rafId = null;
+		}
 		// Show everything again in case caller reuses elements
 		this.showAll();
 		// Motion One automatically handles cleanup, but we can clear our arrays

@@ -6,7 +6,7 @@
 	import MintSelector from 'src/components/MintSelector.svelte';
 	import VirtualList from 'src/components/VirtualList.svelte';
 	import { key, kind17375 } from 'src/controller';
-	import { activeMintUrl } from 'src/controller/wallet';
+	import { activeMintUrl, validateP2pkPubkey } from 'src/controller/wallet';
 	import { now } from 'src/lib/period';
 	import { getInvoiceFromProfile, GetLNURLFromProfile, getZapInvoice } from 'src/lib/wallet';
 	import Avatar from 'src/routes/explore/avatar.svelte';
@@ -36,6 +36,7 @@
 	import { updateSendStatus } from 'src/controller/sendStatus';
 	import { fly } from 'svelte/transition';
 	import { getUserRelays } from '../queries/user';
+	import Zap from '../explore/_post/zap.svelte';
 
 	// export let active: string;
 	export let pubkey: string;
@@ -72,16 +73,16 @@
 
 	let fromMint = $activeMintUrl || ($kind17375 && asKind17375($kind17375)?.mints(0)?.toString());
 	let toMint: string;
-	let fees: number = 0;
+	let fees: number;
 	let meltquote: MeltQuoteResponse;
 	let mintquote: MintQuoteResponse;
 
 	const resetState = () => {
-		fees = 0;
+		fees = undefined;
 		meltquote = undefined;
 		mintquote = undefined;
 		processing = '';
-		status = '';
+		// status = '';
 		progress = 0;
 	};
 
@@ -125,37 +126,49 @@
 		});
 	});
 
-	const computeFees = throttle(async (amount: number, fromMint: string, toMint: string) => {
-		console.log('computefees', amount, fromMint, toMint, kind0);
-		if (fromMint && toMint && amount && toMint != fromMint) {
-			processing = 'generating invoice';
-			// attempt a swap to a supported mint before sending
-			const fromWallet = await $nutsWallet?.getWallet(fromMint);
-			const toWallet = await $nutsWallet?.getWallet(toMint);
-			if (toWallet && fromWallet && kind10019?.p2pkPubkey) {
-				mintquote = await toWallet.createMintQuote(amount, kind10019.p2pkPubkey()?.toString());
-				meltquote = await fromWallet.createMeltQuote(mintquote.request);
-				fees = meltquote.fee_reserve;
+	const computeFees = throttle(
+		async (amount: number, fromMint: string, toMint: string, zap: boolean) => {
+			if (fromMint && toMint && amount && toMint != fromMint && !zap) {
+				try {
+					processing = 'generating invoice';
+					// attempt a swap to a supported mint before sending
+					const fromWallet = await $nutsWallet?.getWallet(fromMint);
+					const toWallet = await $nutsWallet?.getWallet(toMint);
+					if (toWallet && fromWallet && kind10019?.p2pkPubkey) {
+						mintquote = await toWallet.createMintQuote(amount, kind10019.p2pkPubkey()?.toString());
+						meltquote = await fromWallet.createMeltQuote(mintquote.request);
+						fees = meltquote.fee_reserve;
+						processing = '';
+					}
+				} catch (e) {
+					console.error(e);
+					processing = 'error';
+				}
+			} else if (fromMint && amount && kind0 && toMint != fromMint) {
+				processing = 'generating invoice';
+				try {
+					const { pr } = await getInvoiceFromProfile(kind0, Number(amount));
+					console.log(pr);
+					const fromWallet = await $nutsWallet?.getWallet(fromMint);
+					console.log(fromWallet);
+					meltquote = await fromWallet!.createMeltQuote(pr);
+					console.log('computedFees', amount, fromMint, meltquote);
+					fees = meltquote.fee_reserve;
+					processing = '';
+				} catch (e) {
+					processing = 'error';
+					console.log('error', e);
+				}
+			} else {
+				fees = 0;
+				meltquote = undefined;
 				processing = '';
 			}
-		} else if (fromMint && amount && kind0) {
-			processing = 'generating invoice';
-			try {
-				const { pr } = await getInvoiceFromProfile(kind0, Number(amount));
-				console.log(pr);
-				const fromWallet = await $nutsWallet?.getWallet(fromMint);
-				console.log(fromWallet);
-				meltquote = await fromWallet!.createMeltQuote(pr);
-				console.log('computedFees', amount, fromMint, meltquote);
-				fees = meltquote.fee_reserve;
-				processing = '';
-			} catch (e) {
-				console.log('error', e);
-			}
-		}
-	}, 300);
+		},
+		300
+	);
 
-	$: computeFees(amount, fromMint, toMint);
+	$: computeFees(amount, fromMint, toMint, zap);
 
 	$: lnurl = GetLNURLFromProfile(kind0);
 
@@ -175,10 +188,9 @@
 		const fromWallet = await $nutsWallet?.getWallet(fromMint);
 		const unspentProofs = fromWallet && $nutsWallet?.unspentProofs.get(fromMint);
 		if (unspentProofs && $nutsWallet) {
-			const { keep: proofsToKeep, send: proofsToSend } = fromWallet?.selectProofsToSend(
-				unspentProofs,
+			const { keep: proofsToKeep, send: proofsToSend } = await fromWallet?.send(
 				amountPlusFees,
-				true
+				unspentProofs
 			);
 			$nutsWallet.saveProofs(fromMint, proofsToKeep);
 			if (
@@ -188,7 +200,8 @@
 				fromMint &&
 				toMint &&
 				$nutsWallet &&
-				fromMint != toMint
+				fromMint != toMint &&
+				!zap
 			) {
 				progress = 0;
 				status = 'Swaping mint';
@@ -210,10 +223,23 @@
 					status = 'Swap successful';
 					progress = 0.7;
 
-					const sendRes = await toWallet.send(Number(amount), proofsToSend, {
-						includeFees: false,
-						p2pk: { pubkey: kind10019.p2pkPubkey()?.toString() as string }
-					});
+					const p2pk = validateP2pkPubkey(kind10019.p2pkPubkey()?.toString());
+
+					console.log('p2pk', p2pk);
+
+					const sendRes = await toWallet.send(
+						Number(amount),
+						proofsToSend,
+						{
+							includeFees: false
+						},
+						{
+							send: {
+								type: 'p2pk',
+								options: { pubkey: p2pk }
+							}
+						}
+					);
 
 					const nutszap: EventTemplate = {
 						kind: 9321,
@@ -247,12 +273,18 @@
 					$nutsWallet.updateBalanceByMint();
 					$nutsWallet.saveProofs(fromMint, change);
 				}
-			} else if (fromMint == toMint && fromWallet && unspentProofs) {
+			} else if (fromMint == toMint && fromWallet && unspentProofs && !zap) {
+				console.log('nutszap!', proofsToSend, proofsToKeep, fromMint, toMint);
 				progress = 0;
+				const p2pk = validateP2pkPubkey(kind10019?.p2pkPubkey()?.toString());
+
+				console.log('p2pk', p2pk);
 				const newProofs = await fromWallet.receive(
-					{ mint: fromMint, proofs: proofsToSend },
+					{ mint: fromMint, proofs: proofsToSend, unit: 'sat' },
+					{},
 					{
-						p2pk: { pubkey: kind10019?.p2pkPubkey()?.toString() }
+						type: 'p2pk',
+						options: { pubkey: p2pk }
 					}
 				);
 
@@ -262,11 +294,13 @@
 					created_at: now(),
 					tags: [
 						...newProofs.map((proof) => ['proof', JSON.stringify(proof)]),
-						['u', $activeMintUrl || ''],
+						['u', toMint || ''],
 						['e', noteId || ''],
 						['p', pubkey]
 					].filter((t) => !!t[1])
 				};
+
+				console.log('nutszap', nutszap);
 
 				status = 'Sending nutszap';
 				progress = 0.9;
@@ -290,6 +324,7 @@
 				// $nutsWallet?.saveProofs(fromMint, proofsToKeep);
 			} else if (fromMint && fromWallet && unspentProofs && meltquote) {
 				progress = 0;
+				console.log('lnurl', lnurl);
 				const zapRequest: EventTemplate = {
 					kind: 9734,
 					content: memo,
@@ -320,12 +355,14 @@
 						// Create melt quote for the zap invoice
 						const zapMeltQuote = await fromWallet.createMeltQuote(zapInvoice.pr);
 
+						console.log(zapMeltQuote);
 						status = 'Sending lightning payment';
 						progress = 0.8;
 
 						// Pay the zap invoice
 						const { change } = await fromWallet.meltProofs(zapMeltQuote, proofsToSend);
 
+						console.log(change);
 						status = 'Success! Zap receipt will be published by the service';
 						progress = 1;
 
@@ -340,6 +377,7 @@
 						$nutsWallet?.saveProofs(fromMint, change);
 						resetState();
 					} catch (error) {
+						console.log('error', error);
 						status = 'Error sending zap: ' + (error as Error).message;
 						setTimeout(() => (status = ''), 3000);
 						resetState();
@@ -505,6 +543,11 @@
 							{/if}
 						</div>
 					</div>
+					{#if fees === 0 && zap}
+						<div class="px-4 w-full mt-4" transition:fly>
+							<div class="text-sm text-primary">No fees applies</div>
+						</div>
+					{/if}
 					{#if fees}
 						<div class="px-4 w-full mt-4" transition:fly>
 							<div class="text-sm text-primary">

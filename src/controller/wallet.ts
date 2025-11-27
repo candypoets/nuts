@@ -146,3 +146,28 @@ export const walletLoaded = (() => {
 
 	return promise as Promise<boolean> & { resolve: (value?: boolean) => void };
 })();
+
+/**
+ * Validate and format a Cashu P2PK pubkey
+ * - Ensures it's prefixed with "02" for Cashu compatibility
+ * - Validates length is exactly 66 characters (02 prefix + 64 hex chars)
+ * - Validates it's valid hexadecimal
+ */
+export function validateP2pkPubkey(pubkey: string): string {
+	// Ensure pubkey is prefixed with "02"
+	const keyWithPrefix = pubkey.startsWith('02') ? pubkey : '02' + pubkey;
+
+	// Validate: should be 66 characters (02 prefix + 64 hex chars)
+	if (keyWithPrefix.length !== 66) {
+		throw new Error(
+			`Invalid p2pk pubkey length: expected 66 characters, got ${keyWithPrefix.length}`
+		);
+	}
+
+	// Validate: should be valid hex
+	if (!/^[0-9a-fA-F]{66}$/.test(keyWithPrefix)) {
+		throw new Error('Invalid p2pk pubkey: must be valid hexadecimal');
+	}
+
+	return keyWithPrefix;
+}

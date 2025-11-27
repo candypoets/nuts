@@ -145,6 +145,9 @@
 		</div>
 	{/if}
 	<div class="flex items-center justify-between gap-2">
+		<!-- {kind9321?.mintUrl()?.toString()}
+		{kind9321?.p2pkPubkey()?.toString().slice(0, 5)}
+		{zap?.createdAt()?.toString()} -->
 		{#if decoded.pubkey === $key?.pub && decoded.recipient}
 			<!-- User is the sender -->
 			<div class="flex items-center gap-2 overflow-hidden">

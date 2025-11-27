@@ -6,6 +6,7 @@ import { defineConfig, loadEnv } from 'vite';
 import topLevelAwait from 'vite-plugin-top-level-await';
 import { visualizer } from 'rollup-plugin-visualizer';
 import compression from 'vite-plugin-compression';
+import path from 'path';
 
 export default defineConfig(({ mode }) => {
 	const env = loadEnv(mode, process.cwd(), 'VITE_');
@@ -105,8 +106,9 @@ export default defineConfig(({ mode }) => {
 		],
 		resolve: {
 			alias: {
-				src: ['/src']
-				// '@cashu/cashu-ts': path.resolve(__dirname, '../cashu-ts/src')
+				src: ['/src'],
+				'@cashu/cashu-ts': path.resolve(__dirname, '../cashu-ts/src'),
+				'@candypoets/lnuts': path.resolve(__dirname, '../lnuts/src')
 			}
 		}
 	};

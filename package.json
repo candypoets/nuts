@@ -55,9 +55,9 @@
 	},
 	"type": "module",
 	"dependencies": {
-		"@candypoets/lnuts": "^0.1.4",
+		"@candypoets/lnuts": "^0.1.5",
 		"@candypoets/nipworker": "^0.0.69",
-		"@cashu/cashu-ts": "2.5.2",
+		"@cashu/cashu-ts": "3.1.1",
 		"@gandlaf21/bc-ur": "^1.1.12",
 		"@gandlaf21/bolt11-decode": "^3.1.1",
 		"@gandlaf21/cashu-crypto": "^0.2.6",
@@ -92,5 +92,8 @@
 		"vite-plugin-compression": "^0.5.1",
 		"vite-plugin-mkcert": "^1.17.6",
 		"ws": "^8.16.0"
+	},
+	"volta": {
+		"node": "22.21.1"
 	}
 }

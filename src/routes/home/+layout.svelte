@@ -41,7 +41,7 @@
 		kind17375,
 		readRelays
 	} from 'src/controller/nostr';
-	import { addProofs, nutsWallet, receiveProofs, setNutsWallet } from 'src/controller/proofs';
+	import { addProofs, nutsWallet, setNutsWallet } from 'src/controller/proofs';
 	import { activeMintUrl, walletLoaded } from 'src/controller/wallet';
 	import { normalizeMintURL } from 'src/lib/utils';
 	import Feed from 'src/routes/explore/feed.svelte';
@@ -100,70 +100,35 @@
 					kinds: [9321],
 					authors: [$key?.pub],
 					limit: 50,
-					relays: relays
+					relays: relays,
+					nocache: true
 				},
 				{
 					kinds: [9321],
 					tags: { '#p': [$key?.pub] },
 					limit: 50,
-					relays: relays
+					relays: relays,
+					noCache: true
 				}
 			];
 		});
 	}
 
 	let proofs: () => void;
-	let zaps: () => void;
 
 	$: if ($key?.pub && !loading) {
-		// console.log('oy');
 		proofs?.();
 		proofs = useSubscription(
-			'proofs_' + $key?.pub,
+			'nutszap_' + $key?.pub,
 			[
-				{ kinds: [7375], authors: [$key?.pub], relays }
-				// { kinds: [9321], tags: { '#p': [$key?.pub] }, relays }
+				{ kinds: [7375], authors: [$key?.pub], relays },
+				{ kinds: [9321], tags: { '#p': [$key?.pub] }, noCache: true, limit: 50, relays }
 			],
 			(message) => {
 				const vps = isValidProofs(message);
 				if (vps) {
 					for (const mintProofs of fbIterable(vps, 'proofs')) {
 						addProofs(
-							mintProofs.mint()!.toString(),
-							fbArray(mintProofs, 'proofs').map((p) => ({
-								C: p.c()!.toString(),
-								amount: Number(p.amount()),
-								id: p.id()!.toString(),
-								secret: p.secret()!.toString(),
-								dleq: {
-									e: p.dleq()?.e()?.toString() as string,
-									r: p.dleq()?.r()?.toString() as string,
-									s: p.dleq()?.s()?.toString() as string
-								}
-							}))
-						);
-					}
-				}
-			},
-			{
-				pipeline: [
-					new PipeT(PipeConfig.ParsePipeConfig, new ParsePipeConfigT()),
-					new PipeT(PipeConfig.SaveToDbPipeConfig, new SaveToDbPipeConfigT()),
-					new PipeT(PipeConfig.ProofVerificationPipeConfig, new ProofVerificationPipeConfigT(500))
-				]
-			}
-		);
-		zaps = useSubscription(
-			'nutszap_' + $key?.pub,
-			[
-				// { kinds: [7375], authors: [$key?.pub], relays }
-				{ kinds: [9321], tags: { '#p': [$key?.pub] }, relays }
-			],
-			(message) => {
-				const vps = isValidProofs(message);
-				if (vps) {
-					for (const mintProofs of fbIterable(vps, 'proofs')) {
-						receiveProofs(
 							mintProofs.mint()!.toString(),
 							fbArray(mintProofs, 'proofs').map((p) => ({
 								C: p.c()!.toString(),

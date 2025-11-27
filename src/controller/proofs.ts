@@ -1,6 +1,6 @@
 import {
-	CashuMint,
-	CashuWallet,
+	Mint,
+	Wallet,
 	getEncodedToken,
 	MintQuoteState,
 	type MintQuoteResponse,
@@ -19,7 +19,7 @@ import { normalizeMintURL } from 'src/lib/utils';
 import { decodePrivKey } from 'src/lib/wallet';
 import { go } from 'src/routes/modals/modal';
 import type { Mint } from 'src/types/mint';
-import { fetchMintData } from './wallet';
+import { fetchMintData, validateP2pkPubkey } from './wallet';
 
 export type MintQuote = MintQuoteResponse & {
 	mintUrl: string;
@@ -48,7 +48,7 @@ export const setNutsWallet = (
 	if (!nutsWallets.has(pubkey)) {
 		try {
 			const wallet = new NutsWallet(privkey, pubkey, mints, createdAt);
-			nutsWallets.set(wallet.pubkey, wallet);
+			nutsWallets.set(validateP2pkPubkey(wallet.pubkey), wallet);
 			const nuts = get(nutsWallet);
 			// Update the most recent wallet if this one is newer
 			if (!nuts || createdAt > nuts.createdAt) {
@@ -65,13 +65,14 @@ export const setNutsWallet = (
 export const addProofs = async (mint: string, proofs: Proof[]): Promise<void> => {
 	if (!mint || !proofs?.length) return;
 
-	// Filter proofs that have p2pk field in the secret and extract pubkeys
+	// Filter proofs that have p2pk field in the secret
 	const p2pkProofs = proofs.filter((proof) => {
 		try {
 			const secretObj = JSON.parse(proof.secret);
-			return secretObj.p2pk !== undefined;
+			if (secretObj.length) {
+				return true;
+			} else return secretObj.p2pk !== undefined;
 		} catch (e) {
-			// If secret is not a valid JSON, it doesn't have p2pk field
 			return false;
 		}
 	});
@@ -80,21 +81,24 @@ export const addProofs = async (mint: string, proofs: Proof[]): Promise<void> =>
 	const nonP2pkProofs = proofs.filter((proof) => {
 		try {
 			const secretObj = JSON.parse(proof.secret);
-			return secretObj.p2pk === undefined;
+			if (secretObj.length) {
+				return false;
+			} else return secretObj.p2pk === undefined;
 		} catch (e) {
-			// If secret is not a valid JSON, it doesn't have p2pk field
 			return true;
 		}
 	});
 
 	const nuts = get(nutsWallet);
 
-	// Add non-p2pk proofs to the most recent wallet
+	// Add non-p2pk proofs directly to the most recent wallet
 	if (nonP2pkProofs.length > 0 && nuts) {
 		nuts.addProofs(mint, nonP2pkProofs);
 	}
 
 	if (p2pkProofs.length === 0) return;
+
+	console.log('p2pkProofs', p2pkProofs);
 
 	// Extract unique pubkeys from p2pkProofs
 	const pubkeys = [
@@ -103,7 +107,7 @@ export const addProofs = async (mint: string, proofs: Proof[]): Promise<void> =>
 				.map((proof) => {
 					try {
 						const secretObj = JSON.parse(proof.secret);
-						return secretObj.p2pk;
+						return secretObj.p2pk || secretObj[1]?.data;
 					} catch (e) {
 						return null;
 					}
@@ -114,86 +118,31 @@ export const addProofs = async (mint: string, proofs: Proof[]): Promise<void> =>
 
 	let undistributedProofs: Proof[] = [];
 
-	// Add proofs to each relevant wallet
+	// Process p2pk proofs for each relevant wallet
 	for (const pubkey of pubkeys) {
 		const wallet = getNutsWallet(pubkey);
 		if (wallet) {
 			const proofsForThisWallet = p2pkProofs.filter((proof) => {
 				try {
 					const secretObj = JSON.parse(proof.secret);
-					return secretObj.p2pk === pubkey;
-				} catch (e) {
-					return false;
-				}
-			});
-			if (proofsForThisWallet.length > 0) {
-				wallet.addProofs(mint, proofsForThisWallet);
-			}
-		} else {
-			// Collect proofs that couldn't be distributed
-			const proofsForThisPubkey = p2pkProofs.filter((proof) => {
-				try {
-					const secretObj = JSON.parse(proof.secret);
-					return secretObj.p2pk === pubkey;
-				} catch (e) {
-					return false;
-				}
-			});
-			undistributedProofs = [...undistributedProofs, ...proofsForThisPubkey];
-		}
-	}
-	// Find the zero wallet (created at 0)
-	const zeroWallet = Array.from(nutsWallets.values()).find((wallet) => wallet.createdAt === 0);
-	// Add undistributed proofs to the "0" wallet
-	if (undistributedProofs.length > 0 && zeroWallet) {
-		zeroWallet.addProofs(mint, undistributedProofs);
-	}
-};
-
-// to be used when receiving a zap
-export const receiveProofs = async (mint: string, proofs: Proof[]): Promise<void> => {
-	const p2pkProofs = proofs.filter((proof) => {
-		try {
-			const secretObj = JSON.parse(proof.secret);
-			return secretObj.p2pk !== undefined;
-		} catch (e) {
-			// If secret is not a valid JSON, it doesn't have p2pk field
-			return false;
-		}
-	});
-	const pubkeys = [
-		...new Set(
-			p2pkProofs
-				.map((proof) => {
-					try {
-						const secretObj = JSON.parse(proof.secret);
-						return secretObj.p2pk;
-					} catch (e) {
-						return null;
-					}
-				})
-				.filter(Boolean)
-		)
-	] as string[];
-
-	let undistributedProofs: Proof[] = [];
-
-	for (const pubkey of pubkeys) {
-		const wallet = getNutsWallet(pubkey);
-		if (wallet) {
-			const proofsForThisWallet = p2pkProofs.filter((proof) => {
-				try {
-					const secretObj = JSON.parse(proof.secret);
-					return secretObj.p2pk === pubkey;
+					const p2pk = secretObj.p2pk || secretObj[1]?.data;
+					return p2pk === pubkey;
 				} catch (e) {
 					return false;
 				}
 			});
 			if (proofsForThisWallet.length > 0) {
 				const cashuWallet = await wallet.getWallet(mint);
-
-				const proofs = await cashuWallet.receive({ mint, proofs: proofsForThisWallet });
-				await wallet.saveProofs(mint, proofs);
+				try {
+					const receivedProofs = await cashuWallet.receive(
+						{ mint, proofs: proofsForThisWallet, unit: 'sat' },
+						{ privkey: wallet.privkey }
+					);
+					console.log('success');
+					await wallet.saveProofs(mint, receivedProofs);
+				} catch (error) {
+					console.error('Error receiving proofs:', error);
+				}
 			}
 		} else {
 			// Collect proofs that couldn't be distributed
@@ -208,16 +157,21 @@ export const receiveProofs = async (mint: string, proofs: Proof[]): Promise<void
 			undistributedProofs = [...undistributedProofs, ...proofsForThisPubkey];
 		}
 	}
-
 	// Find the zero wallet (created at 0)
 	const zeroWallet = Array.from(nutsWallets.values()).find((wallet) => wallet.createdAt === 0);
-	// Add undistributed proofs to the "0" wallet
+	// Process undistributed proofs with the zero wallet
 	if (undistributedProofs.length > 0 && zeroWallet) {
 		const cashuWallet = await zeroWallet.getWallet(mint);
-		const proofs = await cashuWallet.receive({ mint, proofs: undistributedProofs });
-		await zeroWallet.saveProofs(mint, proofs);
+		try {
+			const receivedProofs = await cashuWallet.receive({ mint, proofs: undistributedProofs });
+			await zeroWallet.saveProofs(mint, receivedProofs);
+		} catch (error) {
+			console.error('Error receiving undistributed proofs:', error);
+		}
 	}
 };
+
+// to be used when receiving a zap
 
 // Function to dispatch all proofs from the zero wallet to their respective wallets
 export const dispatchAllProofs = async (previousWallet?: NutsWallet): Promise<void> => {
@@ -330,7 +284,7 @@ export class NutsWallet {
 	public unspentProofs: Map<string, Proof[]> = new Map();
 	public spentProofs: Map<string, Proof[]> = new Map();
 
-	public wallets: Map<string, CashuWallet> = new Map();
+	public wallets: Map<string, Wallet> = new Map();
 
 	public mints: Mint[] = [];
 
@@ -399,14 +353,14 @@ export class NutsWallet {
 		this.balanceByMint.set(newBalanceByMint);
 	};
 
-	public getWallet = async (mintUrl: string): Promise<CashuWallet> => {
+	public getWallet = async (mintUrl: string): Promise<Wallet> => {
 		mintUrl = normalizeMintURL(mintUrl);
 		if (!mintUrl) throw new Error('Mint URL is required');
 
 		let wallet = this.wallets.get(mintUrl);
 		if (!wallet) {
-			const mintInstance = new CashuMint(mintUrl);
-			wallet = new CashuWallet(mintInstance);
+			const mintInstance = new Mint(mintUrl);
+			wallet = new Wallet(mintInstance);
 			await wallet.loadMint();
 			this.wallets.set(mintUrl, wallet);
 		}

@@ -30,6 +30,7 @@
 					$kind0 = undefined;
 					$kind17375 = undefined;
 					$kind3 = undefined;
+					window.location.reload();
 				}}
 			>
 				Log Out

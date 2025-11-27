@@ -5,7 +5,12 @@
 
 	import Icon from '@iconify/svelte';
 
-	let theme = browser ? localStorage.getItem('theme') || 'dark' : 'dark';
+	const themes = ['touchgrass', 'nightsky', 'matteblack', 'snowwhite', 'downfox', 'sunset'];
+
+	let theme =
+		browser && themes.includes(localStorage.getItem('theme') || '')
+			? localStorage.getItem('theme')
+			: 'matteblack';
 
 	onMount(() => {});
 
@@ -14,7 +19,7 @@
 			document.getElementsByTagName('html')[0].setAttribute('data-theme', theme);
 			document
 				.querySelector('meta[name="theme-color"]')
-				?.setAttribute('content', theme === 'dark' ? '#131716' : '#f9fafb');
+				?.setAttribute('content', theme === 'matteblack' ? '#131716' : '#f9fafb');
 		}
 	}
 

@@ -1,6 +1,6 @@
 import { sequence } from '@sveltejs/kit/hooks';
 import type { Handle } from '@sveltejs/kit';
-import LnutsHandler from '@candypoets/lnuts';
+import { LnutsHandler } from '@candypoets/lnuts';
 
 // Initialize lnuts handler
 const lnuts = new LnutsHandler();
@@ -8,8 +8,6 @@ const lnuts = new LnutsHandler();
 // Middleware 1: Security Headers
 const securityHeaders: Handle = async ({ event, resolve }) => {
 	const { setHeaders, url } = event;
-
-	console.log('🚀 Security headers middleware for:', url.pathname);
 
 	const headers: Record<string, string> = {
 		'Cross-Origin-Embedder-Policy': 'require-corp',

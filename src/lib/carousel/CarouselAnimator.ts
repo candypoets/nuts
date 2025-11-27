@@ -38,6 +38,11 @@ export class CarouselAnimator {
 
 	setItems(items: HTMLElement[]) {
 		this.items = items;
+		// GPU acceleration hints
+		this.items.forEach((item) => {
+			item.style.willChange = 'transform, opacity';
+			item.style.backfaceVisibility = 'hidden';
+		});
 		this.cancelAllAnimations();
 		this.currentAnimations = new Array(items.length).fill(null);
 		this.currentStates = new Array(items.length)
@@ -82,6 +87,9 @@ export class CarouselAnimator {
 			const bar = document.createElement('div');
 			// Base styling; widths/grow are controlled dynamically
 			bar.className = 'h-1 bg-white bg-opacity-30 rounded-full will-change-transform progress-bar';
+			// GPU acceleration hints
+			bar.style.willChange = 'transform, opacity, flex-grow';
+			bar.style.backfaceVisibility = 'hidden';
 			// Make them flexible; we’ll set flexGrow dynamically
 			bar.style.flexGrow = '1';
 			bar.style.flexBasis = '0%';
@@ -188,7 +196,6 @@ export class CarouselAnimator {
 			// Update virtual position and use RAF for immediate response
 			this.virtualXPosition = this._currentIndex * this.scrollerWidth - constrainedDeltaX;
 			this.trackTouchPosition(this.virtualXPosition, isMobile);
-			this.updateProgressBars(this.virtualXPosition);
 		}
 	}
 
@@ -359,6 +366,9 @@ export class CarouselAnimator {
 		}
 
 		this.touchRAF = requestAnimationFrame(() => {
+			// Update progress bars in sync with the frame
+			this.updateProgressBars(virtualXPosition);
+
 			// Ensure only current + neighbor are visible during drag on mobile
 			if (isMobile) {
 				this.ensureVisibleForSwipeMobile(virtualXPosition);

@@ -21,7 +21,7 @@
 	}
 
 	onMount(() => {
-		let theme = localStorage.getItem('theme') || 'dark';
+		let theme = localStorage.getItem('theme') || 'matteblack';
 		setViewport();
 		initRelayTracking();
 		document.getElementsByTagName('html')[0].setAttribute('data-theme', theme);
