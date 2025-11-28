@@ -106,9 +106,9 @@ export default defineConfig(({ mode }) => {
 		],
 		resolve: {
 			alias: {
-				src: ['/src'],
-				'@cashu/cashu-ts': path.resolve(__dirname, '../cashu-ts/src'),
-				'@candypoets/lnuts': path.resolve(__dirname, '../lnuts/src')
+				src: ['/src']
+				// '@cashu/cashu-ts': path.resolve(__dirname, '../cashu-ts/src'),
+				// '@candypoets/lnuts': path.resolve(__dirname, '../lnuts/src')
 			}
 		}
 	};

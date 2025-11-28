@@ -55,7 +55,7 @@
 	},
 	"type": "module",
 	"dependencies": {
-		"@candypoets/lnuts": "^0.1.5",
+		"@candypoets/lnuts": "^0.1.6",
 		"@candypoets/nipworker": "^0.0.69",
 		"@cashu/cashu-ts": "3.1.1",
 		"@gandlaf21/bc-ur": "^1.1.12",
