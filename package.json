@@ -84,7 +84,6 @@
 		"motion": "^12.23.3",
 		"nostr-editor": "^0.0.4-pre.15",
 		"nostr-relaypool": "^0.6.30",
-		"sharp": "^0.33.0",
 		"svelte-feather-icons": "^4.1.0",
 		"svelte-qrcode-image": "^1.0.0-rc.2",
 		"svelte-tiptap": "1.1.3",

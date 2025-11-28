@@ -19,13 +19,11 @@ ENV VITE_ENABLE_SSL=$VITE_ENABLE_SSL
 # Copy package files first (for dep installation)
 COPY package*.json ./
 
+RUN npm install
+
 # Copy source code
 COPY . .
 
-# Fix for Rollup optional deps: Remove any pre-existing node_modules and lockfile,
-# then reinstall to ensure compatibility with Alpine (musl libc)
-RUN rm -rf node_modules package-lock.json && \
-    npm install
 
 # Build the application (generates build/index.js, build/client/, etc.)
 RUN npm run build
@@ -41,8 +39,6 @@ COPY package*.json ./
 # Install only production dependencies
 RUN npm ci --only=production && npm cache clean --force
 
-# CRITICAL: Rebuild sharp for production
-RUN npm rebuild sharp --update-binary
 
 # Copy built application (includes build/index.js and all subfolders/files)
 COPY --from=builder /app/build ./build
