@@ -218,10 +218,13 @@
 
 			// Determine the index based on the current route
 			if ($page.url.pathname.startsWith('/chat')) {
+				carouselAnimator.setPage(2, $page.url.pathname);
 				carouselAnimator.moveToIndex(2, 0);
 			} else if ($page.url.pathname.startsWith('/explore')) {
+				carouselAnimator.setPage(1, $page.url.pathname);
 				carouselAnimator.moveToIndex(1, 0);
 			} else if ($page.url.pathname.startsWith('/home')) {
+				carouselAnimator.setPage(0, $page.url.pathname);
 				carouselAnimator.moveToIndex(0, 0);
 			}
 		};

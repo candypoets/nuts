@@ -70,6 +70,11 @@ export class CarouselAnimator {
 		this.updateProgressBars(this._currentIndex * this.scrollerWidth);
 	}
 
+	setPage(index: number, pathname: string) {
+		this.pages[index] = pathname;
+		this.setCurrentIndex(index);
+	}
+
 	// Pass the container for the progress bars (empty div). Animator builds/controls bars.
 	setProgressContainer(container: HTMLElement) {
 		this.progressContainer = container;
@@ -129,10 +134,8 @@ export class CarouselAnimator {
 
 	moveToIndex(index: number, duration: number = 400, isMobile: boolean = false) {
 		if (index < 0 || index >= this.pages.length) return;
-		if (this.pages[index] != get(page).url.pathname) {
-			this.pages[this._currentIndex] = get(page).url.pathname;
-		}
 		const fromIndex = this._currentIndex;
+		this.pages[fromIndex] = get(page).url.pathname;
 		this.setCurrentIndex(index);
 		const targetX = index * this.scrollerWidth;
 		this.animateToPosition(targetX, duration, isMobile, fromIndex);
