@@ -1,6 +1,9 @@
 # Multi-stage build for NutsCash SvelteKit application
 FROM node:20-alpine AS builder
 
+# Install build tools required for native modules (better-sqlite3)
+RUN apk add --no-cache python3 make g++
+
 WORKDIR /app
 
 ARG VITE_INDEXER_RELAYS="wss://relay.nostr.band,wss://purplepag.es,wss://relay.damus.io"
@@ -16,34 +19,42 @@ ENV VITE_DEFAULT_RELAYS=$VITE_DEFAULT_RELAYS
 ENV PUBLIC_LNUTS_DOMAIN=$PUBLIC_LNUTS_DOMAIN
 ENV VITE_ENABLE_SSL=$VITE_ENABLE_SSL
 
-# Copy package files first (for dep installation)
-COPY package*.json ./
+# Copy ONLY package.json (ignore local package-lock.json to fix cross-platform Rollup issues)
+COPY package.json ./
 
+# Install dependencies (this generates a fresh, correct package-lock.json for Alpine)
 RUN npm install
 
 # Copy source code
 COPY . .
 
-
-# Build the application (generates build/index.js, build/client/, etc.)
+# Build the application
 RUN npm run build
 
 # Production stage
 FROM node:20-alpine AS runner
 
+# Install build tools for native modules in production
+RUN apk add --no-cache python3 make g++
+
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Set production environment
+ENV NODE_ENV=production
 
-# Install only production dependencies
+# Copy package.json
+COPY package.json ./
+
+# Copy the Alpine-compatible lockfile generated in the builder stage
+COPY --from=builder /app/package-lock.json ./
+
+# Install only production dependencies using the fresh lockfile
 RUN npm ci --only=production && npm cache clean --force
 
-
-# Copy built application (includes build/index.js and all subfolders/files)
+# Copy built application
 COPY --from=builder /app/build ./build
 
 EXPOSE 3000
 
-# Start the default adapter-node server
+# Start the server
 CMD ["node", "build/index.js"]
