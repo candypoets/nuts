@@ -30,8 +30,6 @@ export async function proxyRequest({ url, request }: RequestEvent): Promise<Resp
 		throw error(500, `Invalid URL construction: ${err.message}`);
 	}
 
-	console.log('targetUrl', targetUrl);
-
 	try {
 		const response = await fetch(targetUrl, {
 			method: request.method,
