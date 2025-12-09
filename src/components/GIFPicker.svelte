@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import { fly } from 'svelte/transition';
 	import Icon from '@iconify/svelte';
 	import axios from 'axios';
@@ -44,7 +44,6 @@
 	}
 
 	async function searchGifs() {
-		console.log('searchGif');
 		if (!searchTerm.trim()) {
 			gifs = trendingGifs;
 			return;
@@ -86,26 +85,40 @@
 	}
 </script>
 
-<button
-	type="button"
-	class="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 {show
-		? 'bg-gray-100 dark:bg-gray-700'
-		: ''}"
-	title="Insert GIF"
-	on:click={toggleGifPicker}
-	data-gif-trigger
->
-	<Icon icon="mage:gif" class="w-5 h-5" />
-</button>
-
 {#if show}
 	<div
-		class="fixed z-50 bg-white dark:bg-gray-800 right-12 w-96 rounded-lg border border-gray-200 dark:border-gray-700 shadow-lg {position ===
-		'top'
-			? 'top-0'
-			: 'bottom-0'}"
-		transition:fly={{ y: position === 'top' ? 10 : -10, duration: 150 }}
+		class="bg-opacity-85 bg-base-100 rounded-lg border border-gray-200 dark:border-gray-700 shadow-lg"
+		transition:fly={{ y: -10, duration: 150 }}
 	>
+		<div class="p-2 overflow-scroll h-[300px]">
+			{#if isLoading}
+				<div class="flex justify-center items-center py-8">
+					<div
+						class="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-500"
+					></div>
+				</div>
+			{:else if gifs.length === 0}
+				<div class="flex justify-center items-center py-8 text-gray-500 dark:text-gray-400 text-sm">
+					No GIFs found
+				</div>
+			{:else}
+				<div class="grid md:grid-cols-5 grid-cols-2 gap-2">
+					{#each gifs as gif}
+						<button
+							class="overflow-hidden rounded aspect-[4/3] bg-gray-100 dark:bg-gray-700 hover:ring-2 hover:ring-blue-300 dark:hover:ring-blue-700 transition"
+							on:click={() => handleSelect(gif)}
+						>
+							<img
+								src={gif.media_formats.tinygif.url}
+								alt={gif.content_description || 'GIF'}
+								class="w-full h-full object-cover"
+								loading="lazy"
+							/>
+						</button>
+					{/each}
+				</div>
+			{/if}
+		</div>
 		<div class="p-2 border-b border-gray-200 dark:border-gray-700">
 			<div class="relative">
 				<input
@@ -128,36 +141,6 @@
 				</button>
 			</div>
 		</div>
-
-		<div class="p-2 overflow-y-auto h-[300px]">
-			{#if isLoading}
-				<div class="flex justify-center items-center py-8">
-					<div
-						class="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-500"
-					></div>
-				</div>
-			{:else if gifs.length === 0}
-				<div class="flex justify-center items-center py-8 text-gray-500 dark:text-gray-400 text-sm">
-					No GIFs found
-				</div>
-			{:else}
-				<div class="grid grid-cols-2 gap-2">
-					{#each gifs as gif}
-						<button
-							class="overflow-hidden rounded aspect-[4/3] bg-gray-100 dark:bg-gray-700 hover:ring-2 hover:ring-blue-300 dark:hover:ring-blue-700 transition"
-							on:click={() => handleSelect(gif)}
-						>
-							<img
-								src={gif.media_formats.tinygif.url}
-								alt={gif.content_description || 'GIF'}
-								class="w-full h-full object-cover"
-								loading="lazy"
-							/>
-						</button>
-					{/each}
-				</div>
-			{/if}
-		</div>
 	</div>
-	<div class="fixed inset-0 z-10" on:click={() => (show = false)}></div>
+	<!-- <div class="fixed inset-0 z-10" on:click={() => (show = false)}></div> -->
 {/if}

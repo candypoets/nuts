@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { ConnectionStatus, nipWorker, type WorkerMessage } from '@candypoets/nipworker';
+	import { ConnectionStatus, manager, type WorkerMessage } from '@candypoets/nipworker';
 	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
 	import { isConnectionStatus, isKind0 } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
@@ -146,7 +146,7 @@
 
 		// Handle signup logic here
 		//
-		nipWorker.setSigner('privKey', privkey);
+		manager.setSigner('privKey', privkey);
 
 		$key = {
 			pub: pubkey,

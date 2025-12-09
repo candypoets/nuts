@@ -4,7 +4,7 @@
 	import {
 		Kind10002Parsed,
 		Kind3Parsed,
-		nipWorker,
+		manager,
 		ParsedData,
 		WorkerMessage,
 		type RequestObject
@@ -62,7 +62,7 @@
 
 	let progressContainer: HTMLDivElement | null = null;
 
-	$: $key && $key.priv && nipWorker.setSigner('privkey', $key.priv);
+	$: $key && $key.priv && manager.setSigner('privkey', $key.priv);
 
 	setupPagerAnimators($viewport, goBack);
 

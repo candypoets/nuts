@@ -35,9 +35,7 @@
 	let editor: Readable<Editor>;
 	let isSubmitting = false;
 	let pagerAnimator: PagerAnimator | undefined = getContext('animator');
-
-	// Tenor API key
-	const TENOR_API_KEY = 'AIzaSyB692q5nvoGphnMusHRvm1D_98a-DSQJRA';
+	let showPicker = false;
 
 	onMount(async () => {
 		if (noteId) {
@@ -149,6 +147,11 @@
 			}
 		}
 	}
+
+	function toggleGifPicker() {
+		showPicker = !showPicker;
+		// $editor?.commands.focus();
+	}
 </script>
 
 <div class="flex items-start md:items-center h-screen">
@@ -164,7 +167,7 @@
 			<div
 				class="bg-base-300 md:border border-primary-content bg-opacity-85 rounded-xl px-4 w-feed md:h-auto md:min-h-fit min-h-screen backdrop-blur-sm overflow-visible"
 			>
-				<div class=" md:px-0 pt-safe flex justify-between h-20 items-center">
+				<div class="md:px-0 pt-safe flex justify-between h-20 items-center">
 					<div on:click={pagerAnimator.goBack}>
 						<Icon icon="mingcute:down-line" class="text-xl" />
 					</div>
@@ -189,7 +192,13 @@
 					on:keydown|stopPropagation={handleKeyDown}
 					tabindex="-1"
 				>
-					<Editor {initialContent} bind:editor autoFocus={initialContent || $composing}>
+					<Editor
+						{initialContent}
+						class="min-h-32"
+						bind:editor
+						autoFocus={initialContent || $composing}
+						{showPicker}
+					>
 						{#if reply}
 							Reply to
 							{#if note}
@@ -225,14 +234,19 @@
 						</button>
 
 						<!-- Emoji picker button -->
-						<div class="relative">
+						<!-- <div class="relative">
 							<EmojiPicker onEmojiSelect={handleEmojiSelect} position="bottom" />
-						</div>
+						</div> -->
 
-						<!-- GIF picker button -->
-						<div class="relative">
-							<GifPicker apiKey={TENOR_API_KEY} onGifSelect={handleGifSelect} position="top" />
-						</div>
+						<button
+							type="button"
+							class="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+							title="Insert GIF"
+							on:click={toggleGifPicker}
+							data-gif-trigger
+						>
+							<Icon icon="mage:gif" class="w-5 h-5" />
+						</button>
 					</div>
 
 					<!-- Cancel & Post buttons -->

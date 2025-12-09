@@ -150,7 +150,8 @@
 					new PipeT(PipeConfig.ParsePipeConfig, new ParsePipeConfigT()),
 					new PipeT(PipeConfig.SaveToDbPipeConfig, new SaveToDbPipeConfigT()),
 					new PipeT(PipeConfig.ProofVerificationPipeConfig, new ProofVerificationPipeConfigT(500))
-				]
+				],
+				isSlow: true
 			}
 		);
 	}
@@ -175,6 +176,7 @@
 				walletLoaded.resolve(true);
 			}
 			connectionStatus[status?.relayUrl()!.toString()] = status;
+			return;
 		}
 		const parsedEvent = isParsedEvent(message);
 		const wallet = isKind17375(message);

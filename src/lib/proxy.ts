@@ -69,7 +69,7 @@ export function proxyVideoUrl(videoUrl: string): string {
  */
 export const ImagePresets = {
 	// Profile avatars - small, circular
-	avatar: { width: 128, height: 128, quality: 85, format: 'webp' as const, fit: 'cover' as const },
+	avatar: { quality: 50, format: 'webp' as const, fit: 'cover' as const },
 
 	// Thumbnails for feeds
 	thumbnail: {
@@ -84,7 +84,7 @@ export const ImagePresets = {
 	preview: { width: 800, height: 600, quality: 85, format: 'webp' as const, fit: 'cover' as const },
 
 	// Full size but optimized
-	full: { width: 1920, height: 1080, quality: 90, format: 'webp' as const, fit: 'inside' as const },
+	full: { quality: 90 },
 
 	// Banner images
 	banner: { width: 1200, height: 400, quality: 85, format: 'webp' as const, fit: 'cover' as const }

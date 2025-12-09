@@ -151,16 +151,21 @@
 
 		const correctEvent = finalizeEvent(event, hexToBytes($key?.priv));
 
-		usePublish('reaction_' + decoded.id, event, (message: WorkerMessage) => {
-			const status = isConnectionStatus(message);
-			if (status) {
-				const relayUrl = status.relayUrl()?.toString();
-				if (relayUrl) {
-					sendStatus[relayUrl] = status;
-					updateSendStatus('repost_' + decoded.id, sendStatus);
+		usePublish(
+			'reaction_' + decoded.id,
+			event,
+			(message: WorkerMessage) => {
+				const status = isConnectionStatus(message);
+				if (status) {
+					const relayUrl = status.relayUrl()?.toString();
+					if (relayUrl) {
+						sendStatus[relayUrl] = status;
+						updateSendStatus('repost_' + decoded.id, sendStatus);
+					}
 				}
-			}
-		});
+			},
+			{ defaultRelays: relays, trackStatus: true }
+		);
 	}
 
 	function sendRepost() {

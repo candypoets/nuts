@@ -1,41 +1,38 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import { random } from 'lodash';
-	import { getEventHash, type EventTemplate, type UnsignedEvent } from 'nostr-tools';
+	import { getEventHash, type UnsignedEvent } from 'nostr-tools';
 
 	import type { ParsedEvent, WorkerMessage } from '@candypoets/nipworker';
-	import {
-		ContentBlockT,
-		ContentData,
-		Kind4ParsedT,
-		MessageType,
-		ParsedData,
-		ParsedEventT,
-		Message as FBMessage,
-		WorkerMessageT
-	} from '@candypoets/nipworker';
+	import { Kind4ParsedT, ParsedData, ParsedEventT } from '@candypoets/nipworker';
+	import { usePublish } from '@candypoets/nipworker/hooks';
 	import { asParsedEvent, parseContent } from '@candypoets/nipworker/utils';
 	import Editor from 'src/components/Editor.svelte';
 	import { key, readRelays, writeRelays } from 'src/controller';
+	import { toParsedEvent } from 'src/controller/feed';
 	import { now } from 'src/lib/period';
 	import Message from 'src/routes/_kinds/message.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import User from 'src/routes/explore/user.svelte';
-	import { usePublish } from '@candypoets/nipworker/hooks';
-	import { toParsedEvent } from 'src/controller/feed';
 	import { go } from '../modals/modal';
+	import EmojiPicker from 'src/components/EmojiPicker.svelte';
+	import GifPicker from 'src/components/GIFPicker.svelte';
+	import type { Readable } from 'svelte/motion';
 
 	// in a chat, pubkey is the other person's pubkey
 	export let pubkey: string;
 	export let visible: boolean;
 	export let goBack: () => void;
 
+	let showPicker = false;
+
 	let feedRequests: any[] = [];
 	let message: string = '';
 
 	let sent: ParsedEvent;
 	let feed: ParsedEvent[] = [];
+
+	let editor: Readable<Editor>;
 
 	let sendingMap = new Map<number, number>();
 
@@ -136,6 +133,11 @@
 	}
 
 	$: feed = feed.sort((a, b) => b.createdAt() - a.createdAt());
+
+	function toggleGifPicker() {
+		showPicker = !showPicker;
+		// $editor?.commands.focus();
+	}
 </script>
 
 <Feed
@@ -166,16 +168,33 @@
 			<div />
 		</div>
 		<div
-			class="fixed bottom-0 w-feed pb-safe md:pb-4 backdrop-blur-xl"
+			class="fixed bottom-0 w-feed pb-safe md:pb-4 backdrop-blur-xl px-4 flex items-center"
 			style="-webkit-backdrop-filter: blur(12px);"
 		>
 			<Editor
-				placeholder="Message..."
 				initialContent=""
 				isCompact={true}
 				submitOnEnter={true}
+				class="!rounded-full"
 				onSubmit={handleMessageSubmit}
-			/>
+				bind:editor
+				bind:showPicker
+				sendButton
+				autofocus
+			>
+				<svelte:fragment slot="toolbar">
+					<button
+						type="button"
+						class="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+						title="Insert GIF"
+						on:click={toggleGifPicker}
+						data-gif-trigger
+					>
+						<Icon icon="mage:gif" class="w-5 h-5" />
+					</button>
+				</svelte:fragment>
+				<div class="md:px-2">Message</div>
+			</Editor>
 		</div>
 	</svelte:fragment>
 	<svelte:fragment slot="header">

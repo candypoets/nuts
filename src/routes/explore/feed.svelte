@@ -3,7 +3,7 @@
 	import {
 		ConnectionStatus,
 		MessageType,
-		nipWorker,
+		manager,
 		type SubscriptionConfig
 	} from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
@@ -179,7 +179,7 @@
 					// resume head subscription with "since"
 					const since = feed.length > 0 ? (feed[0]?.createdAt?.() ?? now()) : now();
 					sub?.();
-					nipWorker.cleanup();
+					// manager.cleanup();
 					sub = useSubscription(
 						subscriptionID + '_head',
 						requests.map((r) => ({ ...r, since })),
@@ -193,7 +193,9 @@
 
 			case MessageType.ConnectionStatus: {
 				const status = asConnectionStatus(message);
+				// console.log('connection status');
 				if (status) {
+					// console.log('status', status.relayUrl()!.toString(), status.status()!.toString());
 					connectionStatus[normalizeURL(status.relayUrl()!.toString())] = status;
 					if (status.status()!.toString() == 'EOSE' && eose == false) {
 						loading = false;
@@ -206,6 +208,7 @@
 			}
 
 			case MessageType.Eoce: {
+				// console.log('EOCE');
 				if (!eoce) {
 					eoce = true;
 					// Make fetchedMap inherit everything processed during the cache phase
@@ -456,7 +459,7 @@
 
 		// tear down previous
 		pagesub?.();
-		nipWorker.cleanup();
+		manager.cleanup();
 
 		// compute a robust "older" window
 		const sortedFeed = feed; // already sorted desc
@@ -529,7 +532,7 @@
 		const since = feed.length ? Number(feed[0].createdAt()) : now();
 		const subId = subscriptionID + '_pull_' + Date.now();
 		sub?.();
-		nipWorker.cleanup();
+		manager.cleanup();
 		sub = useSubscription(
 			subId,
 			requests.map((r) => ({ ...r, since })),

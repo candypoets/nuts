@@ -1,6 +1,6 @@
 import { goto } from '$app/navigation';
 import { page } from '$app/stores';
-import { nipWorker } from '@candypoets/nipworker';
+import { manager } from '@candypoets/nipworker';
 import { get } from 'svelte/store';
 import { key } from 'src/controller';
 
@@ -74,7 +74,7 @@ export function goBack() {
 
 	// Find the last "/" and get everything before it
 	const lastSlashIndex = currentPath.lastIndexOf('/');
-	nipWorker.cleanup();
+	manager.cleanup();
 	if (lastSlashIndex > 0) {
 		// Navigate to the parent path (everything before last slash)
 		const parentPath = currentPath.substring(0, lastSlashIndex);
@@ -97,7 +97,7 @@ export function go(eventPath: string) {
 	// Check if the current URL already ends with the profile we're trying to navigate to
 	if (!currentPath.endsWith(eventPath)) {
 		setTimeout(() => {
-			nipWorker.cleanup();
+			manager.cleanup();
 		}, 300);
 		goto(`${currentPath}/${eventPath}`);
 	}
