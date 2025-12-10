@@ -52,6 +52,17 @@ html[data-theme='sunset'] {
 		url("/suisse/13ab13418f633c1b0516fed6e30bedbc.svg#Suisse Int'l") format('svg');
 }
 
+/* Hide scrollbars (WebKit/Blink) */
+.no-scrollbar::-webkit-scrollbar {
+	display: none;
+}
+
+/* Hide scrollbars (Firefox, old IE/Edge) */
+.no-scrollbar {
+	-ms-overflow-style: none; /* IE 10+ */
+	scrollbar-width: none; /* Firefox */
+}
+
 .fine-border {
 	border: 1px solid rgba(0, 0, 0, 0.2);
 }

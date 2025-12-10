@@ -1,11 +1,12 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import { onMount } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import { createEditor, Editor, EditorContent } from 'svelte-tiptap';
 	import type { Readable } from 'svelte/store';
 
 	import { extensions } from 'src/editor';
 	import GifPicker from 'src/components/GIFPicker.svelte';
+	import { Container } from 'postcss';
 
 	export let showPicker = false;
 
@@ -16,17 +17,24 @@
 	export let onSubmit: (content: string) => void;
 
 	// Bindings - expose editor instance
-	export let editor: Readable<Editor> = undefined;
+	export let editor: Readable<Editor>;
 
 	// Internal state
 	let editorReady = false;
 
-	onMount(async () => {
+	let editorElement: HTMLDivElement | null = null;
+
+	$: if (editorElement && !editor) {
+		instanciate();
+	}
+
+	const instanciate = () => {
 		editor = createEditor({
+			element: editorElement,
 			extensions,
 			editorProps: {
 				attributes: {
-					class: 'outline-none',
+					class: 'outline-none w-full',
 					spellcheck: 'false',
 					autocorrect: 'off',
 					autocapitalize: 'off',
@@ -47,10 +55,10 @@
 				focusEditor();
 			}, 100);
 		}
-	});
+	};
 
 	function focusEditor() {
-		if (!$editor) return;
+		if (!editor) return;
 
 		requestAnimationFrame(() => {
 			$editor.commands.focus();
@@ -72,13 +80,13 @@
 	}
 
 	export function clear() {
-		if ($editor) {
+		if (editor) {
 			$editor.commands.clearContent();
 		}
 	}
 
 	export function setContent(content: string) {
-		if ($editor) {
+		if (editor) {
 			$editor.commands.setContent(content);
 		}
 	}
@@ -94,7 +102,7 @@
 	function toggleGifPicker() {
 		console.log('toggleGifPicker');
 		showPicker = !showPicker;
-		// $editor?.commands.focus();
+		// editor?.commands.focus();
 	}
 
 	function handleGifSelect(gif: any) {
@@ -106,35 +114,61 @@
 		showPicker = false;
 	}
 
-	$: showPicker && $editor?.commands.focus();
+	function handleKeyDown(event: KeyboardEvent) {
+		if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+			event.preventDefault();
+			submit();
+		}
+
+		if (event.key === 'Escape') {
+			if (!$editor?.getText()) {
+				// pagerAnimator.goBack();
+			} else {
+				$editor.commands.blur();
+			}
+		}
+	}
+
+	function submit() {
+		onSubmit($editor.getText());
+		$editor.commands.clearContent();
+		$editor.commands.focus();
+	}
+
+	// $: showPicker && editor?.commands.focus();
 </script>
 
-<div class="w-full">
+<div class="w-full" on:keydown|stopPropagation={handleKeyDown}>
 	<GifPicker show={showPicker} onGifSelect={handleGifSelect} />
-	<div class="flex items-center gap-2 relative mt-2">
+	<div
+		class="flex items-center relative mt-2 dark:prose-invert gap-1 prose-sm max-w-none rounded-md overflow-hidden"
+	>
+		<slot name="toolbar" />
 		<div
-			class={'h-12 flex items-start justify-between w-full border border-primary-content prose dark:prose-invert prose-sm max-w-none p-3 md:py-2 py-2 bg-opacity-85 bg-base-100 rounded-md cursor-text text-highlight ' +
+			bind:this={editorElement}
+			class={'flex items-stretch bg-opacity-90 bg-base-300 justify-between w-full prose p-3 md:py-2 py-2 cursor-text text-highlight ' +
 				($$props.class || '')}
 			style="-webkit-backdrop-filter: blur(12px);"
 		>
-			{#if editor}
-				<div class="w-full h-8">
-					<EditorContent editor={$editor} on:click={toggleGifPicker} />
-				</div>
-			{/if}
-			<slot name="toolbar" />
+			<div class="h-6">
+				<!-- Placeholder text -->
+				{#if !$editor?.getText().trim() && $$slots.default}
+					<div
+						class="absolute pointer-events-none text-opacity-50 text-base-content"
+						style={editorReady ? '' : 'display: none;'}
+					>
+						<slot />
+					</div>
+				{/if}
+			</div>
 		</div>
-		<button type="button" class="btn btn-accent" on:click={console.log} class:hidden={!sendButton}>
+		<button
+			type="button"
+			class="px-4 py-2 bg-accent rounded-r-full rounded-l-md"
+			on:click={submit}
+			class:hidden={!sendButton}
+		>
 			<Icon icon="mdi:send" class="text-xl" />
 		</button>
-		<!-- Placeholder text -->
-		{#if !$editor?.getText().trim() && $$slots.default}
-			<div
-				class="absolute py-2 md:left-3 top-0 left-6 text-gray-400 pointer-events-none text-accent"
-				style={editorReady ? '' : 'display: none;'}
-			>
-				<slot />
-			</div>
-		{/if}
 	</div>
 </div>

@@ -25,14 +25,16 @@
 				<Icon icon="mingcute:down-line" class="text-xl" />
 			</div>
 		</div>
-		<div class="flex justify-between">
-			<button class="mt-4 mx-4" on:click={() => go('kind0')}>
+		<div class="flex gap-2 items-center">
+			<button class="mt-4 ml-4" on:click={() => go('kind0')}>
 				<img
 					class="w-12 h-12 border rounded-full"
 					src={proxyAvatarUrl(asKind0($kind0)?.picture()?.toString()) || '/miss-profile.png'}
 				/></button
 			>
-			<Theme />
+			<button class="btn btn-outline mt-4 btn-circle" on:click={() => go('theme')}>
+				<Icon icon="mdi:palette" class="text-2xl" />
+			</button>
 		</div>
 	</div>
 	<div class="p-4 overflow-scroll">

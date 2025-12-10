@@ -239,7 +239,7 @@
 						<span class="flex gap-1 max-h-6">
 							{#if post.pubkey == $key?.pub}<span class="text-primary">you:</span>
 							{/if}
-							<Content note={post} class="!w-auto flex-grow" />
+							<Content note={post} showQuote={false} class="!w-auto flex-grow" />
 						</span>
 					</div>
 				</div>

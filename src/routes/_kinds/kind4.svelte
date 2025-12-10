@@ -15,8 +15,6 @@
 	import Feed from 'src/routes/explore/feed.svelte';
 	import User from 'src/routes/explore/user.svelte';
 	import { go } from '../modals/modal';
-	import EmojiPicker from 'src/components/EmojiPicker.svelte';
-	import GifPicker from 'src/components/GIFPicker.svelte';
 	import type { Readable } from 'svelte/motion';
 
 	// in a chat, pubkey is the other person's pubkey
@@ -31,8 +29,6 @@
 
 	let sent: ParsedEvent;
 	let feed: ParsedEvent[] = [];
-
-	let editor: Readable<Editor>;
 
 	let sendingMap = new Map<number, number>();
 
@@ -171,29 +167,31 @@
 			class="fixed bottom-0 w-feed pb-safe md:pb-4 backdrop-blur-xl px-4 flex items-center"
 			style="-webkit-backdrop-filter: blur(12px);"
 		>
+			<!-- <Editor initialContent="" class="min-h-32" {showPicker}>Reply to</Editor> -->
 			<Editor
 				initialContent=""
 				isCompact={true}
 				submitOnEnter={true}
-				class="!rounded-full"
+				class="!rounded-full h-10 overflow-scroll no-scrollbar"
 				onSubmit={handleMessageSubmit}
-				bind:editor
 				bind:showPicker
 				sendButton
 				autofocus
 			>
 				<svelte:fragment slot="toolbar">
-					<button
-						type="button"
-						class="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
-						title="Insert GIF"
-						on:click={toggleGifPicker}
-						data-gif-trigger
-					>
-						<Icon icon="mage:gif" class="w-5 h-5" />
-					</button>
+					<div class="bg-opacity-90 bg-base-300 rounded-full">
+						<button
+							type="button"
+							class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+							title="Insert GIF"
+							on:click={toggleGifPicker}
+							data-gif-trigger
+						>
+							<Icon icon="mage:gif" class="w-5 h-5" />
+						</button>
+					</div>
 				</svelte:fragment>
-				<div class="md:px-2">Message</div>
+				<div class="md:px-2">Aa</div>
 			</Editor>
 		</div>
 	</svelte:fragment>

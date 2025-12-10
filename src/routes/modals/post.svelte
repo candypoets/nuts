@@ -4,8 +4,6 @@
 	import { asParsedEvent, fbArray, isConnectionStatus } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { nip19, type EventTemplate, type NostrEvent } from 'nostr-tools';
-	import EmojiPicker from 'src/components/EmojiPicker.svelte';
-	import GifPicker from 'src/components/GIFPicker.svelte';
 	import Editor from 'src/components/Editor.svelte';
 	import VirtualListBottom from 'src/components/VirtualListBottom.svelte';
 	import { isMobile } from 'src/controller';
@@ -15,7 +13,6 @@
 	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
 	import { now } from 'src/lib/period';
 	import { getContext, onMount } from 'svelte';
-	import type { Editor } from 'svelte-tiptap';
 	import type { Readable } from 'svelte/store';
 	import { fly } from 'svelte/transition';
 	import Note from '../explore/note.svelte';
@@ -49,25 +46,9 @@
 		}
 	});
 
-	function handleEmojiSelect(emoji: string) {
-		if (editor && $editor) {
-			$editor.commands.insertContent(emoji);
-			$editor.commands.focus();
-		}
-	}
-
-	function handleGifSelect(gif: any) {
-		const gifUrl = gif.media_formats.gif.url;
-		$editor.commands.insertContent(
-			`<img src="${gifUrl}" alt="${gif.content_description || 'GIF'}" />`
-		);
-		$editor.commands.focus();
-	}
-
-	async function handleSubmit() {
-		if (isSubmitting || !$editor?.getText().trim()) return;
+	async function handleSubmit(content: string) {
+		if (isSubmitting || !content) return;
 		isSubmitting = true;
-		const content = $editor.getText();
 
 		let post: EventTemplate = {
 			kind: 1,
@@ -128,24 +109,8 @@
 			}
 		});
 
-		$editor.commands.clearContent();
 		isSubmitting = false;
 		pagerAnimator.goBack();
-	}
-
-	function handleKeyDown(event: KeyboardEvent) {
-		if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-			event.preventDefault();
-			handleSubmit();
-		}
-
-		if (event.key === 'Escape') {
-			if (!$editor?.getText().trim()) {
-				pagerAnimator.goBack();
-			} else {
-				$editor.commands.blur();
-			}
-		}
 	}
 
 	function toggleGifPicker() {
@@ -187,17 +152,14 @@
 				{/if}
 
 				<!-- Editor container -->
-				<div
-					class="min-h-[120px] rounded-md relative transition-all duration-200"
-					on:keydown|stopPropagation={handleKeyDown}
-					tabindex="-1"
-				>
+				<div class="min-h-[120px] rounded-md relative transition-all duration-200" tabindex="-1">
 					<Editor
 						{initialContent}
-						class="min-h-32"
+						class="min-h-32 rounded-md border border-primary-content"
+						onSubmit={handleSubmit}
 						bind:editor
-						autoFocus={initialContent || $composing}
 						{showPicker}
+						autoFocus
 					>
 						{#if reply}
 							Reply to

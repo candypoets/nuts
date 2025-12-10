@@ -1,6 +1,6 @@
 import { SvelteNodeViewRenderer } from 'svelte-tiptap';
 import StarterKit from '@tiptap/starter-kit';
-import { NostrExtension } from 'nostr-editor';
+import { NostrExtension, type FileAttributes } from 'nostr-editor';
 import Image from './image.svelte';
 import NAddr from './naddr.svelte';
 import NEvent from './nevent.svelte';
@@ -10,6 +10,7 @@ import Video from './video.svelte';
 
 import { NostrMention } from './mention';
 import { useSignEvent } from '@candypoets/nipworker/hooks';
+import { nip96Upload } from 'src/lib';
 
 export const extensions = [
 	StarterKit,
@@ -17,6 +18,7 @@ export const extensions = [
 	NostrExtension.configure({
 		image: {
 			defaultUploadUrl: 'https://nostr.build',
+
 			defaultUploadType: 'nip96' // or blossom
 		},
 		video: {
@@ -25,14 +27,36 @@ export const extensions = [
 		},
 
 		fileUpload: {
-			immediateUpload: true, // It will automatically upload when a file is added to the editor, if false, call `editor.commands.uploadFiles()` manually
-			sign: async (event) => {
-				return new Promise((resolve) => {
-					useSignEvent(event, (signedEvent) => {
-						resolve(signedEvent);
+			upload: async (attrs: FileAttributes) => {
+				try {
+					const { url, sha256, tags } = await nip96Upload(attrs.file, {
+						server: 'https://nostr.build',
+						alt: (attrs as any)?.alt,
+						includeMimeTag: true,
+						includeDimensions: true
 					});
-				});
+
+					console.log(url, sha256);
+
+					return {
+						result: {
+							url,
+							sha256,
+							tags
+						}
+					};
+				} catch (e: any) {
+					return { error: e?.message || 'Upload failed' };
+				}
 			},
+			immediateUpload: true, // It will automatically upload when a file is added to the editor, if false, call `editor.commands.uploadFiles()` manually
+			// sign: async (event) => {
+			// 	return new Promise((resolve) => {
+			// 		useSignEvent(event, (signedEvent) => {
+			// 			resolve(signedEvent);
+			// 		});
+			// 	});
+			// },
 			onDrop() {
 				// File added to the editor
 			},

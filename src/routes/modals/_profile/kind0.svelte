@@ -15,7 +15,7 @@
 		ParsedEvent,
 		WorkerMessage
 	} from '@candypoets/nipworker';
-	import { uploadFile } from 'src/lib';
+	import { nip96Upload } from 'src/lib';
 	import { updateSendStatus } from 'src/controller/sendStatus';
 	import Editor from 'src/components/Editor.svelte';
 	import type { Editor as TipTapEditor } from 'svelte-tiptap';
@@ -192,8 +192,8 @@
 		uploadError = '';
 		uploadProgress = 0;
 		try {
-			const uploadUrl = await uploadFile(file);
-
+			const result = await nip96Upload(file);
+			const uploadUrl = result.url;
 			console.log(uploadUrl);
 			if (type === 'avatar') {
 				picture = uploadUrl;

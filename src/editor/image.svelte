@@ -4,6 +4,8 @@
 	// Props passed from the NodeView
 	export let node;
 	export let updateAttributes;
+
+	$: console.log('image node', node);
 </script>
 
 <NodeViewWrapper>
@@ -13,7 +15,7 @@
 	{:else if node.attrs.uploadError}
 		Failed to upload image
 	{:else}
-		{node.attrs.src}
+		<img src={node.attrs.src} class="h-32" />
 	{/if}
 	<!-- </div> -->
 </NodeViewWrapper>

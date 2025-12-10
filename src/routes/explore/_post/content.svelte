@@ -143,15 +143,19 @@
 					?.toString()
 					.match(/n(profile|pub)/)}
 				<User pubkey={nostr?.author()?.toString()} {context} />
-			{:else if nostr?.id() && showQuote}
-				<Note
-					noteId={nostr?.id()?.toString()}
-					{context}
-					{visible}
-					depth={depth + 1}
-					relays={fbArray(nostr, 'relays').map((r) => r.toString())}
-					footer={false}
-				/>
+			{:else if nostr?.id()}
+				{#if showQuote}
+					<Note
+						noteId={nostr?.id()?.toString()}
+						{context}
+						{visible}
+						depth={depth + 1}
+						relays={fbArray(nostr, 'relays').map((r) => r.toString())}
+						footer={false}
+					/>
+				{:else}
+					{nostr?.id()?.toString()}
+				{/if}
 			{/if}
 		{:else if parsed.dataType() == ContentData.CashuData}
 			<Cashu cashu={parsed.text()?.toString()} />
