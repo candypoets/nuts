@@ -70,7 +70,7 @@ export default defineConfig(({ mode }) => {
 				registerType: 'autoUpdate',
 				workbox: {
 					cleanupOutdatedCaches: true,
-					maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+					maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
 					runtimeCaching: [
 						{
 							urlPattern: ({ request }) =>
