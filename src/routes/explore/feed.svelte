@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { ParsedData, ParsedEvent, WorkerMessage } from '@candypoets/nipworker';
+	import type { NostrEvent, ParsedData, ParsedEvent, WorkerMessage } from '@candypoets/nipworker';
 	import {
 		ConnectionStatus,
 		MessageType,
@@ -7,7 +7,13 @@
 		type SubscriptionConfig
 	} from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
-	import { asConnectionStatus, asKind6, asParsedEvent, isKind1 } from '@candypoets/nipworker/utils';
+	import {
+		asConnectionStatus,
+		asKind6,
+		asNostrEvent,
+		asParsedEvent,
+		isKind1
+	} from '@candypoets/nipworker/utils';
 	import Fuse from 'fuse.js';
 	import { getContext, onMount } from 'svelte';
 
@@ -19,6 +25,8 @@
 	import { formatDistanceToNow } from 'date-fns';
 	import { normalizeURL } from 'nostr-tools/utils';
 	import Placeholder from 'src/components/Placeholder.svelte';
+
+	type ParsedOrNostrEvent = ParsedEvent | NostrEvent;
 
 	// Props
 	export let bottom = false;
@@ -287,6 +295,27 @@
 				}
 				break;
 			}
+			case MessageType.NostrEvent: {
+				const nostrEvent = asNostrEvent(message);
+				console.log('NostrEvent!', nostrEvent);
+				const id = nostrEvent?.id()?.fnv1aHash();
+				if (!id) return;
+				if (seen_ids.has(id)) return;
+				seen_ids.add(id);
+				if (!eoce) {
+					// cached phase
+					cachedMap.set(id, nostrEvent);
+				} else if (!eose) {
+					// pre-EOSE fetched phase
+					fetchedMap.set(id, nostrEvent);
+				} else if (page <= 0) {
+					// head stream: buffer for batch merge
+					bufferMap.set(id, nostrEvent);
+				} else {
+					// page stream post-EOSE: insert directly
+					if (upsertIntoFeed(nostrEvent)) invalidateFeed();
+				}
+			}
 		}
 	};
 
@@ -539,6 +568,8 @@
 			(message) => handleEvents(message, -1)
 		);
 	}
+
+	$: console.log('feed', feed);
 </script>
 
 <div class={'lg:pt-0 h-full min-h-screen mx-auto !pt-0 ' + $$props.class}>
