@@ -1,6 +1,6 @@
 import {
-	Kind39089Parsed,
-	Kind39089ParsedT,
+	ListParsed,
+	ListParsedT,
 	ParsedEvent,
 	ParsedEventT,
 	type Kind3Parsed
@@ -8,7 +8,7 @@ import {
 import { Builder, ByteBuffer } from 'flatbuffers';
 import { get } from 'svelte/store';
 
-import { asKind3, asKind39089, ByteString, fbArray } from '@candypoets/nipworker/utils';
+import { asKind3, asNip51, ByteString, fbArray } from '@candypoets/nipworker/utils';
 import { now } from 'src/lib/period';
 import { persistentWritable } from 'src/lib/persistentWritable';
 import { derived } from 'svelte/store';
@@ -30,7 +30,7 @@ type SerializedParsedEvent39089 = {
 	createdAt: number;
 	parsedType: number;
 	id: string;
-	listIdentifier?: string;
+	d?: string;
 	title?: string;
 	description?: string;
 	image?: string;
@@ -39,7 +39,7 @@ type SerializedParsedEvent39089 = {
 
 // Serialize a ParsedEvent by extracting fields into a plain object (JSON)
 export function serializeParsedEvent(ev: ParsedEvent): string {
-	const kind39089 = asKind39089(ev);
+	const kind39089 = asNip51(ev);
 
 	const kind = ev.kind();
 	const createdAt = ev.createdAt();
@@ -51,11 +51,11 @@ export function serializeParsedEvent(ev: ParsedEvent): string {
 		createdAt,
 		parsedType,
 		id,
-		listIdentifier: kind39089?.listIdentifier()?.toString(),
+		// listIdentifier: kind39089?.listIdentifier()?.toString(),
 		title: kind39089?.title()?.toString(),
 		description: kind39089?.description()?.toString(),
 		image: kind39089?.image()?.toString(),
-		people: fbArray(kind39089 as Kind39089Parsed, 'people').map((p) => p.toString())
+		people: fbArray(kind39089 as ListParsed, 'people').map((p) => p.toString())
 	};
 
 	return JSON.stringify(payload);
@@ -69,18 +69,13 @@ export function deserializeParsedEvent(json: string): ParsedEvent {
 
 	// Only handling kind 39089 here. Extend if you add other kinds.
 	if (o.kind === 39089 || o.parsedType === 11) {
-		const listIdentifierU8 = encoder.encode(o.listIdentifier ?? '');
+		const listIdentifierU8 = encoder.encode(o.d ?? '');
 		const titleU8 = encoder.encode(o.title ?? '');
 		const imageU8 = encoder.encode(o.image ?? '');
 		const descriptionU8 = encoder.encode(o.description ?? '');
+		const dU8 = encoder.encode(o.d ?? '');
 
-		const k39089 = new Kind39089ParsedT(
-			listIdentifierU8,
-			o.people ?? [],
-			titleU8,
-			descriptionU8,
-			imageU8
-		);
+		const k39089 = new ListParsedT(39089, dU8, titleU8, descriptionU8, imageU8, [], o.people ?? []);
 
 		const t = new ParsedEventT(
 			encoder.encode(o.id ?? ''),
@@ -147,13 +142,15 @@ export const followList = derived(kind3, ($kind3) => {
 		encoder.encode(''),
 		39089,
 		now(),
-		11,
-		new Kind39089ParsedT(
+		17,
+		new ListParsedT(
+			39089,
 			encoder.encode('followlist'),
-			peoples,
 			encoder.encode('followlist'),
 			encoder.encode('people you follow'),
-			encoder.encode('/followlist.png')
+			encoder.encode('/followlist.png'),
+			[],
+			peoples
 		)
 	);
 

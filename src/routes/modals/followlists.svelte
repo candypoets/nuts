@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { ParsedEvent, RequestObject, WorkerMessage } from '@candypoets/nipworker';
-	import { asKind39089, fbArray, isKind39089, isParsedEvent } from '@candypoets/nipworker/utils';
+	import { asNip51, fbArray, isNip51, isParsedEvent } from '@candypoets/nipworker/utils';
 
 	import Icon from '@iconify/svelte';
 	import { formatDistanceToNow } from 'date-fns';
@@ -34,11 +34,12 @@
 	// Update feed function for kind 30000 events
 	function updateFeed(currentFeed: ParsedEvent[], message: WorkerMessage): ParsedEvent[] {
 		const parsedEvent = isParsedEvent(message);
-		const kind39089 = isKind39089(message);
-		if (!kind39089) return currentFeed;
+		const kindList = isNip51(message);
+		console.log('followlist message', !!parsedEvent, !!kindList);
+		if (!kindList) return currentFeed;
 
 		// Ensure list has required fields
-		if (!kind39089.listIdentifier() || !kind39089?.title()) return currentFeed;
+		if (!kindList?.title()) return currentFeed;
 
 		return [...currentFeed, parsedEvent as ParsedEvent].sort(
 			(a, b) => b.createdAt() - a.createdAt()
@@ -115,7 +116,7 @@
 					<MultiSelect
 						selectedLists={fps}
 						getTitle={(list) => {
-							const kind39089 = asKind39089(list);
+							const kind39089 = asNip51(list);
 
 							const title = kind39089?.title()?.toString() || '';
 							return title.length > 20 ? title.slice(0, 20) + '...' : title;
@@ -160,7 +161,7 @@
 					<MultiSelect
 						selectedLists={fps}
 						getTitle={(list) => {
-							const kind39089 = asKind39089(list);
+							const kind39089 = asNip51(list);
 
 							const title = kind39089?.title()?.toString() || '';
 							return title.length > 20 ? title.slice(0, 20) + '...' : title;
@@ -173,7 +174,7 @@
 			</div>
 		</svelte:fragment>
 		<svelte:fragment slot="item-content" let:post let:visible>
-			{@const kind39089 = asKind39089(post) || post}
+			{@const kind39089 = asNip51(post)}
 			<div
 				class="cursor-pointer p-4 border-b border-primary-content relative"
 				on:click={() => toggleFollowPack(post)}
@@ -186,9 +187,9 @@
 					</div>
 				{/if}
 				<div class="flex items-start gap-4 mb-4">
-					{#if kind39089.image()}
+					{#if kind39089?.image()}
 						<img
-							src={proxyAvatarUrl(kind39089.image()?.toString())}
+							src={proxyAvatarUrl(kind39089?.image()?.toString())}
 							alt={kind39089.title()?.toString()}
 							class="w-16 h-16 rounded-lg object-cover"
 						/>
@@ -199,8 +200,8 @@
 					{/if}
 					<div class="flex-grow">
 						<div class="flex justify-between items-start">
-							<h3 class="text-xl font-bold">{kind39089.title?.()?.toString()}</h3>
-							{#if kind39089.peopleLength() > 0}
+							<h3 class="text-xl font-bold">{kind39089?.title?.()?.toString()}</h3>
+							{#if kind39089?.peopleLength() > 0}
 								<div class="">
 									<!-- <h4 class="text-sm font-semibold mb-2">Members ({kind39089.peopleLength()})</h4> -->
 									<div class="flex flex-wrap gap-2 items-center">
@@ -209,18 +210,18 @@
 												<Avatar pubkey={p?.toString()} />
 											{/each}
 										</div>
-										{#if kind39089.peopleLength() > 10}
+										{#if kind39089?.peopleLength() > 10}
 											<div
 												class="flex items-center justify-center px-1 -ml-3 rounded-full bg-base-300 text-sm font-medium"
 											>
-												+{kind39089.peopleLength() - 10}
+												+{kind39089?.peopleLength() - 10}
 											</div>
 										{/if}
 									</div>
 								</div>
 							{/if}
 						</div>
-						{#if kind39089.description?.()?.toString()}
+						{#if kind39089?.description?.()?.toString()}
 							{@const text = (() => {
 								try {
 									// Attempt to unescape if the string has escaped sequences

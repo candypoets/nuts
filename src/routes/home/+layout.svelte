@@ -232,7 +232,7 @@
 		walletLoaded.then(() => (loading = false));
 	});
 
-	$: feed = feed.sort((a, b) => b.createdAt() - a.createdAt());
+	$: feed = feed?.sort((a, b) => b.createdAt() - a.createdAt());
 </script>
 
 <Pager rootPath="/home">

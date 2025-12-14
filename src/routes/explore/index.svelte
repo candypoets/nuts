@@ -1,11 +1,11 @@
 <script lang="ts">
 	import type {
 		ConnectionStatus,
-		Kind39089Parsed,
 		Kind3Parsed,
+		ListParsed,
 		RequestObject
 	} from '@candypoets/nipworker';
-	import { asKind0, asKind3, asKind39089, fbArray } from '@candypoets/nipworker/utils';
+	import { asKind0, asKind3, asNip51, fbArray } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { isEqual, uniq } from 'lodash';
 
@@ -38,11 +38,9 @@
 
 	$: following = uniq([
 		...$followPacks.flatMap(
-			(pack) =>
-				fbArray(asKind39089(pack) as Kind39089Parsed, 'people').map((p) => p.toString()) || []
+			(pack) => fbArray(asNip51(pack) as ListParsed, 'people').map((p) => p.toString()) || []
 		),
-		...(($followPacks.some((fp) => asKind39089(fp)?.title()?.toString() == 'followlist') &&
-			follows) ||
+		...(($followPacks.some((fp) => asNip51(fp)?.title()?.toString() == 'followlist') && follows) ||
 			[])
 	]);
 
@@ -85,7 +83,18 @@
 							),
 							limit: $limit,
 							since: ago(31 * 24 * 60 * 60),
-							noCache: !!relayCounter,
+							noCache: true,
+							tags: { '#t': tags },
+							relays
+						},
+						{
+							kinds: [1, 6],
+							authors: fbArray(asKind3(event) as Kind3Parsed, 'contacts').map((p) =>
+								p.pubkey()?.toString()
+							),
+							limit: $limit,
+							since: ago(31 * 24 * 60 * 60),
+							cacheFirst: false,
 							tags: { '#t': tags },
 							relays
 						}
@@ -124,6 +133,7 @@
 	<Feed
 		subscriptionID={subId + relayCounter}
 		requests={feedRequests}
+		subscriptionOptions={{ bytesPerEvent: 50 * 1024 }}
 		kinds={[1, 6]}
 		bind:connectionStatus
 		pullToRefresh
@@ -133,7 +143,7 @@
 				<div class="flex justify-between w-feed lg:m-auto h-16 items-center">
 					<div class="flex gap-1 items-center w-1/3">
 						{#each $followPacks as pack}
-							{@const kind39039 = asKind39089(pack)}
+							{@const kind39039 = asNip51(pack)}
 							<div class="cursor-pointer" on:click|stopPropagation={() => go('followlists')}>
 								<img
 									src={proxyAvatarUrl(kind39039?.image()?.toString()) || '/followlist.png'}
@@ -191,7 +201,7 @@
 				<div class="lg:m-auto flex justify-between items-center h-16">
 					<div class="flex gap-1 items-center">
 						{#each $followPacks as pack}
-							{@const kind39039 = asKind39089(pack)}
+							{@const kind39039 = asNip51(pack)}
 							<div class="cursor-pointer" on:click|stopPropagation={() => go('followlists')}>
 								<img
 									src={proxyAvatarUrl(kind39039?.image()?.toString()) || '/followlist.png'}
