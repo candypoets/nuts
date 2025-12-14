@@ -15,7 +15,8 @@
 		asKind1,
 		asParsedEvent,
 		ConnectionTracker,
-		fbArray
+		fbArray,
+		isParsedEvent
 	} from '@candypoets/nipworker/utils';
 	import RelaysList from 'src/components/RelaysList.svelte';
 	import { toRequestObject } from 'src/lib/request';
@@ -30,6 +31,7 @@
 	import { relaySub, setSubRelays } from 'src/controller/relay';
 	import { normalizeURL } from 'nostr-tools/utils';
 	import { isMobile } from 'src/controller';
+	import Icon from '@iconify/svelte';
 
 	export let main: boolean = false;
 	// if the note is a repost, this is the reposter pubkey
@@ -106,12 +108,10 @@
 			case MessageType.ParsedNostrEvent:
 				const parsedEvent = asParsedEvent(message) as ParsedEvent;
 				context = uniqBy([...context, parsedEvent], (c) => c?.id()?.fnv1aHash());
-				// console.log('parsedEvent', parsedEvent?.id()?.toString(), decoded.noteId);
 				if (
 					parsedEvent?.id()?.toString() !== decoded.noteId &&
 					!replies.some((r) => r.id()?.fnv1aHash() === parsedEvent.id()?.fnv1aHash())
 				) {
-					// console.log('reply', parsedEvent?.id()?.toString(), decoded.noteId, relays);
 					replies = [...replies, parsedEvent];
 				}
 				break;
@@ -310,9 +310,16 @@
 				class:!mt-0={!!depth || isImageContext}
 				class:!mt-2={!!main}
 			>
-				<!-- {kind1?.reply()?.id()?.toString()} -->
-				<!-- {!!showReplies && note?.id()?.toString()} -->
-				<Content {note} {context} {visible} {depth} {main} {showQuote} />
+				{#if !!note.parsed}
+					<!-- {kind1?.reply()?.id()?.toString()} -->
+					<!-- {!!showReplies && note?.id()?.toString()} -->
+					<Content {note} {context} {visible} {depth} {main} {showQuote} />
+				{:else}
+					<div class="p-3 rounded-lg bg-info-content text-sm flex items-center gap-2 mt-2">
+						<Icon icon="mdi:information-outline" class="shrink-0 w-6 h-6 text-info" />
+						<span>Oups, we can't show you this kind yet (kind {note.kind()})</span>
+					</div>
+				{/if}
 			</div>
 		</div>
 		{#if footer && !depth}
