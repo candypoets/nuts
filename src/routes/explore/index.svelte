@@ -94,7 +94,7 @@
 							),
 							limit: $limit,
 							since: ago(31 * 24 * 60 * 60),
-							cacheFirst: false,
+							cacheOnly: true,
 							tags: { '#t': tags },
 							relays
 						}

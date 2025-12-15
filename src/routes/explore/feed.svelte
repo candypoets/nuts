@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { NostrEvent, ParsedData, ParsedEvent, WorkerMessage } from '@candypoets/nipworker';
+	import type { ParsedData, ParsedEvent, WorkerMessage } from '@candypoets/nipworker';
 	import {
 		ConnectionStatus,
 		MessageType,
@@ -9,8 +9,8 @@
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import {
 		asConnectionStatus,
+		asKind1,
 		asKind6,
-		asNostrEvent,
 		asParsedEvent,
 		isKind1
 	} from '@candypoets/nipworker/utils';
@@ -22,11 +22,15 @@
 	import { limit } from 'src/controller/pagination';
 	import { now } from 'src/lib/period';
 	import Note from './note.svelte';
-	import { formatDistanceToNow } from 'date-fns';
 	import { normalizeURL } from 'nostr-tools/utils';
 	import Placeholder from 'src/components/Placeholder.svelte';
 
-	type ParsedOrNostrEvent = ParsedEvent | NostrEvent;
+	// Externalized helpers
+	import {
+		getEventHash as getHash,
+		upsertIntoSortedFeed as upsertIntoFeed,
+		pruneFeed
+	} from 'src/routes/explore/feed';
 
 	// Props
 	export let bottom = false;
@@ -66,7 +70,7 @@
 	const seen_ids = new Set<number>();
 
 	let newPosts: number = 0;
-	let timeout: NodeJS.Timeout | undefined;
+	let timeout: ReturnType<typeof setTimeout> | undefined;
 	let sub: () => void | undefined;
 	let pagesub: () => void | undefined;
 
@@ -79,35 +83,19 @@
 	let lastBufferDump = 0;
 
 	let viewport: HTMLElement;
-	let down = true; // is the virtualScrool going down
+	let down = true; // is the virtualScroll going down
 
 	let eose = false;
 	let eoce = false;
 	let loading = true;
 
+	// Cap memory growth for long sessions
+	const FEED_MAX = 10000;
+
 	const imageContext = getContext('imageContext');
 
-	function getHash(e: ParsedEvent | undefined | null): number {
-		return e?.id?.()?.fnv1aHash?.() as number;
-	}
-
 	function isCorrectKind(event: ParsedEvent) {
-		return kinds != undefined ? kinds.some((k) => event.kind() == k) : isKind1;
-	}
-
-	// Binary search on createdAt descending list; returns insertion index
-	function binarySearchDescByTs(arr: ParsedEvent[], ts: number): number {
-		let lo = 0;
-		let hi = arr.length;
-		while (lo < hi) {
-			const mid = (lo + hi) >>> 1;
-			if ((arr[mid]?.createdAt?.() ?? 0) < ts) {
-				hi = mid;
-			} else {
-				lo = mid + 1;
-			}
-		}
-		return lo;
+		return kinds && kinds.length ? kinds.some((k) => event.kind() == k) : true;
 	}
 
 	// Batch invalidation to force Svelte to see list changes
@@ -121,60 +109,32 @@
 		});
 	}
 
-	// Insert/update into feed; preserves sorted order; returns true if list changed
-	function upsertIntoFeed(e: ParsedEvent): boolean {
-		const id = getHash(e);
-		if (!id) return false;
-
-		if (feedMap.has(id)) {
-			// update in place if needed; typically ts doesn't change
-			feedMap.set(id, e);
-			return false;
-		}
-
-		feedMap.set(id, e);
-		const ts = e.createdAt?.() ?? 0;
-
-		if (feed.length === 0) {
-			feed.push(e);
-			return true;
-		}
-		const headTs = feed[0]?.createdAt?.() ?? 0;
-		if (ts >= headTs) {
-			feed.unshift(e);
-			return true;
-		}
-		const tailTs = feed[feed.length - 1]?.createdAt?.() ?? 0;
-		if (ts <= tailTs) {
-			feed.push(e);
-			return true;
-		}
-
-		const idx = binarySearchDescByTs(feed, ts);
-		feed.splice(idx, 0, e);
-		return true;
-	}
-
 	function mergeMapIntoFeed(m: Map<number, ParsedEvent>): void {
 		if (m.size === 0) return;
 		let changed = false;
-		for (const [id, e] of m) {
-			changed = upsertIntoFeed(e) || changed;
+		for (const [, e] of m) {
+			changed = upsertIntoFeed(feed, feedMap, e) || changed;
 		}
 		m.clear();
-		if (changed) invalidateFeed();
+		if (changed) {
+			pruneFeed(feed, feedMap, seen_ids, FEED_MAX);
+			invalidateFeed();
+		}
 	}
 
-	function mergePendingToFeed(): void {
-		let changed = false;
-		for (const [, e] of bufferMap) changed = upsertIntoFeed(e) || changed;
-		for (const [, e] of fetchedMap) changed = upsertIntoFeed(e) || changed;
-		for (const [, e] of cachedMap) changed = upsertIntoFeed(e) || changed;
-		bufferMap.clear();
-		fetchedMap.clear();
-		cachedMap.clear();
-		if (changed) invalidateFeed();
-	}
+	// function mergePendingToFeed(): void {
+	// 	let changed = false;
+	// 	for (const [, e] of bufferMap) changed = upsertIntoFeed(feed, feedMap, e) || changed;
+	// 	for (const [, e] of fetchedMap) changed = upsertIntoFeed(feed, feedMap, e) || changed;
+	// 	for (const [, e] of cachedMap) changed = upsertIntoFeed(feed, feedMap, e) || changed;
+	// 	bufferMap.clear();
+	// 	fetchedMap.clear();
+	// 	cachedMap.clear();
+	// 	if (changed) {
+	// 		pruneFeed(feed, feedMap, seen_ids, FEED_MAX);
+	// 		invalidateFeed();
+	// 	}
+	// }
 
 	// In a separate function to avoid infinite loops in the reactive block
 	const handleEvents = (message: WorkerMessage, page = 0) => {
@@ -187,7 +147,6 @@
 					// resume head subscription with "since"
 					const since = feed.length > 0 ? (feed[0]?.createdAt?.() ?? now()) : now();
 					sub?.();
-					// manager.cleanup();
 					sub = useSubscription(
 						subscriptionID + '_head',
 						requests.map((r) => ({ ...r, since })),
@@ -201,9 +160,7 @@
 
 			case MessageType.ConnectionStatus: {
 				const status = asConnectionStatus(message);
-				// console.log('connection status');
 				if (status) {
-					// console.log('status', status.relayUrl()!.toString(), status.status()!.toString());
 					connectionStatus[normalizeURL(status.relayUrl()!.toString())] = status;
 					if (status.status()!.toString() == 'EOSE' && eose == false) {
 						loading = false;
@@ -216,11 +173,10 @@
 			}
 
 			case MessageType.Eoce: {
-				// console.log('EOCE');
 				if (!eoce) {
 					eoce = true;
 					// Make fetchedMap inherit everything processed during the cache phase
-					fetchedMap = cachedMap;
+					fetchedMap = new Map(cachedMap); // clone; do NOT alias
 					// Move cached into feed after cache phase closes
 					mergeMapIntoFeed(cachedMap);
 				}
@@ -240,19 +196,28 @@
 						const before = Array.from(cachedMap.values());
 						const after = updateFeed(before, message) || before;
 						cachedMap.clear();
-						for (const e of after) cachedMap.set(getHash(e)!, e);
+						for (const e of after) {
+							const hid = getHash(e);
+							if (hid) cachedMap.set(hid, e);
+						}
 					} else if (!eose) {
 						const before = Array.from(fetchedMap.values());
 						const after = updateFeed(before, message) || before;
 						fetchedMap.clear();
-						for (const e of after) fetchedMap.set(getHash(e)!, e);
+						for (const e of after) {
+							const hid = getHash(e);
+							if (hid) fetchedMap.set(hid, e);
+						}
 					} else {
 						// live: apply to feedList; mirror map once
 						const out = updateFeed(feed, message) || feed;
 						if (out !== feed) {
 							feed = out; // reassignment already invalidates
 							feedMap.clear();
-							for (const e of feed) feedMap.set(getHash(e)!, e);
+							for (const e of feed) {
+								const hid = getHash(e);
+								if (hid) feedMap.set(hid, e);
+							}
 						} else {
 							// ensure map consistency if updater mutated in place
 							let changed = false;
@@ -290,36 +255,22 @@
 						bufferMap.set(id, parsedEvent);
 					} else {
 						// page stream post-EOSE: insert directly
-						if (upsertIntoFeed(parsedEvent)) invalidateFeed();
+						if (upsertIntoFeed(feed, feedMap, parsedEvent)) {
+							pruneFeed(feed, feedMap, seen_ids, FEED_MAX);
+							invalidateFeed();
+						}
 					}
 				}
 				break;
-			}
-			case MessageType.NostrEvent: {
-				const nostrEvent = asNostrEvent(message);
-				console.log('NostrEvent!', nostrEvent);
-				const id = nostrEvent?.id()?.fnv1aHash();
-				if (!id) return;
-				if (seen_ids.has(id)) return;
-				seen_ids.add(id);
-				if (!eoce) {
-					// cached phase
-					cachedMap.set(id, nostrEvent);
-				} else if (!eose) {
-					// pre-EOSE fetched phase
-					fetchedMap.set(id, nostrEvent);
-				} else if (page <= 0) {
-					// head stream: buffer for batch merge
-					bufferMap.set(id, nostrEvent);
-				} else {
-					// page stream post-EOSE: insert directly
-					if (upsertIntoFeed(nostrEvent)) invalidateFeed();
-				}
 			}
 		}
 	};
 
 	function subscribe() {
+		// Prevent overlapping debounce timers -> duplicate subscriptions
+		if (timeout) {
+			clearTimeout(timeout);
+		}
 		timeout = setTimeout(() => {
 			if (visible) {
 				eoce = false;
@@ -327,17 +278,34 @@
 				bufferMap.clear();
 				fetchedMap.clear();
 				cachedMap.clear();
+				// Dispose previous head subscription before creating a new one
+				sub?.();
 				sub = useSubscription(subscriptionID, requests, handleEvents, subscriptionOptions);
 			}
 		}, 300);
 	}
 
 	function unsubscribe() {
+		// Clear pending debounce
 		if (timeout) {
 			clearTimeout(timeout);
 			timeout = undefined;
-			sub?.();
 		}
+		// Dispose head subscription
+		sub?.();
+		sub = undefined;
+
+		// Dispose page subscription and any paging timers
+		pagesub?.();
+		pagesub = undefined;
+
+		if (pageTimer) {
+			clearTimeout(pageTimer);
+			pageTimer = null;
+		}
+
+		// Cleanup underlying manager resources to avoid leaks
+		manager.cleanup();
 	}
 
 	function setBufferFeed() {
@@ -353,26 +321,29 @@
 			// Fast-path newer head events first
 			for (const [key, e] of bufferMap) {
 				if ((e.createdAt?.() ?? 0) > mostRecentTime) {
-					changed = upsertIntoFeed(e) || changed;
+					changed = upsertIntoFeed(feed, feedMap, e) || changed;
 					bufferMap.delete(key);
 				}
 			}
 			for (const [key, e] of fetchedMap) {
 				if ((e.createdAt?.() ?? 0) > mostRecentTime) {
-					changed = upsertIntoFeed(e) || changed;
+					changed = upsertIntoFeed(feed, feedMap, e) || changed;
 					fetchedMap.delete(key);
 				}
 			}
 		}
 
 		// Merge remaining
-		for (const [, e] of bufferMap) changed = upsertIntoFeed(e) || changed;
-		for (const [, e] of fetchedMap) changed = upsertIntoFeed(e) || changed;
+		for (const [, e] of bufferMap) changed = upsertIntoFeed(feed, feedMap, e) || changed;
+		for (const [, e] of fetchedMap) changed = upsertIntoFeed(feed, feedMap, e) || changed;
 		bufferMap.clear();
 		fetchedMap.clear();
 
 		lastBufferDump = now();
-		if (changed) invalidateFeed();
+		if (changed) {
+			pruneFeed(feed, feedMap, seen_ids, FEED_MAX);
+			invalidateFeed();
+		}
 	}
 
 	onMount(() => {
@@ -384,10 +355,13 @@
 			const id = getHash(item);
 			if (id) {
 				seen_ids.add(id);
-				changed = upsertIntoFeed(item) || changed;
+				changed = upsertIntoFeed(feed, feedMap, item) || changed;
 			}
 		});
-		if (changed) invalidateFeed();
+		if (changed) {
+			pruneFeed(feed, feedMap, seen_ids, FEED_MAX);
+			invalidateFeed();
+		}
 
 		const interval = setInterval(() => {
 			if (loading) loading = false;
@@ -413,12 +387,32 @@
 	let previousSubscriptionID: string | undefined;
 
 	$: if (subscriptionID !== previousSubscriptionID) {
-		// unsubscribe();
+		// Reset on subscription id change
 		sub?.();
 		previousSubscriptionID = subscriptionID;
+
+		// Clear data structures to avoid cross-feed growth
 		feed = [];
 		feedMap.clear();
 		seen_ids.clear();
+		cachedMap.clear();
+		fetchedMap.clear();
+		bufferMap.clear();
+
+		// Reset paging state as well
+		currentPage = 0;
+		lastFeedLength = 0;
+		noResultsCount = 0;
+		sinceMultiplier = 1;
+		baselineLen = 0;
+		lastUntil = null;
+		if (pageTimer) {
+			clearTimeout(pageTimer);
+			pageTimer = null;
+		}
+		paging = false;
+		eose = false;
+		eoce = false;
 	}
 
 	// Search: only enable when fuseResolver and fuseKeys exist
@@ -471,6 +465,11 @@
 			sinceMultiplier = 1;
 		}
 		lastFeedLength = feed.length;
+
+		// End the page sub to prevent leaks
+		pagesub?.();
+		pagesub = undefined;
+		manager.cleanup();
 
 		// allow next cycle
 		paging = false;
@@ -549,7 +548,6 @@
 		// - attempts are within cap
 		// - we actually have something loaded (start != 0)
 		if (start != 0 && end == feed.length && !paging && noResultsCount <= 3) {
-			console.log('pagination', noResultsCount);
 			startPage();
 		}
 	}
@@ -568,8 +566,6 @@
 			(message) => handleEvents(message, -1)
 		);
 	}
-
-	$: console.log('feed', feed);
 </script>
 
 <div class={'lg:pt-0 h-full min-h-screen mx-auto !pt-0 ' + $$props.class}>
