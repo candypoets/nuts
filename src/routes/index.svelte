@@ -62,7 +62,11 @@
 
 	let progressContainer: HTMLDivElement | null = null;
 
-	$: $key && $key.priv && manager.setSigner('privkey', $key.priv);
+	// $: $key && $key.priv && manager.setSigner('privkey', $key.priv);
+	//
+	manager.addEventListener('auth', (event) => {
+		$key.pub = event.detail;
+	});
 
 	setupPagerAnimators($viewport, goBack);
 
@@ -71,7 +75,7 @@
 	$: $key &&
 		$key.pub &&
 		useSubscription(
-			'relays',
+			'relays_' + $key?.pub,
 			[
 				{
 					kinds: [10019, 10002],
@@ -331,6 +335,7 @@
 		on:touchmove={handleTouchMove}
 		on:touchend={handleTouchEnd}
 	>
+		<!-- {#key $key?.pub} -->
 		<!-- Home Section -->
 		<div class="carousel-item w-[100vw] will-change-transform carousel-item-0">
 			<div class="w-full relative overflow-hidden">
@@ -350,6 +355,7 @@
 				<Chat visible={!$isMobile || $currentIndex == 2} />
 			</div>
 		</div>
+		<!-- {/key} -->
 	</div>
 	<!-- {:else}
 		<Login /> -->

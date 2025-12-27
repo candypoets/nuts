@@ -2,7 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { ConnectionStatus, manager, type WorkerMessage } from '@candypoets/nipworker';
 	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
-	import { isConnectionStatus, isKind0 } from '@candypoets/nipworker/utils';
+	import { isConnectionStatus, isKind0, connectWithQRCode } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { schnorr } from '@noble/curves/secp256k1';
 	import { bytesToHex } from '@noble/hashes/utils';
@@ -17,6 +17,7 @@
 	import { now } from 'src/lib/period';
 	import { pronounceable } from 'src/lib/randomName';
 	import { decodePrivKey, DEFAULT_MINTS, deriveFromMnemonic } from 'src/lib/wallet';
+	import { go } from 'src/routes/modals/modal';
 	import { getContext, onMount } from 'svelte';
 
 	export let inline = false;
@@ -30,18 +31,15 @@
 	let about = '';
 
 	let loading = false;
+	let hasExtension = false;
 
-	let kind: 'login' | 'signup' = 'signup';
+	let kind: 'login' | 'signup' = 'login';
 
 	onMount(async () => {
-		if (window?.nostr?.nip04) {
-			// const pubKey = await window.nostr.getPublicKey();
-			// keysCache.add({
-			// 	pub: pubKey,
-			// 	npub: nip19.npubEncode(pubKey)
-			// });
-			// $activeAccount = Array.from(Cache.values()).findIndex((k) => k.pub == pubKey);
-		} else if (window.localStorage.getItem('nostr-privkey')) {
+		if (window?.nostr) {
+			hasExtension = true;
+		}
+		if (window.localStorage.getItem('nostr-privkey')) {
 			// backward compatibility
 			privateKey = window.localStorage.getItem('nostr-privkey');
 			handleLogin();
@@ -49,7 +47,13 @@
 	});
 
 	async function handleLogin() {
+		if (!privateKey) return;
 		// Handle login logic here
+		//
+		if (privateKey.startsWith('bunker://')) {
+			manager.setNip46Bunker(privateKey);
+			return;
+		}
 
 		// build a key object to store in the db
 		const pk = decodePrivKey(privateKey);
@@ -77,6 +81,25 @@
 				}
 			}
 		);
+	}
+
+	async function handleExtensionLogin() {
+		try {
+			loading = true;
+			const pubkey = await window.nostr.getPublicKey();
+			if (pubkey) {
+				manager.setSigner('nip07');
+				$key = {
+					pub: pubkey,
+					npub: nip19.npubEncode(pubkey)
+				};
+				animator?.goBack();
+			}
+		} catch (e) {
+			console.error(e);
+		} finally {
+			loading = false;
+		}
 	}
 
 	function saveWallet() {
@@ -204,9 +227,16 @@
 			<div class="w-full mt-32">
 				<form class="px-4 mt-8" class:!mt-0={inline} on:submit|preventDefault={handleLogin}>
 					<div class="join w-full">
+						<button
+							class="btn join-item btn-outline"
+							on:click={() =>
+								connectWithQRCode('Nuts', DEFAULT_RELAYS).then((res) =>
+									go('qr:' + encodeURIComponent(res))
+								)}><Icon icon="ri:qr-code-fill" /></button
+						>
 						<!-- <div class="btn join-item btn-link"><Icon icon="ri:key-fill" /></div> -->
 						<input
-							placeholder="nsec"
+							placeholder="nsec or bunker url"
 							class="join-item flex-grow px-2"
 							type="text"
 							bind:value={privateKey}
@@ -218,29 +248,22 @@
 						</button>
 					</div>
 				</form>
-				<!-- <button
-				class="btn btn-outline mt-4 m-auto block"
-				class:btn-error={extensionError}
-				on:click={async () => {
-					const pubKey = await window?.nostr?.getPublicKey();
-					if (!pubKey) {
-						extensionError = true;
-						return;
-					}
-					$keys
-					keysCache.put({
-						pub: pubKey,
-						npub: nip19.npubEncode(pubKey)
-					});
-					$activeAccount = Array.from($keysCache.values()).findIndex((k) => k.pub == pubKey);
-				}}
-			>
-				{#if !extensionError}
-					Log in with an extension
-				{:else}
-					Extension not found
+				{#if hasExtension}
+					<div>
+						<button
+							class="btn btn-outline mt-4 mx-auto flex"
+							on:click={handleExtensionLogin}
+							disabled={loading}
+						>
+							{#if loading}
+								<div class="loading" />
+							{:else}
+								<Icon icon="ri:puzzle-fill" />
+								Connect with extension
+							{/if}
+						</button>
+					</div>
 				{/if}
-			</button> -->
 				<p class="text-xs mt-2 text-gray-500 px-4">
 					Not a notrich yet?<button
 						class="btn btn-link text-accent"
@@ -279,11 +302,18 @@
 					<br />
 					<button class="btn btn-accent mx-auto w-full" type="submit">Be free</button>
 				</form>
+
 				<p class="mx-4 text-xs text-gray-500 mt-4 p-1">
-					Already on Nostr?<button
-						class="btn btn-link text-accent"
-						on:click={() => (kind = 'login')}>prove it</button
+					Already on Nostr?
+					<button class="btn btn-link text-accent" on:click={() => (kind = 'login')}
+						>prove it</button
 					>
+					{#if hasExtension}
+						or
+						<button class="btn btn-link text-accent mx-12" on:click={handleExtensionLogin}
+							>connect with extension</button
+						>
+					{/if}
 				</p>
 			</div>
 		{/if}

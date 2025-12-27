@@ -85,7 +85,7 @@
 							since: ago(31 * 24 * 60 * 60),
 							noCache: true,
 							tags: { '#t': tags },
-							relays
+							relays: $key?.pub ? relays : ['wss://nostr.wine']
 						},
 						{
 							kinds: [1, 6],
@@ -96,7 +96,7 @@
 							since: ago(31 * 24 * 60 * 60),
 							cacheOnly: true,
 							tags: { '#t': tags },
-							relays
+							relays: $key?.pub ? relays : ['wss://nostr.wine']
 						}
 					];
 				})

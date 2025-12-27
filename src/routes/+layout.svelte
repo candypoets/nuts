@@ -4,7 +4,7 @@
 	import App from 'src/routes/index.svelte';
 	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
-	import { dimensions } from 'src/controller';
+	import { dimensions, key } from 'src/controller';
 	import { initRelayTracking } from 'src/controller/relay';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
@@ -44,4 +44,6 @@
 <svelte:head>
 	{@html webManifestLink}
 </svelte:head>
-<App />
+{#key $key?.pub}
+	<App />
+{/key}

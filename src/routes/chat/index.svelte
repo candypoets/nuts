@@ -102,17 +102,25 @@
 		feedRequests = [
 			{
 				kinds: [4],
-				// tags: { '#p': contactPubs },
 				authors: [$key.pub],
 				relays: [...$readRelays, ...$writeRelays],
-				noContext: true
+				noCache: true
+			},
+			{
+				kinds: [4],
+				authors: [$key.pub],
+				relays: [...$readRelays, ...$writeRelays]
 			},
 			{
 				kinds: [4],
 				tags: { '#p': [$key.pub] },
-				// authors: contactPubs,
 				relays: [...$readRelays, ...$writeRelays],
-				noContext: true
+				noCache: true
+			},
+			{
+				kinds: [4],
+				tags: { '#p': [$key.pub] },
+				relays: [...$readRelays, ...$writeRelays]
 			}
 		];
 	}
@@ -150,7 +158,7 @@
 
 <Pager rootPath="/chat">
 	<Feed
-		subscriptionID={`chat`}
+		subscriptionID={`chat_` + $key?.pub}
 		requests={feedRequests}
 		{updateFeed}
 		{subscriptionOptions}

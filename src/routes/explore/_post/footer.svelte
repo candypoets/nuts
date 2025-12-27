@@ -146,10 +146,8 @@
 				['p', decoded.pubkey]
 			],
 			content: emoji,
-			created_at: 1758632627
+			created_at: now()
 		};
-
-		const correctEvent = finalizeEvent(event, hexToBytes($key?.priv));
 
 		usePublish(
 			'reaction_' + decoded.id,

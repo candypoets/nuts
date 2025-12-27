@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { ParsedEvent, WorkerMessage, type ConnectionStatus } from '@candypoets/nipworker';
-	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
+	import { usePublish, useSignEvent, useSubscription } from '@candypoets/nipworker/hooks';
 	import { asParsedEvent, fbArray, isConnectionStatus } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { nip19, type EventTemplate, type NostrEvent } from 'nostr-tools';
@@ -46,14 +46,15 @@
 		}
 	});
 
-	async function handleSubmit(content: string) {
+	async function handleSubmit() {
+		let content = $editor.getText();
 		if (isSubmitting || !content) return;
 		isSubmitting = true;
 
 		let post: EventTemplate = {
 			kind: 1,
 			created_at: now(),
-			content,
+			content: content.trim(),
 			tags: []
 		};
 
@@ -93,7 +94,6 @@
 				}
 			});
 		}
-
 		post = prepareEvent(post);
 
 		onSubmit(post as NostrEvent);

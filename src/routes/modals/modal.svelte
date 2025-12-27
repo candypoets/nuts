@@ -173,7 +173,7 @@
 		{:else if path.includes('scan')}
 			<Scan />
 		{:else if path.includes('qr')}
-			<QR />
+			<QR qrText={path.split(':')?.[1]} />
 		{:else if path.includes('ecash')}
 			<Ecash pubkey={path.split(':')?.[1]} noteId={path.split(':')?.[2]} />
 		{:else if path.includes('followlist')}

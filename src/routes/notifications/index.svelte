@@ -62,9 +62,18 @@
 					{
 						kinds: [1, 7, 6],
 						tags: { '#p': [$key?.pub] },
-						limit: 100,
-						relays: $writeRelays
+						limit: 50,
+						relays: $writeRelays,
+						noCache: true
+					},
+					{
+						kinds: [1, 7, 6],
+						tags: { '#p': [$key?.pub] },
+						limit: 50,
+						relays: $writeRelays,
+						cacheFirst: true
 					}
+
 					// Replies to user's posts
 					// {
 					// 	kinds: [1],
@@ -81,7 +90,7 @@
 
 <!-- Header for the page -->
 <Feed
-	subscriptionID="notifications"
+	subscriptionID={'notifications_' + $key?.pub}
 	requests={feedRequests}
 	{updateFeed}
 	{visible}

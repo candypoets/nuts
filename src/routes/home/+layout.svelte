@@ -85,8 +85,6 @@
 	$: relays =
 		(walletRelays?.length && walletRelays) || ($readRelays?.length && $readRelays) || defaultRelays;
 
-	$: console.log('relays', relays);
-
 	const relayPromise = Promise.race([kind10019Ready.promise, delayedPromise]);
 
 	let feedRequests: RequestObject[] = [];
@@ -158,7 +156,7 @@
 
 	$: if ($key?.pub && relays?.length) {
 		useSubscription(
-			'active_wallet',
+			'active_wallet_' + $key?.pub,
 			[
 				// { kinds: [7375], authors: [$key?.pub], limit: 10, relays: relays },
 				{ kinds: [17375], authors: [$key?.pub], limit: 10, relays: relays }
@@ -189,7 +187,7 @@
 			if (wallet.p2pkPrivKey()) {
 				setNutsWallet(
 					wallet.p2pkPrivKey()!.toString(),
-					wallet.p2pkPubKey()!.toString(),
+					wallet.p2pkPrivKey()!.toString(),
 					fbArray(wallet, 'mints').map((m) => normalizeMintURL(m.toString())),
 					Number(parsedEvent.createdAt())
 				);
@@ -237,7 +235,7 @@
 
 <Pager rootPath="/home">
 	<Feed
-		subscriptionID="home"
+		subscriptionID={'home_' + $key?.pub}
 		requests={feedRequests}
 		{updateFeed}
 		backdrop={!feed.length}

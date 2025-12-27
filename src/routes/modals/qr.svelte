@@ -6,6 +6,17 @@
 	import { key } from 'src/controller';
 
 	let animator = getContext('animator');
+
+	// Add prop for QR code text
+	export let qrText: string = $key?.npub;
+
+	// Check if the qrText is an encoded URL and decode it if needed
+	if (qrText && qrText.includes('%3A')) {
+		const decoded = decodeURIComponent(qrText);
+		qrText = decoded;
+	}
+
+	$: console.log('QR Text:', qrText);
 </script>
 
 <div
@@ -15,10 +26,18 @@
 		<Icon icon="mingcute:down-line" class="text-xl" />
 	</div>
 	<div class="flex items-center justify-center flex-col">
-		<div class="border-primary border rounded-md p-2">
-			<a class="cursor-pointer">
-				<QRCodeImage text={$key?.npub} displayHeight={275} displayWidth={275} margin={1} />
-			</a>
-		</div>
+		<!-- <div class="border-primary border-2 rounded-full p-4 bg-white shadow-lg"> -->
+		<a class="cursor-pointer">
+			<QRCodeImage
+				text={qrText}
+				displayType="canvas"
+				displayHeight={300}
+				displayWidth={300}
+				margin={2}
+				errorCorrectionLevel="H"
+				displayClass="rounded-full"
+			/>
+		</a>
+		<!-- </div> -->
 	</div>
 </div>

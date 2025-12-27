@@ -1,14 +1,13 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
 
-	import Theme from 'src/components/Theme.svelte';
-	import { getContext } from 'svelte';
-	import { go } from 'src/routes/modals/modal';
-	import { kind0 } from 'src/controller/nostr';
+	import { manager, type ParsedEvent } from '@candypoets/nipworker';
 	import { asKind0 } from '@candypoets/nipworker/utils';
-	import type { ParsedEvent } from '@candypoets/nipworker';
-	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import { key } from 'src/controller';
+	import { kind0 } from 'src/controller/nostr';
+	import Avatar from 'src/routes/explore/avatar.svelte';
+	import { go } from 'src/routes/modals/modal';
+	import { getContext } from 'svelte';
 
 	let animator = getContext('animator');
 	let search: string;
@@ -16,6 +15,11 @@
 	$: k0 = asKind0($kind0 as ParsedEvent);
 	// export let encodedToken: string = '';
 	//
+	//
+
+	$: accounts = Object.keys(manager.getAccounts()).sort((a, b) =>
+		$key?.pub === a ? -1 : $key?.pub === b ? 1 : a.localeCompare(b)
+	);
 </script>
 
 <div class="h-screen bg-base-300 bg-opacity-85 backdrop-blur-md">
@@ -25,14 +29,22 @@
 				<Icon icon="mingcute:down-line" class="text-xl" />
 			</div>
 		</div>
-		<div class="flex gap-2 items-center">
-			<button class="mt-4 ml-4" on:click={() => go('kind0')}>
-				<img
-					class="w-12 h-12 border rounded-full"
-					src={proxyAvatarUrl(asKind0($kind0)?.picture()?.toString()) || '/miss-profile.png'}
-				/></button
-			>
-			<button class="btn btn-outline mt-4 btn-circle" on:click={() => go('theme')}>
+		<div class="flex items-center justify-between px-4 mt-4">
+			<div class="flex gap-2">
+				{#each accounts as key, index}
+					<button
+						on:click={() => (index ? manager.switchAccount(key) : go('kind0'))}
+						class="btn btn-circle"
+					>
+						<Avatar pubkey={key} size="xl" customClass={!index ? 'border border-accent' : ''} />
+					</button>
+				{/each}
+				<button class="btn btn-outline btn-circle" on:click={() => go('login')}>
+					<!-- <Icon icon="mingcute:add" class="text-xl" /> -->
+					<Icon icon="material-symbols:add" class="text-xl" />
+				</button>
+			</div>
+			<button class="btn btn-outline btn-circle" on:click={() => go('theme')}>
 				<Icon icon="mdi:palette" class="text-2xl" />
 			</button>
 		</div>
