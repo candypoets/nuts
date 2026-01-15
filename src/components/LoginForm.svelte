@@ -70,12 +70,13 @@
 				const kind0 = isKind0(message);
 				if (kind0) {
 					loading = false;
-					$key = {
-						pub: pubkey,
-						priv: privkey,
-						npub: nip19.npubEncode(pubkey),
-						nsec: nip19.nsecEncode(pk)
-					};
+					// $key = {
+					// 	pub: pubkey,
+					// 	priv: privkey,
+					// 	npub: nip19.npubEncode(pubkey),
+					// 	nsec: nip19.nsecEncode(pk)
+					// };
+					manager.setSigner('privkey', privkey);
 					loginSub();
 					animator?.goBack();
 				}
@@ -169,14 +170,14 @@
 
 		// Handle signup logic here
 		//
-		manager.setSigner('privKey', privkey);
+		manager.setSigner('privkey', privkey);
 
-		$key = {
-			pub: pubkey,
-			priv: privkey,
-			npub: nip19.npubEncode(pubkey),
-			nsec: nip19.nsecEncode(priv)
-		};
+		// $key = {
+		// 	pub: pubkey,
+		// 	priv: privkey,
+		// 	npub: nip19.npubEncode(pubkey),
+		// 	nsec: nip19.nsecEncode(priv)
+		// };
 
 		let event: EventTemplate = {
 			kind: 0,
