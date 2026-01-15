@@ -2,10 +2,12 @@
 	import 'src/app.css';
 	import { pwaInfo } from 'virtual:pwa-info';
 	import App from 'src/routes/index.svelte';
+	import ImageZoom from 'src/components/ImageZoom.svelte';
 	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
 	import { dimensions, key } from 'src/controller';
 	import { initRelayTracking } from 'src/controller/relay';
+	import { zoomed } from 'src/controller/image';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
 
@@ -47,3 +49,6 @@
 {#key $key?.pub}
 	<App />
 {/key}
+{#if $zoomed !== undefined}
+	<ImageZoom />
+{/if}

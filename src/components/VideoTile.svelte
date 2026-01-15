@@ -8,6 +8,7 @@
 	export let muted = true;
 	export let className = '';
 	export let onClick: (e: MouseEvent) => void = () => {};
+	export let videoElement: HTMLVideoElement | undefined = undefined;
 
 	// Media Chrome are web components; load on client to avoid SSR issues.
 	onMount(async () => {
@@ -64,6 +65,7 @@
 <media-controller class={`group relative block ${className}`}>
 	<!-- Native video element as usual -->
 	<video
+		bind:this={videoElement}
 		slot="media"
 		{src}
 		{poster}

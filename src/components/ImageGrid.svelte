@@ -1,22 +1,30 @@
 <script lang="ts">
 	import cx from 'classnames';
+	import { decode } from 'blurhash';
 	import {
 		context as contextStore,
 		links as linksStore,
 		note as noteStore,
-		zoomed as zoomedStore
+		zoomed as zoomedStore,
+		gridId as gridIdStore,
+		videoTime as videoTimeStore
 	} from 'src/controller/image';
 	import type { AnyKind, Kind1Parsed, ParsedEvent } from 'src/types';
 	import { proxyMediaLinks, ImagePresets } from 'src/lib/proxy';
 	import { getContext } from 'svelte';
-	import { go } from 'src/routes/modals/modal';
 	import VideoTile from './VideoTile.svelte';
 
-	export let links: { src: string; type?: 'image' | 'video' }[];
+	export let links: { src: string; type?: 'image' | 'video'; blurhash?: string }[];
 	export let note: ParsedEvent<Kind1Parsed> | undefined = undefined;
 	export let context: ParsedEvent<AnyKind>[] = [];
 
 	let isImageContext = getContext('imageContext');
+	
+	// Generate unique ID for this grid to scope transition names
+	const gridId = Math.random().toString(36).substring(7);
+
+	// Store video element references to capture current time on click
+	let videoElements: Record<number, HTMLVideoElement> = {};
 
 	$: proxiedLinks = proxyMediaLinks(links, ImagePresets.full);
 	$: fullQualityLinks = proxyMediaLinks(links, ImagePresets.full);
@@ -34,12 +42,33 @@
 		return slots;
 	}
 
+	function getBlurhashDataUrl(blurhash: string): string {
+		const pixels = decode(blurhash, 32, 32);
+		const canvas = new OffscreenCanvas(32, 32);
+		const ctx = canvas.getContext('2d');
+		if (!ctx) return '';
+		const imageData = ctx.createImageData(32, 32);
+		imageData.data.set(pixels);
+		ctx.putImageData(imageData, 0, 0);
+		return canvas.convertToBlob().then(blob => URL.createObjectURL(blob));
+	}
+
 	function setZoom(zoom: number) {
-		$linksStore = fullQualityLinks;
-		$zoomedStore = zoom;
-		$noteStore = note;
-		$contextStore = context;
-		go('zoom');
+		const updateStores = async () => {
+			$linksStore = fullQualityLinks;
+			$zoomedStore = zoom;
+			$noteStore = note;
+			$contextStore = context;
+			$gridIdStore = gridId;
+			// Force Svelte to flush updates synchronously
+			await new Promise((resolve) => setTimeout(resolve, 0));
+		};
+
+		if (document.startViewTransition) {
+			document.startViewTransition(updateStores);
+		} else {
+			updateStores();
+		}
 	}
 </script>
 
@@ -54,7 +83,11 @@
 >
 	{#each displayLinks as link, i}
 		{#if link.type === 'video'}
-			<span>
+			<span
+				style={$zoomedStore === undefined && i === 0
+					? `view-transition-name: image-zoom-${gridId}-0`
+					: ''}
+			>
 				<VideoTile
 					src={link.src.toString()}
 					autoplay={proxiedLinks.length == 1 || i == 0}
@@ -64,25 +97,36 @@
 						i == 0 ? 'col-span-' + getSpan(i == 0 ? displayLinks.length - 1 : i) : '',
 						'max-h-[50vh]:data-[single=true] !w-auto:data-[single=true] m-auto:data-[single=true] h-96 w-full'
 					)}
+					bind:videoElement={videoElements[i]}
 					onClick={(e) => {
 						e.stopPropagation();
 						e.preventDefault();
-						console.log('click');
+						const videoEl = videoElements[i];
+						if (videoEl) {
+							$videoTimeStore = videoEl.currentTime;
+						}
 						setZoom(i);
 					}}
 				/>
 			</span>
 		{:else}
-			<div class="relative">
+			<div
+				class="relative"
+				style={$zoomedStore === undefined && i === 0
+					? `view-transition-name: image-zoom-${gridId}-0`
+					: ''}
+			>
 				<img
-					class:max-h-[50vh]={displayLinks.length == 1}
+					class:h-[50vh]={displayLinks.length == 1}
 					class:!h-48={displayLinks.length > 2}
+					class:h-96={displayLinks.length <= 2 && displayLinks.length !== 1}
 					class:!w-auto={displayLinks.length == 1}
 					class:m-auto={displayLinks.length == 1}
 					class={cx(
 						i == 0 ? 'col-span-' + getSpan(displayLinks.length - 1) : '',
-						'max-h-96 w-full object-cover'
+						'w-full object-cover'
 					)}
+					style={link.blurhash ? `background-image: url('data:image/png;base64,...')` : ''}
 					on:click|preventDefault|stopPropagation={() => setZoom(i)}
 					src={link.src.toString()}
 					loading="lazy"
