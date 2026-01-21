@@ -100,6 +100,14 @@
 		if (!carouselContainer) return;
 
 		const distance = direction > 0 ? window.innerHeight : -window.innerHeight;
+		const backdrop = carouselContainer.parentElement;
+
+		if (backdrop) {
+			backdrop.animate(
+				[{ opacity: 1 }, { opacity: 0 }],
+				{ duration: 300, easing: 'cubic-bezier(0.32, 0.72, 0.06, 1)' }
+			);
+		}
 
 		carouselContainer.animate(
 			[
@@ -151,6 +159,14 @@
 		transition:fade={{ duration: 200 }}
 		on:click|preventDefault|stopPropagation={closeZoom}
 	>
+		<button
+			class="absolute top-4 right-4 z-30 rounded-full bg-black/40 backdrop-blur-sm p-2 text-white hover:bg-black/60 transition-colors"
+			on:click|preventDefault|stopPropagation={closeZoom}
+		>
+			<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+			</svg>
+		</button>
 		<div
 			bind:this={carouselContainer}
 			class="flex-1 flex items-center justify-center w-full"
