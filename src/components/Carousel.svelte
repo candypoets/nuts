@@ -9,6 +9,7 @@
 	export let currentIndex = 0;
 	export let keyboardShortcut = false;
 	export let noScroll = false;
+	export let verticalPan = true;
 
 	// Ensure items have proxied URLs if they contain src properties
 	// Use full preset for carousel (zoom view) to get high quality images
@@ -44,8 +45,8 @@
 
 	function onTouchEnd(event: WheelEvent | TouchEvent) {
 		$translateY = 0;
-		let touchPrevX: number | null = null;
-		let touchPrevY: number | null = null;
+		touchPrevX = null;
+		touchPrevY = null;
 	}
 
 	function handleScroll(event: WheelEvent | TouchEvent) {
@@ -56,7 +57,7 @@
 			const dy = wheel.deltaY ?? 0;
 
 			// If vertical scroll dominates, update translateY
-			if (Math.abs(dy) > Math.abs(dx)) {
+			if (verticalPan && Math.abs(dy) > Math.abs(dx)) {
 				translateY.set($translateY + dy, { hard: true });
 				if (noScroll) wheel.preventDefault();
 			}
@@ -75,7 +76,7 @@
 						const dy = touch.clientY - touchPrevY;
 
 						// If vertical movement dominates, update translateY
-						if (Math.abs(dy) > Math.abs(dx)) {
+						if (verticalPan && Math.abs(dy) > Math.abs(dx)) {
 							translateY.set($translateY + dy, { hard: true });
 							if (noScroll) touchEvent.preventDefault();
 						}
@@ -127,12 +128,12 @@
 	<div
 		class="bg-transparent scrollbar-hide flex h-full snap-x snap-mandatory items-center gap-4 overflow-x-scroll scroll-smooth rounded-xl"
 		bind:this={carouselElement}
-		on:touchmove={handleScroll}
+		on:touchmove|nonpassive={handleScroll}
 		on:touchend={(e) => {
 			onTouchEnd(e);
 			handleScroll(e);
 		}}
-		style={`transform: translateY(${$translateY}px)`}
+		style={`touch-action: pan-x; transform: translateY(${$translateY}px)`}
 	>
 		{#each processedItems as item, index}
 			<div
