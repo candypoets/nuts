@@ -75,14 +75,14 @@
 </script>
 
 <div class="flex gap-2 relative" class:!gap-1={!!depth}>
-	<div class="w-8 min-w-8" class:!w-6={!!depth} class:!min-w-6={!!depth}>
+	<div class="w-8 min-w-8" class:!w-4={!!depth} class:!min-w-4={!!depth}>
 		<a on:click|stopPropagation|preventDefault={go} class="cursor-pointer">
 			<img
 				src={decoded?.picture ? proxyAvatarUrl(decoded.picture) : '/miss-profile.png'}
 				alt={decoded?.name}
 				class="border w-8 h-8 rounded-full space-x-4 mx-auto z-10 object-cover"
-				class:!w-6={!!depth}
-				class:!h-6={!!depth}
+				class:!w-4={!!depth}
+				class:!h-4={!!depth}
 			/>
 		</a>
 	</div>

@@ -192,24 +192,29 @@
 				amountPlusFees,
 				unspentProofs
 			);
-			$nutsWallet.saveProofs(fromMint, proofsToKeep);
-			if (
-				meltquote &&
-				unspentProofs &&
-				amount &&
-				fromMint &&
-				toMint &&
-				$nutsWallet &&
-				fromMint != toMint &&
-				!zap
-			) {
-				progress = 0;
-				status = 'Swaping mint';
-				progress = 0.1;
-				const toWallet = await $nutsWallet.getWallet(toMint);
 
-				const { change } = await fromWallet.meltProofs(meltquote, proofsToSend);
-				try {
+			try {
+				if (
+					meltquote &&
+					unspentProofs &&
+					amount &&
+					fromMint &&
+					toMint &&
+					$nutsWallet &&
+					fromMint != toMint &&
+					!zap
+				) {
+					// SWAP (fromMint -> toMint)
+					progress = 0;
+					status = 'Swaping mint';
+					progress = 0.1;
+
+					const toWallet = await $nutsWallet.getWallet(toMint);
+
+					// Consume the selected proofs at the fromMint
+					const { change } = await fromWallet.meltProofs(meltquote, proofsToSend);
+
+					// Wait for mint quote to be paid on target mint
 					let response = await toWallet?.checkMintQuote(mintquote.quote);
 					while (response.state !== MintQuoteState.PAID) {
 						status = 'Waiting for mint quote to be paid...';
@@ -218,7 +223,8 @@
 						response = await toWallet?.checkMintQuote(mintquote.quote);
 					}
 
-					const proofsToSend = await toWallet.mintProofs(amount, mintquote.quote);
+					// Mint new proofs on target mint and then send via p2pk
+					const mintedProofs = await toWallet.mintProofs(amount, mintquote.quote);
 
 					status = 'Swap successful';
 					progress = 0.7;
@@ -229,7 +235,7 @@
 
 					const sendRes = await toWallet.send(
 						Number(amount),
-						proofsToSend,
+						mintedProofs,
 						{
 							includeFees: false
 						},
@@ -268,124 +274,141 @@
 						}
 					});
 					setTimeout(() => (status = ''), 1000);
-				} finally {
-					$nutsWallet?.unspentProofs.set(fromMint, proofsToKeep.concat(change));
+
+					// Commit: keep + change
+					$nutsWallet.unspentProofs.set(fromMint, proofsToKeep.concat(change));
 					$nutsWallet.updateBalanceByMint();
 					$nutsWallet.saveProofs(fromMint, change);
-				}
-			} else if (fromMint == toMint && fromWallet && unspentProofs && !zap) {
-				console.log('nutszap!', proofsToSend, proofsToKeep, fromMint, toMint);
-				progress = 0;
-				const p2pk = validateP2pkPubkey(kind10019?.p2pkPubkey()?.toString());
+				} else if (fromMint == toMint && fromWallet && unspentProofs && !zap) {
+					// SAME-MINT P2PK SEND
+					console.log('nutszap!', proofsToSend, proofsToKeep, fromMint, toMint);
+					progress = 0;
+					const p2pk = validateP2pkPubkey(kind10019?.p2pkPubkey()?.toString());
 
-				console.log('p2pk', p2pk);
-				const newProofs = await fromWallet.receive(
-					{ mint: fromMint, proofs: proofsToSend, unit: 'sat' },
-					{},
-					{
-						type: 'p2pk',
-						options: { pubkey: p2pk }
-					}
-				);
+					console.log('p2pk', p2pk);
+					const newProofs = await fromWallet.receive(
+						{ mint: fromMint, proofs: proofsToSend, unit: 'sat' },
+						{},
+						{
+							type: 'p2pk',
+							options: { pubkey: p2pk }
+						}
+					);
 
-				const nutszap: EventTemplate = {
-					kind: 9321,
-					content: memo,
-					created_at: now(),
-					tags: [
-						...newProofs.map((proof) => ['proof', JSON.stringify(proof)]),
-						['u', toMint || ''],
-						['e', noteId || ''],
-						['p', pubkey]
-					].filter((t) => !!t[1])
-				};
+					const nutszap: EventTemplate = {
+						kind: 9321,
+						content: memo,
+						created_at: now(),
+						tags: [
+							...newProofs.map((proof) => ['proof', JSON.stringify(proof)]),
+							['u', toMint || ''],
+							['e', noteId || ''],
+							['p', pubkey]
+						].filter((t) => !!t[1])
+					};
 
-				console.log('nutszap', nutszap);
+					console.log('nutszap', nutszap);
 
-				status = 'Sending nutszap';
-				progress = 0.9;
+					status = 'Sending nutszap';
+					progress = 0.9;
 
-				const sendId = 'nutszap_' + random();
-				usePublish(sendId, nutszap, (message: WorkerMessage) => {
-					const connectionStatus = isConnectionStatus(message);
-					if (connectionStatus) {
-						const relayUrl = connectionStatus.relayUrl()?.toString();
-						if (relayUrl) {
-							sendStatus[relayUrl] = connectionStatus;
-							updateSendStatus(sendId, sendStatus);
-							status = 'Success';
+					const sendId = 'nutszap_' + random();
+					usePublish(sendId, nutszap, (message: WorkerMessage) => {
+						const connectionStatus = isConnectionStatus(message);
+						if (connectionStatus) {
+							const relayUrl = connectionStatus.relayUrl()?.toString();
+							if (relayUrl) {
+								sendStatus[relayUrl] = connectionStatus;
+								updateSendStatus(sendId, sendStatus);
+								status = 'Success';
+								progress = 1;
+							}
+						}
+					});
+					setTimeout(() => (status = ''), 1000);
+
+					// Commit: only keep proofs
+					$nutsWallet.unspentProofs.set(fromMint, proofsToKeep);
+					$nutsWallet.updateBalanceByMint();
+					$nutsWallet.saveProofs(fromMint, proofsToKeep);
+				} else if (fromMint && fromWallet && unspentProofs && meltquote) {
+					// ZAP (LNURL)
+					progress = 0;
+					console.log('lnurl', lnurl);
+					const zapRequest: EventTemplate = {
+						kind: 9734,
+						content: memo,
+						pubkey: $key?.pub || '',
+						created_at: now(),
+						tags: [
+							['e', noteId || ''],
+							['p', pubkey],
+							['amount', (Number(amount) * 1000).toString()],
+							['relays', ...receiptRelays.map((r) => r)],
+							['lnurl', lnurl || '']
+						].filter((t) => !!t[1])
+					};
+					status = 'Signing zap request';
+					progress = 0.3;
+
+					useSignEvent(zapRequest, async (signed) => {
+						status = 'Getting zap invoice';
+						progress = 0.5;
+						try {
+							// Send the signed zap request to the LNURL callback to get a zap invoice
+							const zapInvoice = await getZapInvoice(lnurl || '', Number(amount), signed);
+
+							if (!zapInvoice || !zapInvoice.pr) {
+								throw new Error('Failed to get zap invoice from LNURL service');
+							}
+
+							// Create melt quote for the zap invoice
+							const zapMeltQuote = await fromWallet.createMeltQuote(zapInvoice.pr);
+
+							console.log(zapMeltQuote);
+							status = 'Sending lightning payment';
+							progress = 0.8;
+
+							// Pay the zap invoice (consumes send proofs)
+							const { change } = await fromWallet.meltProofs(zapMeltQuote, proofsToSend);
+
+							console.log(change);
+							status = 'Success! Zap receipt will be published by the service';
 							progress = 1;
+
+							setTimeout(() => (status = 'ZAPPED'), 1000);
+							setTimeout(() => (status = ''), 2000);
+
+							// Commit: keep + change
+							$nutsWallet.unspentProofs.set(fromMint, proofsToKeep.concat(change));
+							$nutsWallet.updateBalanceByMint();
+							$nutsWallet.saveProofs(fromMint, change);
+							resetState();
+						} catch (error) {
+							console.log('error', error);
+							status = 'Error sending zap: ' + (error as Error).message;
+
+							// Rollback: keep + send
+							$nutsWallet.unspentProofs.set(fromMint, proofsToKeep.concat(proofsToSend));
+							$nutsWallet.updateBalanceByMint();
+							$nutsWallet.saveProofs(fromMint, proofsToKeep.concat(proofsToSend));
+
+							setTimeout(() => (status = ''), 3000);
+							resetState();
+							return;
 						}
-					}
-				});
-				setTimeout(() => (status = ''), 1000);
-				$nutsWallet?.unspentProofs.set(fromMint, proofsToKeep);
-				$nutsWallet?.updateBalanceByMint();
-				// $nutsWallet?.saveProofs(fromMint, proofsToKeep);
-			} else if (fromMint && fromWallet && unspentProofs && meltquote) {
-				progress = 0;
-				console.log('lnurl', lnurl);
-				const zapRequest: EventTemplate = {
-					kind: 9734,
-					content: memo,
-					pubkey: $key?.pub || '',
-					created_at: now(),
-					tags: [
-						['e', noteId || ''],
-						['p', pubkey],
-						['amount', (Number(amount) * 1000).toString()],
-						['relays', ...receiptRelays.map((r) => r)],
-						['lnurl', lnurl || '']
-					].filter((t) => !!t[1])
-				};
-				status = 'Signing zap request';
-				progress = 0.3;
+					});
+				} else {
+					status = `${fromMint} ${fromWallet} ${unspentProofs.length} ${lnurl}`;
+				}
+			} catch (err) {
+				// Top-level rollback: keep + send (covers swap and same-mint branches)
+				$nutsWallet.unspentProofs.set(fromMint, proofsToKeep.concat(proofsToSend));
+				$nutsWallet.updateBalanceByMint();
+				$nutsWallet.saveProofs(fromMint, proofsToKeep.concat(proofsToSend));
 
-				useSignEvent(zapRequest, async (signed) => {
-					status = 'Getting zap invoice';
-					progress = 0.5;
-					try {
-						// Send the signed zap request to the LNURL callback to get a zap invoice
-						const zapInvoice = await getZapInvoice(lnurl || '', Number(amount), signed);
-
-						if (!zapInvoice || !zapInvoice.pr) {
-							throw new Error('Failed to get zap invoice from LNURL service');
-						}
-
-						// Create melt quote for the zap invoice
-						const zapMeltQuote = await fromWallet.createMeltQuote(zapInvoice.pr);
-
-						console.log(zapMeltQuote);
-						status = 'Sending lightning payment';
-						progress = 0.8;
-
-						// Pay the zap invoice
-						const { change } = await fromWallet.meltProofs(zapMeltQuote, proofsToSend);
-
-						console.log(change);
-						status = 'Success! Zap receipt will be published by the service';
-						progress = 1;
-
-						// The LNURL service will automatically create and publish the zap receipt (kind 9735)
-						// after confirming the payment
-
-						setTimeout(() => (status = 'ZAPPED'), 1000);
-						setTimeout(() => (status = ''), 2000);
-
-						$nutsWallet?.unspentProofs.set(fromMint, proofsToKeep.concat(change));
-						$nutsWallet?.updateBalanceByMint();
-						$nutsWallet?.saveProofs(fromMint, change);
-						resetState();
-					} catch (error) {
-						console.log('error', error);
-						status = 'Error sending zap: ' + (error as Error).message;
-						setTimeout(() => (status = ''), 3000);
-						resetState();
-						return;
-					}
-				});
-			} else {
-				status = `${fromMint} ${fromWallet} ${unspentProofs.length} ${lnurl}`;
+				status = 'Error: ' + (err as Error).message;
+				setTimeout(() => (status = ''), 3000);
 			}
 		}
 	};

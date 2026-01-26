@@ -301,9 +301,9 @@
 		<!-- {#if main}
 			<div class="main">main</div>
 		{/if} -->
-		<div class="flex gap-2 w-full">
+		<div class="flex gap-2 w-full" class:gap-0={!!depth}>
 			<!-- {#if !depth} -->
-			<div class:!min-w-0={!!main} class="min-w-8" class:!min-w-2={!!depth} />
+			<div class:!min-w-0={!!main || !!depth} class="min-w-8" />
 			<!-- {/if} -->
 			<div
 				class="-mt-3 pr-2 flex-grow"

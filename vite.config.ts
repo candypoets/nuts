@@ -59,7 +59,7 @@ export default defineConfig(({ mode }) => {
 					short_name: 'Nuts',
 					description: 'The nostr cashu wallet',
 					theme_color: 'transparent',
-					start_url: '/home',
+					start_url: '/explore',
 					display: 'standalone',
 					orientation: 'portrait',
 					background_color: 'transparent',

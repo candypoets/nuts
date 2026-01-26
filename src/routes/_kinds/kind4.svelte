@@ -5,7 +5,7 @@
 	import type { ParsedEvent, WorkerMessage } from '@candypoets/nipworker';
 	import { Kind4ParsedT, ParsedData, ParsedEventT } from '@candypoets/nipworker';
 	import { usePublish } from '@candypoets/nipworker/hooks';
-	import { asParsedEvent, parseContent } from '@candypoets/nipworker/utils';
+	import { asParsedEvent, fbArray, parseContent } from '@candypoets/nipworker/utils';
 	import Editor from 'src/components/Editor.svelte';
 	import { key, readRelays, writeRelays } from 'src/controller';
 	import { toParsedEvent } from 'src/controller/feed';
@@ -30,14 +30,17 @@
 	let sent: ParsedEvent;
 	let feed: ParsedEvent[] = [];
 
-	let sendingMap = new Map<number, number>();
+	let sendingMap = new Map<string, number>();
 
 	function updateFeed(feed: ParsedEvent[], message: WorkerMessage) {
 		const parsedEvent = asParsedEvent(message);
 		if (parsedEvent) {
-			if (sendingMap.has(parsedEvent.createdAt())) {
-				// firstEvent = feed?.[1];
-				sendingMap.set(parsedEvent.createdAt(), 0);
+			const nonce = getNonce(parsedEvent);
+			console.log('hey', nonce);
+			// Extract nonce from tags for deduplication
+			if (nonce && sendingMap.has(nonce)) {
+				console.log('Found in sendingMap - deduplicating with nonce:', nonce);
+				sendingMap.delete(nonce);
 				return feed;
 			}
 			switch (parsedEvent?.parsedType()) {
@@ -46,6 +49,26 @@
 				default:
 					return feed;
 			}
+		}
+	}
+
+	function getNonce(post: ParsedEvent): string | undefined {
+		const tags = fbArray(post, 'tags').reduce(
+			(acc, tag) => {
+				const items = fbArray(tag, 'items');
+				if (items.length >= 2) {
+					const key = items[0]?.toString();
+					if (key) {
+						acc[key] = items.slice(1).map((item) => item?.toString());
+					}
+				}
+				return acc;
+			},
+			{} as Record<string, string[]>
+		);
+		const nonce = tags['nonce']?.[0];
+		if (nonce) {
+			return nonce;
 		}
 	}
 
@@ -79,12 +102,20 @@
 		if (!content.trim()) return;
 
 		try {
+			// Generate a unique nonce for this message
+			const nonce = Array.from(crypto.getRandomValues(new Uint8Array(16)))
+				.map((b) => b.toString(16).padStart(2, '0'))
+				.join('');
+
 			const event: UnsignedEvent = {
 				kind: 4,
 				pubkey: $key?.pub,
 				content: content.trim(),
 				created_at: now(),
-				tags: [['p', pubkey]]
+				tags: [
+					['p', pubkey],
+					['nonce', nonce]
+				]
 			};
 
 			// event.id = getEventHash(event);
@@ -112,7 +143,8 @@
 
 			const newEvent = toParsedEvent(eventT);
 
-			sendingMap.set(newEvent.createdAt(), event.created_at);
+			// Store nonce for deduplication
+			sendingMap.set(nonce, true);
 
 			feed = [newEvent, ...feed];
 
@@ -208,7 +240,7 @@
 			incoming={post.pubkey()?.toString() == pubkey}
 			lastSent={post.pubkey()?.toString() == pubkey && index == feed.length - 1}
 			date={feed.length - 1 == index || oneDayDiff(post.createdAt(), feed[index - 1]?.createdAt())}
-			sent={sendingMap.get(post.createdAt())}
+			sent={sendingMap.get(getNonce(post) || '')}
 		/>
 	</svelte:fragment>
 </Feed>

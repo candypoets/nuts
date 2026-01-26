@@ -73,6 +73,8 @@
 		{loop}
 		{muted}
 		playsinline
+		preload="metadata"
+		crossorigin="anonymous"
 		class="h-96 w-full object-cover"
 		disablePictureInPicture
 	/>

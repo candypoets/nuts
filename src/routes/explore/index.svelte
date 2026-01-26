@@ -10,6 +10,7 @@
 	import { isEqual, uniq } from 'lodash';
 
 	import { normalizeURL } from 'nostr-tools/utils';
+	import { onMount } from 'svelte';
 	import Pager from 'src/components/Pager.svelte';
 	import RelaysList from 'src/components/RelaysList.svelte';
 	import { key } from 'src/controller';
@@ -44,7 +45,7 @@
 			[])
 	]);
 
-	$: visible && setFeedRequests(following);
+	$: visible && ($kind3 || $followPacks.length) && setFeedRequests(following);
 
 	$: subId =
 		$followPacks.reduce((acc, cur) => acc + cur.id()?.fnv1aHash(), 'feed') + tags.join(',');
@@ -68,7 +69,22 @@
 			handleSubRelays(subRelays);
 		});
 
+	let feedInitialized = false;
+
+	onMount(() => {
+		const timeout = setTimeout(() => {
+			if (!feedInitialized && !feedRequests.length) {
+				console.warn('Feed data not loaded, initializing with empty authors');
+				setFeedRequests([]);
+				feedInitialized = true;
+			}
+		}, 2000);
+		return () => clearTimeout(timeout);
+	});
+
 	const setFeedRequests = (follows: string[]) => {
+		feedInitialized = true;
+		console.log('setFeedRequests:', { follows: follows.length, followPacks: $followPacks.length, kind3: !!$kind3, visible });
 		if ($key?.pub && !follows.length && $followPacks.length) {
 			Promise.race([
 				kind3Ready.promise,
