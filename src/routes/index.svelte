@@ -200,12 +200,17 @@
 			carouselAnimator.setItems(carouselItems);
 
 			// Initialize all items with proper positioning
+			const activeRoutes = carouselAnimator.getActiveRoutes();
+			const currentIdx = activeRoutes.findIndex((r) =>
+				$page.url.pathname.startsWith(r.route)
+			);
 			carouselItems.forEach((item, index) => {
-				const ratio = CarouselAnimator.getTransformRatio(index, 0, scrollerWidth);
+				const ratio = CarouselAnimator.getTransformRatio(index, currentIdx);
+				const direction = index - currentIdx;
 				const transform = $isMobile
-					? `translateX(${index * 100}vw) translateY(0)`
-					: `translateX(${index * 50}vw) translateY(0) translateZ(${ratio * 10}px) rotateY(${
-							(1 - ratio) * index * 30
+					? `translateX(${direction * 100}vw) translateY(0)`
+					: `translateX(${direction * 50}vw) translateY(0) translateZ(${ratio * 10}px) rotateY(${
+							(1 - ratio) * direction * 30
 						}deg) scale(${ratio})`;
 				const opacity = $isMobile ? '1' : ratio.toString();
 				item.style.transform = transform;
@@ -220,16 +225,12 @@
 			// 	carouselAnimator.animateToPosition(initialX, 0, $isMobile); // No duration for initial position
 			// }
 
-			// Determine the index based on the current route
-			if ($page.url.pathname.startsWith('/chat')) {
-				carouselAnimator.setPage(2, $page.url.pathname);
-				carouselAnimator.moveToIndex(2, 0);
-			} else if ($page.url.pathname.startsWith('/explore')) {
-				carouselAnimator.setPage(1, $page.url.pathname);
-				carouselAnimator.moveToIndex(1, 0);
-			} else if ($page.url.pathname.startsWith('/home')) {
-				carouselAnimator.setPage(0, $page.url.pathname);
-				carouselAnimator.moveToIndex(0, 0);
+			// Initialize carousel position based on current route
+			const initialIndex = activeRoutes.findIndex((r) =>
+				$page.url.pathname.startsWith(r.route)
+			);
+			if (initialIndex >= 0) {
+				carouselAnimator.syncToUrl($page.url.pathname, 0, $isMobile);
 			}
 		};
 
@@ -255,16 +256,29 @@
 		carouselAnimator.updateScrollerWidth(scrollerWidth);
 	}
 
-	$: currentIndex = carouselAnimator?.currentIndex || 0;
+	// Sync carousel to URL changes (browser back/forward, external navigation)
+	$: carouselAnimator.syncToUrl($page.url.pathname, 300, $isMobile);
 
-	// Handle keyboard navigation (Alt + Left/Right)
+	// Get store references for reactive access
+	const currentIndexStore = carouselAnimator.currentIndex;
+	const overviewModeStore = carouselAnimator.overviewMode;
+
+	// Handle keyboard navigation
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key == 'Escape') {
-			$pagerAnimator?.goBack();
+			// Toggle overview mode (or exit if already in it)
+			carouselAnimator.toggleOverviewMode(500, $isMobile);
 		} else if (e.key === 'ArrowLeft') {
-			carouselAnimator.moveLeft();
+			if ($overviewModeStore) {
+				// In overview mode, arrow keys do nothing (or could navigate selection)
+				return;
+			}
+			carouselAnimator.navigateLeft();
 		} else if (e.key === 'ArrowRight') {
-			carouselAnimator.moveRight();
+			if ($overviewModeStore) {
+				return;
+			}
+			carouselAnimator.navigateRight();
 		} else if (e.metaKey && e.key === 'k') {
 			e.preventDefault();
 			go('cmdk');
@@ -275,6 +289,16 @@
 			e.preventDefault();
 			go('theme');
 		}
+	}
+
+	// Feed management
+	function handleDeleteFeed(index: number, e: Event) {
+		e.stopPropagation();
+		carouselAnimator.deleteRoute(index, $isMobile);
+	}
+
+	function handleSelectFeedInOverview(index: number) {
+		carouselAnimator.selectRouteInOverview(index, 400, $isMobile);
 	}
 
 	// Touch handling with RAF
@@ -336,27 +360,62 @@
 		on:touchend={handleTouchEnd}
 	>
 		<!-- {#key $key?.pub} -->
-		<!-- Home Section -->
-		<div class="carousel-item w-[100vw] will-change-transform carousel-item-0">
-			<div class="w-full relative overflow-hidden">
-				<Home visible={!$isMobile || $currentIndex == 0} />
+		<!-- Dynamic Feed Sections -->
+		{#each carouselAnimator.getActiveRoutes() as feed, index (feed.id)}
+			<div 
+				class="carousel-item w-[100vw] h-full will-change-transform carousel-item-{index}"
+				class:pointer-events-none={$overviewModeStore}
+				on:click={() => $overviewModeStore && handleSelectFeedInOverview(index)}
+			>
+				{#if $overviewModeStore}
+					<button
+						class="absolute top-4 right-4 z-50 w-8 h-8 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition-colors"
+						on:click={(e) => handleDeleteFeed(index, e)}
+						disabled={carouselAnimator.getActiveRoutes().length <= 1}
+						title="Delete feed"
+					>
+						×
+					</button>
+				{/if}
+				<div class="w-full h-full relative overflow-hidden">
+					{#if feed.id === 'home'}
+						<Home visible={!$isMobile || $currentIndexStore == index} />
+					{:else if feed.id === 'explore'}
+						<Explore visible={!$isMobile || $currentIndexStore == index} />
+					{:else if feed.id === 'chat'}
+						<Chat visible={!$isMobile || $currentIndexStore == index} />
+					{/if}
+				</div>
 			</div>
-		</div>
-
-		<!-- Explore Section -->
-		<div class="carousel-item w-[100vw] h-full will-change-transform carousel-item-1">
-			<div class="w-full h-full relative overflow-hidden">
-				<Explore visible={!$isMobile || $currentIndex == 1} />
-			</div>
-		</div>
-
-		<div class="carousel-item w-[100vw] h-full will-change-transform carousel-item-2">
-			<div class="w-full h-screen relative overflow-hidden">
-				<Chat visible={!$isMobile || $currentIndex == 2} />
-			</div>
-		</div>
+		{/each}
 		<!-- {/key} -->
 	</div>
+
+	<!-- Overview Mode Overlay -->
+	{#if $overviewModeStore}
+		<div 
+			class="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity"
+			on:click={() => carouselAnimator.exitOverviewMode(400, $isMobile)}
+		>
+			<!-- Header -->
+			<div class="absolute top-0 left-0 right-0 p-4 flex justify-between items-center">
+				<h2 class="text-white text-lg font-semibold">Manage Feeds</h2>
+				<button
+					class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
+					on:click={() => carouselAnimator.exitOverviewMode(400, $isMobile)}
+				>
+					Done
+				</button>
+			</div>
+
+			<!-- Instructions -->
+			<div class="absolute bottom-8 left-0 right-0 text-center">
+				<p class="text-white/60 text-sm">
+					Click a feed to select it • Click × to delete • At least one feed required
+				</p>
+			</div>
+		</div>
+	{/if}
 	<!-- {:else}
 		<Login /> -->
 	<!-- {/if} -->
@@ -377,9 +436,7 @@
 		width: 100vw;
 	}
 
-	.carousel-item-0,
-	.carousel-item-1,
-	.carousel-item-2 {
+	.carousel-item {
 		transform-origin: center center;
 		contain: layout style paint;
 		backface-visibility: hidden;
@@ -396,5 +453,32 @@
 
 	.carousel-item {
 		/* Animations handled by Web Animations API */
+	}
+
+	/* Overview mode styles */
+	:global(.carousel-item) {
+		transition: cursor 0.2s ease;
+	}
+
+	:global(.overview-mode .carousel-item) {
+		cursor: pointer;
+	}
+
+	:global(.overview-mode .carousel-item:hover) {
+		filter: brightness(1.1);
+	}
+
+	:global(.overview-mode .carousel-item button) {
+		cursor: pointer;
+	}
+
+	:global(.overview-mode .carousel-item button:disabled) {
+		opacity: 0.3;
+		cursor: not-allowed;
+	}
+
+	/* Ensure delete buttons are clickable in overview mode */
+	.carousel-item button {
+		pointer-events: auto;
 	}
 </style>
