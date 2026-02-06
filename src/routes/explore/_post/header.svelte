@@ -43,7 +43,7 @@
 
 			if (!authorEvent) {
 				sub = useSubscription(
-					'u_' + note.pubkey(),
+					'u_' + notePubkey,
 					userQuery(notePubkey),
 					(message: WorkerMessage) => {
 						const kind0 = isKind0(message);

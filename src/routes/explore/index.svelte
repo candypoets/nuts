@@ -84,7 +84,6 @@
 
 	const setFeedRequests = (follows: string[]) => {
 		feedInitialized = true;
-		console.log('setFeedRequests:', { follows: follows.length, followPacks: $followPacks.length, kind3: !!$kind3, visible });
 		if ($key?.pub && !follows.length && $followPacks.length) {
 			Promise.race([
 				kind3Ready.promise,
@@ -149,7 +148,7 @@
 	<Feed
 		subscriptionID={subId + relayCounter}
 		requests={feedRequests}
-		subscriptionOptions={{ bytesPerEvent: 50 * 1024 }}
+		subscriptionOptions={{ bytesPerEvent: 10 * 1024 }}
 		kinds={[1, 6]}
 		bind:connectionStatus
 		pullToRefresh

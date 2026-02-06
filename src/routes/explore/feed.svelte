@@ -12,7 +12,8 @@
 		asKind1,
 		asKind6,
 		asParsedEvent,
-		isKind1
+		isKind1,
+		isKind6
 	} from '@candypoets/nipworker/utils';
 	import Fuse from 'fuse.js';
 	import { getContext, onMount } from 'svelte';
@@ -235,9 +236,11 @@
 				}
 
 				const kind1 = isKind1(message);
-				if (parsedEvent && kind1) {
-					// only show replies to root posts
+				const kind6 = isKind6(message);
+				if (parsedEvent && (kind1 || kind6)) {
+					// only show replies to root posts (kind1 only)
 					if (
+						kind1 &&
 						kind1.reply()?.id() &&
 						kind1?.root()?.id()?.fnv1aHash() != kind1.reply()?.id()?.fnv1aHash()
 					) {
@@ -615,7 +618,7 @@
 		onRefresh={refreshHead}
 		{pullToRefresh}
 	>
-		{@const repost = asKind6(item) && item.pubkey()}
+		{@const repost = asKind6(item) && item.pubkey()?.toString()}
 		{@const screenVisible = itemIndex >= start - 10}
 		{@const subVisible = visible}
 		<svelte:fragment slot="feed-header">
@@ -634,9 +637,10 @@
 					index={itemIndex}
 				>
 					<Note
-						note={repost ? { ...item?.parsed.repostedEvent, requests: item.requests } : item}
+						note={repost ? asKind6(item)?.repostedEvent() : item}
 						context={[]}
 						visible={subVisible}
+						showRoot={!repost}
 						{repost}
 					/>
 				</slot>

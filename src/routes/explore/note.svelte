@@ -50,6 +50,8 @@
 	export let showRoot: boolean = true;
 	export let depth = 0;
 
+	$: console.log('note', note);
+
 	$: kind1 = note && asKind1(note as ParsedEvent);
 
 	$: nid = noteId || note?.id()?.toString();
@@ -247,6 +249,8 @@
 				connectionStatus = {};
 			}
 		});
+
+	$: console.log('repost', repost);
 </script>
 
 {#if hasRoot}
@@ -301,7 +305,7 @@
 		<!-- {#if main}
 			<div class="main">main</div>
 		{/if} -->
-		<div class="flex gap-2 w-full" class:gap-0={!!depth}>
+		<div class="flex gap-2 w-full" class:!gap-0={!!depth}>
 			<!-- {#if !depth} -->
 			<div class:!min-w-0={!!main || !!depth} class="min-w-8" />
 			<!-- {/if} -->

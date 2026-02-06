@@ -78,7 +78,7 @@
 
 <!-- Profile picture with fallback and sizing -->
 <div
-	class={`${sizeClasses[size]} rounded-full overflow-hidden bg-gray-200 flex-shrink-0 ${customClass}`}
+	class={`${sizeClasses[size]} rounded-full border overflow-hidden bg-gray-200 flex-shrink-0 ${customClass}`}
 	on:click={goto}
 >
 	{#if proxiedImageUrl}
