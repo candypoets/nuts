@@ -19,7 +19,7 @@
 		isConnectionStatus,
 		isParsedEvent
 	} from '@candypoets/nipworker/utils';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { pwaInfo } from 'virtual:pwa-info';
 
 	import { goto } from '$app/navigation';
@@ -48,7 +48,7 @@
 	import Chat from 'src/routes/chat/index.svelte';
 	import Explore from 'src/routes/explore/index.svelte';
 	import Home from 'src/routes/home/+layout.svelte';
-	import { goBack } from 'src/routes/modals/modal';
+	import { goBack as goBackRouter } from 'src/routes/modals/modal';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
 
@@ -59,16 +59,18 @@
 	$: scrollerWidth = scroller?.clientWidth || $viewport.vw * 100;
 
 	let carouselItems: HTMLElement[] = [];
+	let carouselInitialized = false;
 
 	let progressContainer: HTMLDivElement | null = null;
 
 	// $: $key && $key.priv && manager.setSigner('privkey', $key.priv);
 	//
 	manager.addEventListener('auth', (event) => {
+	console.log('auth successful')
 		$key.pub = event.detail;
 	});
 
-	setupPagerAnimators($viewport, goBack);
+	setupPagerAnimators($viewport, goBackRouter);
 
 	const connectionTracker = new ConnectionTracker();
 
@@ -251,6 +253,50 @@
 
 	$: homepage = $page.route.id == '/';
 
+	// Re-initialize carousel when it becomes visible (navigating from homepage)
+	$: if (!homepage && scroller && !carouselInitialized) {
+		carouselInitialized = true;
+		// Wait for DOM to update with carousel items
+		tick().then(() => {
+			if (!scroller) return;
+
+			carouselItems = Array.from(scroller.querySelectorAll('.carousel-item'));
+			if (carouselItems.length === 0) {
+				carouselInitialized = false;
+				return;
+			}
+
+			carouselAnimator.updateScrollerWidth(scrollerWidth);
+			carouselAnimator.setItems(carouselItems);
+
+			// Initialize all items with proper positioning
+			const activeRoutes = carouselAnimator.getActiveRoutes();
+			const currentIdx = activeRoutes.findIndex((r) =>
+				$page.url.pathname.startsWith(r.route)
+			);
+			carouselItems.forEach((item, index) => {
+				const ratio = CarouselAnimator.getTransformRatio(index, currentIdx);
+				const direction = index - currentIdx;
+				const transform = $isMobile
+					? `translateX(${direction * 100}vw) translateY(0)`
+					: `translateX(${direction * 50}vw) translateY(0) translateZ(${ratio * 10}px) rotateY(${
+							(1 - ratio) * direction * 30
+						}deg) scale(${ratio})`;
+				const opacity = $isMobile ? '1' : ratio.toString();
+				item.style.transform = transform;
+				item.style.opacity = opacity;
+			});
+
+			// Sync to current URL
+			carouselAnimator.syncToUrl($page.url.pathname, 0, $isMobile);
+		});
+	}
+
+	// Reset initialization flag when returning to homepage
+	$: if (homepage) {
+		carouselInitialized = false;
+	}
+
 	// Update animator when scroller width changes
 	$: if (carouselAnimator && scrollerWidth) {
 		carouselAnimator.updateScrollerWidth(scrollerWidth);
@@ -266,8 +312,17 @@
 	// Handle keyboard navigation
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key == 'Escape') {
-			// Toggle overview mode (or exit if already in it)
-			carouselAnimator.toggleOverviewMode(500, $isMobile);
+			const pathname = $page.url.pathname;
+			// Split path and filter out empty strings (leading/trailing slashes)
+			const pathParts = pathname.split('/').filter(Boolean);
+
+			if (pathParts.length >= 2) {
+				// On a subpath (e.g., /explore/notifications), go back to parent
+				$pagerAnimator?.goBack();
+			} else {
+				// At root of a section (e.g., /explore), toggle overview mode
+				carouselAnimator.toggleOverviewMode(500, $isMobile);
+			}
 		} else if (e.key === 'ArrowLeft') {
 			if ($overviewModeStore) {
 				// In overview mode, arrow keys do nothing (or could navigate selection)
@@ -354,6 +409,7 @@
 	<!-- {#if $key?.pub} -->
 	<div
 		class="carousel-container"
+		style:z-index={$overviewModeStore ? 40 : undefined}
 		bind:this={scroller}
 		on:touchstart={handleTouchStart}
 		on:touchmove={handleTouchMove}
@@ -362,7 +418,7 @@
 		<!-- {#key $key?.pub} -->
 		<!-- Dynamic Feed Sections -->
 		{#each carouselAnimator.getActiveRoutes() as feed, index (feed.id)}
-			<div 
+			<div
 				class="carousel-item w-[100vw] h-full will-change-transform carousel-item-{index}"
 				class:pointer-events-none={$overviewModeStore}
 				on:click={() => $overviewModeStore && handleSelectFeedInOverview(index)}
@@ -391,29 +447,29 @@
 		<!-- {/key} -->
 	</div>
 
-	<!-- Overview Mode Overlay -->
+	<!-- Overview Mode Backdrop (behind feeds) -->
 	{#if $overviewModeStore}
-		<div 
-			class="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity"
+		<div
+			class="fixed inset-0 z-30 bg-black/30 backdrop-blur-sm transition-opacity"
 			on:click={() => carouselAnimator.exitOverviewMode(400, $isMobile)}
-		>
-			<!-- Header -->
-			<div class="absolute top-0 left-0 right-0 p-4 flex justify-between items-center">
-				<h2 class="text-white text-lg font-semibold">Manage Feeds</h2>
-				<button
-					class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
-					on:click={() => carouselAnimator.exitOverviewMode(400, $isMobile)}
-				>
-					Done
-				</button>
-			</div>
+		/>
 
-			<!-- Instructions -->
-			<div class="absolute bottom-8 left-0 right-0 text-center">
-				<p class="text-white/60 text-sm">
-					Click a feed to select it • Click × to delete • At least one feed required
-				</p>
-			</div>
+		<!-- Header (above feeds) -->
+		<div class="fixed top-0 left-0 right-0 z-50 p-4 flex justify-between items-center pointer-events-none">
+			<h2 class="text-white text-lg font-semibold">Manage Feeds</h2>
+			<button
+				class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors pointer-events-auto"
+				on:click={() => carouselAnimator.exitOverviewMode(400, $isMobile)}
+			>
+				Done
+			</button>
+		</div>
+
+		<!-- Instructions (above feeds) -->
+		<div class="fixed bottom-8 left-0 right-0 z-50 text-center pointer-events-none">
+			<p class="text-white/60 text-sm">
+				Click a feed to select it • Click × to delete • At least one feed required
+			</p>
 		</div>
 	{/if}
 	<!-- {:else}

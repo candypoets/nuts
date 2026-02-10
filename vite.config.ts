@@ -11,6 +11,7 @@ import path from 'path';
 export default defineConfig(({ mode }) => {
 	const env = loadEnv(mode, process.cwd(), 'VITE_');
 	const enableSsl = env.VITE_ENABLE_SSL === 'true';
+	const disableHmr = env.VITE_DISABLE_HMR === 'true';
 
 	return {
 		ssr: {

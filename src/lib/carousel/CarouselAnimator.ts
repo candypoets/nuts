@@ -13,7 +13,7 @@ export class CarouselAnimator {
 	private currentAnimations: Animation[] = [];
 	private touchRAF: number | null = null;
 	private scrollerWidth: number;
-	private currentStates: { transform: string; opacity: string }[] = [];
+	private currentStates: { transform: string; opacity: string; zIndex: string }[] = [];
 
 	// Default routes - can be modified dynamically
 	private activeRoutes: FeedConfig[] = [
@@ -41,6 +41,9 @@ export class CarouselAnimator {
 	// Mobile visibility management
 	private visibleIndices: Set<number> = new Set();
 	private isAnimating = false;
+	private isReady = false;
+	private hasSynced = false; // Track if initial sync has occurred
+	private pendingAnimation: { targetX: number; duration: number; isMobile: boolean; targetIndex: number; originIndex: number } | null = null;
 
 	constructor(scrollerWidth: number = 1080) {
 		this.scrollerWidth = scrollerWidth;
@@ -64,6 +67,10 @@ export class CarouselAnimator {
 
 	exitOverviewMode(duration: number = 400, isMobile: boolean = false) {
 		this.overviewMode.set(false);
+		// Clear CSS transitions from overview mode
+		this.items.forEach(item => {
+			item.style.transition = '';
+		});
 		// Return to current position
 		const currentIdx = this.getCurrentIndex();
 		const targetX = currentIdx * this.scrollerWidth;
@@ -74,67 +81,48 @@ export class CarouselAnimator {
 		this.cancelAllAnimations();
 		this.updateProgressBars(0);
 
+		const containerWidth = this.scrollerWidth;
+		const count = this.activeRoutes.length;
+		const scale = isMobile ? 0.28 : 0.42;
+		const scaledItemWidth = containerWidth * scale; // ~806px at 0.42 scale
+		
+		// For desktop: position feeds side by side with ~220px overlap to fit screen
+		const overlap = isMobile ? 0 : 220;
+		const spacing = scaledItemWidth - overlap; // ~586px between feed left edges
+		const startX = isMobile ? (containerWidth - (count * scaledItemWidth + (count - 1) * 16)) / 2 : 30;
+
 		// Show all items in overview mode
 		this.items.forEach((item, index) => {
 			item.style.display = '';
 			item.style.zIndex = '1';
+			item.style.transition = `transform ${duration}ms cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity ${duration}ms ease`;
 		});
 		this.visibleIndices = new Set(this.items.map((_, i) => i));
 
-		const count = this.activeRoutes.length;
-		const gap = isMobile ? 16 : 32; // gap between items in px
-		const scale = isMobile ? 0.28 : 0.35; // scale down for overview
-
-		// Calculate layout - arrange side by side with gaps
-		// Center the whole group in the viewport
-		const containerWidth = this.scrollerWidth;
-		const itemWidth = containerWidth * scale;
-		const totalWidth = count * itemWidth + (count - 1) * gap;
-		const startX = (containerWidth - totalWidth) / 2;
+		// Force a reflow before setting new transforms
+		this.items[0]?.offsetHeight;
 
 		this.items.forEach((item, index) => {
-			if (this.currentAnimations[index]) {
-				const currentState = this.captureCurrentState(index);
-				this.currentStates[index] = currentState;
-				item.style.transform = currentState.transform;
-				item.style.opacity = currentState.opacity;
-				this.currentAnimations[index].cancel();
-			}
-
-			const currentState = this.currentStates[index] || this.captureCurrentState(index);
-			const currentTransform = currentState.transform || '';
-
-			const xPos = startX + index * (itemWidth + gap);
-			const centerOffset = (containerWidth - itemWidth) / 2;
-			const translateX = xPos - centerOffset;
+			// Position each feed side by side
+			// xPos is where we want the left edge of the SCALED feed to be
+			const xPos = startX + index * spacing;
+			
+			// CSS transform scales from center, so we need to adjust
+			// The transform origin is center, so: visualLeft = translateX - (originalWidth - scaledWidth)/2
+			// Solving for translateX: translateX = visualLeft + (originalWidth - scaledWidth)/2
+			const centeringOffset = (containerWidth - scaledItemWidth) / 2;
+			const translateX = xPos - centeringOffset;
 
 			const targetTransform = `translateX(${translateX}px) translateY(0) scale(${scale})`;
-			const targetOpacity = '1';
+			
+			item.style.transform = targetTransform;
+			item.style.opacity = '1';
 
-			this.currentAnimations[index] = item.animate(
-				[
-					{
-						transform: currentTransform === 'none' ? targetTransform : currentTransform,
-						opacity: currentState.opacity || '1'
-					},
-					{
-						transform: targetTransform,
-						opacity: targetOpacity
-					}
-				],
-				{
-					duration,
-					easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)',
-					fill: 'forwards'
-				}
-			);
-
-			this.currentAnimations[index].addEventListener('finish', () => {
-				this.currentStates[index] = {
-					transform: targetTransform,
-					opacity: targetOpacity
-				};
-			});
+			this.currentStates[index] = {
+				transform: targetTransform,
+				opacity: '1',
+				zIndex: '1'
+			};
 		});
 	}
 
@@ -235,29 +223,92 @@ export class CarouselAnimator {
 		const index = this.activeRoutes.findIndex((r) => pathname.startsWith(r.route));
 		if (index < 0) return;
 
-		const current = this.getCurrentIndex();
+		// Use the stored currentIndex, not getCurrentIndex() which reads from URL
+		// This ensures we animate when the URL changes, since the URL store updates
+		// before syncToUrl is called
+		const current = get(this.currentIndex);
 		if (index !== current) {
 			const targetX = index * this.scrollerWidth;
-			this.animateToPosition(targetX, duration, isMobile, index);
+			// On first sync (initial page load), don't apply mobile visibility restrictions
+			// This ensures all carousel items are visible on initial load
+			const shouldApplyMobileVisibility = this.hasSynced && isMobile;
+			this.animateToPosition(targetX, duration, shouldApplyMobileVisibility, index);
 			this.currentIndex.set(index);
 		}
+		
+		// Mark that we've completed at least one sync
+		this.hasSynced = true;
 	}
 
 	// === SETUP ===
 
 	setItems(items: HTMLElement[]) {
 		this.items = items;
-		this.items.forEach((item) => {
+		const currentIdx = this.getCurrentIndex();
+		
+		// Reset hasSynced since we're re-initializing
+		// This ensures the next syncToUrl call treats this as initial load
+		this.hasSynced = false;
+		
+		// Clear any pending animation that was queued before setItems was called
+		// This prevents stale animations from being applied
+		this.pendingAnimation = null;
+		
+		// Ensure all items are visible initially
+		this.visibleIndices = new Set(items.map((_, i) => i));
+		
+		this.items.forEach((item, index) => {
 			item.style.willChange = 'transform, opacity';
 			item.style.backfaceVisibility = 'hidden';
+			item.style.display = ''; // Ensure visible
+			// Set initial z-index based on position relative to current item
+			const zIndex = index === currentIdx ? '10' : '0';
+			item.style.zIndex = zIndex;
 		});
 		this.cancelAllAnimations();
 		this.currentAnimations = new Array(items.length).fill(null);
+		
+		// Initialize currentStates with the correct transform strings (not computed matrix)
+		// to ensure smooth first transition animation
+		const baseX = currentIdx * this.scrollerWidth;
 		this.currentStates = new Array(items.length)
 			.fill(null)
-			.map(() => ({ transform: '', opacity: '1' }));
+			.map((_, index) => {
+				const ratio = this.getTransformRatio(index, baseX);
+				const isMobile = false; // Desktop initialization
+				const transform = this.getTransformForItem(index, ratio, isMobile, currentIdx);
+				return { 
+					transform, 
+					opacity: isMobile ? '1' : ratio.toString(),
+					zIndex: index === currentIdx ? '10' : '0'
+				};
+			});
 		this.rebuildProgressBars();
-		this.updateProgressBars(this.getCurrentIndex() * this.scrollerWidth);
+		this.updateProgressBars(baseX);
+		
+		// Mark as ready and run any pending animation
+		this.isReady = true;
+		if (this.pendingAnimation && this.pendingAnimation.duration > 0) {
+			// Only process pending animations with duration > 0
+			// duration=0 means "initial position" which is already set above
+			const { targetX, duration, isMobile, targetIndex, originIndex } = this.pendingAnimation;
+			// Re-initialize currentStates using the ORIGIN index (from pending animation)
+			// so that the animation starts from the correct positions
+			const originBaseX = originIndex * this.scrollerWidth;
+			this.currentStates = new Array(items.length)
+				.fill(null)
+				.map((_, index) => {
+					const ratio = this.getTransformRatio(index, originBaseX);
+					const transform = this.getTransformForItem(index, ratio, isMobile, originIndex);
+					return { 
+						transform, 
+						opacity: isMobile ? '1' : ratio.toString(),
+						zIndex: index === originIndex ? '10' : '0'
+					};
+				});
+			this.animateToPosition(targetX, duration, isMobile, targetIndex);
+		}
+		this.pendingAnimation = null;
 	}
 
 	updateScrollerWidth(width: number) {
@@ -346,7 +397,16 @@ export class CarouselAnimator {
 				}
 			}
 
-			this.navigateTo(targetIndex, 250, isMobile);
+			// Always animate to target position, even if it's the same as current
+			// This ensures the carousel snaps back when swipe doesn't trigger navigation
+			const targetX = targetIndex * this.scrollerWidth;
+			this.animateToPosition(targetX, 250, isMobile, targetIndex);
+			
+			// Only update route and index if actually navigating
+			if (targetIndex !== currentIdx) {
+				goto(this.activeRoutes[targetIndex].route);
+				this.currentIndex.set(targetIndex);
+			}
 		}
 
 		this.isSwiping = false;
@@ -397,13 +457,39 @@ export class CarouselAnimator {
 		isMobile: boolean = false,
 		targetIndex?: number
 	) {
+		// Guard: don't animate if items haven't been set yet
+		if (!this.isReady) {
+			// Initial load - queue animation to run after setItems
+			// Use getCurrentIndex() to get the actual current URL position
+			const originIndex = this.getCurrentIndex();
+			this.pendingAnimation = { 
+				targetX: virtualXPosition, 
+				duration, 
+				isMobile, 
+				targetIndex: targetIndex ?? originIndex,
+				originIndex
+			};
+			return;
+		}
+		
 		this.updateProgressBars(virtualXPosition);
 
-		const originIndex = targetIndex !== undefined ? this.getCurrentIndex() : this.getCurrentIndex();
-		const destIndex = targetIndex ?? this.getCurrentIndex();
+		const originIndex = this.getCurrentIndex();
+		const destIndex = targetIndex ?? originIndex;
 
-		if (isMobile) {
-			const visible = Array.from(new Set([originIndex, destIndex])).filter(
+		// Only apply mobile visibility restrictions when animating (duration > 0)
+		// On initial load (duration === 0), keep all items visible
+		if (isMobile && duration > 0) {
+			// Include origin, dest, and their neighbors to ensure smooth animations
+			// This is especially important for snap-back when origin === dest
+			const indicesToInclude = new Set([originIndex, destIndex]);
+			// Add neighbors of both origin and dest for smooth transitions
+			if (originIndex > 0) indicesToInclude.add(originIndex - 1);
+			if (originIndex < this.items.length - 1) indicesToInclude.add(originIndex + 1);
+			if (destIndex > 0) indicesToInclude.add(destIndex - 1);
+			if (destIndex < this.items.length - 1) indicesToInclude.add(destIndex + 1);
+			
+			const visible = Array.from(indicesToInclude).filter(
 				(i) => i >= 0 && i < this.items.length
 			);
 			this.setVisibleIndicesMobile(visible);
@@ -413,7 +499,8 @@ export class CarouselAnimator {
 		this.isAnimating = false;
 
 		this.items.forEach((item, index) => {
-			if (isMobile && !this.visibleIndices.has(index)) {
+			// Only hide items when animating (duration > 0)
+			if (isMobile && duration > 0 && !this.visibleIndices.has(index)) {
 				item.style.display = 'none';
 				return;
 			}
@@ -434,9 +521,9 @@ export class CarouselAnimator {
 				currentState.transform ||
 				this.getTransformForItem(
 					index,
-					this.getTransformRatio(index, this.getCurrentIndex() * this.scrollerWidth),
+					this.getTransformRatio(index, originIndex * this.scrollerWidth),
 					isMobile,
-					destIndex
+					originIndex  // Use origin index for fallback calculation
 				);
 			const currentOpacity = currentState.opacity || '1';
 			const targetTransform = this.getTransformForItem(index, ratio, isMobile, destIndex);
@@ -479,9 +566,11 @@ export class CarouselAnimator {
 			} else {
 				item.style.transform = targetTransform;
 				item.style.opacity = targetOpacity;
+				item.style.zIndex = index === destIndex ? '10' : '0';
 				this.currentStates[index] = {
 					transform: targetTransform,
-					opacity: targetOpacity
+					opacity: targetOpacity,
+					zIndex: index === destIndex ? '10' : '0'
 				};
 			}
 		});
@@ -521,7 +610,7 @@ export class CarouselAnimator {
 				item.style.transform = transform;
 				item.style.opacity = opacity;
 
-				this.currentStates[index] = { transform, opacity };
+				this.currentStates[index] = { transform, opacity, zIndex: index === nearestIndex ? '10' : '0' };
 			});
 			this.touchRAF = null;
 		});
@@ -567,16 +656,17 @@ export class CarouselAnimator {
 				scale(${ratio})`;
 	}
 
-	private captureCurrentState(index: number): { transform: string; opacity: string } {
+	private captureCurrentState(index: number): { transform: string; opacity: string; zIndex: string } {
 		const item = this.items[index];
-		if (!item) return { transform: '', opacity: '1' };
+		if (!item) return { transform: '', opacity: '1', zIndex: '0' };
 
 		const computedStyle = window.getComputedStyle(item);
 		const currentTransform =
 			computedStyle.transform !== 'none' ? computedStyle.transform : item.style.transform || '';
 		const currentOpacity = computedStyle.opacity || item.style.opacity || '1';
+		const currentZIndex = item.style.zIndex || '0';
 
-		return { transform: currentTransform, opacity: currentOpacity };
+		return { transform: currentTransform, opacity: currentOpacity, zIndex: currentZIndex };
 	}
 
 	cancelAllAnimations() {
@@ -589,6 +679,7 @@ export class CarouselAnimator {
 				if (item) {
 					item.style.transform = currentState.transform;
 					item.style.opacity = currentState.opacity;
+					item.style.zIndex = currentState.zIndex;
 				}
 
 				animation.cancel();

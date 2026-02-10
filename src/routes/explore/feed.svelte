@@ -55,6 +55,7 @@
 	export let pullToRefresh = false;
 	export let itemsPerRow = 1;
 	export let stickyFooterVisible = false;
+	export let batchNewItems = false; // When true, new fetched/live items are batched instead of immediately shown
 
 	export let connectionStatus: { [url: string]: ConnectionStatus } = {};
 
@@ -66,6 +67,7 @@
 	let cachedMap = new Map<number, ParsedEvent>();
 	let fetchedMap = new Map<number, ParsedEvent>();
 	let bufferMap = new Map<number, ParsedEvent>();
+	let pendingNewItems = new Map<number, ParsedEvent>(); // For batchNewItems mode - holds batched new items
 
 	// Track seen ids early to avoid reprocessing
 	const seen_ids = new Set<number>();
@@ -179,6 +181,8 @@
 					// Make fetchedMap inherit everything processed during the cache phase
 					fetchedMap = new Map(cachedMap); // clone; do NOT alias
 					// Move cached into feed after cache phase closes
+					// When batchNewItems is enabled, cached items from local storage can be shown immediately
+					// since user is already viewing them (they're at the top)
 					mergeMapIntoFeed(cachedMap);
 				}
 				break;
@@ -248,16 +252,28 @@
 					}
 
 					if (!eoce) {
-						// cached phase
+						// cached phase - items from local cache, can be shown immediately
 						cachedMap.set(id, parsedEvent);
 					} else if (!eose) {
-						// pre-EOSE fetched phase
-						fetchedMap.set(id, parsedEvent);
+						// pre-EOSE fetched phase - new items from network
+						// When batchNewItems is enabled and user is at top, batch these
+						if (batchNewItems && start === 0) {
+							pendingNewItems.set(id, parsedEvent);
+							newPosts = pendingNewItems.size;
+						} else {
+							fetchedMap.set(id, parsedEvent);
+						}
 					} else if (page <= 0) {
-						// head stream: buffer for batch merge
-						bufferMap.set(id, parsedEvent);
+						// head stream (live updates): buffer for batch merge
+						// When batchNewItems is enabled and user is at top, batch these
+						if (batchNewItems && start === 0) {
+							pendingNewItems.set(id, parsedEvent);
+							newPosts = pendingNewItems.size;
+						} else {
+							bufferMap.set(id, parsedEvent);
+						}
 					} else {
-						// page stream post-EOSE: insert directly
+						// page stream post-EOSE: older items for pagination, insert directly
 						if (upsertIntoFeed(feed, feedMap, parsedEvent)) {
 							pruneFeed(feed, feedMap, seen_ids, FEED_MAX);
 							invalidateFeed();
@@ -312,6 +328,15 @@
 	}
 
 	function setBufferFeed() {
+		// When batchNewItems is enabled and user is at top, don't auto-merge
+		// Instead, items are already in pendingNewItems and counted in newPosts
+		if (batchNewItems && start === 0) {
+			// Just clear the regular buffers, items are already in pendingNewItems
+			bufferMap.clear();
+			fetchedMap.clear();
+			return;
+		}
+
 		// number of new posts visible before current viewport start
 		const incomingCount = bufferMap.size + fetchedMap.size;
 		newPosts = start > incomingCount ? incomingCount : start;
@@ -346,6 +371,28 @@
 		if (changed) {
 			pruneFeed(feed, feedMap, seen_ids, FEED_MAX);
 			invalidateFeed();
+		}
+	}
+
+	// Merge pending new items into the feed (called when user clicks "X new posts" button)
+	export function mergePendingItems() {
+		if (pendingNewItems.size === 0) return;
+
+		let changed = false;
+		for (const [, e] of pendingNewItems) {
+			changed = upsertIntoFeed(feed, feedMap, e) || changed;
+		}
+		pendingNewItems.clear();
+		newPosts = 0;
+
+		if (changed) {
+			pruneFeed(feed, feedMap, seen_ids, FEED_MAX);
+			invalidateFeed();
+		}
+
+		// Scroll to top
+		if (viewport) {
+			viewport.scrollTo({ top: 0, behavior: 'smooth' });
 		}
 	}
 
@@ -401,6 +448,8 @@
 		cachedMap.clear();
 		fetchedMap.clear();
 		bufferMap.clear();
+		pendingNewItems.clear();
+		newPosts = 0;
 
 		// Reset paging state as well
 		currentPage = 0;
@@ -556,6 +605,12 @@
 	}
 
 	function refreshHead() {
+		// When batchNewItems is enabled, merge pending items on refresh
+		if (batchNewItems && pendingNewItems.size > 0) {
+			mergePendingItems();
+			return;
+		}
+
 		if (bufferMap.size || fetchedMap.size) {
 			setBufferFeed();
 		}
@@ -568,6 +623,11 @@
 			requests.map((r) => ({ ...r, since })),
 			(message) => handleEvents(message, -1)
 		);
+	}
+
+	// Public method for external refresh (e.g., desktop refresh button)
+	export function refresh() {
+		refreshHead();
 	}
 </script>
 

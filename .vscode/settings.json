@@ -2,5 +2,16 @@
     "rust-analyzer.diagnostics.disabled": ["inactive-code"],
     "rust-analyzer.cargo.target": null,
     "rust-analyzer.checkOnSave.allTargets": true,
-    "rust-analyzer.checkOnSave.extraArgs": ["--target-dir", "target/analyzer"]
+    "rust-analyzer.checkOnSave.extraArgs": ["--target-dir", "target/analyzer"],
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "[svelte]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "[typescript]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "[javascript]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    }
 }

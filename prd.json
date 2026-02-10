@@ -1,0 +1,123 @@
+{
+  "project": "nuts-cash",
+  "branchName": "ralph/feed-management-refactor",
+  "description": "Simplify feed.svelte architecture: single items Map, unified buffering, fixed-window pagination",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Create FeedItem type and unified items Map",
+      "description": "As a developer, I need a single data structure to hold all feed items with metadata about their source.",
+      "acceptanceCriteria": [
+        "Create FeedItem interface with event, source, receivedAt fields",
+        "Replace cachedMap, fetchedMap, bufferMap, pendingNewItems with single items: Map<number, FeedItem>",
+        "Type source as 'cache' | 'backfill' | 'live' | 'page'",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Implement unified message handler",
+      "description": "As a developer, I need a single handler that routes events based on source type.",
+      "acceptanceCriteria": [
+        "Create handleMessage(msg: WorkerMessage, source: Source) function",
+        "Handle cache events: show immediately, update viewAnchor",
+        "Handle backfill/live events: store in items Map, buffer for 'Load X new' button",
+        "Handle page events: store with source 'page', update pagination cursor",
+        "Prevent duplicate events using seen_ids Set",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Implement 'Load X new items' reactive logic",
+      "description": "As a user, I want to see a button showing how many new items are buffered, and click it to reveal them.",
+      "acceptanceCriteria": [
+        "Create reactive $: pendingNew count based on items with source: 'backfill' | 'live' where event.createdAt() > viewAnchor",
+        "Create loadNewItems() function that updates viewAnchor to now()",
+        "Create reactive $: visibleItems that filters items based on viewAnchor",
+        "Create reactive $: feed = visibleItems.map(i => i.event) for VirtualList",
+        "Button appears when pendingNew > 0 with correct count",
+        "Clicking button reveals items and scrolls to top",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Implement eager mode for empty cache",
+      "description": "As a user returning after a long absence with no cache, I want to see fresh events immediately without clicking 'Load X new'.",
+      "acceptanceCriteria": [
+        "Track hasCachedContent boolean",
+        "Set to true on EOCE if any cache items were received",
+        "In handleMessage, when source === 'backfill' | 'live' AND !hasCachedContent, update viewAnchor immediately (eager mode)",
+        "When hasCachedContent is true, buffer as normal",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Implement simplified subscription lifecycle",
+      "description": "As a developer, I need clean subscription management for cache → backfill → live phases.",
+      "acceptanceCriteria": [
+        "Create initFeed() that starts cache subscription",
+        "On EOCE, start backfill subscription with since: viewAnchor",
+        "On EOSE from backfill, start live subscription with since: now()",
+        "Store unsubscribe functions: cacheSub, backfillSub, liveSub",
+        "Cleanup all subscriptions in onDestroy",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Implement fixed-window pagination",
+      "description": "As a developer, I need pagination that doesn't rely on fragile feed timestamps.",
+      "acceptanceCriteria": [
+        "Track paginationAnchor: number | null (completely separate from feed content)",
+        "Initialize paginationAnchor to now() on first load",
+        "Implement loadMore() with expanding window: window = ONE_DAY * 2^noResultsCount",
+        "Use until = paginationAnchor - 1, since = until - window",
+        "On successful page: update paginationAnchor to oldest received item's timestamp",
+        "On empty page: increment noResultsCount, keep same anchor, expand window",
+        "Trigger pagination when user scrolls near bottom (end >= feed.length - 5)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Integrate with existing VirtualList and UI",
+      "description": "As a user, I want the refactored feed to look and behave exactly like before.",
+      "acceptanceCriteria": [
+        "VirtualList receives reactive feed array",
+        "Sticky header/footer work with new pendingNew count",
+        "Pull-to-refresh triggers refreshHead() which merges pending items",
+        "Pagination loading state shows correctly",
+        "Empty state displays when feed is empty",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

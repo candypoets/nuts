@@ -30,6 +30,7 @@
 
 	let feedRequests: RequestObject[] = [];
 	let subs: string[] = [];
+	let feedComponent: { mergePendingItems: () => void; refresh: () => void };
 
 	// Observable array of tags derived from the current URL.
 	let tags: string[] = [];
@@ -45,7 +46,18 @@
 			[])
 	]);
 
-	$: visible && ($kind3 || $followPacks.length) && setFeedRequests(following);
+	// Only fetch feed when:
+	// 1. User is visible
+	// 2. User is logged in ($key?.pub exists)
+	// 3. We have follows to fetch (following.length > 0)
+	// If not logged in or no follows, don't fetch personal feed
+	$: if (visible && $key?.pub && following.length > 0) {
+		setFeedRequests(following);
+	} else if (visible && !$key?.pub) {
+		// Not logged in - don't fetch personal feed
+		feedRequests = [];
+		feedInitialized = true;
+	}
 
 	$: subId =
 		$followPacks.reduce((acc, cur) => acc + cur.id()?.fnv1aHash(), 'feed') + tags.join(',');
@@ -74,8 +86,9 @@
 	onMount(() => {
 		const timeout = setTimeout(() => {
 			if (!feedInitialized && !feedRequests.length) {
-				console.warn('Feed data not loaded, initializing with empty authors');
-				setFeedRequests([]);
+				console.warn('Feed data not loaded');
+				// Don't fetch with empty authors - if user is logged in but has no follows,
+				// just show empty feed. If not logged in, also show empty feed.
 				feedInitialized = true;
 			}
 		}, 2000);
@@ -116,19 +129,13 @@
 					];
 				})
 				.catch((e) => {
-					feedRequests = [
-						{
-							kinds: [1, 6],
-							authors: [],
-							limit: $limit,
-							since: ago(31 * 24 * 60 * 60),
-							noCache: !!relayCounter,
-							tags: { '#t': tags },
-							relays
-						}
-					];
+					// If we timeout or fail to get kind3, don't fetch with empty authors
+					// Just leave feed empty - user has no follows
+					console.warn('Failed to load kind3, no follows available');
+					feedRequests = [];
 				});
-		} else {
+		} else if (follows.length > 0) {
+			// Only fetch if we have follows to fetch for
 			feedRequests = [
 				{
 					kinds: [1, 6],
@@ -140,18 +147,23 @@
 					relays
 				}
 			];
+		} else {
+			// No follows - don't fetch anything
+			feedRequests = [];
 		}
 	};
 </script>
 
 <Pager rootPath="/explore" bind:subs>
 	<Feed
+		bind:this={feedComponent}
 		subscriptionID={subId + relayCounter}
 		requests={feedRequests}
 		subscriptionOptions={{ bytesPerEvent: 10 * 1024 }}
 		kinds={[1, 6]}
 		bind:connectionStatus
 		pullToRefresh
+		batchNewItems={true}
 	>
 		<svelte:fragment slot="sticky-header" let:newPosts>
 			<div class="backdrop-blur-sm bg-base-300 bg-opacity-80 md:border-b border-base-200 pt-safe">
@@ -179,7 +191,10 @@
 							</div>
 						{/each}
 					</div>
-					<div class="text-primary cursor-pointer flex-grow text-center">
+					<div
+						class="text-primary cursor-pointer flex-grow text-center"
+						on:click={() => feedComponent?.mergePendingItems()}
+					>
 						{#if newPosts}
 							{newPosts} new posts
 						{/if}
@@ -237,6 +252,14 @@
 						{/each}
 					</div>
 					<div class="flex gap-2 items-center">
+						<!-- Desktop refresh button (mobile has pull-to-refresh) -->
+						<span
+							class="hidden md:block cursor-pointer"
+							on:click|stopPropagation={() => feedComponent?.refresh()}
+							title="Refresh feed"
+						>
+							<Icon icon="mdi:refresh" class="text-2xl mr-2" />
+						</span>
 						<!-- <span class="text font-semibold">{$balance} Sats</span> -->
 						<Notifications />
 						<div class="cursor-pointer" on:click|stopPropagation={() => go('profile')}>

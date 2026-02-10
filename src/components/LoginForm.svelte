@@ -19,6 +19,7 @@
 	import { decodePrivKey, DEFAULT_MINTS, deriveFromMnemonic } from 'src/lib/wallet';
 	import { go } from 'src/routes/modals/modal';
 	import { getContext, onMount } from 'svelte';
+	import { QRCodeImage } from 'svelte-qrcode-image';
 
 	export let inline = false;
 	export let redirect = false;
@@ -34,6 +35,9 @@
 	let hasExtension = false;
 
 	let kind: 'login' | 'signup' = 'login';
+	let showPassword = false;
+	let showQR = false;
+	let qrText = '';
 
 	onMount(async () => {
 		if (window?.nostr) {
@@ -78,7 +82,12 @@
 					// };
 					manager.setSigner('privkey', privkey);
 					loginSub();
-					animator?.goBack();
+					// If we have an animator (inside modal), go back, otherwise redirect
+					if (animator) {
+						animator.goBack();
+					} else if (redirect) {
+						goto('/explore');
+					}
 				}
 			}
 		);
@@ -89,12 +98,18 @@
 			loading = true;
 			const pubkey = await window.nostr.getPublicKey();
 			if (pubkey) {
+			    console.log('set signer')
 				manager.setSigner('nip07');
 				$key = {
 					pub: pubkey,
 					npub: nip19.npubEncode(pubkey)
 				};
-				animator?.goBack();
+				// If we have an animator (inside modal), go back, otherwise redirect
+				if (animator) {
+					animator.goBack();
+				} else {
+					goto('/explore');
+				}
 			}
 		} catch (e) {
 			console.error(e);
@@ -207,6 +222,31 @@
 			{ trackStatus: true, defaultRelays: DEFAULT_RELAYS }
 		);
 	}
+
+	function clearInput() {
+		privateKey = '';
+	}
+
+	async function handleQRConnect() {
+		try {
+			const res = await connectWithQRCode('Nuts', DEFAULT_RELAYS);
+			// If we have an animator (inside app), use modal system
+			if (animator) {
+				go('qr:' + encodeURIComponent(res));
+			} else {
+				// On login page, show inline QR
+				qrText = res;
+				showQR = true;
+			}
+		} catch (e) {
+			console.error('QR Connect error:', e);
+		}
+	}
+
+	function closeQR() {
+		showQR = false;
+		qrText = '';
+	}
 </script>
 
 <main
@@ -215,107 +255,248 @@
 	class:!h-auto={inline}
 >
 	<div class="w-full md:px-4">
-		<h1 class="text-5xl md:text-7xl font-bold px-4" class:hidden={inline}>
-			<span class="text-purple-600">Nuts</span> <span class="text-primary">Cash</span>
-			<span class="text-purple-600"> {'<'}</span>
-		</h1>
-		<br />
-		<h1 class="md:text-6xl text-5xl font-bold px-4" class:hidden={inline}>
-			<span class="text-purple-600">{'>'}</span> <span class="text-primary">Speak</span>
-			<span class="text-purple-600">Up</span>
-		</h1>
+		{#if !inline}
+			<div class="text-center mb-8">
+				<h1
+					class="text-5xl md:text-7xl font-bold mb-4"
+					style="font-family: 'Permanent Marker', cursive;"
+				>
+					<span class="text-accent">Nuts</span> <span class="text-white">Cash</span>
+				</h1>
+				<p class="text-white/50 text-sm" style="font-family: 'Rock Salt', cursive;">
+					Private. Fast. Simple.
+				</p>
+			</div>
+		{/if}
+
+		{#if showQR && qrText}
+			<!-- Inline QR Display for Login Page -->
+			<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+				<div class="relative bg-neutral-900 rounded-2xl p-8 max-w-sm w-full border border-white/10">
+					<button
+						class="absolute top-4 right-4 text-white/50 hover:text-white"
+						on:click={closeQR}
+					>
+						<Icon icon="ri:close-line" class="text-2xl" />
+					</button>
+					<div class="flex flex-col items-center">
+						<h3 class="text-lg font-semibold mb-4 text-white">Scan with your Nostr app</h3>
+						<div class="bg-white rounded-2xl p-4">
+							<QRCodeImage
+								text={qrText}
+								displayType="canvas"
+								displayHeight={250}
+								displayWidth={250}
+								margin={2}
+								errorCorrectionLevel="H"
+								displayClass="rounded-xl"
+							/>
+						</div>
+						<p class="text-sm text-white/50 mt-4 text-center">
+							Scan this QR code with a Nostr signer app to connect
+						</p>
+					</div>
+				</div>
+			</div>
+		{/if}
+
 		{#if kind == 'login'}
-			<div class="w-full mt-32">
-				<form class="px-4 mt-8" class:!mt-0={inline} on:submit|preventDefault={handleLogin}>
-					<div class="join w-full">
+			<div class="w-full" class:mt-32={!inline}>
+				<form class="px-4" class:!mt-0={inline} class:!px-0={inline} on:submit|preventDefault={handleLogin}>
+					<div class="flex flex-col sm:flex-row gap-3">
+						<!-- Input row -->
+						<div class="join w-full flex-1">
+							<!-- QR Scan button -->
+							<button
+								type="button"
+								class="btn join-item btn-outline border-white/10 hover:bg-white/5 hover:border-white/20 text-white/70"
+								on:click={handleQRConnect}
+								title="Scan QR code"
+							>
+								<Icon icon="ri:qr-scan-2-line" class="text-lg" />
+							</button>
+
+							<!-- Input field -->
+							<div class="relative flex-grow">
+								{#if showPassword}
+									<input
+										placeholder="nsec or bunker url"
+										class="join-item w-full px-4 py-3 bg-white/5 border-y border-white/10 text-white placeholder:text-white/30 focus:outline-none focus:bg-white/10 transition-colors"
+										type="text"
+										bind:value={privateKey}
+									/>
+								{:else}
+									<input
+										placeholder="nsec or bunker url"
+										class="join-item w-full px-4 py-3 bg-white/5 border-y border-white/10 text-white placeholder:text-white/30 focus:outline-none focus:bg-white/10 transition-colors"
+										type="password"
+										bind:value={privateKey}
+									/>
+								{/if}
+								<!-- Clear button -->
+								{#if privateKey}
+									<button
+										type="button"
+										class="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
+										on:click={clearInput}
+									>
+										<Icon icon="ri:close-circle-fill" class="text-lg" />
+									</button>
+								{/if}
+							</div>
+
+							<!-- Toggle visibility button -->
+							<button
+								type="button"
+								class="btn join-item btn-outline border-white/10 hover:bg-white/5 hover:border-white/20 text-white/70"
+								on:click={() => showPassword = !showPassword}
+								title={showPassword ? 'Hide' : 'Show'}
+							>
+								<Icon icon={showPassword ? "ri:eye-off-line" : "ri:eye-line"} class="text-lg" />
+							</button>
+						</div>
+
+						<!-- Submit button - full width on mobile, auto width on sm+ -->
 						<button
-							class="btn join-item btn-outline"
-							on:click={() =>
-								connectWithQRCode('Nuts', DEFAULT_RELAYS).then((res) =>
-									go('qr:' + encodeURIComponent(res))
-								)}><Icon icon="ri:qr-code-fill" /></button
+							class="btn btn-accent w-full sm:w-auto"
+							type="submit"
+							disabled={loading || !privateKey}
 						>
-						<!-- <div class="btn join-item btn-link"><Icon icon="ri:key-fill" /></div> -->
-						<input
-							placeholder="nsec or bunker url"
-							class="join-item flex-grow px-2"
-							type="text"
-							bind:value={privateKey}
-						/>
-						<button class="btn join-item btn-accent" type="submit"
-							>{#if !loading}prove it
+							{#if !loading}
+								<span class="flex items-center gap-2">
+									<Icon icon="ri:login-circle-line" />
+									<span>Sign In</span>
+								</span>
 							{:else}
-								<div class="loading" />{/if}
+								<span class="loading loading-spinner loading-sm"></span>
+							{/if}
 						</button>
 					</div>
 				</form>
+
+				<!-- Extension login -->
 				{#if hasExtension}
-					<div>
+					<div class="mt-4 px-4" class:!px-0={inline}>
 						<button
-							class="btn btn-outline mt-4 mx-auto flex"
+							class="btn btn-outline btn-block border-white/10 hover:bg-white/5 hover:border-white/20 text-white/70 gap-2"
 							on:click={handleExtensionLogin}
 							disabled={loading}
 						>
 							{#if loading}
-								<div class="loading" />
+								<span class="loading loading-spinner loading-sm"></span>
 							{:else}
-								<Icon icon="ri:puzzle-fill" />
-								Connect with extension
+								<Icon icon="ri:puzzle-2-line" class="text-lg" />
+								<span>Connect with Nostr Extension</span>
 							{/if}
 						</button>
 					</div>
 				{/if}
-				<p class="text-xs mt-2 text-gray-500 px-4">
-					Not a notrich yet?<button
-						class="btn btn-link text-accent"
-						on:click={() => (kind = 'signup')}>Make a profile</button
-					>
-				</p>
+
+				<!-- Sign up link -->
+				<div class="mt-6 text-center px-4" class:!px-0={inline}>
+					<p class="text-sm text-white/40">
+						Not on Nostr yet?
+						<button
+							class="btn btn-link btn-sm text-accent hover:text-accent/80 no-underline gap-1"
+							on:click={() => (kind = 'signup')}
+						>
+							<Icon icon="ri:user-add-line" />
+							Create account
+						</button>
+					</p>
+				</div>
 			</div>
 		{:else}
-			<div>
-				<form on:submit|preventDefault={handleSignup} class="px-4">
-					<label class="block mt-4">
-						<div class="pb-2 block text-white">Handle</div>
-
-						<div class="join w-full border">
-							<div class="btn join-item"><Icon icon="ri:user-fill" /></div>
-							<input type="text" class="join-item flex-grow px-2" bind:value={name} />
-						</div>
-					</label>
-					<label class="block mt-4 text-white">
-						<div class="pb-2 block">About You (optional)</div>
-						<textarea class="w-full p-2 rounded-lg" rows="3" bind:value={about}></textarea>
-					</label>
-
-					<label class="block mt-4">
-						<div class="pb-2 block text-white">Profile Picture (optional)</div>
-						<div class="join w-full border">
-							<div class="btn join-item"><Icon icon="ic:baseline-photo-camera" /></div>
+			<!-- Sign up form -->
+			<div class="px-4" class:!px-0={inline}>
+				<form on:submit|preventDefault={handleSignup} class="space-y-4">
+					<!-- Handle input -->
+					<div class="form-control">
+						<label class="label">
+							<span class="label-text text-white/70 flex items-center gap-2">
+								<Icon icon="ri:user-smile-line" />
+								Handle
+							</span>
+						</label>
+						<div class="join w-full">
+							<div class="btn join-item btn-outline border-white/10 text-white/50 bg-white/5">
+								<Icon icon="ri:at-line" />
+							</div>
 							<input
 								type="text"
-								class="join-item flex-grow px-2"
-								placeholder="https://"
+								class="join-item flex-grow px-4 bg-white/5 border-y border-white/10 text-white placeholder:text-white/30 focus:outline-none focus:bg-white/10 transition-colors"
+								bind:value={name}
+								placeholder="yourname"
+							/>
+						</div>
+					</div>
+
+					<!-- About textarea -->
+					<div class="form-control">
+						<label class="label">
+							<span class="label-text text-white/70 flex items-center gap-2">
+								<Icon icon="ri:file-text-line" />
+								About You <span class="text-white/30">(optional)</span>
+							</span>
+						</label>
+						<textarea
+							class="w-full p-4 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/30 focus:outline-none focus:bg-white/10 focus:border-accent/50 transition-all resize-none"
+							rows="3"
+							bind:value={about}
+							placeholder="Tell us a bit about yourself..."
+						></textarea>
+					</div>
+
+					<!-- Picture input -->
+					<div class="form-control">
+						<label class="label">
+							<span class="label-text text-white/70 flex items-center gap-2">
+								<Icon icon="ri:image-line" />
+								Profile Picture <span class="text-white/30">(optional)</span>
+							</span>
+						</label>
+						<div class="join w-full">
+							<div class="btn join-item btn-outline border-white/10 text-white/50 bg-white/5">
+								<Icon icon="ri:link" />
+							</div>
+							<input
+								type="text"
+								class="join-item flex-grow px-4 bg-white/5 border-y border-white/10 text-white placeholder:text-white/30 focus:outline-none focus:bg-white/10 transition-colors"
+								placeholder="https://..."
 								bind:value={picture}
 							/>
 						</div>
-					</label>
-					<br />
-					<button class="btn btn-accent mx-auto w-full" type="submit">Be free</button>
+					</div>
+
+					<!-- Submit button -->
+					<button
+						class="btn btn-accent w-full mt-6 gap-2"
+						type="submit"
+						disabled={loading || !name}
+					>
+						{#if loading}
+							<span class="loading loading-spinner loading-sm"></span>
+							<span>Creating...</span>
+						{:else}
+							<Icon icon="ri:rocket-line" class="text-lg" />
+							<span>Create Account</span>
+						{/if}
+					</button>
 				</form>
 
-				<p class="mx-4 text-xs text-gray-500 mt-4 p-1">
-					Already on Nostr?
-					<button class="btn btn-link text-accent" on:click={() => (kind = 'login')}
-						>prove it</button
-					>
-					{#if hasExtension}
-						or
-						<button class="btn btn-link text-accent mx-12" on:click={handleExtensionLogin}
-							>connect with extension</button
+				<!-- Back to login -->
+				<div class="mt-6 text-center">
+					<p class="text-sm text-white/40">
+						Already have an account?
+						<button
+							class="btn btn-link btn-sm text-accent hover:text-accent/80 no-underline gap-1"
+							on:click={() => (kind = 'login')}
 						>
-					{/if}
-				</p>
+							<Icon icon="ri:login-circle-line" />
+							Sign in
+						</button>
+					</p>
+				</div>
 			</div>
 		{/if}
 	</div>
