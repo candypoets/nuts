@@ -96,3 +96,22 @@ Started: Wed Feb 11 10:50:43 AM CET 2026
   - VirtualList takes `items`, `getItemId`, and exposes `bind:start`, `bind:end`, `bind:down`, `bind:viewport`
   - Keep slot names consistent: `header`, `sticky-header`, `sticky-footer`, `fixed-header`, `item-content`, `empty-content`
 ---
+
+## 2026-02-11T11:03:00+01:00 - US-006
+- Removed `bind:connectionStatus` from all Feed component usages
+- Files changed:
+  - `src/routes/explore/index.svelte`
+  - `src/routes/chat/index.svelte`
+  - `src/routes/home/+layout.svelte`
+  - `src/routes/_kinds/kind0.svelte`
+  - `src/routes/_kinds/kind1.svelte`
+  - `src/routes/_kinds/tags.svelte`
+- Parent components still maintain `connectionStatus` variable for `RelaysList` component
+- Parents that need connection tracking already have their own handlers (e.g., `home/+layout.svelte` uses `ConnectionTracker`)
+- Build passes successfully
+- **Learnings for future iterations:**
+  - `connectionStatus` is still needed in parent components for `RelaysList` - only the Feed binding is removed
+  - Some parents already track connection status via their own subscription handlers (e.g., `handleWalletEvents` in home)
+  - Other parents may need to implement connection tracking when they migrate to the new Feed API
+  - The pattern: parent subscribes -> updates `connectionStatus` -> passes to `RelaysList` for display
+---
