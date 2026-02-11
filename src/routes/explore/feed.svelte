@@ -32,6 +32,25 @@
 
 	// Callback props
 	export let onRefresh: (() => void | Promise<void>) | undefined = undefined;
+	export let onNearBottom: ((event: { distance: number }) => void) | undefined = undefined;
+
+	// Threshold for triggering onNearBottom (items remaining)
+	export let nearBottomThreshold = 10;
+
+	// Track if we've already triggered onNearBottom for current scroll position
+	let nearBottomTriggered = false;
+
+	// Reactive: emit onNearBottom when end is within threshold of items.length
+	$: if (onNearBottom && items.length > 0) {
+		const distance = items.length - end;
+		if (distance <= nearBottomThreshold && distance >= 0 && !nearBottomTriggered) {
+			nearBottomTriggered = true;
+			onNearBottom({ distance });
+		} else if (distance > nearBottomThreshold) {
+			// Reset trigger when user scrolls back up
+			nearBottomTriggered = false;
+		}
+	}
 
 	const imageContext = getContext('imageContext');
 </script>
