@@ -2,6 +2,12 @@
 Started: Wed Feb 11 10:50:43 AM CET 2026
 
 ## Codebase Patterns
+- DM conversation view uses `bottom={true}` prop for VirtualListBottom (chat bubbles at bottom)
+- For optimistic UI: store nonce before sending, add to local feed immediately, then dedupe when real event arrives
+- Use `sendingMap` (Map<string, number>) to track pending sent messages for visual feedback
+- In item slot, use `dmItems` (not `feed`) to reference the processed items array
+
+## Codebase Patterns
 - Notifications use complex event grouping: `processNotifications()` groups by type (reply/reaction/mention/repost) and referenced post ID
 - Use `ProcessedNotification` type for grouped notification items
 - For notifications, no pagination is needed (limited set of 50 items)
@@ -186,4 +192,26 @@ Started: Wed Feb 11 10:50:43 AM CET 2026
   - Use `orderBy` with createdAt descending for conversation list sorting
   - For Kind4 DMs, use `asKind4()` to access chat-specific methods
   - Connection status handling uses type 6 messages
+---
+
+## 2026-02-11T11:16:00+01:00 - US-010
+- Migrated _kinds/kind4.svelte (DM conversation view) to new Feed API
+- Moved subscription handling to parent using `useSubscription` hook
+- Created `rawEvents` array to store incoming ParsedEvent objects
+- Added `processEvents()` function to sort by createdAt and deduplicate by event ID
+- Moved nonce-based deduplication logic to `handleEvents()` - checks if incoming event matches `sendingMap` and skips if so
+- Implemented optimistic UI in `handleMessageSubmit()` - adds message to `rawEvents` immediately before publishing
+- Removed `bind:feed` usage - now passes `items={dmItems}` prop
+- Removed `updateFeed` callback prop
+- Removed `subscriptionID` and `requests` props from Feed usage
+- Added `getItemId` prop for unique identification
+- Added `bind:start` and `bind:end` for viewport state tracking
+- Uses `bottom={true}` prop for chat bubbles layout
+- Build passes, typecheck passes (same pre-existing errors as before)
+- **Learnings for future iterations:**
+  - For optimistic UI in chat: store nonce in `sendingMap`, add local event to `rawEvents`, then dedupe in `handleEvents` when real event arrives
+  - DM conversation view uses `bottom={true}` for VirtualListBottom (chat bubbles grow from bottom)
+  - In the item slot template, use `dmItems` array (not `feed`) to reference items for `isFirst`/`isLast` calculations
+  - Nonce extraction from tags: `fbArray(post, 'tags')` -> reduce to get `tags['nonce']?.[0]`
+  - Use `onDestroy` cleanup pattern: `onDestroy(() => { unsubscribe?.(); });`
 ---

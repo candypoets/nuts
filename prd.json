@@ -162,7 +162,7 @@
         "Verify in browser: send/receive messages work"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": "Has optimistic UI for sent messages"
     },
     {
