@@ -544,3 +544,59 @@
 • Used WriteFile (progress.txt)
 • Now let me commit these changes:
 • Now let me commit these changes:
+• Used Shell (cd /root/code/nuts-cash &... git add -A && git status)
+• Hmm, there are some log files that were added. Let me check if those should be
+  committed or not. The logs folder seems to be for tracking logs. Let me check
+  the gitignore:
+• Used Shell (cd /root/code/nuts-cash &...and tags to new Feed API")
+• The commit was successful. Now let me check if there are any remaining stories
+  with passes: false in the PRD:
+• Let me verify the PRD status and check if all stories are now complete:
+• Used Shell (cd /root/code/nuts-cash &..."passes": false' prd.json)
+• There's still one story with passes: false. Let me check which one:
+• Used Shell (cd /root/code/nuts-cash &..."passes": false' prd.json)
+• US-014 is still remaining - "Clean up old Feed code". This is the final cleanu
+  p story that removes all the obsolete code from the Feed component after all m
+  igrations are complete.Let me check the current state of feed.svelte and see w
+  hat code can be removed:
+• US-014 (Clean up old Feed code) is still remaining. Let me check the current F
+  eed component to understand what needs to be cleaned up:
+• Used ReadFile (src/routes/explore/feed.svelte)
+• The Feed component is already cleaned up! It only has:
+
+  • Core presentation props: items, getItemId, loading
+  • Layout/behavior props: bottom, visible, backdrop, itemHeight, pullToRefresh,
+    temsPerRow, stickyFooterVisible
+  • Viewport state exports: start, end, down, viewport
+  • Callback props: onRefresh, onNearBottom
+  • The nearBottomThreshold prop for configurable pagination trigger
+
+  Looking at the PRD for US-014, it mentions:
+
+  • Remove handleEvents function (~150 lines) - Already removed
+  • Remove subscribe/unsubscribe functions - Already removed
+  • Remove buffer Maps - Already removed
+  • Remove pagination state - Already removed
+  • Remove Fuse.js search logic - Already removed
+  • Remove internal refreshHead, mergePendingItems, setBufferFeed functions - Al
+    ady removed
+  • Remove kinds filtering - Already removed
+  • Keep: VirtualList rendering, slots, sticky header/footer CSS, start/end/down
+    iewport binding - All kept
+
+  The Feed component is already clean! US-014 is effectively complete as well. T
+  he Feed component is now a pure presentation component with no internal subscr
+  iption/pagination/search logic.
+
+  Let me update the PRD to mark US-014 as passing:
+• The Feed component is already clean - it only contains the core presentation l
+  ogic with no internal subscription, pagination, or search code. US-014 is effe
+  ctively complete. Let me update the PRD:
+• Used StrReplaceFile (prd.json)
+• Now let me update progress.txt and check if all stories are complete:
+• Used WriteFile (progress.txt)
+• Now let me verify that all stories have passes: true:
+• Used Shell (cd /root/code/nuts-cash &...p -E '"passes":' prd.json)
+• All 14 stories now have passes: true. The feed refactoring project is complete
+  ! Let me commit the final changes to the PRD:
+• All 14 stories are now passing. Let me commit the final PRD updates:
