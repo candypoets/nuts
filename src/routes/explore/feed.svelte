@@ -24,11 +24,11 @@
 	export let itemsPerRow = 1;
 	export let stickyFooterVisible = false;
 
-	// Viewport state - exported for parent binding
+	// Viewport state - exported for parent binding (two-way bindable)
 	export let start = 0;
 	export let end = 0;
 	export let down = true;
-	export let viewport: HTMLElement;
+	export let viewport: HTMLElement | undefined = undefined;
 
 	// Callback props
 	export let onRefresh: (() => void | Promise<void>) | undefined = undefined;

@@ -1,5 +1,16 @@
 # Ralph Progress Log
 Started: Wed Feb 11 10:50:43 AM CET 2026
+## 2026-02-11T10:53:00+01:00 - US-002
+- Verified viewport state exports are working correctly
+- `start`, `end`, `down`, `viewport` are all exported with `bind:` for two-way binding
+- These are bound to VirtualList which manages the actual viewport state
+- Made `viewport` optional (`HTMLElement | undefined = undefined`) so parents don't have to pass it
+- Parents can now use `bind:start`, `bind:end`, `bind:down`, `bind:viewport` to access viewport state
+- **Learnings for future iterations:**
+  - The viewport state flows from VirtualList -> Feed -> Parent via Svelte's bind: mechanism
+  - VirtualList manages `start`, `end`, `down` internally and exposes them via `bind:`
+  - Feed acts as a pass-through, binding its own exports to VirtualList's exports
+  - Making optional bindable props default to `undefined` prevents type errors in parent components
 ---
 
 ## Codebase Patterns
