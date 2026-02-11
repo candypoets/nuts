@@ -132,7 +132,9 @@
 			const status = msg.status ? msg.status() : undefined;
 			const relayUrl = msg.relayUrl ? msg.relayUrl() : undefined;
 			if (status && relayUrl) {
-				connectionStatus[relayUrl.toString()] = status;
+				// Normalize URL to match relay keys
+				const normalizedUrl = normalizeURL(relayUrl.toString());
+				connectionStatus[normalizedUrl] = status;
 				connectionTracker?.handleMessage?.(msg);
 			}
 			return;

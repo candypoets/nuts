@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import type { ParsedEvent, RequestObject } from '@candypoets/nipworker';
+	import type { ParsedEvent, RequestObject, WorkerMessage } from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
-	import { asParsedEvent } from '@candypoets/nipworker/utils';
+	import { asParsedEvent, asConnectionStatus, ConnectionTracker } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { key, lastNotificationView, writeRelays } from 'src/controller';
 	import Feed from 'src/routes/explore/feed.svelte';
@@ -16,15 +16,18 @@
 	export let goBack: () => void;
 
 	let loading = true;
-	let eoce = false;
-
+	
 	// Raw events from subscription
 	let rawEvents: ParsedEvent[] = [];
 	// Processed notifications (grouped by type)
 	let notificationItems: ProcessedNotification[] = [];
 
+	// Track seen event IDs to prevent duplicates
+	let seenEventIds = new Set<number>();
+
 	// Subscription cleanup function
 	let unsubscribe: (() => void) | undefined;
+	let connectionTracker: ConnectionTracker | undefined;
 
 	// Build subscription requests
 	function buildRequests(): RequestObject[] {
@@ -52,60 +55,73 @@
 	}
 
 	// Handle incoming events from subscription
-	function handleEvents(message: any) {
-		const event = message.type ? message : null;
-		if (!event) return;
-
-		// Handle EOSE (End of Stream Event)
-		if (event.type && typeof event.type === 'function' && event.type() === 3) {
-			// EOSE message type
-			eoce = true;
-			loading = false;
+	function handleEvents(message: WorkerMessage) {
+		// Handle connection status (including EOSE detection via resolutionRate)
+		const status = asConnectionStatus(message);
+		if (status && connectionTracker) {
+			const relayUrl = status.relayUrl()?.toString();
+			if (relayUrl) {
+				connectionTracker.handleMessage(message);
+				// When >50% of relays have reached EOSE, mark loading as done
+				if (connectionTracker.resolutionRate > 0.5) {
+					loading = false;
+				}
+			}
 			return;
 		}
 
 		// Handle parsed events
-		if (event.kind && [1, 6, 7].includes(event.kind())) {
-			const parsedEvent = asParsedEvent(message) as ParsedEvent;
-			const eventId = parsedEvent.id()?.fnv1aHash();
-			const existingIndex = rawEvents.findIndex(
-				(item) => item.id()?.fnv1aHash() === eventId
-			);
-			if (existingIndex === -1) {
-				if (!eoce) {
-					rawEvents = [...rawEvents, parsedEvent];
-				} else {
-					rawEvents = [...rawEvents, parsedEvent].sort(
-						(a, b) => b.createdAt() - a.createdAt()
-					);
-				}
-			}
-		}
+		const parsedEvent = asParsedEvent(message);
+		if (!parsedEvent) return;
+
+		const kind = parsedEvent.kind();
+		if (![1, 6, 7].includes(kind)) return;
+
+		const eventId = parsedEvent.id()?.fnv1aHash();
+		if (!eventId) return;
+		
+		// Check Set first (O(1)) for duplicate detection
+		if (seenEventIds.has(eventId)) return;
+		seenEventIds.add(eventId);
+
+		rawEvents = [...rawEvents, parsedEvent];
 	}
 
 	// Process raw events into grouped notifications
 	$: notificationItems = processNotifications(rawEvents);
 
 	// Initialize subscription
-	$: if (visible && $key?.pub) {
-		if (rawEvents.length === 0 && !unsubscribe) {
-			loading = true;
-			const requests = buildRequests();
-			if (requests.length > 0) {
-				unsubscribe = useSubscription(
-					'notifications_' + $key.pub,
-					requests,
-					handleEvents,
-					{ bytesPerEvent: 10 * 1024 }
-				);
-			}
+	let hasInitialized = false;
+	
+	function initSubscription() {
+		if (!visible || !$key?.pub) return;
+		if (hasInitialized) return;
+		
+		hasInitialized = true;
+		loading = true;
+		const requests = buildRequests();
+		if (requests.length > 0) {
+			unsubscribe?.();
+			connectionTracker = new ConnectionTracker();
+			unsubscribe = useSubscription(
+				'notifications_' + $key.pub,
+				requests,
+				handleEvents,
+				{ bytesPerEvent: 10 * 1024 }
+			);
 		}
+	}
+	
+	$: if (visible && $key?.pub && !hasInitialized) {
+		initSubscription();
 	}
 
 	// Cleanup subscription when not visible
 	$: if (!visible) {
 		unsubscribe?.();
 		unsubscribe = undefined;
+		connectionTracker = undefined;
+		hasInitialized = false;
 	}
 
 	onMount(() => {
@@ -122,8 +138,14 @@
 	items={notificationItems}
 	{loading}
 	{visible}
-	getItemId={(item) => item?.id?.()?.fnv1aHash?.() ?? Math.random()}
-	headerItem={{ id: 'header' }}
+	getItemId={(item) => {
+		// ProcessedNotification has id() that returns { fnv1aHash: () => string }
+		const idObj = item?.id?.();
+		if (idObj && typeof idObj.fnv1aHash === 'function') {
+			return idObj.fnv1aHash();
+		}
+		return Math.random().toString();
+	}}
 >
 	<svelte:fragment slot="sticky-header">
 		<div
@@ -158,17 +180,18 @@
 			{:else if post.type === 'mention'}
 				<Mentions {post} {visible} />
 			{:else if post.type === 'repost'}
+				{@const parsed = post.parsed}
 				<div class="p-4 border-b">
 					<div class="flex items-center">
 						<Icon icon="mdi:repeat" class="text-green-500 mr-2" />
 						<span>
-							{post.events.length}
-							{post.events.length === 1 ? 'person' : 'people'} reposted your content
+							{parsed.events?.length || 0}
+							{(parsed.events?.length || 0) === 1 ? 'person' : 'people'} reposted your content
 						</span>
 					</div>
 					<div class="mt-2 pl-6 text-sm text-gray-600">
-						{#if post.originalPost}
-							"{post.originalPost.content.substring(0, 100)}{post.originalPost.content.length > 100
+						{#if parsed.originalPost}
+							"{parsed.originalPost.content?.substring(0, 100)}{parsed.originalPost.content?.length > 100
 								? '...'
 								: ''}"
 						{/if}

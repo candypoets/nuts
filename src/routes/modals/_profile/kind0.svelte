@@ -183,7 +183,6 @@
 
 	// Upload file to image service
 	async function upload(file: File, type: 'avatar' | 'banner') {
-		console.log('uploadfile');
 		if (type === 'avatar') {
 			isAvatarUploading = true;
 		} else {

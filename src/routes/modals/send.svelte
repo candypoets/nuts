@@ -1,25 +1,20 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
 	import _ from 'lodash';
+	import { getContext, onDestroy } from 'svelte';
 
-	import type {
-		Kind3Parsed,
-		ParsedEvent,
-		RequestObject,
-		WorkerMessage
-	} from '@candypoets/nipworker';
+	import type { Kind3Parsed, ParsedEvent, WorkerMessage } from '@candypoets/nipworker';
 	import { asKind0, asKind3, asParsedEvent, fbArray } from '@candypoets/nipworker/utils';
+	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import { kind3 } from 'src/controller/nostr';
 	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import type { Contact } from 'src/model/contact';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import { go } from 'src/routes/modals/modal';
-	import { getContext } from 'svelte';
 
 	let active: string;
 	let search: string;
-	// export let encodedToken: string = '';
 
 	export let open: boolean = false;
 
@@ -29,6 +24,7 @@
 
 	export let subopen: boolean = false;
 
+	// Feed items managed in parent
 	let feed: ParsedEvent[] = [];
 
 	let headerItem: ParsedEvent;
@@ -39,32 +35,50 @@
 
 	let animator: PagerAnimator = getContext('animator');
 
-	let feedRequests: RequestObject[] = [];
+	let seenPubkeys = new Set<number>();
 
-	let seen_npubs = new Map<number, boolean>();
+	let unsubscribeContacts: (() => void) | undefined;
 
-	function updateFeed(feed: ParsedEvent[], message: WorkerMessage): ParsedEvent[] {
-		const parsedEvent = asParsedEvent(message);
-		if (parsedEvent) {
-			if (seen_npubs.has(parsedEvent?.pubkey()?.fnv1aHash() as number)) return feed;
-			seen_npubs.set(parsedEvent?.pubkey()?.fnv1aHash() as number, true);
-			return [...feed, parsedEvent];
-		}
-		return feed;
-	}
+	// Subscribe to kind0 events for contacts when kind3 is available
+	$: if ($kind3) {
+		const contacts = fbArray(asKind3($kind3) as Kind3Parsed, 'contacts');
+		if (contacts?.length) {
+			// Unsubscribe from previous subscription
+			unsubscribeContacts?.();
+			
+			// Reset feed when contacts change
+			feed = [];
+			seenPubkeys.clear();
 
-	$: {
-		feedRequests =
-			($kind3 &&
-				fbArray(asKind3($kind3) as Kind3Parsed, 'contacts')?.map((p) => ({
+			// Subscribe to kind0 events for each contact
+			unsubscribeContacts = useSubscription(
+				'send_contacts_' + $kind3?.pubkey()?.toString().slice(0, 16),
+				contacts.map((p) => ({
 					kinds: [0],
 					authors: [p.pubkey()!.toString()],
 					cacheFirst: true,
 					noContext: true,
 					relays: []
-				}))) ||
-			[];
+				})),
+				handleContactEvents
+			);
+		}
 	}
+
+	function handleContactEvents(message: WorkerMessage) {
+		const parsedEvent = asParsedEvent(message);
+		if (parsedEvent) {
+			const pubkeyHash = parsedEvent?.pubkey()?.fnv1aHash() as number;
+			if (seenPubkeys.has(pubkeyHash)) return;
+			seenPubkeys.add(pubkeyHash);
+			feed = [...feed, parsedEvent];
+		}
+	}
+
+	// Cleanup subscription on unmount
+	onDestroy(() => {
+		unsubscribeContacts?.();
+	});
 
 	// Process feed: filter, sort, and apply search
 	$: processedFeed = feed
@@ -80,8 +94,8 @@
 			return name.includes(searchTerm) || content.includes(searchTerm) || pubkey.includes(searchTerm);
 		})
 		.sort((a, b) => {
-			const nameA = asKind0(a)?.name()?.toString()?.trim() ?? '';
-			const nameB = asKind0(b)?.name()?.toString()?.trim() ?? '';
+			const nameA = asKind0(a)?.name()?.toString().trim() ?? '';
+			const nameB = asKind0(b)?.name()?.toString().trim() ?? '';
 			return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
 		});
 </script>

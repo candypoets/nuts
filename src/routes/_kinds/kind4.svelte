@@ -36,6 +36,7 @@
 	// Viewport state from Feed
 	let start = 0;
 	let end = 0;
+	let bottom = true; // Chat-style scrolling from bottom
 
 	function getNonce(post: ParsedEvent): string | undefined {
 		const tags = fbArray(post, 'tags').reduce(

@@ -19,11 +19,14 @@
 
 	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
 	import {
+		asConnectionStatus,
 		asKind0,
+		asKind1,
 		asKind10002,
 		asKind3,
 		asParsedEvent,
-		fbArray
+		fbArray,
+		isKind1
 	} from '@candypoets/nipworker/utils';
 	import RelaysList from 'src/components/RelaysList.svelte';
 	import { onDestroy, onMount } from 'svelte';
@@ -33,6 +36,9 @@
 	import { parseContent, type ContentBlock } from 'src/lib';
 	import About from 'src/components/About.svelte';
 	import { normalizeURL } from 'nostr-tools/utils';
+
+	// Default relays as fallback
+	const DEFAULT_RELAYS = ['wss://relay.damus.io', 'wss://relay.snort.social', 'wss://nos.lol'];
 
 	// Get pubkey from URL parameter
 	export let pubkey: string;
@@ -58,9 +64,25 @@
 	let followsFeedItems: ParsedEvent[] = [];
 	let loading = false;
 
+	// Track seen event IDs for O(1) duplicate detection
+	let profileSeenIds = new Set<number>();
+	let followsSeenIds = new Set<number>();
+
 	$: feedItems = mode === 'profile' ? profileFeedItems : followsFeedItems;
+	$: seenIds = mode === 'profile' ? profileSeenIds : followsSeenIds;
 
 	function handleProfileEvents(message: WorkerMessage) {
+		// Handle connection status
+		const status = asConnectionStatus(message);
+		if (status) {
+			const relayUrl = status.relayUrl()?.toString();
+			if (relayUrl) {
+				const normalizedUrl = normalizeURL(relayUrl);
+				connectionStatus = { ...connectionStatus, [normalizedUrl]: status };
+			}
+			return;
+		}
+
 		const parsedEvent = asParsedEvent(message);
 		if (!parsedEvent) return;
 
@@ -71,7 +93,6 @@
 				parseContent(k0?.about()?.toString() || '').then((result) => (parsedAbout = result));
 				break;
 			case ParsedData.Kind10002Parsed:
-				console.log('10002');
 				writeRelays = fbArray(asKind10002(parsedEvent) as Kind10002Parsed, 'relays')
 					?.filter((r) => r.write())
 					.map((r) => r.url()?.toString())
@@ -80,7 +101,7 @@
 					?.filter((r) => r.read())
 					.map((r) => r.url()?.toString())
 					.filter(Boolean) as string[];
-				if (!contacts.length) {
+				if (!contacts.length && writeRelays.length > 0) {
 					contactSub = useSubscription(
 						'c_' + pubkey,
 						[{ kinds: [3], authors: [pubkey], limit: 30, relays: writeRelays }],
@@ -96,20 +117,58 @@
 	}
 
 	function handleFeedEvents(message: WorkerMessage) {
+		// Handle connection status
+		const status = asConnectionStatus(message);
+		if (status) {
+			const relayUrl = status.relayUrl()?.toString();
+			if (relayUrl) {
+				const normalizedUrl = normalizeURL(relayUrl);
+				connectionStatus = { ...connectionStatus, [normalizedUrl]: status };
+			}
+			return;
+		}
+
 		const parsedEvent = asParsedEvent(message);
 		if (!parsedEvent) return;
-
-		if (parsedEvent.parsedType() === ParsedData.Kind1Parsed) {
+		const kind1 = asKind1(parsedEvent);
+		if (kind1) {
 			// Add kind 1 events to appropriate feed based on mode
 			const eventId = parsedEvent.id()?.fnv1aHash();
-			const targetFeed = mode === 'profile' ? profileFeedItems : followsFeedItems;
-			const existingIndex = targetFeed.findIndex((item) => item.id()?.fnv1aHash() === eventId);
-			if (existingIndex === -1) {
-				if (mode === 'profile') {
-					profileFeedItems = [...profileFeedItems, parsedEvent].sort((a, b) => b.createdAt() - a.createdAt());
-				} else {
-					followsFeedItems = [...followsFeedItems, parsedEvent].sort((a, b) => b.createdAt() - a.createdAt());
+			if (!eventId) return;
+
+			// Check Set first for O(1) duplicate detection
+			if (mode === 'profile') {
+				if (profileSeenIds.has(eventId)) return;
+				const reply = kind1.reply()?.id();
+				const root = kind1.root()?.id();
+				// If this is a reply, check if it's a direct reply to root
+				if (reply && root) {
+					// If reply ID != root ID, it's a reply to a reply (nested) - skip it
+					if (reply.fnv1aHash() !== root.fnv1aHash()) {
+						return;
+					}
 				}
+				profileSeenIds.add(eventId);
+				profileFeedItems = [...profileFeedItems, parsedEvent].sort(
+					(a, b) => b.createdAt() - a.createdAt()
+				);
+				loading = false;
+			} else {
+				if (followsSeenIds.has(eventId)) return;
+				const reply = kind1.reply()?.id();
+				const root = kind1.root()?.id();
+				// If this is a reply, check if it's a direct reply to root
+				if (reply && root) {
+					// If reply ID != root ID, it's a reply to a reply (nested) - skip it
+					if (reply.fnv1aHash() !== root.fnv1aHash()) {
+						return;
+					}
+				}
+				followsSeenIds.add(eventId);
+				followsFeedItems = [...followsFeedItems, parsedEvent].sort(
+					(a, b) => b.createdAt() - a.createdAt()
+				);
+				loading = false;
 			}
 		}
 	}
@@ -157,6 +216,8 @@
 	}
 
 	onMount(() => {
+		subscribe();
+		// console.log('onMount kind0');
 		// set a time out after which we set the feedRequests whatever happen
 		setTimeout(() => {
 			if (feedItems.length === 0 && !loading) {
@@ -165,43 +226,96 @@
 		}, 1000);
 	});
 
-	// Subscribe to feed based on mode
-	$: if (visible && mode === 'profile' && writeRelays.length > 0 && profileFeedItems.length === 0 && !feedSub) {
-		loading = true;
-		feedSub = useSubscription(
-			'kind0P_' + pubkey,
-			[{
-				kinds: [1],
-				authors: [pubkey],
-				limit: $limit,
-				noContext: true,
-				relays: writeRelays
-			}],
-			handleFeedEvents,
-			{}
-		);
+	// Subscribe when visible becomes true (issue #1)
+	$: if (visible && !sub) {
+		subscribe();
 	}
 
-	$: if (visible && mode === 'follows' && readRelays.length > 0 && contacts.length > 0 && followsFeedItems.length === 0 && !feedSub) {
-		loading = true;
-		feedSub = useSubscription(
-			'kind0F_' + pubkey,
-			[{
-				kinds: [1],
-				authors: contacts.map((c) => c.pubkey()?.toString()).filter(Boolean) as string[],
-				limit: $limit,
-				noContext: true,
-				relays: readRelays
-			}],
-			handleFeedEvents,
-			{}
-		);
+	// Timeout for relay discovery - fallback to default relays if Kind10002 not received
+	let relayDiscoveryTimeout: ReturnType<typeof setTimeout> | undefined;
+	$: if (writeRelays.length === 0 && !relayDiscoveryTimeout) {
+		relayDiscoveryTimeout = setTimeout(() => {
+			if (writeRelays.length === 0) {
+				// Fallback to default relays
+				writeRelays = DEFAULT_RELAYS;
+				readRelays = DEFAULT_RELAYS;
+			}
+		}, 3000);
 	}
 
-	// Reset feedSub when mode changes to allow new subscription
-	$: if (mode) {
+	// Reactively compute feed request based on mode and dependencies
+	// Include relay hash in subId so relay changes trigger re-subscription
+	$: feedRequest = (() => {
+		if (mode === 'profile' && writeRelays.length > 0) {
+			const relayHash = writeRelays.map(r => r.replace(/[^a-zA-Z0-9]/g, '')).join('').slice(0, 20);
+			return {
+				subId: 'kind0P_' + pubkey + '_' + relayHash,
+				requests: [
+					{
+						kinds: [1],
+						authors: [pubkey],
+						limit: $limit,
+						noContext: true,
+						relays: writeRelays
+					}
+				]
+			};
+		}
+
+		if (mode === 'follows' && readRelays.length > 0 && contacts.length > 0) {
+			const relayHash = readRelays.map(r => r.replace(/[^a-zA-Z0-9]/g, '')).join('').slice(0, 20);
+			return {
+				subId: 'kind0F_' + pubkey + '_' + relayHash,
+				requests: [
+					{
+						kinds: [1],
+						authors: contacts.map((c) => c.pubkey()?.toString()).filter(Boolean) as string[],
+						limit: $limit,
+						noContext: true,
+						relays: readRelays
+					}
+				]
+			};
+		}
+
+		return null;
+	})();
+
+	// Track when feedRequest becomes null to reset hadFeedRequest flag
+	$: if (!feedRequest) {
+		hadFeedRequest = false;
+	}
+
+	// Track last subscribed subId to avoid unnecessary re-subscriptions
+	let lastSubId: string | undefined;
+	let hadFeedRequest = false;
+
+	// Subscribe/unsubscribe when feedRequest changes (but only if subId changes)
+	// Also reset lastSubId when feedRequest becomes valid after being null (issue #4)
+	$: if (feedRequest && feedRequest.subId !== lastSubId) {
+		// Reset lastSubId if we transitioned from null to valid feedRequest
+		if (!hadFeedRequest) {
+			lastSubId = undefined;
+			hadFeedRequest = true;
+		}
+		// Cleanup previous subscription
 		feedSub?.();
 		feedSub = undefined;
+		lastSubId = feedRequest.subId;
+		// Only clear feed items if we have no items yet (initial load)
+		// Don't clear on every mode switch to avoid flickering
+		if (mode === 'profile') {
+			if (profileFeedItems.length === 0) {
+				profileSeenIds.clear();
+			}
+		} else {
+			if (followsFeedItems.length === 0) {
+				followsSeenIds.clear();
+			}
+		}
+		// Start new subscription
+		loading = feedItems.length === 0;
+		feedSub = useSubscription(feedRequest.subId, feedRequest.requests, handleFeedEvents, {});
 	}
 </script>
 

@@ -13,6 +13,7 @@
 	import {
 		asConnectionStatus,
 		asKind1,
+		asKind6,
 		asParsedEvent,
 		ConnectionTracker,
 		fbArray,
@@ -34,8 +35,6 @@
 	import Icon from '@iconify/svelte';
 
 	export let main: boolean = false;
-	// if the note is a repost, this is the reposter pubkey
-	export let repost: string | undefined = undefined;
 	export let noteId: string | undefined = undefined;
 	export let context: ParsedEvent[] = [];
 	export let note: ParsedEvent | undefined = undefined;
@@ -50,11 +49,26 @@
 	export let showRoot: boolean = true;
 	export let depth = 0;
 
-	$: console.log('note', note);
+	// Repost handling variables
+	let kind6: ReturnType<typeof asKind6> | undefined;
+	let isRepost = false;
+	let displayNote: ParsedEvent | undefined | null;
+	let reposterPubkey: string | undefined;
+	let effectiveShowRoot = showRoot;
+	let kind1: ReturnType<typeof asKind1> | undefined;
 
-	$: kind1 = note && asKind1(note as ParsedEvent);
+	// Check if this is a repost (kind 6) and extract the reposted event
+	// Grouped in a single reactive statement to avoid false positive cycle detection
+	$: {
+		kind6 = note && asKind6(note as ParsedEvent);
+		isRepost = !!kind6 && typeof kind6?.repostedEvent === 'function';
+		displayNote = isRepost ? kind6?.repostedEvent?.() : note;
+		reposterPubkey = isRepost ? note?.pubkey()?.toString() : undefined;
+		effectiveShowRoot = isRepost ? false : showRoot;
+		kind1 = displayNote && asKind1(displayNote as ParsedEvent);
+	}
 
-	$: nid = noteId || note?.id()?.toString();
+	$: nid = noteId || displayNote?.id()?.toString();
 
 	$: decoded = {
 		noteId: nid,
@@ -73,7 +87,7 @@
 
 	let replies: ParsedEvent[] = [];
 
-	$: visibleReplies = showReplies && note ? showReplies(note)(replies) : [];
+	$: visibleReplies = showReplies && displayNote ? showReplies(displayNote)(replies) : [];
 
 	let timeout: NodeJS.Timeout | undefined;
 
@@ -83,10 +97,11 @@
 
 	let subscribing = false;
 
-	$: {
-		if (!note && noteId && context) {
-			note = context.find((event) => event?.id()!.toString() === noteId) as ParsedEvent;
-		}
+	// Find note from context if not provided directly
+	// Note: This runs when noteId/context changes, not when displayNote changes (avoids cycle)
+	$: if (noteId && context && !note) {
+		const foundNote = context.find((event) => event?.id()!.toString() === noteId);
+		if (foundNote) note = foundNote;
 	}
 
 	const connectionTracker = new ConnectionTracker();
@@ -139,11 +154,11 @@
 							},
 							// fetch some replies
 							{ kinds: [1], limit: 10, tags: { '#e': [nid] }, relays: relays || [] },
-							...fbArray(note, 'requests').map((r) => toRequestObject(r))
+							...(displayNote ? fbArray(displayNote, 'requests').map((r) => toRequestObject(r)) : [])
 						],
 						handleEvents
 					);
-					if (showRoot && kind1?.reply()) {
+					if (effectiveShowRoot && kind1?.reply()) {
 						const pubkey = kind1?.reply()?.author()?.toString();
 						const id = kind1?.reply()?.id()?.toString();
 						if (pubkey && id) {
@@ -197,7 +212,7 @@
 				}
 				if (!relays.length && !relaysub) {
 					relaysub = getUserRelays(
-						note?.pubkey()?.toString() as string,
+						displayNote?.pubkey()?.toString() as string,
 						(result) => {
 							relays = result.slice(0, $isMobile ? 3 : 5);
 						},
@@ -226,7 +241,7 @@
 		decoded.replyID &&
 		!(decoded.mentions || []).some((mId) => mId == decoded.replyID) &&
 		!depth &&
-		showRoot;
+		effectiveShowRoot;
 
 	function goto() {
 		// if (isImageContext) return;
@@ -250,7 +265,7 @@
 			}
 		});
 
-	$: console.log('repost', repost);
+
 </script>
 
 {#if hasRoot}
@@ -279,12 +294,12 @@
 		requests
 		{fbArray(note, 'requests').map((r) => toRequestObject(r).ids?.[0])}
 	</div> -->
-	{#if note}
+	{#if displayNote}
 		<!--
 		{note.id}
 		{JSON.stringify(note.requests)} -->
 		{#if zaps && !depth}
-			<Zap {note} {visible} />
+			<Zap note={displayNote} {visible} />
 		{/if}
 		{#if leading || visibleReplies.length}
 			<div class="absolute border-primary-content left-4 h-full border-r-2" />
@@ -292,12 +307,15 @@
 		{#if hasRoot || tailing}
 			<div class="absolute border-primary-content left-4 h-8 border-r-2 -mt-8" />
 		{/if}
-		{#if repost}
-			<div class="translate-x-1">
-				<Avatar pubkey={repost} {context} size="sm" />
+		{#if isRepost}
+			<!-- Repost indicator with reposter's avatar -->
+			<div class="flex items-center gap-2 px-4 pb-2 text-sm text-secondary opacity-80">
+				<Icon icon="mdi:repeat" class="text-lg" />
+				<span>Reposted by</span>
+				<Avatar pubkey={reposterPubkey} {context} size="sm" />
 			</div>
 		{/if}
-		<Header {note} {context} {depth} {main}>
+		<Header note={displayNote} {context} {depth} {main}>
 			{#if !main}
 				<RelaysList subId={nid} {relays} {connectionStatus} mini />
 			{/if}
@@ -314,20 +332,20 @@
 				class:!mt-0={!!depth || isImageContext}
 				class:!mt-2={!!main}
 			>
-				{#if !!note.parsed}
+				{#if !!displayNote.parsed}
 					<!-- {kind1?.reply()?.id()?.toString()} -->
 					<!-- {!!showReplies && note?.id()?.toString()} -->
-					<Content {note} {context} {visible} {depth} {main} {showQuote} />
+					<Content note={displayNote} {context} {visible} {depth} {main} {showQuote} />
 				{:else}
 					<div class="p-3 rounded-lg bg-info-content text-sm flex items-center gap-2 mt-2">
 						<Icon icon="mdi:information-outline" class="shrink-0 w-6 h-6 text-info" />
-						<span>Oups, we can't show you this kind yet (kind {note.kind()})</span>
+						<span>Oups, we can't show you this kind yet (kind {displayNote.kind()})</span>
 					</div>
 				{/if}
 			</div>
 		</div>
 		{#if footer && !depth}
-			<Footer bind:connectionStatus {note} {visible} {main} />
+			<Footer bind:connectionStatus note={displayNote} {visible} {main} />
 		{/if}
 		<!-- {#if leading}
 			<div

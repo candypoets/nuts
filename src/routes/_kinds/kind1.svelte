@@ -8,6 +8,7 @@
 	} from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import {
+		asConnectionStatus,
 		asKind1,
 		asParsedEvent,
 		fbArray,
@@ -53,6 +54,17 @@
 
 	// Handle incoming events from subscription
 	function handleEvents(message: WorkerMessage) {
+		// Handle connection status
+		const status = asConnectionStatus(message);
+		if (status) {
+			const relayUrl = status.relayUrl()?.toString();
+			if (relayUrl) {
+				const normalizedUrl = normalizeURL(relayUrl);
+				connectionStatus = { ...connectionStatus, [normalizedUrl]: status };
+			}
+			return;
+		}
+
 		switch (message.type()) {
 			case MessageType.Eoce:
 				eoce = true;
@@ -84,7 +96,9 @@
 								feedItems = [parsedEvent, ...feedItems];
 							} else {
 								// Add the event to the feed and sort by created_at (most recent first)
-								feedItems = [...feedItems, parsedEvent].sort((a, b) => b.createdAt() - a.createdAt());
+								feedItems = [...feedItems, parsedEvent].sort(
+									(a, b) => b.createdAt() - a.createdAt()
+								);
 							}
 						}
 					}
@@ -95,6 +109,7 @@
 
 	function subscribe() {
 		if (visible && !sub) {
+			console.log('subscribe');
 			sub = useSubscription(
 				'kind1_' + data?.id,
 				[

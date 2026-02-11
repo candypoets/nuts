@@ -100,7 +100,6 @@
 		{onRefresh}
 		{pullToRefresh}
 	>
-		{@const repost = item?.kind && item?.repostedEvent}
 		{@const screenVisible = itemIndex >= start - 10}
 		{@const subVisible = visible}
 		<svelte:fragment slot="feed-header">
@@ -119,11 +118,9 @@
 					index={itemIndex}
 				>
 					<Note
-						note={repost ? item?.repostedEvent?.() : item}
+						note={item}
 						context={[]}
 						visible={subVisible}
-						showRoot={!repost}
-						{repost}
 					/>
 				</slot>
 			</Placeholder>

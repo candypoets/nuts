@@ -1,38 +1,68 @@
 <script lang="ts">
 	import type { ParsedEvent, RequestObject, WorkerMessage } from '@candypoets/nipworker';
+	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import { asNip51, fbArray, isNip51, isParsedEvent } from '@candypoets/nipworker/utils';
 
 	import Icon from '@iconify/svelte';
-	import { formatDistanceToNow } from 'date-fns';
 	import { followList, followPacks } from 'src/controller/feed';
 	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import MultiSelect from 'src/routes/modals/components/MultiSelect.svelte';
-	import { getContext, onDestroy } from 'svelte';
+	import { getContext, onDestroy, onMount } from 'svelte';
 
 	let animator: PagerAnimator = getContext('animator');
 
 	let searchQuery = '';
+	let subscriptionID = 'followlists';
 
 	let fps = $followPacks;
 
 	let feed: ParsedEvent[] = [$followList];
+	let seenEventIds = new Set<number>();
+	let loading = false;
 
-	function updateFeed(currentFeed: ParsedEvent[], message: WorkerMessage): ParsedEvent[] {
-		const parsedEvent = isParsedEvent(message);
-		const kindList = isNip51(message);
-		console.log('followlist message', !!parsedEvent, !!kindList);
-		if (!kindList) return currentFeed;
+	let unsubscribe: (() => void) | undefined;
 
-		// Ensure list has required fields
-		if (!kindList?.title()) return currentFeed;
-
-		return [...currentFeed, parsedEvent as ParsedEvent].sort(
-			(a, b) => b.createdAt() - a.createdAt()
-		);
+	function buildRequests(): RequestObject[] {
+		return [
+			{
+				kinds: [39089],
+				limit: 50,
+				noCache: true,
+				relays: []
+			}
+		];
 	}
+
+	function handleEvents(message: WorkerMessage) {
+		const parsedEvent = isParsedEvent(message);
+		if (!parsedEvent) return;
+
+		console.log('hey', asNip51(parsedEvent), isParsedEvent(message));
+		const kindList = isNip51(message);
+		if (!kindList) return;
+		if (!kindList?.title()) return;
+
+		const eventId = parsedEvent.id()?.fnv1aHash();
+		if (!eventId) return;
+		if (seenEventIds.has(eventId)) return;
+		seenEventIds.add(eventId);
+
+		feed = [...feed, parsedEvent].sort((a, b) => b.createdAt() - a.createdAt());
+		console.log('new event');
+		loading = false;
+	}
+
+	onMount(() => {
+		console.log('hi');
+		loading = true;
+		const requests = buildRequests();
+		unsubscribe = useSubscription(subscriptionID, requests, handleEvents, {
+			bytesPerEvent: 10 * 1024
+		});
+	});
 
 	function toggleFollowPack(pack: ParsedEvent) {
 		// Check if the pack is already in the list
@@ -48,11 +78,8 @@
 	}
 
 	onDestroy(() => {
-		console.log(fps, $followPacks);
-		// if (fps.length == 0) {
-		// 	fps.push($followList);
-		// }
 		$followPacks = fps;
+		unsubscribe?.();
 	});
 
 	// Process feed: filter by search (parent handles search instead of Feed)
@@ -70,6 +97,7 @@
 	<Feed
 		items={processedFeed}
 		getItemId={(item) => item?.id?.()?.fnv1aHash?.() ?? Math.random()}
+		onNearBottom={() => console.log('near bottom')}
 		visible
 	>
 		<svelte:fragment slot="sticky-header">

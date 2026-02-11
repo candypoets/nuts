@@ -165,15 +165,16 @@
 		const kind9321 = isKind9321(message);
 		if (!kind9321 || !event) return;
 
-		// Deduplicate by event ID
-		const eventId = event.id();
-		if (rawWalletEvents.some((e) => e.id() === eventId)) return;
+		// Deduplicate by event ID hash (fnv1a)
+		const eventIdHash = event.id()?.fnv1aHash();
+		if (!eventIdHash) return;
+		if (rawWalletEvents.some((e) => e.id()?.fnv1aHash() === eventIdHash)) return;
 
 		rawWalletEvents = [...rawWalletEvents, event];
 	}
 
-	// Process and sort wallet items in parent
-	$: walletItems = rawWalletEvents.sort((a, b) => b.createdAt() - a.createdAt());
+	// Process and sort wallet items in parent (slice to avoid mutating original)
+	$: walletItems = rawWalletEvents.slice().sort((a, b) => b.createdAt() - a.createdAt());
 
 	// Cleanup subscription on unmount
 	onDestroy(() => {
