@@ -51,7 +51,6 @@
 	class={imageContext ? 'w-full' : 'w-feed'}
 	{headerItem}
 	{visible}
-	bind:connectionStatus
 >
 	<svelte:fragment slot="sticky-header">
 		<div

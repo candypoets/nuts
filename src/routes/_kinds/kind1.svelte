@@ -157,7 +157,6 @@
 	{headerItem}
 	{updateFeed}
 	{visible}
-	bind:connectionStatus
 >
 	<svelte:fragment slot="sticky-header">
 		<div

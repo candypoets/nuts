@@ -163,7 +163,6 @@
 		{updateFeed}
 		{subscriptionOptions}
 		backdrop={!feed.length}
-		bind:connectionStatus
 		bind:feed
 		pullToRefresh
 	>

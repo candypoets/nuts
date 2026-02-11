@@ -239,7 +239,6 @@
 		requests={feedRequests}
 		{updateFeed}
 		backdrop={!feed.length}
-		bind:connectionStatus
 		bind:feed
 		pullToRefresh
 	>

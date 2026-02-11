@@ -161,7 +161,6 @@
 		requests={feedRequests}
 		subscriptionOptions={{ bytesPerEvent: 10 * 1024 }}
 		kinds={[1, 6]}
-		bind:connectionStatus
 		pullToRefresh
 		batchNewItems={true}
 	>

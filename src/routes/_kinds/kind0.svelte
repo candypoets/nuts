@@ -182,7 +182,6 @@
 	subscriptionID={mode == 'profile' ? 'kind0P_' + pubkey : 'kind0F_' + pubkey}
 	requests={mode == 'profile' ? feedProfileRequests : feedFollowRequests}
 	{visible}
-	bind:connectionStatus
 >
 	<svelte:fragment slot="sticky-header">
 		<div class="px-4 py-3 flex items-center justify-between backdrop-blur-md pt-safe">
