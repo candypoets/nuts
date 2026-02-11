@@ -1,0 +1,30 @@
+# Ralph Progress Log
+Started: Wed Feb 11 10:50:43 AM CET 2026
+---
+
+## Codebase Patterns
+- Component uses generic type `type T = $$Generic` for type-safe items
+- VirtualList components are in `src/components/VirtualList*.svelte`
+- Feed component is at `src/routes/explore/feed.svelte` (not in lib/)
+- TypeScript path alias `src/` maps to the src directory
+- Default item ID extraction uses `item?.id?.()?.fnv1aHash?.()` for Nostr events
+
+## 2026-02-11T10:51:00+01:00 - US-001
+- Rewrote Feed component as pure presentation component
+- Changed Feed to use generic `<T>` type parameter
+- Added `items` prop with default `[]`
+- Added `getItemId` prop for unique identification (default uses fnv1aHash)
+- Added `onRefresh` callback prop for pull-to-refresh
+- Removed `bind:feed` export (breaking change)
+- Removed `subscriptionID`, `requests`, `subscriptionOptions` props
+- Removed `updateFeed` callback prop
+- Removed `initialItems` prop (parent passes via `items`)
+- Kept `loading` prop for parent-controlled loading state
+- Exported `start`, `end`, `down`, `viewport` with `bind:` for two-way binding
+- Removed ~700 lines of internal subscription/pagination/search logic
+- Files changed: `src/routes/explore/feed.svelte`
+- **Learnings for future iterations:**
+  - Parent components that used old props will need migration (tracked in US-007 through US-013)
+  - VirtualList takes `items`, `getItemId`, and exposes `bind:start`, `bind:end`, `bind:down`, `bind:viewport`
+  - Keep slot names consistent: `header`, `sticky-header`, `sticky-footer`, `fixed-header`, `item-content`, `empty-content`
+---

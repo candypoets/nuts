@@ -1,123 +1,240 @@
 {
   "project": "nuts-cash",
-  "branchName": "ralph/feed-management-refactor",
-  "description": "Simplify feed.svelte architecture: single items Map, unified buffering, fixed-window pagination",
+  "branchName": "ralph/feed-refactor",
+  "description": "Feed Component Architecture Refactoring - Simplify feed.svelte to pure presentation component",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Create FeedItem type and unified items Map",
-      "description": "As a developer, I need a single data structure to hold all feed items with metadata about their source.",
+      "title": "Create simplified Feed component with items prop",
+      "description": "As a developer, I want Feed to accept items as a prop so that parents control their own data.",
       "acceptanceCriteria": [
-        "Create FeedItem interface with event, source, receivedAt fields",
-        "Replace cachedMap, fetchedMap, bufferMap, pendingNewItems with single items: Map<number, FeedItem>",
-        "Type source as 'cache' | 'backfill' | 'live' | 'page'",
+        "Feed accepts `items` prop (generic array, default `[]`)",
+        "Feed accepts `getItemId` prop for unique identification",
+        "Remove `bind:feed` export (breaking change, documented)",
+        "Remove `subscriptionID`, `requests`, `subscriptionOptions` props",
+        "Remove `updateFeed` callback prop",
+        "Remove `initialItems` prop (parent passes via `items`)",
         "Typecheck passes"
       ],
       "priority": 1,
       "passes": false,
-      "notes": ""
+      "notes": "Foundation story - Feed becomes pure presentation"
     },
     {
       "id": "US-002",
-      "title": "Implement unified message handler",
-      "description": "As a developer, I need a single handler that routes events based on source type.",
+      "title": "Expose viewport state to parent",
+      "description": "As a developer, I want to access start, end, down, and viewport from the parent so I can implement viewport-aware features.",
       "acceptanceCriteria": [
-        "Create handleMessage(msg: WorkerMessage, source: Source) function",
-        "Handle cache events: show immediately, update viewAnchor",
-        "Handle backfill/live events: store in items Map, buffer for 'Load X new' button",
-        "Handle page events: store with source 'page', update pagination cursor",
-        "Prevent duplicate events using seen_ids Set",
+        "Export `start`, `end`, `down`, `viewport` with `bind:` for two-way binding",
+        "`start` - first visible item index",
+        "`end` - last visible item index",
+        "`down` - boolean indicating scroll direction",
+        "`viewport` - the scrollable DOM element",
+        "Parent can read these values to trigger pagination, batching, etc.",
         "Typecheck passes"
       ],
       "priority": 2,
       "passes": false,
-      "notes": ""
+      "notes": "Required for US-003 and batchNewItems behavior"
     },
     {
       "id": "US-003",
-      "title": "Implement 'Load X new items' reactive logic",
-      "description": "As a user, I want to see a button showing how many new items are buffered, and click it to reveal them.",
+      "title": "Add onNearBottom event for pagination",
+      "description": "As a developer, I want Feed to emit an event when the user scrolls near the bottom so I can load more items.",
       "acceptanceCriteria": [
-        "Create reactive $: pendingNew count based on items with source: 'backfill' | 'live' where event.createdAt() > viewAnchor",
-        "Create loadNewItems() function that updates viewAnchor to now()",
-        "Create reactive $: visibleItems that filters items based on viewAnchor",
-        "Create reactive $: feed = visibleItems.map(i => i.event) for VirtualList",
-        "Button appears when pendingNew > 0 with correct count",
-        "Clicking button reveals items and scrolls to top",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "Feed emits `onNearBottom` event when `end` is within 10 items of `items.length`",
+        "Event includes `{ distance: number }` indicating items remaining",
+        "Parent implements its own pagination logic (Nostr until/since, offset/limit, etc.)",
+        "Remove internal pagination logic (startPage, finalizePage, until/since calculation)",
+        "Typecheck passes"
       ],
       "priority": 3,
       "passes": false,
-      "notes": ""
+      "notes": "Replaces ~110 lines of internal pagination logic"
     },
     {
       "id": "US-004",
-      "title": "Implement eager mode for empty cache",
-      "description": "As a user returning after a long absence with no cache, I want to see fresh events immediately without clicking 'Load X new'.",
+      "title": "Add onRefresh event for pull-to-refresh",
+      "description": "As a developer, I want Feed to emit an event on pull-to-refresh so parents can refresh their data.",
       "acceptanceCriteria": [
-        "Track hasCachedContent boolean",
-        "Set to true on EOCE if any cache items were received",
-        "In handleMessage, when source === 'backfill' | 'live' AND !hasCachedContent, update viewAnchor immediately (eager mode)",
-        "When hasCachedContent is true, buffer as normal",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "Feed accepts `onRefresh` callback prop",
+        "When user pulls to refresh, call `onRefresh()` instead of internal `refreshHead()`",
+        "Parent implements refresh logic (new subscription, cache clear, etc.)",
+        "Show loading state during refresh if `loading` prop is true",
+        "Typecheck passes"
       ],
       "priority": 4,
       "passes": false,
-      "notes": ""
+      "notes": "Replaces internal refreshHead function"
     },
     {
       "id": "US-005",
-      "title": "Implement simplified subscription lifecycle",
-      "description": "As a developer, I need clean subscription management for cache → backfill → live phases.",
+      "title": "Remove Fuse.js search from Feed",
+      "description": "As a developer, I want to handle search/filtering in the parent so Feed is not coupled to search logic.",
       "acceptanceCriteria": [
-        "Create initFeed() that starts cache subscription",
-        "On EOCE, start backfill subscription with since: viewAnchor",
-        "On EOSE from backfill, start live subscription with since: now()",
-        "Store unsubscribe functions: cacheSub, backfillSub, liveSub",
-        "Cleanup all subscriptions in onDestroy",
+        "Remove `fuseKeys`, `fuseResolver`, `search` props",
+        "Remove Fuse.js dependency from Feed",
+        "Remove `filteredFeed` internal state",
+        "Parent filters `items` before passing to Feed",
         "Typecheck passes"
       ],
       "priority": 5,
       "passes": false,
-      "notes": ""
+      "notes": "Used in newchat, send, share modals"
     },
     {
       "id": "US-006",
-      "title": "Implement fixed-window pagination",
-      "description": "As a developer, I need pagination that doesn't rely on fragile feed timestamps.",
+      "title": "Remove connectionStatus binding",
+      "description": "As a developer, I want to track connection status in the parent rather than binding it from Feed.",
       "acceptanceCriteria": [
-        "Track paginationAnchor: number | null (completely separate from feed content)",
-        "Initialize paginationAnchor to now() on first load",
-        "Implement loadMore() with expanding window: window = ONE_DAY * 2^noResultsCount",
-        "Use until = paginationAnchor - 1, since = until - window",
-        "On successful page: update paginationAnchor to oldest received item's timestamp",
-        "On empty page: increment noResultsCount, keep same anchor, expand window",
-        "Trigger pagination when user scrolls near bottom (end >= feed.length - 5)",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "Remove `bind:connectionStatus` prop",
+        "Parent tracks connection status via its own subscription handlers",
+        "No changes to how connection status is displayed (RelaysList in parent)",
+        "Typecheck passes"
       ],
       "priority": 6,
       "passes": false,
-      "notes": ""
+      "notes": "Parent already has access to connection status"
     },
     {
       "id": "US-007",
-      "title": "Integrate with existing VirtualList and UI",
-      "description": "As a user, I want the refactored feed to look and behave exactly like before.",
+      "title": "Migrate explore/index.svelte to new Feed API",
+      "description": "As a developer, I want to migrate the main explore feed to use the new simplified Feed component.",
       "acceptanceCriteria": [
-        "VirtualList receives reactive feed array",
-        "Sticky header/footer work with new pendingNew count",
-        "Pull-to-refresh triggers refreshHead() which merges pending items",
-        "Pagination loading state shows correctly",
-        "Empty state displays when feed is empty",
+        "Add subscription handling in parent (move from Feed)",
+        "Implement `onNearBottom` handler with quantile-based pagination",
+        "Implement `onRefresh` handler for pull-to-refresh",
+        "Use `bind:start` to detect when user is at top (for batchNewItems behavior)",
+        "Pass processed feed as `items` prop",
+        "Remove `bind:feed` usage",
         "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "Verify in browser: scroll, pagination, refresh all work"
       ],
       "priority": 7,
       "passes": false,
-      "notes": ""
+      "notes": "Most complex pagination - quantile-based window calculation"
+    },
+    {
+      "id": "US-008",
+      "title": "Migrate notifications/index.svelte to new Feed API",
+      "description": "As a developer, I want to migrate the notifications page to use the new Feed component.",
+      "acceptanceCriteria": [
+        "Move `updateFeed` logic (grouping by type) to parent",
+        "Process events into `items` array in parent",
+        "Remove `updateFeed` prop usage",
+        "Pass grouped notifications as `items` prop",
+        "No pagination needed (limited set)",
+        "Typecheck passes",
+        "Verify in browser: notifications display correctly"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": "Complex event grouping logic - reply/reaction/mention/repost"
+    },
+    {
+      "id": "US-009",
+      "title": "Migrate chat/index.svelte to new Feed API",
+      "description": "As a developer, I want to migrate the chat conversations list to use the new Feed component.",
+      "acceptanceCriteria": [
+        "Move DM processing logic (group by chatId) to parent",
+        "Move `uniqBy` deduplication to parent",
+        "Process events into `items` array in parent",
+        "Remove `bind:feed` usage",
+        "Remove `updateFeed` prop usage",
+        "Typecheck passes",
+        "Verify in browser: conversations list correctly"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": "Groups DMs by conversation partner"
+    },
+    {
+      "id": "US-010",
+      "title": "Migrate _kinds/kind4.svelte to new Feed API",
+      "description": "As a developer, I want to migrate the DM conversation view to use the new Feed component.",
+      "acceptanceCriteria": [
+        "Move nonce-based deduplication logic to parent",
+        "Handle optimistic UI (sent messages) in parent",
+        "Process events into `items` array in parent",
+        "Remove `bind:feed` usage",
+        "Use `bottom` prop for VirtualListBottom (chat bubbles)",
+        "Typecheck passes",
+        "Verify in browser: send/receive messages work"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": "Has optimistic UI for sent messages"
+    },
+    {
+      "id": "US-011",
+      "title": "Migrate home/+layout.svelte to new Feed API",
+      "description": "As a developer, I want to migrate the home/wallet feed to use the new Feed component.",
+      "acceptanceCriteria": [
+        "Move kind9321 filtering to parent",
+        "Sort items in parent before passing to Feed",
+        "Remove `bind:feed` usage",
+        "Remove `updateFeed` prop usage",
+        "Typecheck passes",
+        "Verify in browser: wallet feed displays correctly"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": "Wallet/Nuts feed - filters for kind9321 events"
+    },
+    {
+      "id": "US-012",
+      "title": "Migrate modals to new Feed API",
+      "description": "As a developer, I want to migrate modal feeds (send, newchat, share, followlists) to use the new Feed component.",
+      "acceptanceCriteria": [
+        "send.svelte: Move contact dedupe/sorting to parent",
+        "newchat.svelte: Move contact dedupe/sorting to parent",
+        "share.svelte: Move contact dedupe to parent, handle grid items",
+        "followlists.svelte: Move kind39089 filtering to parent",
+        "All pass `items` prop instead of `bind:feed`",
+        "All remove `updateFeed` prop usage",
+        "All remove `fuseKeys`/`fuseResolver`/`search` (parent handles search)",
+        "Typecheck passes",
+        "Verify in browser: all modals work correctly"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": "4 modals with similar patterns - batch migration"
+    },
+    {
+      "id": "US-013",
+      "title": "Migrate _kinds/kind0.svelte and kind1.svelte to new Feed API",
+      "description": "As a developer, I want to migrate profile and thread views to use the new Feed component.",
+      "acceptanceCriteria": [
+        "kind0.svelte: Move feed request building to parent, pass `items`",
+        "kind1.svelte: Move reply filtering to parent, pass `items`",
+        "Both remove `bind:feed` usage",
+        "Both remove `updateFeed` prop usage",
+        "Typecheck passes",
+        "Verify in browser: profile posts and thread replies work"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": "Profile view and thread view"
+    },
+    {
+      "id": "US-014",
+      "title": "Clean up old Feed code",
+      "description": "As a developer, I want to remove all obsolete code from Feed after migration.",
+      "acceptanceCriteria": [
+        "Remove `handleEvents` function (~150 lines)",
+        "Remove `subscribe`/`unsubscribe` functions",
+        "Remove buffer Maps (cachedMap, fetchedMap, bufferMap, pendingNewItems)",
+        "Remove pagination state (currentPage, lastUntil, etc.)",
+        "Remove Fuse.js search logic",
+        "Remove internal `refreshHead`, `mergePendingItems`, `setBufferFeed` functions",
+        "Remove `kinds` filtering (parent handles)",
+        "Keep: VirtualList rendering, slots, sticky header/footer CSS, `start`/`end`/`down`/`viewport` binding",
+        "Typecheck passes",
+        "Final verification: all 12 Feed usages work correctly"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": "Final cleanup - remove ~400+ lines of dead code"
     }
   ]
 }
