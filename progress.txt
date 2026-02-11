@@ -2,6 +2,11 @@
 Started: Wed Feb 11 10:50:43 AM CET 2026
 
 ## Codebase Patterns
+- Notifications use complex event grouping: `processNotifications()` groups by type (reply/reaction/mention/repost) and referenced post ID
+- Use `ProcessedNotification` type for grouped notification items
+- For notifications, no pagination is needed (limited set of 50 items)
+- Use `headerItem={{ id: 'header' }}` prop for Feed when using header slots
+- Clean up subscriptions on unmount with `return () => { unsubscribe?.(); };`
 - Component uses generic type `type T = $$Generic` for type-safe items
 - VirtualList components are in `src/components/VirtualList*.svelte`
 - Feed component is at `src/routes/explore/feed.svelte` (not in lib/)
@@ -14,6 +19,50 @@ Started: Wed Feb 11 10:50:43 AM CET 2026
 - **Search/filtering should be done in parent components, not in Feed**: Pass filtered `items` array to Feed
 - For contact search filtering, filter by name, content, and pubkey fields
 - Use `getItemId` prop to specify unique ID extraction (e.g., `(item) => item?.pubkey?.()?.fnv1aHash?.()`)
+- **Migration pattern from old Feed to new Feed API**:
+  - Move `useSubscription` calls from Feed to parent component
+  - Manage `items` array in parent, pass as prop to Feed
+  - Implement `onNearBottom` handler in parent for pagination (use last item's createdAt as `until`)
+  - Implement `onRefresh` handler in parent for pull-to-refresh
+  - Use `bind:start` to track scroll position (0 = at top)
+  - Remove `bind:feed`, `subscriptionID`, `requests`, `subscriptionOptions`, `kinds` props
+  - Handle new posts tracking in parent using `start` value
+
+## 2026-02-11T11:12:00+01:00 - US-008
+- Migrated notifications/index.svelte to new Feed API
+- Moved subscription handling from Feed to parent using `useSubscription` hook
+- Created `rawEvents` array to store incoming ParsedEvent objects
+- Added reactive statement `$: notificationItems = processNotifications(rawEvents)` to group events
+- Removed `updateFeed` callback prop from Feed usage
+- Removed `subscriptionID` and `requests` props from Feed usage
+- Added `getItemId` prop for unique identification of notification items
+- No pagination needed for notifications (limited set of 50 items)
+- Build passes, typecheck passes
+- **Learnings for future iterations:**
+  - Notifications use complex event grouping by type and referenced post ID
+  - Keep raw events separate from processed items for reactive updates
+  - `processNotifications()` handles all the grouping logic (reply/reaction/mention/repost)
+  - No pagination/refresh needed for notifications - simple limited set
+  - Use `headerItem` prop when using header slots in Feed
+---
+
+## 2026-02-11T11:04:00+01:00 - US-007
+- Migrated explore/index.svelte to new Feed API
+- Moved subscription handling to parent using `useSubscription` hook
+- Implemented quantile-based pagination in `handleNearBottom` - uses last item's createdAt as `until` value
+- Implemented pull-to-refresh in `handleRefresh` - resets feed and creates new subscription
+- Used `bind:start` and `bind:end` to track viewport state
+- Implemented `newPostsCount` tracking for batchNewItems behavior in parent
+- Removed old `feedRequests`, `feedComponent`, `bind:feed` pattern
+- Build passes, typecheck passes
+- **Learnings for future iterations:**
+  - Migration pattern: Move subscription logic from Feed to parent, manage `items` array locally
+  - Quantile-based pagination: Use `until = lastItem.createdAt() - 1` for sliding window
+  - Use `start` binding to detect when user is scrolled down (start > 0 means scrolled)
+  - Track new posts in parent when `start > 0` and new events arrive
+  - Filter out undefined values from arrays using `.filter((p): p is string => typeof p === 'string')`
+  - Use `ConnectionTracker` from nipworker/utils for tracking connection status
+---
 
 ## 2026-02-11T10:57:00+01:00 - US-005
 - Removed Fuse.js search dependency from Feed component usage

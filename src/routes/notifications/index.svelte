@@ -1,99 +1,128 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import type { ParsedEvent } from '@candypoets/nipworker';
-	import {
-		type RequestObject,
-		type SubscribeKind,
-		type WorkerMessage,
-		MessageType
-	} from '@candypoets/nipworker';
+	import type { ParsedEvent, RequestObject } from '@candypoets/nipworker';
+	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import { asParsedEvent } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { key, lastNotificationView, writeRelays } from 'src/controller';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import { onMount } from 'svelte';
-	import { processNotifications } from './notifications';
+	import { processNotifications, type ProcessedNotification } from './notifications';
 	import Reactions from './reactions.svelte';
 	import Replies from './replies.svelte';
 	import Mentions from './mentions.svelte';
 
 	export let visible = true;
 	export let goBack: () => void;
-	let loading = true;
-	let notificationsData = [];
-	let eoce = false;
-	let feedRequests: RequestObject[] = [];
 
-	function updateFeed(
-		feed: ParsedEvent[],
-		message: WorkerMessage,
-		eventKind: SubscribeKind
-	): ParsedEvent[] {
-		let updatedFeed = feed;
-		switch (message.type()) {
-			case MessageType.Eoce:
+	let loading = true;
+	let eoce = false;
+
+	// Raw events from subscription
+	let rawEvents: ParsedEvent[] = [];
+	// Processed notifications (grouped by type)
+	let notificationItems: ProcessedNotification[] = [];
+
+	// Subscription cleanup function
+	let unsubscribe: (() => void) | undefined;
+
+	// Build subscription requests
+	function buildRequests(): RequestObject[] {
+		if (!$key?.pub) {
+			return [];
+		}
+
+		return [
+			// Mentions of user, reactions to user's posts, reposts of user's content
+			{
+				kinds: [1, 7, 6],
+				tags: { '#p': [$key.pub] },
+				limit: 50,
+				relays: $writeRelays,
+				noCache: true
+			},
+			{
+				kinds: [1, 7, 6],
+				tags: { '#p': [$key.pub] },
+				limit: 50,
+				relays: $writeRelays,
+				cacheFirst: true
+			}
+		];
+	}
+
+	// Handle incoming events from subscription
+	function handleEvents(message: any) {
+		const event = message.type ? message : null;
+		if (!event) return;
+
+		// Handle EOSE (End of Stream Event)
+		if (event.type && typeof event.type === 'function' && event.type() === 3) {
+			// EOSE message type
+			eoce = true;
+			loading = false;
+			return;
+		}
+
+		// Handle parsed events
+		if (event.kind && [1, 6, 7].includes(event.kind())) {
+			const parsedEvent = asParsedEvent(message) as ParsedEvent;
+			const eventId = parsedEvent.id()?.fnv1aHash();
+			const existingIndex = rawEvents.findIndex(
+				(item) => item.id()?.fnv1aHash() === eventId
+			);
+			if (existingIndex === -1) {
 				if (!eoce) {
-					eoce = true;
-				}
-				break;
-			case MessageType.ParsedNostrEvent:
-				const parsedEvent = asParsedEvent(message);
-				if (!eoce) {
-					updatedFeed = [...feed, parsedEvent as ParsedEvent];
+					rawEvents = [...rawEvents, parsedEvent];
 				} else {
-					updatedFeed = [...feed, parsedEvent as ParsedEvent].sort(
+					rawEvents = [...rawEvents, parsedEvent].sort(
 						(a, b) => b.createdAt() - a.createdAt()
 					);
 				}
-				break;
+			}
 		}
-		const processedFeed = processNotifications(updatedFeed);
+	}
 
-		// Process the updated feed into grouped notifications
-		return processedFeed;
+	// Process raw events into grouped notifications
+	$: notificationItems = processNotifications(rawEvents);
+
+	// Initialize subscription
+	$: if (visible && $key?.pub) {
+		if (rawEvents.length === 0 && !unsubscribe) {
+			loading = true;
+			const requests = buildRequests();
+			if (requests.length > 0) {
+				unsubscribe = useSubscription(
+					'notifications_' + $key.pub,
+					requests,
+					handleEvents,
+					{ bytesPerEvent: 10 * 1024 }
+				);
+			}
+		}
+	}
+
+	// Cleanup subscription when not visible
+	$: if (!visible) {
+		unsubscribe?.();
+		unsubscribe = undefined;
 	}
 
 	onMount(() => {
 		$lastNotificationView = Date.now();
-		feedRequests =
-			($key &&
-				$key.pub && [
-					// Mentions of user, reactions to user's posts, reposts of user's content
-					{
-						kinds: [1, 7, 6],
-						tags: { '#p': [$key?.pub] },
-						limit: 50,
-						relays: $writeRelays,
-						noCache: true
-					},
-					{
-						kinds: [1, 7, 6],
-						tags: { '#p': [$key?.pub] },
-						limit: 50,
-						relays: $writeRelays,
-						cacheFirst: true
-					}
-
-					// Replies to user's posts
-					// {
-					// 	kinds: [1],
-					// 	'#e': [], // This will be populated with the user's post IDs
-					// 	limit: 40,
-					// 	since: ago(14 * DAY)
-					// }
-				]) ||
-			[];
 		window.scrollTo(0, 0);
-		loading = false;
+		return () => {
+			unsubscribe?.();
+		};
 	});
 </script>
 
 <!-- Header for the page -->
 <Feed
-	subscriptionID={'notifications_' + $key?.pub}
-	requests={feedRequests}
-	{updateFeed}
+	items={notificationItems}
+	{loading}
 	{visible}
+	getItemId={(item) => item?.id?.()?.fnv1aHash?.() ?? Math.random()}
 	headerItem={{ id: 'header' }}
 >
 	<svelte:fragment slot="sticky-header">

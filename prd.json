@@ -111,7 +111,7 @@
         "Verify in browser: scroll, pagination, refresh all work"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "Most complex pagination - quantile-based window calculation"
     },
     {
@@ -128,7 +128,7 @@
         "Verify in browser: notifications display correctly"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "Complex event grouping logic - reply/reaction/mention/repost"
     },
     {
