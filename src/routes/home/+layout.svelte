@@ -1,7 +1,6 @@
 <script lang="ts">
 	import {
 		Kind10019Parsed,
-		MessageType,
 		ParsePipeConfigT,
 		PipeConfig,
 		PipeT,
@@ -9,7 +8,6 @@
 		SaveToDbPipeConfigT,
 		type ConnectionStatus,
 		type ParsedEvent,
-		type RequestObject,
 		type WorkerMessage
 	} from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
@@ -27,7 +25,7 @@
 		isValidProofs
 	} from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 
 	import Connect from 'src/components/Connect.svelte';
 	import Pager from 'src/components/Pager.svelte';
@@ -62,7 +60,13 @@
 	let loading = false;
 	let extensionError = false;
 	let showLinkProfile = true;
-	let feed: ParsedEvent[] = [];
+
+	// Wallet feed items - managed in parent
+	let rawWalletEvents: ParsedEvent[] = [];
+
+	// Viewport state
+	let start = 0;
+	let end = 0;
 
 	function oneDayDiff(firstTimestampInSeconds: number, secondTimestampInSeconds: number): boolean {
 		const differenceInSeconds = Math.abs(firstTimestampInSeconds - secondTimestampInSeconds);
@@ -87,30 +91,7 @@
 
 	const relayPromise = Promise.race([kind10019Ready.promise, delayedPromise]);
 
-	let feedRequests: RequestObject[] = [];
-
-	$: visible && setFeedRequests();
-
-	function setFeedRequests() {
-		relayPromise.then(() => {
-			feedRequests = [
-				{
-					kinds: [9321],
-					authors: [$key?.pub],
-					limit: 50,
-					relays: relays,
-					nocache: true
-				},
-				{
-					kinds: [9321],
-					tags: { '#p': [$key?.pub] },
-					limit: 50,
-					relays: relays,
-					noCache: true
-				}
-			];
-		});
-	}
+	let unsubscribeWallet: (() => void) | undefined;
 
 	let proofs: () => void;
 
@@ -154,6 +135,51 @@
 		);
 	}
 
+	// Wallet feed subscription - moved from Feed to parent
+	$: if (visible && $key?.pub && relays?.length) {
+		unsubscribeWallet?.();
+		unsubscribeWallet = useSubscription(
+			'home_' + $key?.pub,
+			[
+				{
+					kinds: [9321],
+					authors: [$key?.pub],
+					limit: 50,
+					relays: relays,
+					nocache: true
+				},
+				{
+					kinds: [9321],
+					tags: { '#p': [$key?.pub] },
+					limit: 50,
+					relays: relays,
+					noCache: true
+				}
+			],
+			handleWalletFeedEvents
+		);
+	}
+
+	function handleWalletFeedEvents(message: WorkerMessage) {
+		const event = isParsedEvent(message);
+		const kind9321 = isKind9321(message);
+		if (!kind9321 || !event) return;
+
+		// Deduplicate by event ID
+		const eventId = event.id();
+		if (rawWalletEvents.some((e) => e.id() === eventId)) return;
+
+		rawWalletEvents = [...rawWalletEvents, event];
+	}
+
+	// Process and sort wallet items in parent
+	$: walletItems = rawWalletEvents.sort((a, b) => b.createdAt() - a.createdAt());
+
+	// Cleanup subscription on unmount
+	onDestroy(() => {
+		unsubscribeWallet?.();
+	});
+
 	$: if ($key?.pub && relays?.length) {
 		useSubscription(
 			'active_wallet_' + $key?.pub,
@@ -193,54 +219,21 @@
 				);
 			}
 		}
-		// if (isKind7375(event) && event?.parsed?.mintUrl) {
-		// if (event?.parsed?.deletedIds?.length) {
-		// 	$deletedKind7375Ids = $deletedKind7375Ids.concat(event?.parsed?.deletedIds);
-		// }
-		// $kinds7375 = $kinds7375.concat(event);
-		// console.log(
-		// 	event.parsed.mintUrl,
-		// 	formatDistanceToNow((event?.created_at || 0) * 1000, { addSuffix: true }),
-		// 	event.parsed.proofs.reduce((acc, cur) => (acc += cur.amount), 0),
-		// 	event.parsed.proofs
-		// );
-		// addProofs(event.parsed?.mintUrl, event.parsed?.proofs);
-		// }
-	}
-
-	function updateFeed(feed: ParsedEvent[], message: WorkerMessage): ParsedEvent[] {
-		// Add new events to our feed for processing
-		let updatedFeed: ParsedEvent[] = feed;
-
-		switch (message.type()) {
-			case MessageType.ParsedNostrEvent:
-				const event = asParsedEvent(message);
-				const kind9321 = isKind9321(message);
-				if (!kind9321 || !event) break;
-				updatedFeed = [...updatedFeed, event];
-				break;
-			case MessageType.Eoce:
-				eoce = true;
-				break;
-		}
-		return updatedFeed;
 	}
 
 	onMount(() => {
 		walletLoaded.then(() => (loading = false));
 	});
-
-	$: feed = feed?.sort((a, b) => b.createdAt() - a.createdAt());
 </script>
 
 <Pager rootPath="/home">
 	<Feed
-		subscriptionID={'home_' + $key?.pub}
-		requests={feedRequests}
-		{updateFeed}
-		backdrop={!feed.length}
-		bind:feed
+		items={walletItems}
+		getItemId={(item) => item?.id?.()?.fnv1aHash?.()}
+		backdrop={!walletItems.length}
 		pullToRefresh
+		bind:start
+		bind:end
 	>
 		<svelte:fragment slot="header">
 			<div
@@ -281,7 +274,7 @@
 								<MintCard mintUrl={url} navigate />
 							{/each}
 						</div>
-					{:else if $key?.pub && feed.length}
+					{:else if $key?.pub && walletItems.length}
 						<div class="w-full p-4 rounded-lg mb-4 border border-primary-content mt-4">
 							<div class="flex items-center justify-between">
 								<div>
@@ -343,9 +336,9 @@
 			<Kind9321
 				zap={post}
 				context={[]}
-				isFirst={index == 0 || oneDayDiff(post.createdAt(), feed[index - 1]?.createdAt())}
-				isLast={index == feed.length - 1 ||
-					oneDayDiff(post.createdAt(), feed[index + 1]?.createdAt())}
+				isFirst={index == 0 || oneDayDiff(post.createdAt(), walletItems[index - 1]?.createdAt())}
+				isLast={index == walletItems.length - 1 ||
+					oneDayDiff(post.createdAt(), walletItems[index + 1]?.createdAt())}
 			/>
 			<!-- {/if} -->
 		</div>
