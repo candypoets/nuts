@@ -247,7 +247,10 @@
 	// Include relay hash in subId so relay changes trigger re-subscription
 	$: feedRequest = (() => {
 		if (mode === 'profile' && writeRelays.length > 0) {
-			const relayHash = writeRelays.map(r => r.replace(/[^a-zA-Z0-9]/g, '')).join('').slice(0, 20);
+			const relayHash = writeRelays
+				.map((r) => r.replace(/[^a-zA-Z0-9]/g, ''))
+				.join('')
+				.slice(0, 20);
 			return {
 				subId: 'kind0P_' + pubkey + '_' + relayHash,
 				requests: [
@@ -263,7 +266,10 @@
 		}
 
 		if (mode === 'follows' && readRelays.length > 0 && contacts.length > 0) {
-			const relayHash = readRelays.map(r => r.replace(/[^a-zA-Z0-9]/g, '')).join('').slice(0, 20);
+			const relayHash = readRelays
+				.map((r) => r.replace(/[^a-zA-Z0-9]/g, ''))
+				.join('')
+				.slice(0, 20);
 			return {
 				subId: 'kind0F_' + pubkey + '_' + relayHash,
 				requests: [
@@ -379,7 +385,7 @@
 				<div
 					class="w-feed border-b border-base-200 h-52 flex items-start justify-between shadow-sm pt-safe"
 				>
-					<button on:click={goBack} class="p-1 rounded-full hover:bg-base-200 mr-4">
+					<button on:click={goBack} class="p-1 rounded-full hover:bg-base-200 ml-4 mt-4">
 						<Icon icon="mdi:arrow-left" class="text-xl" />
 					</button>
 					<!-- <h1 class="text-lg font-semibold">Profile</h1> -->
