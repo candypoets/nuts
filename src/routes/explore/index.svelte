@@ -3,9 +3,11 @@
 		ConnectionStatus,
 		Kind3Parsed,
 		ListParsed,
+		ParsedEvent,
 		RequestObject
 	} from '@candypoets/nipworker';
-	import { asKind0, asKind3, asNip51, fbArray } from '@candypoets/nipworker/utils';
+	import { useSubscription } from '@candypoets/nipworker/hooks';
+	import { asKind0, asKind3, asNip51, fbArray, ConnectionTracker } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { isEqual, uniq } from 'lodash';
 
@@ -17,7 +19,7 @@
 	import { followPacks } from 'src/controller/feed';
 	import { kind0, kind3, kind3Ready, readRelays } from 'src/controller/nostr';
 	import { limit } from 'src/controller/pagination';
-	import { relaySub } from 'src/controller/relay';
+	import { relaySub, setSubRelays } from 'src/controller/relay';
 	import { ago } from 'src/lib/period';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import Feed from 'src/routes/explore/feed.svelte';
@@ -27,51 +29,61 @@
 	export let visible = true;
 
 	let connectionStatus: { [url: string]: ConnectionStatus } = {};
+	let connectionTracker: ConnectionTracker | undefined;
 
-	let feedRequests: RequestObject[] = [];
-	let subs: string[] = [];
-	let feedComponent: { mergePendingItems: () => void; refresh: () => void };
+	// Feed items managed by parent
+	let feedItems: ParsedEvent[] = [];
+	let loading = false;
+	let refreshing = false;
+
+	// Pagination state
+	let until: number | undefined = undefined;
+	let hasMore = true;
+	let paginationCounter = 0;
+
+	// Viewport state from Feed
+	let start = 0;
+	let end = 0;
+
+	// New posts tracking for batchNewItems behavior
+	let newPostsCount = 0;
+	let lastSeenTopItem: number | undefined;
 
 	// Observable array of tags derived from the current URL.
 	let tags: string[] = [];
 
 	$: follows =
-		$kind3 && fbArray(asKind3($kind3) as Kind3Parsed, 'contacts').map((c) => c.pubkey().toString());
+		$kind3 ? fbArray(asKind3($kind3) as Kind3Parsed, 'contacts')
+			.map((c) => c.pubkey()?.toString())
+			.filter((p): p is string => typeof p === 'string') : [];
 
-	$: following = uniq([
-		...$followPacks.flatMap(
-			(pack) => fbArray(asNip51(pack) as ListParsed, 'people').map((p) => p.toString()) || []
-		),
-		...(($followPacks.some((fp) => asNip51(fp)?.title()?.toString() == 'followlist') && follows) ||
-			[])
-	]);
-
-	// Only fetch feed when:
-	// 1. User is visible
-	// 2. User is logged in ($key?.pub exists)
-	// 3. We have follows to fetch (following.length > 0)
-	// If not logged in or no follows, don't fetch personal feed
-	$: if (visible && $key?.pub && following.length > 0) {
-		setFeedRequests(following);
-	} else if (visible && !$key?.pub) {
-		// Not logged in - don't fetch personal feed
-		feedRequests = [];
-		feedInitialized = true;
-	}
+	$: following = uniq(
+		[
+			...$followPacks.flatMap(
+				(pack) => fbArray(asNip51(pack) as ListParsed, 'people').map((p) => p.toString()) || []
+			),
+			...(($followPacks.some((fp) => asNip51(fp)?.title()?.toString() == 'followlist') && follows) ||
+				[])
+		].filter((p): p is string => typeof p === 'string')
+	);
 
 	$: subId =
 		$followPacks.reduce((acc, cur) => acc + cur.id()?.fnv1aHash(), 'feed') + tags.join(',');
 
 	$: relays = $readRelays;
 
+	// Filter out undefined values from relays
+	$: normalizedRelays = (relays.filter((r) => typeof r === 'string') as string[]).map(normalizeURL);
+
 	let relayCounter = 0;
 
 	function handleSubRelays(subRelays: string[] | undefined) {
 		if (subRelays && !isEqual(relays, subRelays)) {
 			relays = subRelays;
-			setFeedRequests(following);
+			resetFeed();
 			relayCounter += 1;
 			connectionStatus = {};
+			connectionTracker = new ConnectionTracker();
 		}
 	}
 
@@ -85,86 +97,179 @@
 
 	onMount(() => {
 		const timeout = setTimeout(() => {
-			if (!feedInitialized && !feedRequests.length) {
+			if (!feedInitialized && following.length === 0) {
 				console.warn('Feed data not loaded');
-				// Don't fetch with empty authors - if user is logged in but has no follows,
-				// just show empty feed. If not logged in, also show empty feed.
 				feedInitialized = true;
 			}
 		}, 2000);
 		return () => clearTimeout(timeout);
 	});
 
-	const setFeedRequests = (follows: string[]) => {
-		feedInitialized = true;
-		if ($key?.pub && !follows.length && $followPacks.length) {
-			Promise.race([
-				kind3Ready.promise,
-				new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 1000))
-			])
-				.then((event) => {
-					feedRequests = [
-						{
-							kinds: [1, 6],
-							authors: fbArray(asKind3(event) as Kind3Parsed, 'contacts').map((p) =>
-								p.pubkey()?.toString()
-							),
-							limit: $limit,
-							since: ago(31 * 24 * 60 * 60),
-							noCache: true,
-							tags: { '#t': tags },
-							relays: $key?.pub ? relays : ['wss://nostr.wine']
-						},
-						{
-							kinds: [1, 6],
-							authors: fbArray(asKind3(event) as Kind3Parsed, 'contacts').map((p) =>
-								p.pubkey()?.toString()
-							),
-							limit: $limit,
-							since: ago(31 * 24 * 60 * 60),
-							cacheOnly: true,
-							tags: { '#t': tags },
-							relays: $key?.pub ? relays : ['wss://nostr.wine']
-						}
-					];
-				})
-				.catch((e) => {
-					// If we timeout or fail to get kind3, don't fetch with empty authors
-					// Just leave feed empty - user has no follows
-					console.warn('Failed to load kind3, no follows available');
-					feedRequests = [];
-				});
-		} else if (follows.length > 0) {
-			// Only fetch if we have follows to fetch for
-			feedRequests = [
-				{
-					kinds: [1, 6],
-					authors: follows,
-					limit: $limit,
-					since: ago(31 * 24 * 60 * 60),
-					noCache: !!relayCounter,
-					tags: { '#t': tags },
-					relays
-				}
-			];
-		} else {
-			// No follows - don't fetch anything
-			feedRequests = [];
+	// Build subscription requests based on current state
+	function buildRequests(forPagination = false): RequestObject[] {
+		if (!$key?.pub && following.length === 0) {
+			return [];
 		}
-	};
+
+		const authors = following.length > 0 ? following : follows || [];
+		if (authors.length === 0) {
+			return [];
+		}
+
+		const baseRequest: RequestObject = {
+			kinds: [1, 6],
+			authors,
+			limit: $limit,
+			since: forPagination ? undefined : ago(31 * 24 * 60 * 60),
+			until: forPagination ? until : undefined,
+			noCache: !!relayCounter,
+			tags: tags.length ? { '#t': tags } : undefined,
+			relays: $key?.pub ? relays : ['wss://nostr.wine']
+		};
+
+		return [baseRequest];
+	}
+
+	// Handle incoming events from subscription
+	function handleEvents(message: any) {
+		const event = message.type ? message : null;
+		if (!event) return;
+
+		// Handle connection status
+		if (event.type && typeof event.type === 'function' && event.type() === 6) {
+			// ConnectionStatus message
+			const status = event.status ? event.status() : undefined;
+			const relayUrl = event.relayUrl ? event.relayUrl() : undefined;
+			if (status && relayUrl) {
+				connectionStatus[relayUrl.toString()] = status;
+				connectionTracker?.handleMessage?.(event);
+			}
+			return;
+		}
+
+		// Handle parsed events
+		if (event.kind && (event.kind() === 1 || event.kind() === 6)) {
+			const eventId = event.id()?.fnv1aHash();
+			const existingIndex = feedItems.findIndex((item) => item.id()?.fnv1aHash() === eventId);
+			if (existingIndex === -1) {
+				// Check if this is a "new" post (user is scrolled down)
+				if (start > 0 && lastSeenTopItem && event.createdAt() > feedItems[0]?.createdAt()) {
+					newPostsCount++;
+				}
+				feedItems = [...feedItems, event];
+				// Sort by createdAt descending
+				feedItems = feedItems.sort((a, b) => b.createdAt() - a.createdAt());
+				// Update last seen top item if at top
+				if (start === 0) {
+					lastSeenTopItem = feedItems[0]?.createdAt();
+					newPostsCount = 0;
+				}
+			}
+		}
+
+		// Handle EOSE (End of Stream Event) - mark loading as done
+		if (event.type && typeof event.type === 'function' && event.type() === 3) {
+			// EOSE message type
+			loading = false;
+			refreshing = false;
+		}
+	}
+
+	// Reset feed state
+	function resetFeed() {
+		feedItems = [];
+		until = undefined;
+		hasMore = true;
+		paginationCounter = 0;
+		loading = false;
+		newPostsCount = 0;
+	}
+
+	// Initialize or update subscription when dependencies change
+	let unsubscribe: (() => void) | undefined;
+
+	$: if (visible && ($key?.pub || following.length > 0)) {
+		feedInitialized = true;
+		if (feedItems.length === 0 && !loading) {
+			loading = true;
+			const requests = buildRequests();
+			if (requests.length > 0) {
+				// Clean up previous subscription
+				unsubscribe?.();
+				connectionTracker = new ConnectionTracker();
+				unsubscribe = useSubscription(
+					subId + relayCounter,
+					requests,
+					handleEvents,
+					{ bytesPerEvent: 10 * 1024 }
+				);
+				// Track relays for this sub
+				setSubRelays(subId + relayCounter, relays);
+			}
+		}
+	}
+
+	// Handle pull-to-refresh
+	function handleRefresh() {
+		refreshing = true;
+		resetFeed();
+		const requests = buildRequests();
+		if (requests.length > 0) {
+			unsubscribe?.();
+			connectionTracker = new ConnectionTracker();
+			unsubscribe = useSubscription(
+				subId + '_refresh_' + Date.now(),
+				requests,
+				handleEvents,
+				{ bytesPerEvent: 10 * 1024 }
+			);
+		}
+	}
+
+	// Handle near-bottom pagination with quantile-based window calculation
+	function handleNearBottom(event: { distance: number }) {
+		if (loading || !hasMore || feedItems.length < $limit) return;
+
+		loading = true;
+		paginationCounter++;
+
+		// Quantile-based pagination: use the createdAt of the last item as until
+		// This creates a sliding window based on actual event timestamps
+		const lastItem = feedItems[feedItems.length - 1];
+		if (lastItem) {
+			until = lastItem.createdAt() - 1;
+		}
+
+		const requests = buildRequests(true);
+		if (requests.length > 0) {
+			unsubscribe?.();
+			unsubscribe = useSubscription(
+				subId + '_page_' + paginationCounter + '_' + until,
+				requests,
+				handleEvents,
+				{ bytesPerEvent: 10 * 1024 }
+			);
+		}
+	}
+
+	// Merge pending new items when user clicks the new posts indicator
+	function mergePendingItems() {
+		newPostsCount = 0;
+		lastSeenTopItem = feedItems[0]?.id()?.fnv1aHash();
+	}
 </script>
 
-<Pager rootPath="/explore" bind:subs>
+<Pager rootPath="/explore">
 	<Feed
-		bind:this={feedComponent}
-		subscriptionID={subId + relayCounter}
-		requests={feedRequests}
-		subscriptionOptions={{ bytesPerEvent: 10 * 1024 }}
-		kinds={[1, 6]}
+		items={feedItems}
+		{loading}
 		pullToRefresh
-		batchNewItems={true}
+		onRefresh={handleRefresh}
+		onNearBottom={handleNearBottom}
+		bind:start
+		bind:end
 	>
-		<svelte:fragment slot="sticky-header" let:newPosts>
+		<svelte:fragment slot="sticky-header">
 			<div class="backdrop-blur-sm bg-base-300 bg-opacity-80 md:border-b border-base-200 pt-safe">
 				<div class="flex justify-between w-feed lg:m-auto h-16 items-center">
 					<div class="flex gap-1 items-center w-1/3">
@@ -172,7 +277,7 @@
 							{@const kind39039 = asNip51(pack)}
 							<div class="cursor-pointer" on:click|stopPropagation={() => go('followlists')}>
 								<img
-									src={proxyAvatarUrl(kind39039?.image()?.toString()) || '/followlist.png'}
+									src={proxyAvatarUrl(kind39039?.image()?.toString() || '') || '/followlist.png'}
 									class="w-8 h-8 border rounded-full"
 									alt={kind39039?.title()?.toString() || 'Follow pack'}
 									title={kind39039?.title()?.toString() || 'Follow pack'}
@@ -192,10 +297,10 @@
 					</div>
 					<div
 						class="text-primary cursor-pointer flex-grow text-center"
-						on:click={() => feedComponent?.mergePendingItems()}
+						on:click={mergePendingItems}
 					>
-						{#if newPosts}
-							{newPosts} new posts
+						{#if newPostsCount > 0}
+							{newPostsCount} new posts
 						{/if}
 					</div>
 					<div class="flex gap-2 items-center w-1/3 justify-end">
@@ -205,8 +310,9 @@
 						</span>
 						<a class="cursor-pointer" on:click|stopPropagation={() => go('profile')}>
 							<img
-								src={proxyAvatarUrl(asKind0($kind0)?.picture()?.toString()) || '/miss-profile.png'}
+								src={proxyAvatarUrl(asKind0($kind0)?.picture()?.toString() || '') || '/miss-profile.png'}
 								class="w-8 h-8 border rounded-full"
+								alt="Profile"
 							/>
 						</a>
 					</div>
@@ -233,7 +339,7 @@
 							{@const kind39039 = asNip51(pack)}
 							<div class="cursor-pointer" on:click|stopPropagation={() => go('followlists')}>
 								<img
-									src={proxyAvatarUrl(kind39039?.image()?.toString()) || '/followlist.png'}
+									src={proxyAvatarUrl(kind39039?.image()?.toString() || '') || '/followlist.png'}
 									class="w-8 h-8 border rounded-full"
 									alt={kind39039?.title()?.toString() || 'Follow pack'}
 								/>
@@ -254,7 +360,7 @@
 						<!-- Desktop refresh button (mobile has pull-to-refresh) -->
 						<span
 							class="hidden md:block cursor-pointer"
-							on:click|stopPropagation={() => feedComponent?.refresh()}
+							on:click|stopPropagation={handleRefresh}
 							title="Refresh feed"
 						>
 							<Icon icon="mdi:refresh" class="text-2xl mr-2" />
@@ -263,13 +369,14 @@
 						<Notifications />
 						<div class="cursor-pointer" on:click|stopPropagation={() => go('profile')}>
 							<img
-								src={proxyAvatarUrl(asKind0($kind0)?.picture()?.toString()) || '/miss-profile.png'}
+								src={proxyAvatarUrl(asKind0($kind0)?.picture()?.toString() || '') || '/miss-profile.png'}
 								class="w-8 h-8 border rounded-full"
+								alt="Profile"
 							/>
 						</div>
 					</div>
 				</div>
-				<RelaysList {subId} relays={relays.map(normalizeURL)} {connectionStatus} />
+				<RelaysList {subId} relays={normalizedRelays} {connectionStatus} />
 			</div>
 			{#if tags.length}
 				<div class="bg-base-300 bg-opacity-85 backdrop-blur-gpu rounded-lg pb-1 px-1 mt-1">
@@ -284,7 +391,6 @@
 					</div>
 				</div>
 			{/if}
-			<!-- <Post /> -->
 		</svelte.fragment>
 	</Feed>
 </Pager>
