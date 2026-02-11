@@ -147,35 +147,27 @@
 			});
 		}
 	});
+
+	// Process feed: filter by search (parent handles search instead of Feed)
+	$: processedFeed = feed.filter((c) => {
+		if (!search) return true;
+		const searchTerm = search.toLowerCase();
+		const k0 = asKind0(c);
+		const name = k0?.name?.()?.toString()?.toLowerCase() ?? '';
+		const content = c?.content?.()?.toString()?.toLowerCase() ?? '';
+		const pubkey = c?.pubkey?.()?.toString()?.toLowerCase() ?? '';
+		return name.includes(searchTerm) || content.includes(searchTerm) || pubkey.includes(searchTerm);
+	});
 </script>
 
 <div class="h-screen flex items-end">
 	<!-- Feed-backed modal content -->
 	<Feed
 		class="bg-base-300 bg-opacity-85 backdrop-blur-md w-full !h-2/3 !min-h-fit rounded-t-2xl md:rounded-xl md:h-1/2"
-		subscriptionID="share-contacts"
-		requests={feedRequests}
-		{updateFeed}
-		kinds={[0]}
+		items={processedFeed}
+		getItemId={(item) => item?.pubkey?.()?.fnv1aHash?.() ?? Math.random()}
 		stickyFooterVisible={!!selectedContact}
 		itemsPerRow={$isMobile ? 3 : 6}
-		fuseKeys={['content', 'pubkey', 'name']}
-		fuseResolver={(item, key) => {
-			switch (key) {
-				case 'content':
-					return item?.content?.()?.toString() ?? '';
-				case 'pubkey':
-					return item?.pubkey?.()?.toString() ?? '';
-				case 'name': {
-					const k0 = asKind0(item);
-					return k0?.name?.()?.toString() ?? '';
-				}
-				default:
-					return '';
-			}
-		}}
-		{search}
-		bind:feed
 	>
 		<!-- Header + search moved into Feed header slot -->
 		<svelte:fragment slot="header">

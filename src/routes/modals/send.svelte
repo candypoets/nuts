@@ -66,8 +66,19 @@
 			[];
 	}
 
-	$: feed = feed
+	// Process feed: filter, sort, and apply search
+	$: processedFeed = feed
 		.filter((c) => asKind0(c)?.name())
+		.filter((c) => {
+			// Search filtering (parent handles search instead of Feed)
+			if (!search) return true;
+			const searchTerm = search.toLowerCase();
+			const k0 = asKind0(c);
+			const name = k0?.name?.()?.toString()?.toLowerCase() ?? '';
+			const content = c?.content?.()?.toString()?.toLowerCase() ?? '';
+			const pubkey = c?.pubkey?.()?.toString()?.toLowerCase() ?? '';
+			return name.includes(searchTerm) || content.includes(searchTerm) || pubkey.includes(searchTerm);
+		})
 		.sort((a, b) => {
 			const nameA = asKind0(a)?.name()?.toString()?.trim() ?? '';
 			const nameB = asKind0(b)?.name()?.toString()?.trim() ?? '';
@@ -78,27 +89,8 @@
 <!-- <ScanLN bind:invoice={scannedNpub} /> -->
 <Feed
 	class="bg-base-300 bg-opacity-85 backdrop-blur-md"
-	subscriptionID="contacts"
-	requests={feedRequests}
-	kinds={[0]}
-	{updateFeed}
-	bind:feed
-	fuseKeys={['content', 'pubkey', 'name']}
-	fuseResolver={(item, key) => {
-		switch (key) {
-			case 'content':
-				return item?.content?.()?.toString() ?? '';
-			case 'pubkey':
-				return item?.pubkey?.()?.toString() ?? '';
-			case 'name': {
-				const k0 = asKind0(item);
-				return k0?.name?.()?.toString() ?? '';
-			}
-			default:
-				return '';
-		}
-	}}
-	{search}
+	items={processedFeed}
+	getItemId={(item) => item?.pubkey?.()?.fnv1aHash?.() ?? Math.random()}
 >
 	<svelte:fragment slot="header">
 		<div>
@@ -165,8 +157,8 @@
 	</svelte:fragment>
 	<svelte.fragment slot="item-content" let:post let:index>
 		{@const kind0 = asKind0(post)}
-		{@const prevKind0 = asKind0(feed[index - 1])}
-		{@const nextKind0 = asKind0(feed[index + 1])}
+		{@const prevKind0 = asKind0(processedFeed[index - 1])}
+		{@const nextKind0 = asKind0(processedFeed[index + 1])}
 		{@const isFirst =
 			!prevKind0 ||
 			prevKind0?.name()?.toString().trim().toLowerCase().slice(0, 1) !==

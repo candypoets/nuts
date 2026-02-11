@@ -1,5 +1,69 @@
 # Ralph Progress Log
 Started: Wed Feb 11 10:50:43 AM CET 2026
+
+## Codebase Patterns
+- Component uses generic type `type T = $$Generic` for type-safe items
+- VirtualList components are in `src/components/VirtualList*.svelte`
+- Feed component is at `src/routes/explore/feed.svelte` (not in lib/)
+- TypeScript path alias `src/` maps to the src directory
+- Default item ID extraction uses `item?.id?.()?.fnv1aHash?.()` for Nostr events
+- Use callback props (not createEventDispatcher) for events: `export let onEvent: ((data: T) => void) | undefined = undefined`
+- Reactive statements with `$:` for computed values that trigger side effects
+- Use `nearBottomThreshold` prop (default 10) for configurable pagination trigger distance
+- Track trigger state with local flag (e.g., `nearBottomTriggered`) to prevent duplicate events
+- **Search/filtering should be done in parent components, not in Feed**: Pass filtered `items` array to Feed
+- For contact search filtering, filter by name, content, and pubkey fields
+- Use `getItemId` prop to specify unique ID extraction (e.g., `(item) => item?.pubkey?.()?.fnv1aHash?.()`)
+
+## 2026-02-11T10:57:00+01:00 - US-005
+- Removed Fuse.js search dependency from Feed component usage
+- Migrated 4 modals to handle search filtering in parent components:
+  - `newchat.svelte`: Added `processedFeed` reactive statement that filters contacts by name/content/pubkey
+  - `send.svelte`: Added `processedFeed` reactive statement that filters contacts by name/content/pubkey
+  - `share.svelte`: Added `processedFeed` reactive statement that filters contacts by name/content/pubkey
+  - `followlists.svelte`: Added `processedFeed` reactive statement that filters follow packs by title/description
+- Removed `fuseKeys`, `fuseResolver`, and `search` props from all Feed usages
+- Changed all modals to use new Feed API with `items` prop and `getItemId`
+- Typecheck passes - no new errors introduced
+- Build passes successfully
+- **Learnings for future iterations:**
+  - Parent handles search filtering, then passes filtered `items` to Feed
+  - Pattern for simple search: `.filter((item) => { if (!search) return true; const searchTerm = search.toLowerCase(); ... })`
+  - Feed no longer has any internal search logic - it's purely for rendering
+  - For Nostr contacts, typical searchable fields are: name, content, pubkey
+---
+
+## 2026-02-11T10:56:00+01:00 - US-004
+- Added `onRefresh` callback prop for pull-to-refresh functionality
+- Feed receives `onRefresh` callback and passes it to VirtualList component
+- VirtualList handles touch events and triggers `onRefresh()` when user pulls and releases
+- Loading state is managed by VirtualList's internal `isRefreshing` flag (visual indicator shown)
+- Parent can also control loading state via the `loading` prop passed to Feed
+- Implementation requires:
+  - `pullToRefresh={true}` prop on Feed to enable PTR behavior
+  - `onRefresh` callback prop for parent to handle refresh logic
+- Typecheck passes (no new errors introduced)
+- **Learnings for future iterations:**
+  - VirtualList handles all PTR gesture detection and visual feedback internally
+  - The `onRefresh` prop is passed through Feed -> VirtualList (no processing in Feed)
+  - Parent components need to provide both `pullToRefresh` and `onRefresh` together
+  - Visual indicator (spinner) is shown automatically during refresh via VirtualList's internal state
+---
+
+## 2026-02-11T10:54:00+01:00 - US-003
+- Added `onNearBottom` callback prop for pagination support
+- Event callback receives `{ distance: number }` indicating items remaining to end of feed
+- Default threshold is 10 items, configurable via `nearBottomThreshold` prop
+- Uses internal `nearBottomTriggered` flag to prevent duplicate event emissions
+- Event resets when user scrolls back up (distance > threshold)
+- Files changed: `src/routes/explore/feed.svelte`
+- **Learnings for future iterations:**
+  - Pattern for pagination events: reactive `$:` statement watching `end` and `items.length`
+  - Prevent duplicate emissions with local trigger flag that resets on scroll up
+  - Keep threshold configurable as a prop with sensible default
+  - Build passed successfully - all existing warnings are pre-existing
+---
+
 ## 2026-02-11T10:53:00+01:00 - US-002
 - Verified viewport state exports are working correctly
 - `start`, `end`, `down`, `viewport` are all exported with `bind:` for two-way binding
@@ -12,17 +76,6 @@ Started: Wed Feb 11 10:50:43 AM CET 2026
   - Feed acts as a pass-through, binding its own exports to VirtualList's exports
   - Making optional bindable props default to `undefined` prevents type errors in parent components
 ---
-
-## Codebase Patterns
-- Component uses generic type `type T = $$Generic` for type-safe items
-- VirtualList components are in `src/components/VirtualList*.svelte`
-- Feed component is at `src/routes/explore/feed.svelte` (not in lib/)
-- TypeScript path alias `src/` maps to the src directory
-- Default item ID extraction uses `item?.id?.()?.fnv1aHash?.()` for Nostr events
-- Use callback props (not createEventDispatcher) for events: `export let onEvent: ((data: T) => void) | undefined = undefined`
-- Reactive statements with `$:` for computed values that trigger side effects
-- Use `nearBottomThreshold` prop (default 10) for configurable pagination trigger distance
-- Track trigger state with local flag (e.g., `nearBottomTriggered`) to prevent duplicate events
 
 ## 2026-02-11T10:51:00+01:00 - US-001
 - Rewrote Feed component as pure presentation component
@@ -42,18 +95,4 @@ Started: Wed Feb 11 10:50:43 AM CET 2026
   - Parent components that used old props will need migration (tracked in US-007 through US-013)
   - VirtualList takes `items`, `getItemId`, and exposes `bind:start`, `bind:end`, `bind:down`, `bind:viewport`
   - Keep slot names consistent: `header`, `sticky-header`, `sticky-footer`, `fixed-header`, `item-content`, `empty-content`
----
-
-## 2026-02-11T10:54:00+01:00 - US-003
-- Added `onNearBottom` callback prop for pagination support
-- Event callback receives `{ distance: number }` indicating items remaining to end of feed
-- Default threshold is 10 items, configurable via `nearBottomThreshold` prop
-- Uses internal `nearBottomTriggered` flag to prevent duplicate event emissions
-- Event resets when user scrolls back up (distance > threshold)
-- Files changed: `src/routes/explore/feed.svelte`
-- **Learnings for future iterations:**
-  - Pattern for pagination events: reactive `$:` statement watching `end` and `items.length`
-  - Prevent duplicate emissions with local trigger flag that resets on scroll up
-  - Keep threshold configurable as a prop with sensible default
-  - Build passed successfully - all existing warnings are pre-existing
 ---

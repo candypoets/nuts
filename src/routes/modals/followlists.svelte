@@ -15,23 +15,11 @@
 	let animator: PagerAnimator = getContext('animator');
 
 	let searchQuery = '';
-	let subscriptionID = 'starterpack';
 
 	let fps = $followPacks;
 
-	// Define fuseKeys for search
-	const fuseKeys = ['0.parsed.title', '0.parsed.description'];
+	let feed: ParsedEvent[] = [$followList];
 
-	let requests: RequestObject[] = [
-		{
-			kinds: [39089],
-			limit: 50,
-			noContext: true,
-			relays: []
-		}
-	];
-
-	// Update feed function for kind 30000 events
 	function updateFeed(currentFeed: ParsedEvent[], message: WorkerMessage): ParsedEvent[] {
 		const parsedEvent = isParsedEvent(message);
 		const kindList = isNip51(message);
@@ -67,18 +55,22 @@
 		$followPacks = fps;
 	});
 
-	let initialItems = [$followList];
+	// Process feed: filter by search (parent handles search instead of Feed)
+	$: processedFeed = feed.filter((item) => {
+		if (!searchQuery) return true;
+		const searchTerm = searchQuery.toLowerCase();
+		const kind39089 = asNip51(item);
+		const title = kind39089?.title?.()?.toString()?.toLowerCase() ?? '';
+		const description = kind39089?.description?.()?.toString()?.toLowerCase() ?? '';
+		return title.includes(searchTerm) || description.includes(searchTerm);
+	});
 </script>
 
 <div class="h-full bg-base-300 bg-opacity-85 backdrop-blur-md lg:pt-4">
 	<Feed
-		{subscriptionID}
-		{requests}
-		{updateFeed}
-		{initialItems}
+		items={processedFeed}
+		getItemId={(item) => item?.id?.()?.fnv1aHash?.() ?? Math.random()}
 		visible
-		search={searchQuery}
-		{fuseKeys}
 	>
 		<svelte:fragment slot="sticky-header">
 			<div class="pt-safe w-feed h-20 flex items-center justify-between shadow-sm px-4">
