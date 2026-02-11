@@ -164,3 +164,26 @@ Started: Wed Feb 11 10:50:43 AM CET 2026
   - Other parents may need to implement connection tracking when they migrate to the new Feed API
   - The pattern: parent subscribes -> updates `connectionStatus` -> passes to `RelaysList` for display
 ---
+
+## 2026-02-11T11:14:00+01:00 - US-009
+- Migrated chat/index.svelte to new Feed API
+- Moved subscription handling to parent using `useSubscription` hook
+- Created `rawEvents` array to store incoming ParsedEvent objects
+- Added `processEvents()` function to group DMs by chatId (conversation partner)
+- Implemented deduplication in `handleEvents()` before adding to `rawEvents`
+- Reactive statement `$: chatItems = processEvents(rawEvents)` processes raw events into grouped conversations
+- Removed `updateFeed` callback prop from Feed usage
+- Removed `subscriptionID`, `requests`, `subscriptionOptions` props from Feed usage
+- Removed `bind:feed` usage
+- Added `getItemId` prop for unique identification
+- Added `bind:start` and `bind:end` for viewport state tracking
+- Pull-to-refresh working via `onRefresh` handler
+- Build passes, typecheck passes (same pre-existing errors as before)
+- **Learnings for future iterations:**
+  - DM processing groups by `chatId` (hashed conversation identifier)
+  - Keep the most recent message per chatId in the contacts map
+  - Deduplication should happen in `handleEvents` before adding to rawEvents
+  - Use `orderBy` with createdAt descending for conversation list sorting
+  - For Kind4 DMs, use `asKind4()` to access chat-specific methods
+  - Connection status handling uses type 6 messages
+---

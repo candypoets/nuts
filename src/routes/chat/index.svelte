@@ -14,10 +14,11 @@
 		type SubscriptionConfig,
 		type WorkerMessage
 	} from '@candypoets/nipworker';
-	import { asKind4, asParsedEvent, isKind4 } from '@candypoets/nipworker/utils';
+	import { useSubscription } from '@candypoets/nipworker/hooks';
+	import { asKind4, asParsedEvent, ConnectionTracker, isKind4 } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { formatDistanceToNow } from 'date-fns';
-	import { orderBy, uniq, uniqBy } from 'lodash';
+	import { orderBy, uniq } from 'lodash';
 	import { cubicOut } from 'svelte/easing';
 	import { tweened } from 'svelte/motion';
 
@@ -35,71 +36,48 @@
 
 	export let visible = true;
 
-	let feedRequests: RequestObject[] = [];
-	let feed: ParsedEvent[] = [];
-	let subs: string[] = [];
-	let eoce = false;
+	// Feed items managed by parent - grouped by chatId
+	let chatItems: ParsedEvent[] = [];
+	let rawEvents: ParsedEvent[] = [];
+	let loading = false;
+	let refreshing = false;
 
 	let contacts: { [key: string]: ParsedEvent } = {};
 
 	let connectionStatus: { [url: string]: ConnectionStatus } = {};
+	let connectionTracker: ConnectionTracker | undefined;
 
-	const subscriptionOptions: SubscriptionConfig = {
-		pipeline: [
-			new PipeT(PipeConfig.NpubLimiterPipeConfig, new NpubLimiterPipeConfigT(4, 5, 100)),
-			new PipeT(PipeConfig.ParsePipeConfig, new ParsePipeConfigT()),
-			new PipeT(PipeConfig.SaveToDbPipeConfig, new SaveToDbPipeConfigT()),
-			new PipeT(
-				PipeConfig.SerializeEventsPipeConfig,
-				new SerializeEventsPipeConfigT(new TextEncoder().encode('chat'))
-			)
-		]
-	};
+	// Viewport state from Feed
+	let start = 0;
+	let end = 0;
 
-	function updateFeed(feed: ParsedEvent[], message: WorkerMessage): ParsedEvent[] {
-		let updatedFeed = feed;
-		switch (message.type()) {
-			case MessageType.Eoce:
-				eoce = true;
-				break;
-			case MessageType.ParsedNostrEvent:
-				const parsedEvent = asParsedEvent(message) as ParsedEvent;
-				if (!isKind4(message)) return feed;
-				if (!eoce) {
-					updatedFeed.push(parsedEvent);
-				} else {
-					updatedFeed.unshift(parsedEvent);
-				}
-				break;
+	$: tweenedValue = tweened(0, {
+		duration: 400,
+		easing: cubicOut
+	});
+
+	$: {
+		if (subs && subs.length > 0) {
+			tweenedValue.set(1);
+		} else {
+			tweenedValue.set(0);
 		}
-
-		const processedFeed = processEvents(updatedFeed);
-		// console.log(
-		// 	feed.map((f) => f.id()?.fnv1aHash()),
-		// 	processedFeed.map((f) => f.id()?.fnv1aHash())
-		// );
-		// Process the updated feed into grouped notifications
-		return processedFeed;
 	}
 
-	function processEvents(events: ParsedEvent[]) {
-		events.forEach((dm) => {
-			const kind4 = asKind4(dm) as Kind4Parsed;
-			if (kind4.chatId()) {
-				const prev = contacts[kind4.chatId()!.fnv1aHash()];
-				// if (dm.created_at > contacts[dm.parsed?.chatID]?.[0]?.created_at || 0) {
-				if ((prev?.createdAt() || 0) < dm.createdAt()) {
-					contacts[kind4.chatId()!.fnv1aHash()] = dm;
-				}
-			}
-		});
-		return orderBy(Object.values(contacts), [(contact) => contact.createdAt()], ['desc']);
-	}
+	// Create a tweened store for the depth-based translation
+	const depthTranslation = tweened(0, {
+		duration: 400,
+		easing: cubicOut
+	});
 
-	$: visible && setFeedRequests();
+	// Update the tweened value when depth changes
+	$: depthTranslation.set(subs.length * 30);
 
-	function setFeedRequests() {
-		feedRequests = [
+	// Build subscription requests
+	function buildRequests(): RequestObject[] {
+		if (!$key?.pub) return [];
+
+		return [
 			{
 				kinds: [4],
 				authors: [$key.pub],
@@ -125,46 +103,144 @@
 		];
 	}
 
+	// Process raw events into grouped conversations by chatId
+	function processEvents(events: ParsedEvent[]): ParsedEvent[] {
+		const contactsMap: { [key: string]: ParsedEvent } = {};
+		events.forEach((dm) => {
+			const kind4 = asKind4(dm) as Kind4Parsed;
+			if (kind4.chatId()) {
+				const prev = contactsMap[kind4.chatId()!.fnv1aHash()];
+				if ((prev?.createdAt() || 0) < dm.createdAt()) {
+					contactsMap[kind4.chatId()!.fnv1aHash()] = dm;
+				}
+			}
+		});
+		return orderBy(Object.values(contactsMap), [(contact) => contact.createdAt()], ['desc']);
+	}
+
+	// Reactive: process raw events into chat items
+	$: chatItems = processEvents(rawEvents);
+
+	let subs: string[] = [];
+	let eoce = false;
+
+	// Handle incoming events from subscription
+	function handleEvents(message: WorkerMessage) {
+		// Handle connection status (type 6 = ConnectionStatus)
+		const msg = message as any;
+		if (msg.type && typeof msg.type === 'function' && msg.type() === 6) {
+			const status = msg.status ? msg.status() : undefined;
+			const relayUrl = msg.relayUrl ? msg.relayUrl() : undefined;
+			if (status && relayUrl) {
+				connectionStatus[relayUrl.toString()] = status;
+				connectionTracker?.handleMessage?.(msg);
+			}
+			return;
+		}
+
+		switch (message.type()) {
+			case MessageType.Eoce:
+				eoce = true;
+				break;
+			case MessageType.ParsedNostrEvent:
+				const parsedEvent = asParsedEvent(message) as ParsedEvent;
+				if (!isKind4(message)) return;
+				// Deduplicate by id
+				const eventId = parsedEvent.id()?.fnv1aHash();
+				const existingIndex = rawEvents.findIndex(
+					(item) => item.id()?.fnv1aHash() === eventId
+				);
+				if (existingIndex === -1) {
+					if (!eoce) {
+						rawEvents = [...rawEvents, parsedEvent];
+					} else {
+						rawEvents = [parsedEvent, ...rawEvents];
+					}
+				}
+				break;
+		}
+	}
+
+	const subscriptionOptions: SubscriptionConfig = {
+		pipeline: [
+			new PipeT(PipeConfig.NpubLimiterPipeConfig, new NpubLimiterPipeConfigT(4, 5, 100)),
+			new PipeT(PipeConfig.ParsePipeConfig, new ParsePipeConfigT()),
+			new PipeT(PipeConfig.SaveToDbPipeConfig, new SaveToDbPipeConfigT()),
+			new PipeT(
+				PipeConfig.SerializeEventsPipeConfig,
+				new SerializeEventsPipeConfigT(new TextEncoder().encode('chat'))
+			)
+		]
+	};
+
+	// Initialize subscription
+	let unsubscribe: (() => void) | undefined;
+
+	$: if (visible && $key?.pub) {
+		if (rawEvents.length === 0 && !loading) {
+			loading = true;
+			const requests = buildRequests();
+			if (requests.length > 0) {
+				unsubscribe?.();
+				connectionTracker = new ConnectionTracker();
+				unsubscribe = useSubscription(
+					'chat_' + $key.pub,
+					requests,
+					handleEvents,
+					subscriptionOptions
+				);
+			}
+		}
+	}
+
+	// Handle pull-to-refresh
+	function handleRefresh() {
+		refreshing = true;
+		eoce = false;
+		rawEvents = [];
+		contacts = {};
+		const requests = buildRequests();
+		if (requests.length > 0) {
+			unsubscribe?.();
+			connectionTracker = new ConnectionTracker();
+			unsubscribe = useSubscription(
+				'chat_' + $key.pub + '_refresh_' + Date.now(),
+				requests,
+				handleEvents,
+				subscriptionOptions
+			);
+		}
+		refreshing = false;
+	}
+
 	function correspondant(post: ParsedEvent) {
 		const kind4 = asKind4(post) as Kind4Parsed;
 		const recipient = kind4.recipient()?.toString() || '';
 		return recipient == $key?.pub ? post.pubkey()!.toString() : (recipient as string);
 	}
 
-	$: tweenedValue = tweened(0, {
-		duration: 400,
-		easing: cubicOut
-	});
-
-	$: {
-		if (subs && subs.length > 0) {
-			tweenedValue.set(1);
-		} else {
-			tweenedValue.set(0);
-		}
+	function showChatInfoModal() {
+		const modal = document.getElementById('blurred_chat_info') as HTMLDialogElement | null;
+		modal?.showModal();
 	}
 
-	// Create a tweened store for the depth-based translation
-	const depthTranslation = tweened(0, {
-		duration: 400,
-		easing: cubicOut
+	// Cleanup on unmount
+	import { onDestroy } from 'svelte';
+	onDestroy(() => {
+		unsubscribe?.();
 	});
-
-	// Update the tweened value when depth changes
-	$: depthTranslation.set(subs.length * 30);
-
-	$: feed = uniqBy(feed, (message) => asKind4(message)?.chatId()?.fnv1aHash());
 </script>
 
 <Pager rootPath="/chat">
 	<Feed
-		subscriptionID={`chat_` + $key?.pub}
-		requests={feedRequests}
-		{updateFeed}
-		{subscriptionOptions}
-		backdrop={!feed.length}
-		bind:feed
+		items={chatItems}
+		getItemId={(item) => item?.id?.()?.fnv1aHash?.() ?? 0}
+		{loading}
 		pullToRefresh
+		onRefresh={handleRefresh}
+		bind:start
+		bind:end
+		backdrop={!chatItems.length}
 	>
 		<svelte:fragment slot="sticky-header">
 			<div class="relative pt-safe bg-base-300 bg-opacity-50 backdrop-blur-xl">
@@ -184,7 +260,7 @@
 					<h1 class="text-2xl font-semibold">
 						BM<button
 							class="btn btn-circle btn-ghost btn-xs ml-2"
-							onclick="document.getElementById('blurred_chat_info').showModal()"
+							on:click={showChatInfoModal}
 						>
 							<Icon icon="material-symbols:info-outline" class="text-lg"></Icon>
 						</button>

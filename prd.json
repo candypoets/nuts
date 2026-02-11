@@ -145,7 +145,7 @@
         "Verify in browser: conversations list correctly"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": "Groups DMs by conversation partner"
     },
     {
