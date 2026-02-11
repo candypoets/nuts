@@ -4,8 +4,10 @@
 		type ParsedEvent,
 		type RequestObject
 	} from '@candypoets/nipworker';
+	import { useSubscription } from '@candypoets/nipworker/hooks';
+	import { asParsedEvent } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
-	import { getContext } from 'svelte';
+	import { getContext, onDestroy } from 'svelte';
 
 	import RelaysList from 'src/components/RelaysList.svelte';
 	import { isMobile } from 'src/controller';
@@ -18,39 +20,79 @@
 	export let visible: boolean;
 	export let goBack: () => void;
 
-	let eoce = false;
-	let eose = false;
+	let loading = true;
+
+	// Feed items managed by parent
+	let feedItems: ParsedEvent[] = [];
 
 	let headerItem: ParsedEvent | undefined;
 	let context: ParsedEvent[] = [];
-	let loading = true;
-	let feedRequests: RequestObject[] = [];
-	let timeout: NodeJS.Timeout | undefined;
 	let sub: (() => void) | undefined;
-	let relaysub: (() => void) | undefined;
 
 	let connectionStatus: { [url: string]: ConnectionStatus } = {};
 
 	let imageContext = getContext('imageContext');
 
-	$: feedRequests = [
-		{
-			kinds: [1],
-			tags: { '#t': tags },
-			limit: $limit,
-			noContext: true,
-			noCache: true,
-			relays: []
+	// Handle incoming events from subscription
+	function handleEvents(message: any) {
+		const event = message.type ? message : null;
+		if (!event) return;
+
+		// Handle EOSE (End of Stream Event)
+		if (event.type && typeof event.type === 'function' && event.type() === 3) {
+			loading = false;
+			return;
 		}
-	];
+
+		// Handle parsed events
+		if (event.kind && event.kind() === 1) {
+			const parsedEvent = asParsedEvent(message) as ParsedEvent;
+			const eventId = parsedEvent.id()?.fnv1aHash();
+			const existingIndex = feedItems.findIndex((item) => item.id()?.fnv1aHash() === eventId);
+			if (existingIndex === -1) {
+				feedItems = [...feedItems, parsedEvent].sort((a, b) => b.createdAt() - a.createdAt());
+			}
+		}
+	}
+
+	// Subscribe to tag feed
+	$: if (visible && tags.length > 0) {
+		if (!sub) {
+			loading = true;
+			sub = useSubscription(
+				'tags_' + tags.reduce((acc, cur) => (acc += cur), ''),
+				[
+					{
+						kinds: [1],
+						tags: { '#t': tags },
+						limit: $limit,
+						noContext: true,
+						noCache: true,
+						relays: []
+					}
+				],
+				handleEvents
+			);
+		}
+	}
+
+	// Cleanup when not visible or tags change
+	$: if (!visible || tags.length === 0) {
+		sub?.();
+		sub = undefined;
+	}
+
+	onDestroy(() => {
+		sub?.();
+	});
 </script>
 
 <Feed
-	subscriptionID={'tags_' + tags.reduce((acc, cur) => (acc += cur), '')}
-	requests={feedRequests}
+	items={feedItems}
+	getItemId={(item) => item?.id?.()?.fnv1aHash?.() ?? Math.random()}
 	class={imageContext ? 'w-full' : 'w-feed'}
-	{headerItem}
 	{visible}
+	{loading}
 >
 	<svelte:fragment slot="sticky-header">
 		<div
@@ -88,24 +130,4 @@
 			<Note note={headerItem} {context} {visible} zaps main />
 		{/if}
 	</svelte:fragment>
-	<!-- <svelte.fragment slot="sticky-footer">
-		<div class="md:pb-6 pb-safe md:px-6 px-2">
-			<div
-				on:click|stopPropagation={(_) => go('reply:' + headerItem.id()?.toString())}
-				class="px-4 py-2 rounded-full backdrop-blur-2xl border border-accent"
-			>
-				Reply to
-				{#if headerItem}
-					<User pubkey={headerItem.pubkey()?.toString()} {context} />
-				{/if}
-			</div>
-		</div>
-	</svelte.fragment> -->
-	<!-- <svelte.fragment slot="sticky-footer">
-		<div class="md:pb-4 pb-safe pt-0 backdrop-blur-md">
-			{#if headerItem}
-				<Reply parent={headerItem} {context} actionsOnTop />
-			{/if}
-		</div>
-	</svelte.fragment> -->
 </Feed>

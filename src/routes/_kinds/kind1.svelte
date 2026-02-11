@@ -40,7 +40,6 @@
 	let headerItem: ParsedEvent | undefined;
 	let context: ParsedEvent[] = [];
 	let loading = true;
-	let feedRequests: RequestObject[] = [];
 	let timeout: NodeJS.Timeout | undefined;
 	let sub: (() => void) | undefined;
 	let relaysub: (() => void) | undefined;
@@ -49,46 +48,49 @@
 
 	const { data } = decode(nevent) as unknown as { data: EventPointer };
 
-	function updateFeed(feed: ParsedEvent[], message: WorkerMessage): ParsedEvent[] {
+	// Feed items managed by parent
+	let feedItems: ParsedEvent[] = [];
+
+	// Handle incoming events from subscription
+	function handleEvents(message: WorkerMessage) {
 		switch (message.type()) {
 			case MessageType.Eoce:
 				eoce = true;
 				break;
 			case MessageType.ParsedNostrEvent:
 				const parsedEvent = asParsedEvent(message);
-				if (parsedEvent) {
-					const kind1 = asKind1(parsedEvent);
-					if (kind1) {
-						// only show replies to root posts
-						if (kind1.reply()?.id() && kind1.reply()?.id()?.toString() != data?.id) return feed;
-						if (
-							(!kind1.reply()?.id() ||
-								kind1.reply()?.id()?.toString() == kind1.root()?.id()?.toString()) &&
-							kind1?.root()?.id()?.toString() != data?.id
-						)
-							return feed;
-						// if replies are quote return the feed
-						if (fbArray(kind1, 'mentions').some((q) => q.id()?.toString() == data.id)) return feed;
+				if (!parsedEvent) return;
 
-						if (feed.some((e) => e.id()?.fnv1aHash() === parsedEvent.id()?.fnv1aHash()))
-							// check if the event is already in the feed
-							return feed;
+				const kind1 = asKind1(parsedEvent);
+				if (kind1) {
+					// only show replies to root posts
+					if (kind1.reply()?.id() && kind1.reply()?.id()?.toString() != data?.id) return;
+					if (
+						(!kind1.reply()?.id() ||
+							kind1.reply()?.id()?.toString() == kind1.root()?.id()?.toString()) &&
+						kind1?.root()?.id()?.toString() != data?.id
+					)
+						return;
+					// if replies are quote return the feed
+					if (fbArray(kind1, 'mentions').some((q) => q.id()?.toString() == data.id)) return;
+
+					const eventId = parsedEvent.id()?.fnv1aHash();
+					const existingIndex = feedItems.findIndex((item) => item.id()?.fnv1aHash() === eventId);
+					if (existingIndex === -1) {
 						if (!eoce) {
-							// cached event are filtered in the worker
-							return [...feed, parsedEvent];
+							feedItems = [...feedItems, parsedEvent];
 						} else {
-							if (parsedEvent.createdAt() >= feed?.[0]?.createdAt()) {
-								return [parsedEvent, ...feed];
+							if (parsedEvent.createdAt() >= feedItems?.[0]?.createdAt()) {
+								feedItems = [parsedEvent, ...feedItems];
 							} else {
 								// Add the event to the feed and sort by created_at (most recent first)
-								return [...feed, parsedEvent].sort((a, b) => b.createdAt() - a.createdAt());
+								feedItems = [...feedItems, parsedEvent].sort((a, b) => b.createdAt() - a.createdAt());
 							}
 						}
 					}
 				}
 				break;
 		}
-		return feed;
 	}
 
 	function subscribe() {
@@ -114,15 +116,22 @@
 						relaysub = getUserRelays(
 							parsedEvent?.pubkey()?.toString(),
 							(relays) => {
-								feedRequests = [
-									{
-										kinds: [1],
-										tags: { '#e': [data?.id] },
-										limit: $limit,
-										noContext: true,
-										relays
-									}
-								];
+								// Subscribe to replies for this post
+								if (!feedItems.length) {
+									useSubscription(
+										'replies_' + data?.id,
+										[
+											{
+												kinds: [1],
+												tags: { '#e': [data?.id] },
+												limit: $limit,
+												noContext: true,
+												relays
+											}
+										],
+										handleEvents
+									);
+								}
 							},
 							'read'
 						);
@@ -151,12 +160,11 @@
 </script>
 
 <Feed
-	subscriptionID={'replies_' + data?.id}
-	requests={feedRequests}
+	items={feedItems}
+	getItemId={(item) => item?.id?.()?.fnv1aHash?.() ?? Math.random()}
 	class={imageContext ? 'w-full' : 'w-feed'}
-	{headerItem}
-	{updateFeed}
 	{visible}
+	{loading}
 >
 	<svelte:fragment slot="sticky-header">
 		<div
@@ -194,26 +202,6 @@
 			<Note note={headerItem} {context} {visible} zaps main />
 		{/if}
 	</svelte:fragment>
-	<!-- <svelte.fragment slot="sticky-footer">
-		<div class="md:pb-6 pb-safe md:px-6 px-2">
-			<div
-				on:click|stopPropagation={(_) => go('reply:' + headerItem.id()?.toString())}
-				class="px-4 py-2 rounded-full backdrop-blur-2xl border border-accent"
-			>
-				Reply to
-				{#if headerItem}
-					<User pubkey={headerItem.pubkey()?.toString()} {context} />
-				{/if}
-			</div>
-		</div>
-	</svelte.fragment> -->
-	<!-- <svelte.fragment slot="sticky-footer">
-		<div class="md:pb-4 pb-safe pt-0 backdrop-blur-md">
-			{#if headerItem}
-				<Reply parent={headerItem} {context} actionsOnTop />
-			{/if}
-		</div>
-	</svelte.fragment> -->
 	<svelte:fragment slot="item-content" let:post let:visible>
 		<Note
 			note={post}

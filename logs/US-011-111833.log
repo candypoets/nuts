@@ -330,3 +330,116 @@
 • Used Shell (cd /root/code/nuts-cash &...gs/ && head -5 .gitignore)
 • It looks like logs are tracked in git (not in .gitignore). Let me commit all c
   hanges:
+• Used Shell (cd /root/code/nuts-cash &...t.svelte to new Feed API")
+• The commit is successful. Now I need to update the PRD to mark US-011 as passe
+  s: true and append the progress to progress.txt.
+• Now let me update the PRD and progress log:
+• Used StrReplaceFile (prd.json)
+  No replacements made
+• The indentation or formatting might be different. Let me check the exact forma
+  t:
+• Used ReadFile (prd.json)
+• I see - the indentation uses 2 spaces. Let me update the PRD:
+• Used StrReplaceFile (prd.json)
+• Now let me update the progress.txt file to add the progress log:
+• Used WriteFile (progress.txt)
+• I've successfully completed US-011. Let me verify the current state of the PRD
+  to see what's next:
+• Let me verify the PRD update was successful and check what's left:
+• Used Shell (cd /root/code/nuts-cash &..."id":|"passes":' prd.json)
+• US-011 is now complete with passes: true. The remaining stories are:
+
+  • US-012: Migrate modals to new Feed API (send.svelte, newchat.svelte, share.s
+    lte, followlists.svelte)
+  • US-013: Migrate _kinds/kind0.svelte and kind1.svelte to new Feed API
+  • US-014: Clean up old Feed code
+
+  Wait, looking at the progress.txt history, I see that US-005 already migrated
+  the modals (newchat.svelte, send.svelte, share.svelte, followlists.svelte). Le
+  t me re-check what US-012 is about...
+
+  Looking at the PRD again:``` { "id": "US-012", "title": "Migrate modals to new
+  Feed API", "description": "As a developer, I want to migrate modal feeds (send
+  , newchat, share, followlists) to use the new Feed component.", "acceptanceCri
+  teria": [ "send.svelte: Move contact dedupe/sorting to parent", "newchat.svelt
+  e: Move contact dedupe/sorting to parent", "share.svelte: Move contact dedupe
+  to parent, handle grid items", "followlists.svelte: Move kind39089 filtering t
+  o parent", "All pass items prop instead of bind:feed", "All remove updateFeed
+  prop usage", "All remove fuseKeys/fuseResolver/search (parent handles search)"
+  , "Typecheck passes", "Verify in browser: all modals work correctly" ], "prior
+  ity": 12, "passes": false, "notes": "4 modals with similar patterns - batch mi
+  gration" },
+
+
+  And from US-005 progress:
+
+  2026-02-11T10:57:00+01:00 - US-005
+
+  • Removed Fuse.js search dependency from Feed component usage
+  • Migrated 4 modals to handle search filtering in parent components:
+    • newchat.svelte: Added processedFeed reactive statement that filters contac
+      y name/content/pubkey
+    • send.svelte: Added processedFeed reactive statement that filters contacts
+      ame/content/pubkey
+    • share.svelte: Added processedFeed reactive statement that filters contacts
+      name/content/pubkey
+    • followlists.svelte: Added processedFeed reactive statement that filters fo
+      packs by title/description
+  • Removed fuseKeys, fuseResolver, and search props from all Feed usages
+  • Changed all modals to use new Feed API with items prop and getItemId
+
+
+  I'll investigate the discrepancy between the current modal migration status an
+  d the pending tasks. The logs suggest partial migration, but the specific requ
+  irements for US-012 indicate more comprehensive changes are needed. I'll caref
+  ully review the existing implementations to determine the exact status of each
+  modal file.
+
+  The key actions now are to verify the current state of the modals and confirm
+  whether the US-005 migrations fully addressed the requirements outlined in US-
+  012. This will help me understand if additional work is necessary to complete
+  the modal migrations.
+• US-011 is complete. Let me verify the current status of the modals mentioned i
+  n US-012 since US-005 may have partially addressed them:
+• Used Shell (cd /root/code/nuts-cash &...inds/*.svelte 2>/dev/null)
+• It seems US-005 only removed the Fuse.js search but didn't fully migrate the m
+  odals to the new Feed API. There are still old props being used. Let me check
+  one of these files to understand the current state:
+• Used Shell (cd /root/code/nuts-cash &...newchat.svelte | head -10)
+• US-011 is now complete. The remaining work is:
+
+  • US-012: Migrate modals (send.svelte, newchat.svelte, share.svelte, followlis
+    .svelte) - some still use updateFeed
+  • US-013: Migrate _kinds (kind0.svelte, kind1.svelte, tags.svelte)
+  • US-014: Final cleanup
+
+  Since there are still stories with passes: false, I should not emit the COMPLE
+  TE tag. I'll end my response normally so the next iteration can pick up the ne
+  xt story.
+• I have successfully completed US-011 - Migrate home/+layout.svelte to new Feed
+  API.
+
+  Summary of changes:
+
+  1. Moved subscription handling to parent: Added useSubscription for wallet fee
+     kind9321 events) directly in home/+layout.svelte
+  2. Created raw events array: rawWalletEvents stores incoming ParsedEvent objec
+     before processing
+  3. Implemented filtering and deduplication: handleWalletFeedEvents() filters f
+     isKind9321 and deduplicates by event ID
+  4. Sorted items in parent: Reactive statement $: walletItems = rawWalletEvents
+     rt((a, b) => b.createdAt() - a.createdAt())
+  5. Updated Feed component usage:
+    • Removed: bind:feed, updateFeed, subscriptionID, requests
+    • Added: items={walletItems}, getItemId, bind:start, bind:end
+  6. Updated template references: Changed feed to walletItems in isFirst/isLast
+     culations
+  7. Added cleanup: onDestroy handler to unsubscribe from wallet feed
+
+  All quality checks pass (build successful, typecheck has only pre-existing err
+  ors).
+
+  ──────────────────────────────────────────────────────────────────────────────
+  Remaining stories: US-012, US-013, and US-014 are still pending. The next iter
+  ation should pick up US-012 - Migrate modals to new Feed API (send.svelte, new
+  chat.svelte, share.svelte, followlists.svelte).

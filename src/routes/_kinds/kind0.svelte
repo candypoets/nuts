@@ -43,8 +43,6 @@
 	let parsedAbout: ContentBlock[] | undefined;
 	let writeRelays: string[] = [];
 	let readRelays: string[] = [];
-	let feedProfileRequests: RequestObject[] = [];
-	let feedFollowRequests: RequestObject[] = [];
 	let contacts: Contact[] = [];
 	let timeout: NodeJS.Timeout | undefined;
 	let mode = 'profile';
@@ -53,79 +51,73 @@
 
 	let sub: (() => void) | undefined;
 	let contactSub: (() => void) | undefined;
+	let feedSub: (() => void) | undefined;
 
-	function handleEvents(message: WorkerMessage) {
+	// Feed items managed by parent
+	let profileFeedItems: ParsedEvent[] = [];
+	let followsFeedItems: ParsedEvent[] = [];
+	let loading = false;
+
+	$: feedItems = mode === 'profile' ? profileFeedItems : followsFeedItems;
+
+	function handleProfileEvents(message: WorkerMessage) {
 		const parsedEvent = asParsedEvent(message);
-		if (parsedEvent) {
-			switch (parsedEvent.parsedType()) {
-				case ParsedData.Kind0Parsed:
-					const kind0 = asKind0(parsedEvent);
-					headerItem = parsedEvent;
-					parseContent(kind0?.about()?.toString() || '').then((result) => (parsedAbout = result));
-					break;
-				case ParsedData.Kind10002Parsed:
-					console.log('10002');
-					writeRelays = fbArray(asKind10002(parsedEvent) as Kind10002Parsed, 'relays')
-						?.filter((r) => r.write())
-						.map((r) => r.url()?.toString())
-						.filter(Boolean) as string[];
-					readRelays = fbArray(asKind10002(parsedEvent) as Kind10002Parsed, 'relays')
-						?.filter((r) => r.read())
-						.map((r) => r.url()?.toString())
-						.filter(Boolean) as string[];
-					if (!contacts.length) {
-						contactSub = useSubscription(
-							'c_' + pubkey,
-							[{ kinds: [3], authors: [pubkey], limit: 30, relays: writeRelays }],
-							handleEvents,
-							{}
-						);
-					} else {
-						feedFollowRequests = [
-							{
-								kinds: [1],
-								authors: contacts.map((c) => c.pubkey()?.toString()) as string[],
-								limit: $limit,
-								noContext: true,
-								relays: readRelays
-							}
-						];
-					}
-					feedProfileRequests = [
-						{
-							kinds: [1],
-							authors: [pubkey],
-							limit: $limit,
-							noContext: true,
-							relays: writeRelays
-						}
-					];
+		if (!parsedEvent) return;
 
-					break;
-				case ParsedData.Kind3Parsed:
-					contacts = fbArray(asKind3(parsedEvent) as Kind3Parsed, 'contacts');
-					if (readRelays) {
-						feedFollowRequests = [
-							{
-								kinds: [1],
-								authors: contacts.map((c) => c.pubkey()?.toString()) as string[],
-								limit: $limit,
-								noContext: true,
-								relays: readRelays
-							}
-						];
-					}
-					break;
+		switch (parsedEvent.parsedType()) {
+			case ParsedData.Kind0Parsed:
+				const k0 = asKind0(parsedEvent);
+				headerItem = parsedEvent;
+				parseContent(k0?.about()?.toString() || '').then((result) => (parsedAbout = result));
+				break;
+			case ParsedData.Kind10002Parsed:
+				console.log('10002');
+				writeRelays = fbArray(asKind10002(parsedEvent) as Kind10002Parsed, 'relays')
+					?.filter((r) => r.write())
+					.map((r) => r.url()?.toString())
+					.filter(Boolean) as string[];
+				readRelays = fbArray(asKind10002(parsedEvent) as Kind10002Parsed, 'relays')
+					?.filter((r) => r.read())
+					.map((r) => r.url()?.toString())
+					.filter(Boolean) as string[];
+				if (!contacts.length) {
+					contactSub = useSubscription(
+						'c_' + pubkey,
+						[{ kinds: [3], authors: [pubkey], limit: 30, relays: writeRelays }],
+						handleProfileEvents,
+						{}
+					);
+				}
+				break;
+			case ParsedData.Kind3Parsed:
+				contacts = fbArray(asKind3(parsedEvent) as Kind3Parsed, 'contacts');
+				break;
+		}
+	}
+
+	function handleFeedEvents(message: WorkerMessage) {
+		const parsedEvent = asParsedEvent(message);
+		if (!parsedEvent) return;
+
+		if (parsedEvent.parsedType() === ParsedData.Kind1Parsed) {
+			// Add kind 1 events to appropriate feed based on mode
+			const eventId = parsedEvent.id()?.fnv1aHash();
+			const targetFeed = mode === 'profile' ? profileFeedItems : followsFeedItems;
+			const existingIndex = targetFeed.findIndex((item) => item.id()?.fnv1aHash() === eventId);
+			if (existingIndex === -1) {
+				if (mode === 'profile') {
+					profileFeedItems = [...profileFeedItems, parsedEvent].sort((a, b) => b.createdAt() - a.createdAt());
+				} else {
+					followsFeedItems = [...followsFeedItems, parsedEvent].sort((a, b) => b.createdAt() - a.createdAt());
+				}
 			}
 		}
 	}
 
-	onDestroy(unsubscribe);
-
 	function subscribe() {
 		timeout = setTimeout(() => {
 			if (visible && !sub) {
-				sub = useSubscription('u_' + pubkey, userQuery(pubkey), handleEvents, {});
+				sub = useSubscription('u_' + pubkey, userQuery(pubkey), handleProfileEvents, {});
 			}
 		});
 	}
@@ -134,10 +126,16 @@
 		if (timeout) {
 			clearTimeout(timeout);
 			timeout = undefined;
-			sub?.();
-			sub = undefined;
 		}
+		sub?.();
+		sub = undefined;
+		contactSub?.();
+		contactSub = undefined;
+		feedSub?.();
+		feedSub = undefined;
 	}
+
+	onDestroy(unsubscribe);
 
 	function updateFollowList() {
 		if (!$kind0) return;
@@ -161,27 +159,57 @@
 	onMount(() => {
 		// set a time out after which we set the feedRequests whatever happen
 		setTimeout(() => {
-			if (!feedProfileRequests.length) {
-				feedProfileRequests = [
-					{
-						kinds: [1],
-						authors: [pubkey],
-						limit: $limit,
-						noContext: true,
-						relays: writeRelays
-					}
-				];
+			if (feedItems.length === 0 && !loading) {
+				loading = true;
 			}
 		}, 1000);
 	});
 
-	$: visible ? subscribe() : unsubscribe();
+	// Subscribe to feed based on mode
+	$: if (visible && mode === 'profile' && writeRelays.length > 0 && profileFeedItems.length === 0 && !feedSub) {
+		loading = true;
+		feedSub = useSubscription(
+			'kind0P_' + pubkey,
+			[{
+				kinds: [1],
+				authors: [pubkey],
+				limit: $limit,
+				noContext: true,
+				relays: writeRelays
+			}],
+			handleFeedEvents,
+			{}
+		);
+	}
+
+	$: if (visible && mode === 'follows' && readRelays.length > 0 && contacts.length > 0 && followsFeedItems.length === 0 && !feedSub) {
+		loading = true;
+		feedSub = useSubscription(
+			'kind0F_' + pubkey,
+			[{
+				kinds: [1],
+				authors: contacts.map((c) => c.pubkey()?.toString()).filter(Boolean) as string[],
+				limit: $limit,
+				noContext: true,
+				relays: readRelays
+			}],
+			handleFeedEvents,
+			{}
+		);
+	}
+
+	// Reset feedSub when mode changes to allow new subscription
+	$: if (mode) {
+		feedSub?.();
+		feedSub = undefined;
+	}
 </script>
 
 <Feed
-	subscriptionID={mode == 'profile' ? 'kind0P_' + pubkey : 'kind0F_' + pubkey}
-	requests={mode == 'profile' ? feedProfileRequests : feedFollowRequests}
+	items={feedItems}
+	getItemId={(item) => item?.id?.()?.fnv1aHash?.() ?? Math.random()}
 	{visible}
+	{loading}
 >
 	<svelte:fragment slot="sticky-header">
 		<div class="px-4 py-3 flex items-center justify-between backdrop-blur-md pt-safe">

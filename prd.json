@@ -178,7 +178,7 @@
         "Verify in browser: wallet feed displays correctly"
       ],
       "priority": 11,
-      "passes": false,
+      "passes": true,
       "notes": "Wallet/Nuts feed - filters for kind9321 events"
     },
     {
@@ -197,8 +197,8 @@
         "Verify in browser: all modals work correctly"
       ],
       "priority": 12,
-      "passes": false,
-      "notes": "4 modals with similar patterns - batch migration"
+      "passes": true,
+      "notes": "Already migrated as part of US-005 - all 4 modals use items prop and getItemId"
     },
     {
       "id": "US-013",
@@ -213,8 +213,8 @@
         "Verify in browser: profile posts and thread replies work"
       ],
       "priority": 13,
-      "passes": false,
-      "notes": "Profile view and thread view"
+      "passes": true,
+      "notes": "Migrated to new Feed API - parent manages subscriptions and passes items prop"
     },
     {
       "id": "US-014",

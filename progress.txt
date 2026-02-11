@@ -33,6 +33,31 @@ Started: Wed Feb 11 10:50:43 AM CET 2026
   - Use `bind:start` to track scroll position (0 = at top)
   - Remove `bind:feed`, `subscriptionID`, `requests`, `subscriptionOptions`, `kinds` props
   - Handle new posts tracking in parent using `start` value
+- **Home/wallet feed (kind9321) migration pattern**:
+  - Use `rawWalletEvents` array to store incoming events before processing
+  - Filter for `isKind9321(message)` in event handler
+  - Deduplicate by checking `rawWalletEvents.some((e) => e.id() === eventId)` before adding
+  - Sort in reactive statement: `$: walletItems = rawWalletEvents.sort((a, b) => b.createdAt() - a.createdAt())`
+  - Wallet feed doesn't need pagination (limited set of 50 items)
+
+## 2026-02-11T11:21:00+01:00 - US-011
+- Migrated home/+layout.svelte to new Feed API
+- Moved wallet feed subscription handling to parent using `useSubscription` hook
+- Created `rawWalletEvents` array to store incoming ParsedEvent objects
+- Added `handleWalletFeedEvents()` function that filters for kind9321 events and deduplicates by event ID
+- Reactive statement `$: walletItems = rawWalletEvents.sort((a, b) => b.createdAt() - a.createdAt())` processes and sorts events
+- Removed old props: `bind:feed`, `updateFeed`, `subscriptionID`, `requests`
+- Added new props: `items={walletItems}`, `getItemId`, `bind:start`, `bind:end`
+- Updated template to use `walletItems` instead of `feed` for `isFirst`/`isLast` calculations
+- Added `onDestroy` cleanup for wallet feed subscription
+- Build passes, typecheck passes (same pre-existing errors as before)
+- **Learnings for future iterations:**
+  - Home/wallet feed is simpler than explore - no pagination needed (limited 50 items)
+  - Use `isKind9321(message)` to filter events for wallet feed
+  - Keep raw events in separate array for deduplication before sorting
+  - Template uses `walletItems[index - 1]` pattern for `isFirst`/`isLast` day boundary detection
+  - The `oneDayDiff()` helper is used to show date separators between items from different days
+---
 
 ## 2026-02-11T11:12:00+01:00 - US-008
 - Migrated notifications/index.svelte to new Feed API
@@ -214,4 +239,30 @@ Started: Wed Feb 11 10:50:43 AM CET 2026
   - In the item slot template, use `dmItems` array (not `feed`) to reference items for `isFirst`/`isLast` calculations
   - Nonce extraction from tags: `fbArray(post, 'tags')` -> reduce to get `tags['nonce']?.[0]`
   - Use `onDestroy` cleanup pattern: `onDestroy(() => { unsubscribe?.(); });`
+---
+
+## 2026-02-11T11:28:00+01:00 - US-012, US-013
+- Verified US-012 (modals) - already migrated as part of US-005
+- Migrated kind0.svelte to new Feed API
+  - Moved feed subscription handling to parent
+  - Created separate feed arrays for profile mode (profileFeedItems) and follows mode (followsFeedItems)
+  - Added mode-aware subscription logic - subscribes to different authors based on selected tab
+  - Pass items={feedItems} and getItemId props instead of subscriptionID/requests
+  - Proper cleanup of subscriptions on mode change and unmount
+- Migrated kind1.svelte to new Feed API
+  - Moved reply filtering logic from updateFeed callback to handleEvents function
+  - Parent manages feedItems array and deduplication
+  - Pass items prop and getItemId instead of subscriptionID/requests/updateFeed
+- Migrated tags.svelte to new Feed API (bonus, not in PRD but needed)
+  - Moved subscription handling to parent with useSubscription hook
+  - Handle incoming kind 1 events and sort by createdAt
+  - Pass items prop instead of subscriptionID/requests
+- Build passes, typecheck passes (same pre-existing errors as before)
+- **Learnings for future iterations:**
+  - Profile view (kind0) has two modes (profile/follows) requiring different subscriptions
+  - Use reactive statement `$: feedItems = mode === 'profile' ? profileFeedItems : followsFeedItems` to switch data sources
+  - When mode changes, unsubscribe from old feed and reset feedSub to allow new subscription
+  - Thread view (kind1) has complex reply filtering - check reply().id() and root().id() against post ID
+  - Tag search (tags.svelte) is simpler - just one subscription with #t tags filter
+  - Remember to handle EOSE (End of Stream) events to set loading=false
 ---
