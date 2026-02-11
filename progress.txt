@@ -19,6 +19,10 @@ Started: Wed Feb 11 10:50:43 AM CET 2026
 - Feed component is at `src/routes/explore/feed.svelte` (not in lib/)
 - TypeScript path alias `src/` maps to the src directory
 - Default item ID extraction uses `item?.id?.()?.fnv1aHash?.()` for Nostr events
+- Use callback props (not createEventDispatcher) for events: `export let onEvent: ((data: T) => void) | undefined = undefined`
+- Reactive statements with `$:` for computed values that trigger side effects
+- Use `nearBottomThreshold` prop (default 10) for configurable pagination trigger distance
+- Track trigger state with local flag (e.g., `nearBottomTriggered`) to prevent duplicate events
 
 ## 2026-02-11T10:51:00+01:00 - US-001
 - Rewrote Feed component as pure presentation component
@@ -38,4 +42,18 @@ Started: Wed Feb 11 10:50:43 AM CET 2026
   - Parent components that used old props will need migration (tracked in US-007 through US-013)
   - VirtualList takes `items`, `getItemId`, and exposes `bind:start`, `bind:end`, `bind:down`, `bind:viewport`
   - Keep slot names consistent: `header`, `sticky-header`, `sticky-footer`, `fixed-header`, `item-content`, `empty-content`
+---
+
+## 2026-02-11T10:54:00+01:00 - US-003
+- Added `onNearBottom` callback prop for pagination support
+- Event callback receives `{ distance: number }` indicating items remaining to end of feed
+- Default threshold is 10 items, configurable via `nearBottomThreshold` prop
+- Uses internal `nearBottomTriggered` flag to prevent duplicate event emissions
+- Event resets when user scrolls back up (distance > threshold)
+- Files changed: `src/routes/explore/feed.svelte`
+- **Learnings for future iterations:**
+  - Pattern for pagination events: reactive `$:` statement watching `end` and `items.length`
+  - Prevent duplicate emissions with local trigger flag that resets on scroll up
+  - Keep threshold configurable as a prop with sensible default
+  - Build passed successfully - all existing warnings are pre-existing
 ---
