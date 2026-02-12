@@ -371,3 +371,247 @@ export function updateTxStep(state: TxState, step: TxStep): TxState {
 		updatedAt: Date.now()
 	};
 }
+
+// ============================================================================
+// Core State Machine
+// ============================================================================
+
+/** Map of transaction IDs to their current execution promises (prevents duplicate execution) */
+const pendingExecutions = new Map<string, Promise<void>>();
+
+/**
+ * Start a new transaction with the given type and parameters.
+ * Creates the initial state, persists it, and sets the active transaction ID.
+ * @returns The created transaction ID
+ */
+export async function startTransaction(type: TxType, params: TxParams): Promise<string> {
+	const state = createTxState(type, params);
+	
+	// Save to IndexedDB
+	await saveTxState(state.txId, state);
+	
+	// Set as active transaction in localStorage
+	activeTxIdStore.set(state.txId);
+	
+	console.log(`[tx-recovery] Started ${type} transaction: ${state.txId}`);
+	
+	return state.txId;
+}
+
+/**
+ * Advance a transaction by executing its next step.
+ * Loads the transaction state, determines the next step, and executes it.
+ * Each step updates the state and persists before/after execution.
+ * @param txId The transaction ID to advance
+ */
+export async function advanceTransaction(txId: string): Promise<void> {
+	// Prevent concurrent execution of the same transaction
+	const existingExecution = pendingExecutions.get(txId);
+	if (existingExecution) {
+		console.log(`[tx-recovery] Transaction ${txId} is already being advanced, waiting...`);
+		return existingExecution;
+	}
+
+	const executionPromise = executeAdvanceTransaction(txId);
+	pendingExecutions.set(txId, executionPromise);
+	
+	try {
+		await executionPromise;
+	} finally {
+		pendingExecutions.delete(txId);
+	}
+}
+
+/**
+ * Internal execution function for advancing a transaction
+ */
+async function executeAdvanceTransaction(txId: string): Promise<void> {
+	const state = await loadTxState(txId);
+	if (!state) {
+		throw new Error(`Transaction ${txId} not found`);
+	}
+
+	// Don't advance if already finalized or aborted
+	if (state.isFinalized) {
+		console.log(`[tx-recovery] Transaction ${txId} is already finalized`);
+		return;
+	}
+	if (state.isAborted) {
+		console.log(`[tx-recovery] Transaction ${txId} is aborted`);
+		return;
+	}
+
+	console.log(`[tx-recovery] Advancing transaction ${txId} from step: ${state.step}`);
+
+	// Determine the step sequence based on transaction type
+	const stepSequence = getStepSequence(state.type);
+	
+	// Find the current step index
+	const currentIndex = stepSequence.indexOf(state.step);
+	if (currentIndex === -1) {
+		throw new Error(`Unknown step ${state.step} for transaction type ${state.type}`);
+	}
+
+	// Check if we've reached the end
+	if (currentIndex >= stepSequence.length - 1) {
+		console.log(`[tx-recovery] Transaction ${txId} reached end of step sequence`);
+		await finalizeTransaction(txId);
+		return;
+	}
+
+	// Get the next step
+	const nextStep = stepSequence[currentIndex + 1];
+	
+	console.log(`[tx-recovery] Executing step: ${nextStep}`);
+
+	try {
+		// Update state to the next step before execution
+		let updatedState = updateTxStep(state, nextStep);
+		await saveTxState(txId, updatedState);
+
+		// Execute the step
+		await executeStep(txId, updatedState, nextStep);
+
+		// After successful execution, continue advancing if not finalized
+		const currentState = await loadTxState(txId);
+		if (currentState && !currentState.isFinalized && !currentState.isAborted) {
+			// Auto-advance to the next step
+			await advanceTransaction(txId);
+		}
+	} catch (error) {
+		const errorMessage = error instanceof Error ? error.message : String(error);
+		console.error(`[tx-recovery] Step ${nextStep} failed for transaction ${txId}:`, error);
+		
+		// Add error to state
+		const errorState = addTxError(state, nextStep, errorMessage, isRetryableError(error));
+		await saveTxState(txId, errorState);
+		
+		throw error;
+	}
+}
+
+/**
+ * Get the step sequence for a transaction type
+ */
+function getStepSequence(type: TxType): TxStep[] {
+	switch (type) {
+		case 'nutszap':
+			return [
+				NUTSZAP_STEPS.INIT,
+				NUTSZAP_STEPS.RESERVE_PROOFS,
+				NUTSZAP_STEPS.BUILD_NUTSZAP_EVENT,
+				NUTSZAP_STEPS.PUBLISH_NUTSZAP_EVENT,
+				NUTSZAP_STEPS.FINALIZE
+			];
+		case 'nutszap-melt':
+			return [
+				NUTSZAP_MELT_STEPS.INIT,
+				NUTSZAP_MELT_STEPS.RESERVE_PROOFS,
+				NUTSZAP_MELT_STEPS.GET_MELT_QUOTE,
+				NUTSZAP_MELT_STEPS.PERFORM_MELT,
+				NUTSZAP_MELT_STEPS.GET_MINT_QUOTE,
+				NUTSZAP_MELT_STEPS.PERFORM_MINT,
+				NUTSZAP_MELT_STEPS.BUILD_NUTSZAP_EVENT,
+				NUTSZAP_MELT_STEPS.PUBLISH_NUTSZAP_EVENT,
+				NUTSZAP_MELT_STEPS.FINALIZE
+			];
+		case 'zap':
+			return [
+				ZAP_STEPS.INIT,
+				ZAP_STEPS.RESERVE_PROOFS,
+				ZAP_STEPS.BUILD_ZAP_REQUEST,
+				ZAP_STEPS.FETCH_ZAP_INVOICE,
+				ZAP_STEPS.GET_MELT_QUOTE,
+				ZAP_STEPS.PERFORM_MELT,
+				ZAP_STEPS.STORE_CHANGE_PROOFS,
+				ZAP_STEPS.FINALIZE
+			];
+		default:
+			throw new Error(`Unknown transaction type: ${type}`);
+	}
+}
+
+/**
+ * Execute a specific step of the transaction.
+ * This is a placeholder that will be implemented in subsequent stories.
+ * For now, it just logs the step execution.
+ */
+async function executeStep(txId: string, state: TxState, step: TxStep): Promise<void> {
+	// Step execution will be implemented in US-004, US-005, US-006
+	// For now, we just log that the step was "executed"
+	console.log(`[tx-recovery] Executed step ${step} for transaction ${txId}`);
+	
+	// Special handling for finalize step
+	if (step === 'finalize') {
+		await finalizeTransaction(txId);
+	}
+}
+
+/**
+ * Finalize a transaction by marking it as complete and clearing the active transaction ID.
+ * @param txId The transaction ID to finalize
+ */
+export async function finalizeTransaction(txId: string): Promise<void> {
+	const state = await loadTxState(txId);
+	if (!state) {
+		throw new Error(`Transaction ${txId} not found`);
+	}
+
+	if (state.isFinalized) {
+		console.log(`[tx-recovery] Transaction ${txId} is already finalized`);
+		return;
+	}
+
+	// Update state to finalized
+	const finalizedState: TxState = {
+		...state,
+		step: 'finalize',
+		isFinalized: true,
+		updatedAt: Date.now()
+	};
+
+	await saveTxState(txId, finalizedState);
+
+	// Clear active transaction
+	const currentActiveTxId = getActiveTxId();
+	if (currentActiveTxId === txId) {
+		activeTxIdStore.set(null);
+		console.log(`[tx-recovery] Cleared active transaction ID`);
+	}
+
+	console.log(`[tx-recovery] Finalized transaction ${txId}`);
+}
+
+/**
+ * Get the currently active transaction ID from localStorage
+ */
+export function getActiveTxId(): string | null {
+	// Get value from the persistent store
+	// We need to access localStorage directly since persistentWritable is a Svelte store
+	if (typeof localStorage !== 'undefined') {
+		const stored = localStorage.getItem('activeTxId');
+		return stored ? JSON.parse(stored) : null;
+	}
+	return null;
+}
+
+/**
+ * Check if an error is potentially retryable
+ */
+function isRetryableError(error: unknown): boolean {
+	if (error instanceof Error) {
+		// Network errors are typically retryable
+		if (error.message.includes('network') || error.message.includes('fetch')) {
+			return true;
+		}
+		// Timeout errors are retryable
+		if (error.message.includes('timeout')) {
+			return true;
+		}
+		// Mint temporarily unavailable
+		if (error.message.includes('unavailable') || error.message.includes('503')) {
+			return true;
+		}
+	}
+	return false;
+}
