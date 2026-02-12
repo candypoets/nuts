@@ -296,6 +296,11 @@ Started: Thu Feb 12 01:17:20 PM CET 2026
 - Create constant objects with `as const` for step definitions to get proper type inference
 - Use `src/model/cashu/` directory for Cashu/eCash data models
 - TypeScript path alias `src/` maps to the src directory (configured in svelte.config.js/vite.config.ts)
+- **NutsWallet proof reservation pattern:**
+  - Reserved proofs are stored in `reservedProofs: Map<string, Proof[]>` keyed by normalized mint URL
+  - Persistence uses localStorage with key format: `reserved_[pubkey]_[mint]`
+  - Three lifecycle methods: `reserveProofs()` (unspent→reserved), `releaseReserved()` (reserved→unspent), `commitReserved()` (reserved→spent)
+  - Balance calculation excludes reserved proofs: `available = unspent - reserved`
 
 ## 2026-02-12T13:18:00+01:00 - US-001
 - Created `src/model/cashu/tx-recovery.ts` module
@@ -324,4 +329,26 @@ Started: Thu Feb 12 01:17:20 PM CET 2026
   - Error tracking includes step context, timestamp, and retryable flag for smart retry logic
   - Proof reservation is tracked in memory (will be implemented in NutsWallet in US-002)
   - The `as const` pattern for step constants enables TypeScript to infer literal union types
+---
+
+
+## 2026-02-12T13:22:00+01:00 - US-002
+- Added proof reservation system to NutsWallet class in `src/controller/proofs.ts`
+- Added `reservedProofs: Map<string, Proof[]>` to track in-flight transaction proofs
+- Implemented three lifecycle methods:
+  - `reserveProofs(mint, proofs)`: Moves proofs from unspent to reserved, returns boolean for success
+  - `releaseReserved(mint, proofs)`: Returns reserved proofs to unspent (for aborts)
+  - `commitReserved(mint, proofs)`: Moves reserved to spent (for successful completion)
+- Added persistence to localStorage with key format: `reserved_[pubkey]_[mint]`
+- Added `loadReservedProofs()` method called during wallet initialization
+- Updated `updateBalanceByMint()` to exclude reserved proofs from available balance
+- Added helper method `getAllReservedProofs()` for recovery UI
+- Files changed: `src/controller/proofs.ts`
+- **Learnings for future iterations:**
+  - Reservation pattern prevents double-spend during crashes - proofs are reserved before use
+  - Balance calculation: `available = unspent - reserved` ensures users can't spend reserved funds
+  - Persistence key format includes pubkey for multi-wallet support
+  - `normalizeMintURL()` must be used consistently for all mint lookups
+  - Methods return boolean/void appropriately - `reserveProofs` returns false if proofs unavailable
+  - `loadReservedProofs()` scans localStorage for keys matching `reserved_${pubkey}_*` pattern
 ---

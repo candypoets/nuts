@@ -288,6 +288,9 @@ export class NutsWallet {
 
 	public mints: Mint[] = [];
 
+	// Map to track reserved proofs (in-flight transactions) - persisted to localStorage
+	public reservedProofs: Map<string, Proof[]> = new Map();
+
 	private _pubkey: string;
 	private _privkey: string;
 
@@ -326,6 +329,7 @@ export class NutsWallet {
 		Promise.all(mintUrls.map(fetchMintData)).then((res) => (this.mints = res));
 
 		this.loadAndMonitorMintQuotes();
+		this.loadReservedProofs();
 	}
 
 	public get pubkey(): string {
@@ -347,7 +351,10 @@ export class NutsWallet {
 
 		for (const [mintUrl, proofs] of this.unspentProofs.entries()) {
 			const totalAmount = proofs.reduce((sum, proof) => sum + proof.amount, 0);
-			newBalanceByMint[mintUrl] = totalAmount;
+			// Subtract reserved proofs from available balance
+			const reserved = this.reservedProofs.get(mintUrl) || [];
+			const reservedAmount = reserved.reduce((sum, proof) => sum + proof.amount, 0);
+			newBalanceByMint[mintUrl] = Math.max(0, totalAmount - reservedAmount);
 		}
 
 		this.balanceByMint.set(newBalanceByMint);
@@ -524,4 +531,174 @@ export class NutsWallet {
 			}
 		}
 	};
+
+	// ===== PROOF RESERVATION METHODS =====
+	// These methods manage proof reservations for in-flight transactions
+
+	/**
+	 * Get the localStorage key for reserved proofs for this wallet and mint
+	 */
+	private getReservedProofsKey(mint: string): string {
+		return `reserved_${this.pubkey}_${normalizeMintURL(mint)}`;
+	}
+
+	/**
+	 * Persist reserved proofs to localStorage
+	 */
+	private saveReservedProofs(mint: string): void {
+		const reserved = this.reservedProofs.get(normalizeMintURL(mint)) || [];
+		const key = this.getReservedProofsKey(mint);
+		localStorage.setItem(key, JSON.stringify(reserved));
+	}
+
+	/**
+	 * Load reserved proofs from localStorage on initialization
+	 */
+	public loadReservedProofs(): void {
+		// Find all localStorage keys matching our pattern
+		for (let i = 0; i < localStorage.length; i++) {
+			const key = localStorage.key(i);
+			if (key?.startsWith(`reserved_${this.pubkey}_`)) {
+				const mint = key.replace(`reserved_${this.pubkey}_`, '');
+				try {
+					const stored = localStorage.getItem(key);
+					if (stored) {
+						const proofs: Proof[] = JSON.parse(stored);
+						if (proofs.length > 0) {
+							this.reservedProofs.set(mint, proofs);
+							console.log(`Loaded ${proofs.length} reserved proofs for ${mint}`);
+						}
+					}
+				} catch (e) {
+					console.error(`Error loading reserved proofs for ${mint}:`, e);
+				}
+			}
+		}
+		// Update balance to exclude reserved proofs
+		this.updateBalanceByMint();
+	}
+
+	/**
+	 * Reserve proofs for a transaction - moves them from unspent to reserved
+	 * This prevents double-spend during crashes and recovery
+	 * @returns true if reservation succeeded, false if proofs not available
+	 */
+	public reserveProofs(mint: string, proofs: Proof[]): boolean {
+		mint = normalizeMintURL(mint);
+		if (!mint || !proofs?.length) return false;
+
+		const unspent = this.unspentProofs.get(mint) || [];
+		const currentlyReserved = this.reservedProofs.get(mint) || [];
+
+		// Verify all proofs exist in unspent
+		const proofsToReserve: Proof[] = [];
+		for (const proof of proofs) {
+			const exists = unspent.some((p) => p.secret === proof.secret);
+			if (!exists) {
+				console.warn('Cannot reserve proof - not found in unspent:', proof.secret.slice(0, 16) + '...');
+				return false;
+			}
+			// Avoid duplicates
+			if (!currentlyReserved.some((p) => p.secret === proof.secret)) {
+				proofsToReserve.push(proof);
+			}
+		}
+
+		if (proofsToReserve.length === 0) {
+			// All proofs already reserved
+			return true;
+		}
+
+		// Move proofs from unspent to reserved
+		const updatedReserved = [...currentlyReserved, ...proofsToReserve];
+		this.reservedProofs.set(mint, updatedReserved);
+
+		// Persist to localStorage
+		this.saveReservedProofs(mint);
+
+		// Update balance stores
+		this.updateBalanceByMint();
+
+		console.log(`Reserved ${proofsToReserve.length} proofs for ${mint}`);
+		return true;
+	}
+
+	/**
+	 * Release reserved proofs back to unspent - called when transaction is aborted
+	 */
+	public releaseReserved(mint: string, proofs: Proof[]): void {
+		mint = normalizeMintURL(mint);
+		if (!mint || !proofs?.length) return;
+
+		const reserved = this.reservedProofs.get(mint) || [];
+		if (reserved.length === 0) return;
+
+		// Find proofs to release
+		const secretsToRelease = new Set(proofs.map((p) => p.secret));
+		const updatedReserved = reserved.filter((p) => !secretsToRelease.has(p.secret));
+		const releasedCount = reserved.length - updatedReserved.length;
+
+		if (releasedCount === 0) return;
+
+		if (updatedReserved.length === 0) {
+			this.reservedProofs.delete(mint);
+		} else {
+			this.reservedProofs.set(mint, updatedReserved);
+		}
+
+		// Persist to localStorage
+		this.saveReservedProofs(mint);
+
+		// Update balance stores
+		this.updateBalanceByMint();
+
+		console.log(`Released ${releasedCount} reserved proofs for ${mint}`);
+	}
+
+	/**
+	 * Commit reserved proofs to spent - called when transaction completes successfully
+	 */
+	public commitReserved(mint: string, proofs: Proof[]): void {
+		mint = normalizeMintURL(mint);
+		if (!mint || !proofs?.length) return;
+
+		const reserved = this.reservedProofs.get(mint) || [];
+		if (reserved.length === 0) return;
+
+		// Find proofs to commit
+		const secretsToCommit = new Set(proofs.map((p) => p.secret));
+		const updatedReserved = reserved.filter((p) => !secretsToCommit.has(p.secret));
+		const committedProofs = reserved.filter((p) => secretsToCommit.has(p.secret));
+		const committedCount = committedProofs.length;
+
+		if (committedCount === 0) return;
+
+		// Remove from reserved
+		if (updatedReserved.length === 0) {
+			this.reservedProofs.delete(mint);
+		} else {
+			this.reservedProofs.set(mint, updatedReserved);
+		}
+
+		// Persist updated reserved to localStorage
+		this.saveReservedProofs(mint);
+
+		// Move committed proofs from unspent to spent
+		this.removeProofs(mint, committedProofs);
+
+		console.log(`Committed ${committedCount} reserved proofs for ${mint}`);
+	}
+
+	/**
+	 * Get all reserved proofs across all mints
+	 */
+	public getAllReservedProofs(): Array<{ mint: string; proofs: Proof[] }> {
+		const result: Array<{ mint: string; proofs: Proof[] }> = [];
+		for (const [mint, proofs] of this.reservedProofs.entries()) {
+			if (proofs.length > 0) {
+				result.push({ mint, proofs });
+			}
+		}
+		return result;
+	}
 }
