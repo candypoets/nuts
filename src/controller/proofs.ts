@@ -388,23 +388,25 @@ export class NutsWallet {
 	public saveProofs = async (mint: string, proofs: Proof[]) => {
 		if (!mint || !proofs?.length) return;
 
-		const usp = this.unspentProofs.get(mint) || [];
-		const allUnspentProofs = [...usp, ...proofs];
-
-		const event: EventTemplate = {
-			kind: 7375,
-			content: JSON.stringify({
-				mint,
-				proofs: allUnspentProofs,
-				del: []
-			}),
-			tags: [],
-			created_at: now()
-		};
-
-		usePublish('savenuts' + random(1000), event);
-
+		// Add proofs to wallet immediately so user sees them
 		this.addProofs(mint, proofs);
+
+		// Import transaction recovery dynamically to avoid circular dependencies
+		const { startTransaction, advanceTransaction } = await import(
+			'src/model/cashu/tx-recovery'
+		);
+
+		// Start a backup transaction to persist to Nostr reliably
+		const txId = await startTransaction('backup', {
+			fromMint: mint,
+			proofsToBackup: proofs
+		});
+
+		// Advance the transaction in the background (non-blocking)
+		advanceTransaction(txId).catch((error) => {
+			console.error('[saveProofs] Backup transaction failed:', error);
+			// Proofs are already in the wallet, user can retry backup manually if needed
+		});
 	};
 
 	public removeProofs = (mint: string, proofs: Proof[]) => {

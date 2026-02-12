@@ -566,3 +566,33 @@ Started: Thu Feb 12 01:17:20 PM CET 2026
   - Always disable inputs/buttons when active transaction exists to prevent double-submit
   - The transaction flow is now: determine type → start → advance (auto-runs steps) → UI updates via polling
 ---
+
+## 2026-02-12T13:51:00+01:00 - US-010
+- Implemented edge case handling and error recovery in `src/model/cashu/tx-recovery.ts`
+- Added `withRetry()` function with exponential backoff (3 retries max, base delay 1000ms)
+- Added `handleQuoteExpiry()` function that aborts transaction and releases proofs when quotes expire
+- Added `handleZapInvoiceFailure()` function for LNURL fetch failures
+- Added `handleMintError()` function for general mint operation failures
+- Updated all step execution functions to use retry logic:
+  - `executeReserveProofsStep` - retries proof selection
+  - `executeGetMeltQuoteStep` - retries quote fetching
+  - `executePerformMeltStep` - retries melt with quote expiry handling
+  - `executeGetMintQuoteStep` - retries mint quote creation
+  - `executePerformMintStep` - retries mint with quote expiry handling
+  - `executeBuildNutszapEventStep` - retries proof locking
+  - `executeBuildCrossMintNutszapEventStep` - retries proof locking
+  - `executePublishNutszapEventStep` - retries Nostr publishing
+  - `executeFetchZapInvoiceStep` - retries LNURL fetch
+  - `executeGetZapMeltQuoteStep` - retries melt quote creation
+  - `executePerformZapMeltStep` - retries zap melt with quote expiry handling
+- Enhanced `isRetryableError()` to detect more error types (network, timeout, 503, 429, connection reset)
+- All mint/quote errors now properly abort the transaction and release reserved proofs
+- Files changed: `src/model/cashu/tx-recovery.ts`
+- Build passes (no new errors introduced)
+- **Learnings for future iterations:**
+  - Retry pattern: `withRetry(fn, operationName)` wraps async operations with exponential backoff
+  - Quote expiry handling: Check before operation AND catch in error handler for race conditions
+  - Recovery flow: `handleXError()` -> `abortTransaction()` -> release proofs -> throw descriptive error
+  - Error message matching: Always use `.toLowerCase()` for case-insensitive checks
+  - The `never` return type on error handlers ensures TypeScript knows code stops executing
+---

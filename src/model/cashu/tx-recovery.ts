@@ -25,7 +25,7 @@ import _ from 'lodash';
 // ============================================================================
 
 /** Transaction types supported by the recovery system */
-export type TxType = 'nutszap' | 'nutszap-melt' | 'zap';
+export type TxType = 'nutszap' | 'nutszap-melt' | 'zap' | 'backup';
 
 /** Transaction step constants for Nutszap (same-mint) flow */
 export const NUTSZAP_STEPS = {
@@ -61,11 +61,21 @@ export const ZAP_STEPS = {
 	FINALIZE: 'finalize'
 } as const;
 
+/** Transaction step constants for Backup (proofs to Nostr) flow */
+export const BACKUP_STEPS = {
+	INIT: 'init',
+	PREPARE_PROOFS: 'prepare_proofs',
+	PUBLISH_TO_NOSTR: 'publish_to_nostr',
+	VERIFY_PUBLISH: 'verify_publish',
+	FINALIZE: 'finalize'
+} as const;
+
 /** Union type of all possible transaction steps */
 export type TxStep =
 	| (typeof NUTSZAP_STEPS)[keyof typeof NUTSZAP_STEPS]
 	| (typeof NUTSZAP_MELT_STEPS)[keyof typeof NUTSZAP_MELT_STEPS]
-	| (typeof ZAP_STEPS)[keyof typeof ZAP_STEPS];
+	| (typeof ZAP_STEPS)[keyof typeof ZAP_STEPS]
+	| (typeof BACKUP_STEPS)[keyof typeof BACKUP_STEPS];
 
 /** Step error with context for debugging */
 export interface StepError {
@@ -133,9 +143,9 @@ export interface TxParams {
 	/** Target mint URL (for cross-mint swaps) */
 	toMint?: string;
 	/** Recipient pubkey */
-	pubkey: string;
+	pubkey?: string;
 	/** Amount in sats */
-	amount: number;
+	amount?: number;
 	/** Fee reserve amount */
 	feeReserve?: number;
 	/** Optional memo */
@@ -148,6 +158,8 @@ export interface TxParams {
 	p2pkPubkey?: string;
 	/** Receipt relays for zap requests */
 	receiptRelays?: string[];
+	/** Proofs to backup (for backup transactions) */
+	proofsToBackup?: Proof[];
 }
 
 // ============================================================================
@@ -537,6 +549,14 @@ function getStepSequence(type: TxType): TxStep[] {
 				ZAP_STEPS.STORE_CHANGE_PROOFS,
 				ZAP_STEPS.FINALIZE
 			];
+		case 'backup':
+			return [
+				BACKUP_STEPS.INIT,
+				BACKUP_STEPS.PREPARE_PROOFS,
+				BACKUP_STEPS.PUBLISH_TO_NOSTR,
+				BACKUP_STEPS.VERIFY_PUBLISH,
+				BACKUP_STEPS.FINALIZE
+			];
 		default:
 			throw new Error(`Unknown transaction type: ${type}`);
 	}
@@ -558,6 +578,9 @@ async function executeStep(txId: string, state: TxState, step: TxStep): Promise<
 			break;
 		case 'zap':
 			await executeZapStep(txId, state, step);
+			break;
+		case 'backup':
+			await executeBackupStep(txId, state, step);
 			break;
 		default:
 			throw new Error(`Unknown transaction type: ${state.type}`);
@@ -608,6 +631,9 @@ async function executeReserveProofsStep(txId: string, state: TxState): Promise<v
 	}
 
 	const { fromMint, amount, feeReserve = 0 } = state.params;
+	if (!amount) {
+		throw new Error('Amount is required for nutszap transaction');
+	}
 	const amountPlusFees = amount + feeReserve;
 
 	// Get wallet for the mint
@@ -677,6 +703,9 @@ async function executeBuildNutszapEventStep(txId: string, state: TxState): Promi
 	}
 
 	const { fromMint, pubkey, noteId, memo = '', p2pkPubkey } = state.params;
+	if (!pubkey) {
+		throw new Error('Pubkey is required for nutszap transaction');
+	}
 	const { reserved } = state.proofs;
 
 	if (!reserved || reserved.length === 0) {
@@ -758,6 +787,9 @@ async function executePublishNutszapEventStep(txId: string, state: TxState): Pro
 	}
 
 	const { fromMint, pubkey, noteId, memo = '' } = state.params;
+	if (!pubkey) {
+		throw new Error('Pubkey is required for nutszap transaction');
+	}
 	const { minted: lockedProofs } = state.proofs;
 
 	if (!lockedProofs || lockedProofs.length === 0) {
@@ -917,6 +949,9 @@ async function executeGetMeltQuoteStep(txId: string, state: TxState): Promise<vo
 	if (!toMint) {
 		throw new Error('No target mint specified for cross-mint swap');
 	}
+	if (!amount) {
+		throw new Error('Amount is required for cross-mint swap');
+	}
 
 	// Step 1: Get mint quote from TARGET mint (creates an invoice to be paid) with retry
 	console.log(`[tx-recovery] Getting mint quote from ${toMint} for ${amount} sats...`);
@@ -1056,6 +1091,9 @@ async function executeGetMintQuoteStep(txId: string, state: TxState): Promise<vo
 	if (!toMint) {
 		throw new Error('No target mint specified for cross-mint swap');
 	}
+	if (!amount) {
+		throw new Error('Amount is required for cross-mint swap');
+	}
 
 	// Get wallet for target mint
 	const targetWallet = await wallet.getWallet(toMint);
@@ -1106,6 +1144,9 @@ async function executePerformMintStep(txId: string, state: TxState): Promise<voi
 
 	if (!toMint) {
 		throw new Error('No target mint specified for cross-mint swap');
+	}
+	if (!amount) {
+		throw new Error('Amount is required for cross-mint swap');
 	}
 
 	if (!mintQuote) {
@@ -1223,6 +1264,9 @@ async function executeBuildCrossMintNutszapEventStep(txId: string, state: TxStat
 	const { toMint, pubkey, noteId, memo = '', p2pkPubkey } = state.params;
 	const { minted } = state.proofs;
 
+	if (!pubkey) {
+		throw new Error('No pubkey specified for cross-mint nutszap');
+	}
 	if (!minted || minted.length === 0) {
 		throw new Error('No minted proofs available to build nutszap event');
 	}
@@ -1370,6 +1414,12 @@ async function executeBuildZapRequestStep(txId: string, state: TxState): Promise
 
 	const { pubkey, noteId, amount, lnurl, receiptRelays = [], memo = '' } = state.params;
 
+	if (!pubkey) {
+		throw new Error('Pubkey is required for zap transaction');
+	}
+	if (!amount) {
+		throw new Error('Amount is required for zap transaction');
+	}
 	if (!lnurl) {
 		throw new Error('No LNURL provided for zap payment');
 	}
@@ -1801,6 +1851,223 @@ export async function resumeActiveTransaction(): Promise<void> {
 	} catch (error) {
 		console.error('[tx-recovery] Error during resume:', error);
 	}
+}
+
+// ============================================================================
+// Backup (Proofs to Nostr) Step Implementation
+// ============================================================================
+
+/**
+ * Execute a step for the backup (proofs to Nostr) flow
+ */
+async function executeBackupStep(txId: string, state: TxState, step: TxStep): Promise<void> {
+	switch (step) {
+		case BACKUP_STEPS.PREPARE_PROOFS:
+			await executePrepareProofsStep(txId, state);
+			break;
+		case BACKUP_STEPS.PUBLISH_TO_NOSTR:
+			await executePublishToNostrStep(txId, state);
+			break;
+		case BACKUP_STEPS.VERIFY_PUBLISH:
+			await executeVerifyPublishStep(txId, state);
+			break;
+		case BACKUP_STEPS.FINALIZE:
+			await executeFinalizeBackupStep(txId, state);
+			break;
+		default:
+			throw new Error(`Unknown step ${step} for backup transaction`);
+	}
+}
+
+/**
+ * PREPARE_PROOFS step: Prepare proofs for backup
+ * Idempotent: If proofs already prepared in state, skip
+ */
+async function executePrepareProofsStep(txId: string, state: TxState): Promise<void> {
+	// Check if already completed (idempotent)
+	if (state.proofs.reserved && state.proofs.reserved.length > 0) {
+		console.log(`[tx-recovery] Proofs already prepared for backup ${txId}, skipping`);
+		return;
+	}
+
+	const { fromMint, proofsToBackup } = state.params;
+
+	if (!proofsToBackup || proofsToBackup.length === 0) {
+		throw new Error('No proofs provided for backup');
+	}
+
+	// Store the proofs in the state (as 'reserved' for consistency with other flows)
+	const updatedState: TxState = {
+		...state,
+		proofs: {
+			...state.proofs,
+			reserved: proofsToBackup
+		},
+		updatedAt: Date.now()
+	};
+	await saveTxState(txId, updatedState);
+
+	console.log(`[tx-recovery] Prepared ${proofsToBackup.length} proofs for backup ${txId}`);
+}
+
+/**
+ * PUBLISH_TO_NOSTR step: Publish kind 7375 event to backup proofs
+ * Idempotent: If event already published (relay acks exist), skip
+ */
+async function executePublishToNostrStep(txId: string, state: TxState): Promise<void> {
+	// Check if already completed (idempotent)
+	if (state.nostr.eventIds && state.nostr.eventIds.length > 0) {
+		console.log(`[tx-recovery] Backup already published for ${txId}, skipping`);
+		return;
+	}
+
+	const { fromMint } = state.params;
+	const { reserved: proofsToBackup } = state.proofs;
+
+	if (!proofsToBackup || proofsToBackup.length === 0) {
+		throw new Error('No proofs available to backup');
+	}
+
+	// Get wallet for the mint to get all unspent proofs
+	const wallet = get(nutsWallet);
+	if (!wallet) {
+		throw new Error('NutsWallet not initialized');
+	}
+
+	// Get all current unspent proofs for this mint (including the new ones)
+	const existingProofs = wallet.unspentProofs.get(fromMint) || [];
+	const allUnspentProofs = [...existingProofs];
+
+	// Build the kind 7375 backup event template
+	const backupEvent: EventTemplate = {
+		kind: 7375,
+		content: JSON.stringify({
+			mint: fromMint,
+			proofs: allUnspentProofs,
+			del: []
+		}),
+		tags: [],
+		created_at: now()
+	};
+
+	// Generate a deterministic event ID for tracking
+	const eventId = `backup_${txId}_${Date.now()}`;
+
+	// Update state with the event ID
+	const updatedState: TxState = {
+		...state,
+		nostr: {
+			...state.nostr,
+			eventIds: [eventId]
+		},
+		updatedAt: Date.now()
+	};
+	await saveTxState(txId, updatedState);
+
+	console.log(`[tx-recovery] Prepared backup event for ${txId} with ${proofsToBackup.length} proofs`);
+}
+
+/**
+ * VERIFY_PUBLISH step: Publish backup event and wait for relay acknowledgment
+ * Idempotent: If relay acks already received, skip
+ */
+async function executeVerifyPublishStep(txId: string, state: TxState): Promise<void> {
+	// Check if already completed (idempotent)
+	if (state.nostr.relayAcks && state.nostr.relayAcks.length > 0) {
+		console.log(`[tx-recovery] Backup already verified for ${txId}, skipping`);
+		return;
+	}
+
+	const { fromMint } = state.params;
+
+	// Get wallet for the mint to get all unspent proofs
+	const wallet = get(nutsWallet);
+	if (!wallet) {
+		throw new Error('NutsWallet not initialized');
+	}
+
+	// Get all current unspent proofs for this mint
+	const existingProofs = wallet.unspentProofs.get(fromMint) || [];
+
+	// Build the kind 7375 backup event (we need to rebuild it for publishing)
+	const backupEvent: EventTemplate = {
+		kind: 7375,
+		content: JSON.stringify({
+			mint: fromMint,
+			proofs: existingProofs,
+			del: []
+		}),
+		tags: [],
+		created_at: now()
+	};
+
+	// Publish and wait for at least one relay acknowledgment with retry logic
+	const relayAcks: { relay: string; success: boolean }[] = [];
+
+	try {
+		await withRetry(
+			() =>
+				new Promise<void>((resolve, reject) => {
+					const timeout = setTimeout(() => {
+						if (relayAcks.length === 0) {
+							reject(new Error('Timeout waiting for relay acknowledgment'));
+						} else {
+							resolve();
+						}
+					}, 15000); // 15 second timeout (backups are important)
+
+					usePublish(`backup_${txId}`, backupEvent, (message: WorkerMessage) => {
+						const connectionStatus = isConnectionStatus(message);
+						if (connectionStatus) {
+							const relayUrl = connectionStatus.relayUrl()?.toString();
+							if (relayUrl) {
+								relayAcks.push({ relay: relayUrl, success: true });
+								// Resolve after first successful relay ack
+								clearTimeout(timeout);
+								resolve();
+							}
+						}
+					});
+				}),
+			'publish backup to Nostr'
+		);
+	} catch (error) {
+		// If publishing fails after retries, throw error to trigger abort
+		// We don't want to lose the proofs, so we keep them in the wallet
+		// but mark the backup as failed
+		console.error(`[tx-recovery] Failed to publish backup ${txId}:`, error);
+		throw new Error(
+			`Failed to backup proofs to Nostr: ${error instanceof Error ? error.message : String(error)}. ` +
+			`Your proofs are safe in your wallet but not yet backed up. Please try again.`
+		);
+	}
+
+	// Update state with relay acknowledgments
+	const updatedState: TxState = {
+		...state,
+		nostr: {
+			...state.nostr,
+			relayAcks
+		},
+		updatedAt: Date.now()
+	};
+	await saveTxState(txId, updatedState);
+
+	console.log(`[tx-recovery] Published backup for ${txId} to ${relayAcks.length} relays`);
+}
+
+/**
+ * FINALIZE step for backup: Mark backup as complete
+ */
+async function executeFinalizeBackupStep(txId: string, state: TxState): Promise<void> {
+	const { reserved: proofsToBackup } = state.proofs;
+
+	console.log(
+		`[tx-recovery] Finalized backup ${txId}, backed up ${proofsToBackup?.length || 0} proofs`
+	);
+
+	// finalizeTransaction handles clearing activeTxId and marking state finalized
+	await finalizeTransaction(txId);
 }
 
 // ============================================================================

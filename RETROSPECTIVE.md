@@ -6,124 +6,132 @@
 
 ## Summary
 
-- **Iterations:** 14
-- **Stories Completed:** 14 (US-001 through US-014)
-- **Overall Assessment:** Smooth with expected challenges during migration phase
+- **Iterations:** 23 total (14 Feed migration + 10 eCash Transaction Recovery - 1 overlapping retrospective)
+- **Stories Completed:** 24 (14 Feed component migration + 10 eCash Transaction Recovery)
+- **Overall Assessment:** Moderate challenges with some complex integration work
 
-The Feed Component Architecture Refactoring project was completed successfully. The Feed component was transformed from a ~850 line monolithic component with internal subscription/pagination/search logic to a ~160 line pure presentation component. All 12 parent components were migrated to the new API.
+The Ralph agent loop completed two major feature sets:
+1. **Feed Component Migration** (US-001 through US-014): Refactored the Feed component from a monolithic ~850 line component with internal subscription logic to a pure ~160 line presentation component
+2. **eCash Transaction Recovery** (US-001 through US-010): Implemented a durable, resumable transaction system for all eCash transfer flows using IndexedDB persistence and a state machine pattern
 
 ---
 
 ## Impossible or Deferred Items
 
-No major items identified. All 14 user stories were completed as specified in the PRD.
+No major items identified. All 24 stories in both PRDs were completed as specified.
 
 ---
 
 ## Challenging Implementations
 
-### Type Predicate Syntax in Svelte Templates
-- **Story:** US-007
-- **What made it difficult:** TypeScript type predicate syntax (`.filter((p): p is string => ...)`) is not supported in Svelte template expressions
-- **Evidence:** Multiple typecheck errors when filtering arrays, requiring workarounds
-- **Resolution:** Moved type filtering logic to the script section using computed variables instead of inline template expressions
-- **Log reference:** `logs/US-007-110439.log` (lines 344-365)
+### Cross-Mint Swap State Machine (Nutszap+Melt)
+- **Story:** US-005 (eCash Transaction Recovery)
+- **What made it difficult:** Complex cross-mint swap flow requiring precise ordering of operations across two different mints. The agent initially misunderstood the correct sequence and had to correct the implementation after type errors revealed the API misuse.
+- **Evidence:** Multiple code iterations, type errors revealing API signature mismatches:
+  - `createMeltQuoteBolt11` expects a string (invoice), not an object
+  - Confusion between `MeltQuoteState` and `MintQuoteState` enums
+  - Had to add specialized `executeBuildCrossMintNutszapEventStep` because cross-mint uses `state.proofs.minted` instead of `state.proofs.reserved`
+- **Resolution:** The correct cross-mint flow was established:
+  1. Get mint quote from TARGET mint (creates invoice)
+  2. Get melt quote from SOURCE mint using that invoice
+  3. Melt on source mint (pays the invoice)
+  4. Poll target mint for PAID status
+  5. Mint new proofs on target mint
+- **Log reference:** `logs/US-005-132716.log` (lines 420-510 show the correction process)
 
-### Modal Dialog Type Casting
-- **Story:** US-009
-- **What made it difficult:** HTMLElement doesn't have `showModal()` method - it's on HTMLDialogElement, but Svelte templates don't support TypeScript `as` assertions in expressions
-- **Evidence:** Error: `showModal() doesn't exist on HTMLElement`
-- **Resolution:** Created a helper function in the script section to handle the type cast
-- **Log reference:** `logs/US-009-111251.log` (lines 318-333)
+### ecash.svelte Recovery Integration
+- **Story:** US-009 (eCash Transaction Recovery)
+- **What made it difficult:** Integrating the recovery system into existing UI code with complex state management. Required replacing a monolithic 200+ line `sendEcash()` function with a reactive state-driven approach while maintaining existing UX patterns.
+- **Evidence:** 
+  - Initial confusion about how to read from Svelte stores (tried `store.get()` instead of `get(store)` from svelte/store)
+  - Required careful handling of polling intervals, subscriptions, and cleanup
+  - Had to maintain backward compatibility with existing error display patterns
+- **Resolution:** Successfully implemented reactive UI that subscribes to `activeTxIdStore`, polls transaction state every 500ms, and handles cleanup on component destroy.
+- **Log reference:** `logs/US-009-134546.log` (lines 285-325 show the store access fix)
 
-### Home Feed Multi-Edit Migration
-- **Story:** US-011
-- **What made it difficult:** Required multiple targeted StrReplaceFile operations due to file size and complexity; tab indentation vs space indentation mismatch caused replacement failures
-- **Evidence:** Multiple "No replacements made" messages before discovering tabs were used
-- **Resolution:** Used `cat -A` to inspect exact characters, then used tabs in replacements
-- **Log reference:** `logs/US-011-111833.log` (lines 306-314)
-
-### Profile View Dual-Mode Handling
-- **Story:** US-013 (kind0.svelte)
-- **What made it difficult:** Profile view has two modes (profile posts vs follows feed) requiring different subscription logic and data sources
-- **Evidence:** Complex mode switching with feedSub cleanup required when switching
-- **Resolution:** Created separate feed arrays for each mode with reactive switching via `$: feedItems = mode === 'profile' ? profileFeedItems : followsFeedItems`
-- **Log reference:** `logs/US-012-112225.log` (lines 476-488)
+### Cross-Mint Nutszap Event Building
+- **Story:** US-005 (eCash Transaction Recovery)
+- **What made it difficult:** The cross-mint flow uses minted proofs (from target mint) instead of reserved proofs (from source mint) when building the Nutszap event. The initial implementation reused `executeBuildNutszapEventStep` which looked at the wrong proofs location.
+- **Evidence:** Realization at line 489 of US-005 log: "I have a function executeBuildCrossMintNutszapEventStep defined but not used - the step handler calls executeBuildNutszapEventStep instead."
+- **Resolution:** Created separate `executeBuildCrossMintNutszapEventStep` function that uses `state.proofs.minted` and updated the dispatcher to call it for cross-mint builds.
+- **Log reference:** `logs/US-005-132716.log` (lines 489-503)
 
 ---
 
 ## Key Design Decisions
 
-### Pure Presentation Component Pattern
-- **Context:** Feed component was monolithic with ~700 lines of subscription/pagination/search logic
-- **Decision:** Transform Feed to pure presentation component - parent manages all data/subscriptions
-- **Rationale:** Better separation of concerns, more flexible, easier to test
-- **Impact:** All 12 parent components now explicitly manage their own data flow
-- **Alternative considered:** Keeping some internal state - rejected for consistency
+### State Machine with Auto-Advance Pattern
+- **Context:** Need to execute multi-step transactions that can resume after app crashes
+- **Decision:** Implemented `advanceTransaction()` that auto-advances through steps until completion or error, with non-blocking resume on app startup
+- **Rationale:** Ensures crash recovery without requiring complex external orchestration
+- **Impact:** All transaction flows now follow consistent pattern: `startTransaction()` → `advanceTransaction()` (runs all steps) → `finalizeTransaction()`. The state machine handles idempotency checks at each step.
+- **Alternative considered:** Manual step-by-step advancement controlled by UI - rejected because it would be fragile during crashes
 
-### Generic Type Support
-- **Context:** Feed needed to work with different data types (ParsedEvent, ProcessedNotification, etc.)
-- **Decision:** Use Svelte's `type T = $$Generic` for type-safe generic components
-- **Rationale:** Type safety across different use cases without duplicating component code
-- **Impact:** TypeScript properly infers item types in parent components
+### Proof Reservation System
+- **Context:** Prevent double-spend when app crashes mid-transaction
+- **Decision:** Three lifecycle methods with localStorage persistence: `reserveProofs()` → `releaseReserved()` / `commitReserved()`
+- **Rationale:** Proofs are reserved before use, persisted immediately, and only committed after successful completion. On abort, they're released back to unspent pool.
+- **Impact:** Balance calculation must now exclude reserved proofs: `available = unspent - reserved`. Wallet initialization loads reserved proofs from localStorage.
+- **Files affected:** `src/controller/proofs.ts`
 
-### Viewport State Binding Pattern
-- **Context:** Parents needed access to scroll position for pagination and batching
-- **Decision:** Export `start`, `end`, `down`, `viewport` with `bind:` for two-way binding
-- **Rationale:** Standard Svelte pattern, allows parent to both read and control viewport state
-- **Impact:** Enabled `batchNewItems` behavior (US-007) and scroll-aware features
+### IndexedDB + localStorage Hybrid Persistence
+- **Context:** Transaction state needs durable storage, but active transaction ID needs synchronous access
+- **Decision:** IndexedDB for full `TxState` (complex object), localStorage for `activeTxId` (via `persistentWritable`)
+- **Rationale:** IndexedDB handles large structured data well; localStorage provides synchronous reads for quick "is there an active transaction?" checks on app startup
+- **Impact:** Recovery flow: check localStorage → if activeTxId, load full state from IndexedDB → resume transaction
 
-### Quantile-Based Pagination
-- **Context:** Nostr feeds need efficient pagination using `until`/`since` timestamps
-- **Decision:** Calculate `until = lastItem.createdAt() - 1` for sliding window pagination
-- **Rationale:** More efficient than offset/limit for time-series data
-- **Impact:** Explore feed loads older posts efficiently as user scrolls
+### Idempotent Step Design
+- **Context:** Steps must be safely re-executable after crash
+- **Decision:** Each step checks state before executing. Example: `if (state.proofs.reserved.length > 0) return 'already_reserved'`
+- **Rationale:** Prevents duplicate operations (double-spend, duplicate publishes) when resuming
+- **Impact:** All step implementations follow pattern: check state → if done, skip → if not, execute → update state → persist → return result
 
-### Optimistic UI Pattern for DMs
-- **Context:** Users expect immediate feedback when sending messages
-- **Decision:** Store nonce before sending, add to local feed immediately, dedupe when real event arrives
-- **Rationale:** Better UX with immediate visual feedback
-- **Impact:** Chat feels responsive while maintaining data consistency
+### Retry with Exponential Backoff
+- **Context:** Network failures during mint operations
+- **Decision:** `withRetry()` helper with 3 max retries, base delay 1000ms, doubling each attempt
+- **Rationale:** Transient network errors shouldn't abort transactions. Exponential backoff prevents overwhelming servers.
+- **Impact:** Applied to all network operations (quote fetching, melts, mints, proof locking, Nostr publishing)
 
 ---
 
 ## Critical Patterns & Gotchas
 
-### Pre-existing Type Errors
-- **Issue:** Typecheck consistently shows 300+ errors throughout the codebase
-- **Root cause:** These are legacy issues in other files (vite.config.ts, CarouselAnimator.ts, controller files)
-- **Solution:** Agent learned to filter errors by file to verify changes didn't introduce new errors
-- **Future prevention:** Always check `npm run check` before and after changes; focus on errors in modified files only
+### Svelte Store Access Pattern
+- **Issue:** Confusion between store methods
+- **Root cause:** Different store implementations have different APIs
+- **Solution:** Use `get(store)` from `svelte/store` to read current value, not `store.get()` or `store.subscribe()`
+- **Future prevention:** Always import `get` from `svelte/store` when needing to synchronously read store values
+- **Log reference:** `logs/US-009-134546.log` (line 318-323)
 
-### Event Dispatching vs Callback Props
-- **Issue:** Svelte uses `createEventDispatcher` but this codebase prefers callback props
-- **Root cause:** Inconsistent patterns in codebase - some components use dispatch, others use callback props
-- **Solution:** Agent discovered pattern: `export let onEvent: ((data: T) => void) | undefined = undefined`
-- **Future prevention:** Check existing patterns in similar components before implementing
+### Pre-existing TypeScript Errors
+- **Issue:** Typecheck shows ~350 errors in the codebase
+- **Root cause:** Legacy code with incomplete typing
+- **Solution:** Agent correctly identified that changes didn't introduce new errors by comparing error counts before/after changes (352 → 349 → 350 errors, all pre-existing)
+- **Future prevention:** When working with legacy codebases, establish baseline error count before making changes, then verify no new errors in modified files
 
-### Svelte Template Type Limitations
-- **Issue:** Svelte templates don't support TypeScript `as` assertions or type predicates
-- **Root cause:** Svelte 4 template compiler limitations
-- **Solution:** Move type-sensitive logic to script section, use reactive statements
-- **Future prevention:** Always implement complex type logic in script, pass simple values to templates
+### Cashu-ts API Gotchas
+- **Issue:** Multiple API signature misunderstandings
+- **Root causes:**
+  1. `createMeltQuoteBolt11(invoice)` takes string, not object
+  2. `MintQuoteState` and `MeltQuoteState` are different enums with different values
+  3. MintQuote states: UNPAID, PAID, ISSUED (different from MeltQuoteState)
+- **Solution:** Careful reading of type definitions and iterative fixing
+- **Future prevention:** Always verify Cashu-ts API signatures in node_modules when implementing new flows
+- **Log reference:** `logs/US-005-132716.log` (lines 410-420, 444-464)
 
-### Indentation Sensitivity in StrReplaceFile
-- **Issue:** StrReplaceFile failed when file used tabs but search used spaces (or vice versa)
-- **Root cause:** Some files use tabs, others use spaces - inconsistent formatting
-- **Solution:** Use `cat -A` or `sed` with visible whitespace to inspect before replacing
-- **Future prevention:** Inspect file whitespace patterns before multi-edit operations
+### Quote Expiry Handling Race Conditions
+- **Issue:** Quote expiry check before operation might miss expiry that happens during the operation
+- **Solution:** Double-check pattern:
+  1. Check expiry before operation
+  2. Try operation
+  3. In catch block, check if error was expiry-related and handle accordingly
+- **Future prevention:** Always implement expiry handling both proactively (before) and reactively (in error handler)
 
-### Reactive Array Processing Order
-- **Issue:** `$: processedItems = rawItems.filter(...)` can cause flickering if not careful
-- **Root cause:** Reactive statements execute on every dependency change
-- **Solution:** Store raw events separately, process in reactive statement, pass processed to Feed
-- **Future prevention:** Pattern: `rawEvents` (storage) → `$: processedEvents` (transformation) → `items={processedEvents}`
-
-### Kind-Specific Event Handling
-- **Issue:** Different Nostr event kinds require different processing (Kind4 DMs vs Kind1 posts vs Kind9321 wallet)
-- **Root cause:** Nostr protocol has many event types with different semantics
-- **Solution:** Use type guards like `isKind9321(message)` before processing
-- **Future prevention:** Always check for type guards in codebase before implementing new event handlers
+### Cross-Mint vs Same-Mint Proof Source Difference
+- **Issue:** Different proof arrays for different flows
+- **Root cause:** Cross-mint generates NEW proofs on target mint; same-mint uses reserved proofs
+- **Solution:** Cross-mint has specialized `executeBuildCrossMintNutszapEventStep` that uses `state.proofs.minted`
+- **Future prevention:** When adding new transaction types, carefully trace which proofs are used at each step
 
 ---
 
@@ -131,35 +139,33 @@ No major items identified. All 14 user stories were completed as specified in th
 
 ### For this codebase:
 
-1. **Address pre-existing type errors:** With 300+ type errors, consider a dedicated cleanup sprint to fix TypeScript issues across the codebase
+1. **Address pre-existing TypeScript errors:** The ~350 errors should be incrementally fixed to improve type safety and catch real bugs at compile time.
 
-2. **Standardize indentation:** Choose tabs OR spaces project-wide to avoid StrReplaceFile issues in future agent runs
+2. **Add automated tests for transaction recovery:** The state machine has many branches (normal flow, retry paths, abort paths, resume paths). Unit tests with mocked Cashu-ts would provide confidence in the recovery logic.
 
-3. **Document component patterns:** The migration pattern discovered (raw events → reactive processing → items prop) should be documented for future Feed usages
+3. **Consider rate limiting for mint polling:** The `perform_mint` step polls 60 times with 2-second delays. Add jitter and exponential backoff to avoid thundering herd if many clients retry simultaneously.
 
-4. **Consider Svelte 5 runes:** When upgrading to Svelte 5, the `$:` reactive syntax will change to `$derived()` / `$effect()` - plan migration accordingly
+4. **Document Cashu transaction patterns:** The patterns discovered (cross-mint flow, quote expiry handling, proof lifecycle) are complex enough to warrant dedicated documentation for future developers.
 
 ### For future Ralph runs:
 
-1. **Start with pattern discovery:** Reading 2-3 already-migrated files before implementing new ones saves time
+1. **Establish typecheck baseline early:** When working with legacy codebases, immediately record the baseline error count and file locations to avoid confusion about what's "new."
 
-2. **Verify pre-existing errors early:** Run typecheck before making changes to establish baseline
+2. **Verify external API signatures before implementation:** For Cashu-ts or similar external libraries, check the actual type definitions in node_modules before writing implementation code.
 
-3. **Use WriteFile for complex migrations:** When a file needs extensive changes, writing the whole file is safer than multiple StrReplaceFile operations
+3. **Consider pair-programming for complex state machines:** The cross-mint swap logic had subtle ordering issues that might benefit from human review of the state transition diagram.
 
-4. **Check for "already done" stories:** US-012 was discovered to be already complete from US-005 - verify story prerequisites before starting
-
-5. **Whitespace inspection:** Use `cat -A` when StrReplaceFile fails silently
+4. **Document proof flow diagrams:** For multi-step transactions involving proofs moving between states (unspent→reserved→spent/minted), create ASCII diagrams in comments showing the happy path and error paths.
 
 ### Technical debt:
 
-1. **VirtualList component types:** VirtualList and VirtualListBottom have required props that should be optional - consider updating these components
+1. **Type safety in tx-recovery.ts:** Some `any` types remain in error handling. Should use proper Cashu-ts error types when available.
 
-2. **Connection status tracking:** Several parent components have `connectionStatus` variables that aren't being populated - they rely on the variable existing for RelaysList but don't actually track connections
+2. **Polling vs WebSocket:** Current implementation polls for quote status. Long-term, consider WebSocket or server-sent events for real-time updates.
 
-3. **Unused imports:** Several migrated files have unused imports (MessageType, etc.) that could be cleaned up
+3. **Transaction state cleanup:** Completed transactions accumulate in IndexedDB. Consider a cleanup job that archives or deletes old finalized transactions after N days.
 
-4. **Code duplication:** The `processEvents` pattern is similar across components - could be extracted to a shared utility
+4. **Error message internationalization:** Error messages are hardcoded in English. Should use i18n framework for user-facing errors.
 
 ---
 

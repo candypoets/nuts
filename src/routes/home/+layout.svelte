@@ -186,7 +186,7 @@
 			'active_wallet_' + $key?.pub,
 			[
 				// { kinds: [7375], authors: [$key?.pub], limit: 10, relays: relays },
-				{ kinds: [17375], authors: [$key?.pub], limit: 10, relays: relays }
+				{ kinds: [17375], authors: [$key?.pub], limit: 10, relays: [...DEFAULT_RELAYS, ...relays] }
 			],
 			handleWalletEvents,
 			{ bytesPerEvent: 6144 }
