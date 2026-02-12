@@ -161,155 +161,230 @@
 │ - Keep CI green                                                              │
 │ - Read the Codebase Patterns section in progress.txt before starting         │
 ╰──────────────────────────────────────────────────────────────────────────────╯
-• Let me start by reading the PRD and progress log to understand what needs to b
-  e done.
+• Let me start by reading the PRD file and the progress log to understand what n
+  eeds to be done.
 • Used ReadFile (prd.json)
 • Used ReadFile (progress.txt)
-• Let me check the current git branch to ensure I'm on the right one, and also l
-  ook at the codebase structure to understand the implementation patterns better
-  .
-• Used Shell (git branch --show-current)
-• Used Glob (src/model/cashu/*)
-• Used ReadFile (src/controller/proofs.ts)
-• I'm on the correct branch. Now let me read the existing tx-recovery.ts file to
-  understand what's already implemented and what needs to be added for US-003.
-• Let me read the existing tx-recovery.ts file to understand what's already impl
-  emented:
+• Let me analyze the current state:
+
+  1. The PRD shows that US-001, US-002, and US-003 are already completed (passes
+     rue)
+  2. The next highest priority story with passes: false is US-004 - "Implement N
+     zap (same-mint) state machine steps"
+
+  Looking at the PRD, US-004 requires:
+
+  • Implement 'reserve_proofs' step: reserve proofs from wallet
+  • Implement 'build_nutszap_event' step: create and sign kind 9321 event
+  • Implement 'publish_nutszap_event' step: publish via usePublish, store first
+    lay ack
+  • Implement 'finalize' step: commit reserved proofs, clear activeTxId
+  • Each step checks if already completed and skips idempotently
+  • Errors are stored in state.errors with step context
+  • Typecheck passes
+
+  Let me first check the current state of the tx-recovery.ts file to understand
+  what's already there and what needs to be added for US-004.
+
+  I also need to check the existing codebase to understand:
+
+  1. How Nutszap events are created (kind 9321)
+  2. How usePublish works
+  3. How existing sendEcash logic works
+
+  Let me start by reading the existing tx-recovery.ts file and explore related f
+  iles.
+• Let me check the current state of the project and understand what's been done
+  so far. I need to work on US-004 which is the highest priority story with pass
+  es: false.
 • Used ReadFile (src/model/cashu/tx-recovery.ts)
-• Used Glob (src/lib/*.ts)
-• I have successfully reviewed the core types and storage mechanisms. However, l
-  ooking at the current state of src/model/cashu/tx-recovery.ts, I've hit a bit
-  of a snag. While the PRD requirements for US-001 (types and persistence) are f
-  ully implemented, the module currently lacks the high-level transaction manage
-  ment functions described in US-003. Specifically, I haven't implemented startT
-  ransaction to initiate the state machine, nor have I defined how the system wi
-  ll handle advanceTransaction for idempotent retry logic.
+• Used Glob (src/**/*ecash*)
+• Used Glob (src/**/*nutszap*)
+• Now let me look at the existing ecash.svelte modal and understand how nutszeps
+  are currently implemented. I also need to look at the NutsWallet class to unde
+  rstand how proofs work.
+• Used ReadFile (src/routes/modals/ecash.svelte)
+• Used ReadFile (src/controller/proofs.ts)
+• Now I understand the codebase. Let me check the current git branch and then im
+  plement US-004.
 
-  Hmm... if I jump straight into the UI integration or the specific flow steps,
-  the code will be brittle and difficult to recover if a crash occurs during the
-  process. Wait, I also need to consider how the application will track if a tra
-  nsaction is currently "active" across sessions. This suggests that the global
-  activeTxIdStore I set up needs to be managed more formally. I can't just have
-  pieces of the UI manually setting and clearing this store; it needs to be enca
-  psulated within the lifecycle of the transaction itself to ensure consistency.
+  From the PRD, US-004 requires:
 
-  Actually, to satisfy the acceptance criteria for US-003, I need a robust state
-  machine that can advance through steps, update the persisted state, and eventu
-  ally call finalizeTransaction to clean up the active ID. This ensures that eve
-  ry step—from reserving proofs to building Nostr events—is atomic and resumable
-  .
+  1. Implement 'reserve_proofs' step: reserve proofs from wallet
+  2. Implement 'build_nutszap_event' step: create and sign kind 9321 event
+  3. Implement 'publish_nutszap_event' step: publish via usePublish, store first
+     lay ack
+  4. Implement 'finalize' step: commit reserved proofs, clear activeTxId
+  5. Each step checks if already completed and skips idempotently
+  6. Errors are stored in state.errors with step context
 
-  But before I can write the implementation, I need to organize my workflow. The
-  current todos list doesn't reflect the specific priority of US-003, which is t
-  he foundational step for the transaction recovery logic. If I don't explicitly
-  mark US-003 as in-progress and define the subsequent steps for the various tra
-  nsaction types, I might lose track of the required state transitions.
+  I need to update the executeStep function in tx-recovery.ts to implement these
+  steps for the 'nutszap' transaction type.
 
-  Therefore, the most logical next step is to update the project's todo list to
-  reflect this progression. By setting US-003 to "in_progress" and mapping out t
-  he remaining user stories, I can maintain a clear focus on building the state
-  machine core first. This will serve as the roadmap for the next set of commits
-  .
-• Now I understand the structure. I need to implement US-003 which adds the core
-  state machine functionality. Let me implement startTransaction, advanceTransac
-  tion, and finalizeTransaction.
-• Used SetTodoList
-  • US-003: Implement startTransaction and core state machine ←
-  • US-004: Implement Nutszap state machine steps
-  • US-005: Implement Nutszap+Melt state machine steps
-  • US-006: Implement Zap state machine steps
-  • US-007: Implement force cancel transaction
-  • US-008: Add global resume on app startup
-  • US-009: Integrate recovery system into ecash.svelte
-  • US-010: Handle edge cases and error recovery
-• Now let me implement US-003 by adding the state machine functions to tx-recove
-  ry.ts. I need to:
+  Looking at the existing code in ecash.svelte, I can see how nutszeps are creat
+  ed:
 
-  1. startTransaction(type, params) - creates a new transaction, saves to Indexe
-     , sets activeTxId
-  2. advanceTransaction(txId) - loads state and runs the next step
-  3. finalizeTransaction(txId) - marks as finalized, clears activeTxId
+  • Kind 9321 event
+  • Tags include proofs, mint URL (u), note ID (e), recipient pubkey (p)
+  • Content is memo
 
-  I'll add these to the existing tx-recovery.ts file.
+  Let me also check what hooks are available for publishing.
+• Now I need to check the current branch and understand the publish hook pattern
+  s:
+• Used Shell (cd /root/code/nuts-cash &...git branch --show-current)
+• Used Grep (usePublish)
+• I've analyzed the existing implementation in ecash.svelte. The current flow ha
+  ndles three distinct scenarios: same-mint P2PK sends, cross-mint swaps, and LN
+  URL zaps. For the recovery system to be effective, I need to standardize these
+  into a state machine where each step is idempotent and can be resumed after an
+  interruption.
+
+  Hmm, the 'nutszap' type is the most critical to handle first as it involves th
+  e most complex state transitions—moving from proof reservation to event public
+  ation and finalization. If I look at the current executeStep function, it's cu
+  rrently just a skeleton.
+
+  Wait, how should I handle the proof selection? In ecash.svelte, the send metho
+  d is called to split the proofs. For the recovery system to be robust, the res
+  erve_proofs step shouldn't just select proofs; it should actually perform the
+  wallet.send() operation to generate the specific outputs intended for the reci
+  pient. If the app crashes after this, we shouldn't re-run send because the wal
+  let might have already moved the state. Instead, we need to check if state.pro
+  ofs.reserved already exists.
+
+  Actually, for the build_nutszap_event step, I'll need to reconstruct the Nostr
+  event using the stored proofs. The current code uses wallet.receive() to creat
+  e P2PK locked proofs before publishing. This logic needs to be encapsulated wi
+  thin the state machine's execution flow.
+
+  But wait, how do I track the 'published' status? The PRD mentions storing the
+  first relay acknowledgment. This is vital for idempotency. If the publish_nuts
+  zap_event step runs and we receive an ACK, we must record it in the state. If
+  the process restarts and sees that ACK, it should skip publishing again to avo
+  id duplicates on the network.
+
+  I'll focus on the Nutszap flow first. I need to define the executeNutszapStep
+  logic to handle these transitions. This will involve checking the state.step a
+  nd ensuring each action is atomic. For example, in the finalize step, we'll mo
+  ve the reserved proofs to the spent category permanently.
+
+  Now, I need to implement the specific step execution logic for the Nutszap flo
+  w in src/model/cashu/tx-recovery.ts. I will update the file to include the det
+  ailed execution handlers for each step of the recovery process, ensuring that
+  each transition correctly manages the proof states and Nostr event publishing
+  as I've outlined.
+• Now I need to implement US-004. Let me look at how nutszeps are currently buil
+  t in ecash.svelte to replicate the pattern, then implement the step execution
+  functions:
 • Used StrReplaceFile (src/model/cashu/tx-recovery.ts)
-• Now let me run typecheck to make sure the code passes:
+• Now I need to update the executeStep function and add the specific step implem
+  entations for the nutszap flow.
+• Used StrReplaceFile (src/model/cashu/tx-recovery.ts)
+• Now let me run typecheck to see if there are any type errors.
+• Now let me run typecheck to verify the implementation:
 • Used Shell (cd /root/code/nuts-cash &...ypecheck 2>&1 | head -100)
-• Let me check what scripts are available in the project:
+• Let me check what scripts are available.
 • Used Shell (cd /root/code/nuts-cash && npm run 2>&1)
-• Let me run npm run check for type checking:
+• I see, the script is called check, not typecheck. Let me run that.
 • Used Shell (cd /root/code/nuts-cash &...un check 2>&1 | head -150)
-• The type check shows many pre-existing errors in the codebase that are not rel
-  ated to my changes. Let me check if there are any new errors related to my cha
-  nges by looking specifically at the tx-recovery.ts file.
+• I see there are many pre-existing errors in the codebase. Let me check if ther
+  e are any errors in the tx-recovery.ts file specifically. Let me look at the e
+  rrors more carefully and run the check again, filtering for tx-recovery.
+• The errors shown are pre-existing in the codebase. Let me check specifically f
+  or errors in tx-recovery.ts:
+• Used Shell (cd /root/code/nuts-cash &...ery|error TS)" | head -50)
+• No errors related to tx-recovery.ts. Let me run the build to make sure everyth
+  ing compiles.
+• Used Shell (cd /root/code/nuts-cash &...run build 2>&1 | tail -50)
+• The build succeeded. The warnings are from third-party dependencies (html5-qrc
+  ode) and not from my code. Now I need to:1. Update the PRD to set passes: true
+  for US-004 2. Append progress to progress.txt3. Check if there's an AGENTS.md
+  to update 4. Commit the changes
 
-  Let me build the project instead to see if my code compiles:
-• Used Shell (cd /root/code/nuts-cash &...un build 2>&1 | tail -100)
-• The build passes successfully. The errors shown are from external dependencies
-  (html5-qrcode) which are pre-existing warnings, not errors related to my chang
-  es.
-
-  Now let me commit the changes and update the PRD and progress.txt:
-• Build passes successfully. Now let me commit the changes and update the PRD an
-  d progress log:
-• Used Shell (cd /root/code/nuts-cash &... git add -A && git status)
-• Hmm, I notice there are log files being tracked. Let me check what they are an
-  d commit:
-• Used Shell (cd /root/code/nuts-cash &...n and core state machine")
-• Now I need to update the PRD to set passes: true for US-003 and append the pro
-  gress to progress.txt:
+  Let me also run lint to make sure.
+• Build succeeded. Let me run lint as well:
+• Used Shell (cd /root/code/nuts-cash &... run lint 2>&1 | tail -30)
+• The warnings are mostly from prettier plugin config and not from the code itse
+  lf. There are some code style issues but they're in other files. Let me format
+  the tx-recovery.ts file specifically to make sure it's properly formatted.
+• Let me format the tx-recovery.ts file to ensure proper code style:
+• Used Shell (cd /root/code/nuts-cash &...cashu/tx-recovery.ts 2>&1)
+• Now let me update the PRD to mark US-004 as passing, and append progress to pr
+  ogress.txt. Let me also check if there's an AGENTS.md file that needs updating
+  .
+• Now let me update the PRD to mark US-004 as complete and append to progress.tx
+  t:
 • Used StrReplaceFile (prd.json)
-• Now let me append the progress to progress.txt:
+• Now let me append the progress to progress.txt.
 • Used WriteFile (progress.txt)
-• Now let me update the todo list and verify the final state:
-• Used SetTodoList
-  • US-003: Implement startTransaction and core state machine
-  • US-004: Implement Nutszap state machine steps
-  • US-005: Implement Nutszap+Melt state machine steps
-  • US-006: Implement Zap state machine steps
-  • US-007: Implement force cancel transaction
-  • US-008: Add global resume on app startup
-  • US-009: Integrate recovery system into ecash.svelte
-  • US-010: Handle edge cases and error recovery
-• I've completed US-003. Let me verify by reading the PRD to check the remaining
-  stories:
-• Used ReadFile (prd.json)
-• Good, I've marked US-003 as complete. Let me also check how many stories remai
-  n to understand the overall progress:
-• Used Grep ("passes": false)
-• There are still 7 stories remaining to be implemented (US-004 through US-010).
-  The next story to work on would be US-004. Let me provide a summary of what wa
-  s completed.
-• US-003 completed successfully.
+• Now let me check if there's an AGENTS.md file in the src/model/cashu directory
+  that should be updated with patterns.
+• Let me check if there's an AGENTS.md to update in the model directory:
+• Used Shell (find /root/code/nuts-cash...e "AGENTS.md" 2>/dev/null)
+• I've implemented the Nutszap logic, but I need to ensure executeReserveProofsS
+  tep properly commits the change proofs. If I miss this, the wallet state will
+  drift during recovery. Wait, I also need to verify how proof selection logic w
+  orks for existing tokens.
 
-  Summary
+  Hmm, I should double-check the validateP2pkPubkey import; if the path is wrong
+  , the utility won't work. Actually, it's better to review the diff for the ent
+  ire file. This will allow me to catch any logic gaps or syntax errors across t
+  he state machine implementation. I'll examine the changes in src/model/cashu/t
+  x-recovery.ts now.
+• Let me review the implementation to make sure the change proofs are committed
+  and imports are correct:
+• Used ReadFile (src/model/cashu/tx-recovery.ts)
+• Looking at the code, I see an issue. When we call mintWallet.send(), it return
+  s proofs to keep and proofs to send. The proofs to keep (change) need to be co
+  mmitted to the wallet. In the original ecash.svelte code, after a successful s
+  end they do:```typescript $nutsWallet.unspentProofs.set(fromMint, proofsToKeep
+  ); $nutsWallet.updateBalanceByMint();$nutsWallet.saveProofs(fromMint, proofsTo
+  Keep);
 
-  Implemented the core state machine for transaction recovery:
 
-  Changes Made
+  But in my implementation, I'm only storing the change in the state, not actual
+  ly updating the wallet. Let me fix this.Also, I need to verify that the finali
+  ze step properly commits the reserved proofs. Let me check finalizeTransaction
+  and the executeFinalizeStep.
+• I notice I need to fix the implementation - the change proofs from send() need
+  to be committed to the wallet. Let me also check the finalize logic:
+• Used ReadFile (src/model/cashu/tx-recovery.ts)
+• Looking at the finalize step and finalizeTransaction, I notice that:1. The fin
+  alize step only calls finalizeTransaction which marks the state as finalized b
+  ut doesn't actually commit the reserved proofs to spent. 2. Looking at the ori
+  ginal ecash.svelte code for same-mint sends:typescript// Commit: only keep pro
+  ofs $nutsWallet.unspentProofs.set(fromMint, proofsToKeep);$nutsWallet.updateBa
+  lanceByMint(); $nutsWallet.saveProofs(fromMint, proofsToKeep);
 
-  File: src/model/cashu/tx-recovery.ts
+  Wait, that's for successful sends. For reserved proofs, we need to call wallet
+  .commitReserved() to move them from reserved to spent.
 
-  Added core state machine functions:
+  Looking at the NutsWallet class, commitReserved() moves proofs from reserved t
+  o spent. So I need to:1. After a successful nutszap publish, commit the reserv
+  ed proofs to spent2. Also save the change proofs to unspent
 
-  • startTransaction(type, params) - Creates a new transaction, generates unique
-    xId, persists to IndexedDB, sets activeTxId
-  • advanceTransaction(txId) - Loads state, prevents concurrent execution, advan
-    s through steps with auto-progression
-  • finalizeTransaction(txId) - Marks transaction as complete, clears activeTxId
-  • getActiveTxId() - Retrieves active transaction from localStorage
-  • getStepSequence(type) - Returns ordered steps for each transaction type (nut
-    ap, nutszap-melt, zap)
-  • executeStep() - Placeholder for step execution (to be implemented in US-004-
-  6)
-  • isRetryableError() - Detects network/timeout errors for retry logic
+  Actually, let me reconsider. The reserve_proofs step does:
 
-  Key Features
+  1. Calls wallet.send() to select proofs - this splits unspent into keep and se
+     . Reserves the send proofs3. Stores keep as change in state
 
-  • Prevents concurrent execution using pendingExecutions map
-  • Auto-advances through all steps until completion or error
-  • Persists state before/during execution for crash recovery
-  • Error tracking with retryable flag for smart retry logic
+  But I never actually update the wallet's unspentProofs with the change! The un
+  spentProofs still has the original proofs. This is a bug.Looking at the flow:1
+  . wallet.send() consumes unspentProofs and returns {keep, send}2. We reserve t
+  he send proofs3. We need to update unspentProofs to only have the change (keep
+  ) proofs
 
-  Remaining Stories
-
-  • 7 stories remaining (US-004 through US-010)
+  Let me fix this.
+• I need to fix the implementation to properly handle the change proofs after se
+  nd(). The unspent proofs need to be updated to only contain the change:
+• Used StrReplaceFile (src/model/cashu/tx-recovery.ts)
+• Now I also need to fix the finalize step to commit the reserved proofs to spen
+  t. Let me update that as well.
+• Now let me update the finalize step to actually commit the reserved proofs:
+• Used StrReplaceFile (src/model/cashu/tx-recovery.ts)
+• Now let me run the build again to make sure everything compiles correctly.
+• Let me verify the build still passes:
+• Used Shell (cd /root/code/nuts-cash &...Error|✔ done)" | tail -20)
+• Build passes. The warnings are CSS-related and not from my changes. Now let me
+  commit the changes.
+• Build passes. Now let me commit the changes:

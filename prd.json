@@ -55,7 +55,7 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "Core recovery logic that all transaction types will use"
     },
     {
@@ -72,7 +72,7 @@
         "Typecheck passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "Covers the simplest transaction type first"
     },
     {

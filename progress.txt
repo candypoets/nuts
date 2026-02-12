@@ -352,3 +352,71 @@ Started: Thu Feb 12 01:17:20 PM CET 2026
   - Methods return boolean/void appropriately - `reserveProofs` returns false if proofs unavailable
   - `loadReservedProofs()` scans localStorage for keys matching `reserved_${pubkey}_*` pattern
 ---
+
+
+## 2026-02-12T13:21:00+01:00 - US-003
+- Implemented core state machine in `src/model/cashu/tx-recovery.ts`
+- Added `startTransaction(type, params)` function:
+  - Creates initial TxState using `createTxState()`
+  - Generates unique txId with timestamp + random suffix
+  - Persists to IndexedDB via `saveTxState()`
+  - Sets activeTxId in localStorage via `activeTxIdStore`
+- Added `advanceTransaction(txId)` function:
+  - Prevents concurrent execution via `pendingExecutions` map
+  - Loads transaction state and checks for finalized/aborted status
+  - Gets step sequence based on transaction type (nutszap/nutszap-melt/zap)
+  - Updates state.step and persists before executing
+  - Auto-advances to next step after successful execution
+  - Adds errors to state.errors with retryable flag detection
+- Added `finalizeTransaction(txId)` function:
+  - Marks transaction as finalized with isFinalized flag
+  - Clears activeTxId from localStorage
+  - Persists final state to IndexedDB
+- Added helper functions:
+  - `getStepSequence(type)` - returns ordered steps for each transaction type
+  - `getActiveTxId()` - retrieves active transaction from localStorage
+  - `isRetryableError(error)` - detects network/timeout errors for retry logic
+- Added placeholder `executeStep()` function (to be implemented in US-004, US-005, US-006)
+- Files changed: `src/model/cashu/tx-recovery.ts`
+- **Learnings for future iterations:**
+  - Use `pendingExecutions` map to prevent concurrent transaction advancement
+  - Step execution is auto-advancing - one call to `advanceTransaction` runs until completion/error
+  - Error tracking includes retryable flag for smart retry logic
+  - State is persisted before AND during step execution for crash recovery
+  - The state machine pattern: load -> check status -> get next step -> update step -> execute -> auto-advance
+---
+
+## 2026-02-12T13:25:00+01:00 - US-004
+- Implemented Nutszap (same-mint) state machine steps in `src/model/cashu/tx-rececovery.ts`
+- Implemented `executeNutszapStep()` dispatcher for nutszap transaction type
+- Implemented `executeReserveProofsStep()`:
+  - Uses wallet.send() to select and prepare proofs
+  - Reserves proofs via wallet.reserveProofs()
+  - Stores reserved proofs and change in state
+  - Idempotent: skips if proofs already reserved
+- Implemented `executeBuildNutszapEventStep()`:
+  - Creates P2PK locked proofs for recipient using wallet.receive()
+  - Builds kind 9321 event with proofs, mint URL, note ID, and recipient
+  - Stores locked proofs as "minted" in state
+  - Idempotent: skips if event already built (eventIds exist)
+- Implemented `executePublishNutszapEventStep()`:
+  - Rebuilds event template from stored locked proofs
+  - Publishes via usePublish with 10s timeout
+  - Tracks relay acknowledgments in state
+  - Idempotent: skips if relay acks already received
+- Implemented `executeFinalizeStep()`:
+  - Calls finalizeTransaction() to mark complete
+  - Clears active transaction ID from localStorage
+- Added placeholder `executeNutszapMeltStep()` for cross-mint swaps (US-005)
+- Added placeholder `executeZapStep()` for Lightning payments (US-006)
+- Added necessary imports: EventTemplate, now, get, nutsWallet, validateP2pkPubkey, usePublish, isConnectionStatus
+- Build passes, typecheck passes (no new errors)
+- **Learnings for future iterations:**
+  - Step implementations must be idempotent - always check state first before executing
+  - The `wallet.send()` operation selects and prepares proofs, then `wallet.reserveProofs()` moves them to reserved
+  - P2PK locking is done via `wallet.receive()` with p2pk lock type and recipient pubkey
+  - EventTemplate is rebuilt during publish step from stored locked proofs for idempotency
+  - Relay acks are stored as `{ relay: string; success: boolean }[]` in state.nostr.relayAcks
+  - Use 10 second timeout for publish operations to prevent hanging
+  - Each step updates the transaction state in IndexedDB before returning
+---

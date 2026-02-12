@@ -1,6 +1,6 @@
 /**
  * Transaction Recovery Module
- * 
+ *
  * Provides durable, resumable transaction system for all eCash transfer flows
  * to ensure no funds are lost when the app crashes mid-flight.
  */
@@ -8,6 +8,15 @@
 import type { Proof } from '@cashu/cashu-ts';
 import type { MeltQuoteResponse, MintQuoteResponse } from '@cashu/cashu-ts';
 import { persistentWritable } from 'src/lib/persistentWritable';
+import type { EventTemplate } from 'nostr-tools';
+import { now } from 'src/lib/period';
+import { get } from 'svelte/store';
+import { nutsWallet } from 'src/controller/proofs';
+import { validateP2pkPubkey } from 'src/controller/wallet';
+import { usePublish } from '@candypoets/nipworker/hooks';
+import { isConnectionStatus } from '@candypoets/nipworker/utils';
+import type { WorkerMessage } from '@candypoets/nipworker';
+import _ from 'lodash';
 
 // ============================================================================
 // Types
@@ -52,9 +61,9 @@ export const ZAP_STEPS = {
 
 /** Union type of all possible transaction steps */
 export type TxStep =
-	| typeof NUTSZAP_STEPS[keyof typeof NUTSZAP_STEPS]
-	| typeof NUTSZAP_MELT_STEPS[keyof typeof NUTSZAP_MELT_STEPS]
-	| typeof ZAP_STEPS[keyof typeof ZAP_STEPS];
+	| (typeof NUTSZAP_STEPS)[keyof typeof NUTSZAP_STEPS]
+	| (typeof NUTSZAP_MELT_STEPS)[keyof typeof NUTSZAP_MELT_STEPS]
+	| (typeof ZAP_STEPS)[keyof typeof ZAP_STEPS];
 
 /** Step error with context for debugging */
 export interface StepError {
@@ -386,15 +395,15 @@ const pendingExecutions = new Map<string, Promise<void>>();
  */
 export async function startTransaction(type: TxType, params: TxParams): Promise<string> {
 	const state = createTxState(type, params);
-	
+
 	// Save to IndexedDB
 	await saveTxState(state.txId, state);
-	
+
 	// Set as active transaction in localStorage
 	activeTxIdStore.set(state.txId);
-	
+
 	console.log(`[tx-recovery] Started ${type} transaction: ${state.txId}`);
-	
+
 	return state.txId;
 }
 
@@ -414,7 +423,7 @@ export async function advanceTransaction(txId: string): Promise<void> {
 
 	const executionPromise = executeAdvanceTransaction(txId);
 	pendingExecutions.set(txId, executionPromise);
-	
+
 	try {
 		await executionPromise;
 	} finally {
@@ -445,7 +454,7 @@ async function executeAdvanceTransaction(txId: string): Promise<void> {
 
 	// Determine the step sequence based on transaction type
 	const stepSequence = getStepSequence(state.type);
-	
+
 	// Find the current step index
 	const currentIndex = stepSequence.indexOf(state.step);
 	if (currentIndex === -1) {
@@ -461,7 +470,7 @@ async function executeAdvanceTransaction(txId: string): Promise<void> {
 
 	// Get the next step
 	const nextStep = stepSequence[currentIndex + 1];
-	
+
 	console.log(`[tx-recovery] Executing step: ${nextStep}`);
 
 	try {
@@ -481,11 +490,11 @@ async function executeAdvanceTransaction(txId: string): Promise<void> {
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error);
 		console.error(`[tx-recovery] Step ${nextStep} failed for transaction ${txId}:`, error);
-		
+
 		// Add error to state
 		const errorState = addTxError(state, nextStep, errorMessage, isRetryableError(error));
 		await saveTxState(txId, errorState);
-		
+
 		throw error;
 	}
 }
@@ -533,18 +542,312 @@ function getStepSequence(type: TxType): TxStep[] {
 
 /**
  * Execute a specific step of the transaction.
- * This is a placeholder that will be implemented in subsequent stories.
- * For now, it just logs the step execution.
+ * Dispatches to type-specific step handlers.
  */
 async function executeStep(txId: string, state: TxState, step: TxStep): Promise<void> {
-	// Step execution will be implemented in US-004, US-005, US-006
-	// For now, we just log that the step was "executed"
-	console.log(`[tx-recovery] Executed step ${step} for transaction ${txId}`);
-	
-	// Special handling for finalize step
-	if (step === 'finalize') {
-		await finalizeTransaction(txId);
+	console.log(`[tx-recovery] Executing step ${step} for transaction ${txId}`);
+
+	switch (state.type) {
+		case 'nutszap':
+			await executeNutszapStep(txId, state, step);
+			break;
+		case 'nutszap-melt':
+			await executeNutszapMeltStep(txId, state, step);
+			break;
+		case 'zap':
+			await executeZapStep(txId, state, step);
+			break;
+		default:
+			throw new Error(`Unknown transaction type: ${state.type}`);
 	}
+}
+
+// ============================================================================
+// Nutszap (Same-Mint) Step Implementation
+// ============================================================================
+
+/**
+ * Execute a step for the nutszap (same-mint P2PK) flow
+ */
+async function executeNutszapStep(txId: string, state: TxState, step: TxStep): Promise<void> {
+	switch (step) {
+		case NUTSZAP_STEPS.RESERVE_PROOFS:
+			await executeReserveProofsStep(txId, state);
+			break;
+		case NUTSZAP_STEPS.BUILD_NUTSZAP_EVENT:
+			await executeBuildNutszapEventStep(txId, state);
+			break;
+		case NUTSZAP_STEPS.PUBLISH_NUTSZAP_EVENT:
+			await executePublishNutszapEventStep(txId, state);
+			break;
+		case NUTSZAP_STEPS.FINALIZE:
+			await executeFinalizeStep(txId, state);
+			break;
+		default:
+			throw new Error(`Unknown step ${step} for nutszap transaction`);
+	}
+}
+
+/**
+ * RESERVE_PROOFS step: Reserve proofs from the wallet for this transaction
+ * Idempotent: If proofs already reserved in state, skip
+ */
+async function executeReserveProofsStep(txId: string, state: TxState): Promise<void> {
+	// Check if already completed (idempotent)
+	if (state.proofs.reserved && state.proofs.reserved.length > 0) {
+		console.log(`[tx-recovery] Proofs already reserved for ${txId}, skipping`);
+		return;
+	}
+
+	const wallet = get(nutsWallet);
+	if (!wallet) {
+		throw new Error('NutsWallet not initialized');
+	}
+
+	const { fromMint, amount, feeReserve = 0 } = state.params;
+	const amountPlusFees = amount + feeReserve;
+
+	// Get wallet for the mint
+	const mintWallet = await wallet.getWallet(fromMint);
+
+	// Get unspent proofs for this mint
+	const unspentProofs = wallet.unspentProofs.get(fromMint);
+	if (!unspentProofs || unspentProofs.length === 0) {
+		throw new Error(`No unspent proofs available for mint ${fromMint}`);
+	}
+
+	// Use send() to select and prepare proofs
+	const { keep: proofsToKeep, send: proofsToSend } = await mintWallet.send(
+		amountPlusFees,
+		unspentProofs
+	);
+
+	// Reserve the proofs
+	const reserved = wallet.reserveProofs(fromMint, proofsToSend);
+	if (!reserved) {
+		throw new Error('Failed to reserve proofs - may already be reserved');
+	}
+
+	// Update wallet: replace unspent with change proofs
+	// This effectively "consumes" the selected proofs
+	wallet.unspentProofs.set(fromMint, proofsToKeep);
+	wallet.updateBalanceByMint();
+
+	// Update state with reserved proofs and change
+	const updatedState: TxState = {
+		...state,
+		proofs: {
+			...state.proofs,
+			reserved: proofsToSend,
+			change: proofsToKeep
+		},
+		updatedAt: Date.now()
+	};
+	await saveTxState(txId, updatedState);
+
+	console.log(`[tx-recovery] Reserved ${proofsToSend.length} proofs for ${txId}`);
+}
+
+/**
+ * BUILD_NUTSZAP_EVENT step: Create and sign the kind 9321 nutszap event
+ * Idempotent: If event already built (eventIds exist), skip
+ */
+async function executeBuildNutszapEventStep(txId: string, state: TxState): Promise<void> {
+	// Check if already completed (idempotent)
+	if (state.nostr.eventIds && state.nostr.eventIds.length > 0) {
+		console.log(`[tx-recovery] Nutszap event already built for ${txId}, skipping`);
+		return;
+	}
+
+	const wallet = get(nutsWallet);
+	if (!wallet) {
+		throw new Error('NutsWallet not initialized');
+	}
+
+	const { fromMint, pubkey, noteId, memo = '', p2pkPubkey } = state.params;
+	const { reserved } = state.proofs;
+
+	if (!reserved || reserved.length === 0) {
+		throw new Error('No reserved proofs available to build nutszap event');
+	}
+
+	// Get wallet for the mint
+	const mintWallet = await wallet.getWallet(fromMint);
+
+	// Create P2PK locked proofs for the recipient
+	// Use the recipient's p2pkPubkey or derive from their pubkey
+	const recipientP2pk = p2pkPubkey || validateP2pkPubkey(pubkey);
+
+	// Lock the proofs to the recipient
+	const lockedProofs = await mintWallet.receive(
+		{ mint: fromMint, proofs: reserved, unit: 'sat' },
+		{},
+		{
+			type: 'p2pk',
+			options: { pubkey: recipientP2pk }
+		}
+	);
+
+	// Build the kind 9321 nutszap event template
+	const nutszapEvent: EventTemplate = {
+		kind: 9321,
+		content: memo,
+		created_at: now(),
+		tags: [
+			...lockedProofs.map((proof) => ['proof', JSON.stringify(proof)]),
+			['u', fromMint || ''],
+			['e', noteId || ''],
+			['p', pubkey]
+		].filter((t) => !!t[1])
+	};
+
+	// Generate a deterministic event ID for tracking
+	// The actual event ID will be set after signing by usePublish
+	const eventId = `nutszap_${txId}_${Date.now()}`;
+
+	// Update state with the built event and minted proofs (locked)
+	const updatedState: TxState = {
+		...state,
+		proofs: {
+			...state.proofs,
+			minted: lockedProofs // Store the locked proofs as "minted"
+		},
+		nostr: {
+			...state.nostr,
+			eventIds: [eventId]
+		},
+		updatedAt: Date.now()
+	};
+	await saveTxState(txId, updatedState);
+
+	console.log(`[tx-recovery] Built nutszap event for ${txId} with ${lockedProofs.length} proofs`);
+}
+
+/**
+ * PUBLISH_NUTSZAP_EVENT step: Publish the event via usePublish and track relay acks
+ * Idempotent: If relay acks already received, skip
+ */
+async function executePublishNutszapEventStep(txId: string, state: TxState): Promise<void> {
+	// Check if already completed (idempotent)
+	if (state.nostr.relayAcks && state.nostr.relayAcks.length > 0) {
+		console.log(`[tx-recovery] Nutszap event already published for ${txId}, skipping`);
+		return;
+	}
+
+	const { fromMint, pubkey, noteId, memo = '' } = state.params;
+	const { minted: lockedProofs } = state.proofs;
+
+	if (!lockedProofs || lockedProofs.length === 0) {
+		throw new Error('No locked proofs available to publish');
+	}
+
+	// Rebuild the event template (we need to republish it)
+	const nutszapEvent: EventTemplate = {
+		kind: 9321,
+		content: memo,
+		created_at: now(),
+		tags: [
+			...lockedProofs.map((proof) => ['proof', JSON.stringify(proof)]),
+			['u', fromMint || ''],
+			['e', noteId || ''],
+			['p', pubkey]
+		].filter((t) => !!t[1])
+	};
+
+	// Publish and wait for at least one relay acknowledgment
+	const relayAcks: { relay: string; success: boolean }[] = [];
+
+	await new Promise<void>((resolve, reject) => {
+		const timeout = setTimeout(() => {
+			if (relayAcks.length === 0) {
+				reject(new Error('Timeout waiting for relay acknowledgment'));
+			} else {
+				resolve();
+			}
+		}, 10000); // 10 second timeout
+
+		usePublish(`nutszap_${txId}`, nutszapEvent, (message: WorkerMessage) => {
+			const connectionStatus = isConnectionStatus(message);
+			if (connectionStatus) {
+				const relayUrl = connectionStatus.relayUrl()?.toString();
+				if (relayUrl) {
+					relayAcks.push({ relay: relayUrl, success: true });
+					// Resolve after first successful relay ack
+					clearTimeout(timeout);
+					resolve();
+				}
+			}
+		});
+	});
+
+	// Update state with relay acknowledgments
+	const updatedState: TxState = {
+		...state,
+		nostr: {
+			...state.nostr,
+			relayAcks
+		},
+		updatedAt: Date.now()
+	};
+	await saveTxState(txId, updatedState);
+
+	console.log(`[tx-recovery] Published nutszap event for ${txId} to ${relayAcks.length} relays`);
+}
+
+/**
+ * FINALIZE step: Commit reserved proofs and clear active transaction
+ * Idempotent: If transaction already finalized, skip
+ */
+async function executeFinalizeStep(txId: string, state: TxState): Promise<void> {
+	const wallet = get(nutsWallet);
+	if (!wallet) {
+		throw new Error('NutsWallet not initialized');
+	}
+
+	const { fromMint } = state.params;
+	const { reserved } = state.proofs;
+
+	// Commit the reserved proofs to spent (they were successfully used)
+	if (reserved && reserved.length > 0) {
+		wallet.commitReserved(fromMint, reserved);
+		console.log(`[tx-recovery] Committed ${reserved.length} reserved proofs for ${txId}`);
+	}
+
+	// Save the change proofs to wallet (if any)
+	const { change } = state.proofs;
+	if (change && change.length > 0) {
+		await wallet.saveProofs(fromMint, change);
+		console.log(`[tx-recovery] Saved ${change.length} change proofs for ${txId}`);
+	}
+
+	// finalizeTransaction handles clearing activeTxId and marking state finalized
+	await finalizeTransaction(txId);
+}
+
+// ============================================================================
+// Nutszap+Melt (Cross-Mint Swap) Step Implementation - Placeholders
+// ============================================================================
+
+/**
+ * Execute a step for the nutszap-melt (cross-mint swap) flow
+ */
+async function executeNutszapMeltStep(txId: string, state: TxState, step: TxStep): Promise<void> {
+	// Placeholder - will be implemented in US-005
+	console.log(`[tx-recovery] nutszap-melt step ${step} not yet implemented`);
+	throw new Error(`nutszap-melt step ${step} not yet implemented`);
+}
+
+// ============================================================================
+// Zap (Lightning) Step Implementation - Placeholders
+// ============================================================================
+
+/**
+ * Execute a step for the zap (Lightning) flow
+ */
+async function executeZapStep(txId: string, state: TxState, step: TxStep): Promise<void> {
+	// Placeholder - will be implemented in US-006
+	console.log(`[tx-recovery] zap step ${step} not yet implemented`);
+	throw new Error(`zap step ${step} not yet implemented`);
 }
 
 /**
