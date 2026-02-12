@@ -1,240 +1,185 @@
 {
   "project": "nuts-cash",
-  "branchName": "ralph/feed-refactor",
-  "description": "Feed Component Architecture Refactoring - Simplify feed.svelte to pure presentation component",
+  "branchName": "ralph/ecash-transaction-recovery",
+  "description": "eCash Transaction Recovery - Durable, resumable transaction system for all eCash transfer flows to ensure no funds are lost when the app crashes mid-flight",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Create simplified Feed component with items prop",
-      "description": "As a developer, I want Feed to accept items as a prop so that parents control their own data.",
+      "title": "Create tx-recovery.ts module with types and storage",
+      "description": "As a developer, I need a dedicated recovery module with transaction state types and storage functions to persist transaction state across app reloads.",
       "acceptanceCriteria": [
-        "Feed accepts `items` prop (generic array, default `[]`)",
-        "Feed accepts `getItemId` prop for unique identification",
-        "Remove `bind:feed` export (breaking change, documented)",
-        "Remove `subscriptionID`, `requests`, `subscriptionOptions` props",
-        "Remove `updateFeed` callback prop",
-        "Remove `initialItems` prop (parent passes via `items`)",
+        "Create src/model/cashu/tx-recovery.ts file",
+        "Define TxType type: 'nutszap' | 'nutszap-melt' | 'zap'",
+        "Define TxState interface with txId, type, createdAt, updatedAt, step, params, proofs, quotes, nostr, and errors fields",
+        "Define transaction step constants for all three flows",
+        "Implement saveTxState(txId, state) to persist to IndexedDB",
+        "Implement loadTxState(txId) to retrieve from IndexedDB",
+        "Implement deleteTxState(txId) to clean up completed transactions",
+        "Implement listPendingTransactions() to get all non-finalized txs",
         "Typecheck passes"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "Foundation story - Feed becomes pure presentation"
+      "notes": "Foundation story - all other recovery features depend on this"
     },
     {
       "id": "US-002",
-      "title": "Expose viewport state to parent",
-      "description": "As a developer, I want to access start, end, down, and viewport from the parent so I can implement viewport-aware features.",
+      "title": "Add proof reservation to NutsWallet with persistence",
+      "description": "As a developer, I need to reserve proofs before using them in transactions to prevent double-spend during crashes and recovery.",
       "acceptanceCriteria": [
-        "Export `start`, `end`, `down`, `viewport` with `bind:` for two-way binding",
-        "`start` - first visible item index",
-        "`end` - last visible item index",
-        "`down` - boolean indicating scroll direction",
-        "`viewport` - the scrollable DOM element",
-        "Parent can read these values to trigger pagination, batching, etc.",
+        "Add reservedProofs: Map<string, Proof[]> to NutsWallet class",
+        "Add reserveProofs(mint, proofs) method - moves from unspent to reserved",
+        "Add releaseReserved(mint, proofs) method - moves reserved back to unspent",
+        "Add commitReserved(mint, proofs) method - moves reserved to spent",
+        "Persist reserved proofs to localStorage (key format: 'reserved_[pubkey]_[mint]')",
+        "Load reserved proofs from localStorage on wallet initialization",
+        "Update balance calculation to exclude reserved proofs",
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "Required for US-003 and batchNewItems behavior"
+      "passes": false,
+      "notes": "Required before implementing state machine steps that reserve proofs"
     },
     {
       "id": "US-003",
-      "title": "Add onNearBottom event for pagination",
-      "description": "As a developer, I want Feed to emit an event when the user scrolls near the bottom so I can load more items.",
+      "title": "Implement startTransaction and core state machine",
+      "description": "As a developer, I need to start transactions and advance through steps with idempotent retry logic.",
       "acceptanceCriteria": [
-        "Feed emits `onNearBottom` event when `end` is within 10 items of `items.length`",
-        "Event includes `{ distance: number }` indicating items remaining",
-        "Parent implements its own pagination logic (Nostr until/since, offset/limit, etc.)",
-        "Remove internal pagination logic (startPage, finalizePage, until/since calculation)",
+        "Implement startTransaction(type, params) in tx-recovery.ts",
+        "Generate unique txId using timestamp + random",
+        "Create initial TxState with step='init'",
+        "Store activeTxId in localStorage via persistentWritable",
+        "Implement advanceTransaction(txId) that loads state and runs next step",
+        "Each step updates state.step and persists before/after execution",
+        "Implement finalizeTransaction(txId) to clear activeTxId and mark complete",
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "Replaces ~110 lines of internal pagination logic"
+      "passes": false,
+      "notes": "Core recovery logic that all transaction types will use"
     },
     {
       "id": "US-004",
-      "title": "Add onRefresh event for pull-to-refresh",
-      "description": "As a developer, I want Feed to emit an event on pull-to-refresh so parents can refresh their data.",
+      "title": "Implement Nutszap (same-mint) state machine steps",
+      "description": "As a developer, I need the Nutszap flow state machine for same-mint P2PK sends.",
       "acceptanceCriteria": [
-        "Feed accepts `onRefresh` callback prop",
-        "When user pulls to refresh, call `onRefresh()` instead of internal `refreshHead()`",
-        "Parent implements refresh logic (new subscription, cache clear, etc.)",
-        "Show loading state during refresh if `loading` prop is true",
+        "Implement 'reserve_proofs' step: reserve proofs from wallet",
+        "Implement 'build_nutszap_event' step: create and sign kind 9321 event",
+        "Implement 'publish_nutszap_event' step: publish via usePublish, store first relay ack",
+        "Implement 'finalize' step: commit reserved proofs, clear activeTxId",
+        "Each step checks if already completed and skips idempotently",
+        "Errors are stored in state.errors with step context",
         "Typecheck passes"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "Replaces internal refreshHead function"
+      "passes": false,
+      "notes": "Covers the simplest transaction type first"
     },
     {
       "id": "US-005",
-      "title": "Remove Fuse.js search from Feed",
-      "description": "As a developer, I want to handle search/filtering in the parent so Feed is not coupled to search logic.",
+      "title": "Implement Nutszap+Melt (mint swap) state machine steps",
+      "description": "As a developer, I need the Nutszap+Melt flow state machine for cross-mint transfers.",
       "acceptanceCriteria": [
-        "Remove `fuseKeys`, `fuseResolver`, `search` props",
-        "Remove Fuse.js dependency from Feed",
-        "Remove `filteredFeed` internal state",
-        "Parent filters `items` before passing to Feed",
+        "Implement 'get_melt_quote' step: request melt quote from source mint",
+        "Implement 'perform_melt' step: execute melt, store change proofs",
+        "Implement 'get_mint_quote' step: request mint quote from target mint",
+        "Implement 'perform_mint' step: poll for paid status, mint new proofs",
+        "Integrate with existing steps: reserve_proofs, build_nutszap_event, publish_nutszap_event, finalize",
+        "Store meltQuote and mintQuote in state.quotes for idempotency",
+        "Store minted proofs in state.proofs.minted",
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": "Used in newchat, send, share modals"
+      "passes": false,
+      "notes": "Builds on US-004 steps, adds cross-mint swap logic"
     },
     {
       "id": "US-006",
-      "title": "Remove connectionStatus binding",
-      "description": "As a developer, I want to track connection status in the parent rather than binding it from Feed.",
+      "title": "Implement Zap (Lightning) state machine steps",
+      "description": "As a developer, I need the Zap flow state machine for Lightning payments.",
       "acceptanceCriteria": [
-        "Remove `bind:connectionStatus` prop",
-        "Parent tracks connection status via its own subscription handlers",
-        "No changes to how connection status is displayed (RelaysList in parent)",
+        "Implement 'build_zap_request' step: create kind 9734 zap request",
+        "Implement 'fetch_zap_invoice' step: get invoice from LNURL callback",
+        "Implement 'get_melt_quote' step: create melt quote for zap invoice",
+        "Implement 'perform_melt' step: pay the invoice, store change",
+        "Implement 'store_change_proofs' step: save change to wallet",
+        "Implement 'finalize' step: commit reserved, clear activeTxId",
+        "Store zap invoice in state for idempotency",
         "Typecheck passes"
       ],
       "priority": 6,
-      "passes": true,
-      "notes": "Parent already has access to connection status"
+      "passes": false,
+      "notes": "Lightning flow uses different steps than Nutszap flows"
     },
     {
       "id": "US-007",
-      "title": "Migrate explore/index.svelte to new Feed API",
-      "description": "As a developer, I want to migrate the main explore feed to use the new simplified Feed component.",
+      "title": "Implement force cancel transaction",
+      "description": "As a user, I want to force cancel a stuck transaction and recover my reserved funds.",
       "acceptanceCriteria": [
-        "Add subscription handling in parent (move from Feed)",
-        "Implement `onNearBottom` handler with quantile-based pagination",
-        "Implement `onRefresh` handler for pull-to-refresh",
-        "Use `bind:start` to detect when user is at top (for batchNewItems behavior)",
-        "Pass processed feed as `items` prop",
-        "Remove `bind:feed` usage",
-        "Typecheck passes",
-        "Verify in browser: scroll, pagination, refresh all work"
+        "Implement abortTransaction(txId) in tx-recovery.ts",
+        "Release reserved proofs back to wallet",
+        "Preserve transaction state in IndexedDB for audit (do not delete)",
+        "Clear activeTxId from localStorage",
+        "Mark transaction as aborted with timestamp",
+        "Typecheck passes"
       ],
       "priority": 7,
-      "passes": true,
-      "notes": "Most complex pagination - quantile-based window calculation"
+      "passes": false,
+      "notes": "Safety feature for users when recovery gets stuck"
     },
     {
       "id": "US-008",
-      "title": "Migrate notifications/index.svelte to new Feed API",
-      "description": "As a developer, I want to migrate the notifications page to use the new Feed component.",
+      "title": "Add global resume on app startup",
+      "description": "As a user, I want the app to automatically resume any pending transaction when it starts.",
       "acceptanceCriteria": [
-        "Move `updateFeed` logic (grouping by type) to parent",
-        "Process events into `items` array in parent",
-        "Remove `updateFeed` prop usage",
-        "Pass grouped notifications as `items` prop",
-        "No pagination needed (limited set)",
-        "Typecheck passes",
-        "Verify in browser: notifications display correctly"
+        "Create resumeActiveTransaction() function in tx-recovery.ts",
+        "Load activeTxId from persistentWritable store",
+        "Load TxState from storage",
+        "If step !== 'finalize', call advanceTransaction(txId)",
+        "Add resume call to src/routes/+layout.svelte onMount",
+        "Resume should be non-blocking (don't await forever)",
+        "Log resume attempts and outcomes to console",
+        "Typecheck passes"
       ],
       "priority": 8,
-      "passes": true,
-      "notes": "Complex event grouping logic - reply/reaction/mention/repost"
+      "passes": false,
+      "notes": "Final integration - makes recovery automatic"
     },
     {
       "id": "US-009",
-      "title": "Migrate chat/index.svelte to new Feed API",
-      "description": "As a developer, I want to migrate the chat conversations list to use the new Feed component.",
+      "title": "Integrate recovery system into ecash.svelte",
+      "description": "As a developer, I need to wire the recovery system into the existing ecash modal.",
       "acceptanceCriteria": [
-        "Move DM processing logic (group by chatId) to parent",
-        "Move `uniqBy` deduplication to parent",
-        "Process events into `items` array in parent",
-        "Remove `bind:feed` usage",
-        "Remove `updateFeed` prop usage",
+        "Replace direct sendEcash logic with startTransaction() calls",
+        "For same-mint Nutszap: call startTransaction('nutszap', params)",
+        "For cross-mint Nutszap: call startTransaction('nutszap-melt', params)",
+        "For Zap: call startTransaction('zap', params)",
+        "Subscribe to transaction state for UI progress updates",
+        "Show 'Resuming transaction...' banner when recovery is active",
+        "Display current step and last error if any",
         "Typecheck passes",
-        "Verify in browser: conversations list correctly"
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 9,
-      "passes": true,
-      "notes": "Groups DMs by conversation partner"
+      "passes": false,
+      "notes": "UI integration - replaces existing inline flow logic"
     },
     {
       "id": "US-010",
-      "title": "Migrate _kinds/kind4.svelte to new Feed API",
-      "description": "As a developer, I want to migrate the DM conversation view to use the new Feed component.",
+      "title": "Handle edge cases and error recovery",
+      "description": "As a developer, I need to handle edge cases like quote expiry and mint unavailability.",
       "acceptanceCriteria": [
-        "Move nonce-based deduplication logic to parent",
-        "Handle optimistic UI (sent messages) in parent",
-        "Process events into `items` array in parent",
-        "Remove `bind:feed` usage",
-        "Use `bottom` prop for VirtualListBottom (chat bubbles)",
-        "Typecheck passes",
-        "Verify in browser: send/receive messages work"
+        "In perform_melt: if quote expired, abort and release proofs",
+        "In perform_mint: if quote expired, abort and release proofs",
+        "In fetch_zap_invoice: if fails, abort and release proofs",
+        "Add retry with exponential backoff for network failures (max 3 retries)",
+        "If mint returns error, abort transaction and restore funds",
+        "All errors are stored in state.errors for debugging",
+        "Typecheck passes"
       ],
       "priority": 10,
-      "passes": true,
-      "notes": "Has optimistic UI for sent messages"
-    },
-    {
-      "id": "US-011",
-      "title": "Migrate home/+layout.svelte to new Feed API",
-      "description": "As a developer, I want to migrate the home/wallet feed to use the new Feed component.",
-      "acceptanceCriteria": [
-        "Move kind9321 filtering to parent",
-        "Sort items in parent before passing to Feed",
-        "Remove `bind:feed` usage",
-        "Remove `updateFeed` prop usage",
-        "Typecheck passes",
-        "Verify in browser: wallet feed displays correctly"
-      ],
-      "priority": 11,
-      "passes": true,
-      "notes": "Wallet/Nuts feed - filters for kind9321 events"
-    },
-    {
-      "id": "US-012",
-      "title": "Migrate modals to new Feed API",
-      "description": "As a developer, I want to migrate modal feeds (send, newchat, share, followlists) to use the new Feed component.",
-      "acceptanceCriteria": [
-        "send.svelte: Move contact dedupe/sorting to parent",
-        "newchat.svelte: Move contact dedupe/sorting to parent",
-        "share.svelte: Move contact dedupe to parent, handle grid items",
-        "followlists.svelte: Move kind39089 filtering to parent",
-        "All pass `items` prop instead of `bind:feed`",
-        "All remove `updateFeed` prop usage",
-        "All remove `fuseKeys`/`fuseResolver`/`search` (parent handles search)",
-        "Typecheck passes",
-        "Verify in browser: all modals work correctly"
-      ],
-      "priority": 12,
-      "passes": true,
-      "notes": "Already migrated as part of US-005 - all 4 modals use items prop and getItemId"
-    },
-    {
-      "id": "US-013",
-      "title": "Migrate _kinds/kind0.svelte and kind1.svelte to new Feed API",
-      "description": "As a developer, I want to migrate profile and thread views to use the new Feed component.",
-      "acceptanceCriteria": [
-        "kind0.svelte: Move feed request building to parent, pass `items`",
-        "kind1.svelte: Move reply filtering to parent, pass `items`",
-        "Both remove `bind:feed` usage",
-        "Both remove `updateFeed` prop usage",
-        "Typecheck passes",
-        "Verify in browser: profile posts and thread replies work"
-      ],
-      "priority": 13,
-      "passes": true,
-      "notes": "Migrated to new Feed API - parent manages subscriptions and passes items prop"
-    },
-    {
-      "id": "US-014",
-      "title": "Clean up old Feed code",
-      "description": "As a developer, I want to remove all obsolete code from Feed after migration.",
-      "acceptanceCriteria": [
-        "Remove `handleEvents` function (~150 lines)",
-        "Remove `subscribe`/`unsubscribe` functions",
-        "Remove buffer Maps (cachedMap, fetchedMap, bufferMap, pendingNewItems)",
-        "Remove pagination state (currentPage, lastUntil, etc.)",
-        "Remove Fuse.js search logic",
-        "Remove internal `refreshHead`, `mergePendingItems`, `setBufferFeed` functions",
-        "Remove `kinds` filtering (parent handles)",
-        "Keep: VirtualList rendering, slots, sticky header/footer CSS, `start`/`end`/`down`/`viewport` binding",
-        "Typecheck passes",
-        "Final verification: all 12 Feed usages work correctly"
-      ],
-      "priority": 14,
-      "passes": true,
-      "notes": "Feed component is already clean - contains only VirtualList rendering, slots, sticky CSS, and viewport bindings"
+      "passes": false,
+      "notes": "Robustness - ensures funds are never lost even in error conditions"
     }
   ]
 }
