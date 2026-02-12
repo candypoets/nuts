@@ -286,3 +286,42 @@ Started: Wed Feb 11 10:50:43 AM CET 2026
   - Slot system provides flexibility for different use cases (profile, chat, notifications, etc.)
   - No breaking changes needed for the clean component - it was already clean!
 ---
+# Ralph Progress Log
+Started: Thu Feb 12 01:17:20 PM CET 2026
+
+## Codebase Patterns
+- Use `persistentWritable<T>(key, initialValue)` from `src/lib/persistentWritable.ts` for localStorage-backed stores
+- IndexedDB is used for larger/durable data (like transaction states) while localStorage is for simple values
+- Import types from `@cashu/cashu-ts` for Cashu-specific types (Proof, MeltQuoteResponse, MintQuoteResponse)
+- Create constant objects with `as const` for step definitions to get proper type inference
+- Use `src/model/cashu/` directory for Cashu/eCash data models
+- TypeScript path alias `src/` maps to the src directory (configured in svelte.config.js/vite.config.ts)
+
+## 2026-02-12T13:18:00+01:00 - US-001
+- Created `src/model/cashu/tx-recovery.ts` module
+- Defined `TxType` type: 'nutszap' | 'nutszap-melt' | 'zap'
+- Defined comprehensive `TxState` interface with all required fields:
+  - txId, type, createdAt, updatedAt, step, params
+  - proofs (reserved, change, minted), quotes (meltQuote, mintQuote, zapInvoice)
+  - nostr (eventIds, relayAcks, zapRequest), errors, isFinalized, isAborted
+- Defined transaction step constants for all three flows:
+  - NUTSZAP_STEPS (same-mint P2PK send)
+  - NUTSZAP_MELT_STEPS (cross-mint swap)
+  - ZAP_STEPS (Lightning payment)
+- Implemented IndexedDB storage functions:
+  - `saveTxState(txId, state)` - persists transaction state
+  - `loadTxState(txId)` - retrieves transaction state
+  - `deleteTxState(txId)` - removes completed transactions
+  - `listPendingTransactions()` - gets all non-finalized transactions
+  - `listAllTransactions()` - gets all transactions including finalized/aborted
+- Added `activeTxIdStore` using `persistentWritable` for tracking active transaction in localStorage
+- Added helper functions: `generateTxId()`, `createTxState()`, `isTxFinalized()`, `addTxError()`, `updateTxStep()`
+- Typecheck passes (no new errors introduced)
+- **Learnings for future iterations:**
+  - IndexedDB database name: 'nuts-cash-tx-recovery', version 1, store name: 'transactions'
+  - The module exports both types and functions - import types separately for type-only imports
+  - Transaction state is comprehensive - includes everything needed for resumable transactions
+  - Error tracking includes step context, timestamp, and retryable flag for smart retry logic
+  - Proof reservation is tracked in memory (will be implemented in NutsWallet in US-002)
+  - The `as const` pattern for step constants enables TypeScript to infer literal union types
+---
