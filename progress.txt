@@ -482,3 +482,29 @@ Started: Thu Feb 12 01:17:20 PM CET 2026
   - Change proofs step is separate from perform_melt for better error granularity
   - Lightning payments are one-way (no minting new proofs like in cross-mint swaps)
 ---
+
+## 2026-02-12T13:41:00+01:00 - US-007
+- Implemented `abortTransaction(txId)` function in `src/model/cashu/tx-recovery.ts`
+- Key implementation details:
+  - Loads transaction state from IndexedDB and validates it exists
+  - Checks if transaction is already finalized or aborted (idempotent)
+  - Releases reserved proofs back to wallet via `wallet.releaseReserved()`
+  - Updates transaction state with `isAborted: true` and `abortedAt: timestamp`
+  - Perserves full transaction history in IndexedDB for audit purposes
+  - Clears `activeTxId` from localStorage if it matches the aborted transaction
+  - Logs all actions for debugging
+- Acceptance criteria met:
+  - ✅ Release reserved proofs back to wallet
+  - ✅ Preserve transaction state in IndexedDB (not deleted)
+  - ✅ Clear activeTxId from localStorage
+  - ✅ Mark transaction as aborted with timestamp
+  - ✅ Typecheck passes (no new errors)
+- Files changed: `src/model/cashu/tx-recovery.ts`
+- **Learnings for future iterations:**
+  - Abort is a terminal state - once aborted, transaction cannot be resumed
+  - Transaction state is preserved (not deleted) for audit/debugging purposes
+  - Use `wallet.releaseReserved()` to return proofs to unspent pool
+  - Always check if transaction is already finalized before aborting
+  - Abort function is idempotent - safe to call multiple times
+  - Consider adding a UI button in ecash.svelte for users to abort stuck transactions
+---

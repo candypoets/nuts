@@ -1516,6 +1516,63 @@ async function executeFinalizeZapStep(txId: string, state: TxState): Promise<voi
 }
 
 /**
+ * Abort a transaction and release reserved proofs back to the wallet.
+ * Preserves transaction state in IndexedDB for audit purposes.
+ * @param txId The transaction ID to abort
+ */
+export async function abortTransaction(txId: string): Promise<void> {
+	const state = await loadTxState(txId);
+	if (!state) {
+		throw new Error(`Transaction ${txId} not found`);
+	}
+
+	// Can't abort if already finalized
+	if (state.isFinalized) {
+		console.log(`[tx-recovery] Transaction ${txId} is already finalized, cannot abort`);
+		return;
+	}
+
+	// Can't abort if already aborted
+	if (state.isAborted) {
+		console.log(`[tx-recovery] Transaction ${txId} is already aborted`);
+		return;
+	}
+
+	console.log(`[tx-recovery] Aborting transaction ${txId}...`);
+
+	// Release reserved proofs back to wallet
+	const wallet = get(nutsWallet);
+	if (wallet) {
+		const { fromMint } = state.params;
+		const { reserved } = state.proofs;
+
+		if (reserved && reserved.length > 0) {
+			wallet.releaseReserved(fromMint, reserved);
+			console.log(`[tx-recovery] Released ${reserved.length} reserved proofs for ${txId}`);
+		}
+	}
+
+	// Update state to mark as aborted (preserved for audit)
+	const abortedState: TxState = {
+		...state,
+		isAborted: true,
+		abortedAt: Date.now(),
+		updatedAt: Date.now()
+	};
+
+	await saveTxState(txId, abortedState);
+
+	// Clear active transaction ID from localStorage
+	const currentActiveTxId = getActiveTxId();
+	if (currentActiveTxId === txId) {
+		activeTxIdStore.set(null);
+		console.log(`[tx-recovery] Cleared active transaction ID for aborted transaction`);
+	}
+
+	console.log(`[tx-recovery] Transaction ${txId} aborted successfully`);
+}
+
+/**
  * Finalize a transaction by marking it as complete and clearing the active transaction ID.
  * @param txId The transaction ID to finalize
  */
