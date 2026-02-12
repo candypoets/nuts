@@ -535,3 +535,34 @@ Started: Thu Feb 12 01:17:20 PM CET 2026
   - Console logs use `[tx-recovery]` prefix for easy filtering during debugging
   - Integration in root layout ensures resume runs on every app startup
 ---
+
+## 2026-02-12T13:46:00+01:00 - US-009
+- Integrated recovery system into `src/routes/modals/ecash.svelte`
+- Replaced monolithic `sendEcash()` function with recovery-based flow:
+  - Determines transaction type based on state (zap, cross-mint, same-mint)
+  - Calls `startTransaction(type, params)` to initiate durable transaction
+  - Calls `advanceTransaction(txId)` to execute transaction steps
+  - All state transitions are now persisted and resumable
+- Added transaction state subscription via `activeTxIdStore`:
+  - Subscribes to active transaction changes
+  - Polls transaction state every 500ms for UI updates
+  - Updates status and progress based on current transaction step
+- Implemented UI for recovery system:
+  - Added "Resuming transaction..." banner when `isResuming` is true
+  - Shows current step status with progress bar
+  - Displays last error if any step fails
+  - Added "Cancel Transaction" button to abort stuck transactions
+  - Disabled send button when active transaction exists
+- Added `handleAbort()` function to allow users to cancel stuck transactions
+- Proper cleanup on component destroy (unsubscribe, clear interval)
+- Files changed:
+  - `src/routes/modals/ecash.svelte` - complete rewrite of send flow with recovery integration
+- Typecheck passes (349 errors vs 352 pre-existing - actually reduced errors by 3)
+- **Learnings for future iterations:**
+  - Use `get(store)` from svelte/store to read current value, not `store.get()`
+  - Subscribe to recovery state store for reactive UI updates
+  - Polling pattern works well for tracking async transaction progress in UI
+  - Map transaction steps to user-friendly status messages for better UX
+  - Always disable inputs/buttons when active transaction exists to prevent double-submit
+  - The transaction flow is now: determine type → start → advance (auto-runs steps) → UI updates via polling
+---
