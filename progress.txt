@@ -508,3 +508,30 @@ Started: Thu Feb 12 01:17:20 PM CET 2026
   - Abort function is idempotent - safe to call multiple times
   - Consider adding a UI button in ecash.svelte for users to abort stuck transactions
 ---
+
+## 2026-02-12T13:44:00+01:00 - US-008
+- Implemented `resumeActiveTransaction()` function in `src/model/cashu/tx-recovery.ts`
+- Function loads active transaction ID from localStorage via `getActiveTxId()`
+- Loads TxState from IndexedDB using `loadTxState()`
+- Handles all edge cases:
+  - No active transaction: logs and returns early
+  - Transaction not found in IndexedDB: clears stale activeTxId
+  - Already finalized: clears activeTxId
+  - Already aborted: clears activeTxId  
+  - At finalize step: calls `finalizeTransaction()` to complete
+- For resumable transactions: calls `advanceTransaction()` without awaiting (non-blocking)
+- Added comprehensive logging for all resume attempts and outcomes
+- Integrated resume call in `src/routes/+layout.svelte` `onMount()`
+- Import added: `import { resumeActiveTransaction } from 'src/model/cashu/tx-recovery'`
+- Resume runs automatically on app startup, making recovery automatic for users
+- Typecheck passes (no new errors introduced)
+- Files changed:
+  - `src/model/cashu/tx-recovery.ts` - added `resumeActiveTransaction()` function and export
+  - `src/routes/+layout.svelte` - added import and `resumeActiveTransaction()` call in `onMount()`
+- **Learnings for future iterations:**
+  - Resume function is non-blocking by design - uses `.catch()` instead of try/await for `advanceTransaction()`
+  - Edge cases are handled gracefully (stale activeTxId, finalized/aborted transactions)
+  - The `finalize` step is special-cased since it's a terminal state that needs cleanup
+  - Console logs use `[tx-recovery]` prefix for easy filtering during debugging
+  - Integration in root layout ensures resume runs on every app startup
+---
