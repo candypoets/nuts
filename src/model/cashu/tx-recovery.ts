@@ -9,14 +9,15 @@ import type { Proof } from '@cashu/cashu-ts';
 import type { MeltQuoteResponse, MintQuoteResponse } from '@cashu/cashu-ts';
 import { MeltQuoteState, MintQuoteState } from '@cashu/cashu-ts';
 import { persistentWritable } from 'src/lib/persistentWritable';
-import type { EventTemplate } from 'nostr-tools';
+import type { EventTemplate, NostrEvent } from 'nostr-tools';
 import { now } from 'src/lib/period';
 import { get } from 'svelte/store';
 import { nutsWallet } from 'src/controller/proofs';
 import { validateP2pkPubkey } from 'src/controller/wallet';
-import { usePublish } from '@candypoets/nipworker/hooks';
+import { usePublish, useSignEvent } from '@candypoets/nipworker/hooks';
 import { isConnectionStatus } from '@candypoets/nipworker/utils';
 import type { WorkerMessage } from '@candypoets/nipworker';
+import { getZapInvoice } from 'src/lib/wallet';
 import _ from 'lodash';
 
 // ============================================================================
@@ -1223,16 +1224,295 @@ async function executeFinalizeCrossMintStep(txId: string, state: TxState): Promi
 }
 
 // ============================================================================
-// Zap (Lightning) Step Implementation - Placeholders
+// Zap (Lightning) Step Implementation
 // ============================================================================
 
 /**
  * Execute a step for the zap (Lightning) flow
  */
 async function executeZapStep(txId: string, state: TxState, step: TxStep): Promise<void> {
-	// Placeholder - will be implemented in US-006
-	console.log(`[tx-recovery] zap step ${step} not yet implemented`);
-	throw new Error(`zap step ${step} not yet implemented`);
+	switch (step) {
+		case ZAP_STEPS.RESERVE_PROOFS:
+			await executeReserveProofsStep(txId, state);
+			break;
+		case ZAP_STEPS.BUILD_ZAP_REQUEST:
+			await executeBuildZapRequestStep(txId, state);
+			break;
+		case ZAP_STEPS.FETCH_ZAP_INVOICE:
+			await executeFetchZapInvoiceStep(txId, state);
+			break;
+		case ZAP_STEPS.GET_MELT_QUOTE:
+			await executeGetZapMeltQuoteStep(txId, state);
+			break;
+		case ZAP_STEPS.PERFORM_MELT:
+			await executePerformZapMeltStep(txId, state);
+			break;
+		case ZAP_STEPS.STORE_CHANGE_PROOFS:
+			await executeStoreChangeProofsStep(txId, state);
+			break;
+		case ZAP_STEPS.FINALIZE:
+			await executeFinalizeZapStep(txId, state);
+			break;
+		default:
+			throw new Error(`Unknown step ${step} for zap transaction`);
+	}
+}
+
+/**
+ * BUILD_ZAP_REQUEST step: Create and sign kind 9734 zap request event
+ * Idempotent: If zap request already exists in state, skip
+ */
+async function executeBuildZapRequestStep(txId: string, state: TxState): Promise<void> {
+	// Check if already completed (idempotent)
+	if (state.nostr.zapRequest) {
+		console.log(`[tx-recovery] Zap request already built for ${txId}, skipping`);
+		return;
+	}
+
+	const { pubkey, noteId, amount, lnurl, receiptRelays = [], memo = '' } = state.params;
+
+	if (!lnurl) {
+		throw new Error('No LNURL provided for zap payment');
+	}
+
+	// Build the kind 9734 zap request event template
+	const zapRequestTemplate: EventTemplate = {
+		kind: 9734,
+		content: memo,
+		created_at: now(),
+		tags: [
+			['e', noteId || ''],
+			['p', pubkey],
+			['amount', (Number(amount) * 1000).toString()], // Convert to millisats
+			['relays', ...receiptRelays.map((r) => r)],
+			['lnurl', lnurl]
+		].filter((t) => !!t[1])
+	};
+
+	// Sign the zap request using useSignEvent
+	const signedZapRequest = await new Promise<NostrEvent>((resolve, reject) => {
+		const timeout = setTimeout(() => {
+			reject(new Error('Timeout signing zap request'));
+		}, 10000); // 10 second timeout
+
+		useSignEvent(zapRequestTemplate, (signed) => {
+			clearTimeout(timeout);
+			resolve(signed);
+		});
+	});
+
+	// Update state with the signed zap request
+	const updatedState: TxState = {
+		...state,
+		nostr: {
+			...state.nostr,
+			zapRequest: JSON.stringify(signedZapRequest)
+		},
+		updatedAt: Date.now()
+	};
+	await saveTxState(txId, updatedState);
+
+	console.log(`[tx-recovery] Built and signed zap request for ${txId}`);
+}
+
+/**
+ * FETCH_ZAP_INVOICE step: Get invoice from LNURL callback using signed zap request
+ * Idempotent: If zap invoice already exists in state, skip
+ */
+async function executeFetchZapInvoiceStep(txId: string, state: TxState): Promise<void> {
+	// Check if already completed (idempotent)
+	if (state.quotes.zapInvoice) {
+		console.log(`[tx-recovery] Zap invoice already fetched for ${txId}, skipping`);
+		return;
+	}
+
+	const { lnurl, amount } = state.params;
+	const { zapRequest } = state.nostr;
+
+	if (!lnurl) {
+		throw new Error('No LNURL provided for zap payment');
+	}
+
+	if (!zapRequest) {
+		throw new Error('No zap request available - must build zap request first');
+	}
+
+	// Parse the signed zap request
+	const signedEvent = JSON.parse(zapRequest) as NostrEvent;
+
+	// Fetch the zap invoice from the LNURL service
+	console.log(`[tx-recovery] Fetching zap invoice for ${txId}...`);
+	try {
+		const zapInvoice = await getZapInvoice(lnurl, Number(amount), signedEvent);
+
+		if (!zapInvoice || !zapInvoice.pr) {
+			throw new Error('Failed to get zap invoice from LNURL service');
+		}
+
+		// Update state with the zap invoice
+		const updatedState: TxState = {
+			...state,
+			quotes: {
+				...state.quotes,
+				zapInvoice: zapInvoice.pr
+			},
+			updatedAt: Date.now()
+		};
+		await saveTxState(txId, updatedState);
+
+		console.log(`[tx-recovery] Fetched zap invoice for ${txId}`);
+	} catch (error) {
+		const errorMessage = error instanceof Error ? error.message : String(error);
+		console.error(`[tx-recovery] Failed to fetch zap invoice for ${txId}:`, error);
+		throw new Error(`Failed to fetch zap invoice: ${errorMessage}`);
+	}
+}
+
+/**
+ * GET_MELT_QUOTE step: Create melt quote for the zap invoice
+ * Idempotent: If melt quote already exists in state, skip
+ */
+async function executeGetZapMeltQuoteStep(txId: string, state: TxState): Promise<void> {
+	// Check if already completed (idempotent)
+	if (state.quotes.meltQuote) {
+		console.log(`[tx-recovery] Melt quote already obtained for ${txId}, skipping`);
+		return;
+	}
+
+	const wallet = get(nutsWallet);
+	if (!wallet) {
+		throw new Error('NutsWallet not initialized');
+	}
+
+	const { fromMint } = state.params;
+	const { zapInvoice } = state.quotes;
+
+	if (!zapInvoice) {
+		throw new Error('No zap invoice available - must fetch zap invoice first');
+	}
+
+	// Get wallet for source mint
+	const mintWallet = await wallet.getWallet(fromMint);
+
+	// Create melt quote for the zap invoice
+	console.log(`[tx-recovery] Getting melt quote for zap invoice...`);
+	const meltQuote = await mintWallet.createMeltQuoteBolt11(zapInvoice);
+
+	// Update state with the melt quote
+	const updatedState: TxState = {
+		...state,
+		quotes: {
+			...state.quotes,
+			meltQuote: {
+				...meltQuote,
+				mintUrl: fromMint
+			}
+		},
+		updatedAt: Date.now()
+	};
+	await saveTxState(txId, updatedState);
+
+	console.log(`[tx-recovery] Got melt quote for ${txId}: ${meltQuote.quote}`);
+}
+
+/**
+ * PERFORM_MELT step: Pay the zap invoice (consumes reserved proofs)
+ * Idempotent: If change proofs exist (melt already performed), skip
+ */
+async function executePerformZapMeltStep(txId: string, state: TxState): Promise<void> {
+	// Check if already completed (idempotent)
+	if (state.proofs.change !== undefined) {
+		console.log(`[tx-recovery] Melt already performed for ${txId}, skipping`);
+		return;
+	}
+
+	const wallet = get(nutsWallet);
+	if (!wallet) {
+		throw new Error('NutsWallet not initialized');
+	}
+
+	const { fromMint } = state.params;
+	const { meltQuote } = state.quotes;
+	const { reserved } = state.proofs;
+
+	if (!reserved || reserved.length === 0) {
+		throw new Error('No reserved proofs available for melt');
+	}
+
+	if (!meltQuote) {
+		throw new Error('No melt quote available - must get melt quote first');
+	}
+
+	// Check if quote has expired
+	if (meltQuote.expiry && meltQuote.expiry < now()) {
+		throw new Error('Melt quote has expired - transaction must be aborted');
+	}
+
+	// Get wallet for source mint
+	const mintWallet = await wallet.getWallet(fromMint);
+
+	// Perform the melt (pay the zap invoice)
+	console.log(`[tx-recovery] Performing melt for zap payment ${txId}...`);
+	const meltResult = await mintWallet.meltProofsBolt11(meltQuote, reserved);
+
+	// Update state with change proofs (can be empty array)
+	const updatedState: TxState = {
+		...state,
+		proofs: {
+			...state.proofs,
+			change: meltResult.change || []
+		},
+		updatedAt: Date.now()
+	};
+	await saveTxState(txId, updatedState);
+
+	console.log(
+		`[tx-recovery] Melt performed for ${txId}, got ${meltResult.change?.length || 0} change proofs`
+	);
+}
+
+/**
+ * STORE_CHANGE_PROOFS step: Save change proofs to wallet
+ * Idempotent: If change proofs are already saved (verified by checking wallet state), skip
+ */
+async function executeStoreChangeProofsStep(txId: string, state: TxState): Promise<void> {
+	const wallet = get(nutsWallet);
+	if (!wallet) {
+		throw new Error('NutsWallet not initialized');
+	}
+
+	const { fromMint } = state.params;
+	const { change } = state.proofs;
+
+	// Save change proofs to wallet (if any)
+	if (change && change.length > 0) {
+		await wallet.saveProofs(fromMint, change);
+		console.log(`[tx-recovery] Saved ${change.length} change proofs to wallet for ${txId}`);
+	} else {
+		console.log(`[tx-recovery] No change proofs to save for ${txId}`);
+	}
+}
+
+/**
+ * FINALIZE step for zap: Commit reserved proofs and clear active transaction
+ */
+async function executeFinalizeZapStep(txId: string, state: TxState): Promise<void> {
+	const wallet = get(nutsWallet);
+	if (!wallet) {
+		throw new Error('NutsWallet not initialized');
+	}
+
+	const { fromMint } = state.params;
+	const { reserved } = state.proofs;
+
+	// Commit the reserved proofs to spent (they were successfully used for the zap)
+	if (reserved && reserved.length > 0) {
+		wallet.commitReserved(fromMint, reserved);
+		console.log(`[tx-recovery] Committed ${reserved.length} reserved proofs for zap ${txId}`);
+	}
+
+	// finalizeTransaction handles clearing activeTxId and marking state finalized
+	await finalizeTransaction(txId);
 }
 
 /**

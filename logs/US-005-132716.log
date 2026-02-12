@@ -1,0 +1,603 @@
+╭──────────────────────────────────────────────────────────────────────────────╮
+│ # Ralph Agent Instructions                                                   │
+│                                                                              │
+│ You are an autonomous coding agent working on a software project.            │
+│                                                                              │
+│ ## 🛡️ CRITICAL SAFETY RULES - NEVER VIOLATE                                   │
+│                                                                              │
+│ ### System Resource Protection                                               │
+│ The following actions are **STRICTLY PROHIBITED** and will cause harm to the │
+│ host system:                                                                 │
+│                                                                              │
+│ **Docker/Container Management:**                                             │
+│ - **NEVER** run `docker stop` without an explicit container name or ID       │
+│ - **NEVER** use `docker stop $(docker ps -q)` or any pattern that stops mult │
+│ iple/all containers                                                          │
+│ - **NEVER** run `docker rm -f $(docker ps -aq)` or similar mass-removal comm │
+│ ands                                                                         │
+│ - **ALWAYS** verify container names with `docker ps --filter name=<pattern>` │
+│ before stopping                                                              │
+│ - **ONLY** stop containers that were explicitly created by this session      │
+│ - **ONLY** stop containers using their explicit name: `docker stop <exact-co │
+│ ntainer-name>`                                                               │
+│                                                                              │
+│ **Process Management:**                                                      │
+│ - **NEVER** run `killall`, `pkill`, or similar commands without specific pro │
+│ cess names                                                                   │
+│ - **NEVER** use `kill -9` on system processes or processes you didn't start  │
+│ - **ONLY** terminate processes you explicitly started in this session        │
+│                                                                              │
+│ **Port/Network Conflicts:**                                                  │
+│ - If a port is in use, **USE A DIFFERENT PORT** instead of killing the proce │
+│ ss using it                                                                  │
+│ - Check what's running on a port with `lsof -i :<port>` or `ss -tlnp | grep  │
+│ <port>`                                                                      │
+│ - Prefer random/high ports (e.g., `docker run -p 0:8080`) to avoid conflicts │
+│                                                                              │
+│ **General Safety:**                                                          │
+│ - **NEVER** run commands that affect system-wide state unless explicitly req │
+│ uired by the PRD                                                             │
+│ - **NEVER** use wildcards or glob patterns with destructive commands (`rm`,  │
+│ `kill`, `stop`)                                                              │
+│ - When in doubt, be explicit and specific with resource names                │
+│                                                                              │
+│ ---                                                                          │
+│                                                                              │
+│ ## Your Task                                                                 │
+│                                                                              │
+│ 1. Read the PRD at `prd.json` (in the same directory as this file)           │
+│ 2. Read the progress log at `progress.txt` (check Codebase Patterns section  │
+│ first)                                                                       │
+│ 3. Check you're on the correct branch from PRD `branchName`. If not, check i │
+│ t out or create from main.                                                   │
+│ 4. Pick the **highest priority** user story where `passes: false`            │
+│ 5. Implement that single user story                                          │
+│ 6. Run quality checks (e.g., typecheck, lint, test - use whatever your proje │
+│ ct requires)                                                                 │
+│ 7. Update AGENTS.md files if you discover reusable patterns (see below)      │
+│ 8. If checks pass, commit ALL changes with message: `feat: [Story ID] - [Sto │
+│ ry Title]`                                                                   │
+│ 9. Update the PRD to set `passes: true` for the completed story              │
+│ 10. Append your progress to `progress.txt`                                   │
+│                                                                              │
+│ ## Progress Report Format                                                    │
+│                                                                              │
+│ APPEND to progress.txt (never replace, always append):                       │
+│ ```                                                                          │
+│ ## [Date/Time] - [Story ID]                                                  │
+│ - What was implemented                                                       │
+│ - Files changed                                                              │
+│ - **Learnings for future iterations:**                                       │
+│   - Patterns discovered (e.g., "this codebase uses X for Y")                 │
+│   - Gotchas encountered (e.g., "don't forget to update Z when changing W")   │
+│   - Useful context (e.g., "the evaluation panel is in component X")          │
+│ ---                                                                          │
+│ ```                                                                          │
+│                                                                              │
+│ The learnings section is critical - it helps future iterations avoid repeati │
+│ ng mistakes and understand the codebase better.                              │
+│                                                                              │
+│ ## Consolidate Patterns                                                      │
+│                                                                              │
+│ If you discover a **reusable pattern** that future iterations should know, a │
+│ dd it to the `## Codebase Patterns` section at the TOP of progress.txt (crea │
+│ te it if it doesn't exist). This section should consolidate the most importa │
+│ nt learnings:                                                                │
+│                                                                              │
+│ ```                                                                          │
+│ ## Codebase Patterns                                                         │
+│ - Example: Use `sql<number>` template for aggregations                       │
+│ - Example: Always use `IF NOT EXISTS` for migrations                         │
+│ - Example: Export types from actions.ts for UI components                    │
+│ ```                                                                          │
+│                                                                              │
+│ Only add patterns that are **general and reusable**, not story-specific deta │
+│ ils.                                                                         │
+│                                                                              │
+│ ## Update AGENTS.md Files                                                    │
+│                                                                              │
+│ Before committing, check if any edited files have learnings worth preserving │
+│ in nearby AGENTS.md files:                                                   │
+│                                                                              │
+│ 1. **Identify directories with edited files** - Look at which directories yo │
+│ u modified                                                                   │
+│ 2. **Check for existing AGENTS.md** - Look for AGENTS.md in those directorie │
+│ s or parent directories                                                      │
+│ 3. **Add valuable learnings** - If you discovered something future developer │
+│ s/agents should know:                                                        │
+│    - API patterns or conventions specific to that module                     │
+│    - Gotchas or non-obvious requirements                                     │
+│    - Dependencies between files                                              │
+│    - Testing approaches for that area                                        │
+│    - Configuration or environment requirements                               │
+│                                                                              │
+│ **Examples of good AGENTS.md additions:**                                    │
+│ - "When modifying X, also update Y to keep them in sync"                     │
+│ - "This module uses pattern Z for all API calls"                             │
+│ - "Tests require the dev server running on PORT 3000"                        │
+│ - "Field names must match the template exactly"                              │
+│                                                                              │
+│ **Do NOT add:**                                                              │
+│ - Story-specific implementation details                                      │
+│ - Temporary debugging notes                                                  │
+│ - Information already in progress.txt                                        │
+│                                                                              │
+│ Only update AGENTS.md if you have **genuinely reusable knowledge** that woul │
+│ d help future work in that directory.                                        │
+│                                                                              │
+│ ## Quality Requirements                                                      │
+│                                                                              │
+│ - ALL commits must pass your project's quality checks (typecheck, lint, test │
+│ )                                                                            │
+│ - Do NOT commit broken code                                                  │
+│ - Keep changes focused and minimal                                           │
+│ - Follow existing code patterns                                              │
+│                                                                              │
+│ ## Browser Testing (Required for Frontend Stories)                           │
+│                                                                              │
+│ For any story that changes UI, you MUST verify it works in the browser:      │
+│                                                                              │
+│ 1. Load the `dev-browser` skill                                              │
+│ 2. Navigate to the relevant page                                             │
+│ 3. Verify the UI changes work as expected                                    │
+│ 4. Take a screenshot if helpful for the progress log                         │
+│                                                                              │
+│ A frontend story is NOT complete until browser verification passes.          │
+│                                                                              │
+│ ## Stop Condition                                                            │
+│                                                                              │
+│ After completing a user story, check if ALL stories have `passes: true`.     │
+│                                                                              │
+│ If ALL stories are complete and passing, reply with:                         │
+│ <promise>COMPLETE</promise>                                                  │
+│                                                                              │
+│ If there are still stories with `passes: false`, end your response normally  │
+│ (another iteration will pick up the next story).                             │
+│                                                                              │
+│ ## Important                                                                 │
+│                                                                              │
+│ - Work on ONE story per iteration                                            │
+│ - Commit frequently                                                          │
+│ - Keep CI green                                                              │
+│ - Read the Codebase Patterns section in progress.txt before starting         │
+╰──────────────────────────────────────────────────────────────────────────────╯
+• Let me start by reading the PRD file and the progress log to understand what n
+  eeds to be done.
+• Used ReadFile (prd.json)
+• Used ReadFile (progress.txt)
+• I have finished reviewing the PRD and the progress log. The project is current
+  ly working on 'US-005: Implement Nutszap+Melt (mint swap) state machine steps'
+  . The acceptance criteria are clear: I need to implement the 'get_melt_quote',
+  'perform_melt', 'get_mint_quote', and 'perform_mint' steps.
+
+  Hmm, looking at the requirements, this involves complex interactions between t
+  wo different mints. I'll need to handle the state where a user is melting toke
+  ns from a source mint and minting them at a target mint. The state machine mus
+  t store meltQuote and mintQuote in state.quotes, and the minted proofs in stat
+  e.proofs.minted.
+
+  Wait, before I can implement these specific steps in tx-recovery.ts, I need to
+  understand the current implementation of the recovery flow and how it interact
+  s with the wallet. The persistence of these states is critical—if the app cras
+  hes during a cross-mint swap, the user must be able to resume without losing f
+  unds.
+
+  Actually, let me check the file structure. It seems src/model/cashu/tx-recover
+  y.ts contains the logic I'm looking for. However, I also need to see how the N
+  utsWallet handles proofs. The nuts-wallet.ts file likely contains the logic fo
+  r reserving and spending proofs, which is central to the melt and mint operati
+  ons.
+
+  But wait, I should also look at the controller. src/controller/proofs.ts proba
+  bly manages the higher-level proof operations and might already have some help
+  er functions for quotes or state transitions that I should reuse or follow as
+  a pattern.
+
+  If I just start coding the steps in tx-recovery.ts, I might miss existing abst
+  ractions for quote validation or proof handling. It's better to verify the cur
+  rent architecture across these three files to ensure the new steps integrate s
+  eamlessly with the existing recovery and wallet systems. I will examine these
+  files to determine the best way to implement the cross-mint swap logic and sta
+  te persistence.
+• Let me check the current state of the tx-recovery.ts file and the wallet imple
+  mentation to understand what I need to implement for US-005.
+• Used ReadFile (src/model/cashu/tx-recovery.ts)
+• Used ReadFile (src/controller/proofs.ts)
+• Used Glob (src/model/cashu/*.ts)
+• I've analyzed the existing structure in src/model/cashu/tx-recovery.ts. The Tx
+  State interface is well-defined, tracking proofs, quotes, and Nostr events. Th
+  e placeholder executeNutszapMeltStep currently only logs and throws errors. To
+  fulfill the requirements, I must implement the logic for four critical steps:
+  GET_MELT_QUOTE, PERFORM_MELT, GET_MINT_QUOTE, and PERFORM_MINT.
+
+  Hmm, the cross-mint swap logic is more complex than a standard NutsZap because
+  it involves two distinct mint interactions. I need to handle state transitions
+  carefully. If a PERFORM_MELT succeeds but the app crashes before PERFORM_MINT,
+  the user might lose the funds locked in the melt output unless I've stored the
+  quote and any change proofs correctly in TxState.
+
+  Wait, how does the wallet actually handle these low-level Cashu operations? Th
+  e tx-recovery.ts file references a wallet object, but I haven't seen its defin
+  ition yet. I need to know the exact method signatures for getMeltQuote, melt,
+  getMintQuote, and mint. Are they asynchronous? Do they return raw JSON or type
+  d objects? And how does the wallet handle the 'change' from a melt transaction
+  ?
+
+  Actually, looking at the imports, NutsWallet seems to be the primary interface
+  . Before I write any code in tx-recovery.ts, I must examine src/model/cashu/nu
+  ts-wallet.ts. This will ensure that my recovery logic aligns with the wallet's
+  internal proof management and mint communication protocols. I'll check that fi
+  le now to see how it interacts with the underlying Cashu mints and what data i
+  t expects for these operations.
+• Now I understand the structure. I need to implement the Nutszap+Melt (cross-mi
+  nt swap) state machine steps. Let me look at how the wallet handles melt/mint
+  operations:
+• Used ReadFile (src/model/cashu/nuts-wallet.ts)
+  File not found
+• The nuts-wallet.ts file doesn't exist. Let me look at the controller/proofs.ts
+  file more closely - it seems the NutsWallet class is defined there. I already
+  read it, and I can see it has methods for managing proofs, but I need to under
+  stand the melt/mint flow.
+
+  Let me look at how melt and mint operations are done elsewhere in the codebase
+  to understand the pattern.
+• Let me look for existing melt/mint implementations in the codebase to understa
+  nd the pattern:
+• Used Grep (melt|mintProofs)
+• Let me look at how melt is used in these files to understand the pattern.
+• Used Grep (meltProofs|createMeltQuote|melt)
+• I need to see how the Cashu wallet API is used. Let me look for actual melt an
+  d mint operations in the codebase.
+• Used ReadFile (src/lib/wallet.ts)
+• Used Grep (createMeltQuote|meltProof...checkMintQuote|mintProofs)
+• I can see from the code that:
+
+  1. wallet.checkMintQuote(quote.quote) - checks the mint quote status
+  2. wallet.mintProofs(quote.amount, quote.quote) - mints proofs when paid
+
+  Let me look at more Cashu-ts API methods to understand how melt works.
+• Used Grep (Wallet.*from.*@cashu)
+• Let me look at the imports from @cashu/cashu-ts to understand what Wallet API
+  methods are available.
+• Used Grep (@cashu/cashu-ts)
+• Let me look at the @cashu/cashu-ts module to understand the Wallet API better.
+• Used Shell (cd /root/code/nuts-cash &...rc 2>/dev/null | head -50)
+• The grep didn't return results. Let me look at the package.json to see the ver
+  sion of cashu-ts and check the documentation.
+• Used Shell (cd /root/code/nuts-cash &...main"|"module"' | head -5)
+• Let me look at the Wallet class in the cashu-ts library.
+• Used Shell (cd /root/code/nuts-cash &...s 2>/dev/null | head -100)
+• Let me check the dist files.
+• Used Shell (cd /root/code/nuts-cash &...b/ 2>/dev/null | head -20)
+• Let me check the types directory.
+• Used Shell (cd /root/code/nuts-cash &...s 2>/dev/null | head -100)
+• The cashu-ts API for cross-mint swaps is becoming clear. I'll need to use crea
+  teMeltQuote to initiate the process on the source mint, followed by meltProofs
+  to execute the melt. Subsequently, I'll use createMintQuote and mintProofs on
+  the destination mint to complete the swap.
+
+  Hmm, but wait—I haven't actually checked how these specific methods are implem
+  ented or utilized within this specific project. To ensure I'm using the correc
+  t parameters and handling the proof data correctly for this codebase, I need t
+  o see existing usage patterns.
+
+  Actually, searching for these method names across the source code is the most
+  logical next step. This will reveal how the application handles the transition
+  between mints and if there are specific wrappers for these API calls. I'll sea
+  rch for these patterns now to align my implementation with the existing archit
+  ecture.
+• Used Grep (\.createMeltQuote|\.meltP...ateMintQuote|\.mintProofs)
+• I need to implement the cross-mint swap logic. This involves melting proofs on
+  the source mint and then minting new ones on the target mint using the Lightni
+  ng invoice as the bridge.
+
+  Hmm, I need to verify how the NutsWallet handles these operations. Is there an
+  existing abstraction for melting, or do I need to interface with the Cashu lib
+  rary directly? I'll check src/controller/proofs.ts to see how proofs are curre
+  ntly selected and spent.
+
+  Wait, I also need to understand how the minting side works. I remember seeing
+  monitorMintQuote mentioned in other parts of the code. It likely handles the p
+  olling logic required to wait for the Lightning payment to complete before the
+  new proofs are issued. I should examine the code in src/controller/proofs.ts a
+  round line 439 to get a clear picture of how mint quotes are processed and mon
+  itored. This will help me correctly implement the state transitions for the sw
+  ap.
+• Used ReadFile (src/controller/proofs.ts)
+• Hmm, I have a general idea of the Cashu-ts API, but I'm missing the specific i
+  mplementation details for melting proofs. Wait, I need to know if I'm calling
+  meltProofs on the wallet instance or if there's a specific melt method on the
+  mint object. To ensure I'm using the correct types and handling the swap retur
+  n values properly, I need to see the actual function definitions and imports.
+  Let me check proofs.ts to see how it handles these operations and which types
+  it pulls from the library.
+• Used ReadFile (src/controller/proofs.ts)
+• Now I have a good understanding of the Cashu-ts API. Let me implement the cros
+  s-mint swap (nutszap-melt) state machine steps in tx-recovery.ts.The steps I n
+  eed to implement are:1. GET_MELT_QUOTE: Request melt quote from source mint 2.
+  PERFORM_MELT: Execute melt, store change proofs3. GET_MINT_QUOTE: Request mint
+  quote from target mint4. PERFORM_MINT: Poll for paid status, mint new proofs
+
+  I'll also need to integrate with the existing steps:- RESERVE_PROOFS: Already
+  implemented (shared with nutszap)
+
+  • BUILD_NUTSZAP_EVENT: Already implemented (shared with nutszap)
+  • PUBLISH_NUTSZAP_EVENT: Already implemented (shared with nutszap)
+  • FINALIZE: Already implemented (shared with nutszap)
+
+  Let me now implement the executeNutszapMeltStep function.
+• Now I have a good understanding of the Cashu-ts API. Let me implement the cros
+  s-mint swap (nutszap-melt) state machine steps. I'll update the executeNutszap
+  MeltStep function with all the required steps:
+• Used ReadFile (src/model/cashu/tx-recovery.ts)
+• I've analyzed the existing tx-recovery.ts and the placeholder implementation f
+  or the nutszap-melt flow. It's clear that while the basic structure is there,
+  the logic for handling the cross-mint swap via Lightning is completely missing
+  .
+
+  Looking at the NUTSZAP_MELT_STEPS, I need to handle RESERVE_PROOFS and BUILD_N
+  UTSZAP_EVENT differently than the standard nutszap flow, or rather, ensure the
+  y are correctly delegated since they technically happen after the swap in this
+  specific flow. The core work lies in the new steps: GET_MELT_QUOTE, PERFORM_ME
+  LT, GET_MINT_QUOTE, and PERFORM_MINT.
+
+  Wait, let me look closer at the PERFORM_MINT step. This is where most recoveri
+  es will likely happen. If the app crashes after the user pays the Lightning in
+  voice but before the new proofs are saved, we're in trouble. I need to poll th
+  e target mint's checkMintQuote until it returns PAID. Then, and only then, do
+  I call mintProofs.
+
+  I also need to handle the state updates carefully. Each step needs to check if
+  it's already been completed to ensure idempotency. For example, if state.quote
+  s.meltQuote exists, GET_MELT_QUOTE should probably just skip.
+
+  Actually, I should make sure I'm using the correct mint URLs. state.params.fro
+  mMint is the source, and state.params.toMint is the target. I have the Wallet
+  instance available in the nutsWallet store. The logic for executeNutszapMeltSt
+  ep needs to be a robust switch statement that handles these transitions, updat
+  es the state.step, and saves the progress back to the database after each succ
+  essful operation.
+
+  It's time to replace that placeholder executeNutszapMeltStep with a full imple
+  mentation that handles the cross-mint logic, including error handling for thin
+  gs like expired quotes or failed Lightning payments. I'll update the file now
+  to include this logic.
+• Now let me implement the complete nutszap-melt step handler:
+• Used StrReplaceFile (src/model/cashu/tx-recovery.ts)
+• I need to look back at the implementation. I realized I made a mistake with th
+  e get_melt_quote step. The flow for cross-mint swaps should be:
+
+  1. Get mint quote from TARGET mint (creates an invoice)
+  2. Use that invoice to get melt quote from SOURCE mint
+  3. Melt proofs on SOURCE mint (pays the invoice)
+  4. Target mint detects payment, mint quote becomes PAID
+  5. Mint proofs on TARGET mint
+
+  So the GET_MELT_QUOTE step should actually do both: get mint quote first, then
+  get melt quote. Let me also add the MeltQuoteState import and fix the executeG
+  etMeltQuoteStep function to actually work properly.
+
+  Wait, looking at the @cashu/cashu-ts types, I should verify the state checking
+  . Let me also make sure I import the right types. The step sequence should als
+  o change to GET_MINT_QUOTE first, then GET_MELT_QUOTE, but I'll keep the exist
+  ing step names and make GET_MELT_QUOTE handle both operations internally.
+
+  Actually, it's cleaner to have GET_MELT_QUOTE get the mint quote first interna
+  lly, then use that invoice to get the melt quote. This maintains idempotency -
+  if we already have both quotes, we skip. Let me fix this.
+• I need to look back at the implementation. I realized I made a mistake with th
+  e get_melt_quote step. The flow for cross-mint swaps should be:
+
+  1. Get mint quote from TARGET mint (creates an invoice)
+  2. Use that invoice to get melt quote from SOURCE mint
+  3. Melt proofs on SOURCE mint (pays the invoice)
+
+  Let me fix the executeGetMeltQuoteStep function to actually work properly. I a
+  lso need to add the MeltQuoteState import:
+• Used StrReplaceFile (src/model/cashu/tx-recovery.ts)
+• Now let me run typecheck to see if there are any errors:
+• Now let me run typecheck to verify the implementation:
+• Used Shell (cd /root/code/nuts-cash &...ypecheck 2>&1 | head -100)
+• Let me check what scripts are available:
+• Used Shell (cd /root/code/nuts-cash &...nt|test|type)" | head -20)
+• Let me run npm run check which typically does typechecking in Svelte projects:
+• Used Shell (cd /root/code/nuts-cash &...un check 2>&1 | tail -100)
+• There are many pre-existing errors. Let me filter specifically for errors in t
+  he tx-recovery.ts file:
+• Used Shell (cd /root/code/nuts-cash &...y|model/cashu" | head -50)
+• Let me check these specific errors:
+• Used Shell (cd /root/code/nuts-cash &...recovery" -A 3 | head -50)
+• I have a few errors to fix:
+
+  1. Line 900: createMeltQuoteBolt11 expects a string, not an object. Let me che
+     the API again.
+  2. Line 945: I'm trying to destructure reserved from state.quotes but it shoul
+     e state.proofs.reserved.
+  3. Line 1080: MeltQuoteState.ISSUED doesn't exist - it might be a different st
+     name.
+
+  Let me fix these issues:
+• I have some errors to fix. Let me address them:
+• Used ReadFile (src/model/cashu/tx-recovery.ts)
+• I see the issues now. Let me fix them:
+
+  1. Line 900: createMeltQuoteBolt11 takes a string (the invoice), not an object
+  2. Line 945: I'm destructuring reserved from state.quotes but it should be fro
+     tate.proofs.
+
+  Let me also check the MeltQuoteState issue on line 1080:
+• Used ReadFile (src/model/cashu/tx-recovery.ts)
+• Hmm, I'm looking at the polling logic in the recovery flow. The code checks Me
+  ltQuoteState.ISSUED, but wait... Melt quotes and Mint quotes don't always shar
+  e the same state enums in the Cashu protocol. Actually, looking at the previou
+  s grep results, MeltQuoteState only seems to define UNPAID, PENDING, and PAID.
+  If ISSUED isn't a member of that enum, this comparison will always fail or cau
+  se a type error.
+
+  Wait, I should also verify the API calls. Does checkMintQuote actually return
+  a state that includes ISSUED? If I'm conflating minting states with melting st
+  ates, the recovery logic will be fundamentally broken. To fix this and ensure
+  type safety, I need to see exactly how these states and API calls are defined
+  in the TypeScript declaration files. I'll search the library types for the min
+  t quote-related functions and state definitions to confirm the available value
+  s.
+• Used Shell (cd /root/code/nuts-cash &...ts 2>/dev/null | head -40)
+• Let me check what MintQuoteState values are:
+• Used Shell (cd /root/code/nuts-cash &.../types/*.d.ts 2>/dev/null)
+• I've identified a few type mismatches in src/model/cashu/tx-recovery.ts that n
+  eed fixing. First, the call to createMeltQuoteBolt11 is passing an object, but
+  the Cashu-ts API actually expects the invoice string as the first argument.
+
+  Hmm, I also noticed a logic error where reserved is being pulled from state.qu
+  otes—that's definitely wrong; it needs to come from state.proofs.
+
+  Wait, there's also the issue of MeltQuoteState.ISSUED. It seems I was using th
+  e wrong state object for a mint quote check. Since I'm checking the status of
+  a mint quote, I should be using MintQuoteState instead of MeltQuoteState to co
+  rrectly identify if the proofs have already been issued.
+
+  Actually, while I'm editing this file, I should also add MintQuoteState to the
+  imports from @cashu/cashu-ts since I'll be using it for the state comparison.
+  This ensures the code is both syntactically correct and logically sound regard
+  ing the Cashu protocol. I'll apply these fixes now.
+• Now I understand the issues. Let me fix them:
+• Used StrReplaceFile (src/model/cashu/tx-recovery.ts)
+• Now let me run check again to see if there are any more errors:
+• Used Shell (cd /root/code/nuts-cash &...recovery" -A 3 | head -50)
+• No more errors in tx-recovery.ts. Let me also run the build to make sure every
+  thing compiles correctly:
+• No more errors in tx-recovery.ts. Let me run the full build to make sure every
+  thing compiles:
+• Used Shell (cd /root/code/nuts-cash &...run build 2>&1 | tail -50)
+• The build passed successfully. The warnings about html5-qrcode and the glob pa
+  ttern are pre-existing and not related to my changes.
+
+  Now let me also run lint to check for any style issues:
+• Build passes. Let me run lint to check for any style issues:
+• Used Shell (cd /root/code/nuts-cash &... run lint 2>&1 | tail -30)
+• There are some style issues in the project. Let me run lint with --write to fi
+  x them for my changes:
+• Used Shell (cd /root/code/nuts-cash &...cashu/tx-recovery.ts 2>&1)
+• Now let me check the final state of the file to make sure it looks good:
+• Used ReadFile (src/model/cashu/tx-recovery.ts)
+• I notice there's a bug in my code - on line 1075, I'm checking MeltQuoteState.
+  PAID when I should be checking MintQuoteState.PAID since this is a mint quote
+  check, not a melt quote check. Let me fix that:
+• I notice there's a bug - I'm using MeltQuoteState.PAID when checking a mint qu
+  ote status. Let me fix that:
+• Used StrReplaceFile (src/model/cashu/tx-recovery.ts)
+• I also notice that I have a function executeBuildCrossMintNutszapEventStep def
+  ined but not used - the step handler calls executeBuildNutszapEventStep instea
+  d. Let me check if the build step for cross-mint swap needs special handling.A
+  ctually, looking at the flow again:1. For nutszap-melt, after PERFORM_MINT, we
+  have minted proofs on the target mint 2. We then need to build the nutszap eve
+  nt using those minted proofs (not reserved proofs) 3. The existing executeBuil
+  dNutszapEventStep looks at state.proofs.reserved but for cross-mint swap, the
+  proofs are in state.proofs.minted
+
+  I need to fix this. Let me create a specialized version for cross-mint swap:
+• I also need to fix the BUILD_NUTSZAP_EVENT step for cross-mint - it should use
+  the minted proofs, not reserved. Let me update the dispatcher to use the cross
+  -mint specific version:
+• Used StrReplaceFile (src/model/cashu/tx-recovery.ts)
+• I also need to verify that I don't need to import anything else. Let me also c
+  heck if the build and check pass again:
+• Let me verify the build and typecheck pass:
+• Used Shell (cd /root/code/nuts-cash &...recovery" -A 3 | head -20)
+• No errors. Let me also run build to make sure:
+• Used Shell (cd /root/code/nuts-cash &...success|done)" | tail -20)
+• Build passes. Now let me update the PRD to mark US-005 as passing, and add a p
+  rogress log entry:
+• Build passes. Now let me update the PRD and progress log:
+• Used StrReplaceFile (prd.json)
+• Now let me append to the progress log:
+• Used ReadFile (progress.txt)
+• I need to update the Codebase Patterns section at the top of the progress log
+  to include the patterns I've discovered about Cashu transaction handling, and
+  add my progress entry at the end.
+• Used WriteFile (progress.txt)
+• Now let me also update the Codebase Patterns section at the top to include the
+  Cashu-related patterns I've discovered:
+• Used StrReplaceFile (progress.txt)
+• Now let me commit the changes. First, let me check the git status to see what
+  files have been modified:
+• Now let me commit the changes:
+• Used Shell (cd /root/code/nuts-cash && git status)
+• Let me add the relevant files and commit:
+• Used Shell (cd /root/code/nuts-cash &...wap) state machine steps")
+• The commit was successful. Let me verify the PRD now shows US-005 as passing,
+  and check if there are more stories to implement:
+• Used ReadFile (prd.json)
+• US-005 is marked as passing. The next story to implement is US-006 (Zap/Lightn
+  ing flow). Let me also check if there's an AGENTS.md file that I should update
+  :
+• Let me check if there's an AGENTS.md file to update with patterns:
+• Used Glob (**/AGENTS.md)
+  Unsafe pattern
+• The AGENTS.md file exists but is empty. Let me check if there's one in the src
+  directory:
+• Used Shell (cd /root/code/nuts-cash &...e "AGENTS.md" 2>/dev/null)
+• No AGENTS.md in src. Let me check if there's one at the root level:
+• Used Shell (cd /root/code/nuts-cash &...ho "No AGENTS.md at root")
+• The AGENTS.md file is empty as indicated in my initial context. I've noted the
+  Cashu patterns in progress.txt, which should be sufficient for now.
+
+  Let me summarize what I completed:
+
+  1. ✅ Implemented US-005: Nutszap+Melt (cross-mint swap) state machine steps
+  2. ✅ Build passes
+  3. ✅ Typecheck passes
+  4. ✅ Updated PRD to mark US-005 as passing
+  5. ✅ Appended progress to progress.txt
+  6. ✅ Committed changes with proper message
+
+  The next story to implement is US-006 (Zap/Lightning state machine steps).
+
+  Let me verify my work is complete for this iteration:
+• US-005 is now complete. Let me verify by running one more check:
+• Used Shell (cd /root/code/nuts-cash &...s related to our changes")
+• There are 351 errors, but these are pre-existing errors in the codebase. Let m
+  e check if any are related to tx-recovery.ts:
+• Used Shell (cd /root/code/nuts-cash &...rep "tx-recovery" | wc -l)
+• No errors in tx-recovery.ts. The implementation of US-005 is complete. Let me
+  provide a summary of what was done:
+• No errors in tx-recovery.ts. The implementation of US-005 is complete.
+
+  Summary
+
+  Implemented US-005: Nutszap+Melt (mint swap) state machine steps
+
+  Changes Made:
+
+  1. Updated src/model/cashu/tx-recovery.ts with:
+    • Complete executeNutszapMeltStep() dispatcher function handling all 9 steps
+    • executeGetMeltQuoteStep(): Gets mint quote from target mint, then melt quo
+      rom source mint using the invoice
+    • executePerformMeltStep(): Executes melt on source mint, stores change proo
+    • executeGetMintQuoteStep(): Gets fresh mint quote from target mint
+    • executePerformMintStep(): Polls for paid status (60 attempts, 2 min max),
+      mints new proofs
+    • executeBuildCrossMintNutszapEventStep(): Builds event using minted proofs
+      target mint
+    • executeFinalizeCrossMintStep(): Commits reserved proofs, saves change proo
+      o wallet
+  2. Added imports: MeltQuoteState and MintQuoteState from @cashu/cashu-ts
+  3. Key patterns:
+    • Cross-mint swap flow: Target mint quote → Source melt quote → Melt (pays i
+      ce) → Poll target for PAID → Mint new proofs
+    • All steps are idempotent - check state before executing
+    • State persisted to IndexedDB after each step
+    • Quote expiry checked before operations
+
+  Files Changed:
+
+  • src/model/cashu/tx-recovery.ts (+426 lines)
+  • prd.json (updated US-005 passes: true)
+  • progress.txt (added patterns and progress entry)
+
+  Verification:
+
+  • ✅ Build passes
+  • ✅ Typecheck passes (no new errors)
+  • ✅ Changes committed with message: feat: US-005 - Implement Nutszap+Melt (mi
+    swap) state machine steps

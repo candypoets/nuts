@@ -456,3 +456,29 @@ Started: Thu Feb 12 01:17:20 PM CET 2026
   - Always check for quote expiry before attempting operations
   - The `meltProofsBolt11()` returns change proofs that must be saved to the wallet
 ---
+
+## 2026-02-12T13:36:00+01:00 - US-006
+- Implemented Zap (Lightning) state machine steps in `src/model/cashu/tx-recovery.ts`
+- Implemented `executeZapStep()` dispatcher for all zap transaction steps:
+  - `RESERVE_PROOFS`: Reuses existing implementation from nutszap flow
+  - `BUILD_ZAP_REQUEST`: Creates kind 9734 zap request event, signs with useSignEvent, stores in state.nostr.zapRequest
+  - `FETCH_ZAP_INVOICE`: Uses getZapInvoice() to fetch invoice from LNURL callback with signed zap request
+  - `GET_MELT_QUOTE`: Creates melt quote for the zap invoice
+  - `PERFORM_MELT`: Executes melt using reserved proofs, stores change
+  - `STORE_CHANGE_PROOFS`: Saves change proofs to wallet (separate step for clarity)
+  - `FINALIZE`: Commits reserved proofs and clears active transaction
+- Key implementation details:
+  - Zap request amount is in millisats (amount * 1000)
+  - Zap request requires: e tag (noteId), p tag (recipient), amount, relays, lnurl
+  - useSignEvent is called via Promise wrapper with 10s timeout
+  - Each step is idempotent - checks state before executing
+  - Error handling with descriptive messages for LNURL failures
+- Files changed: `src/model/cashu/tx-recovery.ts`
+- Build passes, typecheck passes (no new errors)
+- **Learnings for future iterations:**
+  - Zap flow is simpler than cross-mint swap - no polling needed
+  - The `getZapInvoice()` function handles both bech32 LNURL and plain URLs
+  - Signed zap request must be stored as JSON string in state for recovery
+  - Change proofs step is separate from perform_melt for better error granularity
+  - Lightning payments are one-way (no minting new proofs like in cross-mint swaps)
+---
