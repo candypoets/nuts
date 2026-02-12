@@ -7,7 +7,7 @@
 
 import type { Proof } from '@cashu/cashu-ts';
 import type { MeltQuoteResponse, MintQuoteResponse } from '@cashu/cashu-ts';
-import { MeltQuoteState, MintQuoteState } from '@cashu/cashu-ts';
+import { MintQuoteState } from '@cashu/cashu-ts';
 import { persistentWritable } from 'src/lib/persistentWritable';
 import type { EventTemplate, NostrEvent } from 'nostr-tools';
 import { now } from 'src/lib/period';
@@ -593,6 +593,7 @@ async function executeNutszapStep(txId: string, state: TxState, step: TxStep): P
 /**
  * RESERVE_PROOFS step: Reserve proofs from the wallet for this transaction
  * Idempotent: If proofs already reserved in state, skip
+ * Uses retry logic for network resilience during proof selection
  */
 async function executeReserveProofsStep(txId: string, state: TxState): Promise<void> {
 	// Check if already completed (idempotent)
@@ -618,11 +619,19 @@ async function executeReserveProofsStep(txId: string, state: TxState): Promise<v
 		throw new Error(`No unspent proofs available for mint ${fromMint}`);
 	}
 
-	// Use send() to select and prepare proofs
-	const { keep: proofsToKeep, send: proofsToSend } = await mintWallet.send(
-		amountPlusFees,
-		unspentProofs
-	);
+	// Use send() to select and prepare proofs with retry logic
+	let sendResult: { keep: Proof[]; send: Proof[] };
+	try {
+		sendResult = await withRetry(
+			() => mintWallet.send(amountPlusFees, unspentProofs),
+			'select proofs'
+		);
+	} catch (error) {
+		// If proof selection fails due to network/mint issues, abort the transaction
+		return handleMintError(txId, error);
+	}
+
+	const { keep: proofsToKeep, send: proofsToSend } = sendResult;
 
 	// Reserve the proofs
 	const reserved = wallet.reserveProofs(fromMint, proofsToSend);
@@ -653,6 +662,7 @@ async function executeReserveProofsStep(txId: string, state: TxState): Promise<v
 /**
  * BUILD_NUTSZAP_EVENT step: Create and sign the kind 9321 nutszap event
  * Idempotent: If event already built (eventIds exist), skip
+ * Uses retry logic for network resilience during proof locking
  */
 async function executeBuildNutszapEventStep(txId: string, state: TxState): Promise<void> {
 	// Check if already completed (idempotent)
@@ -680,15 +690,25 @@ async function executeBuildNutszapEventStep(txId: string, state: TxState): Promi
 	// Use the recipient's p2pkPubkey or derive from their pubkey
 	const recipientP2pk = p2pkPubkey || validateP2pkPubkey(pubkey);
 
-	// Lock the proofs to the recipient
-	const lockedProofs = await mintWallet.receive(
-		{ mint: fromMint, proofs: reserved, unit: 'sat' },
-		{},
-		{
-			type: 'p2pk',
-			options: { pubkey: recipientP2pk }
-		}
-	);
+	// Lock the proofs to the recipient with retry logic
+	let lockedProofs: Proof[];
+	try {
+		lockedProofs = await withRetry(
+			() =>
+				mintWallet.receive(
+					{ mint: fromMint, proofs: reserved, unit: 'sat' },
+					{},
+					{
+						type: 'p2pk',
+						options: { pubkey: recipientP2pk }
+					}
+				),
+			'lock proofs for nutszap'
+		);
+	} catch (error) {
+		// If proof locking fails, abort and release reserved proofs
+		return handleMintError(txId, error);
+	}
 
 	// Build the kind 9321 nutszap event template
 	const nutszapEvent: EventTemplate = {
@@ -728,6 +748,7 @@ async function executeBuildNutszapEventStep(txId: string, state: TxState): Promi
 /**
  * PUBLISH_NUTSZAP_EVENT step: Publish the event via usePublish and track relay acks
  * Idempotent: If relay acks already received, skip
+ * Uses retry logic for network resilience
  */
 async function executePublishNutszapEventStep(txId: string, state: TxState): Promise<void> {
 	// Check if already completed (idempotent)
@@ -756,31 +777,41 @@ async function executePublishNutszapEventStep(txId: string, state: TxState): Pro
 		].filter((t) => !!t[1])
 	};
 
-	// Publish and wait for at least one relay acknowledgment
+	// Publish and wait for at least one relay acknowledgment with retry logic
 	const relayAcks: { relay: string; success: boolean }[] = [];
 
-	await new Promise<void>((resolve, reject) => {
-		const timeout = setTimeout(() => {
-			if (relayAcks.length === 0) {
-				reject(new Error('Timeout waiting for relay acknowledgment'));
-			} else {
-				resolve();
-			}
-		}, 10000); // 10 second timeout
+	try {
+		await withRetry(
+			() =>
+				new Promise<void>((resolve, reject) => {
+					const timeout = setTimeout(() => {
+						if (relayAcks.length === 0) {
+							reject(new Error('Timeout waiting for relay acknowledgment'));
+						} else {
+							resolve();
+						}
+					}, 10000); // 10 second timeout
 
-		usePublish(`nutszap_${txId}`, nutszapEvent, (message: WorkerMessage) => {
-			const connectionStatus = isConnectionStatus(message);
-			if (connectionStatus) {
-				const relayUrl = connectionStatus.relayUrl()?.toString();
-				if (relayUrl) {
-					relayAcks.push({ relay: relayUrl, success: true });
-					// Resolve after first successful relay ack
-					clearTimeout(timeout);
-					resolve();
-				}
-			}
-		});
-	});
+					usePublish(`nutszap_${txId}`, nutszapEvent, (message: WorkerMessage) => {
+						const connectionStatus = isConnectionStatus(message);
+						if (connectionStatus) {
+							const relayUrl = connectionStatus.relayUrl()?.toString();
+							if (relayUrl) {
+								relayAcks.push({ relay: relayUrl, success: true });
+								// Resolve after first successful relay ack
+								clearTimeout(timeout);
+								resolve();
+							}
+						}
+					});
+				}),
+			'publish nutszap event'
+		);
+	} catch (error) {
+		// If publishing fails after retries, abort the transaction
+		// The proofs are already locked, but we need to release the reserved ones
+		return handleMintError(txId, error);
+	}
 
 	// Update state with relay acknowledgments
 	const updatedState: TxState = {
@@ -867,6 +898,7 @@ async function executeNutszapMeltStep(txId: string, state: TxState, step: TxStep
 /**
  * GET_MELT_QUOTE step: Request mint quote from target mint and melt quote from source mint
  * Idempotent: If melt quote already exists, skip
+ * Uses retry logic for network resilience
  */
 async function executeGetMeltQuoteStep(txId: string, state: TxState): Promise<void> {
 	// Check if already completed (idempotent)
@@ -886,19 +918,25 @@ async function executeGetMeltQuoteStep(txId: string, state: TxState): Promise<vo
 		throw new Error('No target mint specified for cross-mint swap');
 	}
 
-	// Step 1: Get mint quote from TARGET mint (creates an invoice to be paid)
+	// Step 1: Get mint quote from TARGET mint (creates an invoice to be paid) with retry
 	console.log(`[tx-recovery] Getting mint quote from ${toMint} for ${amount} sats...`);
 	const targetWallet = await wallet.getWallet(toMint);
-	const mintQuote = await targetWallet.createMintQuote(amount);
+	const mintQuote = await withRetry(
+		() => targetWallet.createMintQuote(amount),
+		'create mint quote'
+	);
 
 	console.log(`[tx-recovery] Got mint quote: ${mintQuote.quote}, invoice available`);
 
-	// Step 2: Use the mint quote's invoice to get melt quote from SOURCE mint
+	// Step 2: Use the mint quote's invoice to get melt quote from SOURCE mint with retry
 	console.log(`[tx-recovery] Getting melt quote from ${fromMint} for invoice...`);
 	const sourceWallet = await wallet.getWallet(fromMint);
 
 	// Get melt quote using the request field from mint quote (this is the invoice)
-	const meltQuote = await sourceWallet.createMeltQuoteBolt11(mintQuote.request);
+	const meltQuote = await withRetry(
+		() => sourceWallet.createMeltQuoteBolt11(mintQuote.request),
+		'create melt quote'
+	);
 
 	console.log(
 		`[tx-recovery] Got melt quote: ${meltQuote.quote}, fee: ${meltQuote.fee_reserve || 0}`
@@ -928,6 +966,7 @@ async function executeGetMeltQuoteStep(txId: string, state: TxState): Promise<vo
 /**
  * PERFORM_MELT step: Execute melt on source mint
  * Idempotent: If melt already performed (change proofs exist), skip
+ * Handles quote expiry by aborting and releasing proofs
  */
 async function executePerformMeltStep(txId: string, state: TxState): Promise<void> {
 	// Check if already completed (idempotent)
@@ -953,17 +992,31 @@ async function executePerformMeltStep(txId: string, state: TxState): Promise<voi
 		throw new Error('No melt quote available - must get quote first');
 	}
 
-	// Check if quote has expired
+	// Check if quote has expired - abort and release proofs if so
 	if (meltQuote.expiry && meltQuote.expiry < now()) {
-		throw new Error('Melt quote has expired - transaction must be aborted');
+		return handleQuoteExpiry(txId, 'melt');
 	}
 
 	// Get wallet for source mint
 	const mintWallet = await wallet.getWallet(fromMint);
 
-	// Perform the melt
+	// Perform the melt with retry logic for network failures
 	console.log(`[tx-recovery] Performing melt for ${txId}...`);
-	const meltResult = await mintWallet.meltProofsBolt11(meltQuote, reserved);
+	let meltResult: { quote: MeltQuoteResponse; change?: Proof[] };
+	try {
+		meltResult = await withRetry(
+			() => mintWallet.meltProofsBolt11(meltQuote, reserved),
+			'melt operation'
+		);
+	} catch (error) {
+		// Check if the error is due to quote expiry
+		const errorMessage = error instanceof Error ? error.message.toLowerCase() : '';
+		if (errorMessage.includes('expired') || errorMessage.includes('quote')) {
+			return handleQuoteExpiry(txId, 'melt');
+		}
+		// For other mint errors, abort and release funds
+		return handleMintError(txId, error);
+	}
 
 	// Update state with change proofs
 	const updatedState: TxState = {
@@ -984,6 +1037,7 @@ async function executePerformMeltStep(txId: string, state: TxState): Promise<voi
 /**
  * GET_MINT_QUOTE step: Request mint quote from target mint
  * Idempotent: If mint quote already exists, skip
+ * Uses retry logic for network resilience
  */
 async function executeGetMintQuoteStep(txId: string, state: TxState): Promise<void> {
 	// Check if already completed (idempotent)
@@ -1006,9 +1060,12 @@ async function executeGetMintQuoteStep(txId: string, state: TxState): Promise<vo
 	// Get wallet for target mint
 	const targetWallet = await wallet.getWallet(toMint);
 
-	// Create mint quote on target mint
+	// Create mint quote on target mint with retry logic
 	console.log(`[tx-recovery] Getting mint quote from ${toMint} for ${amount} sats...`);
-	const mintQuote = await targetWallet.createMintQuote(amount);
+	const mintQuote = await withRetry(
+		() => targetWallet.createMintQuote(amount),
+		'create mint quote'
+	);
 
 	// Update state with mint quote
 	const updatedState: TxState = {
@@ -1030,6 +1087,7 @@ async function executeGetMintQuoteStep(txId: string, state: TxState): Promise<vo
 /**
  * PERFORM_MINT step: Poll for paid status and mint new proofs
  * Idempotent: If minted proofs already exist, skip
+ * Handles quote expiry by aborting and releasing proofs
  */
 async function executePerformMintStep(txId: string, state: TxState): Promise<void> {
 	// Check if already completed (idempotent)
@@ -1054,15 +1112,15 @@ async function executePerformMintStep(txId: string, state: TxState): Promise<voi
 		throw new Error('No mint quote available - must get quote first');
 	}
 
-	// Check if quote has expired
+	// Check if quote has expired - abort and release proofs if so
 	if (mintQuote.expiry && mintQuote.expiry < now()) {
-		throw new Error('Mint quote has expired - transaction must be aborted');
+		return handleQuoteExpiry(txId, 'mint');
 	}
 
 	// Get wallet for target mint
 	const targetWallet = await wallet.getWallet(toMint);
 
-	// Poll for payment status
+	// Poll for payment status with retry logic
 	console.log(`[tx-recovery] Polling mint quote ${mintQuote.quote} for payment...`);
 
 	let isPaid = false;
@@ -1071,7 +1129,21 @@ async function executePerformMintStep(txId: string, state: TxState): Promise<voi
 	const pollInterval = 2000; // 2 seconds
 
 	while (!isPaid && attempts < maxAttempts) {
-		const response = await targetWallet.checkMintQuote(mintQuote.quote);
+		let response;
+		try {
+			response = await withRetry(
+				() => targetWallet.checkMintQuote(mintQuote.quote),
+				`check mint quote (attempt ${attempts + 1})`
+			);
+		} catch (error) {
+			// Check if the quote expired during polling
+			const errorMessage = error instanceof Error ? error.message.toLowerCase() : '';
+			if (errorMessage.includes('expired') || errorMessage.includes('quote')) {
+				return handleQuoteExpiry(txId, 'mint');
+			}
+			// For other errors, throw to trigger abort via normal error handling
+			throw error;
+		}
 
 		if (response.state === MintQuoteState.PAID) {
 			isPaid = true;
@@ -1079,12 +1151,13 @@ async function executePerformMintStep(txId: string, state: TxState): Promise<voi
 		}
 
 		if (response.state === MintQuoteState.ISSUED) {
-			// Quote was already used, this is an error
-			throw new Error('Mint quote was already issued - transaction must be aborted');
+			// Quote was already used, this is an error - abort and release
+			return handleMintError(txId, new Error('Mint quote was already issued'));
 		}
 
+		// Check if quote expired while waiting
 		if (mintQuote.expiry && mintQuote.expiry < now()) {
-			throw new Error('Mint quote expired while waiting for payment');
+			return handleQuoteExpiry(txId, 'mint');
 		}
 
 		attempts++;
@@ -1094,12 +1167,27 @@ async function executePerformMintStep(txId: string, state: TxState): Promise<voi
 	}
 
 	if (!isPaid) {
-		throw new Error('Timeout waiting for mint quote to be paid');
+		// Timeout waiting for payment - abort and release proofs
+		return handleQuoteExpiry(txId, 'mint');
 	}
 
-	// Mint the proofs
+	// Mint the proofs with retry logic
 	console.log(`[tx-recovery] Minting proofs for ${txId}...`);
-	const mintedProofs = await targetWallet.mintProofs(amount, mintQuote.quote);
+	let mintedProofs: Proof[];
+	try {
+		mintedProofs = await withRetry(
+			() => targetWallet.mintProofs(amount, mintQuote.quote),
+			'mint proofs'
+		);
+	} catch (error) {
+		// Check if the error is due to quote expiry
+		const errorMessage = error instanceof Error ? error.message.toLowerCase() : '';
+		if (errorMessage.includes('expired') || errorMessage.includes('quote')) {
+			return handleQuoteExpiry(txId, 'mint');
+		}
+		// For other mint errors, abort and release funds
+		return handleMintError(txId, error);
+	}
 
 	// Update state with minted proofs
 	const updatedState: TxState = {
@@ -1118,6 +1206,7 @@ async function executePerformMintStep(txId: string, state: TxState): Promise<voi
 /**
  * Build nutszap event step for cross-mint swap (uses minted proofs from target mint)
  * Overrides the build step to use minted proofs instead of reserved proofs
+ * Uses retry logic for network resilience during proof locking
  */
 async function executeBuildCrossMintNutszapEventStep(txId: string, state: TxState): Promise<void> {
 	// Check if already completed (idempotent)
@@ -1148,15 +1237,25 @@ async function executeBuildCrossMintNutszapEventStep(txId: string, state: TxStat
 	// Create P2PK locked proofs for the recipient
 	const recipientP2pk = p2pkPubkey || validateP2pkPubkey(pubkey);
 
-	// Lock the minted proofs to the recipient
-	const lockedProofs = await targetWallet.receive(
-		{ mint: toMint, proofs: minted, unit: 'sat' },
-		{},
-		{
-			type: 'p2pk',
-			options: { pubkey: recipientP2pk }
-		}
-	);
+	// Lock the minted proofs to the recipient with retry logic
+	let lockedProofs: Proof[];
+	try {
+		lockedProofs = await withRetry(
+			() =>
+				targetWallet.receive(
+					{ mint: toMint, proofs: minted, unit: 'sat' },
+					{},
+					{
+						type: 'p2pk',
+						options: { pubkey: recipientP2pk }
+					}
+				),
+			'lock proofs for cross-mint nutszap'
+		);
+	} catch (error) {
+		// If proof locking fails, abort and release reserved proofs
+		return handleMintError(txId, error);
+	}
 
 	// Build the kind 9321 nutszap event template
 	const nutszapEvent: EventTemplate = {
@@ -1318,6 +1417,7 @@ async function executeBuildZapRequestStep(txId: string, state: TxState): Promise
 /**
  * FETCH_ZAP_INVOICE step: Get invoice from LNURL callback using signed zap request
  * Idempotent: If zap invoice already exists in state, skip
+ * Handles failures by aborting transaction and releasing proofs
  */
 async function executeFetchZapInvoiceStep(txId: string, state: TxState): Promise<void> {
 	// Check if already completed (idempotent)
@@ -1330,47 +1430,53 @@ async function executeFetchZapInvoiceStep(txId: string, state: TxState): Promise
 	const { zapRequest } = state.nostr;
 
 	if (!lnurl) {
-		throw new Error('No LNURL provided for zap payment');
+		// Abort and release proofs if LNURL is missing
+		return handleZapInvoiceFailure(txId, new Error('No LNURL provided for zap payment'));
 	}
 
 	if (!zapRequest) {
-		throw new Error('No zap request available - must build zap request first');
+		// Abort and release proofs if zap request is missing
+		return handleZapInvoiceFailure(txId, new Error('No zap request available - must build zap request first'));
 	}
 
 	// Parse the signed zap request
 	const signedEvent = JSON.parse(zapRequest) as NostrEvent;
 
-	// Fetch the zap invoice from the LNURL service
+	// Fetch the zap invoice from the LNURL service with retry logic
 	console.log(`[tx-recovery] Fetching zap invoice for ${txId}...`);
+	let zapInvoice: { pr: string } | null = null;
 	try {
-		const zapInvoice = await getZapInvoice(lnurl, Number(amount), signedEvent);
+		zapInvoice = await withRetry(
+			() => getZapInvoice(lnurl, Number(amount), signedEvent),
+			'fetch zap invoice'
+		);
 
 		if (!zapInvoice || !zapInvoice.pr) {
 			throw new Error('Failed to get zap invoice from LNURL service');
 		}
-
-		// Update state with the zap invoice
-		const updatedState: TxState = {
-			...state,
-			quotes: {
-				...state.quotes,
-				zapInvoice: zapInvoice.pr
-			},
-			updatedAt: Date.now()
-		};
-		await saveTxState(txId, updatedState);
-
-		console.log(`[tx-recovery] Fetched zap invoice for ${txId}`);
 	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : String(error);
-		console.error(`[tx-recovery] Failed to fetch zap invoice for ${txId}:`, error);
-		throw new Error(`Failed to fetch zap invoice: ${errorMessage}`);
+		// Abort and release proofs on any fetch failure
+		return handleZapInvoiceFailure(txId, error);
 	}
+
+	// Update state with the zap invoice
+	const updatedState: TxState = {
+		...state,
+		quotes: {
+			...state.quotes,
+			zapInvoice: zapInvoice.pr
+		},
+		updatedAt: Date.now()
+	};
+	await saveTxState(txId, updatedState);
+
+	console.log(`[tx-recovery] Fetched zap invoice for ${txId}`);
 }
 
 /**
  * GET_MELT_QUOTE step: Create melt quote for the zap invoice
  * Idempotent: If melt quote already exists in state, skip
+ * Uses retry logic for network resilience
  */
 async function executeGetZapMeltQuoteStep(txId: string, state: TxState): Promise<void> {
 	// Check if already completed (idempotent)
@@ -1394,9 +1500,12 @@ async function executeGetZapMeltQuoteStep(txId: string, state: TxState): Promise
 	// Get wallet for source mint
 	const mintWallet = await wallet.getWallet(fromMint);
 
-	// Create melt quote for the zap invoice
+	// Create melt quote for the zap invoice with retry logic
 	console.log(`[tx-recovery] Getting melt quote for zap invoice...`);
-	const meltQuote = await mintWallet.createMeltQuoteBolt11(zapInvoice);
+	const meltQuote = await withRetry(
+		() => mintWallet.createMeltQuoteBolt11(zapInvoice),
+		'create melt quote for zap'
+	);
 
 	// Update state with the melt quote
 	const updatedState: TxState = {
@@ -1418,6 +1527,7 @@ async function executeGetZapMeltQuoteStep(txId: string, state: TxState): Promise
 /**
  * PERFORM_MELT step: Pay the zap invoice (consumes reserved proofs)
  * Idempotent: If change proofs exist (melt already performed), skip
+ * Handles quote expiry by aborting and releasing proofs
  */
 async function executePerformZapMeltStep(txId: string, state: TxState): Promise<void> {
 	// Check if already completed (idempotent)
@@ -1443,17 +1553,31 @@ async function executePerformZapMeltStep(txId: string, state: TxState): Promise<
 		throw new Error('No melt quote available - must get melt quote first');
 	}
 
-	// Check if quote has expired
+	// Check if quote has expired - abort and release proofs if so
 	if (meltQuote.expiry && meltQuote.expiry < now()) {
-		throw new Error('Melt quote has expired - transaction must be aborted');
+		return handleQuoteExpiry(txId, 'melt');
 	}
 
 	// Get wallet for source mint
 	const mintWallet = await wallet.getWallet(fromMint);
 
-	// Perform the melt (pay the zap invoice)
+	// Perform the melt (pay the zap invoice) with retry logic
 	console.log(`[tx-recovery] Performing melt for zap payment ${txId}...`);
-	const meltResult = await mintWallet.meltProofsBolt11(meltQuote, reserved);
+	let meltResult: { quote: MeltQuoteResponse; change?: Proof[] };
+	try {
+		meltResult = await withRetry(
+			() => mintWallet.meltProofsBolt11(meltQuote, reserved),
+			'zap melt operation'
+		);
+	} catch (error) {
+		// Check if the error is due to quote expiry
+		const errorMessage = error instanceof Error ? error.message.toLowerCase() : '';
+		if (errorMessage.includes('expired') || errorMessage.includes('quote')) {
+			return handleQuoteExpiry(txId, 'melt');
+		}
+		// For other mint errors, abort and release funds
+		return handleMintError(txId, error);
+	}
 
 	// Update state with change proofs (can be empty array)
 	const updatedState: TxState = {
@@ -1679,23 +1803,131 @@ export async function resumeActiveTransaction(): Promise<void> {
 	}
 }
 
+// ============================================================================
+// Error Handling and Retry Logic
+// ============================================================================
+
+/** Maximum number of retries for network failures */
+const MAX_RETRIES = 3;
+
+/** Base delay for exponential backoff in milliseconds */
+const RETRY_BASE_DELAY = 1000;
+
+/**
+ * Execute an async function with exponential backoff retry logic.
+ * Retries up to MAX_RETRIES times for retryable network errors.
+ */
+async function withRetry<T>(
+	fn: () => Promise<T>,
+	operationName: string,
+	attempt = 1
+): Promise<T> {
+	try {
+		return await fn();
+	} catch (error) {
+		const isRetryable = isRetryableError(error);
+		const errorMessage = error instanceof Error ? error.message : String(error);
+
+		if (isRetryable && attempt < MAX_RETRIES) {
+			const delay = RETRY_BASE_DELAY * Math.pow(2, attempt - 1);
+			console.log(
+				`[tx-recovery] ${operationName} failed (attempt ${attempt}/${MAX_RETRIES}): ${errorMessage}. Retrying in ${delay}ms...`
+			);
+			await new Promise((resolve) => setTimeout(resolve, delay));
+			return withRetry(fn, operationName, attempt + 1);
+		}
+
+		// Either not retryable or max retries reached
+		console.error(
+			`[tx-recovery] ${operationName} failed after ${attempt} attempt(s): ${errorMessage}`
+		);
+		throw error;
+	}
+}
+
 /**
  * Check if an error is potentially retryable
  */
 function isRetryableError(error: unknown): boolean {
 	if (error instanceof Error) {
+		const message = error.message.toLowerCase();
 		// Network errors are typically retryable
-		if (error.message.includes('network') || error.message.includes('fetch')) {
+		if (
+			message.includes('network') ||
+			message.includes('fetch') ||
+			message.includes('etimedout') ||
+			message.includes('econnrefused') ||
+			message.includes('ENOTFOUND')
+		) {
 			return true;
 		}
 		// Timeout errors are retryable
-		if (error.message.includes('timeout')) {
+		if (message.includes('timeout')) {
 			return true;
 		}
 		// Mint temporarily unavailable
-		if (error.message.includes('unavailable') || error.message.includes('503')) {
+		if (message.includes('unavailable') || message.includes('503') || message.includes('502')) {
+			return true;
+		}
+		// Rate limiting
+		if (message.includes('rate limit') || message.includes('429')) {
+			return true;
+		}
+		// Connection reset
+		if (message.includes('reset') || message.includes('aborted')) {
 			return true;
 		}
 	}
 	return false;
+}
+
+/**
+ * Handle quote expiry by aborting the transaction and releasing reserved proofs.
+ * This ensures funds are never lost when quotes expire.
+ */
+async function handleQuoteExpiry(txId: string, quoteType: 'melt' | 'mint'): Promise<never> {
+	console.error(`[tx-recovery] ${quoteType} quote expired for transaction ${txId}, aborting...`);
+
+	// Abort the transaction and release reserved proofs
+	await abortTransaction(txId);
+
+	// Throw a descriptive error that includes guidance for the user
+	throw new Error(
+		`${quoteType} quote has expired. Transaction has been aborted and your funds have been returned. ` +
+			`Please try the transaction again.`
+	);
+}
+
+/**
+ * Handle fetch zap invoice failure by aborting the transaction.
+ * This ensures reserved proofs are released when LNURL fails.
+ */
+async function handleZapInvoiceFailure(txId: string, error: unknown): Promise<never> {
+	const errorMessage = error instanceof Error ? error.message : String(error);
+	console.error(`[tx-recovery] Failed to fetch zap invoice for ${txId}:`, errorMessage);
+
+	// Abort the transaction and release reserved proofs
+	await abortTransaction(txId);
+
+	throw new Error(
+		`Failed to fetch zap invoice: ${errorMessage}. ` +
+			`Transaction has been aborted and your funds have been returned.`
+	);
+}
+
+/**
+ * Handle mint errors by aborting the transaction and releasing reserved proofs.
+ * This ensures funds are never lost when mint operations fail.
+ */
+async function handleMintError(txId: string, error: unknown): Promise<never> {
+	const errorMessage = error instanceof Error ? error.message : String(error);
+	console.error(`[tx-recovery] Mint error for transaction ${txId}:`, errorMessage);
+
+	// Abort the transaction and release reserved proofs
+	await abortTransaction(txId);
+
+	throw new Error(
+		`Mint operation failed: ${errorMessage}. ` +
+			`Transaction has been aborted and your funds have been returned.`
+	);
 }
