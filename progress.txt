@@ -6,6 +6,12 @@ Started: Wed Feb 11 10:50:43 AM CET 2026
 - For optimistic UI: store nonce before sending, add to local feed immediately, then dedupe when real event arrives
 - Use `sendingMap` (Map<string, number>) to track pending sent messages for visual feedback
 - In item slot, use `dmItems` (not `feed`) to reference the processed items array
+- **Cashu transaction patterns:**
+  - Cross-mint swap flow: get mint quote from target -> get melt quote from source -> melt (pays invoice) -> poll target for PAID -> mint
+  - `MintQuoteState` values: UNPAID, PAID, ISSUED (different from MeltQuoteState)
+  - `createMeltQuoteBolt11(invoice)` takes string, not object
+  - Always check quote expiry before operations with `quote.expiry < now()`
+  - Use `meltProofsBolt11(quote, proofs)` to execute melts, returns `{ quote, change }`
 
 ## Codebase Patterns
 - Notifications use complex event grouping: `processNotifications()` groups by type (reply/reaction/mention/repost) and referenced post ID
@@ -419,4 +425,34 @@ Started: Thu Feb 12 01:17:20 PM CET 2026
   - Relay acks are stored as `{ relay: string; success: boolean }[]` in state.nostr.relayAcks
   - Use 10 second timeout for publish operations to prevent hanging
   - Each step updates the transaction state in IndexedDB before returning
+---
+---
+
+## 2026-02-12T13:27:00+01:00 - US-005
+- Implemented Nutszap+Melt (cross-mint swap) state machine steps in `src/model/cashu/tx-recovery.ts`
+- Implemented `executeNutszapMeltStep()` dispatcher that handles all steps for cross-mint swaps:
+  - `RESERVE_PROOFS`: Reuses existing implementation from nutszap flow
+  - `GET_MELT_QUOTE`: Gets mint quote from target mint first, then melt quote from source mint using the invoice
+  - `PERFORM_MELT`: Executes melt on source mint using reserved proofs, stores change proofs
+  - `GET_MINT_QUOTE`: Gets fresh mint quote from target mint (idempotent)
+  - `PERFORM_MINT`: Polls for paid status (60 attempts x 2s = 2 min max), then mints new proofs
+  - `BUILD_NUTSZAP_EVENT`: Custom implementation using minted proofs from target mint, locks to recipient P2PK
+  - `PUBLISH_NUTSZAP_EVENT`: Reuses existing implementation
+  - `FINALIZE`: Commits reserved proofs as spent, saves change proofs to wallet
+- Key implementation details:
+  - Import `MeltQuoteState` and `MintQuoteState` from `@cashu/cashu-ts` for state checking
+  - `createMeltQuoteBolt11()` takes invoice string directly, not an object
+  - Mint quote states: UNPAID, PAID, ISSUED
+  - Cross-mint flow: Target mint quote -> Source melt quote -> Melt (pays invoice) -> Poll target for PAID -> Mint new proofs
+  - Each step is idempotent - checks if already completed before executing
+  - State updates persist to IndexedDB after each step
+- Files changed: `src/model/cashu/tx-recovery.ts`
+- Build passes, typecheck passes (same pre-existing errors as before)
+- **Learnings for future iterations:**
+  - Cross-mint swap requires getting BOTH quotes before melting: mint quote first (creates invoice), then melt quote
+  - The melt step actually pays the Lightning invoice created by the mint quote
+  - For nutszap-melt, the proofs used to build the event come from `state.proofs.minted` (not reserved)
+  - Use `MintQuoteState.PAID/ISSUED` not `MeltQuoteState` when checking mint quote status
+  - Always check for quote expiry before attempting operations
+  - The `meltProofsBolt11()` returns change proofs that must be saved to the wallet
 ---

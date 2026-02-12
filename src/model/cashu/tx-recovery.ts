@@ -7,6 +7,7 @@
 
 import type { Proof } from '@cashu/cashu-ts';
 import type { MeltQuoteResponse, MintQuoteResponse } from '@cashu/cashu-ts';
+import { MeltQuoteState, MintQuoteState } from '@cashu/cashu-ts';
 import { persistentWritable } from 'src/lib/persistentWritable';
 import type { EventTemplate } from 'nostr-tools';
 import { now } from 'src/lib/period';
@@ -825,16 +826,400 @@ async function executeFinalizeStep(txId: string, state: TxState): Promise<void> 
 }
 
 // ============================================================================
-// Nutszap+Melt (Cross-Mint Swap) Step Implementation - Placeholders
+// Nutszap+Melt (Cross-Mint Swap) Step Implementation
 // ============================================================================
 
 /**
  * Execute a step for the nutszap-melt (cross-mint swap) flow
  */
 async function executeNutszapMeltStep(txId: string, state: TxState, step: TxStep): Promise<void> {
-	// Placeholder - will be implemented in US-005
-	console.log(`[tx-recovery] nutszap-melt step ${step} not yet implemented`);
-	throw new Error(`nutszap-melt step ${step} not yet implemented`);
+	switch (step) {
+		case NUTSZAP_MELT_STEPS.RESERVE_PROOFS:
+			await executeReserveProofsStep(txId, state);
+			break;
+		case NUTSZAP_MELT_STEPS.GET_MELT_QUOTE:
+			await executeGetMeltQuoteStep(txId, state);
+			break;
+		case NUTSZAP_MELT_STEPS.PERFORM_MELT:
+			await executePerformMeltStep(txId, state);
+			break;
+		case NUTSZAP_MELT_STEPS.GET_MINT_QUOTE:
+			await executeGetMintQuoteStep(txId, state);
+			break;
+		case NUTSZAP_MELT_STEPS.PERFORM_MINT:
+			await executePerformMintStep(txId, state);
+			break;
+		case NUTSZAP_MELT_STEPS.BUILD_NUTSZAP_EVENT:
+			await executeBuildCrossMintNutszapEventStep(txId, state);
+			break;
+		case NUTSZAP_MELT_STEPS.PUBLISH_NUTSZAP_EVENT:
+			await executePublishNutszapEventStep(txId, state);
+			break;
+		case NUTSZAP_MELT_STEPS.FINALIZE:
+			await executeFinalizeCrossMintStep(txId, state);
+			break;
+		default:
+			throw new Error(`Unknown step ${step} for nutszap-melt transaction`);
+	}
+}
+
+/**
+ * GET_MELT_QUOTE step: Request mint quote from target mint and melt quote from source mint
+ * Idempotent: If melt quote already exists, skip
+ */
+async function executeGetMeltQuoteStep(txId: string, state: TxState): Promise<void> {
+	// Check if already completed (idempotent)
+	if (state.quotes.meltQuote && state.quotes.mintQuote) {
+		console.log(`[tx-recovery] Quotes already obtained for ${txId}, skipping`);
+		return;
+	}
+
+	const wallet = get(nutsWallet);
+	if (!wallet) {
+		throw new Error('NutsWallet not initialized');
+	}
+
+	const { fromMint, toMint, amount } = state.params;
+
+	if (!toMint) {
+		throw new Error('No target mint specified for cross-mint swap');
+	}
+
+	// Step 1: Get mint quote from TARGET mint (creates an invoice to be paid)
+	console.log(`[tx-recovery] Getting mint quote from ${toMint} for ${amount} sats...`);
+	const targetWallet = await wallet.getWallet(toMint);
+	const mintQuote = await targetWallet.createMintQuote(amount);
+
+	console.log(`[tx-recovery] Got mint quote: ${mintQuote.quote}, invoice available`);
+
+	// Step 2: Use the mint quote's invoice to get melt quote from SOURCE mint
+	console.log(`[tx-recovery] Getting melt quote from ${fromMint} for invoice...`);
+	const sourceWallet = await wallet.getWallet(fromMint);
+
+	// Get melt quote using the request field from mint quote (this is the invoice)
+	const meltQuote = await sourceWallet.createMeltQuoteBolt11(mintQuote.request);
+
+	console.log(
+		`[tx-recovery] Got melt quote: ${meltQuote.quote}, fee: ${meltQuote.fee_reserve || 0}`
+	);
+
+	// Step 3: Update state with both quotes
+	const updatedState: TxState = {
+		...state,
+		quotes: {
+			...state.quotes,
+			mintQuote: {
+				...mintQuote,
+				mintUrl: toMint
+			},
+			meltQuote: {
+				...meltQuote,
+				mintUrl: fromMint
+			}
+		},
+		updatedAt: Date.now()
+	};
+	await saveTxState(txId, updatedState);
+
+	console.log(`[tx-recovery] Stored quotes for ${txId}`);
+}
+
+/**
+ * PERFORM_MELT step: Execute melt on source mint
+ * Idempotent: If melt already performed (change proofs exist), skip
+ */
+async function executePerformMeltStep(txId: string, state: TxState): Promise<void> {
+	// Check if already completed (idempotent)
+	if (state.proofs.change && state.quotes.meltQuote) {
+		console.log(`[tx-recovery] Melt already performed for ${txId}, skipping`);
+		return;
+	}
+
+	const wallet = get(nutsWallet);
+	if (!wallet) {
+		throw new Error('NutsWallet not initialized');
+	}
+
+	const { fromMint } = state.params;
+	const { meltQuote } = state.quotes;
+	const { reserved } = state.proofs;
+
+	if (!reserved || reserved.length === 0) {
+		throw new Error('No reserved proofs available for melt');
+	}
+
+	if (!meltQuote) {
+		throw new Error('No melt quote available - must get quote first');
+	}
+
+	// Check if quote has expired
+	if (meltQuote.expiry && meltQuote.expiry < now()) {
+		throw new Error('Melt quote has expired - transaction must be aborted');
+	}
+
+	// Get wallet for source mint
+	const mintWallet = await wallet.getWallet(fromMint);
+
+	// Perform the melt
+	console.log(`[tx-recovery] Performing melt for ${txId}...`);
+	const meltResult = await mintWallet.meltProofsBolt11(meltQuote, reserved);
+
+	// Update state with change proofs
+	const updatedState: TxState = {
+		...state,
+		proofs: {
+			...state.proofs,
+			change: meltResult.change || []
+		},
+		updatedAt: Date.now()
+	};
+	await saveTxState(txId, updatedState);
+
+	console.log(
+		`[tx-recovery] Melt performed for ${txId}, got ${meltResult.change?.length || 0} change proofs`
+	);
+}
+
+/**
+ * GET_MINT_QUOTE step: Request mint quote from target mint
+ * Idempotent: If mint quote already exists, skip
+ */
+async function executeGetMintQuoteStep(txId: string, state: TxState): Promise<void> {
+	// Check if already completed (idempotent)
+	if (state.quotes.mintQuote) {
+		console.log(`[tx-recovery] Mint quote already obtained for ${txId}, skipping`);
+		return;
+	}
+
+	const wallet = get(nutsWallet);
+	if (!wallet) {
+		throw new Error('NutsWallet not initialized');
+	}
+
+	const { toMint, amount } = state.params;
+
+	if (!toMint) {
+		throw new Error('No target mint specified for cross-mint swap');
+	}
+
+	// Get wallet for target mint
+	const targetWallet = await wallet.getWallet(toMint);
+
+	// Create mint quote on target mint
+	console.log(`[tx-recovery] Getting mint quote from ${toMint} for ${amount} sats...`);
+	const mintQuote = await targetWallet.createMintQuote(amount);
+
+	// Update state with mint quote
+	const updatedState: TxState = {
+		...state,
+		quotes: {
+			...state.quotes,
+			mintQuote: {
+				...mintQuote,
+				mintUrl: toMint
+			}
+		},
+		updatedAt: Date.now()
+	};
+	await saveTxState(txId, updatedState);
+
+	console.log(`[tx-recovery] Got mint quote for ${txId}: ${mintQuote.quote}`);
+}
+
+/**
+ * PERFORM_MINT step: Poll for paid status and mint new proofs
+ * Idempotent: If minted proofs already exist, skip
+ */
+async function executePerformMintStep(txId: string, state: TxState): Promise<void> {
+	// Check if already completed (idempotent)
+	if (state.proofs.minted && state.proofs.minted.length > 0) {
+		console.log(`[tx-recovery] Mint already performed for ${txId}, skipping`);
+		return;
+	}
+
+	const wallet = get(nutsWallet);
+	if (!wallet) {
+		throw new Error('NutsWallet not initialized');
+	}
+
+	const { toMint, amount } = state.params;
+	const { mintQuote } = state.quotes;
+
+	if (!toMint) {
+		throw new Error('No target mint specified for cross-mint swap');
+	}
+
+	if (!mintQuote) {
+		throw new Error('No mint quote available - must get quote first');
+	}
+
+	// Check if quote has expired
+	if (mintQuote.expiry && mintQuote.expiry < now()) {
+		throw new Error('Mint quote has expired - transaction must be aborted');
+	}
+
+	// Get wallet for target mint
+	const targetWallet = await wallet.getWallet(toMint);
+
+	// Poll for payment status
+	console.log(`[tx-recovery] Polling mint quote ${mintQuote.quote} for payment...`);
+
+	let isPaid = false;
+	let attempts = 0;
+	const maxAttempts = 60; // 60 attempts with 2-second delay = 2 minutes max
+	const pollInterval = 2000; // 2 seconds
+
+	while (!isPaid && attempts < maxAttempts) {
+		const response = await targetWallet.checkMintQuote(mintQuote.quote);
+
+		if (response.state === MintQuoteState.PAID) {
+			isPaid = true;
+			break;
+		}
+
+		if (response.state === MintQuoteState.ISSUED) {
+			// Quote was already used, this is an error
+			throw new Error('Mint quote was already issued - transaction must be aborted');
+		}
+
+		if (mintQuote.expiry && mintQuote.expiry < now()) {
+			throw new Error('Mint quote expired while waiting for payment');
+		}
+
+		attempts++;
+		if (!isPaid && attempts < maxAttempts) {
+			await new Promise((resolve) => setTimeout(resolve, pollInterval));
+		}
+	}
+
+	if (!isPaid) {
+		throw new Error('Timeout waiting for mint quote to be paid');
+	}
+
+	// Mint the proofs
+	console.log(`[tx-recovery] Minting proofs for ${txId}...`);
+	const mintedProofs = await targetWallet.mintProofs(amount, mintQuote.quote);
+
+	// Update state with minted proofs
+	const updatedState: TxState = {
+		...state,
+		proofs: {
+			...state.proofs,
+			minted: mintedProofs
+		},
+		updatedAt: Date.now()
+	};
+	await saveTxState(txId, updatedState);
+
+	console.log(`[tx-recovery] Minted ${mintedProofs.length} proofs for ${txId}`);
+}
+
+/**
+ * Build nutszap event step for cross-mint swap (uses minted proofs from target mint)
+ * Overrides the build step to use minted proofs instead of reserved proofs
+ */
+async function executeBuildCrossMintNutszapEventStep(txId: string, state: TxState): Promise<void> {
+	// Check if already completed (idempotent)
+	if (state.nostr.eventIds && state.nostr.eventIds.length > 0) {
+		console.log(`[tx-recovery] Nutszap event already built for ${txId}, skipping`);
+		return;
+	}
+
+	const wallet = get(nutsWallet);
+	if (!wallet) {
+		throw new Error('NutsWallet not initialized');
+	}
+
+	const { toMint, pubkey, noteId, memo = '', p2pkPubkey } = state.params;
+	const { minted } = state.proofs;
+
+	if (!minted || minted.length === 0) {
+		throw new Error('No minted proofs available to build nutszap event');
+	}
+
+	if (!toMint) {
+		throw new Error('No target mint specified');
+	}
+
+	// Get wallet for target mint
+	const targetWallet = await wallet.getWallet(toMint);
+
+	// Create P2PK locked proofs for the recipient
+	const recipientP2pk = p2pkPubkey || validateP2pkPubkey(pubkey);
+
+	// Lock the minted proofs to the recipient
+	const lockedProofs = await targetWallet.receive(
+		{ mint: toMint, proofs: minted, unit: 'sat' },
+		{},
+		{
+			type: 'p2pk',
+			options: { pubkey: recipientP2pk }
+		}
+	);
+
+	// Build the kind 9321 nutszap event template
+	const nutszapEvent: EventTemplate = {
+		kind: 9321,
+		content: memo,
+		created_at: now(),
+		tags: [
+			...lockedProofs.map((proof) => ['proof', JSON.stringify(proof)]),
+			['u', toMint || ''],
+			['e', noteId || ''],
+			['p', pubkey]
+		].filter((t) => !!t[1])
+	};
+
+	// Generate a deterministic event ID for tracking
+	const eventId = `nutszap_${txId}_${Date.now()}`;
+
+	// Update state with the built event and final locked proofs
+	const updatedState: TxState = {
+		...state,
+		proofs: {
+			...state.proofs,
+			minted: lockedProofs // Store the locked proofs as "minted"
+		},
+		nostr: {
+			...state.nostr,
+			eventIds: [eventId]
+		},
+		updatedAt: Date.now()
+	};
+	await saveTxState(txId, updatedState);
+
+	console.log(`[tx-recovery] Built nutszap event for ${txId} with ${lockedProofs.length} proofs`);
+}
+
+/**
+ * FINALIZE step for cross-mint swap: Commit reserved proofs and save change to wallet
+ */
+async function executeFinalizeCrossMintStep(txId: string, state: TxState): Promise<void> {
+	const wallet = get(nutsWallet);
+	if (!wallet) {
+		throw new Error('NutsWallet not initialized');
+	}
+
+	const { fromMint, toMint } = state.params;
+	const { reserved, change } = state.proofs;
+
+	// Commit the reserved proofs to spent (they were successfully melted)
+	if (reserved && reserved.length > 0) {
+		wallet.commitReserved(fromMint, reserved);
+		console.log(`[tx-recovery] Committed ${reserved.length} reserved proofs for ${txId}`);
+	}
+
+	// Save the change proofs to wallet on source mint (if any)
+	if (change && change.length > 0) {
+		await wallet.saveProofs(fromMint, change);
+		console.log(`[tx-recovery] Saved ${change.length} change proofs to ${fromMint} for ${txId}`);
+	}
+
+	// The minted proofs were already locked and published in the nutszap event
+	// They don't need to be saved to the wallet since they're being sent to someone else
+
+	// finalizeTransaction handles clearing activeTxId and marking state finalized
+	await finalizeTransaction(txId);
 }
 
 // ============================================================================
