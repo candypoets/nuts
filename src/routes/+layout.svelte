@@ -8,7 +8,11 @@
 	import { dimensions, key } from 'src/controller';
 	import { initRelayTracking } from 'src/controller/relay';
 	import { zoomed } from 'src/controller/image';
-	import { resumeActiveTransaction } from 'src/model/cashu/tx-recovery';
+	import {
+		resumeActiveTransaction,
+		getBackupDebugInfo,
+		retryBackup
+	} from 'src/model/cashu/tx-recovery';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
 
@@ -41,6 +45,18 @@
 		// Resume any pending transaction from previous session
 		// This is non-blocking and runs in the background
 		resumeActiveTransaction();
+
+		// Expose backup debug functions to window for console debugging
+		// @ts-ignore
+		window.nutsDebug = {
+			getBackupDebugInfo,
+			retryBackup,
+			listAllTransactions: async () => {
+				const { listAllTransactions } = await import('src/model/cashu/tx-recovery');
+				return listAllTransactions();
+			}
+		};
+		console.log('[nuts-cash] Debug functions available at window.nutsDebug:', Object.keys(window.nutsDebug));
 
 		return () => {
 			window.removeEventListener('resize', setViewport);

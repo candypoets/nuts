@@ -1857,10 +1857,93 @@ export async function resumeActiveTransaction(): Promise<void> {
 // Backup (Proofs to Nostr) Step Implementation
 // ============================================================================
 
+/** Debug info for backup transactions - exposed for monitoring */
+export interface BackupDebugInfo {
+	txId: string;
+	step: TxStep;
+	mintUrl: string;
+	proofCount: number;
+	relayAcks: number;
+	errors: string[];
+	createdAt: number;
+	updatedAt: number;
+	isFinalized: boolean;
+	isAborted: boolean;
+}
+
+/**
+ * Get debug info for all backup transactions
+ * Useful for monitoring backup status in UI
+ */
+export async function getBackupDebugInfo(): Promise<BackupDebugInfo[]> {
+	const allTxs = await listAllTransactions();
+	return allTxs
+		.filter((tx) => tx.type === 'backup')
+		.map((tx) => ({
+			txId: tx.txId,
+			step: tx.step,
+			mintUrl: tx.params.fromMint,
+			proofCount: tx.proofs.reserved?.length || 0,
+			relayAcks: tx.nostr.relayAcks?.length || 0,
+			errors: tx.errors.map((e) => e.message),
+			createdAt: tx.createdAt,
+			updatedAt: tx.updatedAt,
+			isFinalized: tx.isFinalized,
+			isAborted: tx.isAborted
+		}));
+}
+
+/**
+ * Manually retry a failed backup transaction
+ * Call this from browser console or UI to retry a specific backup
+ */
+export async function retryBackup(txId: string): Promise<void> {
+	console.log(`[tx-recovery] Manually retrying backup ${txId}`);
+	const state = await loadTxState(txId);
+	if (!state) {
+		throw new Error(`Backup transaction ${txId} not found`);
+	}
+	if (state.type !== 'backup') {
+		throw new Error(`Transaction ${txId} is not a backup transaction`);
+	}
+	if (state.isFinalized) {
+		console.log(`[tx-recovery] Backup ${txId} already finalized`);
+		return;
+	}
+	// Reset aborted state if needed
+	if (state.isAborted) {
+		console.log(`[tx-recovery] Resetting aborted backup ${txId}`);
+		const resetState: TxState = {
+			...state,
+			isAborted: false,
+			abortedAt: undefined,
+			updatedAt: Date.now()
+		};
+		await saveTxState(txId, resetState);
+	}
+	// Clear errors and retry from current step
+	const clearedState: TxState = {
+		...state,
+		errors: [],
+		updatedAt: Date.now()
+	};
+	await saveTxState(txId, clearedState);
+	console.log(`[tx-recovery] Retrying backup ${txId} from step: ${clearedState.step}`);
+	await advanceTransaction(txId);
+}
+
 /**
  * Execute a step for the backup (proofs to Nostr) flow
  */
 async function executeBackupStep(txId: string, state: TxState, step: TxStep): Promise<void> {
+	console.log(`[tx-recovery][BACKUP] Executing step ${step} for transaction ${txId}`);
+	console.log(`[tx-recovery][BACKUP] State:`, {
+		mint: state.params.fromMint,
+		proofCount: state.proofs.reserved?.length || 0,
+		errors: state.errors.length,
+		createdAt: new Date(state.createdAt).toISOString()
+	});
+
 	switch (step) {
 		case BACKUP_STEPS.PREPARE_PROOFS:
 			await executePrepareProofsStep(txId, state);
@@ -1884,17 +1967,23 @@ async function executeBackupStep(txId: string, state: TxState, step: TxStep): Pr
  * Idempotent: If proofs already prepared in state, skip
  */
 async function executePrepareProofsStep(txId: string, state: TxState): Promise<void> {
+	console.log(`[tx-recovery][BACKUP] PREPARE_PROOFS starting for ${txId}`);
+
 	// Check if already completed (idempotent)
 	if (state.proofs.reserved && state.proofs.reserved.length > 0) {
-		console.log(`[tx-recovery] Proofs already prepared for backup ${txId}, skipping`);
+		console.log(`[tx-recovery][BACKUP] Proofs already prepared for backup ${txId}, skipping`);
 		return;
 	}
 
 	const { fromMint, proofsToBackup } = state.params;
 
 	if (!proofsToBackup || proofsToBackup.length === 0) {
+		console.error(`[tx-recovery][BACKUP] No proofs provided for backup ${txId}`);
 		throw new Error('No proofs provided for backup');
 	}
+
+	console.log(`[tx-recovery][BACKUP] Preparing ${proofsToBackup.length} proofs for mint ${fromMint}`);
+	console.log(`[tx-recovery][BACKUP] Proof amounts:`, proofsToBackup.map((p) => p.amount));
 
 	// Store the proofs in the state (as 'reserved' for consistency with other flows)
 	const updatedState: TxState = {
@@ -1907,7 +1996,7 @@ async function executePrepareProofsStep(txId: string, state: TxState): Promise<v
 	};
 	await saveTxState(txId, updatedState);
 
-	console.log(`[tx-recovery] Prepared ${proofsToBackup.length} proofs for backup ${txId}`);
+	console.log(`[tx-recovery][BACKUP] PREPARE_PROOFS completed for ${txId}`);
 }
 
 /**
@@ -1915,9 +2004,11 @@ async function executePrepareProofsStep(txId: string, state: TxState): Promise<v
  * Idempotent: If event already published (relay acks exist), skip
  */
 async function executePublishToNostrStep(txId: string, state: TxState): Promise<void> {
+	console.log(`[tx-recovery][BACKUP] PUBLISH_TO_NOSTR starting for ${txId}`);
+
 	// Check if already completed (idempotent)
 	if (state.nostr.eventIds && state.nostr.eventIds.length > 0) {
-		console.log(`[tx-recovery] Backup already published for ${txId}, skipping`);
+		console.log(`[tx-recovery][BACKUP] Backup already published for ${txId}, skipping`);
 		return;
 	}
 
@@ -1925,18 +2016,23 @@ async function executePublishToNostrStep(txId: string, state: TxState): Promise<
 	const { reserved: proofsToBackup } = state.proofs;
 
 	if (!proofsToBackup || proofsToBackup.length === 0) {
+		console.error(`[tx-recovery][BACKUP] No proofs available to backup for ${txId}`);
 		throw new Error('No proofs available to backup');
 	}
 
 	// Get wallet for the mint to get all unspent proofs
 	const wallet = get(nutsWallet);
 	if (!wallet) {
+		console.error(`[tx-recovery][BACKUP] NutsWallet not initialized`);
 		throw new Error('NutsWallet not initialized');
 	}
 
 	// Get all current unspent proofs for this mint (including the new ones)
 	const existingProofs = wallet.unspentProofs.get(fromMint) || [];
 	const allUnspentProofs = [...existingProofs];
+
+	console.log(`[tx-recovery][BACKUP] Total unspent proofs in wallet: ${allUnspentProofs.length}`);
+	console.log(`[tx-recovery][BACKUP] New proofs to backup: ${proofsToBackup.length}`);
 
 	// Build the kind 7375 backup event template
 	const backupEvent: EventTemplate = {
@@ -1949,6 +2045,8 @@ async function executePublishToNostrStep(txId: string, state: TxState): Promise<
 		tags: [],
 		created_at: now()
 	};
+
+	console.log(`[tx-recovery][BACKUP] Event content size: ${backupEvent.content.length} bytes`);
 
 	// Generate a deterministic event ID for tracking
 	const eventId = `backup_${txId}_${Date.now()}`;
@@ -1964,7 +2062,7 @@ async function executePublishToNostrStep(txId: string, state: TxState): Promise<
 	};
 	await saveTxState(txId, updatedState);
 
-	console.log(`[tx-recovery] Prepared backup event for ${txId} with ${proofsToBackup.length} proofs`);
+	console.log(`[tx-recovery][BACKUP] PUBLISH_TO_NOSTR completed for ${txId}, event ID: ${eventId}`);
 }
 
 /**
@@ -1972,9 +2070,12 @@ async function executePublishToNostrStep(txId: string, state: TxState): Promise<
  * Idempotent: If relay acks already received, skip
  */
 async function executeVerifyPublishStep(txId: string, state: TxState): Promise<void> {
+	console.log(`[tx-recovery][BACKUP] VERIFY_PUBLISH starting for ${txId}`);
+
 	// Check if already completed (idempotent)
 	if (state.nostr.relayAcks && state.nostr.relayAcks.length > 0) {
-		console.log(`[tx-recovery] Backup already verified for ${txId}, skipping`);
+		console.log(`[tx-recovery][BACKUP] Backup already verified for ${txId}, skipping`);
+		console.log(`[tx-recovery][BACKUP] Existing relay acks:`, state.nostr.relayAcks);
 		return;
 	}
 
@@ -1983,11 +2084,15 @@ async function executeVerifyPublishStep(txId: string, state: TxState): Promise<v
 	// Get wallet for the mint to get all unspent proofs
 	const wallet = get(nutsWallet);
 	if (!wallet) {
+		console.error(`[tx-recovery][BACKUP] NutsWallet not initialized`);
 		throw new Error('NutsWallet not initialized');
 	}
 
 	// Get all current unspent proofs for this mint
 	const existingProofs = wallet.unspentProofs.get(fromMint) || [];
+
+	console.log(`[tx-recovery][BACKUP] Publishing ${existingProofs.length} proofs to Nostr`);
+	console.log(`[tx-recovery][BACKUP] Event kind: 7375 (saveNuts)`);
 
 	// Build the kind 7375 backup event (we need to rebuild it for publishing)
 	const backupEvent: EventTemplate = {
@@ -2004,27 +2109,38 @@ async function executeVerifyPublishStep(txId: string, state: TxState): Promise<v
 	// Publish and wait for at least one relay acknowledgment with retry logic
 	const relayAcks: { relay: string; success: boolean }[] = [];
 
+	console.log(`[tx-recovery][BACKUP] Starting publish with retry (max ${MAX_RETRIES} retries)`);
+
 	try {
 		await withRetry(
 			() =>
 				new Promise<void>((resolve, reject) => {
+					console.log(`[tx-recovery][BACKUP] Publishing to Nostr...`);
 					const timeout = setTimeout(() => {
 						if (relayAcks.length === 0) {
+							console.error(`[tx-recovery][BACKUP] Timeout waiting for relay acknowledgment`);
 							reject(new Error('Timeout waiting for relay acknowledgment'));
 						} else {
+							console.log(`[tx-recovery][BACKUP] Resolved with ${relayAcks.length} relay acks`);
 							resolve();
 						}
 					}, 15000); // 15 second timeout (backups are important)
 
 					usePublish(`backup_${txId}`, backupEvent, (message: WorkerMessage) => {
+						console.log(`[tx-recovery][BACKUP] Received message from Nostr:`, message.type);
 						const connectionStatus = isConnectionStatus(message);
 						if (connectionStatus) {
 							const relayUrl = connectionStatus.relayUrl()?.toString();
+							const status = connectionStatus.status()?.toString();
+							console.log(`[tx-recovery][BACKUP] Relay ${relayUrl} status: ${status}`);
 							if (relayUrl) {
-								relayAcks.push({ relay: relayUrl, success: true });
+								relayAcks.push({ relay: relayUrl, success: status === 'ok' });
 								// Resolve after first successful relay ack
-								clearTimeout(timeout);
-								resolve();
+								if (status === 'ok') {
+									console.log(`[tx-recovery][BACKUP] Got OK from ${relayUrl}, clearing timeout`);
+									clearTimeout(timeout);
+									resolve();
+								}
 							}
 						}
 					});
@@ -2035,7 +2151,8 @@ async function executeVerifyPublishStep(txId: string, state: TxState): Promise<v
 		// If publishing fails after retries, throw error to trigger abort
 		// We don't want to lose the proofs, so we keep them in the wallet
 		// but mark the backup as failed
-		console.error(`[tx-recovery] Failed to publish backup ${txId}:`, error);
+		console.error(`[tx-recovery][BACKUP] FAILED to publish backup ${txId}:`, error);
+		console.error(`[tx-recovery][BACKUP] Relay acks received so far:`, relayAcks);
 		throw new Error(
 			`Failed to backup proofs to Nostr: ${error instanceof Error ? error.message : String(error)}. ` +
 			`Your proofs are safe in your wallet but not yet backed up. Please try again.`
@@ -2053,7 +2170,8 @@ async function executeVerifyPublishStep(txId: string, state: TxState): Promise<v
 	};
 	await saveTxState(txId, updatedState);
 
-	console.log(`[tx-recovery] Published backup for ${txId} to ${relayAcks.length} relays`);
+	console.log(`[tx-recovery][BACKUP] VERIFY_PUBLISH completed for ${txId}`);
+	console.log(`[tx-recovery][BACKUP] Published to ${relayAcks.length} relays:`, relayAcks.map((r) => r.relay));
 }
 
 /**
@@ -2062,12 +2180,15 @@ async function executeVerifyPublishStep(txId: string, state: TxState): Promise<v
 async function executeFinalizeBackupStep(txId: string, state: TxState): Promise<void> {
 	const { reserved: proofsToBackup } = state.proofs;
 
-	console.log(
-		`[tx-recovery] Finalized backup ${txId}, backed up ${proofsToBackup?.length || 0} proofs`
-	);
+	console.log(`[tx-recovery][BACKUP] FINALIZE starting for ${txId}`);
+	console.log(`[tx-recovery][BACKUP] Finalizing backup of ${proofsToBackup?.length || 0} proofs`);
+	console.log(`[tx-recovery][BACKUP] Relay acknowledgments:`, state.nostr.relayAcks?.map((r) => r.relay) || []);
 
 	// finalizeTransaction handles clearing activeTxId and marking state finalized
 	await finalizeTransaction(txId);
+
+	console.log(`[tx-recovery][BACKUP] FINALIZE completed for ${txId}`);
+	console.log(`[tx-recovery][BACKUP] ✅ Backup successful! Proofs are now safely stored in Nostr.`);
 }
 
 // ============================================================================

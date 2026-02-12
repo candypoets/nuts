@@ -388,8 +388,12 @@ export class NutsWallet {
 	public saveProofs = async (mint: string, proofs: Proof[]) => {
 		if (!mint || !proofs?.length) return;
 
+		console.log(`[saveProofs] Saving ${proofs.length} proofs for mint ${mint}`);
+		console.log(`[saveProofs] Proof amounts:`, proofs.map((p) => p.amount));
+
 		// Add proofs to wallet immediately so user sees them
 		this.addProofs(mint, proofs);
+		console.log(`[saveProofs] Proofs added to wallet, starting backup...`);
 
 		// Import transaction recovery dynamically to avoid circular dependencies
 		const { startTransaction, advanceTransaction } = await import(
@@ -401,12 +405,18 @@ export class NutsWallet {
 			fromMint: mint,
 			proofsToBackup: proofs
 		});
+		console.log(`[saveProofs] Backup transaction started: ${txId}`);
 
 		// Advance the transaction in the background (non-blocking)
-		advanceTransaction(txId).catch((error) => {
-			console.error('[saveProofs] Backup transaction failed:', error);
-			// Proofs are already in the wallet, user can retry backup manually if needed
-		});
+		advanceTransaction(txId)
+			.then(() => {
+				console.log(`[saveProofs] Backup completed successfully: ${txId}`);
+			})
+			.catch((error) => {
+				console.error('[saveProofs] Backup transaction failed:', error);
+				console.log('[saveProofs] Proofs are safe in wallet. Retry with: nutsDebug.retryBackup("${txId}")');
+				// Proofs are already in the wallet, user can retry backup manually if needed
+			});
 	};
 
 	public removeProofs = (mint: string, proofs: Proof[]) => {
