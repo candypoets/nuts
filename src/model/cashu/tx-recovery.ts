@@ -1621,6 +1621,65 @@ export function getActiveTxId(): string | null {
 }
 
 /**
+ * Resume an active transaction on app startup.
+ * Loads the active transaction from storage and advances it if not finalized.
+ * This function is non-blocking and returns immediately, running the resume in the background.
+ * @returns A promise that resolves when the resume check is complete (not when the transaction completes)
+ */
+export async function resumeActiveTransaction(): Promise<void> {
+	try {
+		const activeTxId = getActiveTxId();
+
+		if (!activeTxId) {
+			console.log('[tx-recovery] No active transaction to resume');
+			return;
+		}
+
+		console.log(`[tx-recovery] Found active transaction: ${activeTxId}, checking state...`);
+
+		const state = await loadTxState(activeTxId);
+		if (!state) {
+			console.warn(`[tx-recovery] Active transaction ${activeTxId} not found in IndexedDB, clearing activeTxId`);
+			activeTxIdStore.set(null);
+			return;
+		}
+
+		// Don't resume if already finalized or aborted
+		if (state.isFinalized) {
+			console.log(`[tx-recovery] Transaction ${activeTxId} is already finalized, clearing activeTxId`);
+			activeTxIdStore.set(null);
+			return;
+		}
+
+		if (state.isAborted) {
+			console.log(`[tx-recovery] Transaction ${activeTxId} is aborted, clearing activeTxId`);
+			activeTxIdStore.set(null);
+			return;
+		}
+
+		// Don't resume if already at finalize step
+		if (state.step === 'finalize') {
+			console.log(`[tx-recovery] Transaction ${activeTxId} is at finalize step, finalizing...`);
+			await finalizeTransaction(activeTxId);
+			return;
+		}
+
+		console.log(`[tx-recovery] Resuming transaction ${activeTxId} from step: ${state.step}`);
+
+		// Advance the transaction - this will run until completion or error
+		// We don't await this to keep the function non-blocking
+		// The advanceTransaction function handles concurrent execution protection
+		advanceTransaction(activeTxId).catch((error) => {
+			console.error(`[tx-recovery] Resume failed for transaction ${activeTxId}:`, error);
+		});
+
+		console.log(`[tx-recovery] Resume initiated for transaction ${activeTxId}`);
+	} catch (error) {
+		console.error('[tx-recovery] Error during resume:', error);
+	}
+}
+
+/**
  * Check if an error is potentially retryable
  */
 function isRetryableError(error: unknown): boolean {

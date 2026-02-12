@@ -8,6 +8,7 @@
 	import { dimensions, key } from 'src/controller';
 	import { initRelayTracking } from 'src/controller/relay';
 	import { zoomed } from 'src/controller/image';
+	import { resumeActiveTransaction } from 'src/model/cashu/tx-recovery';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
 
@@ -36,6 +37,10 @@
 		if (window.visualViewport) {
 			window.visualViewport.addEventListener('resize', setViewport);
 		}
+
+		// Resume any pending transaction from previous session
+		// This is non-blocking and runs in the background
+		resumeActiveTransaction();
 
 		return () => {
 			window.removeEventListener('resize', setViewport);
