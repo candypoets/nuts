@@ -14,6 +14,8 @@
 	import {
 		asKind0,
 		asKind10019,
+		asKind9321,
+		asKind9735,
 		asParsedEvent,
 		ConnectionTracker,
 		fbArray,
@@ -21,6 +23,7 @@
 		isConnectionStatus,
 		isKind17375,
 		isKind9321,
+		isKind9735,
 		isParsedEvent,
 		isValidProofs
 	} from '@candypoets/nipworker/utils';
@@ -45,6 +48,7 @@
 	import Feed from 'src/routes/explore/feed.svelte';
 	import MintCard from 'src/routes/home/components/mintcard.svelte';
 	import Kind9321 from 'src/routes/kinds/kind9321.svelte';
+	import Kind9735 from 'src/routes/kinds/kind9735.svelte';
 	import { go } from 'src/routes/modals/modal';
 	import EmptyWallet from './emptyWallet.svelte';
 	import { DEFAULT_MINTS } from 'src/lib/wallet';
@@ -86,8 +90,9 @@
 
 	setTimeout(() => (defaultRelays = DEFAULT_RELAYS), 3000);
 
-	$: relays =
-		(walletRelays?.length && walletRelays) || ($readRelays?.length && $readRelays) || defaultRelays;
+	$: relays = Array.from(
+		new Set([...(defaultRelays || []), ...(walletRelays || []), ...($readRelays || [])])
+	);
 
 	const relayPromise = Promise.race([kind10019Ready.promise, delayedPromise]);
 
@@ -142,15 +147,23 @@
 			'home_' + $key?.pub,
 			[
 				{
-					kinds: [9321],
+					kinds: [9321, 9735],
 					authors: [$key?.pub],
 					limit: 50,
 					relays: relays,
 					nocache: true
 				},
 				{
-					kinds: [9321],
+					kinds: [9321, 9735],
 					tags: { '#p': [$key?.pub] },
+					limit: 50,
+					relays: relays,
+					noCache: true
+				},
+				{
+					// Outgoing lightning zaps (kind 9735 with uppercase P tag = sender)
+					kinds: [9735],
+					tags: { '#P': [$key?.pub] },
 					limit: 50,
 					relays: relays,
 					noCache: true
@@ -163,7 +176,8 @@
 	function handleWalletFeedEvents(message: WorkerMessage) {
 		const event = isParsedEvent(message);
 		const kind9321 = isKind9321(message);
-		if (!kind9321 || !event) return;
+		const kind9735 = isKind9735(message);
+		if ((!kind9321 && !kind9735) || !event) return;
 
 		// Deduplicate by event ID hash (fnv1a)
 		const eventIdHash = event.id()?.fnv1aHash();
@@ -334,13 +348,25 @@
 		</svelte:fragment>
 		<div slot="item-content" let:post let:visible let:index>
 			<!-- {#if post} -->
-			<Kind9321
-				zap={post}
-				context={[]}
-				isFirst={index == 0 || oneDayDiff(post.createdAt(), walletItems[index - 1]?.createdAt())}
-				isLast={index == walletItems.length - 1 ||
-					oneDayDiff(post.createdAt(), walletItems[index + 1]?.createdAt())}
-			/>
+			{#if asKind9321(post)}
+				<!-- Kind 9321 - Nutzap -->
+				<Kind9321
+					zap={post}
+					context={[]}
+					isFirst={index == 0 || oneDayDiff(post.createdAt(), walletItems[index - 1]?.createdAt())}
+					isLast={index == walletItems.length - 1 ||
+						oneDayDiff(post.createdAt(), walletItems[index + 1]?.createdAt())}
+				/>
+			{:else if asKind9735(post)}
+				<!-- Kind 9735 - Zap Receipt -->
+				<Kind9735
+					zap={post}
+					context={[]}
+					isFirst={index == 0 || oneDayDiff(post.createdAt(), walletItems[index - 1]?.createdAt())}
+					isLast={index == walletItems.length - 1 ||
+						oneDayDiff(post.createdAt(), walletItems[index + 1]?.createdAt())}
+				/>
+			{/if}
 			<!-- {/if} -->
 		</div>
 		<!-- <svelte:fragment slot="item-content" let:post let:context let:visible>

@@ -19,7 +19,7 @@
 	export let context: ParsedEvent<AnyKind>[] = [];
 
 	let isImageContext = getContext('imageContext');
-	
+
 	// Generate unique ID for this grid to scope transition names
 	const gridId = Math.random().toString(36).substring(7);
 
@@ -27,7 +27,6 @@
 	let videoElements: Record<number, HTMLVideoElement> = {};
 
 	$: proxiedLinks = proxyMediaLinks(links, ImagePresets.full);
-	$: fullQualityLinks = proxyMediaLinks(links, ImagePresets.full);
 
 	// Limit display to 5 items max
 	$: displayLinks = proxiedLinks.slice(0, 5);
@@ -50,12 +49,13 @@
 		const imageData = ctx.createImageData(32, 32);
 		imageData.data.set(pixels);
 		ctx.putImageData(imageData, 0, 0);
-		return canvas.convertToBlob().then(blob => URL.createObjectURL(blob));
+		return canvas.convertToBlob().then((blob) => URL.createObjectURL(blob));
 	}
 
 	function setZoom(zoom: number) {
 		const updateStores = async () => {
-			$linksStore = fullQualityLinks;
+			// Use proxiedLinks to keep the same URL for browser caching
+			$linksStore = proxiedLinks;
 			$zoomedStore = zoom;
 			$noteStore = note;
 			$contextStore = context;
@@ -95,7 +95,7 @@
 					muted={true}
 					className={cx(
 						i == 0 ? 'col-span-' + getSpan(i == 0 ? displayLinks.length - 1 : i) : '',
-						'max-h-[50vh]:data-[single=true] !w-auto:data-[single=true] m-auto:data-[single=true] h-96 w-full'
+						'max-h-[50vh]:data-[single=true] !w-auto:data-[single=true] m-auto:data-[single=true] h-96'
 					)}
 					bind:videoElement={videoElements[i]}
 					onClick={(e) => {
@@ -117,9 +117,8 @@
 					: ''}
 			>
 				<img
-					class:h-[50vh]={displayLinks.length == 1}
-					class:!h-48={displayLinks.length > 2}
-					class:h-96={displayLinks.length <= 2 && displayLinks.length !== 1}
+					class:max-h-[50vh]={displayLinks.length == 1}
+					class:!h-48={displayLinks.length > 1}
 					class:!w-auto={displayLinks.length == 1}
 					class:m-auto={displayLinks.length == 1}
 					class={cx(

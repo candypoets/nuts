@@ -146,14 +146,13 @@
 						subId || nid,
 						[
 							{
-								kinds: [1],
 								ids: [nid],
 								limit: 5,
 								relays: relays.slice(0, 5) || [],
 								cacheFirst: true
 							},
 							// fetch some replies
-							{ kinds: [1], limit: 10, tags: { '#e': [nid] }, relays: relays || [] },
+							{ limit: 10, tags: { '#e': [nid] }, relays: relays || [] },
 							...(displayNote ? fbArray(displayNote, 'requests').map((r) => toRequestObject(r)) : [])
 						],
 						handleEvents
@@ -165,7 +164,7 @@
 							getUserRelays(pubkey, (relays) => {
 								useSubscription(
 									'root_' + subId || nid,
-									[{ kinds: [1], ids: [id], limit: 5, relays }],
+									[{ ids: [id], limit: 5, relays }],
 									handleEvents
 								);
 							});
@@ -197,7 +196,6 @@
 										'quote_' + subId || nid,
 										[
 											{
-												kinds: [1],
 												ids: allIds,
 												limit: 5 * allIds.length,
 												relays: Array.from(allRelays)
@@ -309,10 +307,10 @@
 		{/if}
 		{#if isRepost}
 			<!-- Repost indicator with reposter's avatar -->
-			<div class="flex items-center gap-2 px-4 pb-2 text-sm text-secondary opacity-80">
-				<Icon icon="mdi:repeat" class="text-lg" />
-				<span>Reposted by</span>
+			<div class="flex items-center gap-2 px-1 text-sm text-secondary opacity-80">
+				<!-- <span>Reposted by</span> -->
 				<Avatar pubkey={reposterPubkey} {context} size="sm" />
+				<!-- <Icon icon="mdi:repeat" class="text-lg text-white" /> -->
 			</div>
 		{/if}
 		<Header note={displayNote} {context} {depth} {main}>

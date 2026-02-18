@@ -87,7 +87,7 @@ export async function nip96Upload(
 	const form = new FormData();
 	form.append('file', file, file.name);
 
-	const res = await fetch(uploadUrl, {
+	const res = await fetch('https://proxy.nuts.cash?url=' + uploadUrl, {
 		method: 'POST',
 		headers: { Authorization: authorization },
 		body: form

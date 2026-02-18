@@ -240,7 +240,7 @@
 						src={item?.src}
 						on:click|preventDefault|stopPropagation
 						autoplay
-						controls
+						playsinline
 						style={$zoomed !== undefined ? `view-transition-name: image-zoom-${$gridId}-0` : ''}
 					/>
 				{/if}

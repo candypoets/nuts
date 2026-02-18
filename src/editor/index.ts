@@ -18,7 +18,6 @@ export const extensions = [
 	NostrExtension.configure({
 		image: {
 			defaultUploadUrl: 'https://nostr.build',
-
 			defaultUploadType: 'nip96' // or blossom
 		},
 		video: {

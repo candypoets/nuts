@@ -94,6 +94,7 @@
 				}
 			});
 		}
+
 		post = prepareEvent(post);
 
 		onSubmit(post as NostrEvent);

@@ -139,7 +139,18 @@ const decodeLNURL = async (lnurl: string): Promise<string> => {
 
 const LNURLLookup = async (endpoint: string, amount: number, event?: NostrEvent) => {
 	console.log('ep', endpoint);
-	const { callback, maxSendable, minSendable } = (await (await fetch(endpoint)).json()) as {
+	
+	// Extract original host from endpoint before proxying
+	const endpointUrl = new URL(endpoint);
+	const originalHost = endpointUrl.origin;
+	console.log('original host', originalHost);
+	
+	// Use proxy to avoid CORS
+	const response = await fetch(`https://proxy.nuts.cash/?url=${endpoint}`);
+	if (!response.ok) {
+		throw new Error(`Proxy error: ${response.status} ${response.statusText}. Cannot reach ${originalHost}`);
+	}
+	const { callback, maxSendable, minSendable } = await response.json() as {
 		callback: string;
 		maxSendable: number;
 		minSendable: number;
@@ -148,13 +159,35 @@ const LNURLLookup = async (endpoint: string, amount: number, event?: NostrEvent)
 		throw new Error('No callback url found.');
 	}
 
-	console.log('cb', callback);
-	let cb = callback + (callback.includes('?') ? `&` : `?`) + `amount=${amount * 1000}`;
-	if (event) {
-		cb += `nostr=${JSON.stringify(event)}`;
-		cb += `comment=${event.content}`;
+	console.log('cb raw', callback);
+	
+	// Fix callback: nginx proxy rewrites it to proxy.nuts.cash, restore original host
+	let cb = callback.replace(/^https?:\/\/proxy\.nuts\.cash/, originalHost);
+	
+	// Prepend original host if callback is relative
+	if (!cb.startsWith('http')) {
+		cb = `${originalHost}${cb}`;
 	}
-	const { pr } = (await (await fetch(cb)).json()) as { pr: string };
+	
+	console.log('cb fixed', cb);
+	
+	// Build full callback URL
+	cb += cb.includes('?') ? `&` : `?`;
+	cb += `amount=${amount * 1000}`;
+	if (event) {
+		cb += `&nostr=${encodeURIComponent(JSON.stringify(event))}`;
+		cb += `&comment=${encodeURIComponent(event.content || '')}`;
+	}
+	
+	console.log('full cb', cb);
+	
+	// Re-wrap through proxy with proper ?url= parameter
+	const fetchUrl = `https://proxy.nuts.cash/?url=${cb}`;
+	const invoiceResponse = await fetch(fetchUrl);
+	if (!invoiceResponse.ok) {
+		throw new Error(`Proxy error: ${invoiceResponse.status} ${invoiceResponse.statusText}. Cannot reach Lightning provider`);
+	}
+	const { pr } = (await invoiceResponse.json()) as { pr: string };
 	return { pr, maxSendable, minSendable };
 };
 
@@ -207,23 +240,37 @@ export const getZapInvoice = async (
 	// Decode LNURL to get the endpoint
 	const endpoint = isValidLNURL(lnurl) ? await decodeLNURL(lnurl) : lnurl; // If it's already a URL endpoint
 
-	// Fetch LNURL metadata first
-	const metaResponse = await fetch(endpoint);
+	// Extract original host from endpoint before proxying
+	const endpointUrl = new URL(endpoint);
+	const originalHost = endpointUrl.origin;
+
+	// Fetch LNURL metadata via proxy to avoid CORS
+	const metaResponse = await fetch(`https://proxy.nuts.cash/?url=${endpoint}`);
 	const meta = await metaResponse.json();
 
 	if (!meta.callback) {
 		throw new Error('No callback URL found in LNURL metadata');
 	}
 
+	// Fix callback: nginx proxy rewrites it to proxy.nuts.cash, restore original host
+	let callbackUrl = meta.callback.replace(/^https?:\/\/proxy\.nuts\.cash/, originalHost);
+	
+	// Prepend original host if callback is relative
+	if (!callbackUrl.startsWith('http')) {
+		callbackUrl = `${originalHost}${callbackUrl}`;
+	}
+
 	// Build callback URL with zap request
-	let callbackUrl = meta.callback;
 	callbackUrl += callbackUrl.includes('?') ? '&' : '?';
 	callbackUrl += `amount=${amount * 1000}`; // Convert to millisats
 	callbackUrl += `&nostr=${encodeURIComponent(JSON.stringify(zapRequest))}`;
+	callbackUrl += `&comment=${encodeURIComponent(zapRequest.content || '')}`;
 	callbackUrl += `&lnurl=${encodeURIComponent(lnurl)}`;
 
-	// Get the invoice from the callback
-	const invoiceResponse = await fetch(callbackUrl);
+	// Get the invoice from the callback via proxy to avoid CORS
+	// Don't encode callbackUrl - it's already encoded and we want nginx to pass it as-is
+	const proxyUrl = `https://proxy.nuts.cash/?url=${callbackUrl}`;
+	const invoiceResponse = await fetch(proxyUrl);
 	const invoiceData = await invoiceResponse.json();
 
 	if (!invoiceData.pr) {

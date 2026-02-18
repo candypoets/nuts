@@ -100,7 +100,7 @@
 		{onRefresh}
 		{pullToRefresh}
 	>
-		{@const screenVisible = itemIndex >= start - 10}
+		{@const screenVisible = itemIndex >= (start - 5)}
 		{@const subVisible = visible}
 		<svelte:fragment slot="feed-header">
 			<slot name="header" visible>Missing Template</slot>

@@ -6,21 +6,21 @@
 
 	let container: HTMLElement;
 
-	// function toggle(visible: boolean) {
-	// 	const newHeight = container?.offsetHeight;
-	// 	minHeight = newHeight;
-	// 	toggleVisible = visible;
-	// }
+	function toggle(visible: boolean) {
+		const newHeight = container?.offsetHeight;
+		minHeight = newHeight;
+		toggleVisible = visible;
+	}
 
-	// $: toggle(visible);
+	$: toggle(visible);
 </script>
 
-<!-- <div style="min-height: {minHeight}px;" bind:this={container}>
-	{#if toggleVisible} -->
-<div class:invisible={!visible}>
-	<slot />
-</div>
-<!-- {:else}
+<div style="min-height: {minHeight}px;" bind:this={container}>
+	{#if toggleVisible}
+    <div class:invisible={!visible}>
+    	<slot />
+    </div>
+    {:else}
 		<div></div>
 	{/if}
-</div> -->
+</div>

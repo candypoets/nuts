@@ -1,20 +1,18 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import type { EventTemplate } from 'nostr-tools';
-	import { get, writable } from 'svelte/store';
-	import { getContext, onDestroy, onMount, tick } from 'svelte';
+	import type { EventTemplate, NostrEvent } from 'nostr-tools';
+	import { getContext, onMount, tick } from 'svelte';
 
 	import MintSelector from 'src/components/MintSelector.svelte';
 	import VirtualList from 'src/components/VirtualList.svelte';
 	import { key, kind17375 } from 'src/controller';
-	import { activeMintUrl, validateP2pkPubkey } from 'src/controller/wallet';
+	import { activeMintUrl } from 'src/controller/wallet';
 	import { now } from 'src/lib/period';
 	import { getInvoiceFromProfile, GetLNURLFromProfile, getZapInvoice } from 'src/lib/wallet';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import User from 'src/routes/explore/user.svelte';
 
 	import {
-		ConnectionStatus,
 		Kind10002Parsed,
 		ParsedData,
 		WorkerMessage,
@@ -22,33 +20,29 @@
 		type ParsedEvent,
 		type RequestObject
 	} from '@candypoets/nipworker';
-	import { usePublish, useSignEvent, useSubscription } from '@candypoets/nipworker/hooks';
+	import { useSignEvent, useSubscription } from '@candypoets/nipworker/hooks';
 	import {
 		asKind10002,
 		asKind10019,
 		asKind17375,
 		fbArray,
-		isConnectionStatus,
 		isParsedEvent
 	} from '@candypoets/nipworker/utils';
-	import { MintQuoteState, type MeltQuoteResponse, type MintQuoteResponse } from '@cashu/cashu-ts';
-	import { random, throttle } from 'lodash';
+	import { type MeltQuoteResponse, type MintQuoteResponse, type Proof } from '@cashu/cashu-ts';
+	import { throttle } from 'lodash';
+	import TransactionStatus from 'src/components/TransactionStatus.svelte';
 	import { nutsWallet } from 'src/controller/proofs';
-	import { updateSendStatus } from 'src/controller/sendStatus';
-	import { fly } from 'svelte/transition';
-	import { getUserRelays } from '../queries/user';
-	import Zap from '../explore/_post/zap.svelte';
-
-	// Transaction recovery imports
 	import {
+		completeTransaction,
+		failTransaction,
+		markPublished,
+		publishWithRetry,
 		startTransaction,
-		advanceTransaction,
-		abortTransaction,
-		activeTxIdStore,
-		loadTxState,
-		type TxState,
+		updateTransaction,
 		type TxType
 	} from 'src/model/cashu/tx-recovery';
+	import { fly } from 'svelte/transition';
+	import { getUserRelays } from '../queries/user';
 
 	// export let active: string;
 	export let pubkey: string;
@@ -67,155 +61,41 @@
 	let kind10019: Kind10019Parsed;
 
 	let zap = true;
-	let receiptRelays: string[] = [];
+	let receiptRelays: string[] = '';
 
 	let status = '';
+	let progress = 0;
 
-	// Transaction recovery state
-	let activeTxId: string | null = null;
-	let txState: TxState | null = null;
-	let txUnsubscribe: (() => void) | null = null;
-	let isResuming = false;
-	let lastError = '';
-
-	// Subscribe to active transaction changes
-	$: {
-		if (txUnsubscribe) txUnsubscribe();
-		txUnsubscribe = activeTxIdStore.subscribe(async (txId) => {
-			activeTxId = txId;
-			if (txId) {
-				txState = await loadTxState(txId);
-				isResuming = true;
-				updateStatusFromTxState();
-			} else {
-				txState = null;
-				isResuming = false;
-				lastError = '';
-			}
-		});
-	}
-
-	onDestroy(() => {
-		if (txUnsubscribe) txUnsubscribe();
-	});
-
-	// Update UI status based on transaction state
-	function updateStatusFromTxState() {
-		if (!txState) return;
-		
-		// Map transaction steps to user-friendly status messages
-		const stepMessages: Record<string, string> = {
-			init: 'Initializing...',
-			reserve_proofs: 'Reserving proofs...',
-			build_nutszap_event: 'Building nutszap...',
-			publish_nutszap_event: 'Publishing...',
-			get_melt_quote: 'Getting quote...',
-			perform_melt: 'Melting tokens...',
-			get_mint_quote: 'Getting mint quote...',
-			perform_mint: 'Minting tokens...',
-			build_zap_request: 'Building zap request...',
-			fetch_zap_invoice: 'Fetching invoice...',
-			store_change_proofs: 'Storing change...',
-			finalize: 'Finalizing...'
-		};
-		
-		status = stepMessages[txState.step] || `Processing: ${txState.step}...`;
-		
-		// Calculate progress based on step
-		const stepProgress: Record<string, number> = {
-			init: 0,
-			reserve_proofs: 0.1,
-			build_nutszap_event: 0.3,
-			publish_nutszap_event: 0.7,
-			get_melt_quote: 0.2,
-			perform_melt: 0.4,
-			get_mint_quote: 0.5,
-			perform_mint: 0.6,
-			build_zap_request: 0.2,
-			fetch_zap_invoice: 0.4,
-			store_change_proofs: 0.8,
-			finalize: 0.9
-		};
-		progress = stepProgress[txState.step] || 0.5;
-		
-		// Show last error if any
-		if (txState.errors && txState.errors.length > 0) {
-			const lastErr = txState.errors[txState.errors.length - 1];
-			lastError = lastErr.message;
+	// Derive transaction state for the animated display
+	$: txState = (() => {
+		if (status?.startsWith('Error:')) {
+			return { state: 'failed' as const, message: status.replace('Error: ', '') };
 		}
-		
-		// Check if transaction is complete
-		if (txState.isFinalized) {
-			status = 'Success!';
-			progress = 1;
-			isResuming = false;
-			setTimeout(() => {
-				// Check if no new transaction started
-				const currentActive = get(activeTxIdStore);
-				if (currentActive === null) {
-					status = '';
-					resetState();
-				}
-			}, 2000);
+		if (status === 'No proofs available') {
+			return { state: 'failed' as const, message: status };
 		}
-	}
-
-	// Poll transaction state for UI updates
-	let txPollInterval: ReturnType<typeof setInterval> | null = null;
-	
-	$: if (activeTxId && isResuming) {
-		if (txPollInterval) clearInterval(txPollInterval);
-		txPollInterval = setInterval(async () => {
-			if (activeTxId) {
-				txState = await loadTxState(activeTxId);
-				updateStatusFromTxState();
-			}
-		}, 500);
-	} else {
-		if (txPollInterval) {
-			clearInterval(txPollInterval);
-			txPollInterval = null;
+		if (processing === 'sending' || processing) {
+			return { state: 'processing' as const, message: status || processing, progress: 0.5 };
 		}
-	}
-
-	onDestroy(() => {
-		if (txPollInterval) clearInterval(txPollInterval);
-	});
-
-	// Abort the current transaction
-	const handleAbort = async () => {
-		if (!activeTxId) return;
-		try {
-			processing = 'aborting';
-			await abortTransaction(activeTxId);
-			status = 'Transaction aborted';
-			setTimeout(() => {
-				status = '';
-				resetState();
-			}, 2000);
-		} catch (err) {
-			status = 'Abort failed: ' + (err as Error).message;
-			setTimeout(() => (status = ''), 3000);
-		} finally {
-			processing = '';
+		if (processing === 'generating invoice') {
+			return { state: 'processing' as const, message: 'Generating invoice...', progress: 0.3 };
 		}
-	};
-
-	$: {
-		if (!/^[0-9]*$/.test(amount)) {
-			amount = '';
+		if (status && status.includes('sent')) {
+			return { state: 'success' as const, message: status };
 		}
-	}
-
-	let progress = 0.9;
+		if (status === 'This user has not set up their profile for zaps.') {
+			return { state: 'failed' as const, message: status };
+		}
+		return { state: 'idle' as const, message: '' };
+	})();
 
 	let balanceByMint = $nutsWallet?.balanceByMint;
 
 	let fromMint = $activeMintUrl || ($kind17375 && asKind17375($kind17375)?.mints(0)?.toString());
 	let toMint: string;
-	let fees: number;
-	let meltquote: MeltQuoteResponse;
-	let mintquote: MintQuoteResponse;
+	let fees: number | undefined;
+	let meltquote: MeltQuoteResponse | undefined;
+	let mintquote: MintQuoteResponse | undefined;
 
 	const resetState = () => {
 		fees = undefined;
@@ -226,7 +106,7 @@
 		progress = 0;
 	};
 
-	$: balance = $balanceByMint?.[fromMint || ''];
+	$: balance = $balanceByMint?.[fromMint || ''] || 0;
 	$: amountPlusFees = Number(amount || 0) + Number(fees || 0);
 
 	onMount(() => {
@@ -258,7 +138,7 @@
 							break;
 						case ParsedData.Kind0Parsed:
 							kind0 = parsedEvent;
-							computeFees(amount, fromMint, toMint);
+							computeFees(Number(amount), fromMint || '', toMint || '', zap);
 							break;
 					}
 				}
@@ -313,7 +193,12 @@
 	$: lnurl = GetLNURLFromProfile(kind0);
 
 	$: disabled =
-		!amount || !Number(amount) || amountPlusFees > balance || !!status || (!kind10019 && !lnurl) || !!activeTxId;
+		!amount ||
+		!Number(amount) ||
+		amountPlusFees > (balance || 0) ||
+		!!status ||
+		(!kind10019 && !lnurl) ||
+		!!processing;
 
 	$: if (!lnurl) {
 		status = 'This user has not set up their profile for zaps.';
@@ -323,52 +208,308 @@
 
 	const sendEcash = async () => {
 		if (!fromMint || !$nutsWallet) return;
-		
-		processing = 'starting';
-		
-		try {
-			// Determine transaction type based on current state
-			let txType: TxType;
-			if (zap && lnurl) {
-				txType = 'zap';
-			} else if (fromMint !== toMint && toMint && !zap) {
-				txType = 'nutszap-melt';
-			} else {
-				txType = 'nutszap';
-			}
-			
-			// Build transaction parameters
-			const params = {
+
+		processing = 'sending';
+
+		// Determine transaction type
+		let txType: TxType;
+		if (zap && lnurl) {
+			txType = 'zap';
+		} else if (fromMint !== toMint && toMint && !zap) {
+			txType = 'nutszap-melt';
+		} else {
+			txType = 'nutszap';
+		}
+
+		// Get wallet and select proofs
+		const wallet = await $nutsWallet.getWallet(fromMint);
+		const unspentProofs = $nutsWallet.unspentProofs.get(fromMint) || [];
+		const { keep, send: proofs } = wallet.selectProofsToSend(unspentProofs, amountPlusFees, true);
+
+		if (!proofs?.length) {
+			status = 'No proofs available';
+			processing = '';
+			setTimeout(() => (status = ''), 3000);
+			return;
+		}
+
+		// Temporarily update wallet with reserved proofs (keep only)
+		$nutsWallet.unspentProofs.set(fromMint, keep);
+		$nutsWallet.updateBalanceByMint();
+
+		const txId = await startTransaction(
+			txType,
+			{
 				fromMint,
 				toMint: toMint || undefined,
 				pubkey,
 				amount: Number(amount),
-				feeReserve: fees || 0,
 				memo,
 				noteId: noteId || undefined,
 				lnurl: lnurl || undefined,
 				p2pkPubkey: kind10019?.p2pkPubkey()?.toString(),
 				receiptRelays: receiptRelays.length > 0 ? receiptRelays : undefined
-			};
-			
-			// Start the transaction - this will reserve proofs
-			const txId = await startTransaction(txType, params);
-			console.log(`[ecash] Started ${txType} transaction: ${txId}`);
-			
-			// Begin transaction advancement (non-blocking)
-			advanceTransaction(txId).catch((err) => {
-				console.error('[ecash] Transaction failed:', err);
-				status = 'Error: ' + (err as Error).message;
-			});
-			
-			// The UI will update via the txState subscription
-			processing = '';
-			
+			},
+			proofs
+		);
+
+		try {
+			await executeTransaction(txId, txType, proofs, keep);
+			// Don't close modal on success - let user see the result
 		} catch (err) {
-			console.error('[ecash] Failed to start transaction:', err);
-			status = 'Error: ' + (err as Error).message;
+			console.error('[ecash] Send failed:', err);
+
+			const errorMsg = (err as Error).message || '';
+
+			// Try to recover from "already spent" error
+			if (errorMsg.toLowerCase().includes('spent') && $nutsWallet) {
+				console.log('[ecash] Attempting to recover from spent token error...');
+				status = 'Checking for spent tokens...';
+
+				try {
+					const validProofs = await $nutsWallet.checkAndFilterProofs(fromMint, proofs);
+					if (validProofs.length === 0) {
+						status = 'All tokens already spent';
+					} else if (validProofs.length < proofs.length) {
+						console.log(`[ecash] Recovered ${validProofs.length}/${proofs.length} unspent proofs`);
+						status = `Recovered ${validProofs.length} unspent proofs, please try again`;
+						// Return only valid proofs to wallet
+						$nutsWallet.addProofs(fromMint, validProofs);
+					} else {
+						// Proofs were valid but error was something else, retry
+						$nutsWallet.addProofs(fromMint, proofs);
+						status = 'Error, please try again';
+					}
+				} catch (recoverErr) {
+					console.error('[ecash] Recovery failed:', recoverErr);
+					// Return proofs as-is
+					$nutsWallet.addProofs(fromMint, proofs);
+					status = 'Error: ' + errorMsg;
+				}
+			} else {
+				// Not a spent token error
+				await failTransaction(txId, errorMsg);
+				$nutsWallet.addProofs(fromMint, proofs);
+				status = 'Error: ' + errorMsg;
+			}
+
 			processing = '';
-			setTimeout(() => (status = ''), 3000);
+			setTimeout(() => (status = ''), 4000);
+		}
+	};
+
+	// Execute the transaction based on type
+	const executeTransaction = async (
+		txId: string,
+		txType: TxType,
+		proofs: Proof[],
+		keep: Proof[]
+	) => {
+		if (txType === 'zap' && lnurl && kind0 && fromMint) {
+			console.log('send zap', amount, fromMint, lnurl);
+
+			// Create zap request (kind 9734) for NIP-57 compliance
+			const zapRequest = {
+				kind: 9734,
+				content: memo,
+				created_at: now(),
+				tags: [
+					['p', pubkey],
+					...(noteId ? [['e', noteId]] : []),
+					[
+						'relays',
+						...(receiptRelays.length > 0
+							? receiptRelays
+							: ['wss://relay.damus.io', 'wss://nos.lol'])
+					]
+				]
+			};
+
+			// Sign the zap request and get invoice
+			await new Promise<void>((resolve, reject) => {
+				useSignEvent(zapRequest, async (signedZapRequest) => {
+					try {
+						// Get invoice with zap request (LNURL will publish kind 9735 receipt)
+						const { pr } = await getZapInvoice(
+							lnurl,
+							Number(amount),
+							signedZapRequest as NostrEvent
+						);
+						console.log('send zap with request', amount, fromMint, lnurl, pr);
+
+						const wallet = await $nutsWallet!.getWallet(fromMint);
+						const meltquote = await wallet.createMeltQuote(pr);
+
+						await updateTransaction(txId, { meltQuote: { ...meltquote, mintUrl: fromMint } });
+
+						const { quote, change } = await wallet.meltProofs(meltquote, proofs);
+						if (quote.state !== 'PAID') throw new Error('Payment failed');
+
+						status = 'Zap sent! ⚡️';
+						// Clear status after 1.5 seconds to show idle state
+						setTimeout(() => {
+							status = '';
+							processing = '';
+						}, 1500);
+						console.log('Zapped ⚡️', amount, quote.payment_preimage);
+						// Update wallet: keep + change as unspent, mark sent proofs as spent
+						$nutsWallet!.saveProofs(fromMint, keep.concat(change || []));
+						// Mark sent proofs as spent
+						// Verify with mint (safety net)
+						$nutsWallet!
+							.verifyAndCleanProofs()
+							.catch((e) => console.warn('[ecash] Post-send verification failed:', e));
+						console.log('[ecash] Zap sent:', pr);
+						resolve();
+					} catch (err) {
+						reject(err);
+					}
+				});
+			});
+		} else if (txType === 'nutszap-melt' && toMint && fromMint && kind10019?.p2pkPubkey) {
+			console.log('send nutszap melt', amount, fromMint, toMint);
+
+			const fromWallet = await $nutsWallet!.getWallet(fromMint);
+			const toWallet = await $nutsWallet!.getWallet(toMint);
+
+			const mintquote = await toWallet.createMintQuote(amount, kind10019.p2pkPubkey()!.toString());
+			const meltquote = await fromWallet.createMeltQuote(mintquote.request);
+
+			await updateTransaction(txId, {
+				meltQuote: { ...meltquote, mintUrl: fromMint },
+				mintQuote: { ...mintquote, mintUrl: toMint }
+			});
+
+			const { quote: meltQuoteResult, change } = await fromWallet.meltProofs(meltquote, proofs);
+			if (meltQuoteResult.state !== 'PAID') throw new Error('Cross-mint swap failed');
+
+			console.log('awaiting mint...', amount);
+			// Poll for mint quote to be paid
+			let isPaid = false;
+			let attempts = 0;
+			const maxAttempts = 60;
+			while (!isPaid && attempts < maxAttempts) {
+				const mintStatus = await toWallet.checkMintQuote(mintquote.quote);
+				if (mintStatus.state === 'PAID') {
+					isPaid = true;
+				} else {
+					attempts++;
+					await new Promise((r) => setTimeout(r, 1000));
+				}
+			}
+			if (!isPaid) throw new Error('Mint timeout');
+
+			// Mint the proofs
+			const mintedProofs = await toWallet.mintProofs(amount, mintquote.quote);
+
+			console.log('Melted and Minted', amount, 'proofs', mintedProofs.length);
+
+			// Update fromMint wallet: keep + change as unspent
+			$nutsWallet!.unspentProofs.set(fromMint, keep.concat(change || []));
+			// Mark sent proofs as spent
+			$nutsWallet!.removeProofs(fromMint, proofs);
+			$nutsWallet!.saveProofs(fromMint, keep.concat(change || []));
+			// Verify with mint (safety net)
+			$nutsWallet!
+				.verifyAndCleanProofs()
+				.catch((e) => console.warn('[ecash] Post-send verification failed:', e));
+
+			// Lock minted proofs to recipient and build nutzap
+			const recipientPubkey = kind10019?.p2pkPubkey()?.toString() || pubkey;
+			const lockedProofs = await toWallet.receive(
+				{ mint: toMint, proofs: mintedProofs, unit: 'sat' },
+				{},
+				{ type: 'p2pk', options: { pubkey: recipientPubkey } }
+			);
+
+			const nutzapEvent: EventTemplate = {
+				kind: 9321,
+				content: memo,
+				created_at: Math.floor(Date.now() / 1000),
+				tags: [
+					...lockedProofs.map((p: Proof) => ['proof', JSON.stringify(p)]),
+					['u', toMint],
+					['e', noteId || ''],
+					['p', pubkey]
+				].filter((t: string[]) => !!t[1])
+			};
+
+			await updateTransaction(txId, { nutzapEvent });
+			// Try to publish - if it fails, transaction will be pending_publish
+			const published = await publishWithRetry(nutzapEvent);
+			if (published) {
+				await markPublished(txId);
+				status = 'Zap sent! ⚡️';
+				// Clear status after 1.5 seconds to show idle state
+				setTimeout(() => {
+					status = '';
+					processing = '';
+				}, 1500);
+				console.log('[ecash] Nutzap published and transaction completed');
+			} else {
+				// Mark as pending publish - user can retry later
+				await completeTransaction(txId, true);
+				status = 'Waiting for publish...';
+				console.warn('[ecash] Nutzap publish failed - transaction pending, you can retry later');
+			}
+		} else {
+			// Simple nutszap (same mint)
+			console.log('send nutszap', amount, fromMint, pubkey);
+			status = 'Sending...';
+
+			if (!fromMint) throw new Error('No mint selected');
+
+			// Get wallet for locking proofs
+			const fromWallet = await $nutsWallet!.getWallet(fromMint);
+
+			// Lock proofs to recipient
+			const lockedProofs = await fromWallet.receive(
+				{ mint: fromMint, proofs, unit: 'sat' },
+				{},
+				{ type: 'p2pk', options: { pubkey } }
+			);
+
+			const nutzapEvent: EventTemplate = {
+				kind: 9321,
+				content: memo,
+				created_at: Math.floor(Date.now() / 1000),
+				tags: [
+					...lockedProofs.map((p: Proof) => ['proof', JSON.stringify(p)]),
+					['u', fromMint],
+					['e', noteId || ''],
+					['p', pubkey]
+				].filter((t: string[]) => !!t[1])
+			};
+
+			console.log('nutzapEvent', nutzapEvent);
+			// Update wallet with keep only (proofs were sent)
+			$nutsWallet!.unspentProofs.set(fromMint, keep);
+			$nutsWallet!.saveProofs(fromMint, keep);
+			// Mark sent proofs as spent
+			$nutsWallet!.removeProofs(fromMint, proofs);
+			// Verify with mint (safety net)
+			$nutsWallet!
+				.verifyAndCleanProofs()
+				.catch((e) => console.warn('[ecash] Post-send verification failed:', e));
+
+			await updateTransaction(txId, { nutzapEvent });
+			// Try to publish - if it fails, transaction will be pending_publish
+			const published = await publishWithRetry(nutzapEvent);
+			if (published) {
+				await markPublished(txId);
+				status = 'Sent! 🎉';
+				// Clear status after 1.5 seconds to show idle state
+				setTimeout(() => {
+					status = '';
+					processing = '';
+				}, 1500);
+				console.log('[ecash] Nutzap published and transaction completed');
+			} else {
+				// Mark as pending publish - user can retry later
+				await completeTransaction(txId, true);
+				status = 'Waiting for publish...';
+				console.warn('[ecash] Nutzap publish failed - transaction pending, you can retry later');
+			}
 		}
 	};
 </script>
@@ -379,7 +520,7 @@
 		if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
 			// Mirror disabled conditions
 			if (!!processing) return;
-			if (!amount || !Number(amount) || amountPlusFees > (balance || 0) || !!status || !!activeTxId) return;
+			if (!amount || !Number(amount) || amountPlusFees > (balance || 0) || !!status) return;
 
 			e.preventDefault();
 			e.stopPropagation();
@@ -434,7 +575,7 @@
 										class="flex gap-2 items-center justify-center py-2 border-b last:border-none w-1/2"
 									>
 										<!-- <Icon icon="carbon:lightning" class="w-16 h-6" />
-												-->
+											-->
 										<Avatar {pubkey} size="lg" />
 										<User {pubkey} link={false} />
 									</div>
@@ -442,193 +583,126 @@
 							</div>
 						</div>
 					</div>
-				</div>
-				<div>
-					<div class="w-full gap-3">
-						<div class="md:h-52 flex flex-col items-center">
-							{#if !status}
-								<div class="join items-center mt-10">
-									<div class="join-item w-0">
-										<Icon icon="bitcoin-icons:satoshi-v2-filled" class="text-4xl" />
-									</div>
-									<input
-										id="send-amt"
-										placeholder="0"
-										type="text"
-										inputmode="decimal"
-										autocomplete="off"
-										bind:value={amount}
-										class="join-item text-7xl bg-transparent caret-transparent focus:outline-none text-center max-w-xs rounded-xl"
-										on:keydown|stopPropagation={(e) => {
-											if (!!processing) return;
-											if (e.key === 'Enter') {
-												sendEcash();
-											}
-										}}
-									/>
-								</div>
-								<div class="flex items-center justify-center gap-6 mt-4">
-									<button
-										type="button"
-										class="btn btn-ghost text-3xl"
-										title="Set amount to 21"
-										on:click={() => {
-											if (!!processing) return;
-											amount = 21;
-										}}>🥜</button
-									>
-									<button
-										type="button"
-										class="btn btn-ghost text-3xl"
-										title="Set amount to 42"
-										on:click={() => {
-											if (!!processing) return;
-											amount = 42;
-										}}>🍫</button
-									>
-									<button
-										type="button"
-										class="btn btn-ghost text-3xl"
-										title="Set amount to 69"
-										on:click={() => {
-											if (!!processing) return;
-											amount = 69;
-										}}>⚡️</button
-									>
-									<button
-										type="button"
-										class="btn btn-ghost text-3xl"
-										title="Set amount to 420"
-										on:click={() => {
-											if (!!processing) return;
-											amount = 420;
-										}}>🚀</button
-									>
-								</div>
-							{:else}
-								<div class="flex flex-col items-center gap-4">
-									<!-- Resuming banner -->
-									{#if isResuming}
-										<div class="alert alert-warning shadow-lg w-full max-w-md" transition:fly>
-											<Icon icon="mdi:refresh" class="animate-spin text-xl" />
-											<span>Resuming transaction...</span>
+					<div>
+						<div class="w-full gap-3">
+							<div class="md:h-52 flex flex-col items-center">
+								{#if !status && !processing}
+									<div class="join items-center mt-10">
+										<div class="join-item w-0">
+											<Icon icon="bitcoin-icons:satoshi-v2-filled" class="text-4xl" />
 										</div>
-									{/if}
-									
-									<div
-										class="md:mt-4 w-1/2 text-center text-primary p-4 border border-primary-content rounded-lg relative overflow-hidden"
-									>
-										<div
-											class="absolute bg-gradient-to-r to-bg-base-300 from-primary-content h-full top-0 left-0 transition-all"
-											style="width: {progress * 100}%"
+										<input
+											id="send-amt"
+											placeholder="0"
+											type="text"
+											inputmode="decimal"
+											autocomplete="off"
+											bind:value={amount}
+											class="join-item text-7xl bg-transparent caret-transparent focus:outline-none text-center max-w-xs rounded-xl"
+											on:keydown|stopPropagation={(e) => {
+												if (!!processing) return;
+												if (e.key === 'Enter') {
+													sendEcash();
+												}
+											}}
 										/>
-										<div class="relative z-30">
-											{status}
-											<span class="inline-flex ml-1">
-												<span class="animate-pulse text-lg">.</span>
-												<span class="animate-pulse text-lg" style="animation-delay: 0.2s">.</span>
-												<span class="animate-pulse text-lg" style="animation-delay: 0.4s">.</span>
-											</span>
-										</div>
 									</div>
-									
-									<!-- Show last error if any -->
-									{#if lastError}
-										<div class="text-error text-sm max-w-md text-center" transition:fly>
-											Error: {lastError}
-										</div>
-									{/if}
-									
-									<!-- Abort button for stuck transactions -->
-									{#if activeTxId}
+									<div class="flex items-center justify-center gap-6 mt-4">
 										<button
-											class="btn btn-error btn-sm"
-											on:click={handleAbort}
-											disabled={processing === 'aborting'}
+											type="button"
+											class="btn btn-ghost text-3xl"
+											title="Set amount to 21"
+											on:click={() => {
+												if (!!processing) return;
+												amount = 21;
+											}}>🥜</button
 										>
-											{#if processing === 'aborting'}
-												<Icon icon="mdi:loading" class="animate-spin mr-2" />
-												Aborting...
-											{:else}
-												<Icon icon="mdi:close-circle" class="mr-2" />
-												Cancel Transaction
-											{/if}
-										</button>
-									{/if}
-								</div>
-							{/if}
-						</div>
-					</div>
-					{#if fees === 0 && zap}
-						<div class="px-4 w-full mt-4" transition:fly>
-							<div class="text-sm text-primary">No fees applies</div>
-						</div>
-					{/if}
-					{#if fees}
-						<div class="px-4 w-full mt-4" transition:fly>
-							<div class="text-sm text-primary">
-								A fee of {fees} sats may apply for this transaction. This covers Lightning network costs
-								and is only reserved - you might get some or all of it refunded.
+										<button
+											type="button"
+											class="btn btn-ghost text-3xl"
+											title="Set amount to 42"
+											on:click={() => {
+												if (!!processing) return;
+												amount = 42;
+											}}>🍫</button
+										>
+										<button
+											type="button"
+											class="btn btn-ghost text-3xl"
+											title="Set amount to 69"
+											on:click={() => {
+												if (!!processing) return;
+												amount = 69;
+											}}>⚡️</button
+										>
+										<button
+											type="button"
+											class="btn btn-ghost text-3xl"
+											title="Set amount to 420"
+											on:click={() => {
+												if (!!processing) return;
+												amount = 420;
+											}}>🚀</button
+										>
+									</div>
+								{:else}
+									<TransactionStatus
+										state={txState.state}
+										message={txState.message}
+										progress={txState.progress}
+									/>
+								{/if}
 							</div>
 						</div>
-					{/if}
-					<div class="px-4 w-full my-8">
-						<input
-							type="text"
-							placeholder="Add a memo"
-							bind:value={memo}
-							class="input w-full join-item md:hidden block my-4 input-bordered"
-						/>
-						<div class="join w-full pb-4">
-							<label class="swap join-item border bg-base-300">
-								<input type="checkbox" bind:checked={zap} />
-								<div class="swap-on px-4">
-									<Icon icon="emojione-v1:lightning-mood" class="text-2xl" />
+						{#if fees === 0 && zap}
+							<div class="px-4 w-full mt-4" transition:fly>
+								<div class="text-sm text-primary">No fees applies</div>
+							</div>
+						{/if}
+						{#if fees}
+							<div class="px-4 w-full mt-4" transition:fly>
+								<div class="text-sm text-primary">
+									A fee of {fees} sats may apply for this transaction. This covers Lightning network costs
+									and is only reserved - you might get some or all of it refunded.
 								</div>
-								<div class="swap-off px-4"><Icon icon="openmoji:peanuts" class="text-2xl" /></div>
-							</label>
+							</div>
+						{/if}
+						<div class="px-4 w-full my-8">
 							<input
 								type="text"
-								class="input input-bordered w-full join-item md:block hidden"
 								placeholder="Add a memo"
 								bind:value={memo}
+								class="input w-full join-item md:hidden block my-4 input-bordered"
 							/>
-
-							<button
-								class="btn btn-outline join-item border flex-grow"
-								{disabled}
-								on:click={sendEcash}
-							>
-								{#if processing}
-									{processing}
-								{:else if Number(amountPlusFees) > balance}
-									Not enough funds
-								{:else if !!status}
-									Sending...
-								{:else}
-									<div class="flex items-center gap-2">
-										<span class="capitalize w-40 lg:w-auto text-white">Send</span>
+							<div class="join w-full pb-4">
+								<label class="swap join-item border bg-base-300">
+									<input type="checkbox" bind:checked={zap} />
+									<div class="swap-on px-4">
+										<Icon icon="emojione-v1:lightning-mood" class="text-2xl" />
 									</div>
-								{/if}
-							</button>
-						</div>
-					</div>
-					{#if !zap && !kind10019}
-						<div class="px-4 w-full mt-4" transition:fly>
-							<div class="alert alert-info shadow-lg">
-								<Icon
-									icon="mdi:information-slab-circle-outline"
-									class="stroke-current shrink-0 w-6 h-6"
+									<div class="swap-off px-4"><Icon icon="openmoji:peanuts" class="text-2xl" /></div>
+								</label>
+								<input
+									type="text"
+									class="input input-bordered w-full join-item md:block hidden"
+									placeholder="Add a memo"
+									bind:value={memo}
 								/>
-								<div>
-									<div class="text-sm">
-										This user has not setted up an ecash wallet yet. The ecash will definitely
-										arrive, but their notification experience might be a bit more low-key.
-									</div>
-								</div>
+
+								<button
+									class="btn btn-outline join-item border flex-grow"
+									{disabled}
+									on:click={sendEcash}
+								>
+									{#if processing === 'sending'}
+										<Icon icon="mdi:loading" class="animate-spin" />
+									{:else}
+										<Icon icon="mdi:send" />
+									{/if}
+								</button>
 							</div>
 						</div>
-					{/if}
+					</div>
 				</div>
 			</div>
 		</VirtualList>

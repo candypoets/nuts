@@ -55,6 +55,8 @@ export const setNutsWallet = (
 				nutsWallet.set(wallet);
 				dispatchAllProofs(nuts || undefined);
 			}
+			// Verify proofs against mints in background (fire and forget)
+			wallet.verifyAndCleanProofs().catch(e => console.error('[wallet] Proof verification failed:', e));
 		} catch (error) {
 			console.error('Error creating NutsWallet:', error);
 			return;
@@ -328,8 +330,14 @@ export class NutsWallet {
 
 		Promise.all(mintUrls.map(fetchMintData)).then((res) => (this.mints = res));
 
-		this.loadAndMonitorMintQuotes();
+		// Load all persisted proofs from localStorage
+		this.loadUnspentProofs();
+		this.loadSpentProofs();
 		this.loadReservedProofs();
+		this.loadAndMonitorMintQuotes();
+
+		console.log(`[wallet] NutsWallet initialized for ${this.pubkey.slice(0, 16)}...`);
+		console.log(`[wallet] Unspent mints: ${Array.from(this.unspentProofs.keys()).join(', ')}`);
 	}
 
 	public get pubkey(): string {
@@ -379,47 +387,49 @@ export class NutsWallet {
 		if (!mint || !unspent?.length) return;
 		const usp = this.unspentProofs.get(mint) || [];
 
-		this.unspentProofs.set(mint, _.uniqBy([...usp, ...unspent], 'secret'));
+		// Merge and deduplicate proofs (by secret)
+		const merged = _.uniqBy([...usp, ...unspent], 'secret');
+		this.unspentProofs.set(mint, merged);
+
+		// Persist to localStorage immediately
+		this.saveUnspentProofs(mint);
 
 		// Update balance stores
 		this.updateBalanceByMint();
+
+		console.log(`[wallet] Added ${unspent.length} proofs to ${mint}, total: ${merged.length}`);
 	};
 
 	public saveProofs = async (mint: string, proofs: Proof[]) => {
 		if (!mint || !proofs?.length) return;
 
 		console.log(`[saveProofs] Saving ${proofs.length} proofs for mint ${mint}`);
-		console.log(`[saveProofs] Proof amounts:`, proofs.map((p) => p.amount));
+		console.log(
+			`[saveProofs] Proof amounts:`,
+			proofs.map((p) => p.amount)
+		);
 
 		// Add proofs to wallet immediately so user sees them
 		this.addProofs(mint, proofs);
-		console.log(`[saveProofs] Proofs added to wallet, starting backup...`);
+		console.log(`[saveProofs] Proofs added to wallet`);
 
-		// Import transaction recovery dynamically to avoid circular dependencies
-		const { startTransaction, advanceTransaction } = await import(
-			'src/model/cashu/tx-recovery'
-		);
-
-		// Start a backup transaction to persist to Nostr reliably
-		const txId = await startTransaction('backup', {
-			fromMint: mint,
-			proofsToBackup: proofs
-		});
-		console.log(`[saveProofs] Backup transaction started: ${txId}`);
-
-		// Advance the transaction in the background (non-blocking)
-		advanceTransaction(txId)
-			.then(() => {
-				console.log(`[saveProofs] Backup completed successfully: ${txId}`);
+		// Backup to Nostr (fire-and-forget, don't block)
+		const { publishProofsBackup } = await import('src/model/cashu/tx-recovery');
+		publishProofsBackup(mint, proofs)
+			.then((ok) => {
+				if (ok) {
+					console.log(`[saveProofs] Backed up ${proofs.length} proofs to Nostr`);
+				} else {
+					console.warn(`[saveProofs] Backup publish failed, proofs are still saved locally`);
+				}
 			})
-			.catch((error) => {
-				console.error('[saveProofs] Backup transaction failed:', error);
-				console.log('[saveProofs] Proofs are safe in wallet. Retry with: nutsDebug.retryBackup("${txId}")');
-				// Proofs are already in the wallet, user can retry backup manually if needed
+			.catch((err) => {
+				console.error('[saveProofs] Backup error:', err);
 			});
 	};
 
 	public removeProofs = (mint: string, proofs: Proof[]) => {
+		mint = normalizeMintURL(mint);
 		if (!mint || !proofs?.length) return;
 
 		const usp = this.unspentProofs.get(mint) || [];
@@ -444,8 +454,14 @@ export class NutsWallet {
 		this.unspentProofs.set(mint, updatedUnspent);
 		this.spentProofs.set(mint, updatedSpent);
 
+		// Persist to localStorage
+		this.saveUnspentProofs(mint);
+		this.saveSpentProofs(mint);
+
 		// Update balance stores
 		this.updateBalanceByMint();
+
+		console.log(`[wallet] Removed ${proofsToRemove.length} proofs from ${mint}`);
 	};
 
 	public monitorMintQuote = async (
@@ -544,6 +560,109 @@ export class NutsWallet {
 		}
 	};
 
+	// ===== PERSISTENT PROOF STORAGE =====
+	// All proofs are persisted to localStorage for crash recovery
+
+	/**
+	 * Save unspent proofs to localStorage
+	 */
+	private saveUnspentProofs(mint: string): void {
+		mint = normalizeMintURL(mint);
+		const proofs = this.unspentProofs.get(mint) || [];
+		const key = `unspent_${this.pubkey}_${mint}`;
+		localStorage.setItem(key, JSON.stringify(proofs));
+		console.log(`[wallet] Saved ${proofs.length} unspent proofs for ${mint}`);
+	}
+
+	/**
+	 * Load unspent proofs from localStorage on initialization
+	 */
+	public loadUnspentProofs(): void {
+		console.log('[wallet] Loading unspent proofs from localStorage...');
+		for (let i = 0; i < localStorage.length; i++) {
+			const key = localStorage.key(i);
+			if (key?.startsWith(`unspent_${this.pubkey}_`)) {
+				const mint = key.replace(`unspent_${this.pubkey}_`, '');
+				try {
+					const stored = localStorage.getItem(key);
+					if (stored) {
+						const proofs: Proof[] = JSON.parse(stored);
+						if (proofs.length > 0) {
+							this.unspentProofs.set(mint, proofs);
+							console.log(`[wallet] Loaded ${proofs.length} unspent proofs for ${mint}`);
+						}
+					}
+				} catch (e) {
+					console.error(`[wallet] Error loading unspent proofs for ${mint}:`, e);
+				}
+			}
+		}
+		this.updateBalanceByMint();
+	}
+
+	/**
+	 * Verify all unspent proofs against their mints and filter out spent ones
+	 * Call this after wallet initialization to clean up spent proofs from localStorage
+	 */
+	public async verifyAndCleanProofs(): Promise<void> {
+		console.log('[wallet] Verifying proofs against mints...');
+		
+		for (const [mint, proofs] of this.unspentProofs.entries()) {
+			if (proofs.length === 0) continue;
+			
+			try {
+				const validProofs = await this.checkAndFilterProofs(mint, proofs);
+				
+				if (validProofs.length < proofs.length) {
+					const removed = proofs.length - validProofs.length;
+					console.log(`[wallet] ${removed} proofs were spent, removing from ${mint}`);
+					this.unspentProofs.set(mint, validProofs);
+					this.saveUnspentProofs(mint);
+				}
+			} catch (e) {
+				console.error(`[wallet] Error verifying proofs for ${mint}:`, e);
+			}
+		}
+		
+		this.updateBalanceByMint();
+		console.log('[wallet] Proof verification complete');
+	}
+
+	/**
+	 * Save spent proofs to localStorage
+	 */
+	private saveSpentProofs(mint: string): void {
+		mint = normalizeMintURL(mint);
+		const proofs = this.spentProofs.get(mint) || [];
+		const key = `spent_${this.pubkey}_${mint}`;
+		localStorage.setItem(key, JSON.stringify(proofs));
+	}
+
+	/**
+	 * Load spent proofs from localStorage on initialization
+	 */
+	public loadSpentProofs(): void {
+		console.log('[wallet] Loading spent proofs from localStorage...');
+		for (let i = 0; i < localStorage.length; i++) {
+			const key = localStorage.key(i);
+			if (key?.startsWith(`spent_${this.pubkey}_`)) {
+				const mint = key.replace(`spent_${this.pubkey}_`, '');
+				try {
+					const stored = localStorage.getItem(key);
+					if (stored) {
+						const proofs: Proof[] = JSON.parse(stored);
+						if (proofs.length > 0) {
+							this.spentProofs.set(mint, proofs);
+							console.log(`[wallet] Loaded ${proofs.length} spent proofs for ${mint}`);
+						}
+					}
+				} catch (e) {
+					console.error(`[wallet] Error loading spent proofs for ${mint}:`, e);
+				}
+			}
+		}
+	}
+
 	// ===== PROOF RESERVATION METHODS =====
 	// These methods manage proof reservations for in-flight transactions
 
@@ -607,7 +726,10 @@ export class NutsWallet {
 		for (const proof of proofs) {
 			const exists = unspent.some((p) => p.secret === proof.secret);
 			if (!exists) {
-				console.warn('Cannot reserve proof - not found in unspent:', proof.secret.slice(0, 16) + '...');
+				console.warn(
+					'Cannot reserve proof - not found in unspent:',
+					proof.secret.slice(0, 16) + '...'
+				);
 				return false;
 			}
 			// Avoid duplicates
@@ -712,5 +834,43 @@ export class NutsWallet {
 			}
 		}
 		return result;
+	}
+
+	/**
+	 * Check proofs against mint and return only unspent ones
+	 * Use this to recover from "token already spent" errors
+	 */
+	public async checkAndFilterProofs(mintUrl: string, proofs: Proof[]): Promise<Proof[]> {
+		if (!proofs.length) return proofs;
+		
+		try {
+			const wallet = await this.getWallet(mintUrl);
+			const secrets = proofs.map(p => ({ secret: p.secret }));
+			const states = await wallet.checkProofsStates(secrets);
+			
+			const unspentProofs: Proof[] = [];
+			const spentSecrets: string[] = [];
+			
+			for (let i = 0; i < states.length; i++) {
+				const state = states[i];
+				// CheckStateEnum: UNSPENT, PENDING, SPENT
+				const stateValue = state.state as any;
+				if (stateValue === 'UNSPENT' || stateValue === 'PENDING') {
+					unspentProofs.push(proofs[i]);
+				} else {
+					spentSecrets.push(proofs[i].secret);
+				}
+			}
+			
+			if (spentSecrets.length > 0) {
+				console.log(`[wallet] Found ${spentSecrets.length} spent proofs for ${mintUrl}, filtering out`);
+			}
+			
+			return unspentProofs;
+		} catch (e) {
+			console.error('[wallet] Error checking proofs:', e);
+			// Return original proofs if check fails
+			return proofs;
+		}
 	}
 }

@@ -8,11 +8,7 @@
 	import { dimensions, key } from 'src/controller';
 	import { initRelayTracking } from 'src/controller/relay';
 	import { zoomed } from 'src/controller/image';
-	import {
-		resumeActiveTransaction,
-		getBackupDebugInfo,
-		retryBackup
-	} from 'src/model/cashu/tx-recovery';
+	import { resumePendingTransactions, clearOldTransactions } from 'src/model/cashu/tx-recovery';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
 
@@ -42,24 +38,68 @@
 			window.visualViewport.addEventListener('resize', setViewport);
 		}
 
-		// Resume any pending transaction from previous session
-		// This is non-blocking and runs in the background
-		resumeActiveTransaction();
+		// Clean up old tx-recovery data from localStorage
+		localStorage.removeItem('activeTxId');
+		localStorage.removeItem('pendingBackups_v1');
 
-		// Expose backup debug functions to window for console debugging
+		// Delete the old tx-recovery IndexedDB database
+		try {
+			indexedDB.deleteDatabase('nuts-cash-tx-recovery');
+		} catch (e) {
+			// Ignore errors
+		}
+
+		// Resume any pending transactions and clean up old ones
+		resumePendingTransactions().catch(console.error);
+		clearOldTransactions().catch(console.error);
+
+		// Expose debug functions to window for console debugging
 		// @ts-ignore
 		window.nutsDebug = {
-			getBackupDebugInfo,
-			retryBackup,
-			listAllTransactions: async () => {
-				const { listAllTransactions } = await import('src/model/cashu/tx-recovery');
-				return listAllTransactions();
+			// Retry failed nutzap publishes
+			retryPublish: async (txId?: string) => {
+				const { retryPublish, getTransaction, listPendingPublish } = await import('src/model/cashu/tx-recovery');
+				if (txId) {
+					return retryPublish(txId);
+				} else {
+					// Retry all pending
+					const pending = await listPendingPublish();
+					console.log(`[nutsDebug] Retrying ${pending.length} pending publishes`);
+					for (const tx of pending) {
+						await retryPublish(tx.txId);
+					}
+					return `Retried ${pending.length} transactions`;
+				}
+			},
+			// List pending publish transactions
+			listPendingPublish: async () => {
+				const { listPendingPublish } = await import('src/model/cashu/tx-recovery');
+				return listPendingPublish();
+			},
+			// Get transaction details
+			getTransaction: async (txId: string) => {
+				const { getTransaction } = await import('src/model/cashu/tx-recovery');
+				return getTransaction(txId);
+			},
+			// Retry pending proof backups
+			retryBackups: async () => {
+				const { retryPendingBackups, getPendingBackups } = await import('src/model/cashu/tx-recovery');
+				await retryPendingBackups();
+				return getPendingBackups();
+			},
+			// Get pending backup status
+			getPendingBackups: async () => {
+				const { getPendingBackups } = await import('src/model/cashu/tx-recovery');
+				return getPendingBackups();
 			}
 		};
 		console.log('[nuts-cash] Debug functions available at window.nutsDebug:', Object.keys(window.nutsDebug));
 
 		return () => {
 			window.removeEventListener('resize', setViewport);
+			if (window.visualViewport) {
+				window.visualViewport.removeEventListener('resize', setViewport);
+			}
 		};
 	});
 </script>
@@ -67,9 +107,11 @@
 <svelte:head>
 	{@html webManifestLink}
 </svelte:head>
+
 {#key $key?.pub}
 	<App />
 {/key}
+
 {#if $zoomed !== undefined}
 	<ImageZoom />
 {/if}

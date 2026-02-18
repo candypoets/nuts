@@ -12,9 +12,10 @@
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import { asKind0, asParsedEvent, isKind0 } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
-	import { sortBy, throttle, uniqBy } from 'lodash';
+	import { sortBy, throttle } from 'lodash';
 	import { createEventDispatcher } from 'svelte';
 
+	import { onDestroy } from 'svelte';
 	import VirtualList from 'src/components/VirtualList.svelte';
 	import { SEARCH_RELAYS } from 'src/lib/env';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
@@ -32,6 +33,7 @@
 
 	let cachedEvents: ParsedEvent[] = [];
 	let fetchedEvents: ParsedEvent[] = [];
+	let seenPubkeys = new Map<string, ParsedEvent>();
 
 	export let placeholder = 'Search…';
 	export let hotkey: string = 'k';
@@ -86,20 +88,56 @@
 		return item.id()?.toString();
 	}
 
+	function addOrUpdateEvent(event: ParsedEvent) {
+		const pubkey = event.pubkey()?.toString();
+		if (!pubkey) return;
+
+		const existing = seenPubkeys.get(pubkey);
+		// Always add if no existing, or if new event has newer created_at
+		if (!existing || (event.created_at && existing.created_at && event.created_at > existing.created_at)) {
+			console.log('[CMDK] adding/updating event:', { pubkey: pubkey.slice(0, 16), created_at: event.created_at, existing: existing?.created_at });
+			seenPubkeys.set(pubkey, event);
+		} else {
+			console.log('[CMDK] skipping event (older or duplicate):', { pubkey: pubkey.slice(0, 16), created_at: event.created_at, existing: existing?.created_at });
+		}
+	}
+
+	function getItemsFromMap(): ParsedEvent[] {
+		return Array.from(seenPubkeys.values());
+	}
+
 	const subscribe = throttle((search: string) => {
+		console.log('[CMDK] subscribe called:', { search, relays: SEARCH_RELAYS });
+		// Clean up previous subscription before creating a new one
+		if (sub) {
+			console.log('[CMDK] cleaning up previous subscription');
+			sub();
+		}
+		console.log('[CMDK] resetting state, items was:', items.length, 'seenPubkeys was:', seenPubkeys.size);
+		seenPubkeys.clear();
+		items = [];
 		cachedEvents = [];
 		fetchedEvents = [];
 		eoce = false;
 		eose = false;
 		selectedIndex = 0;
 		loading = true;
+		const subscriptionId = 'cmdk_' + search;
+		const filters = [{ kinds: [0], search, limit: 10, noCache: true, relays: SEARCH_RELAYS }];
+		console.log('[CMDK] creating subscription:', { subscriptionId, search, filters, relays: SEARCH_RELAYS });
 		sub = useSubscription(
-			'cmdk_' + search,
-			[{ kinds: [0], search, limit: 10, relays: SEARCH_RELAYS }],
+			subscriptionId,
+			filters,
 			handleEvents,
 			subscriptionOptions
 		);
 	}, 600);
+
+	onDestroy(() => {
+		if (sub) {
+			sub();
+		}
+	});
 
 	function calculateScore(item: ParsedEvent, searchQuery: string): number {
 		if (!item.parsed?.name || !searchQuery) return 0; // No name or query means no match score
@@ -116,29 +154,41 @@
 	}
 
 	const handleEvents = (message: WorkerMessage) => {
+		console.log('[CMDK] handleEvents:', { type: message.type(), query });
 		switch (message.type()) {
 			case MessageType.ConnectionStatus:
+				console.log('[CMDK] ConnectionStatus received, items count:', items.length);
 				loading = false;
 				eose = true;
-				items = uniqBy([...fetchedEvents, ...items], (item) => item.pubkey()?.fnv1aHash());
-				items = sortBy(items, (item) => -calculateScore(item, query));
+				fetchedEvents.forEach(addOrUpdateEvent);
+				items = sortBy(getItemsFromMap(), (item) => -calculateScore(item, query));
+				console.log('[CMDK] after ConnectionStatus, items count:', items.length, 'seenPubkeys:', seenPubkeys.size);
 				break;
 			case MessageType.Eoce:
+				console.log('[CMDK] Eoce received, cachedEvents count:', cachedEvents.length);
 				eoce = true;
-				items = uniqBy(cachedEvents, (item) => item.pubkey()?.fnv1aHash());
-				items = sortBy(items, (item) => calculateScore(item, query));
+				cachedEvents.forEach(addOrUpdateEvent);
+				items = sortBy(getItemsFromMap(), (item) => calculateScore(item, query));
+				console.log('[CMDK] after Eoce, items count:', items.length, 'seenPubkeys:', seenPubkeys.size);
 				break;
 			case MessageType.ParsedNostrEvent:
 				if (isKind0(message)) {
 					const parsedEvent = asParsedEvent(message) as ParsedEvent;
+					console.log('[CMDK] ParsedNostrEvent received:', {
+						name: parsedEvent.parsed?.name,
+						pubkey: parsedEvent.pubkey()?.toString().slice(0, 16) + '...',
+						created_at: parsedEvent.created_at,
+						eoce,
+						eose
+					});
 					if (!eoce) {
 						// cached event are filtered and sorted in the worker
 						cachedEvents = [parsedEvent, ...cachedEvents];
 					} else if (!eose) {
 						fetchedEvents = [parsedEvent, ...fetchedEvents];
 					} else {
-						items = uniqBy([parsedEvent, ...items], (item) => item?.pubkey()?.fnv1aHash());
-						items = sortBy(items, (item) => -calculateScore(item, query));
+						addOrUpdateEvent(parsedEvent);
+						items = sortBy(getItemsFromMap(), (item) => -calculateScore(item, query));
 					}
 				}
 		}
@@ -149,7 +199,7 @@
 </script>
 
 <div
-	class="backdrop-blur-sm flex items-start md:items-center justify-center p-4 h-screen"
+	class="backdrop-blur-gpu flex items-start md:items-center justify-center p-4 h-screen"
 	on:keydown={onKey}
 >
 	<!-- Container -->
@@ -176,7 +226,12 @@
 		</div>
 		<!-- Results -->
 		<div class="h-full" style={`max-height: ${maxHeight};`}>
-			{#if items.length > 0 && query}
+			{#if loading && query}
+				<div class="px-6 py-10 text-center">
+					<Icon icon="mdi:loading" class="animate-spin h-6 w-6 mx-auto mb-2 opacity-70" />
+					<div class="opacity-60 text-sm">Searching...</div>
+				</div>
+			{:else if items.length > 0 && query}
 				<VirtualList
 					{items}
 					{getItemId}
@@ -209,19 +264,23 @@
 									{/if}
 									<div class="min-w-0 flex gap-2">
 										<div class="font-medium truncate">{kind0.name()?.toString()}</div>
-										<!-- {#if cachedEvents.some((cachedItem) => cachedItem.pubkey()?.fnv1aHash() === item
-													.pubkey()
-													?.fnv1aHash())}
-											<Icon icon="mdi:check" class="ml-1 w-4 h-4 text-green-500 flex-shrink-0" />
-										{/if} -->
 									</div>
 								</button>
 							{/if}
 						{/each}
 					</div>
 				</VirtualList>
+			{:else if query && !loading}
+				<div class="px-6 py-10 text-center opacity-70">
+					<Icon icon="carbon:search" class="h-8 w-8 mx-auto mb-2 opacity-50" />
+					<div>No results found for "{query}"</div>
+					<div class="text-sm opacity-60 mt-1">Try a different search term</div>
+				</div>
 			{:else}
-				<div class="px-6 py-10 text-center opacity-70">No results</div>
+				<div class="px-6 py-10 text-center opacity-50">
+					<Icon icon="carbon:search" class="h-8 w-8 mx-auto mb-2" />
+					<div>Start typing to search profiles</div>
+				</div>
 			{/if}
 		</div>
 	</div>

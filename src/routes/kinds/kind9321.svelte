@@ -125,6 +125,7 @@
 	class="p-4 cursor-pointer border-x border-b border-primary-content bg-base-300 bg-opacity-85 backdrop-blur-gpu"
 	class:rounded-t-lg={isFirst}
 	class:rounded-b-lg={isLast}
+	class:border-t={isFirst}
 	class:mt-1={isFirst}
 	on:click|stopPropagation={go}
 	on:keydown={(e) => e.key === 'Enter' && go()}
@@ -151,7 +152,12 @@
 		{#if decoded.pubkey === $key?.pub && decoded.recipient}
 			<!-- User is the sender -->
 			<div class="flex items-center gap-2 overflow-hidden">
-				<Avatar pubkey={decoded?.recipient ?? ''} {context} size="lg" />
+				<div class="relative">
+					<Avatar pubkey={decoded?.recipient ?? ''} {context} size="lg" />
+					<div class="absolute bottom-0 right-0 w-5 h-5 translate-x-1/4 bg-amber-600 rounded-full flex items-center justify-center border-2 border-base-300">
+						<Icon icon="fluent-emoji:peanuts" class="text-xs" />
+					</div>
+				</div>
 				<span class="font-medium truncate"
 					>You zapped
 					<User pubkey={decoded?.recipient ?? ''} {context} />
@@ -183,7 +189,12 @@
 		{:else}
 			<!-- User is the recipient -->
 			<div class="flex items-center gap-2 overflow-hidden">
-				<Avatar pubkey={decoded?.pubkey ?? ''} {context} size="lg" />
+				<div class="relative">
+					<Avatar pubkey={decoded?.pubkey ?? ''} {context} size="lg" />
+					<div class="absolute bottom-0 right-0 w-5 h-5 translate-x-1/4 bg-amber-600 rounded-full flex items-center justify-center border-2 border-base-300">
+						<Icon icon="fluent-emoji:peanuts" class="text-xs" />
+					</div>
+				</div>
 				<span class="font-medium truncate">
 					<span class="font-bold"><User pubkey={decoded?.pubkey ?? ''} {context} /></span>
 					<span class="font-bold">zapped you</span>
