@@ -98,7 +98,6 @@
 			loading = true;
 			const pubkey = await window.nostr.getPublicKey();
 			if (pubkey) {
-			    console.log('set signer')
 				manager.setSigner('nip07');
 				$key = {
 					pub: pubkey,
@@ -271,12 +270,11 @@
 
 		{#if showQR && qrText}
 			<!-- Inline QR Display for Login Page -->
-			<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+			<div
+				class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+			>
 				<div class="relative bg-neutral-900 rounded-2xl p-8 max-w-sm w-full border border-white/10">
-					<button
-						class="absolute top-4 right-4 text-white/50 hover:text-white"
-						on:click={closeQR}
-					>
+					<button class="absolute top-4 right-4 text-white/50 hover:text-white" on:click={closeQR}>
 						<Icon icon="ri:close-line" class="text-2xl" />
 					</button>
 					<div class="flex flex-col items-center">
@@ -302,7 +300,12 @@
 
 		{#if kind == 'login'}
 			<div class="w-full" class:mt-32={!inline}>
-				<form class="px-4" class:!mt-0={inline} class:!px-0={inline} on:submit|preventDefault={handleLogin}>
+				<form
+					class="px-4"
+					class:!mt-0={inline}
+					class:!px-0={inline}
+					on:submit|preventDefault={handleLogin}
+				>
 					<div class="flex flex-col sm:flex-row gap-3">
 						<!-- Input row -->
 						<div class="join w-full flex-1">
@@ -349,10 +352,10 @@
 							<button
 								type="button"
 								class="btn join-item btn-outline border-white/10 hover:bg-white/5 hover:border-white/20 text-white/70"
-								on:click={() => showPassword = !showPassword}
+								on:click={() => (showPassword = !showPassword)}
 								title={showPassword ? 'Hide' : 'Show'}
 							>
-								<Icon icon={showPassword ? "ri:eye-off-line" : "ri:eye-line"} class="text-lg" />
+								<Icon icon={showPassword ? 'ri:eye-off-line' : 'ri:eye-line'} class="text-lg" />
 							</button>
 						</div>
 

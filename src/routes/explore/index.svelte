@@ -162,11 +162,9 @@
 
 	// Handle incoming events from subscription
 	function handleEvents(message: WorkerMessage) {
-		console.log('explore event message');
 		// Handle connection status (including EOSE detection via resolutionRate)
 		const status = asConnectionStatus(message);
 		if (status && connectionTracker) {
-			console.log('explore event connectionStatus');
 			const relayUrl = status.relayUrl()?.toString();
 			if (relayUrl) {
 				// Normalize URL to match normalizedRelays keys
@@ -186,7 +184,6 @@
 		// Handle parsed events
 		const parsedEvent = asParsedEvent(message);
 		if (!parsedEvent) return;
-		console.log('explore event', parsedEvent);
 		const kind = parsedEvent.kind();
 		// if (kind !== 1 && kind !== 6) return;
 
