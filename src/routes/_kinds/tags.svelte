@@ -45,7 +45,7 @@
 		}
 
 		// Handle parsed events
-		if (event.kind && event.kind() === 1) {
+		if (event.kind && (event.kind() === 1 || event.kind() === 30023)) {
 			const parsedEvent = asParsedEvent(message) as ParsedEvent;
 			const eventId = parsedEvent.id()?.fnv1aHash();
 			const existingIndex = feedItems.findIndex((item) => item.id()?.fnv1aHash() === eventId);
@@ -96,7 +96,7 @@
 >
 	<svelte:fragment slot="sticky-header">
 		<div
-			class="px-4 py-3 flex items-center justify-between backdrop-blur bg-base-300 bg-opacity-85 backdrop-blur-md"
+			class="px-4 py-3 flex items-center justify-between backdrop-blur-md bg-base-300 bg-opacity-85"
 		>
 			<button on:click={goBack} class="p-1 rounded-full hover:bg-base-200 mr-4">
 				<Icon icon="mdi:arrow-left" class="text-xl" />
@@ -108,7 +108,7 @@
 	<svelte:fragment slot="header">
 		{#if !imageContext}
 			<div
-				class="w-feed pt-safe border-primary-content h-20 flex items-center justify-between backdrop-blur bg-base-300 bg-opacity-90 rounded-lg px-4"
+				class="w-feed pt-safe border-primary-content h-20 flex items-center justify-between backdrop-blur-md bg-base-300 bg-opacity-90 rounded-lg px-4"
 			>
 				<div class="flex gap-2">
 					<button

@@ -183,7 +183,7 @@
 >
 	<svelte:fragment slot="sticky-header">
 		<div
-			class="px-4 py-3 flex items-center justify-between backdrop-blur bg-base-100 bg-opacity-90"
+			class="px-4 py-3 flex items-center justify-between backdrop-blur-md bg-base-100 bg-opacity-90"
 		>
 			<button on:click={goBack} class="p-1 rounded-full hover:bg-base-200 mr-4">
 				<Icon icon="mdi:arrow-left" class="text-xl" />
@@ -195,7 +195,7 @@
 	<svelte:fragment slot="header">
 		{#if !imageContext}
 			<div
-				class="w-feed pt-safe border-primary-content h-20 flex items-center justify-between backdrop-blur bg-base-300 bg-opacity-90 rounded-lg px-4"
+				class="w-feed pt-safe border-primary-content h-20 flex items-center justify-between backdrop-blur-md bg-base-300 bg-opacity-90 rounded-lg px-4"
 			>
 				<button
 					on:click={goBack}

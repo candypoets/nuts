@@ -2,6 +2,7 @@
 	import Kind0 from 'src/routes/_kinds/kind0.svelte';
 	import Kind1 from 'src/routes/_kinds/kind1.svelte';
 	import Kind4 from 'src/routes/_kinds/kind4.svelte';
+	import Kind30023 from 'src/routes/_kinds/kind30023.svelte';
 	import Tags from 'src/routes/_kinds/tags.svelte';
 	import Notifications from 'src/routes/notifications/index.svelte';
 
@@ -143,6 +144,8 @@
 			<Kind0 pubkey={path.split(':')?.[1]} {visible} goBack={pagerAnimator?.goBack} />
 		{:else if path.includes('nevent')}
 			<Kind1 nevent={path.split(':')?.[1]} {visible} goBack={pagerAnimator?.goBack} />
+		{:else if path.includes('naddr')}
+			<Kind30023 naddr={path.split(':')?.[1]} {visible} goBack={pagerAnimator?.goBack} />
 		{:else if path.includes('kind4')}
 			<Kind4 pubkey={path.split(':')?.[1]} {visible} goBack={pagerAnimator?.goBack} />
 		{:else if path.includes('notifications')}

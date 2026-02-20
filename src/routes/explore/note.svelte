@@ -2,6 +2,7 @@
 	import {
 		Kind1Parsed,
 		MessageType,
+		ParsedData,
 		type ConnectionStatus,
 		type ParsedEvent,
 		type WorkerMessage
@@ -22,6 +23,7 @@
 	import RelaysList from 'src/components/RelaysList.svelte';
 	import { toRequestObject } from 'src/lib/request';
 	import Content from 'src/routes/explore/_post/content.svelte';
+	import Kind30023Content from 'src/routes/explore/_post/kind30023Content.svelte';
 	import Footer from 'src/routes/explore/_post/footer.svelte';
 	import Header from 'src/routes/explore/_post/header.svelte';
 	import Zap from 'src/routes/explore/_post/zap.svelte';
@@ -153,7 +155,9 @@
 							},
 							// fetch some replies
 							{ limit: 10, tags: { '#e': [nid] }, relays: relays || [] },
-							...(displayNote ? fbArray(displayNote, 'requests').map((r) => toRequestObject(r)) : [])
+							...(displayNote
+								? fbArray(displayNote, 'requests').map((r) => toRequestObject(r))
+								: [])
 						],
 						handleEvents
 					);
@@ -262,8 +266,6 @@
 				connectionStatus = {};
 			}
 		});
-
-
 </script>
 
 {#if hasRoot}
@@ -330,7 +332,9 @@
 				class:!mt-0={!!depth || isImageContext}
 				class:!mt-2={!!main}
 			>
-				{#if !!displayNote.parsed}
+				{#if note?.kind() === 30023}
+					<Kind30023Content note={displayNote} />
+				{:else if !!displayNote.parsed}
 					<!-- {kind1?.reply()?.id()?.toString()} -->
 					<!-- {!!showReplies && note?.id()?.toString()} -->
 					<Content note={displayNote} {context} {visible} {depth} {main} {showQuote} />

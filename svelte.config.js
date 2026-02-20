@@ -12,6 +12,9 @@ const config = {
 		}),
 		serviceWorker: {
 			register: false
+		},
+		alias: {
+			'src': './src'
 		}
 	}
 };

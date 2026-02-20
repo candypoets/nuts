@@ -18,13 +18,13 @@ export default defineConfig(({ mode }) => {
 			// noExternal: ['idb']
 		},
 		// WARN: this will not be necessary on your project
-		logLevel: 'info',
+		logLevel: 'error',
 		server: {
 			proxy: {},
 			host: true,
 			fs: {
 				// Allow serving files from hoisted root node_modules
-				allow: ['..']
+				allow: ['/']
 			},
 			headers: {
 				'Cross-Origin-Embedder-Policy': 'require-corp',
@@ -59,13 +59,32 @@ export default defineConfig(({ mode }) => {
 					name: 'Nuts.cash',
 					short_name: 'Nuts',
 					description: 'The nostr cashu wallet',
-					theme_color: 'transparent',
+					theme_color: '#000000',
 					start_url: '/explore',
 					display: 'standalone',
 					orientation: 'portrait',
-					background_color: 'transparent',
+					background_color: '#000000',
 					lang: 'en',
-					categories: ['finance', 'utility']
+					categories: ['finance', 'utility'],
+					icons: [
+						{
+							src: '/maskable-icon-180.png',
+							sizes: '180x180',
+							type: 'image/png',
+							purpose: 'maskable'
+						},
+						{
+							src: '/maskable-icon-360.png',
+							sizes: '360x360',
+							type: 'image/png',
+							purpose: 'maskable'
+						},
+						{
+							src: '/apple-touch-icon.png',
+							sizes: '180x180',
+							type: 'image/png'
+						}
+					]
 					// permissions: ['camera']
 				},
 				registerType: 'autoUpdate',

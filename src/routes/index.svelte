@@ -494,7 +494,7 @@
 
 	.carousel-item {
 		transform-origin: center center;
-		contain: layout style paint;
+		contain: layout style;
 		backface-visibility: hidden;
 		position: absolute;
 		top: 0;

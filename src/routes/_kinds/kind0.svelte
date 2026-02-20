@@ -255,7 +255,7 @@
 				subId: 'kind0P_' + pubkey + '_' + relayHash,
 				requests: [
 					{
-						kinds: [1],
+						kinds: [1, 30023],
 						authors: [pubkey],
 						limit: $limit,
 						noContext: true,
@@ -274,7 +274,7 @@
 				subId: 'kind0F_' + pubkey + '_' + relayHash,
 				requests: [
 					{
-						kinds: [1],
+						kinds: [1, 30023],
 						authors: contacts.map((c) => c.pubkey()?.toString()).filter(Boolean) as string[],
 						limit: $limit,
 						noContext: true,

@@ -56,7 +56,9 @@ export const setNutsWallet = (
 				dispatchAllProofs(nuts || undefined);
 			}
 			// Verify proofs against mints in background (fire and forget)
-			wallet.verifyAndCleanProofs().catch(e => console.error('[wallet] Proof verification failed:', e));
+			wallet
+				.verifyAndCleanProofs()
+				.catch((e) => console.error('[wallet] Proof verification failed:', e));
 		} catch (error) {
 			console.error('Error creating NutsWallet:', error);
 			return;
@@ -605,14 +607,14 @@ export class NutsWallet {
 	 * Call this after wallet initialization to clean up spent proofs from localStorage
 	 */
 	public async verifyAndCleanProofs(): Promise<void> {
-		console.log('[wallet] Verifying proofs against mints...');
-		
+		// console.log('[wallet] Verifying proofs against mints...');
+
 		for (const [mint, proofs] of this.unspentProofs.entries()) {
 			if (proofs.length === 0) continue;
-			
+
 			try {
 				const validProofs = await this.checkAndFilterProofs(mint, proofs);
-				
+
 				if (validProofs.length < proofs.length) {
 					const removed = proofs.length - validProofs.length;
 					console.log(`[wallet] ${removed} proofs were spent, removing from ${mint}`);
@@ -623,9 +625,9 @@ export class NutsWallet {
 				console.error(`[wallet] Error verifying proofs for ${mint}:`, e);
 			}
 		}
-		
+
 		this.updateBalanceByMint();
-		console.log('[wallet] Proof verification complete');
+		// console.log('[wallet] Proof verification complete');
 	}
 
 	/**
@@ -842,15 +844,15 @@ export class NutsWallet {
 	 */
 	public async checkAndFilterProofs(mintUrl: string, proofs: Proof[]): Promise<Proof[]> {
 		if (!proofs.length) return proofs;
-		
+
 		try {
 			const wallet = await this.getWallet(mintUrl);
-			const secrets = proofs.map(p => ({ secret: p.secret }));
+			const secrets = proofs.map((p) => ({ secret: p.secret }));
 			const states = await wallet.checkProofsStates(secrets);
-			
+
 			const unspentProofs: Proof[] = [];
 			const spentSecrets: string[] = [];
-			
+
 			for (let i = 0; i < states.length; i++) {
 				const state = states[i];
 				// CheckStateEnum: UNSPENT, PENDING, SPENT
@@ -861,11 +863,13 @@ export class NutsWallet {
 					spentSecrets.push(proofs[i].secret);
 				}
 			}
-			
+
 			if (spentSecrets.length > 0) {
-				console.log(`[wallet] Found ${spentSecrets.length} spent proofs for ${mintUrl}, filtering out`);
+				console.log(
+					`[wallet] Found ${spentSecrets.length} spent proofs for ${mintUrl}, filtering out`
+				);
 			}
-			
+
 			return unspentProofs;
 		} catch (e) {
 			console.error('[wallet] Error checking proofs:', e);

@@ -135,7 +135,7 @@
 		transition:
 			opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),
 			transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-		contain: layout style paint;
+		contain: layout style;
 		backface-visibility: hidden;
 		-webkit-backface-visibility: hidden;
 	}
@@ -146,7 +146,7 @@
 		transition:
 			opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),
 			transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-		contain: layout style paint;
+		contain: layout style;
 		backface-visibility: hidden;
 		-webkit-backface-visibility: hidden;
 	}

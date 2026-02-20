@@ -1,10 +1,21 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
 	import { getContext } from 'svelte';
-	import { key, kind0, kind17375, kind3, walletMnemonic, walletPassphrase } from 'src/controller';
+	import { manager } from '@candypoets/nipworker';
+	import { key, walletMnemonic, walletPassphrase } from 'src/controller';
 
 	export let subopen: boolean = false;
 	let animator = getContext('animator');
+
+	function handleLogout() {
+		// Clear persistent stores to prevent stale data on reload
+		key.set({});
+		walletMnemonic.set('');
+		walletPassphrase.set('');
+
+		manager.removeAccount();
+		window.location.href = '/explore';
+	}
 </script>
 
 <div class="h-screen flex items-center">
@@ -21,20 +32,7 @@
 				<Icon icon="mdi:alert-circle" class="w-5 h-5 text-yellow-600 mr-2" />
 				<span>Make sure you saved your private key before logging out</span>
 			</div>
-			<button
-				class="btn btn-accent"
-				on:click={async () => {
-					$key = {};
-					$walletMnemonic = '';
-					$walletPassphrase = '';
-					$kind0 = undefined;
-					$kind17375 = undefined;
-					$kind3 = undefined;
-					window.location.reload();
-				}}
-			>
-				Log Out
-			</button>
+			<button class="btn btn-accent" on:click={handleLogout}> Log Out </button>
 		</div>
 	</div>
 </div>

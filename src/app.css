@@ -116,12 +116,8 @@ html[data-theme='sunset'] {
 }
 
 .backdrop-blur-gpu {
-	transform: translateZ(0);
-	will-change: backdrop-filter;
 	-webkit-backdrop-filter: blur(8px);
 	backdrop-filter: blur(8px);
-	isolation: isolate;
-	z-index: 1;
 }
 
 .toggle-up {

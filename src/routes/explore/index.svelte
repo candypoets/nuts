@@ -162,9 +162,11 @@
 
 	// Handle incoming events from subscription
 	function handleEvents(message: WorkerMessage) {
+		console.log('explore event message');
 		// Handle connection status (including EOSE detection via resolutionRate)
 		const status = asConnectionStatus(message);
 		if (status && connectionTracker) {
+			console.log('explore event connectionStatus');
 			const relayUrl = status.relayUrl()?.toString();
 			if (relayUrl) {
 				// Normalize URL to match normalizedRelays keys
@@ -184,13 +186,13 @@
 		// Handle parsed events
 		const parsedEvent = asParsedEvent(message);
 		if (!parsedEvent) return;
-
+		console.log('explore event', parsedEvent);
 		const kind = parsedEvent.kind();
-		if (kind !== 1 && kind !== 6) return;
+		// if (kind !== 1 && kind !== 6) return;
 
 		// Filter: only show root posts or direct replies to root posts
 		// Skip nested replies (replies to replies)
-		if (kind === 1) {
+		if (kind === 1 || kind === 6) {
 			const kind1 = asKind1(parsedEvent);
 			if (kind1) {
 				const reply = kind1.reply()?.id();
