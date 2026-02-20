@@ -10,8 +10,7 @@ export interface ImageProxyOptions {
 }
 
 /**
- * Creates a proxied URL for external resources to bypass CORP restrictions
- * when Cross-Origin-Embedder-Policy: require-corp is enabled for SharedArrayBuffer support
+ * Creates a proxied URL for external resources
  */
 export function proxyUrl(
 	originalUrl: string,

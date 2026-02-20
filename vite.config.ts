@@ -22,14 +22,10 @@ export default defineConfig(({ mode }) => {
 		server: {
 			proxy: {},
 			host: true,
+			allowedHosts: ['befree'],
 			fs: {
 				// Allow serving files from hoisted root node_modules
 				allow: ['/']
-			},
-			headers: {
-				'Cross-Origin-Embedder-Policy': 'require-corp',
-				'Cross-Origin-Opener-Policy': 'same-origin',
-				'Cross-Origin-Resource-Policy': 'cross-origin'
 			}
 		},
 		build: {
