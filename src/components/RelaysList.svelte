@@ -67,12 +67,12 @@
 			>
 				<span
 					class={`w-2 h-2 mr-1 shrink-0 rounded-full ${getStatusClasses(
-						connectionStatus?.[relay]
+						connectionStatus?.[normalizeURL(relay)]
 					)}`}
 					class:!w-1={mini}
 					class:!h-1={mini}
 				></span>
-				<span class:text-gray-500={!connectionStatus?.[relay]} class:hidden={mini} class="truncate">
+				<span class:text-gray-500={!connectionStatus?.[normalizeURL(relay)]} class:hidden={mini} class="truncate">
 					{normalize(relay)}
 				</span>
 			</span>

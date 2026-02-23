@@ -7,7 +7,10 @@
 		note as noteStore,
 		zoomed as zoomedStore,
 		gridId as gridIdStore,
-		videoTime as videoTimeStore
+		videoTime as videoTimeStore,
+		sharedVideoElement,
+		sharedVideoIndex,
+		sharedVideoGridId
 	} from 'src/controller/image';
 	import type { AnyKind, Kind1Parsed, ParsedEvent } from 'src/types';
 	import { proxyMediaLinks, ImagePresets } from 'src/lib/proxy';
@@ -39,6 +42,34 @@
 		// how many slots are left in the row
 		const slots = columns - (i % columns);
 		return slots;
+	}
+
+	// Determine rounded corners based on grid position
+	function getRoundedCorners(i: number, total: number): string {
+		if (total === 1) {
+			return 'rounded-lg'; // Single item - all corners rounded
+		}
+		
+		const row = Math.floor(i / columns);
+		const col = i % columns;
+		const totalRows = Math.ceil(total / columns);
+		const isLastRow = row === totalRows - 1;
+		const isFirstRow = row === 0;
+		const isFirstCol = col === 0;
+		const isLastCol = col === columns - 1 || i === total - 1;
+		
+		let corners = [];
+		
+		// Top-left corner: first item or first column
+		if (isFirstRow && isFirstCol) corners.push('rounded-tl-lg');
+		// Top-right corner: first row and last column of that row
+		if (isFirstRow && isLastCol) corners.push('rounded-tr-lg');
+		// Bottom-left corner: last row and first column
+		if (isLastRow && isFirstCol) corners.push('rounded-bl-lg');
+		// Bottom-right corner: last row and last column
+		if (isLastRow && isLastCol) corners.push('rounded-br-lg');
+		
+		return corners.join(' ');
 	}
 
 	function getBlurhashDataUrl(blurhash: string): string {
@@ -78,12 +109,11 @@
 		'relative my-2 grid cursor-pointer gap-1 overflow-hidden rounded-lg'
 	)}
 	class:w-full={isImageContext}
-	class:bg-gray-300={displayLinks.length == 1}
-	class:bg-opacity-20={displayLinks.length == 1}
 >
 	{#each displayLinks as link, i}
 		{#if link.type === 'video'}
 			<span
+				class="inline-block"
 				style={$zoomedStore === undefined && i === 0
 					? `view-transition-name: image-zoom-${gridId}-0`
 					: ''}
@@ -95,15 +125,22 @@
 					muted={true}
 					className={cx(
 						i == 0 ? 'col-span-' + getSpan(i == 0 ? displayLinks.length - 1 : i) : '',
-						'max-h-[50vh]:data-[single=true] !w-auto:data-[single=true] m-auto:data-[single=true] h-96'
+						'w-fit max-h-96',
+						getRoundedCorners(i, displayLinks.length)
 					)}
 					bind:videoElement={videoElements[i]}
+					index={i}
+					gridId={gridId}
 					onClick={(e) => {
 						e.stopPropagation();
 						e.preventDefault();
 						const videoEl = videoElements[i];
 						if (videoEl) {
+							// Save the actual video element to share with zoom
 							$videoTimeStore = videoEl.currentTime;
+							$sharedVideoElement = videoEl;
+							$sharedVideoIndex = i;
+							$sharedVideoGridId = gridId;
 						}
 						setZoom(i);
 					}}
@@ -111,19 +148,19 @@
 			</span>
 		{:else}
 			<div
-				class="relative"
+				class={cx(
+					'relative',
+					displayLinks.length === 1 ? '' : 'h-48'
+				)}
 				style={$zoomedStore === undefined && i === 0
 					? `view-transition-name: image-zoom-${gridId}-0`
 					: ''}
 			>
 				<img
-					class:max-h-[50vh]={displayLinks.length == 1}
-					class:!h-48={displayLinks.length > 1}
-					class:!w-auto={displayLinks.length == 1}
-					class:m-auto={displayLinks.length == 1}
 					class={cx(
-						i == 0 ? 'col-span-' + getSpan(displayLinks.length - 1) : '',
-						'w-full object-cover'
+						i == 0 ? 'col-span-' + getSpan(i == 0 ? displayLinks.length - 1 : i) : '',
+						displayLinks.length === 1 ? 'max-h-96 w-auto object-contain' : 'w-full h-full object-cover',
+						getRoundedCorners(i, displayLinks.length)
 					)}
 					style={link.blurhash ? `background-image: url('data:image/png;base64,...')` : ''}
 					on:click|preventDefault|stopPropagation={() => setZoom(i)}

@@ -157,9 +157,11 @@
 		console.log('[CMDK] handleEvents:', { type: message.type(), query });
 		switch (message.type()) {
 			case MessageType.ConnectionStatus:
-				console.log('[CMDK] ConnectionStatus received, items count:', items.length);
+				console.log('[CMDK] ConnectionStatus received, items count:', items.length, 'cachedEvents:', cachedEvents.length, 'fetchedEvents:', fetchedEvents.length);
 				loading = false;
 				eose = true;
+				// Process both cached and fetched events on EOSE
+				cachedEvents.forEach(addOrUpdateEvent);
 				fetchedEvents.forEach(addOrUpdateEvent);
 				items = sortBy(getItemsFromMap(), (item) => -calculateScore(item, query));
 				console.log('[CMDK] after ConnectionStatus, items count:', items.length, 'seenPubkeys:', seenPubkeys.size);
@@ -181,14 +183,15 @@
 						eoce,
 						eose
 					});
-					if (!eoce) {
-						// cached event are filtered and sorted in the worker
-						cachedEvents = [parsedEvent, ...cachedEvents];
-					} else if (!eose) {
-						fetchedEvents = [parsedEvent, ...fetchedEvents];
-					} else {
+					if (eose) {
+						// After EOSE, process immediately
 						addOrUpdateEvent(parsedEvent);
 						items = sortBy(getItemsFromMap(), (item) => -calculateScore(item, query));
+					} else if (!eoce) {
+						// Before EOSE and EOCE, cache events
+						cachedEvents = [parsedEvent, ...cachedEvents];
+					} else {
+						fetchedEvents = [parsedEvent, ...fetchedEvents];
 					}
 				}
 		}

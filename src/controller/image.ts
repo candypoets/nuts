@@ -7,3 +7,9 @@ export const note: Writable<ParsedEvent<AnyKind>> = writable();
 export const context: Writable<ParsedEvent<AnyKind>[]> = writable([]);
 export const gridId: Writable<string> = writable('');
 export const videoTime: Writable<number> = writable(0);
+
+// Shared video element for seamless zoom - stores the actual video DOM element
+// to avoid re-fetching when zooming
+export const sharedVideoElement: Writable<HTMLVideoElement | null> = writable(null);
+export const sharedVideoIndex: Writable<number> = writable(-1);
+export const sharedVideoGridId: Writable<string> = writable('');

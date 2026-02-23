@@ -19,8 +19,6 @@
 		showContext = !showContext;
 	}
 
-	$: console.log('$note', $note);
-
 	$: usub =
 		$note &&
 		!nevent &&

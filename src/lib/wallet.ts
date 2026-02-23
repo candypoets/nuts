@@ -246,6 +246,9 @@ export const getZapInvoice = async (
 
 	// Fetch LNURL metadata via proxy to avoid CORS
 	const metaResponse = await fetch(`https://proxy.nuts.cash/?url=${endpoint}`);
+	if (!metaResponse.ok) {
+		throw new Error(`Proxy error: ${metaResponse.status} ${metaResponse.statusText}. Cannot reach ${originalHost}`);
+	}
 	const meta = await metaResponse.json();
 
 	if (!meta.callback) {
@@ -263,14 +266,32 @@ export const getZapInvoice = async (
 	// Build callback URL with zap request
 	callbackUrl += callbackUrl.includes('?') ? '&' : '?';
 	callbackUrl += `amount=${amount * 1000}`; // Convert to millisats
-	callbackUrl += `&nostr=${encodeURIComponent(JSON.stringify(zapRequest))}`;
-	callbackUrl += `&comment=${encodeURIComponent(zapRequest.content || '')}`;
+	// Handle case where zapRequest might already be stringified (from useSignEvent)
+	const nostrValue = typeof zapRequest === 'string' ? zapRequest : JSON.stringify(zapRequest);
+	callbackUrl += `&nostr=${encodeURIComponent(nostrValue)}`;
+	callbackUrl += `&comment=${encodeURIComponent(typeof zapRequest === 'string' ? '' : zapRequest.content || '')}`;
 	callbackUrl += `&lnurl=${encodeURIComponent(lnurl)}`;
 
-	// Get the invoice from the callback via proxy to avoid CORS
-	// Don't encode callbackUrl - it's already encoded and we want nginx to pass it as-is
-	const proxyUrl = `https://proxy.nuts.cash/?url=${callbackUrl}`;
-	const invoiceResponse = await fetch(proxyUrl);
+	// Try direct fetch first (avoids proxy rate limits for providers with CORS)
+	let invoiceResponse: Response;
+	try {
+		invoiceResponse = await fetch(callbackUrl, {
+			credentials: 'omit',
+			headers: { Accept: 'application/json' }
+		});
+		console.log('[zap] Direct callback succeeded');
+	} catch (e) {
+		// Direct failed (CORS or network error), fall back to proxy
+		console.log('[zap] Direct callback failed, trying proxy:', e);
+		const proxyUrl = `https://proxy.nuts.cash/?url=${callbackUrl}`;
+		invoiceResponse = await fetch(proxyUrl);
+	}
+
+	if (!invoiceResponse.ok) {
+		throw new Error(
+			`Proxy error: ${invoiceResponse.status} ${invoiceResponse.statusText}. Lightning provider rate limited or unavailable`
+		);
+	}
 	const invoiceData = await invoiceResponse.json();
 
 	if (!invoiceData.pr) {

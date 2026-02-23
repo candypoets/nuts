@@ -10,6 +10,7 @@
 	export let keyboardShortcut = false;
 	export let noScroll = false;
 	export let verticalPan = true;
+	export let onIndexChange: (index: number) => void = () => {};
 
 	// Ensure items have proxied URLs if they contain src properties
 	// Use full preset for carousel (zoom view) to get high quality images
@@ -36,6 +37,7 @@
 				behavior: 'smooth'
 			});
 			currentIndex = index;
+			onIndexChange(index);
 		}
 	}
 
@@ -92,7 +94,11 @@
 		}
 
 		if (carouselElement) {
-			currentIndex = Math.round(carouselElement.scrollLeft / carouselElement.offsetWidth);
+			const newIndex = Math.round(carouselElement.scrollLeft / carouselElement.offsetWidth);
+			if (newIndex !== currentIndex) {
+				currentIndex = newIndex;
+				onIndexChange(currentIndex);
+			}
 		}
 		if (noScroll) event.preventDefault();
 	}
@@ -141,7 +147,7 @@
 				class:snap-start={index === 0}
 				class:snap-center={index !== 0}
 			>
-				<slot {item}>Missing template</slot>
+				<slot {item} {index}>Missing template</slot>
 			</div>
 		{/each}
 	</div>

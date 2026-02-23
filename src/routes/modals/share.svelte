@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
-	import { getContext, onMount } from 'svelte';
+	import { getContext, onDestroy, onMount } from 'svelte';
 	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
 	import { go } from 'src/routes/modals/modal';
 	import {
@@ -40,6 +40,8 @@
 
 	let feedRequests: RequestObject[] = [];
 	let seen_npubs = new Map<number, boolean>();
+	let unsubscribe: (() => void) | undefined;
+	let lastFeedRequestsJson = '';
 
 	let note: ParsedEvent | undefined = undefined;
 	let relays: string[] = [];
@@ -59,15 +61,31 @@
 			[];
 	}
 
-	function updateFeed(feed: ParsedEvent[], message: WorkerMessage): ParsedEvent[] {
+	// Handle incoming events from subscription
+	function handleEvents(message: WorkerMessage) {
 		const parsedEvent = asParsedEvent(message);
 		if (parsedEvent) {
-			if (seen_npubs.has(parsedEvent?.pubkey()?.fnv1aHash() as number)) return feed;
-			seen_npubs.set(parsedEvent?.pubkey()?.fnv1aHash() as number, true);
-			return [...feed, parsedEvent];
+			const pubkeyHash = parsedEvent?.pubkey()?.fnv1aHash() as number;
+			if (seen_npubs.has(pubkeyHash)) return;
+			seen_npubs.set(pubkeyHash, true);
+			feed = [...feed, parsedEvent];
 		}
-		return feed;
 	}
+
+	// Initialize subscription when feedRequests changes (guard against duplicate subs)
+	$: if (feedRequests.length > 0) {
+		const requestsJson = JSON.stringify(feedRequests);
+		if (requestsJson !== lastFeedRequestsJson) {
+			lastFeedRequestsJson = requestsJson;
+			unsubscribe?.();
+			unsubscribe = useSubscription('share_contacts_' + Date.now(), feedRequests, handleEvents);
+		}
+	}
+
+	// Cleanup on unmount
+	onDestroy(() => {
+		unsubscribe?.();
+	});
 
 	function toggleContactSelect(contact: ParsedEvent) {
 		if (selectedContact?.pubkey()?.fnv1aHash() === contact?.pubkey()?.fnv1aHash()) {

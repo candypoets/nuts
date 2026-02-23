@@ -61,12 +61,12 @@
 			case MessageType.ConnectionStatus:
 				loading = false;
 				eose = true;
-				items = uniqBy([...fetchedEvents, ...items], (item) => item.pubkey()?.fnv1aHash());
+				items = uniqBy([...cachedEvents, ...fetchedEvents, ...items], (item) => item.pubkey()?.fnv1aHash());
 				items = sortBy(items, (item) => -calculateScore(item, query));
 				break;
 			case MessageType.Eoce:
 				eoce = true;
-				items = uniqBy(cachedEvents, (item) => item.pubkey()?.fnv1aHash());
+				items = uniqBy([...cachedEvents, ...fetchedEvents, ...items], (item) => item.pubkey()?.fnv1aHash());
 				items = sortBy(items, (item) => calculateScore(item, query));
 				break;
 			case MessageType.ParsedNostrEvent:
@@ -86,6 +86,9 @@
 	};
 
 	const subscribe = throttle((search: string) => {
+		if (sub) {
+			sub();
+		}
 		cachedEvents = [];
 		fetchedEvents = [];
 		eoce = false;
@@ -101,6 +104,11 @@
 
 	// Reset selection when query changes
 	$: query && subscribe(query);
+
+	// Re-sort existing items when query changes (for instant feedback)
+	$: if (query && items.length > 0) {
+		items = sortBy(items, (item) => -calculateScore(item, query));
+	}
 
 	// Handle keyboard navigation
 	export function onKeyDown(event: KeyboardEvent) {
@@ -130,10 +138,10 @@
 </script>
 
 <div class="bg-white rounded-lg shadow-lg w-72 max-h-80 overflow-scroll">
-	{#if loading}
+	{#if loading && query}
 		<div class="py-3 px-4 text-center text-gray-500">
 			<Icon icon="mdi:loading" class="animate-spin h-5 w-5 mx-auto mb-1 text-gray-500" />
-			<!-- <span>Loading profiles...</span> -->
+			<div class="text-xs">Searching...</div>
 		</div>
 	{/if}
 	{#if items.length === 0}

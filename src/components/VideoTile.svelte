@@ -1,19 +1,60 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import {
+		sharedVideoElement,
+		sharedVideoIndex,
+		sharedVideoGridId
+	} from 'src/controller/image';
 
 	export let src: string;
 	export let poster: string | undefined = undefined;
 	export let autoplay = true;
 	export let loop = true;
-	export let muted = true;
 	export let className = '';
 	export let onClick: (e: MouseEvent) => void = () => {};
 	export let videoElement: HTMLVideoElement | undefined = undefined;
+	export let index: number = 0;
+	export let gridId: string = '';
+
+	// Container reference to re-attach video when returned
+	let containerEl: HTMLElement;
+
+	// Time tracking for display
+	let currentTime = 0;
+	let duration = 0;
 
 	// Media Chrome are web components; load on client to avoid SSR issues.
 	onMount(async () => {
 		await import('media-chrome'); // npm i media-chrome
 	});
+
+	// Determine if this video is currently being shared (shown in zoom)
+	$: isShared = $sharedVideoElement === videoElement && $sharedVideoElement !== null;
+
+	// Re-attach video element when it's returned from zoom
+	$: if (!isShared && videoElement && containerEl) {
+		// If the video element is not attached to this media-controller, move it back
+		if (videoElement.parentElement !== containerEl) {
+			// The video needs slot="media" to be recognized by media-controller
+			videoElement.setAttribute('slot', 'media');
+			containerEl.appendChild(videoElement);
+			// Restore original grid classes
+			videoElement.classList.remove('m-auto', 'object-contain');
+			videoElement.classList.add('max-h-96', 'w-auto', 'object-contain');
+		}
+	}
+
+	// Update time display
+	function updateTime() {
+		if (videoElement) {
+			currentTime = videoElement.currentTime;
+			duration = videoElement.duration || 0;
+		}
+	}
+
+	// Format time remaining
+	$: timeRemaining = Math.max(0, duration - currentTime);
+	$: secondsRemaining = Math.ceil(timeRemaining);
 
 	// Avoid triggering overlay while scrolling on touch devices.
 	let startX = 0;
@@ -35,7 +76,6 @@
 		const dx = Math.abs(e.clientX - startX);
 		const dy = Math.abs(e.clientY - startY);
 		if (dx > TAP_MOVE_THRESHOLD || dy > TAP_MOVE_THRESHOLD) {
-			// Consider it a scroll/drag; don't treat as a tap.
 			isTouchTap = false;
 		}
 	}
@@ -44,40 +84,58 @@
 		if (isTouchTap) {
 			suppressNextClick = true;
 			onClick(e as unknown as MouseEvent);
-			// Reset suppression on the next tick so the synthesized click doesn't fire.
 			queueMicrotask(() => (suppressNextClick = false));
 		}
 		isTouchTap = false;
 	}
 
 	function onOverlayClick(e: MouseEvent) {
-		muted = true;
 		if (suppressNextClick) return;
 		onClick(e);
 	}
 </script>
 
-<!--
-  Tailwind classes:
-  - group: lets us reveal controls on hover
-  - relative: to place floating buttons inside
--->
-<media-controller class={`group relative block ${className}`}>
-	<!-- Native video element as usual -->
-	<video
-		bind:this={videoElement}
-		slot="media"
-		{src}
-		{poster}
-		{autoplay}
-		{loop}
-		{muted}
-		playsinline
-		preload="metadata"
-		crossorigin="anonymous"
-		class="h-96 w-full object-cover"
-		disablePictureInPicture
-	/>
+<media-controller class={`group relative block bg-transparent overflow-hidden ${className}`} bind:this={containerEl}>
+	<!-- Video element directly slotted for media-chrome to work properly -->
+	{#if !isShared}
+		<video
+			bind:this={videoElement}
+			slot="media"
+			{src}
+			{poster}
+			{autoplay}
+			{loop}
+			muted
+			playsinline
+			preload="metadata"
+			crossorigin="anonymous"
+			class="max-h-96 w-auto object-contain"
+			disablePictureInPicture
+			on:timeupdate={updateTime}
+			on:loadedmetadata={updateTime}
+		/>
+	{:else}
+		<!-- Placeholder when video is being shown in zoom -->
+		<div slot="media" class="h-full w-full bg-gray-900 flex items-center justify-center">
+			<div class="text-white/60 flex flex-col items-center gap-2">
+				<svg class="w-12 h-12 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="1.5"
+						d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+					/>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="1.5"
+						d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+					/>
+				</svg>
+				<span class="text-sm">Playing in viewer</span>
+			</div>
+		</div>
+	{/if}
 
 	<!-- Transparent tap overlay to intercept mobile taps -->
 	<div
@@ -89,35 +147,30 @@
 		on:pointerup|stopPropagation={onPointerUp}
 	/>
 
-	<!-- Always-visible quick Unmute button (Twitter-like) -->
-	<media-mute-button
-		class="absolute top-3 right-3 z-10 rounded-full bg-black/60 text-white p-2
-           hover:bg-black/80 transition-opacity opacity-100"
-		aria-label="Toggle mute"
-		on:click|stopPropagation
-	></media-mute-button>
+	<!-- Minimal controls: Unmute button + time remaining (only when video is attached) -->
+	{#if !isShared}
+		<!-- Unmute button (top right) -->
+		<media-mute-button
+			class="absolute !top-3 !right-3 z-10 !rounded-full !bg-black/60 !text-white !p-2
+           hover:!bg-black/80 transition-opacity opacity-100"
+			aria-label="Toggle mute"
+			on:click|stopPropagation
+		></media-mute-button>
 
-	<!-- Control bar only on hover -->
-	<media-control-bar
-		on:click|stopPropagation={() => (muted = false)}
-		class="z-10 pointer-events-none opacity-0 group-hover:opacity-100 group-hover:pointer-events-auto
-           transition-opacity duration-150 absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/50 to-transparent p-2"
-	>
-		<div class="flex items-center gap-2 w-full">
-			<media-play-button class="bg-transparent text-white px-2 py-1"></media-play-button>
-			<media-time-range class="flex-1 bg-transparent"></media-time-range>
-			<!-- <media-time-display class="text-white/90 text-sm" show-duration></media-time-display> -->
-			<media-fullscreen-button class="bg-transparent text-white px-2 py-1"
-			></media-fullscreen-button>
-		</div>
-	</media-control-bar>
+		<!-- Time remaining display (bottom left) -->
+		{#if duration > 0}
+			<div
+				class="absolute !bottom-3 !left-3 z-10 text-white/90 text-sm font-medium
+			       !bg-black/60 !rounded-full !px-3 !py-1 pointer-events-none"
+			>
+				{secondsRemaining}s
+			</div>
+		{/if}
+	{/if}
 </media-controller>
 
 <style>
-	/* Optional: fine-tune focus outlines for accessibility */
-	media-mute-button:focus,
-	media-play-button:focus,
-	media-fullscreen-button:focus {
+	media-mute-button:focus {
 		outline: 2px solid rgba(255, 255, 255, 0.8);
 		outline-offset: 2px;
 	}

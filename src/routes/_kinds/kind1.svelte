@@ -110,6 +110,13 @@
 	function subscribe() {
 		if (visible && !sub) {
 			console.log('subscribe');
+			// Timeout to stop loading if event is not found
+			timeout = setTimeout(() => {
+				if (loading) {
+					console.log('kind1 loading timeout - event not found');
+					loading = false;
+				}
+			}, 5000);
 			sub = useSubscription(
 				'kind1_' + data?.id,
 				[
@@ -160,11 +167,11 @@
 		if (timeout) {
 			clearTimeout(timeout);
 			timeout = undefined;
-			sub?.();
-			sub = undefined;
-			relaysub?.();
-			relaysub = undefined;
 		}
+		sub?.();
+		sub = undefined;
+		relaysub?.();
+		relaysub = undefined;
 	}
 
 	let imageContext = getContext('imageContext');

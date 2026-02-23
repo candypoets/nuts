@@ -5,9 +5,10 @@
 
 	import MintSelector from 'src/components/MintSelector.svelte';
 	import VirtualList from 'src/components/VirtualList.svelte';
-	import { key, kind17375 } from 'src/controller';
+	import { key, kind17375, kind10019 as walletKind10019, readRelays } from 'src/controller';
 	import { activeMintUrl } from 'src/controller/wallet';
 	import { now } from 'src/lib/period';
+	import { DEFAULT_RELAYS } from 'src/lib/env';
 	import { getInvoiceFromProfile, GetLNURLFromProfile, getZapInvoice } from 'src/lib/wallet';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import User from 'src/routes/explore/user.svelte';
@@ -44,6 +45,20 @@
 	import { fly } from 'svelte/transition';
 	import { getUserRelays } from '../queries/user';
 
+	const normalizeRelay = (relay?: string | null): string | null => {
+		if (!relay) return null;
+		return relay.trim().replace(/\/$/, '');
+	};
+
+	const uniqueRelays = (relays: Array<string | null | undefined>): string[] => {
+		const set = new Set<string>();
+		for (const relay of relays) {
+			const normalized = normalizeRelay(relay);
+			if (normalized) set.add(normalized);
+		}
+		return Array.from(set);
+	};
+
 	// export let active: string;
 	export let pubkey: string;
 	export let noteId: string;
@@ -61,7 +76,19 @@
 	let kind10019: Kind10019Parsed;
 
 	let zap = true;
-	let receiptRelays: string[] = '';
+	let receiptRelays: string[] = [];
+
+	$: walletReadRelays =
+		$walletKind10019 &&
+		(fbArray(asKind10019($walletKind10019) as Kind10019Parsed, 'readRelays')
+			?.map((r) => r.toString()) || []);
+
+	$: zapReceiptRelays = uniqueRelays([
+		...receiptRelays,
+		...($readRelays || []),
+		...(walletReadRelays || []),
+		...DEFAULT_RELAYS
+	]);
 
 	let status = '';
 	let progress = 0;
@@ -248,7 +275,7 @@
 				noteId: noteId || undefined,
 				lnurl: lnurl || undefined,
 				p2pkPubkey: kind10019?.p2pkPubkey()?.toString(),
-				receiptRelays: receiptRelays.length > 0 ? receiptRelays : undefined
+				receiptRelays: zapReceiptRelays.length > 0 ? zapReceiptRelays : undefined
 			},
 			proofs
 		);
@@ -318,8 +345,8 @@
 					...(noteId ? [['e', noteId]] : []),
 					[
 						'relays',
-						...(receiptRelays.length > 0
-							? receiptRelays
+						...(zapReceiptRelays.length > 0
+							? zapReceiptRelays
 							: ['wss://relay.damus.io', 'wss://nos.lol'])
 					]
 				]

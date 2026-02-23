@@ -63,12 +63,13 @@ module.exports = {
 				matteblack: {
 					// Base matte black theme: dark, muted, low-contrast colors for a sleek, non-glossy look
 					primary: '#1fb092',
+					// primary: '#262626',
 					'primary-content': '#a0a0a0', // Muted gray for text on primary
 					secondary: '#333333', // Dark gray secondary
 					'secondary-content': '#b0b0b0',
-					'base-100': '#262626', // Almost black background (updated)
+					'base-100': '#333333', // Almost black background (updated)
 					'base-200': '#1a1a1a',
-					'base-300': '#333333',
+					'base-300': '#262626',
 					'error-content': '#cc0000', // Muted red for errors
 					highlight: '#333333', // Subtle highlight
 					accent: '#a855f7', // Muted accent (updated)

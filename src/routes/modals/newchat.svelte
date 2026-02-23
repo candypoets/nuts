@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
 
+	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import type {
 		Kind3Parsed,
 		ParsedEvent,
@@ -8,6 +9,7 @@
 		WorkerMessage
 	} from '@candypoets/nipworker';
 	import { asKind0, asKind3, asParsedEvent, fbArray } from '@candypoets/nipworker/utils';
+	import { onDestroy } from 'svelte';
 	import { kind3 } from 'src/controller/nostr';
 	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
@@ -33,16 +35,34 @@
 	let feedRequests: RequestObject[] = [];
 
 	let seen_npubs = new Map<number, boolean>();
+	let unsubscribe: (() => void) | undefined;
+	let lastFeedRequestsJson = '';
 
-	function updateFeed(feed: ParsedEvent[], message: WorkerMessage): ParsedEvent[] {
+	// Handle incoming events from subscription
+	function handleEvents(message: WorkerMessage) {
 		const parsedEvent = asParsedEvent(message);
 		if (parsedEvent) {
-			if (seen_npubs.has(parsedEvent?.pubkey()?.fnv1aHash() as number)) return feed;
-			seen_npubs.set(parsedEvent?.pubkey()?.fnv1aHash() as number, true);
-			return [...feed, parsedEvent];
+			const pubkeyHash = parsedEvent?.pubkey()?.fnv1aHash() as number;
+			if (seen_npubs.has(pubkeyHash)) return;
+			seen_npubs.set(pubkeyHash, true);
+			feed = [...feed, parsedEvent];
 		}
-		return feed;
 	}
+
+	// Initialize subscription when feedRequests changes (guard against duplicate subs)
+	$: if (feedRequests.length > 0) {
+		const requestsJson = JSON.stringify(feedRequests);
+		if (requestsJson !== lastFeedRequestsJson) {
+			lastFeedRequestsJson = requestsJson;
+			unsubscribe?.();
+			unsubscribe = useSubscription('newchat_contacts_' + Date.now(), feedRequests, handleEvents);
+		}
+	}
+
+	// Cleanup on unmount
+	onDestroy(() => {
+		unsubscribe?.();
+	});
 
 	$: {
 		feedRequests =
@@ -102,7 +122,7 @@
 				</div>
 			</div>
 		</svelte:fragment>
-		<svelte.fragment slot="item-content" let:post let:index>
+		<svelte:fragment slot="item-content" let:post let:index>
 			{@const kind0 = asKind0(post)}
 			{@const prevKind0 = asKind0(processedFeed[index - 1])}
 			{@const nextKind0 = asKind0(processedFeed[index + 1])}
@@ -141,7 +161,7 @@
 					<p class="font-medium">{kind0?.name()?.toString() || 'Anonymous'}</p>
 				</div>
 			</div>
-		</svelte.fragment>
+		</svelte:fragment>
 	</Feed>
 {:else}
 	<div class="w-feed bg-base-300 bg-opacity-60 relative backdrop-blur-md">
