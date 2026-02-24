@@ -158,14 +158,14 @@
 							<a
 								href="/"
 								class="font-medium"
-								on:click|preventDefault={() => go(`kind0:${post.parsed.events[0].pubkey()?.toString()}`)}
+								on:click|preventDefault={() => go(`nprofile:${post.parsed.events[0].pubkey()?.toString()}`)}
 							>
 								<User pubkey={post.parsed.events[0].pubkey()?.toString()} link={false} {context} />
 							</a>,
 							<a
 								href="/"
 								class="font-medium"
-								on:click|preventDefault={() => go(`kind0:${post.parsed.events[1].pubkey()?.toString()}`)}
+								on:click|preventDefault={() => go(`nprofile:${post.parsed.events[1].pubkey()?.toString()}`)}
 							>
 								<User pubkey={post.parsed.events[1].pubkey()?.toString()} link={false} {context} />
 							</a>

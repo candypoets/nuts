@@ -121,7 +121,7 @@
 					<a
 						href="/"
 						class="relative z-0 hover:z-10"
-						on:click|preventDefault={() => go(`kind0:${event.pubkey()?.toString()}`)}
+						on:click|preventDefault={() => go(`nprofile:${event.pubkey()?.toString()}`)}
 					>
 						<Avatar pubkey={event.pubkey()?.toString()} {context} />
 					</a>
