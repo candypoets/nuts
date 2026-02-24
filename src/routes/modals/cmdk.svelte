@@ -5,12 +5,13 @@
 		PipeConfig,
 		PipeT,
 		SerializeEventsPipeConfigT,
+		type ConnectionStatus,
 		type ParsedEvent,
 		type SubscriptionConfig,
 		type WorkerMessage
 	} from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
-	import { asKind0, asParsedEvent, isKind0 } from '@candypoets/nipworker/utils';
+	import { asKind0, asParsedEvent, asConnectionStatus, isKind0 } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { sortBy, throttle } from 'lodash';
 	import { createEventDispatcher } from 'svelte';
@@ -156,8 +157,15 @@
 	const handleEvents = (message: WorkerMessage) => {
 		console.log('[CMDK] handleEvents:', { type: message.type(), query });
 		switch (message.type()) {
-			case MessageType.ConnectionStatus:
-				console.log('[CMDK] ConnectionStatus received, items count:', items.length, 'cachedEvents:', cachedEvents.length, 'fetchedEvents:', fetchedEvents.length);
+			case MessageType.ConnectionStatus: {
+				const status = asConnectionStatus(message) as ConnectionStatus;
+				console.log('[CMDK] ConnectionStatus received:', {
+					relay: status?.relayUrl()?.toString(),
+					status: status?.status(),
+					itemsCount: items.length,
+					cachedEvents: cachedEvents.length,
+					fetchedEvents: fetchedEvents.length
+				});
 				loading = false;
 				eose = true;
 				// Process both cached and fetched events on EOSE
@@ -166,6 +174,7 @@
 				items = sortBy(getItemsFromMap(), (item) => -calculateScore(item, query));
 				console.log('[CMDK] after ConnectionStatus, items count:', items.length, 'seenPubkeys:', seenPubkeys.size);
 				break;
+			}
 			case MessageType.Eoce:
 				console.log('[CMDK] Eoce received, cachedEvents count:', cachedEvents.length);
 				eoce = true;
@@ -173,10 +182,13 @@
 				items = sortBy(getItemsFromMap(), (item) => calculateScore(item, query));
 				console.log('[CMDK] after Eoce, items count:', items.length, 'seenPubkeys:', seenPubkeys.size);
 				break;
-			case MessageType.ParsedNostrEvent:
+			case MessageType.ParsedNostrEvent: {
+				// Log relay info for every event - check if message has relayUrl method
+				const relayUrl = (message as any).relayUrl?.() || (message as any).relay?.() || 'unknown';
 				if (isKind0(message)) {
 					const parsedEvent = asParsedEvent(message) as ParsedEvent;
 					console.log('[CMDK] ParsedNostrEvent received:', {
+						relay: typeof relayUrl === 'function' ? relayUrl()?.toString() : relayUrl,
 						name: parsedEvent.parsed?.name,
 						pubkey: parsedEvent.pubkey()?.toString().slice(0, 16) + '...',
 						created_at: parsedEvent.created_at,
@@ -194,6 +206,8 @@
 						fetchedEvents = [parsedEvent, ...fetchedEvents];
 					}
 				}
+				break;
+			}
 		}
 	};
 

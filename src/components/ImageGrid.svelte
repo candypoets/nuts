@@ -13,7 +13,7 @@
 		sharedVideoGridId
 	} from 'src/controller/image';
 	import type { AnyKind, Kind1Parsed, ParsedEvent } from 'src/types';
-	import { proxyMediaLinks, ImagePresets } from 'src/lib/proxy';
+	import { proxyImageUrl, ImagePresets } from 'src/lib/proxy';
 	import { getContext } from 'svelte';
 	import VideoTile from './VideoTile.svelte';
 
@@ -29,12 +29,16 @@
 	// Store video element references to capture current time on click
 	let videoElements: Record<number, HTMLVideoElement> = {};
 
-	$: proxiedLinks = proxyMediaLinks(links, ImagePresets.full);
+	// Only proxy images, bypass proxy for videos
+	$: processedLinks = links.map((link) => ({
+		...link,
+		src: link.type === 'video' ? link.src : proxyImageUrl(link.src, ImagePresets.full)
+	}));
 
 	// Limit display to 5 items max
-	$: displayLinks = proxiedLinks.slice(0, 5);
-	$: hasMoreItems = proxiedLinks.length > 5;
-	$: remainingCount = proxiedLinks.length - 5;
+	$: displayLinks = processedLinks.slice(0, 5);
+	$: hasMoreItems = processedLinks.length > 5;
+	$: remainingCount = processedLinks.length - 5;
 
 	$: columns = Math.ceil(Math.sqrt(displayLinks.length));
 
@@ -85,8 +89,8 @@
 
 	function setZoom(zoom: number) {
 		const updateStores = async () => {
-			// Use proxiedLinks to keep the same URL for browser caching
-			$linksStore = proxiedLinks;
+			// Use processedLinks to keep the same URL for browser caching
+			$linksStore = processedLinks;
 			$zoomedStore = zoom;
 			$noteStore = note;
 			$contextStore = context;
@@ -120,7 +124,7 @@
 			>
 				<VideoTile
 					src={link.src.toString()}
-					autoplay={proxiedLinks.length == 1 || i == 0}
+					autoplay={processedLinks.length == 1 || i == 0}
 					loop={true}
 					muted={true}
 					className={cx(
