@@ -172,9 +172,13 @@
 			<Send />
 		{:else if path.includes('scan')}
 			<Scan />
-		{:else if path.includes('qr')}
+		{:else if path.startsWith('melt')}
+			<Melt invoice={decodeURIComponent(path.slice(5))} />
+		{:else if path.startsWith('melted')}
+			<Melted mint={path.split(':')?.[1]} amount={path.split(':')?.[2]} />
+		{:else if path.startsWith('qr')}
 			<QR qrText={path.split(':')?.[1]} />
-		{:else if path.includes('ecash')}
+		{:else if path.startsWith('ecash')}
 			<Ecash pubkey={path.split(':')?.[1]} noteId={path.split(':')?.[2]} />
 		{:else if path.includes('followlist')}
 			<Followlists />
@@ -188,10 +192,7 @@
 			<Minting />
 		{:else if path.includes('minted')}
 			<Minted mint={path.split(':')?.[1]} amount={path.split(':')?.[2]} />
-		{:else if path.includes('melted')}
-			<Melted mint={path.split(':')?.[1]} amount={path.split(':')?.[2]} />
-		{:else if path.startsWith('melt')}
-			<Melt invoice={path.split(':')?.[1]} />
+		
 		{:else if path.startsWith('newchat')}
 			<Newchat />
 		{:else if path.includes('tapcash')}

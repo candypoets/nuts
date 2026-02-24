@@ -98,22 +98,38 @@
 	}
 
 	async function payInvoice() {
-		if (fromMint && invoice) {
-			ongoing = true;
-			const fromWallet = await $nutsWallet?.getWallet(fromMint);
-			if (!meltquote) {
-			}
-			if (fromWallet && meltquote) {
-				const unspentProofs = $nutsWallet?.unspentProofs.get(fromMint);
-				const { keep, send } = fromWallet?.selectProofsToSend(unspentProofs, amountPlusFees, true);
-				const { change } = await fromWallet.meltProofs(meltquote, send);
-				$nutsWallet?.unspentProofs.set(fromMint, keep.concat(change));
-				$nutsWallet?.updateBalanceByMint();
-				$nutsWallet?.saveProofs(fromMint, keep.concat(change));
-			}
-			ongoing = false;
+		if (!fromMint || !invoice || !$nutsWallet || !meltquote) return;
+
+		ongoing = true;
+		status = 'Paying...';
+
+		try {
+			const unspentProofs = $nutsWallet.unspentProofs.get(fromMint) || [];
+			const wallet = await $nutsWallet.getWallet(fromMint);
+			const { keep, send } = wallet.selectProofsToSend(unspentProofs, amountPlusFees, true);
+
+			// Use the wallet helper that handles melt + verification automatically
+			const { quote, change } = await $nutsWallet.meltProofsWithVerification(
+				fromMint,
+				meltquote,
+				send
+			);
+
+			if (quote.state !== 'PAID') throw new Error('Payment failed');
+
+			// Update wallet with keep + change as unspent
+			$nutsWallet.unspentProofs.set(fromMint, keep.concat(change || []));
+			$nutsWallet.saveProofs(fromMint, keep.concat(change || []));
+			$nutsWallet.updateBalanceByMint();
+
 			status = 'Success!';
 			setTimeout(() => resetState(), 1000);
+		} catch (err) {
+			console.error('[lightning] Payment failed:', err);
+			status = 'Error: ' + (err as Error).message;
+			setTimeout(() => (status = ''), 3000);
+		} finally {
+			ongoing = false;
 		}
 	}
 </script>

@@ -142,7 +142,7 @@ export const followList = derived(kind3, ($kind3) => {
 		encoder.encode(''),
 		39089,
 		now(),
-		17,
+		11, // NIP-51 ListParsed type
 		new ListParsedT(
 			39089,
 			encoder.encode('followlist'),
@@ -191,3 +191,20 @@ export const followPacks = persistentWritable<ParsedEvent[]>(
 		return JSON.stringify(pe.map(serializeParsedEvent));
 	}
 );
+
+// Keep followlist in sync with kind3 and ensure it's always in followPacks
+// This runs whenever kind3 changes (e.g., after login)
+followList.subscribe((fl) => {
+	const current = get(followPacks);
+	const hasFollowlist = current.some((p) => p.id()?.toString() === 'followlist');
+
+	if (!hasFollowlist) {
+		// Add followlist if not present
+		followPacks.set([fl, ...current]);
+	} else {
+		// Update existing followlist with latest kind3 data
+		followPacks.set(
+			current.map((p) => (p.id()?.toString() === 'followlist' ? fl : p))
+		);
+	}
+});

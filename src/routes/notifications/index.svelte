@@ -23,7 +23,7 @@
 	let notificationItems: ProcessedNotification[] = [];
 
 	// Track seen event IDs to prevent duplicates
-	let seenEventIds = new Set<number>();
+	let seenEventIds = new Set<string>();
 
 	// Subscription cleanup function
 	let unsubscribe: (() => void) | undefined;
@@ -37,19 +37,13 @@
 
 		return [
 			// Mentions of user, reactions to user's posts, reposts of user's content
+			// Use only noCache to avoid race conditions between cache and fresh fetch
 			{
 				kinds: [1, 7, 6],
 				tags: { '#p': [$key.pub] },
 				limit: 50,
 				relays: $writeRelays,
 				noCache: true
-			},
-			{
-				kinds: [1, 7, 6],
-				tags: { '#p': [$key.pub] },
-				limit: 50,
-				relays: $writeRelays,
-				cacheFirst: true
 			}
 		];
 	}
@@ -77,7 +71,7 @@
 		const kind = parsedEvent.kind();
 		if (![1, 6, 7].includes(kind)) return;
 
-		const eventId = parsedEvent.id()?.fnv1aHash();
+		const eventId = parsedEvent.id()?.toString();
 		if (!eventId) return;
 		
 		// Check Set first (O(1)) for duplicate detection
@@ -97,6 +91,10 @@
 		if (!visible || !$key?.pub) return;
 		if (hasInitialized) return;
 		
+		// Clear previous state BEFORE marking initialized
+		// This prevents race conditions with synchronous cached events
+		rawEvents = [];
+		seenEventIds.clear();
 		hasInitialized = true;
 		loading = true;
 		const requests = buildRequests();

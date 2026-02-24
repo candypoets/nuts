@@ -55,6 +55,7 @@
 	let paginationCounter = 0;
 	let itemsBeforePagination = 0;
 	let paginationTimeout: ReturnType<typeof setTimeout> | undefined;
+	let refreshTimeout: ReturnType<typeof setTimeout> | undefined;
 
 	// Viewport state from Feed
 	let start = 0;
@@ -94,6 +95,7 @@
 		// Followlist changed, reset feed to trigger new subscription
 		if (hasInitialized) {
 			resetFeed();
+			seenEventIds.clear();
 			hasInitialized = false;
 			relayCounter++;
 		}
@@ -135,16 +137,34 @@
 		return () => clearTimeout(timeout);
 	});
 
+	// Default relay for anonymous users
+	const DEFAULT_FEED_RELAYS = ['wss://nostr.wine'];
+
+	// Track if key has been loaded from storage (persistentWritable loads sync, but SSR may delay)
+	let keyResolved = false;
+	$: if ($key && Object.keys($key).length > 0) {
+		keyResolved = true;
+	}
+
+	// Track what type of feed we should be showing
+	$: useGlobalFeed = !keyResolved || !$key?.pub || following.length === 0;
+
 	// Build subscription requests based on current state
 	function buildRequests(forPagination = false): RequestObject[] {
-		if (!$key?.pub && following.length === 0) {
-			return [];
+		if (useGlobalFeed) {
+			return [{
+				kinds: [1, 6],
+				limit: $limit,
+				since: forPagination ? undefined : ago(31 * 24 * 60 * 60),
+				until: forPagination ? until : undefined,
+				noCache: !!relayCounter,
+				tags: tags.length ? { '#t': tags } : undefined,
+				relays: DEFAULT_FEED_RELAYS
+			}];
 		}
 
-		const authors = following.length > 0 ? following : follows || [];
-		if (authors.length === 0) {
-			return [];
-		}
+		// Logged in user with followlist selected - use personalized feed
+		const authors = following;
 
 		const baseRequest: RequestObject = {
 			kinds: [1, 6],
@@ -154,7 +174,7 @@
 			until: forPagination ? until : undefined,
 			noCache: !!relayCounter,
 			tags: tags.length ? { '#t': tags } : undefined,
-			relays: $key?.pub ? relays : ['wss://nostr.wine']
+			relays: relays
 		};
 
 		return [baseRequest];
@@ -162,6 +182,7 @@
 
 	// Handle incoming events from subscription
 	function handleEvents(message: WorkerMessage) {
+		
 		// Handle connection status (including EOSE detection via resolutionRate)
 		const status = asConnectionStatus(message);
 		if (status && connectionTracker) {
@@ -176,6 +197,10 @@
 				if (connectionTracker.resolutionRate > 0.5) {
 					loading = false;
 					refreshing = false;
+					if (refreshTimeout) {
+						clearTimeout(refreshTimeout);
+						refreshTimeout = undefined;
+					}
 				}
 			}
 			return;
@@ -226,6 +251,7 @@
 				lastSeenTopItem = feedItems[0]?.createdAt();
 				newPostsCount = 0;
 			}
+			
 		}
 	}
 
@@ -237,11 +263,20 @@
 		hasMore = true;
 		paginationCounter = 0;
 		loading = false;
+		refreshing = false;
 		newPostsCount = 0;
 		itemsBeforePagination = 0;
 		if (paginationTimeout) {
 			clearTimeout(paginationTimeout);
 			paginationTimeout = undefined;
+		}
+		if (paginationCheckTimeout) {
+			clearTimeout(paginationCheckTimeout);
+			paginationCheckTimeout = undefined;
+		}
+		if (refreshTimeout) {
+			clearTimeout(refreshTimeout);
+			refreshTimeout = undefined;
 		}
 		unsubscribePagination?.();
 		unsubscribePagination = undefined;
@@ -253,7 +288,7 @@
 	let hasInitialized = false;
 
 	function initFeed() {
-		if (!visible || !($key?.pub || following.length > 0)) return;
+		if (!visible) return;
 		if (hasInitialized) return;
 		if (loading) return;
 
@@ -268,14 +303,30 @@
 			unsubscribe = useSubscription(subId + relayCounter, requests, handleEvents, {
 				bytesPerEvent: 10 * 1024
 			});
-			setSubRelays(subId + relayCounter, relays);
+			// Use default relays for global feed, otherwise use user's relays
+			setSubRelays(subId + relayCounter, useGlobalFeed ? DEFAULT_FEED_RELAYS : relays);
 		} else {
 			// Requests empty, reset loading so we can retry when deps change
 			loading = false;
 		}
 	}
 
-	$: if (visible && ($key?.pub || following.length > 0) && !hasInitialized) {
+	// Track previous feed type to detect switches
+	let wasGlobalFeed = true;
+	$: {
+		if (hasInitialized && wasGlobalFeed !== useGlobalFeed) {
+			// Switching feed type - reinitialize and clear feed
+			wasGlobalFeed = useGlobalFeed;
+			hasInitialized = false;
+			resetFeed();
+			seenEventIds.clear();
+			relayCounter++;
+		} else {
+			wasGlobalFeed = useGlobalFeed;
+		}
+	}
+
+	$: if (visible && !hasInitialized) {
 		initFeed();
 	}
 
@@ -288,14 +339,29 @@
 		unsubscribePagination = undefined;
 	}
 
-	// Handle pull-to-refresh
+	// Handle pull-to-refresh - keep existing feed items, just show loader and fetch new
 	function handleRefresh() {
+		if (refreshing) return;
 		refreshing = true;
 		// Reset initialization to allow re-subscription
 		hasInitialized = false;
-		resetFeed();
+		// Reset connection tracker for fresh EOSE detection
+		connectionTracker = new ConnectionTracker();
+		// Don't clear feedItems or seenEventIds - keep existing content visible
+		// Reset until to fetch latest posts
+		until = undefined;
 		// Force noCache by incrementing relayCounter
 		relayCounter++;
+		// Clear any existing refresh timeout
+		if (refreshTimeout) {
+			clearTimeout(refreshTimeout);
+		}
+		// Fallback: clear refreshing after timeout if EOSE isn't received
+		refreshTimeout = setTimeout(() => {
+			refreshing = false;
+			refreshTimeout = undefined;
+		}, 10000);
+		// initFeed will set loading = true
 		initFeed();
 	}
 
@@ -332,22 +398,29 @@
 	}
 
 	// Track when pagination completes and check if new items were added
+	let paginationCheckTimeout: ReturnType<typeof setTimeout> | undefined;
 	$: if (!loading && itemsBeforePagination > 0) {
-		const newItemsAdded = feedItems.length - itemsBeforePagination;
-		if (newItemsAdded === 0) {
-			hasMore = false;
-		}
-		itemsBeforePagination = 0;
-		// Clear the timeout if it hasn't fired yet
+		const itemsAtCheck = itemsBeforePagination;
+		
+		// Clear the EOSE timeout if it hasn't fired yet
 		if (paginationTimeout) {
 			clearTimeout(paginationTimeout);
 			paginationTimeout = undefined;
 		}
-		// Clean up pagination subscription after a delay to allow late events
-		setTimeout(() => {
-			unsubscribePagination?.();
-			unsubscribePagination = undefined;
-		}, 5000);
+		
+		// Delay the check to allow late events to arrive via subscription
+		paginationCheckTimeout = setTimeout(() => {
+			const newItemsAdded = feedItems.length - itemsAtCheck;
+			if (newItemsAdded === 0) {
+				hasMore = false;
+			}
+			itemsBeforePagination = 0;
+			// Clean up pagination subscription after a delay to allow late events
+			setTimeout(() => {
+				unsubscribePagination?.();
+				unsubscribePagination = undefined;
+			}, 5000);
+		}, 500); // Wait 500ms for late events to arrive
 	}
 
 	// Merge pending new items when user clicks the new posts indicator
@@ -360,7 +433,7 @@
 <Pager rootPath="/explore">
 	<Feed
 		items={feedItems}
-		{loading}
+		loading={loading || refreshing}
 		pullToRefresh
 		onRefresh={handleRefresh}
 		onNearBottom={handleNearBottom}
@@ -371,27 +444,30 @@
 			<div class="backdrop-blur-sm bg-base-300 bg-opacity-80 md:border-b border-base-200 pt-safe">
 				<div class="flex justify-between w-feed lg:m-auto h-16 items-center">
 					<div class="flex gap-1 items-center w-1/3">
-						{#each $followPacks as pack}
-							{@const kind39039 = asNip51(pack)}
-							<div class="cursor-pointer" on:click|stopPropagation={() => go('followlists')}>
-								<img
-									src={proxyAvatarUrl(kind39039?.image()?.toString() || '') || '/followlist.png'}
-									class="w-8 h-8 border rounded-full"
-									alt={kind39039?.title()?.toString() || 'Follow pack'}
-									title={kind39039?.title()?.toString() || 'Follow pack'}
-								/>
-							</div>
+						{#if following.length > 0}
+							{#each $followPacks as pack}
+								{@const kind39039 = asNip51(pack)}
+								<div class="cursor-pointer" on:click|stopPropagation={() => go('followlists')}>
+									<img
+										src={proxyAvatarUrl(kind39039?.image()?.toString() || '') || '/followlist.png'}
+										class="w-8 h-8 border rounded-full"
+										alt={kind39039?.title()?.toString() || 'Follow pack'}
+										title={kind39039?.title()?.toString() || 'Follow pack'}
+									/>
+								</div>
+							{/each}
 						{:else}
+							<!-- Global feed (no followlist) - show infinity icon -->
 							<div
 								class="cursor-pointer"
 								on:click|stopPropagation={() => go('followlists')}
-								title="Follow lists"
+								title="Global feed - select a followlist for personalized feed"
 							>
 								<div class="w-8 h-8 border rounded-full flex items-center justify-center">
 									<Icon icon="mdi:infinity" class="text-2xl" />
 								</div>
 							</div>
-						{/each}
+						{/if}
 					</div>
 					<div
 						class="text-primary cursor-pointer flex-grow text-center"
@@ -434,26 +510,29 @@
 			>
 				<div class="lg:m-auto flex justify-between items-center h-16">
 					<div class="flex gap-1 items-center">
-						{#each $followPacks as pack}
-							{@const kind39039 = asNip51(pack)}
-							<div class="cursor-pointer" on:click|stopPropagation={() => go('followlists')}>
-								<img
-									src={proxyAvatarUrl(kind39039?.image()?.toString() || '') || '/followlist.png'}
-									class="w-8 h-8 border rounded-full"
-									alt={kind39039?.title()?.toString() || 'Follow pack'}
-								/>
-							</div>
+						{#if following.length > 0}
+							{#each $followPacks as pack}
+								{@const kind39039 = asNip51(pack)}
+								<div class="cursor-pointer" on:click|stopPropagation={() => go('followlists')}>
+									<img
+										src={proxyAvatarUrl(kind39039?.image()?.toString() || '') || '/followlist.png'}
+										class="w-8 h-8 border rounded-full"
+										alt={kind39039?.title()?.toString() || 'Follow pack'}
+									/>
+								</div>
+							{/each}
 						{:else}
+							<!-- Global feed (no followlist) - show infinity icon -->
 							<div
 								class="cursor-pointer"
 								on:click|stopPropagation={() => go('followlists')}
-								title="Follow lists"
+								title="Global feed - select a followlist for personalized feed"
 							>
 								<div class="w-8 h-8 border rounded-full flex items-center justify-center">
 									<Icon icon="mdi:infinity" class="text-2xl" />
 								</div>
 							</div>
-						{/each}
+						{/if}
 					</div>
 					<div class="flex gap-2 items-center">
 						<!-- Desktop refresh button (mobile has pull-to-refresh) -->
@@ -462,7 +541,11 @@
 							on:click|stopPropagation={handleRefresh}
 							title="Refresh feed"
 						>
-							<Icon icon="mdi:refresh" class="text-2xl mr-2" />
+							<Icon 
+								icon="mdi:refresh" 
+								class="text-2xl mr-2 {refreshing ? 'animate-spin' : ''}" 
+								style="transform-origin: center;"
+							/>
 						</span>
 						<!-- <span class="text font-semibold">{$balance} Sats</span> -->
 						<Notifications />

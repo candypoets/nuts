@@ -29,6 +29,7 @@
 	} from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { onMount, onDestroy } from 'svelte';
+	import { get } from 'svelte/store';
 
 	import Connect from 'src/components/Connect.svelte';
 	import Pager from 'src/components/Pager.svelte';
@@ -54,6 +55,7 @@
 	import { DEFAULT_MINTS } from 'src/lib/wallet';
 	import { DEFAULT_RELAYS } from 'src/lib/env';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
+	import { normalizeURL } from 'nostr-tools/utils';
 
 	export let visible = false;
 
@@ -64,6 +66,8 @@
 	let loading = false;
 	let extensionError = false;
 	let showLinkProfile = true;
+	let refreshing = false;
+	let refreshCounter = 0;
 
 	// Wallet feed items - managed in parent
 	let rawWalletEvents: ParsedEvent[] = [];
@@ -71,6 +75,12 @@
 	// Viewport state
 	let start = 0;
 	let end = 0;
+
+	// Track seen event IDs for deduplication during refresh
+	let seenEventIds = new Set<number>();
+	
+	// Refresh timeout fallback
+	let refreshTimeout: ReturnType<typeof setTimeout> | undefined;
 
 	function oneDayDiff(firstTimestampInSeconds: number, secondTimestampInSeconds: number): boolean {
 		const differenceInSeconds = Math.abs(firstTimestampInSeconds - secondTimestampInSeconds);
@@ -94,41 +104,48 @@
 		new Set([...(defaultRelays || []), ...(walletRelays || []), ...($readRelays || [])])
 	);
 
+	$: normalizedRelays = (relays.filter((r) => typeof r === 'string') as string[]).map(normalizeURL);
+
 	const relayPromise = Promise.race([kind10019Ready.promise, delayedPromise]);
 
 	let unsubscribeWallet: (() => void) | undefined;
+	let unsubscribeProofs: (() => void) | undefined;
+	let unsubscribeActiveWallet: (() => void) | undefined;
 
 	let proofs: () => void;
 
-	$: if ($key?.pub && !loading) {
-		proofs?.();
-		proofs = useSubscription(
-			'nutszap_' + $key?.pub,
+	function handleProofsMessage(message: WorkerMessage) {
+		const vps = isValidProofs(message);
+		if (vps) {
+			for (const mintProofs of fbIterable(vps, 'proofs')) {
+				addProofs(
+					mintProofs.mint()!.toString(),
+					fbArray(mintProofs, 'proofs').map((p) => ({
+						C: p.c()!.toString(),
+						amount: Number(p.amount()),
+						id: p.id()!.toString(),
+						secret: p.secret()!.toString(),
+						dleq: {
+							e: p.dleq()?.e()?.toString() as string,
+							r: p.dleq()?.r()?.toString() as string,
+							s: p.dleq()?.s()?.toString() as string
+						}
+					}))
+				);
+			}
+		}
+	}
+
+	function initProofsSubscription() {
+		if (!$key?.pub) return;
+		unsubscribeProofs?.();
+		unsubscribeProofs = useSubscription(
+			'nutszap_' + $key?.pub + '_' + refreshCounter,
 			[
 				{ kinds: [7375], authors: [$key?.pub], relays },
-				{ kinds: [9321], tags: { '#p': [$key?.pub] }, noCache: true, limit: 50, relays }
+				{ kinds: [9321], tags: { '#p': [$key?.pub] }, noCache: refreshing, limit: 50, relays }
 			],
-			(message) => {
-				const vps = isValidProofs(message);
-				if (vps) {
-					for (const mintProofs of fbIterable(vps, 'proofs')) {
-						addProofs(
-							mintProofs.mint()!.toString(),
-							fbArray(mintProofs, 'proofs').map((p) => ({
-								C: p.c()!.toString(),
-								amount: Number(p.amount()),
-								id: p.id()!.toString(),
-								secret: p.secret()!.toString(),
-								dleq: {
-									e: p.dleq()?.e()?.toString() as string,
-									r: p.dleq()?.r()?.toString() as string,
-									s: p.dleq()?.s()?.toString() as string
-								}
-							}))
-						);
-					}
-				}
-			},
+			handleProofsMessage,
 			{
 				pipeline: [
 					new PipeT(PipeConfig.ParsePipeConfig, new ParsePipeConfigT()),
@@ -140,26 +157,31 @@
 		);
 	}
 
+	$: if ($key?.pub && !loading) {
+		initProofsSubscription();
+	}
+
 	// Wallet feed subscription - moved from Feed to parent
-	$: if (visible && $key?.pub && relays?.length) {
+	function initWalletFeedSubscription() {
+		if (!visible || !$key?.pub || !relays?.length) return;
 		console.log('[wallet] Starting wallet feed subscription with relays:', relays);
 		unsubscribeWallet?.();
 		unsubscribeWallet = useSubscription(
-			'home_' + $key?.pub,
+			'home_' + $key?.pub + '_' + refreshCounter,
 			[
 				{
 					kinds: [9321, 9735],
 					authors: [$key?.pub],
 					limit: 50,
 					relays: relays,
-					nocache: true
+					noCache: refreshing
 				},
 				{
 					kinds: [9321, 9735],
 					tags: { '#p': [$key?.pub] },
 					limit: 50,
 					relays: relays,
-					noCache: true
+					noCache: refreshing
 				},
 				{
 					// Outgoing lightning zaps (kind 9735 with uppercase P tag = sender)
@@ -167,18 +189,22 @@
 					tags: { '#P': [$key?.pub] },
 					limit: 50,
 					relays: relays,
-					noCache: true
+					noCache: refreshing
 				}
 			],
 			handleWalletFeedEvents
 		);
 	}
 
+	$: if (visible && $key?.pub && relays?.length) {
+		initWalletFeedSubscription();
+	}
+
 	function handleWalletFeedEvents(message: WorkerMessage) {
 		const event = isParsedEvent(message);
 		const kind9321 = isKind9321(message);
 		const kind9735 = isKind9735(message);
-		
+
 		// Debug logging for zap receipts
 		if (event && event.kind() === 9735) {
 			console.log('[wallet] Received kind 9735 event:', {
@@ -188,12 +214,14 @@
 				isKind9735: kind9735
 			});
 		}
-		
+
 		if ((!kind9321 && !kind9735) || !event) return;
 
 		// Deduplicate by event ID hash (fnv1a)
 		const eventIdHash = event.id()?.fnv1aHash();
 		if (!eventIdHash) return;
+		if (seenEventIds.has(eventIdHash)) return;
+		seenEventIds.add(eventIdHash);
 		if (rawWalletEvents.some((e) => e.id()?.fnv1aHash() === eventIdHash)) return;
 
 		rawWalletEvents = [...rawWalletEvents, event];
@@ -205,28 +233,74 @@
 	// Cleanup subscription on unmount
 	onDestroy(() => {
 		unsubscribeWallet?.();
+		unsubscribeProofs?.();
+		unsubscribeActiveWallet?.();
+		if (refreshTimeout) clearTimeout(refreshTimeout);
 	});
 
-	$: if ($key?.pub && relays?.length) {
-		useSubscription(
-			'active_wallet_' + $key?.pub,
+	// Handle refresh - keep feed items, just refresh data
+	function handleRefresh() {
+		if (refreshing || !$key?.pub) return;
+		refreshing = true;
+		refreshCounter++;
+
+		// Clear any existing timeout
+		if (refreshTimeout) {
+			clearTimeout(refreshTimeout);
+		}
+
+		// Fallback: stop refreshing after 10 seconds
+		refreshTimeout = setTimeout(() => {
+			refreshing = false;
+			refreshTimeout = undefined;
+		}, 10000);
+
+		// Verify wallet proofs - check if any are spent and clean them up
+		const wallet = get(nutsWallet);
+		if (wallet) {
+			wallet.verifyAndCleanProofs().catch((e) =>
+				console.error('[wallet] Refresh verification failed:', e)
+			);
+		}
+
+		// Re-init subscriptions with unique subIds (forces noCache via new subId)
+		initProofsSubscription();
+		initWalletFeedSubscription();
+		initActiveWalletSubscription();
+	}
+
+	function initActiveWalletSubscription() {
+		if (!$key?.pub || !relays?.length) return;
+		unsubscribeActiveWallet?.();
+		unsubscribeActiveWallet = useSubscription(
+			'active_wallet_' + $key?.pub + '_' + refreshCounter,
 			[
 				// { kinds: [7375], authors: [$key?.pub], limit: 10, relays: relays },
-				{ kinds: [17375], authors: [$key?.pub], limit: 10, relays: [...DEFAULT_RELAYS, ...relays] }
+				{ kinds: [17375], authors: [$key?.pub], limit: 10, relays: [...DEFAULT_RELAYS, ...relays], noCache: refreshing }
 			],
 			handleWalletEvents,
 			{ bytesPerEvent: 6144 }
 		);
 	}
 
+	$: if ($key?.pub && relays?.length) {
+		initActiveWalletSubscription();
+	}
+
 	function handleWalletEvents(message: WorkerMessage) {
 		const status = isConnectionStatus(message);
-		if (status) {
-			connectionTracker.handleMessage(message);
-			if (connectionTracker.resolutionRate > 0.5) {
-				walletLoaded.resolve(true);
+		if (status && connectionTracker) {
+			const relayUrl = status.relayUrl()?.toString();
+			if (relayUrl) {
+				// Normalize URL to match normalizedRelays keys
+				const normalizedUrl = normalizeURL(relayUrl);
+				// Create new object for reactivity
+				connectionStatus = { ...connectionStatus, [normalizedUrl]: status };
+				connectionTracker.handleMessage(message);
+				if (connectionTracker.resolutionRate > 0.5) {
+					walletLoaded.resolve(true);
+				}
 			}
-			connectionStatus[status?.relayUrl()!.toString()] = status;
 			return;
 		}
 		const parsedEvent = isParsedEvent(message);
@@ -259,6 +333,7 @@
 		getItemId={(item) => item?.id?.()?.fnv1aHash?.()}
 		backdrop={!walletItems.length}
 		pullToRefresh
+		onRefresh={handleRefresh}
 		bind:start
 		bind:end
 	>
@@ -276,9 +351,21 @@
 							<div on:click={() => (isViewing = !isViewing)}>
 								<Icon icon={isViewing ? 'ph:eye-closed' : 'ph:eye'} class="text-2xl" />
 							</div>
-							<button on:click|stopPropagation={() => go('qr')}
-								><Icon icon="ph:qr-code" class="text-2xl" /></button
+							<button on:click|stopPropagation={() => go('qr')}>
+								<Icon icon="ph:qr-code" class="text-2xl" />
+							</button>
+							<!-- Refresh button -->
+							<button
+								on:click|stopPropagation={handleRefresh}
+								title="Refresh"
+								class="cursor-pointer"
 							>
+								<Icon 
+									icon="mdi:refresh" 
+									class="text-2xl {refreshing ? 'animate-spin' : ''}" 
+									style="transform-origin: center;"
+								/>
+							</button>
 							<div on:click|stopPropagation={() => go('profile')} class="cursor-pointer">
 								<img
 									src={proxyAvatarUrl(
@@ -289,7 +376,7 @@
 							</div>
 						</div>
 					</div>
-					<RelaysList {relays} {connectionStatus} />
+					<RelaysList relays={normalizedRelays} {connectionStatus} />
 					{#if loading}
 						loading
 					{:else if $nutsWallet}

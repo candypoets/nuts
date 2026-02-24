@@ -25,11 +25,19 @@
 
 	const qrCodeSuccessCallback: QrcodeSuccessCallback = (decodedText, decodedResult) => {
 		/* handle success */
+		console.log('[scan] QR detected:', decodedText.substring(0, 50) + '...');
 		if (isLightningInvoice(decodedText)) {
-			go('melt:' + decodedText);
+			console.log('[scan] Lightning invoice detected');
+			// Strip "lightning:" prefix if present (BIP-21 URI format)
+			const invoice = decodedText.startsWith('lightning:') 
+				? decodedText.slice(10) 
+				: decodedText;
+			// Encode the invoice to handle special characters safely
+			go('melt:' + encodeURIComponent(invoice));
 			// open the melt modal
 		} else if (isValidLNURL(decodedText)) {
-			go('melt:' + decodedText);
+			console.log('[scan] LNURL detected');
+			go('melt:' + encodeURIComponent(decodedText));
 			// open the contact modal
 			// either send ecash or add as friend
 		} else if (isNpub(decodedText)) {

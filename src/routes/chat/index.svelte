@@ -15,7 +15,7 @@
 		type WorkerMessage
 	} from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
-	import { asKind4, asParsedEvent, ConnectionTracker, isKind4 } from '@candypoets/nipworker/utils';
+	import { asKind4, asParsedEvent, ConnectionTracker, isConnectionStatus, isKind4 } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { formatDistanceToNow } from 'date-fns';
 	import { orderBy, uniq } from 'lodash';
@@ -69,6 +69,10 @@
 		duration: 400,
 		easing: cubicOut
 	});
+
+	$: normalizedRelays = (
+		[...$readRelays, ...$writeRelays].filter((r) => typeof r === 'string') as string[]
+	).map(normalizeURL);
 
 	// Update the tweened value when depth changes
 	$: depthTranslation.set(subs.length * 30);
@@ -126,16 +130,16 @@
 
 	// Handle incoming events from subscription
 	function handleEvents(message: WorkerMessage) {
-		// Handle connection status (type 6 = ConnectionStatus)
-		const msg = message as any;
-		if (msg.type && typeof msg.type === 'function' && msg.type() === 6) {
-			const status = msg.status ? msg.status() : undefined;
-			const relayUrl = msg.relayUrl ? msg.relayUrl() : undefined;
-			if (status && relayUrl) {
+		// Handle connection status
+		const status = isConnectionStatus(message);
+		if (status) {
+			const relayUrl = status.relayUrl()?.toString();
+			if (relayUrl) {
 				// Normalize URL to match relay keys
-				const normalizedUrl = normalizeURL(relayUrl.toString());
-				connectionStatus[normalizedUrl] = status;
-				connectionTracker?.handleMessage?.(msg);
+				const normalizedUrl = normalizeURL(relayUrl);
+				// Create new object for reactivity
+				connectionStatus = { ...connectionStatus, [normalizedUrl]: status };
+				connectionTracker?.handleMessage?.(message);
 			}
 			return;
 		}
@@ -149,9 +153,7 @@
 				if (!isKind4(message)) return;
 				// Deduplicate by id
 				const eventId = parsedEvent.id()?.fnv1aHash();
-				const existingIndex = rawEvents.findIndex(
-					(item) => item.id()?.fnv1aHash() === eventId
-				);
+				const existingIndex = rawEvents.findIndex((item) => item.id()?.fnv1aHash() === eventId);
 				if (existingIndex === -1) {
 					if (!eoce) {
 						rawEvents = [...rawEvents, parsedEvent];
@@ -260,10 +262,7 @@
 			>
 				<div class="flex justify-between m-auto h-16 items-center px-1">
 					<h1 class="text-2xl font-semibold">
-						BM<button
-							class="btn btn-circle btn-ghost btn-xs ml-2"
-							on:click={showChatInfoModal}
-						>
+						BM<button class="btn btn-circle btn-ghost btn-xs ml-2" on:click={showChatInfoModal}>
 							<Icon icon="material-symbols:info-outline" class="text-lg"></Icon>
 						</button>
 						<dialog id="blurred_chat_info" class="modal">
@@ -294,10 +293,7 @@
 						<!-- <Icon icon="teenyicons:add-outline" class="text-xl"></Icon> -->
 					</button>
 				</div>
-				<RelaysList
-					relays={uniq([...$writeRelays, ...$readRelays]).map(normalizeURL)}
-					{connectionStatus}
-				/>
+				<RelaysList relays={normalizedRelays} {connectionStatus} />
 			</div>
 		</svelte:fragment>
 		<svelte:fragment slot="empty-content">

@@ -26,7 +26,8 @@ export function decodePrivKey(value: string): Uint8Array {
  */
 export function isLightningInvoice(invoice: string): boolean {
 	// Regular expression to match Lightning invoice format
-	const lightningInvoiceRegex = /^(lnbc|lntb|LNBC|LNTB)[0-9a-zA-Z]+$/;
+	// Also handles BIP-21 style URIs like "lightning:lnbc..."
+	const lightningInvoiceRegex = /^(lightning:)?(lnbc|lntb|LNBC|LNTB)[0-9a-zA-Z]+$/;
 	return lightningInvoiceRegex.test(invoice);
 }
 

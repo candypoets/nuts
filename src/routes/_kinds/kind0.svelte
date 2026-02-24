@@ -395,27 +395,33 @@
 			<!-- Content adjusts size/layout based on visible state -->
 			<div class="px-4 my-6">
 				<div class="flex items-center gap-3 mb-4">
-					<div class="absolute right-4 top-20">
+					<div class="absolute right-4 top-20 flex gap-2">
 						<button
-							class="z-10 btn lg:btn-wide w-32 border border-white btn-nav lg:text-xl bg-opacity-80"
+							class="z-10 btn btn-sm btn-circle border border-white bg-opacity-80"
 							on:click={updateFollowList}
+							title={$follows.some((f) => f.pubkey === pubkey) ? 'Unfollow' : 'Follow'}
 						>
 							{#if $follows.some((f) => f.pubkey === pubkey)}
-								<Icon icon="mdi:account-check" />
-								Unfollow
+								<Icon icon="mdi:account-check" class="text-lg" />
 							{:else}
-								<Icon icon="mdi:account-plus" />
-								Follow
-							{/if}</button
-						>
-						<br />
+								<Icon icon="mdi:account-plus" class="text-lg" />
+							{/if}
+						</button>
 
 						<button
-							class="z-10 btn lg:btn-wide w-32 border border-white btn-nav lg:text-xl bg-opacity-80 mt-4"
+							class="z-10 btn btn-sm btn-circle border border-white bg-opacity-80"
 							on:click={() => go('ecash:' + pubkey)}
+							title="Zap"
 						>
-							<Icon icon="ion:flash" />
-							Zap
+							<Icon icon="ion:flash" class="text-lg" />
+						</button>
+
+						<button
+							class="z-10 btn btn-sm btn-circle border border-white bg-opacity-80"
+							on:click={() => {/* TODO: implement mute */}}
+							title="Mute"
+						>
+							<Icon icon="mdi:volume-off" class="text-lg" />
 						</button>
 					</div>
 					<img

@@ -18,7 +18,7 @@ import type { WorkerMessage } from '@candypoets/nipworker';
 // Types
 // ============================================================================
 
-export type TxType = 'nutszap' | 'nutszap-melt' | 'zap';
+export type TxType = 'nutszap' | 'nutszap-melt' | 'zap' | 'melt';
 
 export interface TxState {
 	txId: string;

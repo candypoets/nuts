@@ -466,6 +466,35 @@ export class NutsWallet {
 		console.log(`[wallet] Removed ${proofsToRemove.length} proofs from ${mint}`);
 	};
 
+	/**
+	 * Execute a melt (Lightning payment) with automatic post-payment verification
+	 * This wraps the wallet's meltProofs and verifies spent proofs with the mint after completion
+	 */
+	public async meltProofsWithVerification(
+		mintUrl: string,
+		meltQuote: { quote: string; amount: number; fee_reserve: number; state: string },
+		proofsToSend: Proof[]
+	): Promise<{ quote: { state: string; payment_preimage?: string }; change: Proof[] }> {
+		const wallet = await this.getWallet(mintUrl);
+
+		// Execute the melt
+		const result = await wallet.meltProofs(meltQuote, proofsToSend);
+
+		// Update local state: remove spent proofs, save change
+		this.removeProofs(mintUrl, proofsToSend);
+		if (result.change?.length) {
+			this.saveProofs(mintUrl, result.change);
+		}
+		this.updateBalanceByMint();
+
+		// Verify with mint in background to ensure spent proofs are marked correctly
+		this.verifyAndCleanProofs().catch((e) =>
+			console.warn('[wallet] Post-melt verification failed:', e)
+		);
+
+		return result;
+	}
+
 	public monitorMintQuote = async (
 		quote: MintQuoteResponse,
 		createdAt: number,
