@@ -19,7 +19,10 @@
 
 	let fps = $followPacks;
 
-	let feed: ParsedEvent[] = [$followList];
+	// Combine followList with fetched packs, avoiding duplicates
+	let otherPacks: ParsedEvent[] = [];
+	$: feed = [$followList, ...otherPacks];
+	
 	let seenEventIds = new Set<number>();
 	let loading = false;
 
@@ -50,7 +53,10 @@
 		if (seenEventIds.has(eventId)) return;
 		seenEventIds.add(eventId);
 
-		feed = [...feed, parsedEvent].sort((a, b) => b.createdAt() - a.createdAt());
+		// Don't add followlist (it's handled reactively via $followList)
+		if (parsedEvent.id()?.toString() === 'followlist') return;
+
+		otherPacks = [...otherPacks, parsedEvent].sort((a, b) => b.createdAt() - a.createdAt());
 		console.log('new event');
 		loading = false;
 	}

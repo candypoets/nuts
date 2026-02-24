@@ -367,7 +367,8 @@
 
 	// Handle near-bottom pagination with quantile-based window calculation
 	function handleNearBottom(event: { distance: number }) {
-		if (loading || !hasMore || feedItems.length < $limit) return;
+		// Only require at least 1 item to use as cursor, not full $limit
+		if (loading || !hasMore || feedItems.length === 0) return;
 
 		loading = true;
 		itemsBeforePagination = feedItems.length;

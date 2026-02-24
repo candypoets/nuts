@@ -257,8 +257,9 @@
 	// Handle near-bottom pagination
 	function handleNearBottom(event: { distance: number }) {
 		console.log('[kind0 Pagination] handleNearBottom:', { distance: event.distance, loading, hasMore, feedItemsLength: feedItems.length, limit: $limit, mode });
-		if (loading || !hasMore || feedItems.length < $limit) {
-			console.log('[kind0 Pagination] Blocked:', { loading, hasMore, feedItemsLength: feedItems.length, limit: $limit });
+		// Only require at least 1 item to use as cursor, not full $limit
+		if (loading || !hasMore || feedItems.length === 0) {
+			console.log('[kind0 Pagination] Blocked:', { loading, hasMore, feedItemsLength: feedItems.length });
 			return;
 		}
 
