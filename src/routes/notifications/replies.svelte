@@ -118,7 +118,11 @@
 			<!-- Author avatars -->
 			<div class="flex -space-x-2 mb-3">
 				{#each post.parsed.events.slice(0, 5) as event}
-					<a href="/{event.pubkey()?.toString()}" class="relative z-0 hover:z-10">
+					<a
+						href="/"
+						class="relative z-0 hover:z-10"
+						on:click|preventDefault={() => go(`kind0:${event.pubkey()?.toString()}`)}
+					>
 						<Avatar pubkey={event.pubkey()?.toString()} {context} />
 					</a>
 				{/each}

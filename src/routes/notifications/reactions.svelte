@@ -155,10 +155,18 @@
 								{post.parsed.events.length === 1 ? 'liked' : 'liked'} this post
 							</span>
 						{:else}
-							<a href="/{post.parsed.events[0].pubkey}" class="font-medium">
+							<a
+								href="/"
+								class="font-medium"
+								on:click|preventDefault={() => go(`kind0:${post.parsed.events[0].pubkey()?.toString()}`)}
+							>
 								<User pubkey={post.parsed.events[0].pubkey()?.toString()} link={false} {context} />
 							</a>,
-							<a href="/{post.parsed.events[1].pubkey}" class="font-medium">
+							<a
+								href="/"
+								class="font-medium"
+								on:click|preventDefault={() => go(`kind0:${post.parsed.events[1].pubkey()?.toString()}`)}
+							>
 								<User pubkey={post.parsed.events[1].pubkey()?.toString()} link={false} {context} />
 							</a>
 							and <span class="font-medium">{post.parsed.events.length - 2} others</span> liked this
