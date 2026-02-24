@@ -95,11 +95,22 @@
 
 		const existing = seenPubkeys.get(pubkey);
 		// Always add if no existing, or if new event has newer created_at
-		if (!existing || (event.created_at && existing.created_at && event.created_at > existing.created_at)) {
-			console.log('[CMDK] adding/updating event:', { pubkey: pubkey.slice(0, 16), created_at: event.created_at, existing: existing?.created_at });
+		if (
+			!existing ||
+			(event.created_at && existing.created_at && event.created_at > existing.created_at)
+		) {
+			console.log('[CMDK] adding/updating event:', {
+				pubkey: pubkey.slice(0, 16),
+				created_at: event.created_at,
+				existing: existing?.created_at
+			});
 			seenPubkeys.set(pubkey, event);
 		} else {
-			console.log('[CMDK] skipping event (older or duplicate):', { pubkey: pubkey.slice(0, 16), created_at: event.created_at, existing: existing?.created_at });
+			console.log('[CMDK] skipping event (older or duplicate):', {
+				pubkey: pubkey.slice(0, 16),
+				created_at: event.created_at,
+				existing: existing?.created_at
+			});
 		}
 	}
 
@@ -114,7 +125,12 @@
 			console.log('[CMDK] cleaning up previous subscription');
 			sub();
 		}
-		console.log('[CMDK] resetting state, items was:', items.length, 'seenPubkeys was:', seenPubkeys.size);
+		console.log(
+			'[CMDK] resetting state, items was:',
+			items.length,
+			'seenPubkeys was:',
+			seenPubkeys.size
+		);
 		seenPubkeys.clear();
 		items = [];
 		cachedEvents = [];
@@ -125,13 +141,13 @@
 		loading = true;
 		const subscriptionId = 'cmdk_' + search;
 		const filters = [{ kinds: [0], search, limit: 10, noCache: true, relays: SEARCH_RELAYS }];
-		console.log('[CMDK] creating subscription:', { subscriptionId, search, filters, relays: SEARCH_RELAYS });
-		sub = useSubscription(
+		console.log('[CMDK] creating subscription:', {
 			subscriptionId,
+			search,
 			filters,
-			handleEvents,
-			subscriptionOptions
-		);
+			relays: SEARCH_RELAYS
+		});
+		sub = useSubscription(subscriptionId, filters, handleEvents, subscriptionOptions);
 	}, 600);
 
 	onDestroy(() => {
@@ -172,7 +188,12 @@
 				cachedEvents.forEach(addOrUpdateEvent);
 				fetchedEvents.forEach(addOrUpdateEvent);
 				items = sortBy(getItemsFromMap(), (item) => -calculateScore(item, query));
-				console.log('[CMDK] after ConnectionStatus, items count:', items.length, 'seenPubkeys:', seenPubkeys.size);
+				console.log(
+					'[CMDK] after ConnectionStatus, items count:',
+					items.length,
+					'seenPubkeys:',
+					seenPubkeys.size
+				);
 				break;
 			}
 			case MessageType.Eoce:
@@ -180,7 +201,12 @@
 				eoce = true;
 				cachedEvents.forEach(addOrUpdateEvent);
 				items = sortBy(getItemsFromMap(), (item) => calculateScore(item, query));
-				console.log('[CMDK] after Eoce, items count:', items.length, 'seenPubkeys:', seenPubkeys.size);
+				console.log(
+					'[CMDK] after Eoce, items count:',
+					items.length,
+					'seenPubkeys:',
+					seenPubkeys.size
+				);
 				break;
 			case MessageType.ParsedNostrEvent: {
 				// Log relay info for every event - check if message has relayUrl method
@@ -215,10 +241,7 @@
 	$: query && subscribe(query);
 </script>
 
-<div
-	class="backdrop-blur-gpu flex items-start md:items-center justify-center p-4 h-screen"
-	on:keydown={onKey}
->
+<div class="flex items-start md:items-center justify-center p-4 h-screen" on:keydown={onKey}>
 	<!-- Container -->
 	<div
 		class="w-full max-w-2xl rounded-xl shadow-widget overflow-hidden md:h-2/3 h-screen"

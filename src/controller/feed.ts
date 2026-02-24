@@ -1,6 +1,7 @@
 import {
 	ListParsed,
 	ListParsedT,
+	ParsedData,
 	ParsedEvent,
 	ParsedEventT,
 	type Kind3Parsed

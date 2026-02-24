@@ -1,5 +1,5 @@
 import type { Kind3Parsed, ParsedEvent, WorkerMessage } from '@candypoets/nipworker';
-import { asKind10002, asKind3, fbArray, isKind10002 } from '@candypoets/nipworker/utils';
+import { asKind10002, asKind3, asNip51, fbArray, isKind10002 } from '@candypoets/nipworker/utils';
 import { derived, writable, type Writable } from 'svelte/store';
 
 export const resolvable = <T = any>() => {
@@ -29,6 +29,23 @@ export const follows = derived(kind3, ($kind3) => {
 });
 
 export const kind3Ready = resolvable<ParsedEvent>();
+
+export const kind10000: Writable<ParsedEvent | undefined> = writable();
+
+export const mutes = derived(kind10000, ($kind10000) => {
+	if (!$kind10000) return [];
+	// Parse as NIP-51 list and extract people (muted pubkeys)
+	const list = asNip51($kind10000);
+	if (!list) return [];
+	const people: string[] = [];
+	for (let i = 0; i < list.peopleLength(); i++) {
+		const pubkey = list.people(i)?.toString();
+		if (pubkey) people.push(pubkey);
+	}
+	return people;
+});
+
+export const kind10000Ready = resolvable<ParsedEvent>();
 
 export const kind10002: Writable<ParsedEvent | undefined> = writable();
 

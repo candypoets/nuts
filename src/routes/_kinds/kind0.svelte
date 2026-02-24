@@ -444,7 +444,7 @@
 		{@const about = p?.about()?.toString()}
 		{@const lnaddress = p?.lud16()?.toString() || p?.lud06()?.toString()}
 		<div
-			class="transition-all duration-300 w-feed mx-auto will-change-transform bg-base-300 bg-opacity-85 backdrop-blur-gpu rounded-lg"
+			class="transition-all duration-300 w-feed mx-auto will-change-transform bg-base-300 bg-opacity-85 backdrop-blur-md rounded-lg"
 			class:relative={visible}
 			class:shadow-md={!visible}
 			class:z-20={!visible}

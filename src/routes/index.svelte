@@ -31,6 +31,8 @@
 	import {
 		kind0,
 		kind0Ready,
+		kind10000,
+		kind10000Ready,
 		kind10002,
 		kind10002Ready,
 		kind10019,
@@ -91,6 +93,11 @@
 					relays: ['wss://relay.damus.io', 'wss://relay.nostr.band', 'wss://purplepag.es']
 					// noOptimize: true,
 					// cacheFirst: true
+				},
+				{
+					kinds: [10000], // mute list
+					authors: [$key.pub],
+					relays: ['wss://relay.damus.io', 'wss://relay.nostr.band', 'wss://purplepag.es']
 				}
 			],
 			handleRelayEvents
@@ -127,6 +134,15 @@
 						kind10019Ready.resolve(parsedEvent);
 					}
 					break;
+				case ParsedData.ListParsed:
+					// Handle NIP-51 lists (including kind 10000 mute list)
+					if (parsedEvent.kind() === 10000) {
+						if (parsedEvent.createdAt() > ($kind10000?.createdAt() || 0)) {
+							$kind10000 = parsedEvent;
+							kind10000Ready.resolve(parsedEvent);
+						}
+					}
+					break;
 			}
 		}
 	}
@@ -139,6 +155,14 @@
 			[
 				$kind10002 && {
 					kinds: [0, 3],
+					authors: [$key?.pub],
+					relays: fbArray(asKind10002($kind10002) as Kind10002Parsed, 'relays')
+						?.filter((r) => r.write())
+						.map((r) => r.url()?.toString()),
+					noOptimize: true
+				},
+				$kind10002 && {
+					kinds: [10000], // mute list from user's write relays
 					authors: [$key?.pub],
 					relays: fbArray(asKind10002($kind10002) as Kind10002Parsed, 'relays')
 						?.filter((r) => r.write())
@@ -167,6 +191,16 @@
 
 				case ParsedData.Kind3Parsed:
 					if (parsedEvent.createdAt() > ($kind3?.createdAt() || 0)) $kind3 = parsedEvent;
+					break;
+
+				case ParsedData.ListParsed:
+					// Handle NIP-51 lists (including kind 10000 mute list)
+					if (parsedEvent.kind() === 10000) {
+						if (parsedEvent.createdAt() > ($kind10000?.createdAt() || 0)) {
+							$kind10000 = parsedEvent;
+							kind10000Ready.resolve(parsedEvent);
+						}
+					}
 					break;
 			}
 		}

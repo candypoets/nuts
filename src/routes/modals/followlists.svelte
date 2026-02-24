@@ -28,10 +28,6 @@
 	let otherPacks: ParsedEvent[] = [];
 	$: feed = [$followList, ...otherPacks];
 
-	$: console.log('followlist', $followList, asNip51($followList));
-
-	console.log('parsedtype', $followList?.parsedType?.(), ParsedData.ListParsed);
-
 	let seenEventIds = new Set<number>();
 	let loading = false;
 

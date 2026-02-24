@@ -151,7 +151,7 @@
 </script>
 
 <div
-	class="fixed right-0 top-0 h-screen z-20"
+	class="fixed right-0 top-0 h-screen z-20 backdrop-blur-md"
 	bind:this={element}
 	on:click|stopPropagation={pager?.goBack}
 	style="width: {$viewport.vw * 100}px;"
@@ -192,7 +192,6 @@
 			<Minting />
 		{:else if path.includes('minted')}
 			<Minted mint={path.split(':')?.[1]} amount={path.split(':')?.[2]} />
-		
 		{:else if path.startsWith('newchat')}
 			<Newchat />
 		{:else if path.includes('tapcash')}

@@ -131,9 +131,13 @@
 	}
 </script>
 
-<div class="absolute right-0 top-0 h-screen lg:p-2 z-20" bind:this={element} data-kind="sub">
+<div
+	class="absolute right-0 top-0 h-screen lg:p-2 z-20 backdrop-blur-md"
+	bind:this={element}
+	data-kind="sub"
+>
 	<div
-		class="h-screen lg:rounded-xl overflow-hidden lg:px-2 backdrop-blur-md"
+		class="h-screen lg:rounded-xl overflow-hidden lg:px-2"
 		style="backface-visibility: hidden;
 			-webkit-backface-visibility: hidden;"
 		on:touchstart|stopPropagation={handleTouchStart}
