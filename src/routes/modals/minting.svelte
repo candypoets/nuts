@@ -81,7 +81,7 @@
 	}
 </script>
 
-<div class="pt-safe bg-base-300 bg-opacity-85 backdrop-blur-gpu h-full rounded-xl">
+<div class="pt-safe bg-base-300 bg-opacity-85 h-full rounded-xl">
 	<Alert />
 	<p class="font-bold text-xl text-center pt-4">Topup</p>
 	<!-- Create the scroll container -->

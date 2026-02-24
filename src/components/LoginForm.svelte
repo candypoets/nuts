@@ -270,9 +270,7 @@
 
 		{#if showQR && qrText}
 			<!-- Inline QR Display for Login Page -->
-			<div
-				class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
-			>
+			<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
 				<div class="relative bg-neutral-900 rounded-2xl p-8 max-w-sm w-full border border-white/10">
 					<button class="absolute top-4 right-4 text-white/50 hover:text-white" on:click={closeQR}>
 						<Icon icon="ri:close-line" class="text-2xl" />

@@ -15,18 +15,29 @@
 	}
 </script>
 
-<main class="min-h-screen bg-gradient-to-br from-black via-neutral-900 to-black text-white flex flex-col relative overflow-hidden">
+<main
+	class="min-h-screen bg-gradient-to-br from-black via-neutral-900 to-black text-white flex flex-col relative overflow-hidden"
+>
 	<!-- Animated background pattern -->
 	<div class="absolute inset-0 opacity-[0.03] pointer-events-none">
-		<div class="absolute inset-0" style="background-image: url('/nutscash.svg'); background-size: 120px; background-repeat: repeat; transform: rotate(-5deg) scale(1.1);"></div>
+		<div
+			class="absolute inset-0"
+			style="background-image: url('/nutscash.svg'); background-size: 120px; background-repeat: repeat; transform: rotate(-5deg) scale(1.1);"
+		></div>
 	</div>
 
 	<!-- Gradient orbs for visual interest -->
-	<div class="absolute top-20 left-10 w-96 h-96 bg-purple-600/10 rounded-full blur-3xl pointer-events-none"></div>
-	<div class="absolute bottom-20 right-10 w-80 h-80 bg-accent/10 rounded-full blur-3xl pointer-events-none"></div>
+	<div
+		class="absolute top-20 left-10 w-96 h-96 bg-purple-600/10 rounded-full blur-3xl pointer-events-none"
+	></div>
+	<div
+		class="absolute bottom-20 right-10 w-80 h-80 bg-accent/10 rounded-full blur-3xl pointer-events-none"
+	></div>
 
 	<!-- Header -->
-	<header class="relative z-10 flex items-center justify-between px-4 sm:px-6 lg:px-8 py-4 border-b border-white/5 backdrop-blur-sm">
+	<header
+		class="relative z-10 flex items-center justify-between px-4 sm:px-6 lg:px-8 py-4 border-b border-white/5"
+	>
 		<div class="flex items-center gap-3">
 			<div class="relative">
 				<Nutscash class="h-8 w-8 text-white" />
@@ -57,27 +68,40 @@
 	</header>
 
 	<!-- Main Content -->
-	<section class="relative z-10 flex-1 flex items-center justify-center px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+	<section
+		class="relative z-10 flex-1 flex items-center justify-center px-4 sm:px-6 lg:px-8 py-8 sm:py-12"
+	>
 		<div class="w-full max-w-6xl mx-auto">
 			<div class="grid lg:grid-cols-2 gap-8 lg:gap-16 items-center">
 				<!-- Left: Logo & Tagline -->
-				<div class="flex flex-col items-center lg:items-start text-center lg:text-left space-y-6 sm:space-y-8">
+				<div
+					class="flex flex-col items-center lg:items-start text-center lg:text-left space-y-6 sm:space-y-8"
+				>
 					<div class="relative">
 						<!-- Glow effect behind logo -->
-						<div class="absolute inset-0 bg-gradient-to-r from-purple-600/30 via-accent/30 to-purple-600/30 blur-3xl scale-150"></div>
-						<Nutscash class="relative text-white h-40 w-40 sm:h-56 sm:w-56 lg:h-72 lg:w-72 drop-shadow-2xl" />
+						<div
+							class="absolute inset-0 bg-gradient-to-r from-purple-600/30 via-accent/30 to-purple-600/30 blur-3xl scale-150"
+						></div>
+						<Nutscash
+							class="relative text-white h-40 w-40 sm:h-56 sm:w-56 lg:h-72 lg:w-72 drop-shadow-2xl"
+						/>
 					</div>
-					
+
 					<div class="space-y-3 sm:space-y-4">
-						<h1 
+						<h1
 							class="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight"
 							style="font-family: 'Permanent Marker', cursive;"
 						>
-							<span class="bg-gradient-to-r from-white via-white to-white/70 bg-clip-text text-transparent">Nuts</span>
-							<span class="bg-gradient-to-r from-accent to-purple-400 bg-clip-text text-transparent">Cash</span>
+							<span
+								class="bg-gradient-to-r from-white via-white to-white/70 bg-clip-text text-transparent"
+								>Nuts</span
+							>
+							<span class="bg-gradient-to-r from-accent to-purple-400 bg-clip-text text-transparent"
+								>Cash</span
+							>
 						</h1>
-						
-						<p 
+
+						<p
 							class="text-white/50 max-w-md mx-auto lg:mx-0 text-sm sm:text-base leading-relaxed"
 							style="font-family: 'Rock Salt', cursive;"
 						>
@@ -107,9 +131,13 @@
 				<div class="w-full max-w-md mx-auto lg:max-w-none">
 					<div class="relative group">
 						<!-- Card glow effect -->
-						<div class="absolute -inset-0.5 bg-gradient-to-r from-accent/50 to-purple-600/50 rounded-2xl blur opacity-20 group-hover:opacity-30 transition duration-500"></div>
-						
-						<div class="relative rounded-2xl bg-white/[0.03] backdrop-blur-xl border border-white/10 p-6 sm:p-8 lg:p-10 shadow-2xl">
+						<div
+							class="absolute -inset-0.5 bg-gradient-to-r from-accent/50 to-purple-600/50 rounded-2xl blur opacity-20 group-hover:opacity-30 transition duration-500"
+						></div>
+
+						<div
+							class="relative rounded-2xl bg-white/[0.03] border border-white/10 p-6 sm:p-8 lg:p-10 shadow-2xl"
+						>
 							<div class="flex items-center gap-3 mb-6 sm:mb-8">
 								<div class="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
 									<Icon icon="ri:user-smile-line" class="text-xl text-accent" />
@@ -119,7 +147,7 @@
 									<p class="text-white/40 text-xs sm:text-sm">Sign in with your Nostr key</p>
 								</div>
 							</div>
-							
+
 							<LoginForm inline={true} redirect />
 						</div>
 					</div>
@@ -131,7 +159,12 @@
 							Explore
 						</a>
 						<span class="text-white/10">|</span>
-						<a href="https://nostr.com" target="_blank" rel="noopener noreferrer" class="hover:text-accent transition-colors flex items-center gap-1">
+						<a
+							href="https://nostr.com"
+							target="_blank"
+							rel="noopener noreferrer"
+							class="hover:text-accent transition-colors flex items-center gap-1"
+						>
 							<Icon icon="ri:question-line" />
 							What's Nostr?
 						</a>
@@ -142,17 +175,29 @@
 	</section>
 
 	<!-- Footer -->
-	<footer class="relative z-10 py-4 sm:py-6 border-t border-white/5 backdrop-blur-sm">
-		<div class="px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-white/30">
+	<footer class="relative z-10 py-4 sm:py-6 border-t border-white/5">
+		<div
+			class="px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-white/30"
+		>
 			<div class="flex items-center gap-2">
 				<Nutscash class="h-4 w-4" />
 				<span>Powered by Nostr & Cashu</span>
 			</div>
 			<div class="flex items-center gap-4">
-				<a href="https://github.com/cashubtc/nuts" target="_blank" rel="noopener noreferrer" class="hover:text-white/50 transition-colors">
+				<a
+					href="https://github.com/cashubtc/nuts"
+					target="_blank"
+					rel="noopener noreferrer"
+					class="hover:text-white/50 transition-colors"
+				>
 					<Icon icon="ri:github-fill" class="text-sm" />
 				</a>
-				<a href="https://twitter.com/cashubtc" target="_blank" rel="noopener noreferrer" class="hover:text-white/50 transition-colors">
+				<a
+					href="https://twitter.com/cashubtc"
+					target="_blank"
+					rel="noopener noreferrer"
+					class="hover:text-white/50 transition-colors"
+				>
 					<Icon icon="ri:twitter-x-fill" class="text-sm" />
 				</a>
 			</div>
@@ -163,13 +208,23 @@
 <style>
 	/* Custom animations */
 	@keyframes float {
-		0%, 100% { transform: translateY(0px); }
-		50% { transform: translateY(-10px); }
+		0%,
+		100% {
+			transform: translateY(0px);
+		}
+		50% {
+			transform: translateY(-10px);
+		}
 	}
-	
+
 	@keyframes pulse-glow {
-		0%, 100% { opacity: 0.1; }
-		50% { opacity: 0.2; }
+		0%,
+		100% {
+			opacity: 0.1;
+		}
+		50% {
+			opacity: 0.2;
+		}
 	}
 
 	/* Ensure full height on mobile browsers */

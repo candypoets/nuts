@@ -231,10 +231,7 @@
 			<div
 				class="w-feed pt-safe border-primary-content h-20 flex items-center justify-between bg-base-300 bg-opacity-90 rounded-lg px-4"
 			>
-				<button
-					on:click={goBack}
-					class="p-1 rounded-full bg-base-200 bg-opacity-85 backdrop-blur-gpu mr-4"
-				>
+				<button on:click={goBack} class="p-1 rounded-full bg-base-200 bg-opacity-85 mr-4">
 					<Icon icon="mdi:arrow-left" class="text-xl" />
 				</button>
 				<RelaysList {relays} {connectionStatus} mini={$isMobile} />
@@ -245,7 +242,7 @@
 			{@const parsedData = getKind30023(article)}
 			<div class="w-feed mx-auto">
 				<!-- Article Header -->
-				<div class="bg-base-300 bg-opacity-85 backdrop-blur-gpu rounded-lg p-6 mb-4">
+				<div class="bg-base-300 bg-opacity-85 rounded-lg p-6 mb-4">
 					<!-- Author info -->
 					<div class="flex items-center gap-3 mb-4">
 						<Avatar pubkey={authorPubkey} context={[]} size="md" />

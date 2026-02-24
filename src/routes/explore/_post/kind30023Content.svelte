@@ -42,7 +42,10 @@
 
 	// Helper to get all values for a tag (e.g., 't' for topics)
 	function getTagValues(tags: string[][], name: string): string[] {
-		return tags.filter((t) => t[0] === name).map((t) => t[1]).filter(Boolean);
+		return tags
+			.filter((t) => t[0] === name)
+			.map((t) => t[1])
+			.filter(Boolean);
 	}
 
 	$: parsed = getKind30023(note);
@@ -54,7 +57,11 @@
 	$: summary = parsed?.summary()?.toString() || getTagValue(rawTags, 'summary') || '';
 	$: rawImage = parsed?.image()?.toString() || getTagValue(rawTags, 'image') || '';
 	$: image = rawImage ? proxyPreviewUrl(rawImage) : '';
-	$: canonical = parsed?.canonical()?.toString() || getTagValue(rawTags, 'canonical_url') || getTagValue(rawTags, 'url') || '';
+	$: canonical =
+		parsed?.canonical()?.toString() ||
+		getTagValue(rawTags, 'canonical_url') ||
+		getTagValue(rawTags, 'url') ||
+		'';
 	$: slug = parsed?.slug()?.toString() || getTagValue(rawTags, 'd') || '';
 	$: naddr = parsed?.naddr()?.toString() || '';
 	$: publishedAt = parsed?.publishedAt()
@@ -100,14 +107,14 @@
 					class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
 				/>
 			</div>
-			
+
 			<!-- Gradient backdrop for text readability -->
 			<div class="absolute inset-0 bg-gradient-to-b from-black/80 via-black/40 to-black/70"></div>
 		{:else}
 			<!-- Fallback gradient background when no image -->
 			<div class="absolute inset-0 bg-gradient-to-br from-primary/40 to-secondary/40"></div>
 		{/if}
-		
+
 		<!-- Content overlaid on top -->
 		<div class="relative z-10 p-4 flex flex-col h-full min-h-[280px]">
 			<!-- Article badge -->
@@ -115,20 +122,22 @@
 				<Icon icon="mdi:file-document-outline" />
 				<span>Article</span>
 			</div>
-			
+
 			<!-- Title at the top -->
 			{#if title}
-				<h3 class="font-bold text-xl leading-tight mb-3 text-white line-clamp-3 drop-shadow-lg">{title}</h3>
+				<h3 class="font-bold text-xl leading-tight mb-3 text-white line-clamp-3 drop-shadow-lg">
+					{title}
+				</h3>
 			{/if}
-			
+
 			<!-- Summary -->
 			{#if summary}
 				<p class="text-sm text-white/90 line-clamp-4 mb-4 drop-shadow-md">{summary}</p>
 			{/if}
-			
+
 			<!-- Spacer to push footer to bottom -->
 			<div class="flex-grow"></div>
-			
+
 			<!-- Footer -->
 			<div class="flex items-center justify-between pt-3 border-t border-white/20">
 				<div class="flex items-center gap-2 text-xs text-white/70">
@@ -149,13 +158,11 @@
 					</a>
 				{/if}
 			</div>
-			
+
 			{#if topics.length > 0}
 				<div class="flex flex-wrap gap-1 mt-3">
 					{#each topics.slice(0, 5) as topic}
-						<span class="text-xs bg-white/20 backdrop-blur-sm text-white px-2 py-0.5 rounded-full"
-							>#{topic}</span
-						>
+						<span class="text-xs bg-white/20 text-white px-2 py-0.5 rounded-full">#{topic}</span>
 					{/each}
 				</div>
 			{/if}

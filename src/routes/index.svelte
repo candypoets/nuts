@@ -68,7 +68,7 @@
 	// $: $key && $key.priv && manager.setSigner('privkey', $key.priv);
 	//
 	manager.addEventListener('auth', (event) => {
-	console.log('auth successful')
+		console.log('auth successful');
 		$key.pub = event.detail;
 	});
 
@@ -237,9 +237,7 @@
 
 			// Initialize all items with proper positioning
 			const activeRoutes = carouselAnimator.getActiveRoutes();
-			const currentIdx = activeRoutes.findIndex((r) =>
-				$page.url.pathname.startsWith(r.route)
-			);
+			const currentIdx = activeRoutes.findIndex((r) => $page.url.pathname.startsWith(r.route));
 			carouselItems.forEach((item, index) => {
 				const ratio = CarouselAnimator.getTransformRatio(index, currentIdx);
 				const direction = index - currentIdx;
@@ -262,9 +260,7 @@
 			// }
 
 			// Initialize carousel position based on current route
-			const initialIndex = activeRoutes.findIndex((r) =>
-				$page.url.pathname.startsWith(r.route)
-			);
+			const initialIndex = activeRoutes.findIndex((r) => $page.url.pathname.startsWith(r.route));
 			if (initialIndex >= 0) {
 				carouselAnimator.syncToUrl($page.url.pathname, 0, $isMobile);
 			}
@@ -305,9 +301,7 @@
 
 			// Initialize all items with proper positioning
 			const activeRoutes = carouselAnimator.getActiveRoutes();
-			const currentIdx = activeRoutes.findIndex((r) =>
-				$page.url.pathname.startsWith(r.route)
-			);
+			const currentIdx = activeRoutes.findIndex((r) => $page.url.pathname.startsWith(r.route));
 			carouselItems.forEach((item, index) => {
 				const ratio = CarouselAnimator.getTransformRatio(index, currentIdx);
 				const direction = index - currentIdx;
@@ -484,12 +478,14 @@
 	<!-- Overview Mode Backdrop (behind feeds) -->
 	{#if $overviewModeStore}
 		<div
-			class="fixed inset-0 z-30 bg-black/30 backdrop-blur-sm transition-opacity"
+			class="fixed inset-0 z-30 bg-black/30 transition-opacity"
 			on:click={() => carouselAnimator.exitOverviewMode(400, $isMobile)}
 		/>
 
 		<!-- Header (above feeds) -->
-		<div class="fixed top-0 left-0 right-0 z-50 p-4 flex justify-between items-center pointer-events-none">
+		<div
+			class="fixed top-0 left-0 right-0 z-50 p-4 flex justify-between items-center pointer-events-none"
+		>
 			<h2 class="text-white text-lg font-semibold">Manage Feeds</h2>
 			<button
 				class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors pointer-events-auto"

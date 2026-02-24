@@ -152,15 +152,17 @@
 	// Build subscription requests based on current state
 	function buildRequests(forPagination = false): RequestObject[] {
 		if (useGlobalFeed) {
-			return [{
-				kinds: [1, 6],
-				limit: $limit,
-				since: forPagination ? undefined : ago(31 * 24 * 60 * 60),
-				until: forPagination ? until : undefined,
-				noCache: !!relayCounter,
-				tags: tags.length ? { '#t': tags } : undefined,
-				relays: DEFAULT_FEED_RELAYS
-			}];
+			return [
+				{
+					kinds: [1, 6],
+					limit: $limit,
+					since: forPagination ? undefined : ago(31 * 24 * 60 * 60),
+					until: forPagination ? until : undefined,
+					noCache: !!relayCounter,
+					tags: tags.length ? { '#t': tags } : undefined,
+					relays: DEFAULT_FEED_RELAYS
+				}
+			];
 		}
 
 		// Logged in user with followlist selected - use personalized feed
@@ -182,7 +184,6 @@
 
 	// Handle incoming events from subscription
 	function handleEvents(message: WorkerMessage) {
-		
 		// Handle connection status (including EOSE detection via resolutionRate)
 		const status = asConnectionStatus(message);
 		if (status && connectionTracker) {
@@ -251,7 +252,6 @@
 				lastSeenTopItem = feedItems[0]?.createdAt();
 				newPostsCount = 0;
 			}
-			
 		}
 	}
 
@@ -402,13 +402,13 @@
 	let paginationCheckTimeout: ReturnType<typeof setTimeout> | undefined;
 	$: if (!loading && itemsBeforePagination > 0) {
 		const itemsAtCheck = itemsBeforePagination;
-		
+
 		// Clear the EOSE timeout if it hasn't fired yet
 		if (paginationTimeout) {
 			clearTimeout(paginationTimeout);
 			paginationTimeout = undefined;
 		}
-		
+
 		// Delay the check to allow late events to arrive via subscription
 		paginationCheckTimeout = setTimeout(() => {
 			const newItemsAdded = feedItems.length - itemsAtCheck;
@@ -442,7 +442,7 @@
 		bind:end
 	>
 		<svelte:fragment slot="sticky-header">
-			<div class="backdrop-blur-sm bg-base-300 bg-opacity-80 md:border-b border-base-200 pt-safe">
+			<div class="bg-base-300 bg-opacity-80 md:border-b border-base-200 pt-safe">
 				<div class="flex justify-between w-feed lg:m-auto h-16 items-center">
 					<div class="flex gap-1 items-center w-1/3">
 						{#if following.length > 0}
@@ -499,7 +499,7 @@
 			<div class="md:pb-4 pb-safe md:px-6 px-2">
 				<div
 					on:click|stopPropagation={(_) => go('post')}
-					class="px-4 py-2 rounded-full backdrop-blur-2xl border border-accent"
+					class="px-4 py-2 rounded-full border border-accent"
 				>
 					What's up?
 				</div>
@@ -542,9 +542,9 @@
 							on:click|stopPropagation={handleRefresh}
 							title="Refresh feed"
 						>
-							<Icon 
-								icon="mdi:refresh" 
-								class="text-2xl mr-2 {refreshing ? 'animate-spin' : ''}" 
+							<Icon
+								icon="mdi:refresh"
+								class="text-2xl mr-2 {refreshing ? 'animate-spin' : ''}"
 								style="transform-origin: center;"
 							/>
 						</span>

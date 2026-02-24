@@ -78,7 +78,7 @@
 <!-- <div class="break-words">{JSON.stringify(decoded)}</div> -->
 <!-- Added role, tabindex and keydown for accessibility -->
 <div
-	class="p-4 cursor-pointer border-x border-b border-primary-content bg-base-300 bg-opacity-85 backdrop-blur-gpu"
+	class="p-4 cursor-pointer border-x border-b border-primary-content bg-base-300 bg-opacity-85"
 	class:rounded-t-lg={isFirst}
 	class:rounded-b-lg={isLast}
 	class:border-t={isFirst}
@@ -107,7 +107,9 @@
 			<div class="flex items-center gap-2 overflow-hidden">
 				<div class="relative">
 					<Avatar pubkey={decoded?.recipient ?? ''} {context} size="lg" />
-					<div class="absolute bottom-0 right-0 w-5 h-5 translate-x-1/4 bg-yellow-500 rounded-full flex items-center justify-center border-2 border-base-300">
+					<div
+						class="absolute bottom-0 right-0 w-5 h-5 translate-x-1/4 bg-yellow-500 rounded-full flex items-center justify-center border-2 border-base-300"
+					>
 						<Icon icon="ph:lightning-fill" class="text-xs text-white" />
 					</div>
 				</div>
@@ -125,7 +127,9 @@
 			<div class="flex items-center gap-2 overflow-hidden">
 				<div class="relative">
 					<Avatar pubkey={decoded?.sender ?? ''} {context} size="lg" />
-					<div class="absolute bottom-0 right-0 w-5 h-5 translate-x-1/4 bg-yellow-500 rounded-full flex items-center justify-center border-2 border-base-300">
+					<div
+						class="absolute bottom-0 right-0 w-5 h-5 translate-x-1/4 bg-yellow-500 rounded-full flex items-center justify-center border-2 border-base-300"
+					>
 						<Icon icon="ph:lightning-fill" class="text-xs text-white" />
 					</div>
 				</div>

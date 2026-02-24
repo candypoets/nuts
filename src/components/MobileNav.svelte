@@ -6,7 +6,7 @@
 	$: homepage = $page.route.id == '/';
 </script>
 
-<div class="btm-nav lg:hidden bg-transparent h-24 pb-8 backdrop-blur-xl z-10" id="footer">
+<div class="btm-nav lg:hidden bg-transparent h-24 pb-8 z-10" id="footer">
 	<a
 		class:text-primary={$page.route?.id?.startsWith('/home')}
 		href={'/home'}

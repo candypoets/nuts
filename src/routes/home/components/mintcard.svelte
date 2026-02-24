@@ -102,10 +102,7 @@
 					<div class="mt-2">
 						<!-- Stats cards with improved layout -->
 						<div class="flex flex-wrap justify-between gap-2">
-							<div
-								class="bg-gray-700/30 rounded-lg p-3 flex-1 backdrop-blur-sm"
-								class:hidden={!showBalance}
-							>
+							<div class="bg-gray-700/30 rounded-lg p-3 flex-1" class:hidden={!showBalance}>
 								<!-- <p class="text-xs uppercase text-indigo-200 font-semibold">Balance</p> -->
 								<p class="font-mono text-xl mt-1 flex items-center">
 									{$balanceByMint?.[mintUrl] || 0 || '0'}
@@ -113,7 +110,7 @@
 								</p>
 							</div>
 
-							<div class="bg-gray-700/30 rounded-lg p-3 flex-1 backdrop-blur-sm">
+							<div class="bg-gray-700/30 rounded-lg p-3 flex-1">
 								<p class="text-xs uppercase text-indigo-200 font-semibold">Health</p>
 								<div class="mt-2 relative h-6 w-full bg-gray-200 rounded-full">
 									{#if errorRatio !== 'N/A'}

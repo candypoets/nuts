@@ -131,11 +131,7 @@
 			const requests = buildRequests();
 			if (requests.length > 0) {
 				unsubscribe?.();
-				unsubscribe = useSubscription(
-					'kind4_' + pubkey,
-					requests,
-					handleEvents
-				);
+				unsubscribe = useSubscription('kind4_' + pubkey, requests, handleEvents);
 			}
 		}
 	}
@@ -237,7 +233,7 @@
 			<div />
 		</div>
 		<div
-			class="fixed bottom-0 w-feed pb-safe md:pb-4 backdrop-blur-xl px-4 flex items-center"
+			class="fixed bottom-0 w-feed pb-safe md:pb-4 px-4 flex items-center"
 			style="-webkit-backdrop-filter: blur(12px);"
 		>
 			<Editor
@@ -279,7 +275,8 @@
 				dmItems[index - 1]?.pubkey?.()?.fnv1aHash() != post.pubkey?.()?.fnv1aHash()}
 			incoming={post.pubkey()?.toString() == pubkey}
 			lastSent={post.pubkey()?.toString() == pubkey && index == dmItems.length - 1}
-			date={dmItems.length - 1 == index || oneDayDiff(post.createdAt(), dmItems[index - 1]?.createdAt())}
+			date={dmItems.length - 1 == index ||
+				oneDayDiff(post.createdAt(), dmItems[index - 1]?.createdAt())}
 			sent={sendingMap.get(getNonce(post) || '')}
 		/>
 	</svelte:fragment>

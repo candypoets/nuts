@@ -2,7 +2,11 @@
 	import { goto } from '$app/navigation';
 	import type { ParsedEvent, RequestObject, WorkerMessage } from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
-	import { asParsedEvent, asConnectionStatus, ConnectionTracker } from '@candypoets/nipworker/utils';
+	import {
+		asParsedEvent,
+		asConnectionStatus,
+		ConnectionTracker
+	} from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { key, lastNotificationView, writeRelays } from 'src/controller';
 	import Feed from 'src/routes/explore/feed.svelte';
@@ -16,7 +20,7 @@
 	export let goBack: () => void;
 
 	let loading = true;
-	
+
 	// Raw events from subscription
 	let rawEvents: ParsedEvent[] = [];
 	// Processed notifications (grouped by type)
@@ -73,7 +77,7 @@
 
 		const eventId = parsedEvent.id()?.toString();
 		if (!eventId) return;
-		
+
 		// Check Set first (O(1)) for duplicate detection
 		if (seenEventIds.has(eventId)) return;
 		seenEventIds.add(eventId);
@@ -86,11 +90,11 @@
 
 	// Initialize subscription
 	let hasInitialized = false;
-	
+
 	function initSubscription() {
 		if (!visible || !$key?.pub) return;
 		if (hasInitialized) return;
-		
+
 		// Clear previous state BEFORE marking initialized
 		// This prevents race conditions with synchronous cached events
 		rawEvents = [];
@@ -101,15 +105,12 @@
 		if (requests.length > 0) {
 			unsubscribe?.();
 			connectionTracker = new ConnectionTracker();
-			unsubscribe = useSubscription(
-				'notifications_' + $key.pub,
-				requests,
-				handleEvents,
-				{ bytesPerEvent: 10 * 1024 }
-			);
+			unsubscribe = useSubscription('notifications_' + $key.pub, requests, handleEvents, {
+				bytesPerEvent: 10 * 1024
+			});
 		}
 	}
-	
+
 	$: if (visible && $key?.pub && !hasInitialized) {
 		initSubscription();
 	}
@@ -147,7 +148,7 @@
 >
 	<svelte:fragment slot="sticky-header">
 		<div
-			class="w-feed pt-safe bg-base-300 bg-opacity-85 backdrop-blur-gpu mt-1 rounded-lg h-20 pb-2 flex items-center justify-between shadow-sm"
+			class="w-feed pt-safe bg-base-300 bg-opacity-85 mt-1 rounded-lg h-20 pb-2 flex items-center justify-between shadow-sm"
 		>
 			<button on:click={() => goBack()} class="p-1 rounded-full hover:bg-base-200 mx-4">
 				<Icon icon="mdi:arrow-left" class="text-xl" />
@@ -189,7 +190,8 @@
 					</div>
 					<div class="mt-2 pl-6 text-sm text-gray-600">
 						{#if parsed.originalPost}
-							"{parsed.originalPost.content?.substring(0, 100)}{parsed.originalPost.content?.length > 100
+							"{parsed.originalPost.content?.substring(0, 100)}{parsed.originalPost.content
+								?.length > 100
 								? '...'
 								: ''}"
 						{/if}

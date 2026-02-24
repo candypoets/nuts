@@ -80,8 +80,10 @@
 
 	$: walletReadRelays =
 		$walletKind10019 &&
-		(fbArray(asKind10019($walletKind10019) as Kind10019Parsed, 'readRelays')
-			?.map((r) => r.toString()) || []);
+		(fbArray(asKind10019($walletKind10019) as Kind10019Parsed, 'readRelays')?.map((r) =>
+			r.toString()
+		) ||
+			[]);
 
 	$: zapReceiptRelays = uniqueRelays([
 		...receiptRelays,
@@ -340,20 +342,15 @@
 			console.log('send zap', amount, fromMint, lnurl);
 
 			// Create zap request (kind 9734) for NIP-57 compliance
-			const finalReceiptRelays = zapReceiptRelays.length > 0
-				? zapReceiptRelays
-				: ['wss://relay.damus.io', 'wss://nos.lol'];
+			const finalReceiptRelays =
+				zapReceiptRelays.length > 0 ? zapReceiptRelays : ['wss://relay.damus.io', 'wss://nos.lol'];
 			console.log('[zap] Final receipt relays for LNURL:', finalReceiptRelays);
 
 			const zapRequest = {
 				kind: 9734,
 				content: memo,
 				created_at: now(),
-				tags: [
-					['p', pubkey],
-					...(noteId ? [['e', noteId]] : []),
-					['relays', ...finalReceiptRelays]
-				]
+				tags: [['p', pubkey], ...(noteId ? [['e', noteId]] : []), ['relays', ...finalReceiptRelays]]
 			};
 			console.log('[zap] Zap request:', zapRequest);
 
@@ -563,7 +560,7 @@
 
 <div class="flex items-start md:items-center h-screen" on:click|stopPropagation={animator.goBack}>
 	<div
-		class="bg-base-300 bg-opacity-85 md:border border-primary-content w-full rounded-xl md:p-4 md:max-h-[90vh] md:h-auto backdrop-blur-sm pt-safe h-screen"
+		class="bg-base-300 bg-opacity-85 md:border border-primary-content w-full rounded-xl md:p-4 md:max-h-[90vh] md:h-auto pt-safe h-screen"
 		on:click|stopPropagation
 	>
 		<VirtualList items={[]} height="100%" bind:viewport={scroller} getItemId={() => 'header'}>
@@ -631,8 +628,8 @@
 											autocomplete="off"
 											bind:value={amount}
 											class="join-item text-7xl bg-transparent caret-transparent focus:outline-none text-center max-w-xs rounded-xl"
-											on:focus={() => amountInputFocused = true}
-											on:blur={() => amountInputFocused = false}
+											on:focus={() => (amountInputFocused = true)}
+											on:blur={() => (amountInputFocused = false)}
 											on:keydown|stopPropagation={(e) => {
 												if (!!processing) return;
 												if (e.key === 'Enter') {

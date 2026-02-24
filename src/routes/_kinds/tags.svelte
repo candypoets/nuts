@@ -109,10 +109,7 @@
 				class="w-feed pt-safe border-primary-content h-20 flex items-center justify-between bg-base-300 bg-opacity-90 rounded-lg px-4"
 			>
 				<div class="flex gap-2">
-					<button
-						on:click={goBack}
-						class="p-1 rounded-full bg-base-200 bg-opacity-85 backdrop-blur-gpu mr-4"
-					>
+					<button on:click={goBack} class="p-1 rounded-full bg-base-200 bg-opacity-85 mr-4">
 						<Icon icon="mdi:arrow-left" class="text-xl" />
 					</button>
 					<h1 class="text-lg font-semibold text-primary">

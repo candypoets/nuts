@@ -253,7 +253,7 @@
 		backdrop={!chatItems.length}
 	>
 		<svelte:fragment slot="sticky-header">
-			<div class="relative pt-safe bg-base-300 bg-opacity-50 backdrop-blur-xl">
+			<div class="relative pt-safe bg-base-300 bg-opacity-50">
 				<div class="flex justify-between w-feed lg:m-auto h-16 items-center">
 					<h1 class="text-2xl font-semibold">BM</h1>
 					<button class="btn btn-circle btn-sm btn-primary">
