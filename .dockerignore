@@ -4,6 +4,7 @@ node_modules
 # Ignore build outputs (generated during build)
 build
 dist
+.svelte-kit
 
 # Ignore logs and temp files
 *.log

@@ -28,6 +28,9 @@ RUN npm install
 # Copy source code
 COPY . .
 
+# Clean any cached SvelteKit/build artifacts (prevents stale cache issues)
+RUN rm -rf .svelte-kit build
+
 # Build the application
 RUN npm run build
 
