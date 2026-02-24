@@ -29,9 +29,7 @@
 		if (isLightningInvoice(decodedText)) {
 			console.log('[scan] Lightning invoice detected');
 			// Strip "lightning:" prefix if present (BIP-21 URI format)
-			const invoice = decodedText.startsWith('lightning:') 
-				? decodedText.slice(10) 
-				: decodedText;
+			const invoice = decodedText.startsWith('lightning:') ? decodedText.slice(10) : decodedText;
 			// Encode the invoice to handle special characters safely
 			go('melt:' + encodeURIComponent(invoice));
 			// open the melt modal
@@ -82,6 +80,6 @@
 	});
 </script>
 
-<div class="h-screen bg-base-300 bg-opacity-85 backdrop-blur-md flex items-center pt-safe">
+<div class="h-screen bg-base-300 bg-opacity-85 flex items-center pt-safe">
 	<div id="reader" class="w-full bg-white blur-0 h-auto"></div>
 </div>

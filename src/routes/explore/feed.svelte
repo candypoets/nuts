@@ -60,7 +60,7 @@
 		<!-- Fixed header (only visible when scrolled) -->
 		<div class="absolute z-10 w-full sticky-header" style="--header-visible: {down ? 0 : 1};">
 			<div
-				class="w-feed m-auto backdrop-blur-md"
+				class="w-feed m-auto"
 				style="-webkit-backdrop-filter: blur(12px);"
 				on:click={() => viewport?.scrollTo({ top: 0, behavior: 'smooth' })}
 			>
@@ -100,7 +100,7 @@
 		{onRefresh}
 		{pullToRefresh}
 	>
-		{@const screenVisible = itemIndex >= (start - 5)}
+		{@const screenVisible = itemIndex >= start - 5}
 		{@const subVisible = visible}
 		<svelte:fragment slot="feed-header">
 			<slot name="header" visible>Missing Template</slot>
@@ -117,11 +117,7 @@
 					visible={subVisible}
 					index={itemIndex}
 				>
-					<Note
-						note={item}
-						context={[]}
-						visible={subVisible}
-					/>
+					<Note note={item} context={[]} visible={subVisible} />
 				</slot>
 			</Placeholder>
 		</div>

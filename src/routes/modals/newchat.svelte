@@ -88,7 +88,9 @@
 			const name = k0?.name?.()?.toString()?.toLowerCase() ?? '';
 			const content = c?.content?.()?.toString()?.toLowerCase() ?? '';
 			const pubkey = c?.pubkey?.()?.toString()?.toLowerCase() ?? '';
-			return name.includes(searchTerm) || content.includes(searchTerm) || pubkey.includes(searchTerm);
+			return (
+				name.includes(searchTerm) || content.includes(searchTerm) || pubkey.includes(searchTerm)
+			);
 		})
 		.sort((a, b) => {
 			const nameA = asKind0(a)?.name()?.toString()?.trim() ?? '';
@@ -99,7 +101,7 @@
 
 {#if !selectedContact}
 	<Feed
-		class="bg-base-300 bg-opacity-85 backdrop-blur-md"
+		class="bg-base-300 bg-opacity-85"
 		items={processedFeed}
 		getItemId={(item) => item?.pubkey?.()?.fnv1aHash?.() ?? Math.random()}
 	>
@@ -164,7 +166,7 @@
 		</svelte:fragment>
 	</Feed>
 {:else}
-	<div class="w-feed bg-base-300 bg-opacity-60 relative backdrop-blur-md">
+	<div class="w-feed bg-base-300 bg-opacity-60 relative">
 		<Kind4 pubkey={selectedContact} goBack={navigator.goBack} visible />
 	</div>
 {/if}

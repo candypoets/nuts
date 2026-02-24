@@ -8,7 +8,7 @@
 	let animator: PagerAnimator = getContext('animator');
 </script>
 
-<div class="bg-base-300 bg-opacity-85 backdrop-blur-md h-screen">
+<div class="bg-base-300 bg-opacity-85 h-screen">
 	<div class="px-4 pt-safe flex justify-between h-20 items-center">
 		<div on:click={animator.goBack}>
 			<Icon icon="mingcute:down-line" class="text-xl" />

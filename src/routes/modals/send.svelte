@@ -45,7 +45,7 @@
 		if (contacts?.length) {
 			// Unsubscribe from previous subscription
 			unsubscribeContacts?.();
-			
+
 			// Reset feed when contacts change
 			feed = [];
 			seenPubkeys.clear();
@@ -91,7 +91,9 @@
 			const name = k0?.name?.()?.toString()?.toLowerCase() ?? '';
 			const content = c?.content?.()?.toString()?.toLowerCase() ?? '';
 			const pubkey = c?.pubkey?.()?.toString()?.toLowerCase() ?? '';
-			return name.includes(searchTerm) || content.includes(searchTerm) || pubkey.includes(searchTerm);
+			return (
+				name.includes(searchTerm) || content.includes(searchTerm) || pubkey.includes(searchTerm)
+			);
 		})
 		.sort((a, b) => {
 			const nameA = asKind0(a)?.name()?.toString().trim() ?? '';
@@ -102,7 +104,7 @@
 
 <!-- <ScanLN bind:invoice={scannedNpub} /> -->
 <Feed
-	class="bg-base-300 bg-opacity-85 backdrop-blur-md"
+	class="bg-base-300 bg-opacity-85"
 	items={processedFeed}
 	getItemId={(item) => item?.pubkey?.()?.fnv1aHash?.() ?? Math.random()}
 >

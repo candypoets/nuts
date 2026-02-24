@@ -281,10 +281,7 @@
 	}
 </script>
 
-<div
-	class="h-screen bg-base-300 bg-opacity-85 backdrop-blur-md pt-4 overflow-scroll"
-	on:touchmove|stopPropagation
->
+<div class="h-screen bg-base-300 bg-opacity-85 pt-4 overflow-scroll" on:touchmove|stopPropagation>
 	{#if header}
 		<div class="flex justify-between mb-6 px-4 pt-safe">
 			<button class="w-1/4" aria-label="Return to previous screen" on:click={animator.goBack}>

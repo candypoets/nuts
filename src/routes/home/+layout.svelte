@@ -78,7 +78,7 @@
 
 	// Track seen event IDs for deduplication during refresh
 	let seenEventIds = new Set<number>();
-	
+
 	// Refresh timeout fallback
 	let refreshTimeout: ReturnType<typeof setTimeout> | undefined;
 
@@ -258,9 +258,9 @@
 		// Verify wallet proofs - check if any are spent and clean them up
 		const wallet = get(nutsWallet);
 		if (wallet) {
-			wallet.verifyAndCleanProofs().catch((e) =>
-				console.error('[wallet] Refresh verification failed:', e)
-			);
+			wallet
+				.verifyAndCleanProofs()
+				.catch((e) => console.error('[wallet] Refresh verification failed:', e));
 		}
 
 		// Re-init subscriptions with unique subIds (forces noCache via new subId)
@@ -276,7 +276,13 @@
 			'active_wallet_' + $key?.pub + '_' + refreshCounter,
 			[
 				// { kinds: [7375], authors: [$key?.pub], limit: 10, relays: relays },
-				{ kinds: [17375], authors: [$key?.pub], limit: 10, relays: [...DEFAULT_RELAYS, ...relays], noCache: refreshing }
+				{
+					kinds: [17375],
+					authors: [$key?.pub],
+					limit: 10,
+					relays: [...DEFAULT_RELAYS, ...relays],
+					noCache: refreshing
+				}
 			],
 			handleWalletEvents,
 			{ bytesPerEvent: 6144 }
@@ -338,9 +344,7 @@
 		bind:end
 	>
 		<svelte:fragment slot="header">
-			<div
-				class="w-feed bg-base-300 bg-opacity-85 backdrop-blur-md rounded-lg px-1 shadow-widget-down"
-			>
+			<div class="w-feed bg-base-300 bg-opacity-85 rounded-lg px-1 shadow-widget-down">
 				<div
 					class="relative pt-safe place-content-center m-auto z-10"
 					class:shadow-md={scrollY > 0}
@@ -360,9 +364,9 @@
 								title="Refresh"
 								class="cursor-pointer"
 							>
-								<Icon 
-									icon="mdi:refresh" 
-									class="text-2xl {refreshing ? 'animate-spin' : ''}" 
+								<Icon
+									icon="mdi:refresh"
+									class="text-2xl {refreshing ? 'animate-spin' : ''}"
 									style="transform-origin: center;"
 								/>
 							</button>

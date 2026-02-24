@@ -181,7 +181,7 @@
 <div class="h-screen flex items-end">
 	<!-- Feed-backed modal content -->
 	<Feed
-		class="bg-base-300 bg-opacity-85 backdrop-blur-md w-full !h-2/3 !min-h-fit rounded-t-2xl md:rounded-xl md:h-1/2"
+		class="bg-base-300 bg-opacity-85 w-full !h-2/3 !min-h-fit rounded-t-2xl md:rounded-xl md:h-1/2"
 		items={processedFeed}
 		getItemId={(item) => item?.pubkey?.()?.fnv1aHash?.() ?? Math.random()}
 		stickyFooterVisible={!!selectedContact}
@@ -245,7 +245,7 @@
 
 		<!-- Bottom actions moved into Feed sticky-footer slot -->
 		<svelte:fragment slot="sticky-footer">
-			<div class="p-4 bg-base-300/60 backdrop-blur-md">
+			<div class="p-4 bg-base-300/60">
 				{#if selectedContact}
 					{@const kind0 = asKind0(selectedContact)}
 					<div class="flex items-center space-x-2">

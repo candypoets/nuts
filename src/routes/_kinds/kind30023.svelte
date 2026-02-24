@@ -158,22 +158,24 @@
 		if (!visible || !decoded) return;
 
 		// Use provided relays or fetch from author's relays
-		const initialRelays = decoded.relays?.length
-			? decoded.relays
-			: [];
+		const initialRelays = decoded.relays?.length ? decoded.relays : [];
 
 		if (initialRelays.length > 0) {
 			subscribeWithRelays(initialRelays);
 		} else {
 			// Fetch author's relays
-			relaysSub = getUserRelays(decoded.pubkey, (userRelays) => {
-				if (userRelays.length > 0) {
-					subscribeWithRelays(userRelays);
-				} else {
-					// Fallback to default relays
-					subscribeWithRelays(['wss://relay.damus.io', 'wss://relay.snort.social']);
-				}
-			}, 'read');
+			relaysSub = getUserRelays(
+				decoded.pubkey,
+				(userRelays) => {
+					if (userRelays.length > 0) {
+						subscribeWithRelays(userRelays);
+					} else {
+						// Fallback to default relays
+						subscribeWithRelays(['wss://relay.damus.io', 'wss://relay.snort.social']);
+					}
+				},
+				'read'
+			);
 		}
 	}
 
@@ -213,16 +215,9 @@
 	let imageContext = getContext('imageContext');
 </script>
 
-<Feed
-	items={[]}
-	{visible}
-	{loading}
-	class={imageContext ? 'w-full' : 'w-feed'}
->
+<Feed items={[]} {visible} {loading} class={imageContext ? 'w-full' : 'w-feed'}>
 	<svelte:fragment slot="sticky-header">
-		<div
-			class="px-4 py-3 flex items-center justify-between backdrop-blur-md bg-base-100 bg-opacity-90"
-		>
+		<div class="px-4 py-3 flex items-center justify-between bg-base-100 bg-opacity-90">
 			<button on:click={goBack} class="p-1 rounded-full hover:bg-base-200 mr-4">
 				<Icon icon="mdi:arrow-left" class="text-xl" />
 			</button>
@@ -234,7 +229,7 @@
 	<svelte:fragment slot="header">
 		{#if !imageContext}
 			<div
-				class="w-feed pt-safe border-primary-content h-20 flex items-center justify-between backdrop-blur-md bg-base-300 bg-opacity-90 rounded-lg px-4"
+				class="w-feed pt-safe border-primary-content h-20 flex items-center justify-between bg-base-300 bg-opacity-90 rounded-lg px-4"
 			>
 				<button
 					on:click={goBack}
@@ -290,11 +285,7 @@
 				<!-- Featured Image -->
 				{#if image}
 					<div class="rounded-lg overflow-hidden mb-4">
-						<img
-							src={proxyPreviewUrl(image)}
-							alt={title}
-							class="w-full max-h-96 object-cover"
-						/>
+						<img src={proxyPreviewUrl(image)} alt={title} class="w-full max-h-96 object-cover" />
 					</div>
 				{/if}
 
@@ -308,17 +299,9 @@
 										{@html renderBlock(block)}
 									</p>
 								{:else if block.type === 'image'}
-									<img
-										src={block.data?.src}
-										alt="Article image"
-										class="w-full rounded-lg my-4"
-									/>
+									<img src={block.data?.src} alt="Article image" class="w-full rounded-lg my-4" />
 								{:else if block.type === 'video'}
-									<video
-										src={block.data?.src}
-										controls
-										class="w-full rounded-lg my-4"
-									/>
+									<video src={block.data?.src} controls class="w-full rounded-lg my-4" />
 								{:else if block.type === 'link'}
 									<p class="mb-4">
 										<a
@@ -338,7 +321,9 @@
 										{block.text}
 									</button>
 								{:else if block.type === 'code'}
-									<pre class="bg-base-200 p-4 rounded-lg overflow-x-auto my-4"><code>{block.data?.code}</code></pre>
+									<pre class="bg-base-200 p-4 rounded-lg overflow-x-auto my-4"><code
+											>{block.data?.code}</code
+										></pre>
 								{:else}
 									<span>{block.text}</span>
 								{/if}

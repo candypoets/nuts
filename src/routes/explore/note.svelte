@@ -273,7 +273,7 @@
 {/if}
 
 <div
-	class="py-2 rounded-tl-md backdrop-saturate-150 border-primary-content relative cursor-pointer bg-base-300 bg-opacity-85 backdrop-blur-md mt-1 rounded-lg w-full shadow-widget"
+	class="py-2 rounded-tl-md backdrop-saturate-150 border-primary-content relative cursor-pointer bg-base-300 bg-opacity-85 mt-1 rounded-lg w-full shadow-widget"
 	class:!mt-0={hasRoot || tailing}
 	class:px-2={!!depth}
 	on:click|stopPropagation={goto}

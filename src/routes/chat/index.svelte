@@ -15,7 +15,13 @@
 		type WorkerMessage
 	} from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
-	import { asKind4, asParsedEvent, ConnectionTracker, isConnectionStatus, isKind4 } from '@candypoets/nipworker/utils';
+	import {
+		asKind4,
+		asParsedEvent,
+		ConnectionTracker,
+		isConnectionStatus,
+		isKind4
+	} from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { formatDistanceToNow } from 'date-fns';
 	import { orderBy, uniq } from 'lodash';
@@ -258,7 +264,7 @@
 		</svelte:fragment>
 		<svelte:fragment slot="header">
 			<div
-				class="w-feed relative pt-safe bg-base-300 bg-opacity-85 backdrop-blur-md rounded-lg pb-2 px-1 shadow-widget-down"
+				class="w-feed relative pt-safe bg-base-300 bg-opacity-85 rounded-lg pb-2 px-1 shadow-widget-down"
 			>
 				<div class="flex justify-between m-auto h-16 items-center px-1">
 					<h1 class="text-2xl font-semibold">
@@ -304,7 +310,7 @@
 			{@const k4 = asKind4(post)}
 			<a
 				href={'/chat/' + 'kind4:' + correspondant(post)}
-				class="flex gap-2 h-24 overflow-hidden pt-4 pr-4 pl-1 cursor-pointer bg-base-300 bg-opacity-85 backdrop-blur-md rounded-lg mt-1 shadow-widget"
+				class="flex gap-2 h-24 overflow-hidden pt-4 pr-4 pl-1 cursor-pointer bg-base-300 bg-opacity-85 rounded-lg mt-1 shadow-widget"
 			>
 				<div class="flex-shrink-0">
 					<Avatar pubkey={correspondant(post)} size="xl" />

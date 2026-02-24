@@ -314,13 +314,13 @@
 	// Track when pagination completes with delayed check for late events
 	$: if (!loading && itemsBeforePagination > 0) {
 		const itemsAtCheck = itemsBeforePagination;
-		
+
 		// Clear the timeout if it hasn't fired yet
 		if (paginationTimeout) {
 			clearTimeout(paginationTimeout);
 			paginationTimeout = undefined;
 		}
-		
+
 		// Delay the check to allow late events to arrive via subscription
 		paginationCheckTimeout = setTimeout(() => {
 			const newItemsAdded = feedItems.length - itemsAtCheck;
@@ -425,7 +425,7 @@
 	onNearBottom={handleNearBottom}
 >
 	<svelte:fragment slot="sticky-header">
-		<div class="px-4 py-3 flex items-center justify-between backdrop-blur-md pt-safe">
+		<div class="px-4 py-3 flex items-center justify-between pt-safe">
 			<button on:click={goBack} class="p-1 rounded-full hover:bg-base-200 mr-4">
 				<Icon icon="mdi:arrow-left" class="text-xl" />
 			</button>
@@ -444,7 +444,7 @@
 		{@const about = p?.about()?.toString()}
 		{@const lnaddress = p?.lud16()?.toString() || p?.lud06()?.toString()}
 		<div
-			class="transition-all duration-300 w-feed mx-auto will-change-transform bg-base-300 bg-opacity-85 backdrop-blur-md rounded-lg"
+			class="transition-all duration-300 w-feed mx-auto will-change-transform bg-base-300 bg-opacity-85 rounded-lg"
 			class:relative={visible}
 			class:shadow-md={!visible}
 			class:z-20={!visible}
@@ -511,7 +511,9 @@
 
 						<button
 							class="z-10 btn btn-sm btn-circle border border-white bg-opacity-80"
-							on:click={() => {/* TODO: implement mute */}}
+							on:click={() => {
+								/* TODO: implement mute */
+							}}
 							title="Mute"
 						>
 							<Icon icon="mdi:volume-off" class="text-lg" />

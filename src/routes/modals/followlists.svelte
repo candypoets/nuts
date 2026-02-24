@@ -102,7 +102,7 @@
 	});
 </script>
 
-<div class="h-full bg-base-300 bg-opacity-85 backdrop-blur-md lg:pt-4">
+<div class="h-full bg-base-300 bg-opacity-85 lg:pt-4">
 	<Feed
 		items={processedFeed}
 		getItemId={(item) => item?.id?.()?.fnv1aHash?.() ?? Math.random()}

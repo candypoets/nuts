@@ -228,7 +228,7 @@
 	});
 </script>
 
-<div class="h-screen bg-base-300 bg-opacity-85 backdrop-blur-md overflow-scroll">
+<div class="h-screen bg-base-300 bg-opacity-85 overflow-scroll">
 	<div class="w-feed md:pt-4 pt-safe">
 		<div class="px-4 flex justify-between">
 			<button

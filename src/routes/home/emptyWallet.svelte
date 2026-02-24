@@ -26,7 +26,7 @@
 	}
 </script>
 
-<div class="bg-base-300 bg-opacity-85 backdrop-blur-md rounded-xl p-6 shadow-widget mx-1">
+<div class="bg-base-300 bg-opacity-85 rounded-xl p-6 shadow-widget mx-1">
 	<div class="flex flex-col items-center text-center">
 		<div class="mb-3">
 			<span
