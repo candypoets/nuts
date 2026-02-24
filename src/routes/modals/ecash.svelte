@@ -155,9 +155,12 @@
 							break;
 						case ParsedData.Kind10002Parsed:
 							const kind1002 = asKind10002(parsedEvent) as Kind10002Parsed;
+							// Use write relays since LNURL provider needs to publish receipt there
 							receiptRelays = (fbArray(kind1002, 'relays')
-								?.map((r) => r.read() && r.url()?.toString())
+								?.filter((r) => r.write())
+								.map((r) => r.url()?.toString())
 								.filter(Boolean) || []) as string[];
+							console.log('[zap] Recipient write relays:', receiptRelays);
 							break;
 						case ParsedData.Kind1Parsed:
 							note = parsedEvent;
@@ -336,6 +339,11 @@
 			console.log('send zap', amount, fromMint, lnurl);
 
 			// Create zap request (kind 9734) for NIP-57 compliance
+			const finalReceiptRelays = zapReceiptRelays.length > 0
+				? zapReceiptRelays
+				: ['wss://relay.damus.io', 'wss://nos.lol'];
+			console.log('[zap] Final receipt relays for LNURL:', finalReceiptRelays);
+
 			const zapRequest = {
 				kind: 9734,
 				content: memo,
@@ -343,14 +351,10 @@
 				tags: [
 					['p', pubkey],
 					...(noteId ? [['e', noteId]] : []),
-					[
-						'relays',
-						...(zapReceiptRelays.length > 0
-							? zapReceiptRelays
-							: ['wss://relay.damus.io', 'wss://nos.lol'])
-					]
+					['relays', ...finalReceiptRelays]
 				]
 			};
+			console.log('[zap] Zap request:', zapRequest);
 
 			// Sign the zap request and get invoice
 			await new Promise<void>((resolve, reject) => {

@@ -142,6 +142,7 @@
 
 	// Wallet feed subscription - moved from Feed to parent
 	$: if (visible && $key?.pub && relays?.length) {
+		console.log('[wallet] Starting wallet feed subscription with relays:', relays);
 		unsubscribeWallet?.();
 		unsubscribeWallet = useSubscription(
 			'home_' + $key?.pub,
@@ -177,6 +178,17 @@
 		const event = isParsedEvent(message);
 		const kind9321 = isKind9321(message);
 		const kind9735 = isKind9735(message);
+		
+		// Debug logging for zap receipts
+		if (event && event.kind() === 9735) {
+			console.log('[wallet] Received kind 9735 event:', {
+				id: event.id()?.toString(),
+				pubkey: event.pubkey()?.toString(),
+				tags: event.tags?.(),
+				isKind9735: kind9735
+			});
+		}
+		
 		if ((!kind9321 && !kind9735) || !event) return;
 
 		// Deduplicate by event ID hash (fnv1a)
