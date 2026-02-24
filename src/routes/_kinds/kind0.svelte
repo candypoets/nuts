@@ -65,8 +65,15 @@
 	let loading = false;
 
 	// Track seen event IDs for O(1) duplicate detection
-	let profileSeenIds = new Set<number>();
-	let followsSeenIds = new Set<number>();
+	let profileSeenIds = new Set<string>();
+	let followsSeenIds = new Set<string>();
+
+	// Pagination state
+	let until: number | undefined = undefined;
+	let hasMore = true;
+	let itemsBeforePagination = 0;
+	let paginationTimeout: ReturnType<typeof setTimeout> | undefined;
+	let paginationCheckTimeout: ReturnType<typeof setTimeout> | undefined;
 
 	$: feedItems = mode === 'profile' ? profileFeedItems : followsFeedItems;
 	$: seenIds = mode === 'profile' ? profileSeenIds : followsSeenIds;
@@ -133,7 +140,7 @@
 		const kind1 = asKind1(parsedEvent);
 		if (kind1) {
 			// Add kind 1 events to appropriate feed based on mode
-			const eventId = parsedEvent.id()?.fnv1aHash();
+			const eventId = parsedEvent.id()?.toString();
 			if (!eventId) return;
 
 			// Check Set first for O(1) duplicate detection
@@ -152,7 +159,6 @@
 				profileFeedItems = [...profileFeedItems, parsedEvent].sort(
 					(a, b) => b.createdAt() - a.createdAt()
 				);
-				loading = false;
 			} else {
 				if (followsSeenIds.has(eventId)) return;
 				const reply = kind1.reply()?.id();
@@ -168,8 +174,9 @@
 				followsFeedItems = [...followsFeedItems, parsedEvent].sort(
 					(a, b) => b.createdAt() - a.createdAt()
 				);
-				loading = false;
 			}
+			loading = false;
+			console.log('[kind0 Feed] Event processed, mode:', mode, 'profile items:', profileFeedItems.length, 'follows items:', followsFeedItems.length);
 		}
 	}
 
@@ -194,7 +201,11 @@
 		feedSub = undefined;
 	}
 
-	onDestroy(unsubscribe);
+	onDestroy(() => {
+		unsubscribe();
+		if (paginationTimeout) clearTimeout(paginationTimeout);
+		if (paginationCheckTimeout) clearTimeout(paginationCheckTimeout);
+	});
 
 	function updateFollowList() {
 		if (!$kind0) return;
@@ -241,6 +252,99 @@
 				readRelays = DEFAULT_RELAYS;
 			}
 		}, 3000);
+	}
+
+	// Handle near-bottom pagination
+	function handleNearBottom(event: { distance: number }) {
+		console.log('[kind0 Pagination] handleNearBottom:', { distance: event.distance, loading, hasMore, feedItemsLength: feedItems.length, limit: $limit, mode });
+		if (loading || !hasMore || feedItems.length < $limit) {
+			console.log('[kind0 Pagination] Blocked:', { loading, hasMore, feedItemsLength: feedItems.length, limit: $limit });
+			return;
+		}
+
+		loading = true;
+		itemsBeforePagination = feedItems.length;
+		console.log('[kind0 Pagination] Starting pagination, items before:', itemsBeforePagination);
+
+		// Use the createdAt of the last item as until
+		const lastItem = feedItems[feedItems.length - 1];
+		if (lastItem) {
+			until = lastItem.createdAt() - 1;
+		}
+
+		const requests = buildPaginationRequests();
+		console.log('[kind0 Pagination] Requests built:', requests, { until });
+		if (requests.length > 0 && feedRequest) {
+			const pageSubId = feedRequest.subId + '_page_' + until;
+			console.log('[kind0 Pagination] Subscribing with subId:', pageSubId);
+			feedSub = useSubscription(pageSubId, requests, handleFeedEvents, {});
+			// Fallback: clear loading after timeout
+			paginationTimeout = setTimeout(() => {
+				console.log('[kind0 Pagination] Timeout - clearing loading');
+				loading = false;
+			}, 10000);
+		} else {
+			console.log('[kind0 Pagination] No requests or feedRequest, stopping pagination');
+			loading = false;
+			hasMore = false;
+		}
+	}
+
+	function buildPaginationRequests() {
+		if (mode === 'profile' && writeRelays.length > 0) {
+			return [
+				{
+					kinds: [1, 30023],
+					authors: [pubkey],
+					limit: $limit,
+					until,
+					noContext: true,
+					relays: writeRelays
+				}
+			];
+		}
+
+		if (mode === 'follows' && readRelays.length > 0 && contacts.length > 0) {
+			return [
+				{
+					kinds: [1, 30023],
+					authors: contacts.map((c) => c.pubkey()?.toString()).filter(Boolean) as string[],
+					limit: $limit,
+					until,
+					noContext: true,
+					relays: readRelays
+				}
+			];
+		}
+
+		return [];
+	}
+
+	// Track when pagination completes with delayed check for late events
+	$: if (!loading && itemsBeforePagination > 0) {
+		console.log('[kind0 Pagination] EOSE detected, items at check:', itemsBeforePagination, 'current items:', feedItems.length);
+		const itemsAtCheck = itemsBeforePagination;
+		
+		// Clear the timeout if it hasn't fired yet
+		if (paginationTimeout) {
+			clearTimeout(paginationTimeout);
+			paginationTimeout = undefined;
+		}
+		
+		// Delay the check to allow late events to arrive via subscription
+		paginationCheckTimeout = setTimeout(() => {
+			const newItemsAdded = feedItems.length - itemsAtCheck;
+			console.log('[kind0 Pagination] Check after delay:', { newItemsAdded, totalItems: feedItems.length, itemsAtCheck });
+			if (newItemsAdded === 0) {
+				hasMore = false;
+				console.log('[kind0 Pagination] No more items');
+			}
+			itemsBeforePagination = 0;
+			// Clean up pagination subscription after a delay
+			setTimeout(() => {
+				feedSub?.();
+			}, 5000);
+		}, 500); // Wait 500ms for late events to arrive
 	}
 
 	// Reactively compute feed request based on mode and dependencies
@@ -330,6 +434,7 @@
 	getItemId={(item) => item?.id?.()?.fnv1aHash?.() ?? Math.random()}
 	{visible}
 	{loading}
+	onNearBottom={handleNearBottom}
 >
 	<svelte:fragment slot="sticky-header">
 		<div class="px-4 py-3 flex items-center justify-between backdrop-blur-md pt-safe">
