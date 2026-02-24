@@ -122,9 +122,6 @@
 		unsubscribe = undefined;
 		connectionTracker = undefined;
 		hasInitialized = false;
-		// Clear all state to prevent mixing when reopening
-		rawEvents = [];
-		seenEventIds.clear();
 	}
 
 	onMount(() => {
