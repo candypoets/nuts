@@ -176,7 +176,6 @@
 				);
 			}
 			loading = false;
-			console.log('[kind0 Feed] Event processed, mode:', mode, 'profile items:', profileFeedItems.length, 'follows items:', followsFeedItems.length);
 		}
 	}
 
@@ -256,16 +255,11 @@
 
 	// Handle near-bottom pagination
 	function handleNearBottom(event: { distance: number }) {
-		console.log('[kind0 Pagination] handleNearBottom:', { distance: event.distance, loading, hasMore, feedItemsLength: feedItems.length, limit: $limit, mode });
 		// Only require at least 1 item to use as cursor, not full $limit
-		if (loading || !hasMore || feedItems.length === 0) {
-			console.log('[kind0 Pagination] Blocked:', { loading, hasMore, feedItemsLength: feedItems.length });
-			return;
-		}
+		if (loading || !hasMore || feedItems.length === 0) return;
 
 		loading = true;
 		itemsBeforePagination = feedItems.length;
-		console.log('[kind0 Pagination] Starting pagination, items before:', itemsBeforePagination);
 
 		// Use the createdAt of the last item as until
 		const lastItem = feedItems[feedItems.length - 1];
@@ -274,18 +268,14 @@
 		}
 
 		const requests = buildPaginationRequests();
-		console.log('[kind0 Pagination] Requests built:', requests, { until });
 		if (requests.length > 0 && feedRequest) {
 			const pageSubId = feedRequest.subId + '_page_' + until;
-			console.log('[kind0 Pagination] Subscribing with subId:', pageSubId);
 			feedSub = useSubscription(pageSubId, requests, handleFeedEvents, {});
 			// Fallback: clear loading after timeout
 			paginationTimeout = setTimeout(() => {
-				console.log('[kind0 Pagination] Timeout - clearing loading');
 				loading = false;
 			}, 10000);
 		} else {
-			console.log('[kind0 Pagination] No requests or feedRequest, stopping pagination');
 			loading = false;
 			hasMore = false;
 		}
@@ -323,7 +313,6 @@
 
 	// Track when pagination completes with delayed check for late events
 	$: if (!loading && itemsBeforePagination > 0) {
-		console.log('[kind0 Pagination] EOSE detected, items at check:', itemsBeforePagination, 'current items:', feedItems.length);
 		const itemsAtCheck = itemsBeforePagination;
 		
 		// Clear the timeout if it hasn't fired yet
@@ -335,10 +324,8 @@
 		// Delay the check to allow late events to arrive via subscription
 		paginationCheckTimeout = setTimeout(() => {
 			const newItemsAdded = feedItems.length - itemsAtCheck;
-			console.log('[kind0 Pagination] Check after delay:', { newItemsAdded, totalItems: feedItems.length, itemsAtCheck });
 			if (newItemsAdded === 0) {
 				hasMore = false;
-				console.log('[kind0 Pagination] No more items');
 			}
 			itemsBeforePagination = 0;
 			// Clean up pagination subscription after a delay
