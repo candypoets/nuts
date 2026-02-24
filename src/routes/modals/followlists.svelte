@@ -1,5 +1,10 @@
 <script lang="ts">
-	import type { ParsedEvent, RequestObject, WorkerMessage } from '@candypoets/nipworker';
+	import {
+		ParsedData,
+		type ParsedEvent,
+		type RequestObject,
+		type WorkerMessage
+	} from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import { asNip51, fbArray, isNip51, isParsedEvent } from '@candypoets/nipworker/utils';
 
@@ -22,7 +27,11 @@
 	// Combine followList with fetched packs, avoiding duplicates
 	let otherPacks: ParsedEvent[] = [];
 	$: feed = [$followList, ...otherPacks];
-	
+
+	$: console.log('followlist', $followList, asNip51($followList));
+
+	console.log('parsedtype', $followList?.parsedType?.(), ParsedData.ListParsed);
+
 	let seenEventIds = new Set<number>();
 	let loading = false;
 
@@ -43,7 +52,6 @@
 		const parsedEvent = isParsedEvent(message);
 		if (!parsedEvent) return;
 
-		console.log('hey', asNip51(parsedEvent), isParsedEvent(message));
 		const kindList = isNip51(message);
 		if (!kindList) return;
 		if (!kindList?.title()) return;
@@ -57,7 +65,6 @@
 		if (parsedEvent.id()?.toString() === 'followlist') return;
 
 		otherPacks = [...otherPacks, parsedEvent].sort((a, b) => b.createdAt() - a.createdAt());
-		console.log('new event');
 		loading = false;
 	}
 

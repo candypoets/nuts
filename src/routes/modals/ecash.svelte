@@ -123,6 +123,7 @@
 	let fees: number | undefined;
 	let meltquote: MeltQuoteResponse | undefined;
 	let mintquote: MintQuoteResponse | undefined;
+	let amountInputFocused = false;
 
 	const resetState = () => {
 		fees = undefined;
@@ -617,7 +618,7 @@
 					<div>
 						<div class="w-full gap-3">
 							<div class="md:h-52 flex flex-col items-center">
-								{#if !status && !processing}
+								{#if !status && (!processing || amountInputFocused)}
 									<div class="join items-center mt-10">
 										<div class="join-item w-0">
 											<Icon icon="bitcoin-icons:satoshi-v2-filled" class="text-4xl" />
@@ -630,6 +631,8 @@
 											autocomplete="off"
 											bind:value={amount}
 											class="join-item text-7xl bg-transparent caret-transparent focus:outline-none text-center max-w-xs rounded-xl"
+											on:focus={() => amountInputFocused = true}
+											on:blur={() => amountInputFocused = false}
 											on:keydown|stopPropagation={(e) => {
 												if (!!processing) return;
 												if (e.key === 'Enter') {
