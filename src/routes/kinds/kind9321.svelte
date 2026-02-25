@@ -122,7 +122,7 @@
 <!-- <div class="break-words">{JSON.stringify(decoded)}</div> -->
 <!-- Added role, tabindex and keydown for accessibility -->
 <div
-	class="p-4 cursor-pointer border-x border-b border-primary-content bg-base-300 bg-opacity-85"
+	class="p-4 cursor-pointer border-x border-b border-primary-content bg-base-300 bg-opacity-85 relative"
 	class:rounded-t-lg={isFirst}
 	class:rounded-b-lg={isLast}
 	class:border-t={isFirst}

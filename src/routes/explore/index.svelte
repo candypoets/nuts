@@ -519,7 +519,7 @@
 			<div class="md:pb-4 pb-safe md:px-6 px-2">
 				<div
 					on:click|stopPropagation={(_) => go('post')}
-					class="px-4 py-2 rounded-full border border-accent"
+					class="px-4 py-2 rounded-full border border-accent backdrop-blur-md"
 				>
 					What's up?
 				</div>

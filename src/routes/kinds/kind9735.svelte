@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { Kind9735Parsed, WorkerMessage, type ParsedEvent } from '@candypoets/nipworker';
+	import { WorkerMessage, type ParsedEvent } from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
-	import { asKind9735, asParsedEvent, fbArray, isKind10002 } from '@candypoets/nipworker/utils';
+	import { asKind9735, fbArray, isKind10002 } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { formatDate } from 'date-fns';
 	import { nip19 } from 'nostr-tools';
@@ -78,7 +78,7 @@
 <!-- <div class="break-words">{JSON.stringify(decoded)}</div> -->
 <!-- Added role, tabindex and keydown for accessibility -->
 <div
-	class="p-4 cursor-pointer border-x border-b border-primary-content bg-base-300 bg-opacity-85"
+	class="p-4 cursor-pointer border-x border-b border-primary-content bg-base-300 bg-opacity-85 relative"
 	class:rounded-t-lg={isFirst}
 	class:rounded-b-lg={isLast}
 	class:border-t={isFirst}
