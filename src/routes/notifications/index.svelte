@@ -10,7 +10,7 @@
 	import Icon from '@iconify/svelte';
 	import { key, lastNotificationView, writeRelays } from 'src/controller';
 	import Feed from 'src/routes/explore/feed.svelte';
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import { processNotifications, type ProcessedNotification } from './notifications';
 	import Reactions from './reactions.svelte';
 	import Replies from './replies.svelte';
@@ -33,23 +33,32 @@
 	let unsubscribe: (() => void) | undefined;
 	let connectionTracker: ConnectionTracker | undefined;
 
+	// Pagination state
+	let until: number | undefined = undefined;
+	let hasMore = true;
+	let paginationCounter = 0;
+	let itemsBeforePagination = 0;
+	let paginationTimeout: ReturnType<typeof setTimeout> | undefined;
+	let prevPaginationSubId: string | undefined = undefined;
+
 	// Build subscription requests
-	function buildRequests(): RequestObject[] {
+	function buildRequests(isPagination = false): RequestObject[] {
 		if (!$key?.pub) {
 			return [];
 		}
 
-		return [
+		const req: RequestObject = {
 			// Mentions of user, reactions to user's posts, reposts of user's content
-			// Use only noCache to avoid race conditions between cache and fresh fetch
-			{
-				kinds: [1, 7, 6],
-				tags: { '#p': [$key.pub] },
-				limit: 50,
-				relays: $writeRelays,
-				noCache: true
-			}
-		];
+			kinds: [1, 7, 6],
+			tags: { '#p': [$key.pub] },
+			limit: 50,
+			relays: $writeRelays,
+			noCache: true
+		};
+		if (isPagination && until) {
+			req.until = until;
+		}
+		return [req];
 	}
 
 	// Handle incoming events from subscription
@@ -91,23 +100,38 @@
 	// Initialize subscription
 	let hasInitialized = false;
 
-	function initSubscription() {
+	function initSubscription(isPagination = false) {
 		if (!visible || !$key?.pub) return;
-		if (hasInitialized) return;
+		if (!isPagination && hasInitialized) return;
 
-		// Clear previous state BEFORE marking initialized
-		// This prevents race conditions with synchronous cached events
-		rawEvents = [];
-		seenEventIds.clear();
-		hasInitialized = true;
+		if (!isPagination) {
+			// Clear previous state BEFORE marking initialized
+			// This prevents race conditions with synchronous cached events
+			rawEvents = [];
+			seenEventIds.clear();
+			hasInitialized = true;
+		}
 		loading = true;
-		const requests = buildRequests();
+		const requests = buildRequests(isPagination);
 		if (requests.length > 0) {
-			unsubscribe?.();
+			const subId = isPagination
+				? 'notifications_page_' + $key.pub + '_' + paginationCounter + '_' + until
+				: 'notifications_' + $key.pub;
+			if (!isPagination) {
+				unsubscribe?.();
+			}
 			connectionTracker = new ConnectionTracker();
-			unsubscribe = useSubscription('notifications_' + $key.pub, requests, handleEvents, {
-				bytesPerEvent: 10 * 1024
+			const unsub = useSubscription(subId, requests, handleEvents, {
+				bytesPerEvent: 10 * 1024,
+				pagination: isPagination ? prevPaginationSubId : undefined
 			});
+			if (!isPagination) {
+				unsubscribe = unsub;
+			}
+			// Track this subId for next pagination
+			if (isPagination) {
+				prevPaginationSubId = subId;
+			}
 		}
 	}
 
@@ -130,6 +154,61 @@
 			unsubscribe?.();
 		};
 	});
+
+	onDestroy(() => {
+		unsubscribe?.();
+		if (paginationTimeout) clearTimeout(paginationTimeout);
+		prevPaginationSubId = undefined;
+	});
+
+	// Handle near-bottom pagination
+	function handleNearBottom(event: { distance: number }) {
+		console.log('[Notifications] handleNearBottom called', { loading, hasMore, rawEventsLength: rawEvents.length });
+		if (loading || !hasMore || rawEvents.length === 0) {
+			console.log('[Notifications] Pagination blocked:', { loading, hasMore, rawEventsLength: rawEvents.length });
+			return;
+		}
+
+		loading = true;
+		itemsBeforePagination = rawEvents.length;
+		paginationCounter++;
+
+		// Use the createdAt of an item ~5 positions back as until (with overlap buffer)
+		const overlapIndex = Math.max(0, rawEvents.length - 6);
+		const cursorItem = rawEvents[overlapIndex];
+		if (cursorItem) {
+			until = cursorItem.createdAt() - 1;
+			console.log('[Notifications] Pagination cursor at index', overlapIndex, 'of', rawEvents.length, 'timestamp:', until);
+		}
+
+		initSubscription(true);
+
+		// Fallback: clear loading after timeout if EOSE isn't received
+		paginationTimeout = setTimeout(() => {
+			console.log('[Notifications] Pagination timeout, clearing loading state');
+			loading = false;
+		}, 10000);
+	}
+
+	// Track when pagination completes and check if new items were added
+	$: if (!loading && itemsBeforePagination > 0) {
+		const itemsAtCheck = itemsBeforePagination;
+
+		// Clear the timeout if it hasn't fired yet
+		if (paginationTimeout) {
+			clearTimeout(paginationTimeout);
+			paginationTimeout = undefined;
+		}
+
+		// Check if we actually got new items
+		const newItemsAdded = rawEvents.length - itemsAtCheck;
+		console.log('[Notifications] Pagination complete. New items added:', newItemsAdded);
+		if (newItemsAdded === 0) {
+			hasMore = false;
+			console.log('[Notifications] No more data available');
+		}
+		itemsBeforePagination = 0;
+	}
 </script>
 
 <!-- Header for the page -->
@@ -145,6 +224,7 @@
 		}
 		return Math.random().toString();
 	}}
+	onNearBottom={handleNearBottom}
 >
 	<svelte:fragment slot="sticky-header">
 		<div

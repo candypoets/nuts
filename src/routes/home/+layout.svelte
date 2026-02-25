@@ -1,7 +1,6 @@
 <script lang="ts">
 	import {
 		Kind10019Parsed,
-		MuteFilterPipeConfigT,
 		ParsePipeConfigT,
 		PipeConfig,
 		PipeT,
@@ -17,7 +16,6 @@
 		asKind10019,
 		asKind9321,
 		asKind9735,
-		asParsedEvent,
 		ConnectionTracker,
 		fbArray,
 		fbIterable,
@@ -29,9 +27,10 @@
 		isValidProofs
 	} from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
-	import { onMount, onDestroy } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import { get } from 'svelte/store';
 
+	import { normalizeURL } from 'nostr-tools/utils';
 	import Connect from 'src/components/Connect.svelte';
 	import Pager from 'src/components/Pager.svelte';
 	import RelaysList from 'src/components/RelaysList.svelte';
@@ -47,6 +46,8 @@
 	} from 'src/controller/nostr';
 	import { addProofs, nutsWallet, setNutsWallet } from 'src/controller/proofs';
 	import { activeMintUrl, walletLoaded } from 'src/controller/wallet';
+	import { DEFAULT_RELAYS } from 'src/lib/env';
+	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import { normalizeMintURL } from 'src/lib/utils';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import MintCard from 'src/routes/home/components/mintcard.svelte';
@@ -54,10 +55,6 @@
 	import Kind9735 from 'src/routes/kinds/kind9735.svelte';
 	import { go } from 'src/routes/modals/modal';
 	import EmptyWallet from './emptyWallet.svelte';
-	import { DEFAULT_MINTS } from 'src/lib/wallet';
-	import { DEFAULT_RELAYS } from 'src/lib/env';
-	import { proxyAvatarUrl } from 'src/lib/proxy';
-	import { normalizeURL } from 'nostr-tools/utils';
 
 	export let visible = false;
 
@@ -83,6 +80,13 @@
 
 	// Refresh timeout fallback
 	let refreshTimeout: ReturnType<typeof setTimeout> | undefined;
+
+	// Pagination state
+	let until: number | undefined = undefined;
+	let hasMore = true;
+	let paginationCounter = 0;
+	let itemsBeforePagination = 0;
+	let paginationTimeout: ReturnType<typeof setTimeout> | undefined;
 
 	function oneDayDiff(firstTimestampInSeconds: number, secondTimestampInSeconds: number): boolean {
 		const differenceInSeconds = Math.abs(firstTimestampInSeconds - secondTimestampInSeconds);
@@ -113,6 +117,7 @@
 	let unsubscribeWallet: (() => void) | undefined;
 	let unsubscribeProofs: (() => void) | undefined;
 	let unsubscribeActiveWallet: (() => void) | undefined;
+	let prevPaginationSubId: string | undefined = undefined;
 
 	let proofs: () => void;
 
@@ -164,39 +169,57 @@
 		initProofsSubscription();
 	}
 
+	// Build requests for wallet feed subscription
+	function buildWalletRequests(isPagination = false): { kinds: number[]; authors?: string[]; tags?: Record<string, string[]>; limit: number; relays: string[]; noCache?: boolean; until?: number }[] {
+		const baseReq = {
+			limit: 50,
+			relays: relays,
+			noCache: refreshing
+		};
+		if (isPagination && until) {
+			(baseReq as typeof baseReq & { until: number }).until = until;
+		}
+		return [
+			{
+				...baseReq,
+				kinds: [9321, 9735],
+				authors: [$key?.pub]
+			},
+			{
+				...baseReq,
+				kinds: [9321, 9735],
+				tags: { '#p': [$key?.pub] }
+			},
+			{
+				...baseReq,
+				kinds: [9735],
+				tags: { '#P': [$key?.pub] }
+			}
+		];
+	}
+
 	// Wallet feed subscription - moved from Feed to parent
-	function initWalletFeedSubscription() {
+	function initWalletFeedSubscription(isPagination = false) {
 		if (!visible || !$key?.pub || !relays?.length) return;
-		console.log('[wallet] Starting wallet feed subscription with relays:', relays);
-		unsubscribeWallet?.();
-		unsubscribeWallet = useSubscription(
-			'home_' + $key?.pub + '_' + refreshCounter,
-			[
-				{
-					kinds: [9321, 9735],
-					authors: [$key?.pub],
-					limit: 50,
-					relays: relays,
-					noCache: refreshing
-				},
-				{
-					kinds: [9321, 9735],
-					tags: { '#p': [$key?.pub] },
-					limit: 50,
-					relays: relays,
-					noCache: refreshing
-				},
-				{
-					// Outgoing lightning zaps (kind 9735 with uppercase P tag = sender)
-					kinds: [9735],
-					tags: { '#P': [$key?.pub] },
-					limit: 50,
-					relays: relays,
-					noCache: refreshing
-				}
-			],
-			handleWalletFeedEvents
-		);
+		console.log('[wallet] Starting wallet feed subscription with relays:', relays, 'isPagination:', isPagination);
+		if (!isPagination) {
+			unsubscribeWallet?.();
+		}
+		const subId = isPagination
+			? 'home_page_' + $key?.pub + '_' + paginationCounter + '_' + until
+			: 'home_' + $key?.pub + '_' + refreshCounter;
+		const requests = buildWalletRequests(isPagination);
+		const unsubscribe = useSubscription(subId, requests, handleWalletFeedEvents, {
+			pagination: isPagination ? prevPaginationSubId : undefined
+		});
+		// Track this subId for next pagination
+		if (isPagination) {
+			prevPaginationSubId = subId;
+		}
+		if (!isPagination) {
+			unsubscribeWallet = unsubscribe;
+		}
+		return unsubscribe;
 	}
 
 	$: if (visible && $key?.pub && relays?.length) {
@@ -207,16 +230,6 @@
 		const event = isParsedEvent(message);
 		const kind9321 = isKind9321(message);
 		const kind9735 = isKind9735(message);
-
-		// Debug logging for zap receipts
-		if (event && event.kind() === 9735) {
-			console.log('[wallet] Received kind 9735 event:', {
-				id: event.id()?.toString(),
-				pubkey: event.pubkey()?.toString(),
-				tags: event.tags?.(),
-				isKind9735: kind9735
-			});
-		}
 
 		if ((!kind9321 && !kind9735) || !event) return;
 
@@ -239,7 +252,59 @@
 		unsubscribeProofs?.();
 		unsubscribeActiveWallet?.();
 		if (refreshTimeout) clearTimeout(refreshTimeout);
+		if (paginationTimeout) clearTimeout(paginationTimeout);
+		prevPaginationSubId = undefined;
 	});
+
+	// Handle near-bottom pagination
+	function handleNearBottom(event: { distance: number }) {
+		console.log('[Home] handleNearBottom called', { loading, hasMore, walletItemsLength: walletItems.length });
+		if (loading || !hasMore || walletItems.length === 0) {
+			console.log('[Home] Pagination blocked:', { loading, hasMore, walletItemsLength: walletItems.length });
+			return;
+		}
+
+		loading = true;
+		itemsBeforePagination = walletItems.length;
+		paginationCounter++;
+
+		// Use the createdAt of an item ~5 positions back as until (with overlap buffer)
+		// This prevents gaps if the last few items arrived out of order
+		const overlapIndex = Math.max(0, walletItems.length - 6);
+		const cursorItem = walletItems[overlapIndex];
+		if (cursorItem) {
+			until = cursorItem.createdAt() - 1;
+			console.log('[Home] Pagination cursor at index', overlapIndex, 'of', walletItems.length, 'timestamp:', until);
+		}
+
+		initWalletFeedSubscription(true);
+
+		// Fallback: clear loading after timeout if EOSE isn't received
+		paginationTimeout = setTimeout(() => {
+			console.log('[Home] Pagination timeout, clearing loading state');
+			loading = false;
+		}, 10000);
+	}
+
+	// Track when pagination completes and check if new items were added
+	$: if (!loading && itemsBeforePagination > 0) {
+		const itemsAtCheck = itemsBeforePagination;
+
+		// Clear the timeout if it hasn't fired yet
+		if (paginationTimeout) {
+			clearTimeout(paginationTimeout);
+			paginationTimeout = undefined;
+		}
+
+		// Check if we actually got new items
+		const newItemsAdded = walletItems.length - itemsAtCheck;
+		console.log('[Home] Pagination complete. New items added:', newItemsAdded);
+		if (newItemsAdded === 0) {
+			hasMore = false;
+			console.log('[Home] No more data available');
+		}
+		itemsBeforePagination = 0;
+	}
 
 	// Handle refresh - keep feed items, just refresh data
 	function handleRefresh() {
@@ -343,6 +408,7 @@
 		backdrop={!walletItems.length}
 		pullToRefresh
 		onRefresh={handleRefresh}
+		onNearBottom={handleNearBottom}
 		bind:start
 		bind:end
 	>

@@ -149,8 +149,8 @@ export const followList = derived(kind3, ($kind3) => {
 		new ListParsedT(
 			39089,
 			encoder.encode('followlist'),
-			encoder.encode('followlist'),
-			encoder.encode('people you follow'),
+			encoder.encode('Follow List'),
+			encoder.encode('People you follow'),
 			encoder.encode('/followlist.png'),
 			[],
 			peoples

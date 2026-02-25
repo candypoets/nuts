@@ -265,7 +265,7 @@
 				writeRelays = DEFAULT_RELAYS;
 				readRelays = DEFAULT_RELAYS;
 			}
-		}, 3000);
+		}, 500);
 	}
 
 	// Handle near-bottom pagination

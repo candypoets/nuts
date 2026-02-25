@@ -38,6 +38,14 @@
 	let end = 0;
 	let bottom = true; // Chat-style scrolling from bottom
 
+	// Pagination state
+	let until: number | undefined = undefined;
+	let hasMore = true;
+	let paginationCounter = 0;
+	let itemsBeforePagination = 0;
+	let paginationTimeout: ReturnType<typeof setTimeout> | undefined;
+	let prevPaginationSubId: string | undefined = undefined;
+
 	function getNonce(post: ParsedEvent): string | undefined {
 		const tags = fbArray(post, 'tags').reduce(
 			(acc, tag) => {
@@ -56,9 +64,9 @@
 	}
 
 	// Build subscription requests for this conversation
-	function buildRequests() {
+	function buildRequests(isPagination = false) {
 		if (!$key?.pub) return [];
-		return [
+		const baseReqs = [
 			{
 				kinds: [4],
 				tags: { '#p': [$key?.pub] },
@@ -76,6 +84,12 @@
 				noOptimize: true
 			}
 		];
+		if (isPagination && until) {
+			baseReqs.forEach((req: (typeof baseReqs)[0]) => {
+				(req as typeof req & { until: number }).until = until;
+			});
+		}
+		return baseReqs;
 	}
 
 	// Process raw events - sort by createdAt desc and deduplicate
@@ -118,6 +132,7 @@
 				if (!exists) {
 					rawEvents = [...rawEvents, parsedEvent];
 				}
+				loading = false;
 				break;
 		}
 	}
@@ -125,14 +140,34 @@
 	// Initialize subscription
 	let unsubscribe: (() => void) | undefined;
 
+	function initSubscription(isPagination = false) {
+		if (!visible || !$key?.pub) return;
+		if (!isPagination && rawEvents.length > 0) return;
+
+		loading = true;
+		const requests = buildRequests(isPagination);
+		if (requests.length > 0) {
+			const subId = isPagination
+				? 'kind4_page_' + pubkey + '_' + paginationCounter + '_' + until
+				: 'kind4_' + pubkey;
+			if (!isPagination) {
+				unsubscribe?.();
+				unsubscribe = useSubscription(subId, requests, handleEvents);
+			} else {
+				useSubscription(subId, requests, handleEvents, {
+					pagination: prevPaginationSubId
+				});
+			}
+			// Track this subId for next pagination
+			if (isPagination) {
+				prevPaginationSubId = subId;
+			}
+		}
+	}
+
 	$: if (visible && $key?.pub) {
 		if (rawEvents.length === 0 && !loading) {
-			loading = true;
-			const requests = buildRequests();
-			if (requests.length > 0) {
-				unsubscribe?.();
-				unsubscribe = useSubscription('kind4_' + pubkey, requests, handleEvents);
-			}
+			initSubscription();
 		}
 	}
 
@@ -199,9 +234,76 @@
 		showPicker = !showPicker;
 	}
 
+	// Handle near-bottom pagination (in inverted list, this means scrolling up to older messages)
+	function handleNearBottom(event: { distance: number }) {
+		console.log('[Kind4] handleNearBottom called', {
+			loading,
+			hasMore,
+			dmItemsLength: dmItems.length
+		});
+		if (loading || !hasMore || dmItems.length === 0) {
+			console.log('[Kind4] Pagination blocked:', {
+				loading,
+				hasMore,
+				dmItemsLength: dmItems.length
+			});
+			return;
+		}
+
+		loading = true;
+		itemsBeforePagination = dmItems.length;
+		paginationCounter++;
+
+		// Use the createdAt of an item ~5 positions back as until (with overlap buffer)
+		// dmItems is sorted desc, so oldest is at the end
+		const overlapIndex = Math.max(0, dmItems.length - 6);
+		const cursorItem = dmItems[overlapIndex];
+		if (cursorItem) {
+			until = cursorItem.createdAt() - 1;
+			console.log(
+				'[Kind4] Pagination cursor at index',
+				overlapIndex,
+				'of',
+				dmItems.length,
+				'timestamp:',
+				until
+			);
+		}
+
+		initSubscription(true);
+
+		// Fallback: clear loading after timeout if EOSE isn't received
+		paginationTimeout = setTimeout(() => {
+			console.log('[Kind4] Pagination timeout, clearing loading state');
+			loading = false;
+		}, 10000);
+	}
+
+	// Track when pagination completes and check if new items were added
+	$: if (!loading && itemsBeforePagination > 0) {
+		const itemsAtCheck = itemsBeforePagination;
+
+		// Clear the timeout if it hasn't fired yet
+		if (paginationTimeout) {
+			clearTimeout(paginationTimeout);
+			paginationTimeout = undefined;
+		}
+
+		// Check if we actually got new items
+		const newItemsAdded = dmItems.length - itemsAtCheck;
+		console.log('[Kind4] Pagination complete. New items added:', newItemsAdded);
+		if (newItemsAdded === 0) {
+			hasMore = false;
+			console.log('[Kind4] No more data available');
+		}
+		itemsBeforePagination = 0;
+	}
+
 	// Cleanup on unmount
 	onDestroy(() => {
 		unsubscribe?.();
+		if (paginationTimeout) clearTimeout(paginationTimeout);
+		prevPaginationSubId = undefined;
 	});
 </script>
 
@@ -210,6 +312,7 @@
 	getItemId={(item) => item?.id?.()?.fnv1aHash?.() ?? 0}
 	{visible}
 	{bottom}
+	onNearBottom={handleNearBottom}
 	bind:start
 	bind:end
 	class="w-feed"
