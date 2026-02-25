@@ -3,7 +3,6 @@
 		MessageType,
 		type ConnectionStatus,
 		type ParsedEvent,
-		type RequestObject,
 		type WorkerMessage
 	} from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
@@ -19,16 +18,14 @@
 	import { decode, type EventPointer } from 'nostr-tools/nip19';
 	import { getContext, onDestroy } from 'svelte';
 
+	import { normalizeURL } from 'nostr-tools/utils';
 	import RelaysList from 'src/components/RelaysList.svelte';
+	import { isMobile } from 'src/controller';
+	import { defaultPipeline } from 'src/controller/nostr';
 	import { limit } from 'src/controller/pagination';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import Note from 'src/routes/explore/note.svelte';
-	import Reply from 'src/routes/explore/reply.svelte';
 	import { getUserRelays } from 'src/routes/queries/user';
-	import { go } from '../modals/modal';
-	import User from '../explore/user.svelte';
-	import { isMobile } from 'src/controller';
-	import { normalizeURL } from 'nostr-tools/utils';
 
 	export let nevent: string;
 	export let visible: boolean;
@@ -151,7 +148,10 @@
 												relays
 											}
 										],
-										handleEvents
+										handleEvents,
+										{
+											pipeline: $defaultPipeline.for('replies_' + data?.id)
+										}
 									);
 								}
 							},

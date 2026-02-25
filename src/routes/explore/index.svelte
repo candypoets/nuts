@@ -1,11 +1,16 @@
 <script lang="ts">
-	import type {
-		ConnectionStatus,
-		Kind3Parsed,
-		ListParsed,
-		ParsedEvent,
-		RequestObject,
-		WorkerMessage
+	import {
+		ParsePipeConfigT,
+		PipeConfig,
+		PipeT,
+		SaveToDbPipeConfigT,
+		SerializeEventsPipeConfigT,
+		type ConnectionStatus,
+		type Kind3Parsed,
+		type ListParsed,
+		type ParsedEvent,
+		type RequestObject,
+		type WorkerMessage
 	} from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import {
@@ -26,7 +31,7 @@
 	import RelaysList from 'src/components/RelaysList.svelte';
 	import { key } from 'src/controller';
 	import { followPacks } from 'src/controller/feed';
-	import { kind0, kind3, readRelays } from 'src/controller/nostr';
+	import { defaultPipeline, kind0, kind3, readRelays } from 'src/controller/nostr';
 	import { limit } from 'src/controller/pagination';
 	import { relaySub, setSubRelays } from 'src/controller/relay';
 	import { ago } from 'src/lib/period';
@@ -56,6 +61,12 @@
 	let itemsBeforePagination = 0;
 	let paginationTimeout: ReturnType<typeof setTimeout> | undefined;
 	let refreshTimeout: ReturnType<typeof setTimeout> | undefined;
+	let prevPaginationSubId: string | undefined = undefined;
+
+	// When root sub changes, set it as the pagination parent for first page
+	$: if (rootSubId) {
+		prevPaginationSubId = rootSubId;
+	}
 
 	// Viewport state from Feed
 	let start = 0;
@@ -266,6 +277,8 @@
 		refreshing = false;
 		newPostsCount = 0;
 		itemsBeforePagination = 0;
+		rootSubId = undefined;
+		prevPaginationSubId = undefined;
 		if (paginationTimeout) {
 			clearTimeout(paginationTimeout);
 			paginationTimeout = undefined;
@@ -286,6 +299,7 @@
 	let unsubscribe: (() => void) | undefined;
 	let unsubscribePagination: (() => void) | undefined;
 	let hasInitialized = false;
+	let rootSubId: string | undefined = undefined;
 
 	function initFeed() {
 		if (!visible) return;
@@ -300,11 +314,13 @@
 			hasInitialized = true; // Only set after we actually create subscription
 			unsubscribe?.();
 			connectionTracker = new ConnectionTracker();
-			unsubscribe = useSubscription(subId + relayCounter, requests, handleEvents, {
-				bytesPerEvent: 10 * 1024
+			rootSubId = subId + relayCounter;
+			unsubscribe = useSubscription(rootSubId, requests, handleEvents, {
+				bytesPerEvent: 10 * 1024,
+				pipeline: $defaultPipeline.for(rootSubId)
 			});
 			// Use default relays for global feed, otherwise use user's relays
-			setSubRelays(subId + relayCounter, useGlobalFeed ? DEFAULT_FEED_RELAYS : relays);
+			setSubRelays(rootSubId, useGlobalFeed ? DEFAULT_FEED_RELAYS : relays);
 		} else {
 			// Requests empty, reset loading so we can retry when deps change
 			loading = false;
@@ -386,8 +402,12 @@
 			unsubscribePagination?.();
 			const pageSubId = subId + '_page_' + paginationCounter + '_' + until;
 			unsubscribePagination = useSubscription(pageSubId, requests, handleEvents, {
-				bytesPerEvent: 10 * 1024
+				bytesPerEvent: 10 * 1024,
+				pipeline: $defaultPipeline.for(pageSubId),
+				pagination: prevPaginationSubId
 			});
+			// Track this subId for next pagination
+			prevPaginationSubId = pageSubId;
 			// Fallback: clear loading after timeout if EOSE isn't received
 			paginationTimeout = setTimeout(() => {
 				loading = false;

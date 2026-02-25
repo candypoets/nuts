@@ -18,7 +18,8 @@
 
 	import { onDestroy } from 'svelte';
 	import VirtualList from 'src/components/VirtualList.svelte';
-	import { SEARCH_RELAYS } from 'src/lib/env';
+	import { mutePipeConfig } from 'src/controller/nostr';
+import { SEARCH_RELAYS } from 'src/lib/env';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import { go } from './modal';
 
@@ -68,8 +69,9 @@
 		}
 	}
 
-	const subscriptionOptions: SubscriptionConfig = {
+	$: subscriptionOptions = {
 		pipeline: [
+			new PipeT(PipeConfig.MuteFilterPipeConfig, $mutePipeConfig),
 			new PipeT(PipeConfig.ParsePipeConfig, new ParsePipeConfigT()),
 			new PipeT(
 				PipeConfig.SerializeEventsPipeConfig,

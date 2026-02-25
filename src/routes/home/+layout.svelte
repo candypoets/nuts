@@ -1,6 +1,7 @@
 <script lang="ts">
 	import {
 		Kind10019Parsed,
+		MuteFilterPipeConfigT,
 		ParsePipeConfigT,
 		PipeConfig,
 		PipeT,
@@ -41,6 +42,7 @@
 		kind10019,
 		kind10019Ready,
 		kind17375,
+		mutePipeConfig,
 		readRelays
 	} from 'src/controller/nostr';
 	import { addProofs, nutsWallet, setNutsWallet } from 'src/controller/proofs';
@@ -148,6 +150,7 @@
 			handleProofsMessage,
 			{
 				pipeline: [
+					new PipeT(PipeConfig.MuteFilterPipeConfig, $mutePipeConfig),
 					new PipeT(PipeConfig.ParsePipeConfig, new ParsePipeConfigT()),
 					new PipeT(PipeConfig.SaveToDbPipeConfig, new SaveToDbPipeConfigT()),
 					new PipeT(PipeConfig.ProofVerificationPipeConfig, new ProofVerificationPipeConfigT(500))

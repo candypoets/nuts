@@ -39,16 +39,22 @@
 
 	// Track if we've already triggered onNearBottom for current scroll position
 	let nearBottomTriggered = false;
+	let lastItemsLength = 0;
+
+	// Reset trigger when user scrolls back to top OR when new items are loaded
+	$: if (start === 0 || items.length > lastItemsLength) {
+		nearBottomTriggered = false;
+		lastItemsLength = items.length;
+	}
 
 	// Reactive: emit onNearBottom when end is within threshold of items.length
-	$: if (onNearBottom && items.length > 0) {
+	// Only trigger when user has scrolled (start > 0) to avoid firing on initial load
+	$: if (onNearBottom && items.length > 0 && start > 0 && !nearBottomTriggered) {
 		const distance = items.length - end;
-		if (distance <= nearBottomThreshold && distance >= 0 && !nearBottomTriggered) {
+		if (distance <= nearBottomThreshold && distance >= 0) {
 			nearBottomTriggered = true;
+			console.log('onNearBottom');
 			onNearBottom({ distance });
-		} else if (distance > nearBottomThreshold) {
-			// Reset trigger when user scrolls back up
-			nearBottomTriggered = false;
 		}
 	}
 

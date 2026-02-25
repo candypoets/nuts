@@ -1,6 +1,7 @@
 <script lang="ts">
 	import {
 		CounterPipeConfigT,
+	MuteFilterPipeConfigT,
 		CountResponse,
 		MessageType,
 		PipeConfig,
@@ -27,7 +28,8 @@
 	import { updateSendStatus } from 'src/controller/sendStatus';
 	import { now } from 'src/lib/period';
 	import { hexToBytes } from 'src/lib/wallet';
-	import { go } from 'src/routes/modals/modal';
+	import { mutePipeConfig } from 'src/controller/nostr';
+import { go } from 'src/routes/modals/modal';
 	import { getUserRelays } from 'src/routes/queries/user';
 
 	export let note: ParsedEvent;
@@ -60,8 +62,9 @@
 
 	const commonEmoticons = ['👍', '❤️', '😂', '🔥', '😍', '🙏', '💯', '🤔', '🫂', '🚀'];
 
-	const subscriptionOptions: SubscriptionConfig = {
+	$: subscriptionOptions = {
 		pipeline: [
+			new PipeT(PipeConfig.MuteFilterPipeConfig, $mutePipeConfig),
 			new PipeT(PipeConfig.SaveToDbPipeConfig, new SaveToDbPipeConfigT()),
 			new PipeT(
 				PipeConfig.CounterPipeConfig,

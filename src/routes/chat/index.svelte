@@ -31,7 +31,7 @@
 	import Pager from 'src/components/Pager.svelte';
 	import RelaysList from 'src/components/RelaysList.svelte';
 	import { key } from 'src/controller';
-	import { readRelays, writeRelays } from 'src/controller/nostr';
+	import { mutePipeConfig, readRelays, writeRelays } from 'src/controller/nostr';
 	import Content from 'src/routes/explore/_post/content.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import Feed from 'src/routes/explore/feed.svelte';
@@ -171,8 +171,9 @@
 		}
 	}
 
-	const subscriptionOptions: SubscriptionConfig = {
+	$: subscriptionOptions = {
 		pipeline: [
+			new PipeT(PipeConfig.MuteFilterPipeConfig, $mutePipeConfig),
 			new PipeT(PipeConfig.NpubLimiterPipeConfig, new NpubLimiterPipeConfigT(4, 5, 100)),
 			new PipeT(PipeConfig.ParsePipeConfig, new ParsePipeConfigT()),
 			new PipeT(PipeConfig.SaveToDbPipeConfig, new SaveToDbPipeConfigT()),

@@ -11,7 +11,15 @@
 	} from '@candypoets/nipworker';
 	import Icon from '@iconify/svelte';
 	import _, { uniqBy } from 'lodash';
-	import { follows, kind0, mutes, kind10000 } from 'src/controller/nostr';
+	import {
+		follows,
+		kind0,
+		mutes,
+		kind10000,
+		mutedPubkeys,
+		toggleMutePubkey,
+		defaultPipeline
+	} from 'src/controller/nostr';
 	import { limit } from 'src/controller/pagination';
 	import { now } from 'src/lib/period';
 	import { proxyAvatarUrl, proxyBannerUrl } from 'src/lib/proxy';
@@ -228,24 +236,7 @@
 	function toggleMute() {
 		if (!$kind0) return;
 
-		const isMuted = $mutes.includes(pubkey);
-		let newMutes: string[];
-		
-		if (isMuted) {
-			// Unmute: remove from mute list
-			newMutes = $mutes.filter((p) => p !== pubkey);
-		} else {
-			// Mute: add to mute list
-			newMutes = [...$mutes, pubkey];
-		}
-
-		const template = {
-			kind: 10000,
-			created_at: now(),
-			tags: newMutes.map((p) => ['p', p]),
-			content: ''
-		};
-
+		const template = toggleMutePubkey($kind10000, pubkey);
 		usePublish('mute_' + pubkey, template);
 	}
 
@@ -294,7 +285,9 @@
 		const requests = buildPaginationRequests();
 		if (requests.length > 0 && feedRequest) {
 			const pageSubId = feedRequest.subId + '_page_' + until;
-			feedSub = useSubscription(pageSubId, requests, handleFeedEvents, {});
+			feedSub = useSubscription(pageSubId, requests, handleFeedEvents, {
+				pipeline: $defaultPipeline.for(pageSubId)
+			});
 			// Fallback: clear loading after timeout
 			paginationTimeout = setTimeout(() => {
 				loading = false;
@@ -437,7 +430,9 @@
 		}
 		// Start new subscription
 		loading = feedItems.length === 0;
-		feedSub = useSubscription(feedRequest.subId, feedRequest.requests, handleFeedEvents, {});
+		feedSub = useSubscription(feedRequest.subId, feedRequest.requests, handleFeedEvents, {
+			pipeline: $defaultPipeline.for(feedRequest.subId)
+		});
 	}
 </script>
 
@@ -536,9 +531,9 @@
 						<button
 							class="z-10 btn btn-sm btn-circle border border-white bg-opacity-80"
 							on:click={toggleMute}
-							title={$mutes.includes(pubkey) ? 'Unmute' : 'Mute'}
+							title={$mutedPubkeys.includes(pubkey) ? 'Unmute' : 'Mute'}
 						>
-							{#if $mutes.includes(pubkey)}
+							{#if $mutedPubkeys.includes(pubkey)}
 								<Icon icon="mdi:volume-high" class="text-lg" />
 							{:else}
 								<Icon icon="mdi:volume-off" class="text-lg" />
