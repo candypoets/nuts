@@ -298,113 +298,134 @@
 
 		{#if kind == 'login'}
 			<div class="w-full" class:mt-32={!inline}>
-				<form
-					class="px-4"
-					class:!mt-0={inline}
-					class:!px-0={inline}
-					on:submit|preventDefault={handleLogin}
-				>
-					<div class="flex flex-col sm:flex-row gap-3">
-						<!-- Input row -->
-						<div class="join w-full flex-1">
-							<!-- QR Scan button -->
-							<button
-								type="button"
-								class="btn join-item btn-outline border-white/10 hover:bg-white/5 hover:border-white/20 text-white/70"
-								on:click={handleQRConnect}
-								title="Scan QR code"
-							>
-								<Icon icon="ri:qr-scan-2-line" class="text-lg" />
-							</button>
-
-							<!-- Input field -->
-							<div class="relative flex-grow">
-								{#if showPassword}
-									<input
-										placeholder="nsec or bunker url"
-										class="join-item w-full px-4 py-3 bg-white/5 border-y border-white/10 text-white placeholder:text-white/30 focus:outline-none focus:bg-white/10 transition-colors"
-										type="text"
-										bind:value={privateKey}
-									/>
-								{:else}
-									<input
-										placeholder="nsec or bunker url"
-										class="join-item w-full px-4 py-3 bg-white/5 border-y border-white/10 text-white placeholder:text-white/30 focus:outline-none focus:bg-white/10 transition-colors"
-										type="password"
-										bind:value={privateKey}
-									/>
-								{/if}
-								<!-- Clear button -->
-								{#if privateKey}
-									<button
-										type="button"
-										class="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
-										on:click={clearInput}
-									>
-										<Icon icon="ri:close-circle-fill" class="text-lg" />
-									</button>
-								{/if}
+				<div class="px-4 space-y-4" class:!px-0={inline}>
+					<!-- QR Scan Button - Prominent -->
+					<button
+						type="button"
+						class="group relative w-full overflow-hidden rounded-xl bg-gradient-to-br from-accent/20 via-accent/10 to-transparent border border-accent/30 hover:border-accent/50 transition-all duration-300"
+						on:click={handleQRConnect}
+					>
+						<div class="flex items-center gap-4 p-4">
+							<div class="flex-shrink-0">
+								<div class="w-12 h-12 rounded-xl bg-accent/20 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+									<Icon icon="ri:qr-scan-2-line" class="text-2xl text-accent" />
+								</div>
 							</div>
+							<div class="flex-1 text-left">
+								<p class="text-white font-medium">Scan with your phone</p>
+								<p class="text-white/40 text-sm">Use a Nostr signer app</p>
+							</div>
+							<div class="flex-shrink-0">
+								<Icon icon="ri:arrow-right-s-line" class="text-xl text-white/30 group-hover:text-accent group-hover:translate-x-1 transition-all" />
+							</div>
+						</div>
+					</button>
 
+					<!-- Extension Login Button -->
+					{#if hasExtension}
+						<button
+							type="button"
+							class="group relative w-full overflow-hidden rounded-xl bg-gradient-to-br from-white/5 via-white/3 to-transparent border border-white/10 hover:border-white/20 hover:bg-white/5 transition-all duration-300"
+							on:click={handleExtensionLogin}
+							disabled={loading}
+						>
+							<div class="flex items-center gap-4 p-4">
+								<div class="flex-shrink-0">
+									<div class="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+										<Icon icon="ri:puzzle-2-line" class="text-2xl text-white/70" />
+									</div>
+								</div>
+								<div class="flex-1 text-left">
+									<p class="text-white font-medium">Browser extension</p>
+									<p class="text-white/40 text-sm">Connect with your Nostr extension</p>
+								</div>
+								<div class="flex-shrink-0">
+									<Icon icon="ri:arrow-right-s-line" class="text-xl text-white/30 group-hover:text-white/60 group-hover:translate-x-1 transition-all" />
+								</div>
+							</div>
+						</button>
+					{/if}
+
+					<!-- Divider -->
+					<div class="relative py-2">
+						<div class="absolute inset-0 flex items-center">
+							<div class="w-full border-t border-white/10"></div>
+						</div>
+						<div class="relative flex justify-center">
+							<span class="bg-[#131716] px-4 text-xs text-white/30 uppercase tracking-wider">or</span>
+						</div>
+					</div>
+
+					<!-- Manual Key Input Form -->
+					<form on:submit|preventDefault={handleLogin} class="space-y-4">
+						<div class="relative">
+							<div class="absolute left-4 top-1/2 -translate-y-1/2 text-white/30">
+								<Icon icon="ri:key-2-line" class="text-lg" />
+							</div>
+							{#if showPassword}
+								<input
+									placeholder="nsec or bunker url"
+									class="w-full pl-11 pr-24 py-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:bg-white/[0.07] focus:border-accent/50 transition-all"
+									type="text"
+									bind:value={privateKey}
+								/>
+							{:else}
+								<input
+									placeholder="nsec or bunker url"
+									class="w-full pl-11 pr-24 py-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:bg-white/[0.07] focus:border-accent/50 transition-all"
+									type="password"
+									bind:value={privateKey}
+								/>
+							{/if}
 							<!-- Toggle visibility button -->
 							<button
 								type="button"
-								class="btn join-item btn-outline border-white/10 hover:bg-white/5 hover:border-white/20 text-white/70"
+								class="absolute right-11 top-1/2 -translate-y-1/2 p-2 text-white/30 hover:text-white/60 transition-colors"
 								on:click={() => (showPassword = !showPassword)}
 								title={showPassword ? 'Hide' : 'Show'}
 							>
 								<Icon icon={showPassword ? 'ri:eye-off-line' : 'ri:eye-line'} class="text-lg" />
 							</button>
+							<!-- Clear button -->
+							{#if privateKey}
+								<button
+									type="button"
+									class="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-white/30 hover:text-white/60 transition-colors"
+									on:click={clearInput}
+								>
+									<Icon icon="ri:close-circle-fill" class="text-lg" />
+								</button>
+							{/if}
 						</div>
 
-						<!-- Submit button - full width on mobile, auto width on sm+ -->
+						<!-- Sign In Button - Full width below input -->
 						<button
-							class="btn btn-accent w-full sm:w-auto"
+							class="w-full py-4 rounded-xl bg-accent hover:bg-accent/90 text-white font-semibold text-lg transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-accent/20 hover:shadow-accent/30 hover:scale-[1.02] active:scale-[0.98]"
 							type="submit"
 							disabled={loading || !privateKey}
 						>
 							{#if !loading}
-								<span class="flex items-center gap-2">
-									<Icon icon="ri:login-circle-line" />
-									<span>Sign In</span>
-								</span>
+								<Icon icon="ri:login-circle-line" class="text-xl" />
+								<span>Sign In</span>
 							{:else}
 								<span class="loading loading-spinner loading-sm"></span>
+								<span>Signing in...</span>
 							{/if}
 						</button>
-					</div>
-				</form>
+					</form>
 
-				<!-- Extension login -->
-				{#if hasExtension}
-					<div class="mt-4 px-4" class:!px-0={inline}>
-						<button
-							class="btn btn-outline btn-block border-white/10 hover:bg-white/5 hover:border-white/20 text-white/70 gap-2"
-							on:click={handleExtensionLogin}
-							disabled={loading}
-						>
-							{#if loading}
-								<span class="loading loading-spinner loading-sm"></span>
-							{:else}
-								<Icon icon="ri:puzzle-2-line" class="text-lg" />
-								<span>Connect with Nostr Extension</span>
-							{/if}
-						</button>
+					<!-- Sign up link -->
+					<div class="text-center pt-4">
+						<p class="text-sm text-white/40">
+							Not on Nostr yet?
+							<button
+								class="text-accent hover:text-accent/80 font-medium ml-1 transition-colors"
+								on:click={() => (kind = 'signup')}
+							>
+								Create account
+							</button>
+						</p>
 					</div>
-				{/if}
-
-				<!-- Sign up link -->
-				<div class="mt-6 text-center px-4" class:!px-0={inline}>
-					<p class="text-sm text-white/40">
-						Not on Nostr yet?
-						<button
-							class="btn btn-link btn-sm text-accent hover:text-accent/80 no-underline gap-1"
-							on:click={() => (kind = 'signup')}
-						>
-							<Icon icon="ri:user-add-line" />
-							Create account
-						</button>
-					</p>
 				</div>
 			</div>
 		{:else}

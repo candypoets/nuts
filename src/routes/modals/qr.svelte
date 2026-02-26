@@ -35,7 +35,7 @@
 				displayWidth={300}
 				margin={2}
 				errorCorrectionLevel="H"
-				displayClass="rounded-full"
+				displayClass="rounded-md"
 			/>
 		</a>
 		<!-- </div> -->
