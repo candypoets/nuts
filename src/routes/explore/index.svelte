@@ -102,9 +102,13 @@
 	// Track last subId to detect followlist changes and reset feed
 	let lastSubId: string | undefined;
 	$: if (subId !== lastSubId) {
+		const prevSubId = lastSubId;
 		lastSubId = subId;
+		console.log('[Explore] subId changed:', { prevSubId, subId, hasInitialized, followPacksLength: $followPacks.length });
 		// Followlist changed, reset feed to trigger new subscription
-		if (hasInitialized) {
+		// Also reset when transitioning from initial load (prevSubId was undefined) to populated state
+		if (hasInitialized || (prevSubId === undefined && $followPacks.length > 1)) {
+			console.log('[Explore] Resetting feed due to followlist change');
 			resetFeed();
 			seenEventIds.clear();
 			hasInitialized = false;
@@ -151,21 +155,16 @@
 	// Default relay for anonymous users
 	const DEFAULT_FEED_RELAYS = ['wss://nostr.wine'];
 
-	// Track if key has been loaded from storage (persistentWritable loads sync, but SSR may delay)
-	let keyResolved = false;
-	$: if ($key && Object.keys($key).length > 0) {
-		keyResolved = true;
-	}
-
 	// Track what type of feed we should be showing
-	$: useGlobalFeed = !keyResolved || !$key?.pub || following.length === 0;
+	// Use global feed only if no followlist is selected (works for both logged in and anonymous users)
+	$: useGlobalFeed = following.length === 0;
 
 	// Build subscription requests based on current state
 	function buildRequests(forPagination = false): RequestObject[] {
 		if (useGlobalFeed) {
 			return [
 				{
-					kinds: [1, 6],
+					kinds: [1],
 					limit: $limit,
 					since: forPagination ? undefined : ago(31 * 24 * 60 * 60),
 					until: forPagination ? until : undefined,
@@ -176,18 +175,21 @@
 			];
 		}
 
-		// Logged in user with followlist selected - use personalized feed
+		// User has followlist selected - use personalized feed
 		const authors = following;
 
+		// Use user's relays if logged in, otherwise use default relays
+		const feedRelays = $key?.pub ? relays : DEFAULT_FEED_RELAYS;
+
 		const baseRequest: RequestObject = {
-			kinds: [1, 6],
+			kinds: [1],
 			authors,
 			limit: $limit,
 			since: forPagination ? undefined : ago(31 * 24 * 60 * 60),
 			until: forPagination ? until : undefined,
 			noCache: !!relayCounter,
 			tags: tags.length ? { '#t': tags } : undefined,
-			relays: relays
+			relays: feedRelays
 		};
 
 		return [baseRequest];
@@ -319,8 +321,8 @@
 				bytesPerEvent: 10 * 1024,
 				pipeline: $defaultPipeline.for(rootSubId)
 			});
-			// Use default relays for global feed, otherwise use user's relays
-			setSubRelays(rootSubId, useGlobalFeed ? DEFAULT_FEED_RELAYS : relays);
+			// Use default relays for anonymous users, otherwise use user's relays
+			setSubRelays(rootSubId, $key?.pub ? relays : DEFAULT_FEED_RELAYS);
 		} else {
 			// Requests empty, reset loading so we can retry when deps change
 			loading = false;
@@ -328,10 +330,12 @@
 	}
 
 	// Track previous feed type to detect switches
-	let wasGlobalFeed = true;
+	let wasGlobalFeed: boolean | undefined = undefined;
 	$: {
-		if (hasInitialized && wasGlobalFeed !== useGlobalFeed) {
+		console.log('[Explore] wasGlobalFeed check:', { wasGlobalFeed, hasInitialized, useGlobalFeed, followingLength: following.length });
+		if (wasGlobalFeed !== undefined && hasInitialized && wasGlobalFeed !== useGlobalFeed) {
 			// Switching feed type - reinitialize and clear feed
+			console.log('[Explore] Switching feed type from', wasGlobalFeed, 'to', useGlobalFeed);
 			wasGlobalFeed = useGlobalFeed;
 			hasInitialized = false;
 			resetFeed();

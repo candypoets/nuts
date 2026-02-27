@@ -81,6 +81,10 @@
 		const parsedEvent = asParsedEvent(message);
 		if (!parsedEvent) return;
 
+		// Filter out events authored by the logged-in user
+		const author = parsedEvent.pubkey()?.toString();
+		if (author === $key?.pub) return;
+
 		const kind = parsedEvent.kind();
 		if (![1, 6, 7].includes(kind)) return;
 

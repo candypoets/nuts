@@ -1,5 +1,6 @@
 <script lang="ts">
 	import {
+		manager,
 		MessageType,
 		type ConnectionStatus,
 		type ParsedEvent,
@@ -48,6 +49,15 @@
 
 	// Feed items managed by parent
 	let feedItems: ParsedEvent[] = [];
+
+	// Pagination state
+	let until: number | undefined = undefined;
+	let hasMore = true;
+	let itemsBeforePagination = 0;
+	let paginationTimeout: ReturnType<typeof setTimeout> | undefined;
+	let paginationCheckTimeout: ReturnType<typeof setTimeout> | undefined;
+	let paginationCounter = 0;
+	let prevPaginationSubId: string | undefined = undefined;
 
 	// Handle incoming events from subscription
 	function handleEvents(message: WorkerMessage) {
@@ -174,9 +184,75 @@
 		relaysub = undefined;
 	}
 
+	// Handle near-bottom pagination
+	function handleNearBottom(event: { distance: number }) {
+		if (loading || !hasMore || feedItems.length === 0) return;
+
+		loading = true;
+		itemsBeforePagination = feedItems.length;
+		paginationCounter++;
+
+		// Use the createdAt of the last item as until
+		const lastItem = feedItems[feedItems.length - 1];
+		if (lastItem) {
+			until = lastItem.createdAt() - 1;
+		}
+
+		const pageSubId = 'replies_' + data?.id + '_page_' + paginationCounter + '_' + until;
+		useSubscription(
+			pageSubId,
+			[
+				{
+					kinds: [1],
+					tags: { '#e': [data?.id] },
+					limit: $limit,
+					until,
+					noContext: true,
+					relays: data.relays || []
+				}
+			],
+			handleEvents,
+			{
+				pipeline: $defaultPipeline.for(pageSubId),
+				pagination: prevPaginationSubId
+			}
+		);
+		// Track this subId for next pagination
+		prevPaginationSubId = pageSubId;
+
+		// Fallback: clear loading after timeout
+		paginationTimeout = setTimeout(() => {
+			loading = false;
+		}, 10000);
+	}
+
+	// Track when pagination completes and check if new items were added
+	$: if (!loading && itemsBeforePagination > 0) {
+		const itemsAtCheck = itemsBeforePagination;
+
+		// Clear the timeout if it hasn't fired yet
+		if (paginationTimeout) {
+			clearTimeout(paginationTimeout);
+			paginationTimeout = undefined;
+		}
+
+		// Delay the check to allow late events to arrive via subscription
+		paginationCheckTimeout = setTimeout(() => {
+			const newItemsAdded = feedItems.length - itemsAtCheck;
+			if (newItemsAdded === 0) {
+				hasMore = false;
+			}
+			itemsBeforePagination = 0;
+		}, 500); // Wait 500ms for late events to arrive
+	}
+
 	let imageContext = getContext('imageContext');
 
-	onDestroy(unsubscribe);
+	onDestroy(() => {
+		unsubscribe();
+		if (paginationTimeout) clearTimeout(paginationTimeout);
+		if (paginationCheckTimeout) clearTimeout(paginationCheckTimeout);
+	});
 
 	$: visible ? subscribe() : unsubscribe();
 </script>
@@ -187,6 +263,7 @@
 	class={imageContext ? 'w-full' : 'w-feed'}
 	{visible}
 	{loading}
+	onNearBottom={handleNearBottom}
 >
 	<svelte:fragment slot="sticky-header">
 		<div class="px-4 py-3 flex items-center justify-between bg-base-100 bg-opacity-90">

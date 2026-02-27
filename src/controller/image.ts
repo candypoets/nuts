@@ -13,3 +13,17 @@ export const videoTime: Writable<number> = writable(0);
 export const sharedVideoElement: Writable<HTMLVideoElement | null> = writable(null);
 export const sharedVideoIndex: Writable<number> = writable(-1);
 export const sharedVideoGridId: Writable<string> = writable('');
+
+// Live stream store
+export const liveStreamNote: Writable<ParsedEvent<AnyKind> | null> = writable(null);
+export const liveStreamOpen: Writable<boolean> = writable(false);
+
+export function openLiveStream(eventNote: ParsedEvent<AnyKind>) {
+	liveStreamNote.set(eventNote);
+	liveStreamOpen.set(true);
+}
+
+export function closeLiveStream() {
+	liveStreamOpen.set(false);
+	setTimeout(() => liveStreamNote.set(null), 300);
+}

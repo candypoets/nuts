@@ -186,9 +186,29 @@ export const followPacks = persistentWritable<ParsedEvent[]>(
 	'followpacks',
 	[get(followList)],
 	(bbs: string[]) => {
-		return bbs
-			.map(deserializeParsedEvent)
-			.map((pe) => (pe.id()?.toString() == 'followlist' ? get(followList) : pe));
+		console.log('[feed] Restoring followpacks from localStorage:', bbs);
+		const currentFollowList = get(followList);
+		const currentFollowListPeople = fbArray(asNip51(currentFollowList) as ListParsed, 'people');
+		const restored = bbs
+			.map((bb, i) => {
+				try {
+					return deserializeParsedEvent(bb);
+				} catch (e) {
+					console.error('[feed] Failed to deserialize followpack at index', i, e);
+					return null;
+				}
+			})
+			.filter((pe): pe is ParsedEvent => pe !== null)
+			.map((pe) => {
+				// Only replace followlist if the current kind3 has actual contacts
+				// Otherwise keep the restored one (which may have saved people from previous session)
+				if (pe.id()?.toString() === 'followlist' && currentFollowListPeople.length > 0) {
+					return currentFollowList;
+				}
+				return pe;
+			});
+		console.log('[feed] Restored followpacks:', restored.length);
+		return restored;
 	},
 	(pe) => {
 		return JSON.stringify(pe.map(serializeParsedEvent));

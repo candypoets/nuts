@@ -132,8 +132,9 @@
 </script>
 
 <div
-	class="absolute right-0 top-0 h-screen lg:p-2 z-20 backdrop-blur-md"
+	class="absolute right-0 top-0 h-screen lg:p-2 z-20"
 	bind:this={element}
+	class:backdrop-blur-md={visible}
 	data-kind="sub"
 >
 	<div

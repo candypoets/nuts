@@ -1,7 +1,7 @@
 <script lang="ts">
 	import {
 		CounterPipeConfigT,
-	MuteFilterPipeConfigT,
+		MuteFilterPipeConfigT,
 		CountResponse,
 		MessageType,
 		PipeConfig,
@@ -29,7 +29,7 @@
 	import { now } from 'src/lib/period';
 	import { hexToBytes } from 'src/lib/wallet';
 	import { mutePipeConfig } from 'src/controller/nostr';
-import { go } from 'src/routes/modals/modal';
+	import { go } from 'src/routes/modals/modal';
 	import { getUserRelays } from 'src/routes/queries/user';
 
 	export let note: ParsedEvent;
@@ -152,6 +152,7 @@ import { go } from 'src/routes/modals/modal';
 			created_at: now()
 		};
 
+		console.log('reaction');
 		usePublish(
 			'reaction_' + decoded.id,
 			event,

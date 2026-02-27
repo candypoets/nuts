@@ -34,7 +34,7 @@
 				displayHeight={300}
 				displayWidth={300}
 				margin={2}
-				errorCorrectionLevel="H"
+				errorCorrectionLevel="M"
 				displayClass="rounded-md"
 			/>
 		</a>

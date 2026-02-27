@@ -24,6 +24,7 @@
 	import { toRequestObject } from 'src/lib/request';
 	import Content from 'src/routes/explore/_post/content.svelte';
 	import Kind30023Content from 'src/routes/explore/_post/kind30023Content.svelte';
+	import Kind30311Content from 'src/routes/explore/_post/kind30311Content.svelte';
 	import Footer from 'src/routes/explore/_post/footer.svelte';
 	import Header from 'src/routes/explore/_post/header.svelte';
 	import Zap from 'src/routes/explore/_post/zap.svelte';
@@ -334,6 +335,8 @@
 			>
 				{#if note?.kind() === 30023}
 					<Kind30023Content note={displayNote} />
+				{:else if note?.kind() === 30311}
+					<Kind30311Content note={displayNote} />
 				{:else if !!displayNote.parsed}
 					<!-- {kind1?.reply()?.id()?.toString()} -->
 					<!-- {!!showReplies && note?.id()?.toString()} -->

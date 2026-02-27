@@ -3,11 +3,12 @@
 	import { pwaInfo } from 'virtual:pwa-info';
 	import App from 'src/routes/index.svelte';
 	import ImageZoom from 'src/components/ImageZoom.svelte';
+	import LiveStream from 'src/components/LiveStream.svelte';
 	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
 	import { dimensions, key } from 'src/controller';
 	import { initRelayTracking } from 'src/controller/relay';
-	import { zoomed } from 'src/controller/image';
+	import { zoomed, liveStreamOpen } from 'src/controller/image';
 	import { resumePendingTransactions, clearOldTransactions } from 'src/model/cashu/tx-recovery';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
@@ -114,4 +115,7 @@
 
 {#if $zoomed !== undefined}
 	<ImageZoom />
+{/if}
+{#if $liveStreamOpen}
+	<LiveStream />
 {/if}

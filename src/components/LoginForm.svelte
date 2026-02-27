@@ -250,6 +250,8 @@
 
 <main
 	class="w-full h-screen flex justify-center items-center"
+	class:mt-8={inline}
+	class:px-2={inline}
 	class:!block={inline}
 	class:!h-auto={inline}
 >
@@ -307,7 +309,9 @@
 					>
 						<div class="flex items-center gap-4 p-4">
 							<div class="flex-shrink-0">
-								<div class="w-12 h-12 rounded-xl bg-accent/20 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+								<div
+									class="w-12 h-12 rounded-xl bg-accent/20 flex items-center justify-center group-hover:scale-110 transition-transform duration-300"
+								>
 									<Icon icon="ri:qr-scan-2-line" class="text-2xl text-accent" />
 								</div>
 							</div>
@@ -316,7 +320,10 @@
 								<p class="text-white/40 text-sm">Use a Nostr signer app</p>
 							</div>
 							<div class="flex-shrink-0">
-								<Icon icon="ri:arrow-right-s-line" class="text-xl text-white/30 group-hover:text-accent group-hover:translate-x-1 transition-all" />
+								<Icon
+									icon="ri:arrow-right-s-line"
+									class="text-xl text-white/30 group-hover:text-accent group-hover:translate-x-1 transition-all"
+								/>
 							</div>
 						</div>
 					</button>
@@ -331,7 +338,9 @@
 						>
 							<div class="flex items-center gap-4 p-4">
 								<div class="flex-shrink-0">
-									<div class="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+									<div
+										class="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center group-hover:scale-110 transition-transform duration-300"
+									>
 										<Icon icon="ri:puzzle-2-line" class="text-2xl text-white/70" />
 									</div>
 								</div>
@@ -340,7 +349,10 @@
 									<p class="text-white/40 text-sm">Connect with your Nostr extension</p>
 								</div>
 								<div class="flex-shrink-0">
-									<Icon icon="ri:arrow-right-s-line" class="text-xl text-white/30 group-hover:text-white/60 group-hover:translate-x-1 transition-all" />
+									<Icon
+										icon="ri:arrow-right-s-line"
+										class="text-xl text-white/30 group-hover:text-white/60 group-hover:translate-x-1 transition-all"
+									/>
 								</div>
 							</div>
 						</button>
@@ -352,7 +364,9 @@
 							<div class="w-full border-t border-white/10"></div>
 						</div>
 						<div class="relative flex justify-center">
-							<span class="bg-[#131716] px-4 text-xs text-white/30 uppercase tracking-wider">or</span>
+							<span class="bg-[#131716] px-4 text-xs text-white/30 uppercase tracking-wider"
+								>or</span
+							>
 						</div>
 					</div>
 
