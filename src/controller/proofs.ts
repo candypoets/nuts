@@ -477,8 +477,28 @@ export class NutsWallet {
 	): Promise<{ quote: { state: string; payment_preimage?: string }; change: Proof[] }> {
 		const wallet = await this.getWallet(mintUrl);
 
+		// DEBUG: Log what we're passing to the library
+		const proofsTotal = proofsToSend.reduce((sum, p) => sum + p.amount, 0);
+		const requiredAmount = meltQuote.amount + meltQuote.fee_reserve;
+
+		console.log('[meltProofsWithVerification] ========== LIBRARY CALL ==========');
+		console.log('[meltProofsWithVerification] mintUrl:', mintUrl);
+		console.log('[meltProofsWithVerification] meltQuote.amount:', meltQuote.amount);
+		console.log('[meltProofsWithVerification] meltQuote.fee_reserve:', meltQuote.fee_reserve);
+		console.log('[meltProofsWithVerification] required (amount + fee_reserve):', requiredAmount);
+		console.log('[meltProofsWithVerification] proofsToSend count:', proofsToSend.length);
+		console.log('[meltProofsWithVerification] proofsToSend total:', proofsTotal);
+		console.log('[meltProofsWithVerification] proofsToSend amounts:', proofsToSend.map((p) => p.amount));
+		console.log('[meltProofsWithVerification] proofsTotal >= required?', proofsTotal >= requiredAmount);
+
 		// Execute the melt
+		console.log('[meltProofsWithVerification] Calling wallet.meltProofs...');
 		const result = await wallet.meltProofs(meltQuote, proofsToSend);
+		console.log('[meltProofsWithVerification] meltProofs result:', {
+			state: result.quote.state,
+			changeCount: result.change?.length,
+			changeTotal: result.change?.reduce((sum, p) => sum + p.amount, 0) || 0
+		});
 
 		// Update local state: remove spent proofs, save change
 		this.removeProofs(mintUrl, proofsToSend);

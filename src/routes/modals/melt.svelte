@@ -80,7 +80,9 @@
 	$: invoiceAmount = decoded?.sections?.find((s) => s.name == 'amount')?.value / 1000 || 0;
 	$: invoiceMemo = decoded?.sections?.find((s) => s.name == 'description')?.value || '';
 
-	$: amountPlusFees = Number(amount || 0) + Number(fees || 0);
+	// When paying a decoded invoice, use the invoice amount, not the user input amount
+	$: actualAmount = decoded ? invoiceAmount : Number(amount || 0);
+	$: amountPlusFees = actualAmount + Number(fees || 0);
 	$: balance = $balanceByMint?.[fromMint || ''];
 
 	$: {
@@ -128,15 +130,60 @@
 		processing = 'paying';
 		status = 'Preparing payment...';
 
+		console.log('[melt:payInvoice] ========== PAYMENT START ==========');
+		console.log('[melt:payInvoice] fromMint:', fromMint);
+		console.log('[melt:payInvoice] invoice:', invoice?.slice(0, 50) + '...');
+		console.log('[melt:payInvoice] amount (user input):', amount);
+		console.log('[melt:payInvoice] invoiceAmount (from decoded):', invoiceAmount);
+		console.log('[melt:payInvoice] actualAmount (used for selection):', actualAmount);
+		console.log('[melt:payInvoice] fees (meltquote.fee_reserve):', fees);
+		console.log('[melt:payInvoice] amountPlusFees:', amountPlusFees);
+		console.log('[melt:payInvoice] balance (UI):', balance);
+		console.log('[melt:payInvoice] meltquote:', meltquote ? {
+			quote: meltquote.quote?.slice(0, 20) + '...',
+			amount: meltquote.amount,
+			fee_reserve: meltquote.fee_reserve,
+			state: meltquote.state
+		} : 'null');
+
 		// Determine transaction type
 		const txType: TxType = 'melt';
 
 		// Get wallet and select proofs
 		const wallet = await $nutsWallet.getWallet(fromMint);
 		const unspentProofs = $nutsWallet.unspentProofs.get(fromMint) || [];
+		const reservedProofs = $nutsWallet.reservedProofs.get(fromMint) || [];
+		
+		const unspentTotal = unspentProofs.reduce((sum, p) => sum + p.amount, 0);
+		const reservedTotal = reservedProofs.reduce((sum, p) => sum + p.amount, 0);
+		const proofAmounts = unspentProofs.map((p) => p.amount);
+
+		console.log('[melt:payInvoice] --- Wallet State ---');
+		console.log('[melt:payInvoice] unspentProofs count:', unspentProofs.length);
+		console.log('[melt:payInvoice] unspentProofs total:', unspentTotal);
+		console.log('[melt:payInvoice] reservedProofs count:', reservedProofs.length);
+		console.log('[melt:payInvoice] reservedProofs total:', reservedTotal);
+		console.log('[melt:payInvoice] proof amounts:', proofAmounts);
+		console.log('[melt:payInvoice] amountPlusFees <= unspentTotal?', amountPlusFees <= unspentTotal);
+
+		console.log('[melt:payInvoice] Calling selectProofsToSend with:', {
+			unspentProofsCount: unspentProofs.length,
+			amountPlusFees,
+			includeFees: true
+		});
+
 		const { keep, send: proofs } = wallet.selectProofsToSend(unspentProofs, amountPlusFees, true);
 
+		const keepTotal = keep?.reduce((sum, p) => sum + p.amount, 0) || 0;
+		const sendTotal = proofs?.reduce((sum, p) => sum + p.amount, 0) || 0;
+
+		console.log('[melt:payInvoice] --- selectProofsToSend Result ---');
+		console.log('[melt:payInvoice] keep count:', keep?.length, 'total:', keepTotal);
+		console.log('[melt:payInvoice] send count:', proofs?.length, 'total:', sendTotal);
+		console.log('[melt:payInvoice] send proof amounts:', proofs?.map((p) => p.amount));
+
 		if (!proofs?.length) {
+			console.error('[melt:payInvoice] ERROR: No proofs selected!');
 			status = 'No proofs available';
 			processing = '';
 			setTimeout(() => (status = ''), 3000);
@@ -151,7 +198,7 @@
 			txType,
 			{
 				fromMint,
-				amount: decoded ? invoiceAmount : (amount || 0),
+				amount: actualAmount,
 				memo: invoiceMemo || ''
 			},
 			proofs
@@ -206,8 +253,30 @@
 	const executePayment = async (txId: string, proofs: Proof[], keep: Proof[]) => {
 		if (!fromMint || !meltquote) throw new Error('Missing required parameters');
 
+		const proofsTotal = proofs.reduce((sum, p) => sum + p.amount, 0);
+		const requiredAmount = meltquote.amount + meltquote.fee_reserve;
+
+		console.log('[melt:executePayment] ========== EXECUTE PAYMENT ==========');
+		console.log('[melt:executePayment] fromMint:', fromMint);
+		console.log('[melt:executePayment] meltquote.amount:', meltquote.amount);
+		console.log('[melt:executePayment] meltquote.fee_reserve:', meltquote.fee_reserve);
+		console.log('[melt:executePayment] required (amount + fee_reserve):', requiredAmount);
+		console.log('[melt:executePayment] proofs count:', proofs.length);
+		console.log('[melt:executePayment] proofs total:', proofsTotal);
+		console.log('[melt:executePayment] proofs amounts:', proofs.map((p) => p.amount));
+		console.log('[melt:executePayment] proofsTotal >= requiredAmount?', proofsTotal >= requiredAmount);
+		console.log('[melt:executePayment] meltquote:', {
+			quote: meltquote.quote,
+			amount: meltquote.amount,
+			fee_reserve: meltquote.fee_reserve,
+			state: meltquote.state,
+			expiry: meltquote.expiry
+		});
+
 		status = 'Paying invoice...';
 		await updateTransaction(txId, { meltQuote: { ...meltquote, mintUrl: fromMint } });
+
+		console.log('[melt:executePayment] Calling meltProofsWithVerification...');
 
 		// Use the wallet helper that handles melt + verification automatically
 		const { quote, change } = await $nutsWallet!.meltProofsWithVerification(
@@ -215,6 +284,12 @@
 			meltquote,
 			proofs
 		);
+
+		console.log('[melt:executePayment] meltProofsWithVerification result:', {
+			quoteState: quote.state,
+			changeCount: change?.length,
+			changeTotal: change?.reduce((sum, p) => sum + p.amount, 0) || 0
+		});
 
 		if (quote.state !== 'PAID') throw new Error('Payment failed');
 
@@ -228,6 +303,11 @@
 
 		status = 'Success! 🎉';
 		processing = '';
+
+		// Close modal after success
+		setTimeout(() => {
+			animator.goBack();
+		}, 1000);
 
 		// Clear status after 1.5 seconds to show idle state
 		setTimeout(() => {
@@ -245,7 +325,7 @@
 		if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
 			// Mirror disabled conditions
 			if (!!processing) return;
-			if (!decoded || (invoiceAmount || 0) < 10 || !fromMint || amountPlusFees > balance) return;
+			if (!decoded || (actualAmount || 0) < 10 || !fromMint || amountPlusFees > balance) return;
 
 			e.preventDefault();
 			e.stopPropagation();
@@ -340,10 +420,10 @@
 			{:else}
 				<button
 					class="btn btn-accent btn-wide m-auto block mt-10"
-					disabled={(invoiceAmount || 0) < 10 || !fromMint || amountPlusFees > balance}
+					disabled={(actualAmount || 0) < 10 || !fromMint || amountPlusFees > balance}
 					on:click={() => payInvoice()}
 				>
-					{(invoiceAmount || 0) < 10 ? 'At Least 10 Sats' : 'Pay'}
+					{(actualAmount || 0) < 10 ? 'At Least 10 Sats' : 'Pay'}
 				</button>
 			{/if}
 		{/if}

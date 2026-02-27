@@ -55,7 +55,9 @@
 	$: invoiceAmount = decoded?.sections?.find((s) => s.name == 'amount')?.value / 1000 || 0;
 	$: invoiceMemo = decoded?.sections?.find((s) => s.name == 'description')?.value || '';
 
-	$: amountPlusFees = Number(amount || 0) + Number(fees || 0);
+	// When paying a decoded invoice, use the invoice amount, not the user input amount
+	$: actualAmount = decoded ? invoiceAmount : Number(amount || 0);
+	$: amountPlusFees = actualAmount + Number(fees || 0);
 	$: balance = $balanceByMint?.[fromMint || ''];
 
 	$: {
@@ -115,6 +117,7 @@
 			console.log('[lightning:pay] fromMint:', fromMint);
 			console.log('[lightning:pay] amount (user input):', amount);
 			console.log('[lightning:pay] invoiceAmount (from decoded):', invoiceAmount);
+			console.log('[lightning:pay] actualAmount (used for selection):', actualAmount);
 			console.log('[lightning:pay] fees (fee_reserve):', fees);
 			console.log('[lightning:pay] amountPlusFees:', amountPlusFees);
 			console.log('[lightning:pay] balance (UI):', balance);
@@ -266,7 +269,7 @@
 		{#if decoded}
 			<button
 				class="btn btn-accent btn-wide m-auto block mt-10"
-				disabled={ongoing || (invoiceAmount || 0) < 10 || !fromMint || amountPlusFees > balance}
+				disabled={ongoing || (actualAmount || 0) < 10 || !fromMint || amountPlusFees > balance}
 				on:click={() => payInvoice()}
 				>{#if ongoing}<Icon
 						icon="ei:spinner"
@@ -274,7 +277,7 @@
 					/>{:else if status}
 					{status}
 				{:else}
-					{(invoiceAmount || 0) < 10 ? 'At Least 10 Sats' : 'Pay'}
+					{(actualAmount || 0) < 10 ? 'At Least 10 Sats' : 'Pay'}
 				{/if}</button
 			>
 		{/if}

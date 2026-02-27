@@ -99,6 +99,13 @@ export class PagerAnimator {
 	 */
 	private applyCombinedVisibility() {
 		const { showMain, visibleStack } = this.computeCombinedVisibility();
+		console.log('[PagerAnimator] applyCombinedVisibility:', { 
+			isMobileMode: this.isMobileMode, 
+			stackLength: this.stack.length, 
+			showMain, 
+			visibleStack: Array.from(visibleStack),
+			showMainCurrent: this.showMain 
+		});
 		this.showMain = showMain;
 		this.visibleStackIndices = visibleStack;
 

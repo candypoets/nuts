@@ -1,56 +1,61 @@
 <script lang="ts">
 	import { Html5Qrcode, type QrcodeErrorCallback, type QrcodeSuccessCallback } from 'html5-qrcode';
 	import { isLightningInvoice, isNostr, isNpub, isValidLNURL } from 'src/lib/wallet';
-	import {} from 'src/controller';
-
-	import { goto } from '$app/navigation';
-	import { page } from '$app/stores';
 	import { nip19 } from 'nostr-tools';
-	import { onMount } from 'svelte';
-	import { go } from './modal';
+	import { getContext, onMount } from 'svelte';
+	import Icon from '@iconify/svelte';
+
+	// Import components for inline display
+	import Melt from './melt.svelte';
+	import Kind0 from '../_kinds/kind0.svelte';
+
+	let animator = getContext('animator');
 
 	export let open = false;
 
+	// State for what to show
+	let view: 'scan' | 'melt' | 'profile' = 'scan';
+	let scannedInvoice = '';
 	let scannedPubkey = '';
 
-	function gopub(pubkey: string) {
-		const currentPath = $page.url.pathname;
-		const profilePath = `nprofile:${pubkey}`;
+	// For Kind0 component
+	let visible = true;
 
-		// Check if the current URL already ends with the profile we're trying to navigate to
-		if (!currentPath.endsWith(profilePath)) {
-			goto(`${currentPath}/${profilePath}`);
-		}
+	function goBackToScan() {
+		view = 'scan';
+		scannedInvoice = '';
+		scannedPubkey = '';
+		// Restart scanning
+		setTimeout(start, 100);
 	}
 
 	const qrCodeSuccessCallback: QrcodeSuccessCallback = (decodedText, decodedResult) => {
-		/* handle success */
 		console.log('[scan] QR detected:', decodedText.substring(0, 50) + '...');
+		
 		if (isLightningInvoice(decodedText)) {
 			console.log('[scan] Lightning invoice detected');
 			// Strip "lightning:" prefix if present (BIP-21 URI format)
-			const invoice = decodedText.startsWith('lightning:') ? decodedText.slice(10) : decodedText;
-			// Encode the invoice to handle special characters safely
-			go('melt:' + encodeURIComponent(invoice));
-			// open the melt modal
+			scannedInvoice = decodedText.startsWith('lightning:') ? decodedText.slice(10) : decodedText;
+			view = 'melt';
+			stop();
 		} else if (isValidLNURL(decodedText)) {
 			console.log('[scan] LNURL detected');
-			go('melt:' + encodeURIComponent(decodedText));
-			// open the contact modal
-			// either send ecash or add as friend
+			scannedInvoice = decodedText;
+			view = 'melt';
+			stop();
 		} else if (isNpub(decodedText)) {
 			scannedPubkey = nip19.decode(decodedText).data as string;
-			gopub(scannedPubkey);
-			// open the contact modal
-			// either send ecash or add as friend
+			view = 'profile';
+			stop();
 		} else if (isNostr(decodedText)) {
 			scannedPubkey = nip19.decode(decodedText.slice(6)).data as string;
-			gopub(scannedPubkey);
+			view = 'profile';
+			stop();
 		}
-		stop();
 	};
+
 	const qrCodeErrorCallback: QrcodeErrorCallback = (decodedText, decodedResult) => {
-		/* handle success */
+		/* handle error */
 	};
 
 	const config = { fps: 10, qrbox: { width: 250, height: 250 } };
@@ -58,6 +63,7 @@
 	let html5QrCode: Html5Qrcode;
 
 	async function start() {
+		if (view !== 'scan') return;
 		html5QrCode = new Html5Qrcode('reader');
 		if (!html5QrCode) return;
 
@@ -80,6 +86,30 @@
 	});
 </script>
 
-<div class="h-screen bg-base-300 bg-opacity-85 flex items-center pt-safe">
-	<div id="reader" class="w-full bg-white blur-0 h-auto"></div>
-</div>
+{#if view === 'scan'}
+	<div class="h-screen bg-base-300 bg-opacity-85 flex items-center pt-safe">
+		<div id="reader" class="w-full bg-white blur-0 h-auto"></div>
+	</div>
+{:else if view === 'melt'}
+	<div class="h-screen bg-base-300 bg-opacity-95 relative">
+		<!-- Back button to return to scanner -->
+		<button
+			class="absolute top-4 left-4 z-50 btn btn-circle btn-sm"
+			on:click={goBackToScan}
+		>
+			<Icon icon="mdi:arrow-left" class="text-lg" />
+		</button>
+		<Melt invoice={scannedInvoice} />
+	</div>
+{:else if view === 'profile'}
+	<div class="h-screen bg-base-300 bg-opacity-95 relative">
+		<!-- Back button to return to scanner -->
+		<button
+			class="absolute top-4 left-4 z-50 btn btn-circle btn-sm"
+			on:click={goBackToScan}
+		>
+			<Icon icon="mdi:arrow-left" class="text-lg" />
+		</button>
+		<Kind0 pubkey={scannedPubkey} {visible} goBack={goBackToScan} />
+	</div>
+{/if}

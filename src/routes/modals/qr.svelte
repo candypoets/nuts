@@ -2,13 +2,16 @@
 	import Icon from '@iconify/svelte';
 	import { QRCodeImage } from 'svelte-qrcode-image';
 	import { getContext } from 'svelte';
+	import { nip19 } from 'nostr-tools';
 
 	import { key } from 'src/controller';
 
 	let animator = getContext('animator');
 
-	// Add prop for QR code text
-	export let qrText: string = $key?.npub;
+	// Derive npub from pub if needed, default to nostr:npub URI format for profile scanning
+	$: qrText = $key?.pub 
+		? `nostr:${$key.npub || nip19.npubEncode($key.pub)}` 
+		: '';
 	let copied = false;
 
 	// Check if the qrText is an encoded URL and decode it if needed
@@ -66,6 +69,11 @@
 		<Icon icon="mingcute:down-line" class="text-xl" />
 	</div>
 	<div class="flex items-center justify-center flex-col gap-6">
+		<!-- Label for the QR code -->
+		<div class="text-center">
+			<h2 class="text-lg font-semibold">Your Profile QR</h2>
+			<p class="text-sm text-base-content/60">Scan to view your profile</p>
+		</div>
 		<!-- QR Code with hover effect -->
 		<button
 			class="relative group cursor-pointer p-4 rounded-xl bg-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"

@@ -41,12 +41,10 @@
 		}
 	};
 
-	function copyToClipboard(event: MouseEvent) {
-		event.preventDefault(); // Prevent the default link behavior
-
-		navigator.clipboard.writeText(qrCode ?? '');
-
-		// $alert = 'copied to clipboard!';
+	function copyToClipboard() {
+		if (qrCode) {
+			navigator.clipboard.writeText(qrCode);
+		}
 	}
 
 	async function handleCreateInvoice() {
@@ -114,7 +112,7 @@
 							type="text"
 							inputmode="decimal"
 							bind:value={amount}
-							class="join-item text-7xl bg-transparent caret-transparent focus:outline-none text-center max-w-xs rounded-xl"
+							class="join-item text-7xl bg-transparent caret-primary focus:outline-none text-center max-w-xs rounded-xl placeholder-base-content/30"
 							on:keydown|stopPropagation={(e) => {
 								if (e.key === 'Enter') {
 									e.preventDefault();
@@ -164,12 +162,10 @@
 				</div>
 
 				<div class="flex flex-col items-center justify-center mb-8">
-					<div
-						class={`border-4 rounded-xl p-3 shadow-lg ${
-							isPaid ? 'border-success' : 'border-warning'
-						}`}
-					>
-						{#if isPaid}
+					{#if isPaid}
+						<div
+							class="border-4 border-success rounded-xl p-3 shadow-lg"
+						>
 							<div class="flex justify-center items-center p-2">
 								<Icon
 									icon="streamline:ok-hand"
@@ -177,39 +173,50 @@
 									class="text-success"
 								/>
 							</div>
-						{:else if qrCode}
-							<a
-								class="cursor-pointer block hover:opacity-90 transition-opacity"
-								href="lightning:{qrCode}"
-								on:click={(e) => copyToClipboard(e)}
-							>
-								<QRCodeImage
-									text={'lightning:' + qrCode}
-									displayHeight={275}
-									displayWidth={275}
-									margin={1}
-									errorCorrectionLevel="L"
-								/>
-							</a>
-						{:else}
-							<!-- Placeholder while QR is loading -->
-							<div
-								class="w-[275px] h-[275px] flex items-center justify-center bg-base-200 rounded-lg"
-							>
-								<span class="loading loading-spinner text-warning"></span>
-							</div>
-						{/if}
-					</div>
-
-					<div class="text-sm text-center mt-2 text-base-content/70">
-						{#if isPaid}
+						</div>
+						<div class="text-sm text-center mt-2 text-success font-medium">
 							Payment received!
-						{:else if qrCode}
-							Tap/click QR code to copy
-						{:else}
+						</div>
+					{:else if qrCode}
+						<!-- QR Code with hover effect - styled like qr.svelte -->
+						<button
+							class="relative group cursor-pointer p-4 rounded-xl bg-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+							on:click={copyToClipboard}
+							aria-label="Copy invoice"
+						>
+							<QRCodeImage
+								text={'lightning:' + qrCode}
+								displayType="canvas"
+								displayHeight={275}
+								displayWidth={275}
+								margin={2}
+								errorCorrectionLevel="M"
+								displayClass="rounded-md"
+							/>
+							<!-- Hover overlay with copy icon -->
+							<div
+								class="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/10 rounded-xl transition-all duration-200"
+							>
+								<Icon
+									icon="heroicons:clipboard-document"
+									class="w-12 h-12 text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity duration-200 drop-shadow-md"
+								/>
+							</div>
+						</button>
+						<div class="text-sm text-center mt-2 text-base-content/70">
+							Tap to copy invoice
+						</div>
+					{:else}
+						<!-- Placeholder while QR is loading -->
+						<div
+							class="w-[275px] h-[275px] flex items-center justify-center bg-base-200 rounded-xl shadow-lg"
+						>
+							<span class="loading loading-spinner text-warning"></span>
+						</div>
+						<div class="text-sm text-center mt-2 text-base-content/70">
 							Generating QR Code...
-						{/if}
-					</div>
+						</div>
+					{/if}
 				</div>
 
 				<div class="space-y-4 max-w-md mx-auto">
