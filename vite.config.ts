@@ -64,6 +64,11 @@ export default defineConfig(({ mode }) => {
 					categories: ['finance', 'utility'],
 					icons: [
 						{
+							src: '/nutscash.svg',
+							sizes: 'any',
+							type: 'image/svg+xml'
+						},
+						{
 							src: '/touch-icon-180.png',
 							sizes: '180x180',
 							type: 'image/png'
