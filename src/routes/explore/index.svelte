@@ -18,6 +18,7 @@
 		asKind0,
 		asKind1,
 		asKind3,
+		asKind6,
 		asNip51,
 		asParsedEvent,
 		ConnectionTracker,
@@ -172,7 +173,7 @@
 		if (useGlobalFeed) {
 			return [
 				{
-					kinds: [1],
+					kinds: [1, 6],
 					limit: $limit,
 					since: forPagination ? undefined : ago(31 * 24 * 60 * 60),
 					until: forPagination ? until : undefined,
@@ -190,7 +191,7 @@
 		const feedRelays = $key?.pub ? relays : DEFAULT_FEED_RELAYS;
 
 		const baseRequest: RequestObject = {
-			kinds: [1],
+			kinds: [1, 6],
 			authors,
 			limit: $limit,
 			since: forPagination ? undefined : ago(31 * 24 * 60 * 60),
@@ -233,21 +234,36 @@
 		if (!parsedEvent) return;
 		const kind = parsedEvent.kind();
 		// if (kind !== 1 && kind !== 6) return;
-
+		console.log("kind", kind)
 		// Filter: only show root posts or direct replies to root posts
 		// Skip nested replies (replies to replies)
 		if (kind === 1 || kind === 6) {
 			const kind1 = asKind1(parsedEvent);
 			if (kind1) {
+
 				const reply = kind1.reply()?.id();
 				const root = kind1.root()?.id();
-				// If this is a reply, check if it's a direct reply to root
+				console.log(reply?.toString(), root?.toString(), reply?.fnv1aHash(), root?.fnv1aHash())
+				// CASE 1: Has reply but no root = reply to something (could be nested)
+				// Filter it out since we can't verify it's a direct reply to root
+				if (reply && !root) {
+					return;
+				}
+
+				// CASE 2: Has both reply and root
 				if (reply && root) {
 					// If reply ID != root ID, it's a reply to a reply (nested) - skip it
 					if (reply.fnv1aHash() !== root.fnv1aHash()) {
 						return;
 					}
 				}
+				console.log('not filtered')
+				// CASE 3: No reply tag = root post (allow it)
+			}
+
+			if(kind == 6) {
+        		const kind6 = asKind6(parsedEvent);
+        		if (!kind6.repostedEvent()) return;
 			}
 		}
 

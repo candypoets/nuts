@@ -12,6 +12,13 @@ export type UploadResult = {
 export const DEFAULT_SERVER = 'https://blossom.nuts.cash';
 
 async function sha256HexFile(file: File): Promise<string> {
+	// Web Crypto API requires secure context (HTTPS)
+	if (!crypto.subtle) {
+		throw new Error(
+			'Image upload requires a secure connection (HTTPS). ' +
+			'Please access the app via https:// or localhost.'
+		);
+	}
 	const buf = await file.arrayBuffer();
 	const hash = await crypto.subtle.digest('SHA-256', buf);
 	return Array.from(new Uint8Array(hash))
