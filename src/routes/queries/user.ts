@@ -32,6 +32,26 @@ export const userQuery = (pubkey: string, relays: string[] = []) => [
 	}
 ];
 
+// Query for file storage server preferences (kind 10063 = Blossom, kind 10096 = NIP-96)
+export const fileServerQuery = (pubkey: string, relays: string[] = []) => [
+	{
+		kinds: [10063],
+		authors: [pubkey],
+		limit: 1,
+		cacheFirst: true,
+		closeOnEOSE: true,
+		relays
+	},
+	{
+		kinds: [10096],
+		authors: [pubkey],
+		limit: 1,
+		cacheFirst: true,
+		closeOnEOSE: true,
+		relays
+	}
+];
+
 export function getUserRelays(
 	pubkey: string,
 	onRelaysAvailable: (relays: string[]) => void,

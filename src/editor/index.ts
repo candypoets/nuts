@@ -1,6 +1,7 @@
 import { SvelteNodeViewRenderer } from 'svelte-tiptap';
 import StarterKit from '@tiptap/starter-kit';
 import { NostrExtension, type FileAttributes } from 'nostr-editor';
+import { get } from 'svelte/store';
 import Image from './image.svelte';
 import NAddr from './naddr.svelte';
 import NEvent from './nevent.svelte';
@@ -9,33 +10,49 @@ import Tweet from './tweet.svelte';
 import Video from './video.svelte';
 
 import { NostrMention } from './mention';
-import { useSignEvent } from '@candypoets/nipworker/hooks';
-import { nip96Upload } from 'src/lib';
+import { uploadFile, getUserUploadConfig, DEFAULT_SERVER } from 'src/lib/upload';
+
+// Get the default upload URL and type based on user preferences
+function getUploadDefaults() {
+	const userConfig = getUserUploadConfig();
+	if (userConfig) {
+		return {
+			url: userConfig.servers[0],
+			type: userConfig.type
+		};
+	}
+	return {
+		url: DEFAULT_SERVER,
+		type: 'nip96' as const
+	};
+}
+
+const defaults = getUploadDefaults();
 
 export const extensions = [
 	StarterKit,
 	NostrMention,
 	NostrExtension.configure({
 		image: {
-			defaultUploadUrl: 'https://nostr.build',
-			defaultUploadType: 'nip96' // or blossom
+			defaultUploadUrl: defaults.url,
+			defaultUploadType: defaults.type
 		},
 		video: {
-			defaultUploadUrl: 'https://nostr.build',
-			defaultUploadType: 'nip96' // or blossom
+			defaultUploadUrl: defaults.url,
+			defaultUploadType: defaults.type
 		},
 
 		fileUpload: {
 			upload: async (attrs: FileAttributes) => {
 				try {
-					const { url, sha256, tags } = await nip96Upload(attrs.file, {
-						server: 'https://nostr.build',
+					const { url, sha256, tags } = await uploadFile(attrs.file, {
+						preferUserServers: true,
 						alt: (attrs as any)?.alt,
 						includeMimeTag: true,
 						includeDimensions: true
 					});
 
-					console.log(url, sha256);
+					console.log('Upload result:', url, sha256);
 
 					return {
 						result: {

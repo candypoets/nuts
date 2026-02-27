@@ -104,16 +104,67 @@
 		status = 'Paying...';
 
 		try {
+			// DEBUG: Log all relevant values before proof selection
 			const unspentProofs = $nutsWallet.unspentProofs.get(fromMint) || [];
+			const reservedProofs = $nutsWallet.reservedProofs.get(fromMint) || [];
+			const unspentTotal = unspentProofs.reduce((sum, p) => sum + p.amount, 0);
+			const reservedTotal = reservedProofs.reduce((sum, p) => sum + p.amount, 0);
+			const proofAmounts = unspentProofs.map((p) => p.amount);
+
+			console.log('[lightning:pay] === Payment Debug Info ===');
+			console.log('[lightning:pay] fromMint:', fromMint);
+			console.log('[lightning:pay] amount (user input):', amount);
+			console.log('[lightning:pay] invoiceAmount (from decoded):', invoiceAmount);
+			console.log('[lightning:pay] fees (fee_reserve):', fees);
+			console.log('[lightning:pay] amountPlusFees:', amountPlusFees);
+			console.log('[lightning:pay] balance (UI):', balance);
+			console.log('[lightning:pay] meltquote.amount:', meltquote.amount);
+			console.log('[lightning:pay] meltquote.fee_reserve:', meltquote.fee_reserve);
+			console.log('[lightning:pay] unspentProofs count:', unspentProofs.length);
+			console.log('[lightning:pay] unspentProofs total:', unspentTotal);
+			console.log('[lightning:pay] reservedProofs count:', reservedProofs.length);
+			console.log('[lightning:pay] reservedProofs total:', reservedTotal);
+			console.log('[lightning:pay] proof amounts:', proofAmounts);
+			console.log('[lightning:pay] amount + fee_reserve <= unspentTotal?', amountPlusFees <= unspentTotal);
+
 			const wallet = await $nutsWallet.getWallet(fromMint);
+			
+			// DEBUG: Log the arguments to selectProofsToSend
+			console.log('[lightning:pay] Calling selectProofsToSend with:', {
+				unspentProofsCount: unspentProofs.length,
+				amountPlusFees,
+				includeFees: true
+			});
+			
 			const { keep, send } = wallet.selectProofsToSend(unspentProofs, amountPlusFees, true);
 
+			// DEBUG: Log the result of proof selection
+			console.log('[lightning:pay] selectProofsToSend result:', {
+				keepCount: keep?.length,
+				keepTotal: keep?.reduce((sum, p) => sum + p.amount, 0),
+				sendCount: send?.length,
+				sendTotal: send?.reduce((sum, p) => sum + p.amount, 0)
+			});
+
+			if (!send?.length) {
+				console.error('[lightning:pay] ERROR: send array is empty!');
+				console.error('[lightning:pay] This means selectProofsToSend could not find enough proofs');
+				throw new Error('Not enough proofs available to cover amount + fees');
+			}
+
 			// Use the wallet helper that handles melt + verification automatically
+			console.log('[lightning:pay] Calling meltProofsWithVerification...');
 			const { quote, change } = await $nutsWallet.meltProofsWithVerification(
 				fromMint,
 				meltquote,
 				send
 			);
+
+			console.log('[lightning:pay] meltProofsWithVerification result:', {
+				quoteState: quote.state,
+				changeCount: change?.length,
+				changeTotal: change?.reduce((sum, p) => sum + p.amount, 0)
+			});
 
 			if (quote.state !== 'PAID') throw new Error('Payment failed');
 
@@ -125,11 +176,15 @@
 			status = 'Success!';
 			setTimeout(() => resetState(), 1000);
 		} catch (err) {
-			console.error('[lightning] Payment failed:', err);
+			console.error('[lightning:pay] === PAYMENT FAILED ===');
+			console.error('[lightning:pay] Error:', err);
+			console.error('[lightning:pay] Error message:', (err as Error).message);
+			console.error('[lightning:pay] Error stack:', (err as Error).stack);
 			status = 'Error: ' + (err as Error).message;
 			setTimeout(() => (status = ''), 3000);
 		} finally {
 			ongoing = false;
+			console.log('[lightning:pay] === Payment attempt complete ===');
 		}
 	}
 </script>

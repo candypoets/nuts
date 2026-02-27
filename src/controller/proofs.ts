@@ -526,6 +526,10 @@ export class NutsWallet {
 					console.log('Cashu token:', tokenString);
 					// save proofs in the nostr
 					this.saveProofs(mintUrl, proofs);
+					// Checkpoint: verify and clean up any spent proofs
+					this.verifyAndCleanProofs().catch((e) =>
+						console.warn('[wallet] Post-mint verification failed:', e)
+					);
 				}
 			} catch (error) {
 				console.error('Error checking mint quote:', error);

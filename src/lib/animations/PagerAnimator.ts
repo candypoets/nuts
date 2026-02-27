@@ -317,8 +317,11 @@ export class PagerAnimator {
 
 		const translateX = -(subTweened - swipeProgressX) * (this.viewport.vw * 20 + subDepth * 30);
 		const translateY = (modalDepth - swipeProgressY) * 30;
-		const scale = (200 - (modalDepth - swipeProgressY) * 30) / 200;
-		const rotateY = (subTweened - swipeProgressX) * -20;
+		// Disable scale and rotateY on mobile - keep main content flat and full size
+		const scale = this.isMobileMode
+			? 1
+			: (200 - (modalDepth - swipeProgressY) * 30) / 200;
+		const rotateY = this.isMobileMode ? 0 : (subTweened - swipeProgressX) * -20;
 
 		// Animate main element with Motion One using individual transform properties
 		animate(
@@ -330,7 +333,8 @@ export class PagerAnimator {
 				rotateY
 			},
 			{
-				duration: deltaX !== 0 || deltaY !== 0 ? 0 : this.options.duration,
+				// Shorter duration on mobile for snappier feel
+				duration: deltaX !== 0 || deltaY !== 0 ? 0 : (this.isMobileMode ? 0.2 : this.options.duration),
 				easing: 'ease-out'
 			}
 		);
@@ -390,8 +394,10 @@ export class PagerAnimator {
 		const translateX = -effectiveSubDepth * 30 + (effectiveSubDepth == 0 ? deltaX : 0);
 		const translateY =
 			-effectiveModalDepth * 30 + (effectiveModalDepth == 0 && isModal ? deltaY : 0);
-		const scale =
-			Math.max(0.85, 1 - effectiveSubDepth * 0.05) * Math.max(0.85, 1 - effectiveModalDepth * 0.05);
+		// Disable scaling on mobile - keep full size for better readability
+		const scale = this.isMobileMode
+			? 1
+			: Math.max(0.85, 1 - effectiveSubDepth * 0.05) * Math.max(0.85, 1 - effectiveModalDepth * 0.05);
 		const opacity = Math.max(0.3, 1 - effectiveSubDepth * 0.3);
 
 		// Motion One animation
@@ -404,7 +410,8 @@ export class PagerAnimator {
 				opacity: opacity
 			},
 			{
-				duration: deltaX !== 0 || deltaY !== 0 ? 0 : this.options.duration,
+				// Shorter duration on mobile for snappier feel
+				duration: deltaX !== 0 || deltaY !== 0 ? 0 : (this.isMobileMode ? 0.2 : this.options.duration),
 				easing: 'ease-out'
 			}
 		);

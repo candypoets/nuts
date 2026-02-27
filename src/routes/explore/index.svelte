@@ -38,7 +38,7 @@
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import { go } from 'src/routes/modals/modal';
-	import { onMount } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import Notifications from './notifications.svelte';
 
 	export let visible = true;
@@ -134,11 +134,19 @@
 		}
 	}
 
-	$: subId &&
-		relaySub(subId).subscribe((subRelays) => {
+	// Track current subId for cleanup
+	let currentRelaySubId: string | undefined = undefined;
+	let relaySubUnsubscribe: (() => void) | undefined;
+
+	$: if (subId && subId !== currentRelaySubId) {
+		// Clean up previous subscription before creating new one
+		relaySubUnsubscribe?.();
+		currentRelaySubId = subId;
+		relaySubUnsubscribe = relaySub(subId).subscribe((subRelays) => {
 			console.log(subRelays, subId);
 			handleSubRelays(subRelays);
 		});
+	}
 
 	let feedInitialized = false;
 
@@ -331,16 +339,28 @@
 
 	// Track previous feed type to detect switches
 	let wasGlobalFeed: boolean | undefined = undefined;
+	let isSwitchingFeedType = false;
 	$: {
-		console.log('[Explore] wasGlobalFeed check:', { wasGlobalFeed, hasInitialized, useGlobalFeed, followingLength: following.length });
-		if (wasGlobalFeed !== undefined && hasInitialized && wasGlobalFeed !== useGlobalFeed) {
+		console.log('[Explore] wasGlobalFeed check:', { wasGlobalFeed, hasInitialized, useGlobalFeed, isSwitchingFeedType, followingLength: following.length });
+		// Guard: prevent re-entry during feed type switch (infinite loop protection)
+		if (isSwitchingFeedType) {
+			console.log('[Explore] Skipping wasGlobalFeed check - already switching');
+		} else if (wasGlobalFeed !== undefined && hasInitialized && wasGlobalFeed !== useGlobalFeed) {
 			// Switching feed type - reinitialize and clear feed
 			console.log('[Explore] Switching feed type from', wasGlobalFeed, 'to', useGlobalFeed);
+			// Set lock FIRST before any reactive state changes
+			isSwitchingFeedType = true;
+			// Update wasGlobalFeed to match useGlobalFeed so condition becomes false
 			wasGlobalFeed = useGlobalFeed;
+			// Now perform the state changes that might trigger other reactions
 			hasInitialized = false;
 			resetFeed();
 			seenEventIds.clear();
 			relayCounter++;
+			// Release lock after a tick to allow reactive updates to settle
+			setTimeout(() => {
+				isSwitchingFeedType = false;
+			}, 0);
 		} else {
 			wasGlobalFeed = useGlobalFeed;
 		}
@@ -358,6 +378,16 @@
 		unsubscribePagination?.();
 		unsubscribePagination = undefined;
 	}
+
+	// Cleanup on component destroy
+	onDestroy(() => {
+		relaySubUnsubscribe?.();
+		unsubscribe?.();
+		unsubscribePagination?.();
+		if (paginationTimeout) clearTimeout(paginationTimeout);
+		if (paginationCheckTimeout) clearTimeout(paginationCheckTimeout);
+		if (refreshTimeout) clearTimeout(refreshTimeout);
+	});
 
 	// Handle pull-to-refresh - keep existing feed items, just show loader and fetch new
 	function handleRefresh() {

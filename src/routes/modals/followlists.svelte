@@ -10,6 +10,7 @@
 
 	import Icon from '@iconify/svelte';
 	import { followList, followPacks } from 'src/controller/feed';
+	import { key } from 'src/controller/key';
 	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import Avatar from 'src/routes/explore/avatar.svelte';
@@ -24,11 +25,16 @@
 
 	let fps = $followPacks;
 
-	// Combine followList with fetched packs, avoiding duplicates
-	let otherPacks: ParsedEvent[] = [];
-	$: feed = [$followList, ...otherPacks];
+	// Separate arrays for different list types
+	let followSets: ParsedEvent[] = []; // kind 30000 - user's follow sets
+	let otherPacks: ParsedEvent[] = []; // kind 39089 - public follow packs
 
-	let seenEventIds = new Set<number>();
+	// Combine in order: followList -> followSets -> otherPacks
+	$: feed = [$followList, ...followSets, ...otherPacks];
+
+	// Track seen event IDs separately for each kind to avoid duplicates
+	let seenFollowSetIds = new Set<number>();
+	let seenPackIds = new Set<number>();
 	let loading = false;
 
 	let unsubscribe: (() => void) | undefined;
@@ -42,16 +48,32 @@
 	let paginationTimeout: ReturnType<typeof setTimeout> | undefined;
 
 	function buildRequests(isPagination = false): RequestObject[] {
-		const req: RequestObject = {
-			kinds: [39089],
+		// Request both kind 30000 (Follow Sets) and kind 39089 (Follow Packs)
+		const baseReq = {
 			limit: 50,
 			noCache: true,
 			relays: []
 		};
+
+		// Only fetch the USER'S own follow sets (kind 30000) - these are personal lists
+		const req30000: RequestObject = {
+			...baseReq,
+			kinds: [30000],
+			authors: $key?.pub ? [$key.pub] : []
+		};
+
+		// Fetch follow packs (kind 39089) from anyone - these are public curated packs
+		const req39089: RequestObject = {
+			...baseReq,
+			kinds: [39089]
+		};
+
 		if (isPagination && until) {
-			req.until = until;
+			req30000.until = until;
+			req39089.until = until;
 		}
-		return [req];
+
+		return [req30000, req39089];
 	}
 
 	function handleEvents(message: WorkerMessage) {
@@ -76,21 +98,41 @@
 			console.log('[FollowLists] handleEvents: no eventId');
 			return;
 		}
-		if (seenEventIds.has(eventId)) {
-			console.log('[FollowLists] handleEvents: duplicate event', eventId);
+
+		const kind = parsedEvent.kind();
+
+		// Handle kind 30000 (Follow Sets)
+		if (kind === 30000) {
+			if (seenFollowSetIds.has(eventId)) {
+				console.log('[FollowLists] handleEvents: duplicate follow set', eventId);
+				return;
+			}
+			seenFollowSetIds.add(eventId);
+			console.log('[FollowLists] handleEvents: adding follow set', eventId, 'title:', kindList.title()?.toString());
+			followSets = [...followSets, parsedEvent].sort((a, b) => b.createdAt() - a.createdAt());
+			loading = false;
 			return;
 		}
-		seenEventIds.add(eventId);
 
-		// Don't add followlist (it's handled reactively via $followList)
-		if (parsedEvent.id()?.toString() === 'followlist') {
-			console.log('[FollowLists] handleEvents: skipping followlist');
+		// Handle kind 39089 (Follow Packs)
+		if (kind === 39089) {
+			// Don't add followlist (it's handled reactively via $followList)
+			if (parsedEvent.id()?.toString() === 'followlist') {
+				console.log('[FollowLists] handleEvents: skipping followlist');
+				return;
+			}
+			if (seenPackIds.has(eventId)) {
+				console.log('[FollowLists] handleEvents: duplicate follow pack', eventId);
+				return;
+			}
+			seenPackIds.add(eventId);
+			console.log('[FollowLists] handleEvents: adding follow pack', eventId, 'title:', kindList.title()?.toString());
+			otherPacks = [...otherPacks, parsedEvent].sort((a, b) => b.createdAt() - a.createdAt());
+			loading = false;
 			return;
 		}
 
-		console.log('[FollowLists] handleEvents: adding event', eventId, 'title:', kindList.title()?.toString());
-		otherPacks = [...otherPacks, parsedEvent].sort((a, b) => b.createdAt() - a.createdAt());
-		loading = false;
+		console.log('[FollowLists] handleEvents: unknown kind', kind);
 	}
 
 	onMount(() => {
@@ -115,6 +157,11 @@
 		}
 	}
 
+	// Helper to determine if an item is a follow set (kind 30000)
+	function isFollowSet(item: ParsedEvent): boolean {
+		return item.kind() === 30000;
+	}
+
 	onDestroy(() => {
 		$followPacks = fps;
 		unsubscribe?.();
@@ -132,8 +179,8 @@
 			paginationTimeout = undefined;
 		}
 
-		// Check if we actually got new items
-		const newItemsAdded = otherPacks.length - itemsAtCheck;
+		// Check if we actually got new items (from both followSets and otherPacks)
+		const newItemsAdded = (followSets.length + otherPacks.length) - itemsAtCheck;
 		console.log('[FollowLists] Pagination complete. New items added:', newItemsAdded);
 		if (newItemsAdded === 0) {
 			hasMore = false;
@@ -144,23 +191,26 @@
 
 	// Handle near-bottom pagination
 	function handleNearBottom(event: { distance: number }) {
-		console.log('[FollowLists] handleNearBottom called', { loading, hasMore, otherPacksLength: otherPacks.length });
-		if (loading || !hasMore || otherPacks.length === 0) {
-			console.log('[FollowLists] Pagination blocked:', { loading, hasMore, otherPacksLength: otherPacks.length });
+		const totalItems = followSets.length + otherPacks.length;
+		console.log('[FollowLists] handleNearBottom called', { loading, hasMore, totalItems, followSetsLength: followSets.length, otherPacksLength: otherPacks.length });
+		if (loading || !hasMore || totalItems === 0) {
+			console.log('[FollowLists] Pagination blocked:', { loading, hasMore, totalItems });
 			return;
 		}
 
 		loading = true;
-		itemsBeforePagination = otherPacks.length;
+		itemsBeforePagination = followSets.length + otherPacks.length;
 		paginationCounter++;
 
 		// Use the createdAt of an item ~5 positions back as until (with overlap buffer)
 		// This prevents gaps if the last few items arrived out of order
-		const overlapIndex = Math.max(0, otherPacks.length - 6);
-		const cursorItem = otherPacks[overlapIndex];
+		// Combine both arrays for cursor calculation
+		const allPacks = [...followSets, ...otherPacks];
+		const overlapIndex = Math.max(0, allPacks.length - 6);
+		const cursorItem = allPacks[overlapIndex];
 		if (cursorItem) {
 			until = cursorItem.createdAt() - 1;
-			console.log('[FollowLists] Pagination cursor at index', overlapIndex, 'of', otherPacks.length, 'timestamp:', until);
+			console.log('[FollowLists] Pagination cursor at index', overlapIndex, 'of', allPacks.length, 'timestamp:', until);
 		}
 
 		const requests = buildRequests(true);
@@ -183,21 +233,34 @@
 	// Process feed: filter by search, require images, and minimum members
 	// Always include the user's followlist (id = "followlist")
 	$: processedFeed = feed.filter((item) => {
-		const kind39089 = asNip51(item);
+		const kindList = asNip51(item);
 		const itemId = item?.id?.()?.toString();
+		const kind = item.kind();
 
 		// Always include the user's followlist regardless of filters
 		if (itemId === 'followlist') return true;
 
+		// For follow sets (kind 30000), use less strict filtering
+		// They may not have images set, and can have fewer members
+		if (kind === 30000) {
+			// Filter by search query only for follow sets
+			if (!searchQuery) return true;
+			const searchTerm = searchQuery.toLowerCase();
+			const title = kindList?.title?.()?.toString()?.toLowerCase() ?? '';
+			const description = kindList?.description?.()?.toString()?.toLowerCase() ?? '';
+			return title.includes(searchTerm) || description.includes(searchTerm);
+		}
+
+		// For follow packs (kind 39089), apply stricter filters
 		// Filter out packs without images
-		if (!kind39089?.image()) return false;
+		if (!kindList?.image()) return false;
 		// Filter out packs with less than 10 members
-		if (kind39089.peopleLength() < 10) return false;
+		if (kindList.peopleLength() < 10) return false;
 		// Filter by search query
 		if (!searchQuery) return true;
 		const searchTerm = searchQuery.toLowerCase();
-		const title = kind39089?.title?.()?.toString()?.toLowerCase() ?? '';
-		const description = kind39089?.description?.()?.toString()?.toLowerCase() ?? '';
+		const title = kindList?.title?.()?.toString()?.toLowerCase() ?? '';
+		const description = kindList?.description?.()?.toString()?.toLowerCase() ?? '';
 		return title.includes(searchTerm) || description.includes(searchTerm);
 	});
 </script>
@@ -303,11 +366,14 @@
 			</div>
 		</svelte:fragment>
 		<svelte:fragment slot="item-content" let:post let:visible>
-			{@const kind39089 = asNip51(post)}
+			{@const listData = asNip51(post)}
 			{@const isSelected = fps.some((p) => p.id()?.toString() === post.id()?.toString())}
-			{@const imageUrl = kind39089?.image()?.toString()}
+			{@const imageUrl = listData?.image()?.toString()}
 			{@const hasValidImage = imageUrl && !imageUrl.startsWith('data:')}
 			{@const isFollowList = post?.id?.()?.toString() === 'followlist'}
+			{@const isFollowSet = post.kind() === 30000}
+			{@const isFollowPack = post.kind() === 39089}
+			{@const listTitle = listData?.title?.()?.toString() || (isFollowSet ? listData?.listIdentifier?.()?.toString() : '')}
 			<div
 				class="cursor-pointer p-3 relative"
 				on:click={() => toggleFollowPack(post)}
@@ -325,7 +391,7 @@
 						{#if hasValidImage}
 							<img
 								src={imageUrl}
-								alt={kind39089.title()?.toString()}
+								alt={listTitle}
 								class="w-full h-full object-cover"
 								on:error={(e) => {
 									e.currentTarget.style.display = 'none';
@@ -350,6 +416,19 @@
 							class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent"
 						></div>
 
+						<!-- Kind badge (Follow Set vs Follow Pack) -->
+						<div class="absolute top-3 left-3">
+							{#if isFollowSet}
+								<span class="px-2 py-1 rounded-full bg-accent/80 text-white text-xs font-medium backdrop-blur-sm">
+									Follow Set
+								</span>
+							{:else if isFollowPack}
+								<span class="px-2 py-1 rounded-full bg-secondary/80 text-white text-xs font-medium backdrop-blur-sm">
+									Pack
+								</span>
+							{/if}
+						</div>
+
 						<!-- Selection checkmark -->
 						{#if isSelected}
 							<div class="absolute top-3 right-3">
@@ -364,10 +443,10 @@
 						<!-- Title and member count overlaid on image -->
 						<div class="absolute bottom-0 left-0 right-0 p-3">
 							<h3 class="text-lg font-bold text-white leading-tight">
-								{kind39089?.title?.()?.toString()}
+								{listTitle || 'Unnamed List'}
 							</h3>
-							{#if kind39089?.peopleLength() > 0}
-								<span class="text-white/80 text-sm">{kind39089.peopleLength()} members</span>
+							{#if listData?.peopleLength() > 0}
+								<span class="text-white/80 text-sm">{listData.peopleLength()} members</span>
 							{/if}
 						</div>
 					</div>
@@ -375,12 +454,12 @@
 					<!-- Content Section -->
 					<div class="p-3">
 						<!-- Description -->
-						{#if kind39089?.description?.()?.toString()}
+						{#if listData?.description?.()?.toString()}
 							{@const text = (() => {
 								try {
-									return JSON.parse('"' + kind39089.description?.()?.toString() + '"');
+									return JSON.parse('"' + listData.description?.()?.toString() + '"');
 								} catch (e) {
-									return kind39089.description?.()?.toString().replace(/\\/g, '');
+									return listData.description?.()?.toString().replace(/\\/g, '');
 								}
 							})()}
 							<p
@@ -392,21 +471,21 @@
 						{/if}
 
 						<!-- Member avatars row -->
-						{#if kind39089?.peopleLength() > 0}
+						{#if listData?.peopleLength() > 0}
 							<div class="flex items-center justify-between">
 								<div class="flex -space-x-2">
-									{#each fbArray(kind39089, 'people').slice(0, 4) as p}
+									{#each fbArray(listData, 'people').slice(0, 4) as p}
 										<Avatar
 											pubkey={p?.toString()}
 											size="md"
 											customClass="border-2 border-base-200"
 										/>
 									{/each}
-									{#if kind39089?.peopleLength() > 4}
+									{#if listData?.peopleLength() > 4}
 										<div
 											class="w-7 h-7 rounded-full bg-base-300 border-2 border-base-200 flex items-center justify-center text-xs font-medium text-base-content/70"
 										>
-											+{kind39089?.peopleLength() - 4}
+											+{listData?.peopleLength() - 4}
 										</div>
 									{/if}
 								</div>

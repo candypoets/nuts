@@ -1,12 +1,15 @@
 import { useSignEvent } from '@candypoets/nipworker/hooks';
+import { get } from 'svelte/store';
+import { preferredUploadServer, blossomServers, nip96Servers } from 'src/controller/nostr';
 
-export type Nip96UploadResult = {
+export type UploadResult = {
 	url: string;
 	sha256: string;
 	tags: string[][];
 };
 
-const DEFAULT_SERVER = 'https://nostr.build';
+// Default fallback server (Blossom)
+export const DEFAULT_SERVER = 'https://blossom.nuts.cash';
 
 async function sha256HexFile(file: File): Promise<string> {
 	const buf = await file.arrayBuffer();
@@ -22,6 +25,7 @@ async function discoverNip96UploadUrl(baseUrl: string): Promise<string> {
 		const res = await fetch(wellKnown, { method: 'GET' });
 		if (res.ok) {
 			const j = await res.json();
+			if (j?.api_url) return j.api_url as string;
 			if (j?.upload) return j.upload as string;
 			if (j?.endpoints?.upload) return j.endpoints.upload as string;
 		}
@@ -67,6 +71,42 @@ function extractUploadedUrl(json: any): string | null {
 	);
 }
 
+// Build NIP-94 tags from file metadata
+async function buildNip94Tags(
+	file: File,
+	sha256: string,
+	url: string,
+	opts?: {
+		alt?: string;
+		includeMimeTag?: boolean;
+		includeDimensions?: boolean;
+	}
+): Promise<string[][]> {
+	const tags: string[][] = [];
+
+	// alt text
+	const alt = opts?.alt || file.name || '';
+	if (alt) tags.push(['alt', alt]);
+
+	// mime type
+	if (opts?.includeMimeTag && file.type) {
+		tags.push(['m', file.type]);
+	}
+
+	// dimensions for images if requested
+	if (opts?.includeDimensions && file.type?.startsWith('image/')) {
+		try {
+			const bmp = await createImageBitmap(file);
+			tags.push(['dim', `${bmp.width}x${bmp.height}`]);
+		} catch {
+			// ignore if we can't read dimensions
+		}
+	}
+
+	return tags;
+}
+
+// Upload to a NIP-96 server
 export async function nip96Upload(
 	file: File,
 	opts?: {
@@ -75,10 +115,10 @@ export async function nip96Upload(
 		includeMimeTag?: boolean;
 		includeDimensions?: boolean;
 	}
-): Promise<Nip96UploadResult> {
+): Promise<UploadResult> {
 	const server = opts?.server ?? DEFAULT_SERVER;
 
-	// Hash of raw file; also useful for NIP-94 x field (the editor infers it automatically)
+	// Hash of raw file
 	const sha256 = await sha256HexFile(file);
 
 	const uploadUrl = await discoverNip96UploadUrl(server);
@@ -100,27 +140,8 @@ export async function nip96Upload(
 		throw new Error((json?.message as string) || `Upload failed with status ${res.status}`);
 	}
 
-	// Build additional NIP-94 tags for imeta
-	const tags: string[][] = [];
-
-	// alt text
-	const alt = opts?.alt || file.name || '';
-	if (alt) tags.push(['alt', alt]);
-
-	// mime type (explicit override if you want to force it)
-	if (opts?.includeMimeTag && file.type) {
-		tags.push(['m', file.type]);
-	}
-
-	// dimensions for images if requested
-	if (opts?.includeDimensions && file.type?.startsWith('image/')) {
-		try {
-			const bmp = await createImageBitmap(file);
-			tags.push(['dim', `${bmp.width}x${bmp.height}`]);
-		} catch {
-			// ignore if we can't read dimensions
-		}
-	}
+	// Build additional NIP-94 tags
+	const tags = await buildNip94Tags(file, sha256, url, opts);
 
 	// include any extra server-provided tags, except ones auto-inferred by the editor
 	const exclude = new Set(['url', 'x', 'ox', 'm', 'size']);
@@ -132,4 +153,111 @@ export async function nip96Upload(
 	}
 
 	return { url, sha256, tags };
+}
+
+// Upload to a Blossom server
+export async function blossomUpload(
+	file: File,
+	opts?: {
+		server?: string;
+		alt?: string;
+		includeMimeTag?: boolean;
+		includeDimensions?: boolean;
+	}
+): Promise<UploadResult> {
+	const server = opts?.server ?? DEFAULT_SERVER;
+	const sha256 = await sha256HexFile(file);
+
+	// Blossom upload endpoint: PUT /:sha256
+	const uploadUrl = `${server.replace(/\/$/, '')}/${sha256}`;
+	const authorization = await makeNip98AuthHeader(uploadUrl, 'PUT', sha256);
+
+	const res = await fetch('https://proxy.nuts.cash?url=' + uploadUrl, {
+		method: 'PUT',
+		headers: {
+			Authorization: authorization,
+			'Content-Type': file.type || 'application/octet-stream'
+		},
+		body: file
+	});
+
+	if (!res.ok) {
+		const text = await res.text().catch(() => '');
+		throw new Error(`Blossom upload failed with status ${res.status}: ${text}`);
+	}
+
+	// Blossom returns the blob descriptor
+	const json = await res.json().catch(() => null as any);
+
+	// Construct the URL from the server response or use the upload URL
+	const url = json?.url || uploadUrl;
+
+	// Build NIP-94 tags
+	const tags = await buildNip94Tags(file, sha256, url, opts);
+
+	return { url, sha256, tags };
+}
+
+// Get the user's preferred upload configuration
+export function getUserUploadConfig():
+	| { type: 'blossom'; servers: string[] }
+	| { type: 'nip96'; servers: string[] }
+	| null {
+	return get(preferredUploadServer);
+}
+
+// Get all configured servers (for fallback)
+export function getAllUserServers(): string[] {
+	const blossom = get(blossomServers);
+	const nip96 = get(nip96Servers);
+	return [...blossom, ...nip96];
+}
+
+// Smart upload that uses user's preferred server type
+export async function uploadFile(
+	file: File,
+	opts?: {
+		server?: string;
+		serverType?: 'blossom' | 'nip96';
+		alt?: string;
+		includeMimeTag?: boolean;
+		includeDimensions?: boolean;
+		preferUserServers?: boolean; // If true, use user's configured servers
+	}
+): Promise<UploadResult> {
+	const preferUserServers = opts?.preferUserServers ?? true;
+
+	// Determine server type and URL
+	let serverType = opts?.serverType;
+	let serverUrl = opts?.server;
+
+	if (preferUserServers && !serverUrl) {
+		const userConfig = getUserUploadConfig();
+		if (userConfig) {
+			serverType = userConfig.type;
+			serverUrl = userConfig.servers[0]; // Use first configured server
+		}
+	}
+
+	// Fallback to defaults
+	if (!serverUrl) {
+		serverUrl = DEFAULT_SERVER;
+	}
+	if (!serverType) {
+		// Default to Blossom
+		serverType = 'blossom';
+	}
+
+	// Attempt upload
+	if (serverType === 'blossom') {
+		try {
+			return await blossomUpload(file, { ...opts, server: serverUrl });
+		} catch (e) {
+			console.warn('Blossom upload failed, trying fallback:', e);
+			// Try NIP-96 as fallback
+			return await nip96Upload(file, { ...opts, server: serverUrl });
+		}
+	} else {
+		return await nip96Upload(file, { ...opts, server: serverUrl });
+	}
 }

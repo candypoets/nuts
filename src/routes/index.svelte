@@ -37,6 +37,10 @@
 		kind10002Ready,
 		kind10019,
 		kind10019Ready,
+		kind10063,
+		kind10063Ready,
+		kind10096,
+		kind10096Ready,
 		kind3,
 		kind3Ready
 	} from 'src/controller/nostr';
@@ -98,6 +102,16 @@
 					kinds: [10000], // mute list
 					authors: [$key.pub],
 					relays: ['wss://relay.damus.io', 'wss://relay.nostr.band', 'wss://purplepag.es']
+				},
+				{
+					kinds: [10063], // Blossom servers
+					authors: [$key.pub],
+					relays: ['wss://relay.damus.io', 'wss://relay.nostr.band', 'wss://purplepag.es']
+				},
+				{
+					kinds: [10096], // NIP-96 file storage servers
+					authors: [$key.pub],
+					relays: ['wss://relay.damus.io', 'wss://relay.nostr.band', 'wss://purplepag.es']
 				}
 			],
 			handleRelayEvents
@@ -143,6 +157,20 @@
 						}
 					}
 					break;
+			}
+
+			// Handle file storage server events (kind 10063 = Blossom, kind 10096 = NIP-96)
+			// These are parsed as generic events, not specific types
+			if (parsedEvent.kind() === 10063) {
+				if (parsedEvent.createdAt() > ($kind10063?.createdAt() || 0)) {
+					$kind10063 = parsedEvent;
+					kind10063Ready.resolve(parsedEvent);
+				}
+			} else if (parsedEvent.kind() === 10096) {
+				if (parsedEvent.createdAt() > ($kind10096?.createdAt() || 0)) {
+					$kind10096 = parsedEvent;
+					kind10096Ready.resolve(parsedEvent);
+				}
 			}
 		}
 	}

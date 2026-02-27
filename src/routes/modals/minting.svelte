@@ -188,6 +188,7 @@
 									displayHeight={275}
 									displayWidth={275}
 									margin={1}
+									errorCorrectionLevel="L"
 								/>
 							</a>
 						{:else}

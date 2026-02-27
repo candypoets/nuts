@@ -39,62 +39,9 @@
 			window.visualViewport.addEventListener('resize', setViewport);
 		}
 
-		// Clean up old tx-recovery data from localStorage
-		localStorage.removeItem('activeTxId');
-		localStorage.removeItem('pendingBackups_v1');
-
-		// Delete the old tx-recovery IndexedDB database
-		try {
-			indexedDB.deleteDatabase('nuts-cash-tx-recovery');
-		} catch (e) {
-			// Ignore errors
-		}
-
 		// Resume any pending transactions and clean up old ones
 		resumePendingTransactions().catch(console.error);
 		clearOldTransactions().catch(console.error);
-
-		// Expose debug functions to window for console debugging
-		// @ts-ignore
-		window.nutsDebug = {
-			// Retry failed nutzap publishes
-			retryPublish: async (txId?: string) => {
-				const { retryPublish, getTransaction, listPendingPublish } = await import('src/model/cashu/tx-recovery');
-				if (txId) {
-					return retryPublish(txId);
-				} else {
-					// Retry all pending
-					const pending = await listPendingPublish();
-					console.log(`[nutsDebug] Retrying ${pending.length} pending publishes`);
-					for (const tx of pending) {
-						await retryPublish(tx.txId);
-					}
-					return `Retried ${pending.length} transactions`;
-				}
-			},
-			// List pending publish transactions
-			listPendingPublish: async () => {
-				const { listPendingPublish } = await import('src/model/cashu/tx-recovery');
-				return listPendingPublish();
-			},
-			// Get transaction details
-			getTransaction: async (txId: string) => {
-				const { getTransaction } = await import('src/model/cashu/tx-recovery');
-				return getTransaction(txId);
-			},
-			// Retry pending proof backups
-			retryBackups: async () => {
-				const { retryPendingBackups, getPendingBackups } = await import('src/model/cashu/tx-recovery');
-				await retryPendingBackups();
-				return getPendingBackups();
-			},
-			// Get pending backup status
-			getPendingBackups: async () => {
-				const { getPendingBackups } = await import('src/model/cashu/tx-recovery');
-				return getPendingBackups();
-			}
-		};
-		console.log('[nuts-cash] Debug functions available at window.nutsDebug:', Object.keys(window.nutsDebug));
 
 		return () => {
 			window.removeEventListener('resize', setViewport);

@@ -168,6 +168,52 @@ export const kind10019Ready = resolvable<ParsedEvent>();
 
 export const kind17375: Writable<ParsedEvent | undefined> = writable();
 
+// File storage server events (kind 10063 = Blossom, kind 10096 = NIP-96)
+export const kind10063: Writable<ParsedEvent | undefined> = writable();
+export const kind10096: Writable<ParsedEvent | undefined> = writable();
+
+export const kind10063Ready = resolvable<ParsedEvent>();
+export const kind10096Ready = resolvable<ParsedEvent>();
+
+// Derived stores for file server URLs
+export const blossomServers = derived(kind10063, ($kind10063) => {
+	if (!$kind10063) return [];
+	const tags = $kind10063.tags() || [];
+	const servers: string[] = [];
+	for (const tag of tags) {
+		if (tag && tag[0] === 'server' && tag[1]) {
+			servers.push(tag[1] as string);
+		}
+	}
+	return servers;
+});
+
+export const nip96Servers = derived(kind10096, ($kind10096) => {
+	if (!$kind10096) return [];
+	const tags = $kind10096.tags() || [];
+	const servers: string[] = [];
+	for (const tag of tags) {
+		if (tag && tag[0] === 'server' && tag[1]) {
+			servers.push(tag[1] as string);
+		}
+	}
+	return servers;
+});
+
+// Preferred upload server (Blossom takes precedence, then NIP-96, fallback to default)
+export const preferredUploadServer = derived(
+	[blossomServers, nip96Servers],
+	([$blossom, $nip96]) => {
+		if ($blossom.length > 0) {
+			return { type: 'blossom' as const, servers: $blossom };
+		}
+		if ($nip96.length > 0) {
+			return { type: 'nip96' as const, servers: $nip96 };
+		}
+		return null;
+	}
+);
+
 export const kinds7375: Writable<ParsedEvent[]> = writable([]);
 
 export const readRelays = derived(kind10002, ($kind10002) => {
