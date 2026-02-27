@@ -5,13 +5,15 @@
 		type RequestObject
 	} from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
-	import { asParsedEvent } from '@candypoets/nipworker/utils';
+	import { asConnectionStatus, asParsedEvent, ConnectionTracker } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { getContext, onDestroy } from 'svelte';
 
 	import RelaysList from 'src/components/RelaysList.svelte';
 	import { isMobile } from 'src/controller';
 	import { limit } from 'src/controller/pagination';
+	import { relaySub, setSubRelays } from 'src/controller/relay';
+	import { DEFAULT_RELAYS } from 'src/lib/env';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import Note from 'src/routes/explore/note.svelte';
 	import Notifications from '../explore/notifications.svelte';
@@ -30,28 +32,40 @@
 	let sub: (() => void) | undefined;
 
 	let connectionStatus: { [url: string]: ConnectionStatus } = {};
+	let connectionTracker = new ConnectionTracker();
 
 	let imageContext = getContext('imageContext');
 
 	// Handle incoming events from subscription
 	function handleEvents(message: any) {
-		const event = message.type ? message : null;
-		if (!event) return;
-
-		// Handle EOSE (End of Stream Event)
-		if (event.type && typeof event.type === 'function' && event.type() === 3) {
-			loading = false;
+		// Handle connection status (including EOSE detection via resolutionRate)
+		const status = asConnectionStatus(message);
+		if (status && connectionTracker) {
+			const relayUrl = status.relayUrl()?.toString();
+			if (relayUrl) {
+				// Create new object for reactivity
+				connectionStatus = { ...connectionStatus, [relayUrl]: status };
+				connectionTracker.handleMessage(message);
+				// When >50% of relays have reached EOSE, mark loading as done
+				if (connectionTracker.resolutionRate > 0.5) {
+					loading = false;
+				}
+			}
 			return;
 		}
 
 		// Handle parsed events
-		if (event.kind && (event.kind() === 1 || event.kind() === 30023)) {
-			const parsedEvent = asParsedEvent(message) as ParsedEvent;
-			const eventId = parsedEvent.id()?.fnv1aHash();
-			const existingIndex = feedItems.findIndex((item) => item.id()?.fnv1aHash() === eventId);
-			if (existingIndex === -1) {
-				feedItems = [...feedItems, parsedEvent].sort((a, b) => b.createdAt() - a.createdAt());
-			}
+		const parsedEvent = asParsedEvent(message);
+		if (!parsedEvent) return;
+		const kind = parsedEvent.kind();
+		if (kind !== 1 && kind !== 30023) return;
+
+		const eventId = parsedEvent.id()?.fnv1aHash();
+		if (!eventId) return;
+
+		const existingIndex = feedItems.findIndex((item) => item.id()?.fnv1aHash() === eventId);
+		if (existingIndex === -1) {
+			feedItems = [...feedItems, parsedEvent].sort((a, b) => b.createdAt() - a.createdAt());
 		}
 	}
 
@@ -59,20 +73,21 @@
 	$: if (visible && tags.length > 0) {
 		if (!sub) {
 			loading = true;
+			const subId = 'tags_' + tags.reduce((acc, cur) => (acc += cur), '');
 			sub = useSubscription(
-				'tags_' + tags.reduce((acc, cur) => (acc += cur), ''),
+				subId,
 				[
 					{
 						kinds: [1],
 						tags: { '#t': tags },
 						limit: $limit,
-						noContext: true,
 						noCache: true,
-						relays: []
+						relays: DEFAULT_RELAYS
 					}
 				],
 				handleEvents
 			);
+			setSubRelays(subId, DEFAULT_RELAYS);
 		}
 	}
 
@@ -116,7 +131,7 @@
 						{tags.map((tag) => `#${tag}`).join(' ')}
 					</h1>
 				</div>
-				<RelaysList relays={[]} {connectionStatus} mini={$isMobile} />
+				<RelaysList relays={DEFAULT_RELAYS} {connectionStatus} mini={$isMobile} />
 				<!-- <span class="w-10" /> -->
 			</div>
 		{/if}

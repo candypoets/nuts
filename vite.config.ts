@@ -64,19 +64,7 @@ export default defineConfig(({ mode }) => {
 					categories: ['finance', 'utility'],
 					icons: [
 						{
-							src: '/maskable-icon-180.png',
-							sizes: '180x180',
-							type: 'image/png',
-							purpose: 'maskable'
-						},
-						{
-							src: '/maskable-icon-360.png',
-							sizes: '360x360',
-							type: 'image/png',
-							purpose: 'maskable'
-						},
-						{
-							src: '/apple-touch-icon.png',
+							src: '/touch-icon-180.png',
 							sizes: '180x180',
 							type: 'image/png'
 						}

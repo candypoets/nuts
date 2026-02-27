@@ -156,6 +156,10 @@
 				if (profileSeenIds.has(eventId)) return;
 				const reply = kind1.reply()?.id();
 				const root = kind1.root()?.id();
+
+				if (reply && !root) {
+					return;
+				}
 				// If this is a reply, check if it's a direct reply to root
 				if (reply && root) {
 					// If reply ID != root ID, it's a reply to a reply (nested) - skip it
@@ -171,6 +175,9 @@
 				if (followsSeenIds.has(eventId)) return;
 				const reply = kind1.reply()?.id();
 				const root = kind1.root()?.id();
+				if (reply && !root) {
+					return;
+				}
 				// If this is a reply, check if it's a direct reply to root
 				if (reply && root) {
 					// If reply ID != root ID, it's a reply to a reply (nested) - skip it
