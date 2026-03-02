@@ -246,8 +246,6 @@ export async function uploadFile(
 		}
 	}
 
-	console.log('serverType:serverUrl', serverType, serverUrl);
-
 	// Fallback to defaults
 	if (!serverUrl) {
 		serverUrl = DEFAULT_SERVER;
@@ -257,6 +255,7 @@ export async function uploadFile(
 		serverType = 'blossom';
 	}
 
+	console.log('serverType:serverUrl', serverType, serverUrl);
 	// Attempt upload
 	if (serverType === 'blossom') {
 		try {

@@ -23,7 +23,7 @@ function getUploadDefaults() {
 	}
 	return {
 		url: DEFAULT_SERVER,
-		type: 'nip96' as const
+		type: 'blossom' as const
 	};
 }
 
