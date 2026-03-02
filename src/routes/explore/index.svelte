@@ -1,10 +1,5 @@
 <script lang="ts">
 	import {
-		ParsePipeConfigT,
-		PipeConfig,
-		PipeT,
-		SaveToDbPipeConfigT,
-		SerializeEventsPipeConfigT,
 		type ConnectionStatus,
 		type Kind3Parsed,
 		type ListParsed,
@@ -239,7 +234,6 @@
 		if (kind === 1 || kind === 6) {
 			const kind1 = asKind1(parsedEvent);
 			if (kind1) {
-
 				const reply = kind1.reply()?.id();
 				const root = kind1.root()?.id();
 				// CASE 1: Has reply but no root = reply to something (could be nested)
@@ -258,9 +252,9 @@
 				// CASE 3: No reply tag = root post (allow it)
 			}
 
-			if(kind == 6) {
-        		const kind6 = asKind6(parsedEvent);
-        		if (!kind6.repostedEvent()) return;
+			if (kind == 6) {
+				const kind6 = asKind6(parsedEvent);
+				if (!kind6.repostedEvent()) return;
 			}
 		}
 

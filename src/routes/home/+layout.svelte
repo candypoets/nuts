@@ -170,7 +170,17 @@
 	}
 
 	// Build requests for wallet feed subscription
-	function buildWalletRequests(isPagination = false): { kinds: number[]; authors?: string[]; tags?: Record<string, string[]>; limit: number; relays: string[]; noCache?: boolean; until?: number }[] {
+	function buildWalletRequests(
+		isPagination = false
+	): {
+		kinds: number[];
+		authors?: string[];
+		tags?: Record<string, string[]>;
+		limit: number;
+		relays: string[];
+		noCache?: boolean;
+		until?: number;
+	}[] {
 		const baseReq = {
 			limit: 50,
 			relays: relays,
@@ -201,7 +211,12 @@
 	// Wallet feed subscription - moved from Feed to parent
 	function initWalletFeedSubscription(isPagination = false) {
 		if (!visible || !$key?.pub || !relays?.length) return;
-		console.log('[wallet] Starting wallet feed subscription with relays:', relays, 'isPagination:', isPagination);
+		console.log(
+			'[wallet] Starting wallet feed subscription with relays:',
+			relays,
+			'isPagination:',
+			isPagination
+		);
 		if (!isPagination) {
 			unsubscribeWallet?.();
 		}
@@ -258,9 +273,17 @@
 
 	// Handle near-bottom pagination
 	function handleNearBottom(event: { distance: number }) {
-		console.log('[Home] handleNearBottom called', { loading, hasMore, walletItemsLength: walletItems.length });
+		console.log('[Home] handleNearBottom called', {
+			loading,
+			hasMore,
+			walletItemsLength: walletItems.length
+		});
 		if (loading || !hasMore || walletItems.length === 0) {
-			console.log('[Home] Pagination blocked:', { loading, hasMore, walletItemsLength: walletItems.length });
+			console.log('[Home] Pagination blocked:', {
+				loading,
+				hasMore,
+				walletItemsLength: walletItems.length
+			});
 			return;
 		}
 
@@ -274,7 +297,14 @@
 		const cursorItem = walletItems[overlapIndex];
 		if (cursorItem) {
 			until = cursorItem.createdAt() - 1;
-			console.log('[Home] Pagination cursor at index', overlapIndex, 'of', walletItems.length, 'timestamp:', until);
+			console.log(
+				'[Home] Pagination cursor at index',
+				overlapIndex,
+				'of',
+				walletItems.length,
+				'timestamp:',
+				until
+			);
 		}
 
 		initWalletFeedSubscription(true);

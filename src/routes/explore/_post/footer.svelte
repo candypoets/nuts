@@ -1,7 +1,6 @@
 <script lang="ts">
 	import {
 		CounterPipeConfigT,
-		MuteFilterPipeConfigT,
 		CountResponse,
 		MessageType,
 		PipeConfig,
@@ -9,8 +8,7 @@
 		SaveToDbPipeConfigT,
 		WorkerMessage,
 		type ConnectionStatus,
-		type ParsedEvent,
-		type SubscriptionConfig
+		type ParsedEvent
 	} from '@candypoets/nipworker';
 	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
 	import {
@@ -19,16 +17,15 @@
 		isConnectionStatus
 	} from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
-	import { finalizeEvent, kinds, type EventTemplate } from 'nostr-tools';
+	import { kinds, type EventTemplate } from 'nostr-tools';
 	import { onDestroy } from 'svelte';
 
 	import EmojiPickerContent from 'src/components/EmojiPickerContent.svelte';
 	import Nutscash from 'src/components/Nutscash.svelte';
 	import { isMobile, key } from 'src/controller';
+	import { mutePipeConfig } from 'src/controller/nostr';
 	import { updateSendStatus } from 'src/controller/sendStatus';
 	import { now } from 'src/lib/period';
-	import { hexToBytes } from 'src/lib/wallet';
-	import { mutePipeConfig } from 'src/controller/nostr';
 	import { go } from 'src/routes/modals/modal';
 	import { getUserRelays } from 'src/routes/queries/user';
 

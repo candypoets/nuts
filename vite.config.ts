@@ -1,12 +1,8 @@
 import { sveltekit } from '@sveltejs/kit/vite';
-import basicSsl from '@vitejs/plugin-basic-ssl';
 import { SvelteKitPWA as VitePWA } from '@vite-pwa/sveltekit';
+import basicSsl from '@vitejs/plugin-basic-ssl';
 
 import { defineConfig, loadEnv } from 'vite';
-import topLevelAwait from 'vite-plugin-top-level-await';
-import { visualizer } from 'rollup-plugin-visualizer';
-import compression from 'vite-plugin-compression';
-import path from 'path';
 
 export default defineConfig(({ mode }) => {
 	const env = loadEnv(mode, process.cwd(), 'VITE_');
@@ -42,8 +38,6 @@ export default defineConfig(({ mode }) => {
 		},
 		plugins: [
 			...(enableSsl ? [basicSsl()] : []),
-			topLevelAwait(),
-			// sharedArrayBufferPlugin(), // Add our custom plugin
 			sveltekit(),
 			VitePWA({
 				devOptions: {
