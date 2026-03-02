@@ -361,7 +361,7 @@
 						hasInitialized = false;
 					}
 				}
-			}, 15000);
+			}, 1500);
 		} else {
 			// Requests empty, reset loading so we can retry when deps change
 			loading = false;

@@ -16,7 +16,7 @@ async function sha256HexFile(file: File): Promise<string> {
 	if (!crypto.subtle) {
 		throw new Error(
 			'Image upload requires a secure connection (HTTPS). ' +
-			'Please access the app via https:// or localhost.'
+				'Please access the app via https:// or localhost.'
 		);
 	}
 	const buf = await file.arrayBuffer();
@@ -245,6 +245,8 @@ export async function uploadFile(
 			serverUrl = userConfig.servers[0]; // Use first configured server
 		}
 	}
+
+	console.log('serverType:serverUrl', serverType, serverUrl);
 
 	// Fallback to defaults
 	if (!serverUrl) {

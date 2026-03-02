@@ -231,6 +231,7 @@
 			const res = await connectWithQRCode('Nuts', DEFAULT_RELAYS);
 			// If we have an animator (inside app), use modal system
 			if (animator) {
+				// Must encode since nostrconnect:// contains special URL chars like // and ?
 				go('qr:' + encodeURIComponent(res));
 			} else {
 				// On login page, show inline QR

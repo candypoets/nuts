@@ -177,7 +177,7 @@
 		{:else if path.startsWith('melted')}
 			<Melted mint={path.split(':')?.[1]} amount={path.split(':')?.[2]} />
 		{:else if path.startsWith('qr')}
-			<QR qrText={path.slice(3)} />
+			<QR qrText={decodeURIComponent(path.slice(3))} />
 		{:else if path.startsWith('ecash')}
 			<Ecash pubkey={path.split(':')?.[1]} noteId={path.split(':')?.[2]} />
 		{:else if path.includes('followlist')}

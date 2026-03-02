@@ -10,17 +10,26 @@
 
 	let animator = getContext('animator');
 
-	// Derive npub from pub if needed, default to nostr:npub URI format for profile scanning
-	$: derivedQrText = qrText || ($key?.pub 
-		? `nostr:${$key.npub || nip19.npubEncode($key.pub)}` 
-		: '');
 	let copied = false;
 
-	// Check if the qrText is an encoded URL and decode it if needed
-	if (derivedQrText && derivedQrText.includes('%3A')) {
-		const decoded = decodeURIComponent(derivedQrText);
-		derivedQrText = decoded;
+	// Function to decode relay URLs that might still be encoded
+	function decodeQrText(text: string | undefined): string {
+		if (!text) return '';
+		// If text contains encoded characters (like relay URLs), decode them
+		if (text.includes('%3A') || text.includes('%2F')) {
+			try {
+				return decodeURIComponent(text);
+			} catch (e) {
+				console.warn('Failed to decode QR text:', e);
+			}
+		}
+		return text;
 	}
+
+	// Derive npub from pub if needed, default to nostr:npub URI format for profile scanning
+	$: derivedQrText = decodeQrText(qrText) || ($key?.pub 
+		? `nostr:${$key.npub || nip19.npubEncode($key.pub)}` 
+		: '');
 
 	async function copyToClipboard() {
 		if (!derivedQrText) return;
