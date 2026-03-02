@@ -99,13 +99,6 @@ export class PagerAnimator {
 	 */
 	private applyCombinedVisibility() {
 		const { showMain, visibleStack } = this.computeCombinedVisibility();
-		console.log('[PagerAnimator] applyCombinedVisibility:', { 
-			isMobileMode: this.isMobileMode, 
-			stackLength: this.stack.length, 
-			showMain, 
-			visibleStack: Array.from(visibleStack),
-			showMainCurrent: this.showMain 
-		});
 		this.showMain = showMain;
 		this.visibleStackIndices = visibleStack;
 
@@ -325,9 +318,7 @@ export class PagerAnimator {
 		const translateX = -(subTweened - swipeProgressX) * (this.viewport.vw * 20 + subDepth * 30);
 		const translateY = (modalDepth - swipeProgressY) * 30;
 		// Disable scale and rotateY on mobile - keep main content flat and full size
-		const scale = this.isMobileMode
-			? 1
-			: (200 - (modalDepth - swipeProgressY) * 30) / 200;
+		const scale = this.isMobileMode ? 1 : (200 - (modalDepth - swipeProgressY) * 30) / 200;
 		const rotateY = this.isMobileMode ? 0 : (subTweened - swipeProgressX) * -20;
 
 		// Animate main element with Motion One using individual transform properties
@@ -341,7 +332,8 @@ export class PagerAnimator {
 			},
 			{
 				// Shorter duration on mobile for snappier feel
-				duration: deltaX !== 0 || deltaY !== 0 ? 0 : (this.isMobileMode ? 0.2 : this.options.duration),
+				duration:
+					deltaX !== 0 || deltaY !== 0 ? 0 : this.isMobileMode ? 0.2 : this.options.duration,
 				easing: 'ease-out'
 			}
 		);
@@ -404,7 +396,8 @@ export class PagerAnimator {
 		// Disable scaling on mobile - keep full size for better readability
 		const scale = this.isMobileMode
 			? 1
-			: Math.max(0.85, 1 - effectiveSubDepth * 0.05) * Math.max(0.85, 1 - effectiveModalDepth * 0.05);
+			: Math.max(0.85, 1 - effectiveSubDepth * 0.05) *
+				Math.max(0.85, 1 - effectiveModalDepth * 0.05);
 		const opacity = Math.max(0.3, 1 - effectiveSubDepth * 0.3);
 
 		// Motion One animation
@@ -418,7 +411,8 @@ export class PagerAnimator {
 			},
 			{
 				// Shorter duration on mobile for snappier feel
-				duration: deltaX !== 0 || deltaY !== 0 ? 0 : (this.isMobileMode ? 0.2 : this.options.duration),
+				duration:
+					deltaX !== 0 || deltaY !== 0 ? 0 : this.isMobileMode ? 0.2 : this.options.duration,
 				easing: 'ease-out'
 			}
 		);

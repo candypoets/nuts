@@ -105,11 +105,9 @@
 	$: if (subId !== lastSubId) {
 		const prevSubId = lastSubId;
 		lastSubId = subId;
-		console.log('[Explore] subId changed:', { prevSubId, subId, hasInitialized, followPacksLength: $followPacks.length });
 		// Followlist changed, reset feed to trigger new subscription
 		// Also reset when transitioning from initial load (prevSubId was undefined) to populated state
 		if (hasInitialized || (prevSubId === undefined && $followPacks.length > 1)) {
-			console.log('[Explore] Resetting feed due to followlist change');
 			resetFeed();
 			seenEventIds.clear();
 			hasInitialized = false;
@@ -127,11 +125,15 @@
 	function handleSubRelays(subRelays: string[] | undefined) {
 		if (subRelays && !isEqual(relays, subRelays)) {
 			relays = subRelays;
-			resetFeed();
-			hasInitialized = false;
-			relayCounter += 1;
-			connectionStatus = {};
-			connectionTracker = new ConnectionTracker();
+			// Don't reset if we're in the middle of initial setup (isInitializing is true)
+			// or if the feed hasn't been initialized yet
+			if (!isInitializing && hasInitialized) {
+				resetFeed();
+				hasInitialized = false;
+				relayCounter += 1;
+				connectionStatus = {};
+				connectionTracker = new ConnectionTracker();
+			}
 		}
 	}
 
@@ -144,7 +146,6 @@
 		relaySubUnsubscribe?.();
 		currentRelaySubId = subId;
 		relaySubUnsubscribe = relaySub(subId).subscribe((subRelays) => {
-			console.log(subRelays, subId);
 			handleSubRelays(subRelays);
 		});
 	}
@@ -154,7 +155,6 @@
 	onMount(() => {
 		const timeout = setTimeout(() => {
 			if (!feedInitialized && following.length === 0) {
-				console.warn('Feed data not loaded');
 				feedInitialized = true;
 			}
 		}, 2000);
@@ -234,7 +234,6 @@
 		if (!parsedEvent) return;
 		const kind = parsedEvent.kind();
 		// if (kind !== 1 && kind !== 6) return;
-		console.log("kind", kind)
 		// Filter: only show root posts or direct replies to root posts
 		// Skip nested replies (replies to replies)
 		if (kind === 1 || kind === 6) {
@@ -243,7 +242,6 @@
 
 				const reply = kind1.reply()?.id();
 				const root = kind1.root()?.id();
-				console.log(reply?.toString(), root?.toString(), reply?.fnv1aHash(), root?.fnv1aHash())
 				// CASE 1: Has reply but no root = reply to something (could be nested)
 				// Filter it out since we can't verify it's a direct reply to root
 				if (reply && !root) {
@@ -257,7 +255,6 @@
 						return;
 					}
 				}
-				console.log('not filtered')
 				// CASE 3: No reply tag = root post (allow it)
 			}
 
@@ -317,6 +314,10 @@
 			clearTimeout(refreshTimeout);
 			refreshTimeout = undefined;
 		}
+		if (initTimeout) {
+			clearTimeout(initTimeout);
+			initTimeout = undefined;
+		}
 		unsubscribePagination?.();
 		unsubscribePagination = undefined;
 	}
@@ -326,18 +327,23 @@
 	let unsubscribePagination: (() => void) | undefined;
 	let hasInitialized = false;
 	let rootSubId: string | undefined = undefined;
+	let initTimeout: ReturnType<typeof setTimeout> | undefined;
+
+	// Track if we're currently initializing to prevent reactive loops
+	let isInitializing = false;
 
 	function initFeed() {
 		if (!visible) return;
 		if (hasInitialized) return;
 		if (loading) return;
+		if (isInitializing) return; // Prevent re-entry during initialization
 
 		feedInitialized = true;
 		loading = true;
+		isInitializing = true;
 
 		const requests = buildRequests();
 		if (requests.length > 0) {
-			hasInitialized = true; // Only set after we actually create subscription
 			unsubscribe?.();
 			connectionTracker = new ConnectionTracker();
 			rootSubId = subId + relayCounter;
@@ -347,9 +353,25 @@
 			});
 			// Use default relays for anonymous users, otherwise use user's relays
 			setSubRelays(rootSubId, $key?.pub ? relays : DEFAULT_FEED_RELAYS);
+			// Mark as initialized AFTER setting up subscription and relays
+			// This prevents handleSubRelays from resetting during initial setup
+			hasInitialized = true;
+			isInitializing = false;
+			// Safety timeout: clear loading after 15s even if EOSE never arrives
+			if (initTimeout) clearTimeout(initTimeout);
+			initTimeout = setTimeout(() => {
+				if (loading) {
+					loading = false;
+					// If no items loaded, allow retry by resetting hasInitialized
+					if (feedItems.length === 0) {
+						hasInitialized = false;
+					}
+				}
+			}, 15000);
 		} else {
 			// Requests empty, reset loading so we can retry when deps change
 			loading = false;
+			isInitializing = false;
 		}
 	}
 
@@ -357,13 +379,10 @@
 	let wasGlobalFeed: boolean | undefined = undefined;
 	let isSwitchingFeedType = false;
 	$: {
-		console.log('[Explore] wasGlobalFeed check:', { wasGlobalFeed, hasInitialized, useGlobalFeed, isSwitchingFeedType, followingLength: following.length });
 		// Guard: prevent re-entry during feed type switch (infinite loop protection)
 		if (isSwitchingFeedType) {
-			console.log('[Explore] Skipping wasGlobalFeed check - already switching');
 		} else if (wasGlobalFeed !== undefined && hasInitialized && wasGlobalFeed !== useGlobalFeed) {
 			// Switching feed type - reinitialize and clear feed
-			console.log('[Explore] Switching feed type from', wasGlobalFeed, 'to', useGlobalFeed);
 			// Set lock FIRST before any reactive state changes
 			isSwitchingFeedType = true;
 			// Update wasGlobalFeed to match useGlobalFeed so condition becomes false
@@ -403,6 +422,7 @@
 		if (paginationTimeout) clearTimeout(paginationTimeout);
 		if (paginationCheckTimeout) clearTimeout(paginationCheckTimeout);
 		if (refreshTimeout) clearTimeout(refreshTimeout);
+		if (initTimeout) clearTimeout(initTimeout);
 	});
 
 	// Handle pull-to-refresh - keep existing feed items, just show loader and fetch new
@@ -425,6 +445,7 @@
 		// Fallback: clear refreshing after timeout if EOSE isn't received
 		refreshTimeout = setTimeout(() => {
 			refreshing = false;
+			loading = false;
 			refreshTimeout = undefined;
 		}, 10000);
 		// initFeed will set loading = true

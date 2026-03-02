@@ -223,7 +223,7 @@
 					);
 				}
 			}
-		}, 500);
+		}, !depth ? 500 : 0);
 	}
 
 	function unsubscribe() {

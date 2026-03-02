@@ -4,6 +4,7 @@
 		Contact,
 		Kind10002Parsed,
 		Kind3Parsed,
+		MessageType,
 		ParsedData,
 		type ParsedEvent,
 		type RequestObject,
@@ -36,6 +37,7 @@
 		fbArray,
 		isKind1
 	} from '@candypoets/nipworker/utils';
+
 	import RelaysList from 'src/components/RelaysList.svelte';
 	import { onDestroy, onMount } from 'svelte';
 	import Avatar from '../explore/avatar.svelte';
@@ -62,6 +64,11 @@
 	let mode = 'profile';
 
 	let connectionStatus: { [url: string]: ConnectionStatus } = {};
+
+	// Optimistic follow state
+	let optimisticFollowing: boolean | null = null;
+	let followConfirmReceived = false;
+	let followPublishUnsub: (() => void) | undefined;
 
 	let sub: (() => void) | undefined;
 	let contactSub: (() => void) | undefined;
@@ -219,10 +226,21 @@
 		unsubscribe();
 		if (paginationTimeout) clearTimeout(paginationTimeout);
 		if (paginationCheckTimeout) clearTimeout(paginationCheckTimeout);
+		followPublishUnsub?.();
 	});
 
 	function updateFollowList() {
 		if (!$kind0) return;
+
+		const isCurrentlyFollowing = $follows.some((f) => f.pubkey === pubkey);
+		const newFollowingState = !isCurrentlyFollowing;
+
+		// Optimistically update UI immediately
+		optimisticFollowing = newFollowingState;
+		followConfirmReceived = false;
+
+		// Clean up any previous publish subscription
+		followPublishUnsub?.();
 
 		const template = {
 			kind: 3,
@@ -233,11 +251,16 @@
 					['p', pubkey, writeRelays?.[0] || '']
 				],
 				(c) => c[1]
-			).filter((c) => ($follows.some((c) => c.pubkey === pubkey) ? c[1] !== pubkey : true)),
+			).filter((c) => (isCurrentlyFollowing ? c[1] !== pubkey : true)),
 			content: ''
 		};
 
-		usePublish('follow_' + pubkey, template);
+		followPublishUnsub = usePublish('follow_' + pubkey, template, (message: WorkerMessage) => {
+			if (message.type() === MessageType.Eoce) {
+				followConfirmReceived = true;
+				// Eoce received - confirmation from at least one relay
+			}
+		});
 	}
 
 	function toggleMute() {
@@ -262,6 +285,19 @@
 	$: if (visible && !sub) {
 		subscribe();
 	}
+
+	// Reset optimistic state when pubkey changes
+	$: if (pubkey) {
+		optimisticFollowing = null;
+		followConfirmReceived = false;
+		followPublishUnsub?.();
+		followPublishUnsub = undefined;
+	}
+
+	// Computed follow state (optimistic or actual)
+	$: isFollowing = optimisticFollowing !== null ? optimisticFollowing : $follows.some((f) => f.pubkey === pubkey);
+	// Check if we have a pending optimistic update waiting for confirmation
+	$: isFollowPending = optimisticFollowing !== null && !followConfirmReceived;
 
 	// Timeout for relay discovery - fallback to default relays if Kind10002 not received
 	let relayDiscoveryTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -517,10 +553,12 @@
 					<div class="absolute right-4 top-20 flex gap-2">
 						<button
 							class="z-10 btn btn-sm btn-circle border border-white bg-opacity-80"
+							class:opacity-60={isFollowPending}
 							on:click={updateFollowList}
-							title={$follows.some((f) => f.pubkey === pubkey) ? 'Unfollow' : 'Follow'}
+							title={isFollowing ? 'Unfollow' : 'Follow'}
+							disabled={isFollowPending}
 						>
-							{#if $follows.some((f) => f.pubkey === pubkey)}
+							{#if isFollowing}
 								<Icon icon="mdi:account-check" class="text-lg" />
 							{:else}
 								<Icon icon="mdi:account-plus" class="text-lg" />

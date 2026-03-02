@@ -1,0 +1,25 @@
+{
+  "language_overrides": {
+    "Svelte": {
+      "language_servers": ["svelte-language-server", "vtsls", "eslint"],
+      "format_on_save": "on"
+    },
+    "TypeScript": {
+      "language_servers": ["vtsls", "eslint"],
+      "format_on_save": "on"
+    }
+  },
+  "lsp": {
+    "svelte-language-server": {
+      "settings": {
+        "svelte": {
+          "plugin": {
+            "typescript": {
+              "enabled": true
+            }
+          }
+        }
+      }
+    }
+  }
+}
