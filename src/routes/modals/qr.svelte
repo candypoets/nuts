@@ -6,27 +6,29 @@
 
 	import { key } from 'src/controller';
 
+	export let qrText: string | undefined = undefined;
+
 	let animator = getContext('animator');
 
 	// Derive npub from pub if needed, default to nostr:npub URI format for profile scanning
-	$: qrText = $key?.pub 
+	$: derivedQrText = qrText || ($key?.pub 
 		? `nostr:${$key.npub || nip19.npubEncode($key.pub)}` 
-		: '';
+		: '');
 	let copied = false;
 
 	// Check if the qrText is an encoded URL and decode it if needed
-	if (qrText && qrText.includes('%3A')) {
-		const decoded = decodeURIComponent(qrText);
-		qrText = decoded;
+	if (derivedQrText && derivedQrText.includes('%3A')) {
+		const decoded = decodeURIComponent(derivedQrText);
+		derivedQrText = decoded;
 	}
 
 	async function copyToClipboard() {
-		if (!qrText) return;
+		if (!derivedQrText) return;
 		
 		// Try modern Clipboard API first
 		if (navigator.clipboard && window.isSecureContext) {
 			try {
-				await navigator.clipboard.writeText(qrText);
+				await navigator.clipboard.writeText(derivedQrText);
 				copied = true;
 				setTimeout(() => (copied = false), 2000);
 				return;
@@ -38,7 +40,7 @@
 		// Fallback: use hidden textarea and execCommand
 		try {
 			const textarea = document.createElement('textarea');
-			textarea.value = qrText;
+			textarea.value = derivedQrText;
 			textarea.style.position = 'fixed';
 			textarea.style.left = '-9999px';
 			textarea.style.top = '0';
@@ -59,7 +61,7 @@
 		}
 	}
 
-	$: console.log('QR Text:', qrText);
+	$: console.log('QR Text:', derivedQrText);
 </script>
 
 <div
@@ -81,7 +83,7 @@
 			aria-label="Copy QR code content"
 		>
 			<QRCodeImage
-				text={qrText}
+				text={derivedQrText}
 				displayType="canvas"
 				displayHeight={280}
 				displayWidth={280}
@@ -120,9 +122,9 @@
 		{/if}
 
 		<!-- Show truncated text -->
-		{#if qrText}
+		{#if derivedQrText}
 			<div class="text-sm text-base-content/60 max-w-[300px] text-center break-all px-4">
-				{qrText.slice(0, 24)}...{qrText.slice(-16)}
+				{derivedQrText.slice(0, 24)}...{derivedQrText.slice(-16)}
 			</div>
 		{/if}
 	</div>

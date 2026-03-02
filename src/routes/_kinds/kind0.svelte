@@ -35,6 +35,7 @@
 		asKind3,
 		asParsedEvent,
 		fbArray,
+		isConnectionStatus,
 		isKind1
 	} from '@candypoets/nipworker/utils';
 
@@ -66,9 +67,9 @@
 	let connectionStatus: { [url: string]: ConnectionStatus } = {};
 
 	// Optimistic follow state
-	let optimisticFollowing: boolean | null = null;
-	let followConfirmReceived = false;
+	let followIntent: boolean | null = null;
 	let followPublishUnsub: (() => void) | undefined;
+	let followPublishStatus: { [url: string]: ConnectionStatus } = {};
 
 	let sub: (() => void) | undefined;
 	let contactSub: (() => void) | undefined;
@@ -232,15 +233,15 @@
 	function updateFollowList() {
 		if (!$kind0) return;
 
-		const isCurrentlyFollowing = $follows.some((f) => f.pubkey === pubkey);
-		const newFollowingState = !isCurrentlyFollowing;
+		const currentState = followIntent ?? $follows.some((f) => f.pubkey === pubkey);
+		const newFollowingState = !currentState;
 
 		// Optimistically update UI immediately
-		optimisticFollowing = newFollowingState;
-		followConfirmReceived = false;
+		followIntent = newFollowingState;
 
-		// Clean up any previous publish subscription
+		// Clean up any previous publish subscription and reset relay tracking
 		followPublishUnsub?.();
+		followPublishStatus = {};
 
 		const template = {
 			kind: 3,
@@ -251,14 +252,19 @@
 					['p', pubkey, writeRelays?.[0] || '']
 				],
 				(c) => c[1]
-			).filter((c) => (isCurrentlyFollowing ? c[1] !== pubkey : true)),
+			).filter((c) => (isFollowing ? c[1] !== pubkey : true)),
 			content: ''
 		};
 
 		followPublishUnsub = usePublish('follow_' + pubkey, template, (message: WorkerMessage) => {
-			if (message.type() === MessageType.Eoce) {
-				followConfirmReceived = true;
-				// Eoce received - confirmation from at least one relay
+			const status = isConnectionStatus(message);
+			console.log('status', status?.relayUrl()?.toString(), status?.status()?.toString());
+			if (status) {
+				const relayUrl = status.relayUrl()?.toString();
+				if (relayUrl) {
+					// Trigger reactivity by creating new object
+					followPublishStatus = { ...followPublishStatus, [relayUrl]: status };
+				}
 			}
 		});
 	}
@@ -286,18 +292,21 @@
 		subscribe();
 	}
 
-	// Reset optimistic state when pubkey changes
-	$: if (pubkey) {
-		optimisticFollowing = null;
-		followConfirmReceived = false;
-		followPublishUnsub?.();
-		followPublishUnsub = undefined;
-	}
+	// Derived follow states
+	$: hasOkFromRelay = Object.values(followPublishStatus).some(
+		(s) => s.status()?.toString() === 'true'
+	);
 
-	// Computed follow state (optimistic or actual)
-	$: isFollowing = optimisticFollowing !== null ? optimisticFollowing : $follows.some((f) => f.pubkey === pubkey);
-	// Check if we have a pending optimistic update waiting for confirmation
-	$: isFollowPending = optimisticFollowing !== null && !followConfirmReceived;
+	$: isFollowing = followIntent ?? $follows.some((f) => f.pubkey === pubkey);
+	$: isFollowPending = followIntent !== null && !hasOkFromRelay;
+
+	$: console.log('followIntent', followIntent);
+
+	// Reset intent when store confirms the change
+	$: if (followIntent !== null && $follows.some((f) => f.pubkey === pubkey) === followIntent) {
+		followIntent = null;
+		followPublishStatus = {};
+	}
 
 	// Timeout for relay discovery - fallback to default relays if Kind10002 not received
 	let relayDiscoveryTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -551,19 +560,25 @@
 			<div class="px-4 my-6">
 				<div class="flex items-center gap-3 mb-4">
 					<div class="absolute right-4 top-20 flex gap-2">
-						<button
-							class="z-10 btn btn-sm btn-circle border border-white bg-opacity-80"
-							class:opacity-60={isFollowPending}
-							on:click={updateFollowList}
-							title={isFollowing ? 'Unfollow' : 'Follow'}
-							disabled={isFollowPending}
-						>
-							{#if isFollowing}
-								<Icon icon="mdi:account-check" class="text-lg" />
-							{:else}
-								<Icon icon="mdi:account-plus" class="text-lg" />
+						<div class="relative">
+							<button
+								class="z-10 btn btn-sm btn-circle border border-white bg-opacity-80 disabled:opacity-100"
+								on:click={updateFollowList}
+								title={isFollowing ? 'Unfollow' : 'Follow'}
+								disabled={isFollowPending}
+							>
+								{#if isFollowing}
+									<Icon icon="mdi:account-check" class="text-lg" />
+								{:else}
+									<Icon icon="mdi:account-plus" class="text-lg" />
+								{/if}
+							</button>
+							{#if isFollowPending}
+								<div
+									class="absolute inset-0 -m-1 rounded-full border-2 border-primary border-t-transparent animate-spin pointer-events-none"
+								></div>
 							{/if}
-						</button>
+						</div>
 
 						<button
 							class="z-10 btn btn-sm btn-circle border border-white bg-opacity-80"
