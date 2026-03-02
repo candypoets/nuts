@@ -1,10 +1,5 @@
 <script lang="ts">
-	import {
-		ParsedData,
-		type ParsedEvent,
-		type RequestObject,
-		type WorkerMessage
-	} from '@candypoets/nipworker';
+	import { type ParsedEvent, type RequestObject, type WorkerMessage } from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import { asNip51, fbArray, isNip51, isParsedEvent } from '@candypoets/nipworker/utils';
 
@@ -12,7 +7,6 @@
 	import { followList, followPacks } from 'src/controller/feed';
 	import { key } from 'src/controller/key';
 	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
-	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import MultiSelect from 'src/routes/modals/components/MultiSelect.svelte';
@@ -79,23 +73,19 @@
 	function handleEvents(message: WorkerMessage) {
 		const parsedEvent = isParsedEvent(message);
 		if (!parsedEvent) {
-			console.log('[FollowLists] handleEvents: not a parsed event', message);
 			return;
 		}
 
 		const kindList = isNip51(message);
 		if (!kindList) {
-			console.log('[FollowLists] handleEvents: not a nip51', message.type?.());
 			return;
 		}
 		if (!kindList?.title()) {
-			console.log('[FollowLists] handleEvents: no title');
 			return;
 		}
 
 		const eventId = parsedEvent.id()?.fnv1aHash();
 		if (!eventId) {
-			console.log('[FollowLists] handleEvents: no eventId');
 			return;
 		}
 
@@ -104,11 +94,9 @@
 		// Handle kind 30000 (Follow Sets)
 		if (kind === 30000) {
 			if (seenFollowSetIds.has(eventId)) {
-				console.log('[FollowLists] handleEvents: duplicate follow set', eventId);
 				return;
 			}
 			seenFollowSetIds.add(eventId);
-			console.log('[FollowLists] handleEvents: adding follow set', eventId, 'title:', kindList.title()?.toString());
 			followSets = [...followSets, parsedEvent].sort((a, b) => b.createdAt() - a.createdAt());
 			loading = false;
 			return;
@@ -118,25 +106,19 @@
 		if (kind === 39089) {
 			// Don't add followlist (it's handled reactively via $followList)
 			if (parsedEvent.id()?.toString() === 'followlist') {
-				console.log('[FollowLists] handleEvents: skipping followlist');
 				return;
 			}
 			if (seenPackIds.has(eventId)) {
-				console.log('[FollowLists] handleEvents: duplicate follow pack', eventId);
 				return;
 			}
 			seenPackIds.add(eventId);
-			console.log('[FollowLists] handleEvents: adding follow pack', eventId, 'title:', kindList.title()?.toString());
 			otherPacks = [...otherPacks, parsedEvent].sort((a, b) => b.createdAt() - a.createdAt());
 			loading = false;
 			return;
 		}
-
-		console.log('[FollowLists] handleEvents: unknown kind', kind);
 	}
 
 	onMount(() => {
-		console.log('hi');
 		loading = true;
 		const requests = buildRequests();
 		unsubscribe = useSubscription(subscriptionID, requests, handleEvents, {
@@ -180,11 +162,9 @@
 		}
 
 		// Check if we actually got new items (from both followSets and otherPacks)
-		const newItemsAdded = (followSets.length + otherPacks.length) - itemsAtCheck;
-		console.log('[FollowLists] Pagination complete. New items added:', newItemsAdded);
+		const newItemsAdded = followSets.length + otherPacks.length - itemsAtCheck;
 		if (newItemsAdded === 0) {
 			hasMore = false;
-			console.log('[FollowLists] No more data available');
 		}
 		itemsBeforePagination = 0;
 	}
@@ -192,9 +172,7 @@
 	// Handle near-bottom pagination
 	function handleNearBottom(event: { distance: number }) {
 		const totalItems = followSets.length + otherPacks.length;
-		console.log('[FollowLists] handleNearBottom called', { loading, hasMore, totalItems, followSetsLength: followSets.length, otherPacksLength: otherPacks.length });
 		if (loading || !hasMore || totalItems === 0) {
-			console.log('[FollowLists] Pagination blocked:', { loading, hasMore, totalItems });
 			return;
 		}
 
@@ -210,12 +188,10 @@
 		const cursorItem = allPacks[overlapIndex];
 		if (cursorItem) {
 			until = cursorItem.createdAt() - 1;
-			console.log('[FollowLists] Pagination cursor at index', overlapIndex, 'of', allPacks.length, 'timestamp:', until);
 		}
 
 		const requests = buildRequests(true);
 		const pageSubId = subscriptionID + '_page_' + paginationCounter + '_' + until;
-		console.log('[FollowLists] Starting pagination:', { pageSubId, until, requests });
 		useSubscription(pageSubId, requests, handleEvents, {
 			bytesPerEvent: 10 * 1024,
 			pagination: prevPaginationSubId || subscriptionID
@@ -225,7 +201,6 @@
 
 		// Fallback: clear loading after timeout if EOSE isn't received
 		paginationTimeout = setTimeout(() => {
-			console.log('[FollowLists] Pagination timeout, clearing loading state');
 			loading = false;
 		}, 10000);
 	}
@@ -373,7 +348,9 @@
 			{@const isFollowList = post?.id?.()?.toString() === 'followlist'}
 			{@const isFollowSet = post.kind() === 30000}
 			{@const isFollowPack = post.kind() === 39089}
-			{@const listTitle = listData?.title?.()?.toString() || (isFollowSet ? listData?.listIdentifier?.()?.toString() : '')}
+			{@const listTitle =
+				listData?.title?.()?.toString() ||
+				(isFollowSet ? listData?.listIdentifier?.()?.toString() : '')}
 			<div
 				class="cursor-pointer p-3 relative"
 				on:click={() => toggleFollowPack(post)}
@@ -419,11 +396,15 @@
 						<!-- Kind badge (Follow Set vs Follow Pack) -->
 						<div class="absolute top-3 left-3">
 							{#if isFollowSet}
-								<span class="px-2 py-1 rounded-full bg-accent/80 text-white text-xs font-medium backdrop-blur-sm">
+								<span
+									class="px-2 py-1 rounded-full bg-accent/80 text-white text-xs font-medium backdrop-blur-sm"
+								>
 									Follow Set
 								</span>
 							{:else if isFollowPack}
-								<span class="px-2 py-1 rounded-full bg-secondary/80 text-white text-xs font-medium backdrop-blur-sm">
+								<span
+									class="px-2 py-1 rounded-full bg-secondary/80 text-white text-xs font-medium backdrop-blur-sm"
+								>
 									Pack
 								</span>
 							{/if}

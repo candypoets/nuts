@@ -162,6 +162,30 @@ export async function nip96Upload(
 	return { url, sha256, tags };
 }
 
+// Creates a Blossom authorization event (kind 24242)
+async function makeBlossomAuthHeader(
+	sha256: string,
+	action: 'upload' | 'delete' = 'upload'
+): Promise<string> {
+	const unsigned = {
+		kind: 24242,
+		created_at: Math.floor(Date.now() / 1000),
+		tags: [
+			['t', action],
+			['x', sha256],
+			['expiration', String(Math.floor(Date.now() / 1000) + 3600)] // 1 hour expiration
+		],
+		content: ''
+	};
+
+	return await new Promise((resolve) => {
+		useSignEvent(unsigned, (signedEvent) => {
+			const token = btoa(JSON.stringify(signedEvent));
+			resolve(`Nostr ${token}`);
+		});
+	});
+}
+
 // Upload to a Blossom server
 export async function blossomUpload(
 	file: File,
@@ -175,11 +199,11 @@ export async function blossomUpload(
 	const server = opts?.server ?? DEFAULT_SERVER;
 	const sha256 = await sha256HexFile(file);
 
-	// Blossom upload endpoint: PUT /:sha256
-	const uploadUrl = `${server.replace(/\/$/, '')}/${sha256}`;
-	const authorization = await makeNip98AuthHeader(uploadUrl, 'PUT', sha256);
+	// Blossom upload endpoint: PUT /upload
+	const uploadUrl = `${server.replace(/\/$/, '')}/upload`;
+	const authorization = await makeBlossomAuthHeader(sha256, 'upload');
 
-	const res = await fetch('https://proxy.nuts.cash?url=' + uploadUrl, {
+	const res = await fetch(uploadUrl, {
 		method: 'PUT',
 		headers: {
 			Authorization: authorization,
