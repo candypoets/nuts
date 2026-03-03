@@ -36,6 +36,15 @@
 	let headerItem: ParsedEvent | undefined;
 	let context: ParsedEvent[] = [];
 	let sub: (() => void) | undefined;
+	let paginationSub: (() => void) | undefined;
+
+	// Pagination state
+	let until: number | undefined = undefined;
+	let hasMore = true;
+	let paginationCounter = 0;
+	let itemsBeforePagination = 0;
+	let paginationTimeout: ReturnType<typeof setTimeout> | undefined;
+	let prevPaginationSubId: string | undefined = undefined;
 
 	let connectionStatus: { [url: string]: ConnectionStatus } = {};
 	let connectionTracker = new ConnectionTracker();
@@ -57,9 +66,22 @@
 		// Tags changed - reset feed and subscription
 		lastTags = [...tags];
 		feedItems = [];
+		until = undefined;
+		hasMore = true;
+		paginationCounter = 0;
+		itemsBeforePagination = 0;
+		prevPaginationSubId = undefined;
 		if (sub) {
 			sub?.();
 			sub = undefined;
+		}
+		if (paginationSub) {
+			paginationSub?.();
+			paginationSub = undefined;
+		}
+		if (paginationTimeout) {
+			clearTimeout(paginationTimeout);
+			paginationTimeout = undefined;
 		}
 		connectionStatus = {};
 		connectionTracker = new ConnectionTracker();
@@ -138,6 +160,64 @@
 		}
 	}
 
+	// Handle near-bottom pagination
+	function handleNearBottom(event: { distance: number }) {
+		if (loading || !hasMore || feedItems.length === 0) return;
+
+		loading = true;
+		itemsBeforePagination = feedItems.length;
+		paginationCounter++;
+
+		// Use the createdAt of the last item as until
+		const lastItem = feedItems[feedItems.length - 1];
+		if (lastItem) {
+			until = lastItem.createdAt() - 1;
+		}
+
+		const pageSubId = subId + '_page_' + paginationCounter + '_' + until;
+		paginationSub = useSubscription(
+			pageSubId,
+			[
+				{
+					kinds: [1],
+					tags: { '#t': tags },
+					limit: $limit,
+					until,
+					noCache: true,
+					relays: currentRelays
+				}
+			],
+			handleEvents,
+			{
+				pagination: prevPaginationSubId
+			}
+		);
+
+		// Track this subId for next pagination
+		prevPaginationSubId = pageSubId;
+
+		// Fallback: clear loading after timeout
+		paginationTimeout = setTimeout(() => {
+			loading = false;
+		}, 10000);
+	}
+
+	// Track when pagination completes and check if new items were added
+	$: if (!loading && itemsBeforePagination > 0) {
+		// Clear the timeout if it hasn't fired yet
+		if (paginationTimeout) {
+			clearTimeout(paginationTimeout);
+			paginationTimeout = undefined;
+		}
+
+		// Check if we got new items
+		const newItemsAdded = feedItems.length > itemsBeforePagination;
+		if (!newItemsAdded) {
+			hasMore = false;
+		}
+		itemsBeforePagination = 0;
+	}
+
 	// Subscribe to tag feed
 	$: if (visible && tags.length > 0) {
 		if (!sub) {
@@ -163,11 +243,21 @@
 	$: if (!visible || tags.length === 0) {
 		sub?.();
 		sub = undefined;
+		paginationSub?.();
+		paginationSub = undefined;
+		if (paginationTimeout) {
+			clearTimeout(paginationTimeout);
+			paginationTimeout = undefined;
+		}
 	}
 
 	onDestroy(() => {
 		sub?.();
+		paginationSub?.();
 		relaySubUnsubscribe?.();
+		if (paginationTimeout) {
+			clearTimeout(paginationTimeout);
+		}
 	});
 </script>
 
@@ -177,6 +267,7 @@
 	class={imageContext ? 'w-full' : 'w-feed'}
 	{visible}
 	{loading}
+	onNearBottom={handleNearBottom}
 >
 	<svelte:fragment slot="sticky-header">
 		<div class="px-4 py-3 flex items-center justify-between bg-base-300 bg-opacity-85">
