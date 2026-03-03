@@ -67,7 +67,8 @@
 				PipeConfig.CounterPipeConfig,
 				new CounterPipeConfigT([1, 6, 7, 17], $key?.pub || '')
 			)
-		]
+		],
+		bytesPerEvent: 128
 	};
 
 	const handleEvents = (message: WorkerMessage) => {

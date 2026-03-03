@@ -41,6 +41,7 @@
 	let loading = true;
 	let timeout: NodeJS.Timeout | undefined;
 	let sub: (() => void) | undefined;
+	let cachesub: (() => void) | undefined;
 	let relaysub: (() => void) | undefined;
 
 	let connectionStatus: { [url: string]: ConnectionStatus } = {};
@@ -116,14 +117,31 @@
 
 	function subscribe() {
 		if (visible && !sub) {
-			console.log('subscribe');
 			// Timeout to stop loading if event is not found
 			timeout = setTimeout(() => {
 				if (loading) {
 					console.log('kind1 loading timeout - event not found');
 					loading = false;
 				}
-			}, 5000);
+			}, 1000);
+
+			// eagerly fetch from the cache before 10002 resolve
+			cachesub = useSubscription(
+				'repliescache_' + data?.id,
+				[
+					{
+						kinds: [1],
+						tags: { '#e': [data?.id] },
+						limit: $limit,
+						cacheFirst: true,
+						relays: data.relays || [],
+					}
+				],
+				handleEvents,
+				{
+					pipeline: $defaultPipeline.for('replies_' + data?.id)
+				}
+			);
 			sub = useSubscription(
 				'kind1_' + data?.id,
 				[
@@ -182,6 +200,8 @@
 		sub = undefined;
 		relaysub?.();
 		relaysub = undefined;
+		cachesub?.();
+		cachesub = undefined;
 	}
 
 	// Handle near-bottom pagination

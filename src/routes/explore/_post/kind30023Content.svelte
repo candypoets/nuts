@@ -2,6 +2,7 @@
 	import { Kind30023Parsed, type ParsedEvent } from '@candypoets/nipworker';
 	import { proxyPreviewUrl } from 'src/lib/proxy';
 	import { go } from 'src/routes/modals/modal';
+	import { nip19 } from 'nostr-tools';
 	import Icon from '@iconify/svelte';
 
 	export let note: ParsedEvent;
@@ -84,11 +85,15 @@
 	})();
 
 	function openArticle() {
-		if (naddr) {
-			go(`naddr:${naddr}`);
-		} else if (slug && note?.pubkey) {
-			// Construct naddr from pubkey and slug
-			go(`naddr:${note.pubkey}:${slug}`);
+		// Always use bech32-encoded naddr to avoid URL issues with special characters
+		// The identifier might contain slashes (e.g., dates like 23/02/2026) which break routing
+		if (slug && note?.pubkey) {
+			const naddrBech32 = nip19.naddrEncode({
+				kind: note.kind(),
+				pubkey: note.pubkey()?.toString() || '',
+				identifier: slug
+			});
+			go(`naddr:${naddrBech32}`);
 		}
 	}
 </script>

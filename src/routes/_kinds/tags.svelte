@@ -5,7 +5,12 @@
 		type RequestObject
 	} from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
-	import { asConnectionStatus, asParsedEvent, ConnectionTracker } from '@candypoets/nipworker/utils';
+	import {
+		asConnectionStatus,
+		asKind1,
+		asParsedEvent,
+		ConnectionTracker
+	} from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { getContext, onDestroy } from 'svelte';
 
@@ -13,6 +18,7 @@
 	import { isMobile } from 'src/controller';
 	import { limit } from 'src/controller/pagination';
 	import { relaySub, setSubRelays } from 'src/controller/relay';
+	import { normalizeURL } from 'nostr-tools/utils';
 	import { DEFAULT_RELAYS } from 'src/lib/env';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import Note from 'src/routes/explore/note.svelte';
@@ -36,6 +42,49 @@
 
 	let imageContext = getContext('imageContext');
 
+	// Dynamic relay management
+	let currentRelays = DEFAULT_RELAYS;
+	let relayCounter = 0;
+	let currentSubId: string | undefined;
+	let relaySubUnsubscribe: (() => void) | undefined;
+
+	// Generate subId based on tags (use join to ensure unique ids for different tag combinations)
+	$: subId = 'tags_' + tags.join('_');
+
+	// Track last tags to detect changes
+	let lastTags: string[] = [];
+	$: if (JSON.stringify(tags) !== JSON.stringify(lastTags)) {
+		// Tags changed - reset feed and subscription
+		lastTags = [...tags];
+		feedItems = [];
+		if (sub) {
+			sub?.();
+			sub = undefined;
+		}
+		connectionStatus = {};
+		connectionTracker = new ConnectionTracker();
+	}
+
+	// Subscribe to relay changes for this subId
+	$: if (subId && subId !== currentSubId) {
+		// Clean up previous subscription before creating new one
+		relaySubUnsubscribe?.();
+		currentSubId = subId;
+		relaySubUnsubscribe = relaySub(subId).subscribe((subRelays) => {
+			if (subRelays && JSON.stringify(subRelays) !== JSON.stringify(currentRelays)) {
+				currentRelays = subRelays;
+				relayCounter++;
+				// Reset subscription with new relays
+				if (sub) {
+					sub?.();
+					sub = undefined;
+				}
+				connectionStatus = {};
+				connectionTracker = new ConnectionTracker();
+			}
+		});
+	}
+
 	// Handle incoming events from subscription
 	function handleEvents(message: any) {
 		// Handle connection status (including EOSE detection via resolutionRate)
@@ -43,8 +92,10 @@
 		if (status && connectionTracker) {
 			const relayUrl = status.relayUrl()?.toString();
 			if (relayUrl) {
+				// Normalize URL to match what RelaysList expects
+				const normalizedUrl = normalizeURL(relayUrl);
 				// Create new object for reactivity
-				connectionStatus = { ...connectionStatus, [relayUrl]: status };
+				connectionStatus = { ...connectionStatus, [normalizedUrl]: status };
 				connectionTracker.handleMessage(message);
 				// When >50% of relays have reached EOSE, mark loading as done
 				if (connectionTracker.resolutionRate > 0.5) {
@@ -60,6 +111,24 @@
 		const kind = parsedEvent.kind();
 		if (kind !== 1 && kind !== 30023) return;
 
+		// Filter: only show root events (skip replies)
+		if (kind === 1) {
+			const kind1 = asKind1(parsedEvent);
+			if (kind1) {
+				const reply = kind1.reply()?.id();
+				const root = kind1.root()?.id();
+				// CASE 1: Has reply but no root = reply to something (nested)
+				if (reply && !root) {
+					return;
+				}
+				// CASE 2: Has both reply and root, but reply != root = reply to reply (nested)
+				if (reply && root && reply.fnv1aHash() !== root.fnv1aHash()) {
+					return;
+				}
+				// CASE 3: No reply tag = root post (allow it)
+			}
+		}
+
 		const eventId = parsedEvent.id()?.fnv1aHash();
 		if (!eventId) return;
 
@@ -73,7 +142,6 @@
 	$: if (visible && tags.length > 0) {
 		if (!sub) {
 			loading = true;
-			const subId = 'tags_' + tags.reduce((acc, cur) => (acc += cur), '');
 			sub = useSubscription(
 				subId,
 				[
@@ -82,12 +150,12 @@
 						tags: { '#t': tags },
 						limit: $limit,
 						noCache: true,
-						relays: DEFAULT_RELAYS
+						relays: currentRelays
 					}
 				],
 				handleEvents
 			);
-			setSubRelays(subId, DEFAULT_RELAYS);
+			setSubRelays(subId, currentRelays);
 		}
 	}
 
@@ -99,6 +167,7 @@
 
 	onDestroy(() => {
 		sub?.();
+		relaySubUnsubscribe?.();
 	});
 </script>
 
@@ -131,7 +200,7 @@
 						{tags.map((tag) => `#${tag}`).join(' ')}
 					</h1>
 				</div>
-				<RelaysList relays={DEFAULT_RELAYS} {connectionStatus} mini={$isMobile} />
+				<RelaysList {subId} relays={currentRelays} {connectionStatus} mini={$isMobile} />
 				<!-- <span class="w-10" /> -->
 			</div>
 		{/if}

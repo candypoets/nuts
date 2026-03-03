@@ -203,11 +203,9 @@
 	}
 
 	function subscribe() {
-		timeout = setTimeout(() => {
-			if (visible && !sub) {
-				sub = useSubscription('u_' + pubkey, userQuery(pubkey), handleProfileEvents, {});
-			}
-		});
+		if (visible && !sub) {
+			sub = useSubscription('u_' + pubkey, userQuery(pubkey), handleProfileEvents, {});
+		}
 	}
 
 	function unsubscribe() {

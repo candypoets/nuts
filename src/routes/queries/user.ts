@@ -63,7 +63,7 @@ export function getUserRelays(
 			onRelaysAvailable([]);
 			called = true;
 		}
-	}, 2000);
+	}, 1000);
 	let unsubscribe = useSubscription(
 		'u_' + pubkey,
 		userQuery(pubkey),

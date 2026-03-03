@@ -21,7 +21,7 @@
 	import RelaysList from 'src/components/RelaysList.svelte';
 	import { limit } from 'src/controller/pagination';
 	import { proxyPreviewUrl } from 'src/lib/proxy';
-	import { parseContent, type ContentBlock } from 'src/lib/parseContent';
+	import { parseContent, renderMarkdown, type ContentBlock } from 'src/lib/parseContent';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import User from 'src/routes/explore/user.svelte';
@@ -34,15 +34,27 @@
 	export let visible: boolean;
 	export let goBack: () => void;
 
-	// Decode naddr
+	// Decode naddr (supports both bech32 and custom kind:pubkey:identifier format)
 	$: decoded = (() => {
 		try {
+			// Try bech32 first
 			const result = nip19.decode(naddr);
 			if (result.type === 'naddr') {
 				return result.data as AddressPointer;
 			}
 		} catch (e) {
-			console.error('Failed to decode naddr:', e);
+			// Fallback to custom format: kind:pubkey:identifier
+			const parts = naddr.split(':');
+			if (parts.length === 3) {
+				const [kind, pubkey, identifier] = parts;
+				if (kind && pubkey && identifier) {
+					return {
+						kind: Number(kind),
+						pubkey,
+						identifier
+					} as AddressPointer;
+				}
+			}
 		}
 		return null;
 	})();
@@ -96,23 +108,6 @@
 		parseContent(content).then((result) => {
 			parsedContent = result;
 		});
-	}
-
-	// Helper to render content blocks
-	function renderBlock(block: ContentBlock): string {
-		switch (block.type) {
-			case 'text':
-				return block.text.replace(/\r\n|\r|\n/g, '<br>');
-			case 'link':
-				return `<a href="${block.data?.href}" target="_blank" rel="noopener noreferrer" class="text-accent hover:underline">${block.text}</a>`;
-			case 'hashtag':
-				return `<span class="text-primary font-semibold">${block.text}</span>`;
-			case 'npub':
-			case 'nprofile':
-				return `<span class="text-accent">${block.text}</span>`;
-			default:
-				return block.text;
-		}
 	}
 
 	function handleEvents(message: WorkerMessage) {
@@ -197,7 +192,10 @@
 					cacheFirst: true
 				}
 			],
-			handleEvents
+			handleEvents,
+			{
+				bytesPerEvent: 64 * 1024
+			}
 		);
 	}
 
@@ -292,13 +290,36 @@
 						{#if parsedContent.length > 0}
 							{#each parsedContent as block}
 								{#if block.type === 'text'}
-									<p class="mb-4 leading-relaxed">
-										{@html renderBlock(block)}
-									</p>
+									<!-- Render markdown text -->
+									<div class="markdown-text">
+										{@html renderMarkdown(block.text)}
+									</div>
 								{:else if block.type === 'image'}
-									<img src={block.data?.src} alt="Article image" class="w-full rounded-lg my-4" />
+									<img
+										src={proxyPreviewUrl(block.data?.src)}
+										alt="Article image"
+										class="w-full rounded-lg my-4"
+									/>
 								{:else if block.type === 'video'}
 									<video src={block.data?.src} controls class="w-full rounded-lg my-4" />
+								{:else if block.type === 'mediaGrid'}
+									<div class="grid grid-cols-2 gap-2 my-4">
+										{#each block.data?.items || [] as item}
+											{#if item.type === 'image'}
+												<img
+													src={proxyPreviewUrl(item.src)}
+													alt=""
+													class="w-full rounded-lg object-cover aspect-video"
+												/>
+											{:else}
+												<video
+													src={item.src}
+													controls
+													class="w-full rounded-lg object-cover aspect-video"
+												/>
+											{/if}
+										{/each}
+									</div>
 								{:else if block.type === 'link'}
 									<p class="mb-4">
 										<a
@@ -321,18 +342,45 @@
 									<pre class="bg-base-200 p-4 rounded-lg overflow-x-auto my-4"><code
 											>{block.data?.code}</code
 										></pre>
+								{:else if block.type === 'npub' || block.type === 'nprofile'}
+									<User pubkey={block.data?.decoded?.pubkey} context={[]} link={true} />
+								{:else if block.type === 'note' || block.type === 'nevent'}
+									{@const entity = block.data?.bech32}
+									{#if entity}
+										<a
+											href={`/note/${entity}`}
+											class="text-accent hover:underline break-words"
+											on:click|preventDefault={() => go(`note:${entity}`)}
+										>
+											{block.text}
+										</a>
+									{/if}
+								{:else if block.type === 'naddr'}
+									{@const entity = block.data?.bech32}
+									{#if entity}
+										<a
+											href={`/article/${entity}`}
+											class="text-accent hover:underline break-words"
+											on:click|preventDefault={() => go(`naddr:${entity}`)}
+										>
+											{block.text}
+										</a>
+									{/if}
+								{:else if block.type === 'cashu'}
+									<div class="my-4 p-3 bg-info-content/30 rounded-lg">
+										<code class="text-sm break-all">{block.text}</code>
+									</div>
 								{:else}
 									<span>{block.text}</span>
 								{/if}
 							{/each}
 						{:else}
 							<div class="whitespace-pre-wrap leading-relaxed">
-								{content}
+								{@html renderMarkdown(content)}
 							</div>
 						{/if}
 					</div>
 				</div>
-
 				<!-- Article Footer -->
 				<div class="mt-4 flex items-center justify-between text-sm opacity-60 px-2">
 					<div class="flex items-center gap-2">

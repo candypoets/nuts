@@ -146,14 +146,30 @@
 				<User pubkey={nostr?.author()?.toString()} {context} />
 			{:else if nostr?.id()}
 				{#if showQuote}
-					<Note
-						noteId={nostr?.id()?.toString()}
-						{context}
-						{visible}
-						depth={depth + 1}
-						relays={fbArray(nostr, 'relays').map((r) => r.toString())}
-						footer={false}
-					/>
+					{@const entity = nostr?.entity()?.toString()}
+					{@const id = nostr?.id()?.toString()}
+					{@const entityRelays = fbArray(nostr, 'relays').map((r) => r.toString())}
+					{#if entity?.startsWith('naddr')}
+						<!-- Use the naddr bech32 string directly -->
+						<Note
+							naddr={entity}
+							{context}
+							{visible}
+							depth={depth + 1}
+							relays={entityRelays}
+							footer={false}
+						/>
+					{:else}
+						<!-- Regular nevent/note -->
+						<Note
+							noteId={id}
+							{context}
+							{visible}
+							depth={depth + 1}
+							relays={entityRelays}
+							footer={false}
+						/>
+					{/if}
 				{:else}
 					{nostr?.id()?.toString()}
 				{/if}

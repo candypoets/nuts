@@ -2,13 +2,13 @@
 	import {
 		Kind1Parsed,
 		MessageType,
-		ParsedData,
 		type ConnectionStatus,
 		type ParsedEvent,
 		type WorkerMessage
 	} from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import { nip19 } from 'nostr-tools';
+	import type { AddressPointer } from 'nostr-tools/nip19';
 	import { getContext, onDestroy } from 'svelte';
 
 	import {
@@ -17,28 +17,28 @@
 		asKind6,
 		asParsedEvent,
 		ConnectionTracker,
-		fbArray,
-		isParsedEvent
+		fbArray
 	} from '@candypoets/nipworker/utils';
+	import Icon from '@iconify/svelte';
+	import { isEqual, uniqBy } from 'lodash';
+	import { normalizeURL } from 'nostr-tools/utils';
 	import RelaysList from 'src/components/RelaysList.svelte';
+	import { isMobile } from 'src/controller';
+	import { relaySub, setSubRelays } from 'src/controller/relay';
 	import { toRequestObject } from 'src/lib/request';
 	import Content from 'src/routes/explore/_post/content.svelte';
-	import Kind30023Content from 'src/routes/explore/_post/kind30023Content.svelte';
-	import Kind30311Content from 'src/routes/explore/_post/kind30311Content.svelte';
 	import Footer from 'src/routes/explore/_post/footer.svelte';
 	import Header from 'src/routes/explore/_post/header.svelte';
+	import Kind30023Content from 'src/routes/explore/_post/kind30023Content.svelte';
+	import Kind30311Content from 'src/routes/explore/_post/kind30311Content.svelte';
 	import Zap from 'src/routes/explore/_post/zap.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import { getUserRelays } from 'src/routes/queries/user';
 	import { go } from '../modals/modal';
-	import _, { isEqual, uniqBy } from 'lodash';
-	import { relaySub, setSubRelays } from 'src/controller/relay';
-	import { normalizeURL } from 'nostr-tools/utils';
-	import { isMobile } from 'src/controller';
-	import Icon from '@iconify/svelte';
 
 	export let main: boolean = false;
 	export let noteId: string | undefined = undefined;
+	export let naddr: string | undefined = undefined;
 	export let context: ParsedEvent[] = [];
 	export let note: ParsedEvent | undefined = undefined;
 	export let zaps: boolean = false;
@@ -71,7 +71,26 @@
 		kind1 = displayNote && asKind1(displayNote as ParsedEvent);
 	}
 
+	// Decode naddr when provided
+	$: naddrDecoded = (() => {
+		if (!naddr) return null;
+		try {
+			const result = nip19.decode(naddr);
+			if (result.type === 'naddr') {
+				return result.data as AddressPointer;
+			}
+		} catch (e) {
+			console.error('Failed to decode naddr:', e);
+		}
+		return null;
+	})();
+
 	$: nid = noteId || displayNote?.id()?.toString();
+
+	// Effective ID for subscriptions - uses synthetic ID for naddr
+	$: effectiveNid = naddrDecoded
+		? `naddr:${naddrDecoded.pubkey}:${naddrDecoded.kind}:${naddrDecoded.identifier}`
+		: (nid ?? '');
 
 	$: decoded = {
 		noteId: nid,
@@ -92,7 +111,7 @@
 
 	$: visibleReplies = showReplies && displayNote ? showReplies(displayNote)(replies) : [];
 
-	let timeout: NodeJS.Timeout | undefined;
+	let timeout: ReturnType<typeof setTimeout> | undefined;
 
 	let isImageContext = getContext('imageContext');
 
@@ -102,8 +121,23 @@
 
 	// Find note from context if not provided directly
 	// Note: This runs when noteId/context changes, not when displayNote changes (avoids cycle)
-	$: if (noteId && context && !note) {
-		const foundNote = context.find((event) => event?.id()!.toString() === noteId);
+	$: if ((noteId || naddr) && context && !note) {
+		const foundNote = context.find((event) => {
+			if (noteId) {
+				return event?.id()!.toString() === noteId;
+			}
+			// For naddr: match by kind, author, and d-tag
+			if (naddrDecoded && event?.kind() === naddrDecoded.kind) {
+				const tags = fbArray(event, 'tags');
+				const dTag = tags.find((t) => fbArray(t, 'items')[0]?.toString() === 'd');
+				const identifier = dTag ? fbArray(dTag, 'items')[1]?.toString() : '';
+				return (
+					identifier === naddrDecoded.identifier &&
+					event?.pubkey()?.toString() === naddrDecoded.pubkey
+				);
+			}
+			return false;
+		});
 		if (foundNote) note = foundNote;
 	}
 
@@ -141,89 +175,109 @@
 	let subed = 0;
 
 	function subscribe(subId?: string) {
-		timeout = setTimeout(async () => {
-			if (visible) {
-				if (!sub && nid) {
-					subed++;
-					sub = useSubscription(
-						subId || nid,
-						[
-							{
-								ids: [nid],
-								limit: 5,
-								relays: relays.slice(0, 5) || [],
-								cacheFirst: true
-							},
-							// fetch some replies
-							{ limit: 10, tags: { '#e': [nid] }, relays: relays || [] },
-							...(displayNote
-								? fbArray(displayNote, 'requests').map((r) => toRequestObject(r))
-								: [])
-						],
-						handleEvents
-					);
-					if (effectiveShowRoot && kind1?.reply()) {
-						const pubkey = kind1?.reply()?.author()?.toString();
-						const id = kind1?.reply()?.id()?.toString();
-						if (pubkey && id) {
-							getUserRelays(pubkey, (relays) => {
-								useSubscription(
-									'root_' + subId || nid,
-									[{ ids: [id], limit: 5, relays }],
-									handleEvents
-								);
-							});
-						}
-					}
+		timeout = setTimeout(
+			async () => {
+				if (visible) {
+					if (!sub && (nid || naddrDecoded)) {
+						subed++;
 
-					if (showQuote && kind1?.mentionsLength()) {
-						const mentions = [];
-						for (let i = 0; i < kind1.mentionsLength(); i++) {
-							const mention = kind1.mentions(i);
-							const pubkey = mention?.author()?.toString();
-							const id = mention?.id()?.toString();
+						// Build the main request based on whether it's naddr or regular note
+						const mainRequest = naddrDecoded
+							? {
+									// Naddr: query by kind + author + d-tag
+									// kinds: [naddrDecoded.kind],
+									authors: [naddrDecoded.pubkey],
+									tags: { '#d': [naddrDecoded.identifier] },
+									limit: 5,
+									relays: relays.slice(0, 5) || [],
+									cacheFirst: true
+								}
+							: {
+									// Regular note: query by id
+									ids: nid ? [nid] : [],
+									limit: 5,
+									relays: relays.slice(0, 5) || [],
+									cacheFirst: true
+								};
+
+						sub = useSubscription(
+							subId || effectiveNid || 'unknown',
+							[
+								mainRequest,
+								// For naddr, replies work differently (no #e tag to query)
+								...(naddrDecoded
+									? []
+									: [{ limit: 10, tags: { '#e': [nid] }, relays: relays || [] }]),
+								...(displayNote
+									? fbArray(displayNote, 'requests').map((r) => toRequestObject(r))
+									: [])
+							],
+							handleEvents
+						);
+						if (effectiveShowRoot && kind1?.reply()) {
+							const pubkey = kind1?.reply()?.author()?.toString();
+							const id = kind1?.reply()?.id()?.toString();
 							if (pubkey && id) {
-								mentions.push({ pubkey, id });
-							}
-						}
-						const uniquePubkeys = [...new Set(mentions.map((m) => m.pubkey))];
-						const allIds = mentions.map((m) => m.id);
-						let allRelays = new Set<string>();
-						let fetched = 0;
-						const total = uniquePubkeys.length;
-						if (total === 0) return;
-						uniquePubkeys.forEach((pubkey) => {
-							getUserRelays(pubkey, (relays) => {
-								relays.slice(0, 3).forEach((r) => allRelays.add(r));
-								fetched++;
-								if (fetched === total) {
+								getUserRelays(pubkey, (relays) => {
 									useSubscription(
-										'quote_' + subId || nid,
-										[
-											{
-												ids: allIds,
-												limit: 5 * allIds.length,
-												relays: Array.from(allRelays)
-											}
-										],
+										'root_' + (subId || nid || 'unknown'),
+										[{ ids: [id], limit: 5, relays }],
 										handleEvents
 									);
+								});
+							}
+						}
+
+						if (showQuote && kind1?.mentionsLength()) {
+							const mentions = [];
+							for (let i = 0; i < kind1.mentionsLength(); i++) {
+								const mention = kind1.mentions(i);
+								const pubkey = mention?.author()?.toString();
+								const id = mention?.id()?.toString();
+								if (pubkey && id) {
+									mentions.push({ pubkey, id });
 								}
+							}
+							const uniquePubkeys = [...new Set(mentions.map((m) => m.pubkey))];
+							const allIds = mentions.map((m) => m.id);
+							let allRelays = new Set<string>();
+							let fetched = 0;
+							const total = uniquePubkeys.length;
+							if (total === 0) return;
+							uniquePubkeys.forEach((pubkey) => {
+								getUserRelays(pubkey, (relays) => {
+									relays.slice(0, 3).forEach((r) => allRelays.add(r));
+									fetched++;
+									if (fetched === total) {
+										useSubscription(
+											'quote_' + (subId || nid || 'unknown'),
+											[
+												{
+													ids: allIds,
+													limit: 5 * allIds.length,
+													relays: Array.from(allRelays)
+												}
+											],
+											handleEvents
+										);
+									}
+								});
 							});
-						});
+						}
+					}
+					if (!relays.length && !relaysub) {
+						relaysub = getUserRelays(
+							displayNote?.pubkey()?.toString() as string,
+							(result) => {
+								relays = result.slice(0, $isMobile ? 3 : 5);
+							},
+							'read'
+						);
 					}
 				}
-				if (!relays.length && !relaysub) {
-					relaysub = getUserRelays(
-						displayNote?.pubkey()?.toString() as string,
-						(result) => {
-							relays = result.slice(0, $isMobile ? 3 : 5);
-						},
-						'read'
-					);
-				}
-			}
-		}, !depth ? 500 : 0);
+			},
+			!depth ? 500 : 0
+		);
 	}
 
 	function unsubscribe() {
@@ -238,7 +292,7 @@
 		}
 	}
 
-	$: visible == true && nid ? subscribe() : unsubscribe();
+	$: visible == true && (nid || naddrDecoded) ? subscribe() : unsubscribe();
 
 	$: hasRoot =
 		decoded.replyID &&
@@ -248,21 +302,24 @@
 
 	function goto() {
 		// if (isImageContext) return;
-		const nip19Event = nip19.neventEncode({ id: decoded.noteId || nid || '', relays });
-		const eventPath = `nevent:${nip19Event}`;
-		go(eventPath);
+		if (naddr) {
+			go(`naddr:${naddr}`);
+		} else {
+			const nip19Event = nip19.neventEncode({ id: decoded.noteId || nid || '', relays });
+			go(`nevent:${nip19Event}`);
+		}
 	}
 
 	onDestroy(unsubscribe);
 
 	let relayCounter = 0;
 
-	$: nid &&
-		relaySub(nid).subscribe((subRelays) => {
+	$: effectiveNid &&
+		relaySub(effectiveNid).subscribe((subRelays) => {
 			if (subRelays && !isEqual(relays, subRelays)) {
 				relays = subRelays;
 				unsubscribe();
-				subscribe(nid + relayCounter);
+				subscribe(effectiveNid + relayCounter);
 				relayCounter++;
 				connectionStatus = {};
 			}
@@ -273,6 +330,8 @@
 	<svelte:self noteId={decoded.replyID} {context} {visible} zaps leading />
 {/if}
 
+<!-- {JSON.stringify(fbArray(displayNote, 'requests').map((r) => toRequestObject(r)))}
+{subed} -->
 <div
 	class="py-2 rounded-tl-md backdrop-saturate-150 border-primary-content relative cursor-pointer bg-base-300 bg-opacity-85 mt-1 rounded-lg w-full shadow-widget"
 	class:!mt-0={hasRoot || tailing}

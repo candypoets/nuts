@@ -1,4 +1,5 @@
-import { nip19 } from 'nostr-tools';
+import { nip19, nip27, type AddressPointer, type EventPointer, type ProfilePointer } from 'nostr-tools';
+import { marked } from 'marked';
 
 export type ContentBlock = {
 	type:
@@ -19,13 +20,140 @@ export type ContentBlock = {
 	data?: Record<string, any>;
 };
 
+// Placeholder for markdown links to protect them from NIP-27 URL extraction
+const MARKDOWN_LINK_PLACEHOLDER = '\x00LINK\x00';
+
+/**
+ * Parse content using NIP-27 to extract references, URLs, images, videos
+ * Then apply additional parsing for code blocks, cashu, hashtags
+ * 
+ * This function protects markdown links `[text](url)` from being broken by NIP-27
+ * URL extraction. Markdown links are preserved and will be rendered correctly
+ * when passed through renderMarkdown().
+ */
 export async function parseContent(content: string): Promise<ContentBlock[]> {
 	const blocks: ContentBlock[] = [];
 
-	// Define all the patterns we want to match
+	// Step 1: Extract and protect markdown links `[text](url)`
+	// We replace them with placeholders, then restore after NIP-27 parsing
+	const markdownLinks: Array<{ text: string; url: string; fullMatch: string }> = [];
+	let protectedContent = content.replace(
+		/\[([^\]]+)\]\(([^)]+)\)/g,
+		(match, linkText, url) => {
+			markdownLinks.push({ text: linkText, url, fullMatch: match });
+			return MARKDOWN_LINK_PLACEHOLDER;
+		}
+	);
+
+	// Step 2: Use NIP-27 to parse the protected content
+	const nip27Blocks = Array.from(nip27.parse(protectedContent));
+
+	let linkIndex = 0;
+	for (const block of nip27Blocks) {
+		switch (block.type) {
+			case 'text': {
+				// Restore markdown links within text blocks
+				const textWithLinks = restoreMarkdownLinks(block.text, markdownLinks, linkIndex);
+				linkIndex = textWithLinks.newIndex;
+
+				// Parse the restored text for code blocks, cashu, hashtags
+				const textBlocks = await parseTextBlock(textWithLinks.text);
+				blocks.push(...textBlocks);
+				break;
+			}
+			case 'reference': {
+				// Nostr reference (npub, nprofile, note, nevent, naddr)
+				const refBlock = parseReferenceBlock(block.pointer);
+				if (refBlock) {
+					blocks.push(refBlock);
+				}
+				break;
+			}
+			case 'url': {
+				// Skip URLs that were part of markdown links (they were replaced with placeholder)
+				if (block.url !== MARKDOWN_LINK_PLACEHOLDER) {
+					blocks.push({
+						type: 'link',
+						text: block.url,
+						data: { href: block.url }
+					});
+				}
+				break;
+			}
+			case 'image': {
+				blocks.push({
+					type: 'image',
+					text: block.url,
+					data: { src: block.url }
+				});
+				break;
+			}
+			case 'video': {
+				blocks.push({
+					type: 'video',
+					text: block.url,
+					data: { src: block.url }
+				});
+				break;
+			}
+			case 'audio': {
+				// Treat audio as link for now
+				blocks.push({
+					type: 'link',
+					text: block.url,
+					data: { href: block.url }
+				});
+				break;
+			}
+			case 'relay': {
+				// Treat relay as link for now
+				blocks.push({
+					type: 'link',
+					text: block.url,
+					data: { href: block.url }
+				});
+				break;
+			}
+		}
+	}
+
+	// Post-processing: group consecutive media into grids
+	return groupMediaIntoGrids(blocks);
+}
+
+/**
+ * Restore markdown links from placeholders in text
+ */
+function restoreMarkdownLinks(
+	text: string,
+	links: Array<{ text: string; url: string; fullMatch: string }>,
+	startIndex: number
+): { text: string; newIndex: number } {
+	let result = text;
+	let currentIndex = startIndex;
+	let replacedCount = 0;
+
+	// Replace each placeholder with the actual markdown link
+	while (result.includes(MARKDOWN_LINK_PLACEHOLDER) && currentIndex < links.length) {
+		const link = links[currentIndex];
+		result = result.replace(MARKDOWN_LINK_PLACEHOLDER, link.fullMatch);
+		currentIndex++;
+		replacedCount++;
+	}
+
+	return { text: result, newIndex: currentIndex };
+}
+
+/**
+ * Parse a text block for code blocks, cashu tokens, and hashtags
+ */
+async function parseTextBlock(text: string): Promise<ContentBlock[]> {
+	const blocks: ContentBlock[] = [];
+
+	// Define patterns to match within text
 	const patterns = [
 		{
-			type: 'code',
+			type: 'code' as const,
 			regex: /```([\s\S]*?)```/g,
 			processMatch: (match: RegExpExecArray) => ({
 				type: 'code' as const,
@@ -34,7 +162,7 @@ export async function parseContent(content: string): Promise<ContentBlock[]> {
 			})
 		},
 		{
-			type: 'cashu',
+			type: 'cashu' as const,
 			regex: /(cashuA[A-Za-z0-9_-]+)/g,
 			processMatch: (match: RegExpExecArray) => ({
 				type: 'cashu' as const,
@@ -43,73 +171,14 @@ export async function parseContent(content: string): Promise<ContentBlock[]> {
 			})
 		},
 		{
-			type: 'hashtag',
+			type: 'hashtag' as const,
 			// Match hashtags that are not part of a URL
 			regex: /(?<![^\s"'(])(#[a-zA-Z0-9_]+)(?![a-zA-Z0-9_])/g,
 			processMatch: (match: RegExpExecArray) => ({
 				type: 'hashtag' as const,
 				text: match[0],
-				data: { tag: match[0].substring(1) } // Remove the # symbol
+				data: { tag: match[0].substring(1) }
 			})
-		},
-		{
-			type: 'image',
-			regex: /(https?:\/\/\S+\.(?:jpg|jpeg|png|gif|webp|svg|ico)(?:\?\S*)?)/gi,
-			processMatch: (match: RegExpExecArray) => ({
-				type: 'image' as const,
-				text: match[0],
-				data: { src: match[0] }
-			})
-		},
-		{
-			type: 'video',
-			regex: /(https?:\/\/\S+\.(?:mp4|mov|avi|mkv|webm|m4v)(?:\?\S*)?)/gi,
-			processMatch: (match: RegExpExecArray) => ({
-				type: 'video' as const,
-				text: match[0],
-				data: { src: match[0] }
-			})
-		},
-		{
-			type: 'nostr',
-			regex: /nostr:([a-z0-9]+)/gi,
-			processMatch: (match: RegExpExecArray) => {
-				const entity = match[1];
-				try {
-					const decoded = nip19.decode(entity);
-					const type = decoded.type as 'npub' | 'nprofile' | 'note' | 'nevent' | 'naddr';
-
-					return {
-						type,
-						text: match[0],
-						data: {
-							decoded: decoded.data,
-							bech32: entity
-						}
-					};
-				} catch (e) {
-					// If we can't decode, treat as text
-					return {
-						type: 'text' as const,
-						text: match[0]
-					};
-				}
-			}
-		},
-		{
-			type: 'link',
-			regex: /(https?:\/\/\S+)(?![\)])/gi,
-			processMatch: async (match: RegExpExecArray) => {
-				// const preview = await getLinkPreview(
-				// 	'https://proxy.nuts.cash/?url=' +
-				// 		(match[0]?.startsWith('http') ? match[0] : 'https://' + match[0])
-				// );
-				return {
-					type: 'link' as const,
-					text: match[0],
-					data: { href: match[0] }
-				};
-			}
 		}
 	];
 
@@ -120,16 +189,14 @@ export async function parseContent(content: string): Promise<ContentBlock[]> {
 		block: ContentBlock;
 	}> = [];
 
-	// First, find all matches for all patterns
 	for (const pattern of patterns) {
 		let match: RegExpExecArray | null;
 		pattern.regex.lastIndex = 0;
 
-		while ((match = pattern.regex.exec(content)) !== null) {
+		while ((match = pattern.regex.exec(text)) !== null) {
 			const start = match.index;
 			const end = start + match[0].length;
-			const block = await pattern.processMatch(match);
-
+			const block = pattern.processMatch(match);
 			allMatches.push({ start, end, block });
 		}
 	}
@@ -137,18 +204,15 @@ export async function parseContent(content: string): Promise<ContentBlock[]> {
 	// Sort matches by start position
 	allMatches.sort((a, b) => a.start - b.start);
 
-	// Remove overlapping matches (prioritize earlier patterns in the array)
+	// Remove overlapping matches
 	const filteredMatches: typeof allMatches = [];
-
 	for (const match of allMatches) {
-		// Check if this match overlaps with any already accepted match
 		const overlaps = filteredMatches.some(
 			(existing) =>
 				(match.start >= existing.start && match.start < existing.end) ||
 				(match.end > existing.start && match.end <= existing.end) ||
 				(match.start <= existing.start && match.end >= existing.end)
 		);
-
 		if (!overlaps) {
 			filteredMatches.push(match);
 		}
@@ -157,48 +221,108 @@ export async function parseContent(content: string): Promise<ContentBlock[]> {
 	// Re-sort filtered matches
 	filteredMatches.sort((a, b) => a.start - b.start);
 
-	// Build the final result, including text between matches
+	// Build the final result
 	let lastIndex = 0;
-
 	for (const { start, end, block } of filteredMatches) {
 		// Add text before this match
 		if (start > lastIndex) {
 			blocks.push({
 				type: 'text',
-				text: content.substring(lastIndex, start)
+				text: text.substring(lastIndex, start)
 			});
 		}
-
-		// Add the match
 		blocks.push(block);
-
 		lastIndex = end;
 	}
 
-	// Add any remaining text after the last match
-	if (lastIndex < content.length) {
+	// Add any remaining text
+	if (lastIndex < text.length) {
 		blocks.push({
 			type: 'text',
-			text: content.substring(lastIndex)
+			text: text.substring(lastIndex)
 		});
 	}
 
-	// Post-processing: group consecutive media into grids
+	// If no matches, return the whole text
+	if (blocks.length === 0 && text) {
+		blocks.push({ type: 'text', text });
+	}
+
+	return blocks;
+}
+
+/**
+ * Parse a NIP-27 reference into a ContentBlock
+ */
+function parseReferenceBlock(
+	pointer: ProfilePointer | AddressPointer | EventPointer
+): ContentBlock | null {
+	try {
+		// Determine the type of reference
+		if ('pubkey' in pointer && !('identifier' in pointer)) {
+			// nprofile or npub
+			const bech32 = nip19.npubEncode(pointer.pubkey);
+			return {
+				type: 'npub',
+				text: `nostr:${bech32}`,
+				data: {
+					decoded: pointer,
+					bech32
+				}
+			};
+		} else if ('identifier' in pointer) {
+			// naddr
+			const addrPointer = pointer as AddressPointer;
+			const bech32 = nip19.naddrEncode({
+				kind: addrPointer.kind,
+				pubkey: addrPointer.pubkey,
+				identifier: addrPointer.identifier,
+				relays: addrPointer.relays
+			});
+			return {
+				type: 'naddr',
+				text: `nostr:${bech32}`,
+				data: {
+					decoded: pointer,
+					bech32
+				}
+			};
+		} else if ('id' in pointer) {
+			// nevent or note
+			const eventPointer = pointer as EventPointer;
+			const bech32 = nip19.noteEncode(eventPointer.id);
+			return {
+				type: 'note',
+				text: `nostr:${bech32}`,
+				data: {
+					decoded: pointer,
+					bech32
+				}
+			};
+		}
+	} catch (e) {
+		console.error('Failed to parse reference:', e);
+	}
+	return null;
+}
+
+/**
+ * Group consecutive media blocks into grids
+ */
+function groupMediaIntoGrids(blocks: ContentBlock[]): ContentBlock[] {
 	const processedBlocks: ContentBlock[] = [];
 	let mediaGroup: ContentBlock[] = [];
 
 	for (let i = 0; i < blocks.length; i++) {
 		const block = blocks[i];
 
-		// If this is an image or video
 		if (block.type === 'image' || block.type === 'video') {
 			mediaGroup.push(block);
 			continue;
 		}
 
-		// If this is whitespace or newlines between media, check what follows
+		// If this is whitespace between media, check what follows
 		if (block.type === 'text' && /^\s+$/.test(block.text)) {
-			// If we have media before and media after, continue collecting
 			if (
 				mediaGroup.length > 0 &&
 				i + 1 < blocks.length &&
@@ -210,7 +334,6 @@ export async function parseContent(content: string): Promise<ContentBlock[]> {
 
 		// If we have collected media and the current block breaks the sequence
 		if (mediaGroup.length > 0) {
-			// Add media group if it contains more than one item
 			if (mediaGroup.length > 1) {
 				processedBlocks.push({
 					type: 'mediaGrid',
@@ -223,13 +346,11 @@ export async function parseContent(content: string): Promise<ContentBlock[]> {
 					}
 				});
 			} else {
-				// Just add the single media item
 				processedBlocks.push(mediaGroup[0]);
 			}
 			mediaGroup = [];
 		}
 
-		// Add the current non-media block
 		processedBlocks.push(block);
 	}
 
@@ -252,4 +373,16 @@ export async function parseContent(content: string): Promise<ContentBlock[]> {
 	}
 
 	return processedBlocks;
+}
+
+/**
+ * Render markdown text to HTML using marked
+ * This should be used for text blocks in articles (kind 30023)
+ */
+export function renderMarkdown(content: string): string {
+	return marked.parse(content, {
+		breaks: true, // Convert \n to <br>
+		gfm: true, // GitHub Flavored Markdown
+		async: false // Return string synchronously
+	}) as string;
 }

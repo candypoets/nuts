@@ -150,13 +150,14 @@
 		{:else if path.includes('nevent')}
 			<Kind1 nevent={path.split(':')?.[1]} {visible} goBack={pagerAnimator?.goBack} />
 		{:else if path.includes('naddr')}
-			<Kind30023 naddr={path.split(':')?.[1]} {visible} goBack={pagerAnimator?.goBack} />
+			{@const naddrValue = path.slice(path.indexOf(':') + 1)}
+			<Kind30023 naddr={naddrValue} {visible} goBack={pagerAnimator?.goBack} />
 		{:else if path.includes('kind4')}
 			<Kind4 pubkey={path.split(':')?.[1]} {visible} goBack={pagerAnimator?.goBack} />
 		{:else if path.includes('notifications')}
 			<Notifications goBack={pagerAnimator?.goBack} />
 		{:else if path.includes('tags')}
-			<Tags tags={[path.split(':')?.[1]]} goBack={pagerAnimator?.goBack} />
+			<Tags tags={[path.split(':')?.[1]]} {visible} goBack={pagerAnimator?.goBack} />
 		{/if}
 
 		<!-- Debug overlay -->

@@ -168,7 +168,8 @@
 		if (useGlobalFeed) {
 			return [
 				{
-					kinds: [1, 6],
+					// kinds: [1, 6],
+					kinds: [30023],
 					limit: $limit,
 					since: forPagination ? undefined : ago(31 * 24 * 60 * 60),
 					until: forPagination ? until : undefined,
@@ -186,7 +187,8 @@
 		const feedRelays = $key?.pub ? relays : DEFAULT_FEED_RELAYS;
 
 		const baseRequest: RequestObject = {
-			kinds: [1, 6],
+			// kinds: [1, 6],
+			kinds: [30023],
 			authors,
 			limit: $limit,
 			since: forPagination ? undefined : ago(31 * 24 * 60 * 60),
