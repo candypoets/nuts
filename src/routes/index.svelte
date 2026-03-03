@@ -375,10 +375,11 @@
 			if (pathParts.length >= 2) {
 				// On a subpath (e.g., /explore/notifications), go back to parent
 				$pagerAnimator?.goBack();
-			} else {
-				// At root of a section (e.g., /explore), toggle overview mode
-				carouselAnimator.toggleOverviewMode(500, $isMobile);
 			}
+			// else {
+			//	// At root of a section (e.g., /explore), toggle overview mode
+			//	carouselAnimator.toggleOverviewMode(500, $isMobile);
+			// }
 		} else if (e.key === 'ArrowLeft') {
 			if ($overviewModeStore) {
 				// In overview mode, arrow keys do nothing (or could navigate selection)
