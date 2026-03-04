@@ -32,7 +32,7 @@
 	// Only proxy images, bypass proxy for videos
 	$: processedLinks = links.map((link) => ({
 		...link,
-		src: link.src
+		src: link.type === 'video' ? link.src : proxyImageUrl(link.src, ImagePresets.full)
 	}));
 
 	// Limit display to 5 items max

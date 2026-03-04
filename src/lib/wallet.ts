@@ -270,7 +270,11 @@ export const getZapInvoice = async (
 	// Handle case where zapRequest might already be stringified (from useSignEvent)
 	const nostrValue = typeof zapRequest === 'string' ? zapRequest : JSON.stringify(zapRequest);
 	callbackUrl += `&nostr=${encodeURIComponent(nostrValue)}`;
-	callbackUrl += `&comment=${encodeURIComponent(typeof zapRequest === 'string' ? '' : zapRequest.content || '')}`;
+	// Extract comment from the zap request
+	const zapContent = typeof zapRequest === 'string' 
+		? (JSON.parse(zapRequest).content || '') 
+		: (zapRequest.content || '');
+	callbackUrl += `&comment=${encodeURIComponent(zapContent)}`;
 	callbackUrl += `&lnurl=${encodeURIComponent(lnurl)}`;
 
 	// Try direct fetch first (avoids proxy rate limits for providers with CORS)
