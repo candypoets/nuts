@@ -6,25 +6,64 @@ import { kind17375, kinds7375 } from 'src/controller/nostr';
 import { normalizeMintURL } from 'src/lib/utils';
 import type { Mint } from 'src/types/mint';
 
+// Cache for mint data to avoid repeated fetches
+const mintDataCache = new Map<string, Mint>();
+const pendingFetches = new Map<string, Promise<Mint>>();
+
 export async function fetchMintData(mint: string): Promise<Mint> {
-	try {
-		const response = await fetch(
-			`https://api.audit.8333.space/mints/url/?url=${normalizeURL(mint).replace(/\/$/, '')}`
-		);
-		if (!response.ok) {
-			throw new Error('Failed to fetch mint data');
-		}
-		const info = await fetch(`${normalizeURL(mint).replace(/\/$/, '')}/v1/info`);
-		const infores = await info.json();
-		const res = await response.json();
-		res.parsedInfo = infores;
-		res.name = infores.name.replace(/mint/gi, '').replace(/cashu/gi, '');
-		return res;
-	} catch (err) {
-		return {
-			name: mint
-		} as Mint;
+	const normalizedUrl = normalizeURL(mint).replace(/\/$/, '');
+
+	// Return cached data if available
+	if (mintDataCache.has(normalizedUrl)) {
+		return mintDataCache.get(normalizedUrl)!;
 	}
+
+	// Return existing pending fetch to avoid duplicate requests
+	if (pendingFetches.has(normalizedUrl)) {
+		return pendingFetches.get(normalizedUrl)!;
+	}
+
+	const fetchPromise = (async (): Promise<Mint> => {
+		try {
+			const [response, info] = await Promise.all([
+				fetch(`https://api.audit.8333.space/mints/url/?url=${normalizedUrl}`),
+				fetch(`${normalizedUrl}/v1/info`)
+			]);
+
+			if (!response.ok) {
+				throw new Error('Failed to fetch mint data');
+			}
+
+			const [res, infores] = await Promise.all([response.json(), info.json()]);
+			res.parsedInfo = infores;
+			res.name = infores.name.replace(/mint/gi, '').replace(/cashu/gi, '');
+			res.url = normalizedUrl;
+
+			// Cache the result
+			mintDataCache.set(normalizedUrl, res);
+			return res;
+		} catch (err) {
+			const fallbackMint = { name: mint, url: normalizedUrl } as Mint;
+			// Cache fallback to avoid repeated failed requests
+			mintDataCache.set(normalizedUrl, fallbackMint);
+			return fallbackMint;
+		} finally {
+			pendingFetches.delete(normalizedUrl);
+		}
+	})();
+
+	pendingFetches.set(normalizedUrl, fetchPromise);
+	return fetchPromise;
+}
+
+export function getCachedMintData(mint: string): Mint | undefined {
+	const normalizedUrl = normalizeURL(mint).replace(/\/$/, '');
+	return mintDataCache.get(normalizedUrl);
+}
+
+export function clearMintDataCache(): void {
+	mintDataCache.clear();
+	pendingFetches.clear();
 }
 
 export const mints = derived(kind17375, async ($kind17375) => {

@@ -1,10 +1,11 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
 	import { nutsWallet } from 'src/controller/proofs';
-	import { activeMintUrl, fetchMintData } from 'src/controller/wallet';
+	import { activeMintUrl, fetchMintData, getCachedMintData, mints } from 'src/controller/wallet';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import { go } from 'src/routes/modals/modal';
+	import { normalizeMintURL } from 'src/lib/utils';
 
 	export let mintUrl: string | null;
 	export let size = 'lg';
@@ -42,6 +43,26 @@
 	}
 
 	$: balanceByMint = $nutsWallet?.balanceByMint;
+
+	// Try to get mint data from cache first, then fall back to fetch
+	function getMintData(mintUrl: string): Promise<Mint> {
+		// Check runtime cache first
+		const cached = getCachedMintData(mintUrl);
+		if (cached) {
+			return Promise.resolve(cached);
+		}
+
+		// Check if mints store has it loaded
+		if ($mints) {
+			const fromStore = $mints.find((m) => normalizeMintURL(m.url || '') === normalizeMintURL(mintUrl));
+			if (fromStore) {
+				return Promise.resolve(fromStore);
+			}
+		}
+
+		// Fall back to fetching
+		return fetchMintData(mintUrl);
+	}
 </script>
 
 {#if mintUrl}
@@ -59,7 +80,7 @@
 				<Avatar {pubkey} {size} />
 			</span>
 		{/if}
-		{#await fetchMintData(mintUrl) then mint}
+		{#await getMintData(mintUrl) then mint}
 			<div
 				class="rounded-xl shadow-lg p-4 text-white relative overflow-hidden"
 				style="background-image: linear-gradient(to left, {generateColorFromUrl(

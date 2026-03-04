@@ -33,7 +33,14 @@
 			>
 				{#each mints || [] as m}
 					{@const mintUrl = normalizeMintURL(m)}
-					<li class="mb-1 cursor-pointer" on:click={(_) => (activeMint = mintUrl)}>
+					<li
+						class="mb-1 cursor-pointer"
+						on:click={(_) => {
+							activeMint = mintUrl;
+							// Close dropdown by removing focus
+							document.activeElement?.blur();
+						}}
+					>
 						<Mintcard size={'xs'} showBalance={pubkey == $key?.pub} {mintUrl} />
 					</li>
 				{/each}
