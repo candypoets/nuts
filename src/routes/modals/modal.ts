@@ -86,6 +86,16 @@ export function goBack() {
 	}
 }
 
+export function goToRoot() {
+	// Get current path
+	const currentPath = get(page).url.pathname;
+
+	// Get the root segment (e.g., /home, /explore, /chat from /home/some/modal)
+	const rootPath = currentPath.split('/')[1];
+	manager.cleanup();
+	goto('/' + rootPath);
+}
+
 export function go(eventPath: string) {
 	console.log('go', !get(key)?.pub, eventPath);
 	if (!get(key)?.pub && pathNeedsLogin.some((p) => eventPath.includes(p))) {

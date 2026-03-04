@@ -53,12 +53,13 @@ export const pagerAnimator: Readable<PagerAnimator | null> = derived(
  */
 export function setupPagerAnimators(
 	viewport: { vw: number; vh: number },
-	goBackRouter: () => void
+	goBackRouter: () => void,
+	goToRootRouter?: () => void
 ) {
 	const animators = {
-		home: new PagerAnimator(viewport, goBackRouter, DEFAULT_ANIMATION_CONFIG),
-		explore: new PagerAnimator(viewport, goBackRouter, DEFAULT_ANIMATION_CONFIG),
-		chat: new PagerAnimator(viewport, goBackRouter, DEFAULT_ANIMATION_CONFIG)
+		home: new PagerAnimator(viewport, goBackRouter, goToRootRouter, DEFAULT_ANIMATION_CONFIG),
+		explore: new PagerAnimator(viewport, goBackRouter, goToRootRouter, DEFAULT_ANIMATION_CONFIG),
+		chat: new PagerAnimator(viewport, goBackRouter, goToRootRouter, DEFAULT_ANIMATION_CONFIG)
 	};
 
 	// Update the pager animators store

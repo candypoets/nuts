@@ -150,11 +150,11 @@
 				($$props.class || '')}
 			style="-webkit-backdrop-filter: blur(12px);"
 		>
-			<div class="h-6">
+			<div class="h-6 relative w-full">
 				<!-- Placeholder text -->
 				{#if !$editor?.getText().trim() && $$slots.default}
 					<div
-						class="absolute pointer-events-none text-opacity-50 text-base-content"
+						class="absolute top-0 left-0 pointer-events-none text-opacity-50 text-base-content"
 						style={editorReady ? '' : 'display: none;'}
 					>
 						<slot />

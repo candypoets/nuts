@@ -54,7 +54,7 @@
 	import Chat from 'src/routes/chat/index.svelte';
 	import Explore from 'src/routes/explore/index.svelte';
 	import Home from 'src/routes/home/+layout.svelte';
-	import { goBack as goBackRouter } from 'src/routes/modals/modal';
+	import { goBack as goBackRouter, goToRoot as goToRootRouter } from 'src/routes/modals/modal';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
 
@@ -72,11 +72,10 @@
 	// $: $key && $key.priv && manager.setSigner('privkey', $key.priv);
 	//
 	manager.addEventListener('auth', (event) => {
-		console.log('auth successful');
 		$key.pub = event.detail;
 	});
 
-	setupPagerAnimators($viewport, goBackRouter);
+	setupPagerAnimators($viewport, goBackRouter, goToRootRouter);
 
 	const connectionTracker = new ConnectionTracker();
 

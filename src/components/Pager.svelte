@@ -70,7 +70,7 @@
 	<slot />
 </div>
 
-{#each stack as item, index (item.value)}
+{#each stack as item, index}
 	{#if item.type === 'sub'}
 		<Sub path={item.value} visible={index === stack.length - 1} depth={stack.length - 1 - index} />
 	{:else}

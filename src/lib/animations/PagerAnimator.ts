@@ -30,6 +30,7 @@ export class PagerAnimator {
 	// Current state values
 	private viewport: { vw: number; vh: number } = { vw: 0, vh: 0 };
 	private goBackRouter: () => void;
+	private goToRootRouter?: () => void;
 	private options: AnimationOptions = { duration: 0.3 };
 
 	// Mobile mode and visibility tracking
@@ -42,10 +43,12 @@ export class PagerAnimator {
 	constructor(
 		viewport: { vw: number; vh: number },
 		goBackRouter: () => void,
+		goToRootRouter?: () => void,
 		options?: AnimationOptions
 	) {
 		this.viewport = viewport;
 		this.goBackRouter = goBackRouter;
+		this.goToRootRouter = goToRootRouter;
 		if (options) {
 			this.options = options;
 		}
@@ -168,7 +171,7 @@ export class PagerAnimator {
 		return 0;
 	}
 
-	animateIn(element: HTMLElement) {
+	animateIn(element: HTMLElement): Promise<void> {
 		// Make sure it's visible when animating in
 		element.style.display = '';
 
@@ -180,13 +183,13 @@ export class PagerAnimator {
 
 		if (inAnimations) {
 			// Apply custom animation from options
-			animate(element, inAnimations, {
+			return animate(element, inAnimations, {
 				duration: this.options.duration,
 				easing: 'ease-out'
 			});
 		} else {
 			// Default animation - fade in
-			animate(
+			return animate(
 				element,
 				{
 					opacity: [0, 1]
@@ -199,7 +202,7 @@ export class PagerAnimator {
 		}
 	}
 
-	animateOut(element: HTMLElement) {
+	animateOut(element: HTMLElement): Promise<void> {
 		// Get the element's data-kind attribute to determine animation type
 		const kind = element.getAttribute('data-kind') || 'default';
 
@@ -208,13 +211,13 @@ export class PagerAnimator {
 
 		if (outAnimations) {
 			// Apply custom animation from options
-			animate(element, outAnimations, {
+			return animate(element, outAnimations, {
 				duration: this.options.duration,
 				easing: 'ease-in'
 			}).then(this.goBackRouter);
 		} else {
 			// Default animation - fade out
-			animate(
+			return animate(
 				element,
 				{
 					opacity: [1, 0]
@@ -267,10 +270,50 @@ export class PagerAnimator {
 	 * Unregister all elements from the stack
 	 */
 	unregisterAll() {
-		// Loop through in reverse order and unregister each element
-		for (let i = this.stack.length - 1; i >= 0; i--) {
-			this.unregisterElement(this.stack[i]);
+		// Snapshot all elements to animate out
+		const elementsToRemove = [...this.stack];
+		// Clear the stack immediately
+		this.stack = [];
+
+		// Animate all elements out simultaneously (without calling goBackRouter for each)
+		// Get the element's data-kind attribute to determine animation type
+		for (const element of elementsToRemove) {
+			const kind = element.getAttribute('data-kind') || 'default';
+			const outAnimations = this.options.out?.[kind];
+
+			if (outAnimations) {
+				animate(element, outAnimations, {
+					duration: this.options.duration,
+					easing: 'ease-in'
+				});
+			} else {
+				animate(
+					element,
+					{
+						opacity: [1, 0]
+					},
+					{
+						duration: this.options.duration,
+						easing: 'ease-in'
+					}
+				);
+			}
 		}
+
+		// Navigate to root once after starting all animations
+		if (this.goToRootRouter) {
+			this.goToRootRouter();
+		} else {
+			// Fallback: call goBackRouter for each element (old behavior)
+			for (let i = 0; i < elementsToRemove.length; i++) {
+				this.goBackRouter();
+			}
+		}
+
+		// Update visibility and positions once after clearing
+		this.applyCombinedVisibility();
+		this.updateAllSubElements(0, 0);
+		this.updateMainContent();
 	}
 
 	/**
@@ -398,8 +441,8 @@ export class PagerAnimator {
 			? 1
 			: Math.max(0.85, 1 - effectiveSubDepth * 0.05) *
 				Math.max(0.85, 1 - effectiveModalDepth * 0.05);
-		const opacity = Math.max(0.3, 1 - effectiveSubDepth * 0.3);
 
+		const opacity = Math.max(0.3, 1 - effectiveSubDepth * 0.3);
 		// Motion One animation
 		animate(
 			element,

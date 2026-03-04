@@ -32,7 +32,7 @@
 	// Only proxy images, bypass proxy for videos
 	$: processedLinks = links.map((link) => ({
 		...link,
-		src: link.type === 'video' ? link.src : proxyImageUrl(link.src, ImagePresets.full)
+		src: link.src
 	}));
 
 	// Limit display to 5 items max
@@ -53,7 +53,7 @@
 		if (total === 1) {
 			return 'rounded-lg'; // Single item - all corners rounded
 		}
-		
+
 		const row = Math.floor(i / columns);
 		const col = i % columns;
 		const totalRows = Math.ceil(total / columns);
@@ -61,9 +61,9 @@
 		const isFirstRow = row === 0;
 		const isFirstCol = col === 0;
 		const isLastCol = col === columns - 1 || i === total - 1;
-		
+
 		let corners = [];
-		
+
 		// Top-left corner: first item or first column
 		if (isFirstRow && isFirstCol) corners.push('rounded-tl-lg');
 		// Top-right corner: first row and last column of that row
@@ -72,7 +72,7 @@
 		if (isLastRow && isFirstCol) corners.push('rounded-bl-lg');
 		// Bottom-right corner: last row and last column
 		if (isLastRow && isLastCol) corners.push('rounded-br-lg');
-		
+
 		return corners.join(' ');
 	}
 
@@ -134,7 +134,7 @@
 					)}
 					bind:videoElement={videoElements[i]}
 					index={i}
-					gridId={gridId}
+					{gridId}
 					onClick={(e) => {
 						e.stopPropagation();
 						e.preventDefault();
@@ -152,10 +152,7 @@
 			</span>
 		{:else}
 			<div
-				class={cx(
-					'relative',
-					displayLinks.length === 1 ? '' : 'h-48'
-				)}
+				class={cx('relative', displayLinks.length === 1 ? '' : 'h-48')}
 				style={$zoomedStore === undefined && i === 0
 					? `view-transition-name: image-zoom-${gridId}-0`
 					: ''}
@@ -163,7 +160,9 @@
 				<img
 					class={cx(
 						i == 0 ? 'col-span-' + getSpan(i == 0 ? displayLinks.length - 1 : i) : '',
-						displayLinks.length === 1 ? 'max-h-96 w-auto object-contain' : 'w-full h-full object-cover',
+						displayLinks.length === 1
+							? 'max-h-96 w-auto object-contain'
+							: 'w-full h-full object-cover',
 						getRoundedCorners(i, displayLinks.length)
 					)}
 					style={link.blurhash ? `background-image: url('data:image/png;base64,...')` : ''}
