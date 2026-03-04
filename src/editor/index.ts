@@ -85,7 +85,7 @@ export const extensions = [
 			nevent: { addNodeView: () => SvelteNodeViewRenderer(NEvent) },
 			naddr: { addNodeView: () => SvelteNodeViewRenderer(NAddr) },
 			image: { addNodeView: () => SvelteNodeViewRenderer(Image) },
-			video: { addNodeView: () => SvelteNodeViewRenderer(Image) },
+			video: { addNodeView: () => SvelteNodeViewRenderer(Video) },
 			tweet: { addNodeView: () => SvelteNodeViewRenderer(Tweet) }
 		}
 	})

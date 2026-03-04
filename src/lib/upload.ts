@@ -61,7 +61,19 @@ async function makeNip98AuthHeader(
 
 	return await new Promise((resolve) => {
 		useSignEvent(unsigned, (signedEvent) => {
-			const token = btoa(JSON.stringify(signedEvent));
+			// useSignEvent may return a string or an object - normalize to object
+			const event = typeof signedEvent === 'string' ? JSON.parse(signedEvent) : signedEvent;
+			// Extract only the canonical Nostr event fields
+			const canonicalEvent = {
+				id: event.id,
+				pubkey: event.pubkey,
+				created_at: event.created_at,
+				kind: event.kind,
+				tags: event.tags,
+				content: event.content,
+				sig: event.sig
+			};
+			const token = btoa(JSON.stringify(canonicalEvent));
 			resolve(`Nostr ${token}`);
 		});
 	});
@@ -76,6 +88,15 @@ function extractUploadedUrl(json: any): string | null {
 		json?.nurl ||
 		null
 	);
+}
+
+function decodeNostrAuthHeader(header: string): any | null {
+	try {
+		const token = header.replace(/^Nostr\s+/i, '');
+		return JSON.parse(atob(token));
+	} catch {
+		return null;
+	}
 }
 
 // Build NIP-94 tags from file metadata
@@ -180,7 +201,19 @@ async function makeBlossomAuthHeader(
 
 	return await new Promise((resolve) => {
 		useSignEvent(unsigned, (signedEvent) => {
-			const token = btoa(JSON.stringify(signedEvent));
+			// useSignEvent may return a string or an object - normalize to object
+			const event = typeof signedEvent === 'string' ? JSON.parse(signedEvent) : signedEvent;
+			// Extract only the canonical Nostr event fields
+			const canonicalEvent = {
+				id: event.id,
+				pubkey: event.pubkey,
+				created_at: event.created_at,
+				kind: event.kind,
+				tags: event.tags,
+				content: event.content,
+				sig: event.sig
+			};
+			const token = btoa(JSON.stringify(canonicalEvent));
 			resolve(`Nostr ${token}`);
 		});
 	});
@@ -213,8 +246,9 @@ export async function blossomUpload(
 	});
 
 	if (!res.ok) {
+		const reason = res.headers.get('x-reason') || res.headers.get('X-Reason') || '';
 		const text = await res.text().catch(() => '');
-		throw new Error(`Blossom upload failed with status ${res.status}: ${text}`);
+		throw new Error(`Blossom upload failed with status ${res.status}: ${reason || text}`);
 	}
 
 	// Blossom returns the blob descriptor

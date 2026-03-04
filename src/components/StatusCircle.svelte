@@ -12,6 +12,7 @@
 	let visible = false;
 
 	function getColorClasses(s: ConnectionStatus) {
+		console.log(s?.status(), s?.status()?.toString());
 		switch (s?.status()?.toString()) {
 			case 'true':
 				return 'bg-green-500';

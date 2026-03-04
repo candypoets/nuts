@@ -1,11 +1,11 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
 	import { nutsWallet } from 'src/controller/proofs';
-	import { activeMintUrl, fetchMintData, getCachedMintData, mints } from 'src/controller/wallet';
+	import { activeMintUrl, fetchMintData, getCachedMintData } from 'src/controller/wallet';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import { go } from 'src/routes/modals/modal';
-	import { normalizeMintURL } from 'src/lib/utils';
+
 
 	export let mintUrl: string | null;
 	export let size = 'lg';
@@ -52,15 +52,7 @@
 			return Promise.resolve(cached);
 		}
 
-		// Check if mints store has it loaded
-		if ($mints) {
-			const fromStore = $mints.find((m) => normalizeMintURL(m.url || '') === normalizeMintURL(mintUrl));
-			if (fromStore) {
-				return Promise.resolve(fromStore);
-			}
-		}
-
-		// Fall back to fetching
+		// Fall back to fetching (which will cache the result)
 		return fetchMintData(mintUrl);
 	}
 </script>
