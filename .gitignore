@@ -14,3 +14,4 @@ vite.config.ts.timestamp-*
 src/model/nostr-worker/target
 .env
 screenshots
+archive/

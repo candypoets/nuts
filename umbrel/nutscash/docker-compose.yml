@@ -1,0 +1,25 @@
+version: "3.7"
+
+services:
+  app_proxy:
+    environment:
+      APP_HOST: nutscash_web_1
+      APP_PORT: 3000
+
+  web:
+    image: ticruz38/nuts:latest@sha256:e4e9af86a0df4d9807390af99b511c7453cef00e08fed06e9a2ed19d2dbbf802
+    restart: on-failure
+    stop_grace_period: 1m
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3000
+      ORIGIN: http://${DEVICE_DOMAIN_NAME}:3195
+      # Relay defaults can include Umbrel's Nostr Relay app
+      VITE_DEFAULT_RELAYS: ws://${DEVICE_HOSTNAME}:4848,wss://relay.damus.io,wss://relay.nostr.band
+      VITE_INDEXER_RELAYS: ws://${DEVICE_HOSTNAME}:4848,wss://relay.nostr.band,wss://purplepag.es
+      VITE_SEARCH_RELAYS: ws://${DEVICE_HOSTNAME}:4848,wss://relay.nostr.band
+      # Optional LNURL domain used by lnuts utils
+      PUBLIC_LNUTS_DOMAIN: ${DEVICE_DOMAIN_NAME}
+      VITE_ENABLE_SSL: "false"
+      # Required by /api/proxy/* routes in this app
+      MEDIA_PROXY_URL: https://proxy.nuts.cash
