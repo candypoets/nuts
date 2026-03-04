@@ -146,15 +146,15 @@
 		<slot name="toolbar" />
 		<div
 			bind:this={editorElement}
-			class={'flex items-stretch bg-opacity-90 bg-base-300 justify-between w-full prose p-3 md:py-2 py-2 cursor-text text-highlight ' +
+			class={'flex items-stretch bg-opacity-90 bg-base-300 justify-between w-full not-prose p-3 md:py-2 py-2 cursor-text text-highlight ' +
 				($$props.class || '')}
 			style="-webkit-backdrop-filter: blur(12px);"
 		>
-			<div class="h-6 relative w-full">
+			<div class="h-6">
 				<!-- Placeholder text -->
 				{#if !$editor?.getText().trim() && $$slots.default}
 					<div
-						class="absolute top-0 left-0 pointer-events-none text-opacity-50 text-base-content"
+						class="absolute pointer-events-none text-opacity-50 text-base-content"
 						style={editorReady ? '' : 'display: none;'}
 					>
 						<slot />

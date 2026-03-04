@@ -98,9 +98,14 @@
 	function handleTouchEnd(e: TouchEvent) {
 		if (!element || !pagerAnimator) return;
 
+		const touchEndX = e.changedTouches[0].clientX;
+		const touchEndY = e.changedTouches[0].clientY;
+
 		// Always handle touch end for horizontal gestures
 		if (isHorizontalGesture) {
-			const touchEndX = e.changedTouches[0].clientX;
+			const finalDeltaX = Math.max(0, touchEndX - touchStartX);
+			const finalDeltaY = Math.max(0, touchEndY - touchStartY);
+			pagerAnimator.trackSwipeDismiss(finalDeltaX, finalDeltaY);
 			const touchEndTime = Date.now();
 			const deltaX = touchEndX - touchStartX;
 			const deltaTime = touchEndTime - touchStartTime;

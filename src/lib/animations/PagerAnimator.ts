@@ -25,6 +25,12 @@ interface AnimationOptions {
 export class PagerAnimator {
 	private main: HTMLElement | null = null;
 	private stack: HTMLElement[] = [];
+	private elementKinds = new WeakMap<HTMLElement, string>();
+	private elementStates = new WeakMap<
+		HTMLElement,
+		{ x: number; y: number; scale: number; opacity: number }
+	>();
+	private elementSizes = new WeakMap<HTMLElement, { width: number; height: number }>();
 	// private modalElementStack: HTMLElement[] = [];
 
 	// Current state values
@@ -39,6 +45,12 @@ export class PagerAnimator {
 	private showMain = true; // whether main is visible
 
 	private rafId: number | null = null;
+	private pendingDeltaX = 0;
+	private pendingDeltaY = 0;
+	private readonly depthBuffer: { subDepth: number; modalDepth: number } = {
+		subDepth: 0,
+		modalDepth: 0
+	};
 
 	constructor(
 		viewport: { vw: number; vh: number },
@@ -137,6 +149,9 @@ export class PagerAnimator {
 		// GPU acceleration hints
 		this.main.style.willChange = 'transform, opacity';
 		this.main.style.backfaceVisibility = 'hidden';
+		this.main.style.contain = 'paint';
+		this.setElementState(this.main, 0, 0, 1, 1);
+		this.captureElementSize(this.main);
 		// Ensure visibility applied if mode was decided before main arrived
 		this.applyCombinedVisibility();
 	}
@@ -146,6 +161,10 @@ export class PagerAnimator {
 	 */
 	updateViewport(viewport: { vw: number; vh: number }) {
 		this.viewport = viewport;
+		if (this.main) this.captureElementSize(this.main);
+		for (const element of this.stack) {
+			this.captureElementSize(element);
+		}
 		// Optionally re-evaluate on viewport change if you prefer dynamic switching:
 		// this.setMobileMode();
 	}
@@ -171,12 +190,20 @@ export class PagerAnimator {
 		return 0;
 	}
 
+	private getElementKind(element: HTMLElement): string {
+		const cached = this.elementKinds.get(element);
+		if (cached) return cached;
+		const kind = element.getAttribute('data-kind') || 'default';
+		this.elementKinds.set(element, kind);
+		return kind;
+	}
+
 	animateIn(element: HTMLElement): Promise<void> {
 		// Make sure it's visible when animating in
 		element.style.display = '';
 
 		// Get the element's data-kind attribute to determine animation type
-		const kind = element.getAttribute('data-kind') || 'default';
+		const kind = this.getElementKind(element);
 
 		// Check if we have custom animations defined for this kind
 		const inAnimations = this.options.in?.[kind];
@@ -202,25 +229,108 @@ export class PagerAnimator {
 		}
 	}
 
-	animateOut(element: HTMLElement): Promise<void> {
+	private setElementState(
+		element: HTMLElement,
+		x: number,
+		y: number,
+		scale: number,
+		opacity: number
+	) {
+		this.elementStates.set(element, { x, y, scale, opacity });
+	}
+
+	private getElementState(element: HTMLElement): { x: number; y: number; scale: number; opacity: number } {
+		return this.elementStates.get(element) ?? { x: 0, y: 0, scale: 1, opacity: 1 };
+	}
+
+	private captureElementSize(element: HTMLElement) {
+		const rect = element.getBoundingClientRect();
+		this.elementSizes.set(element, {
+			width: rect.width || this.viewport.vw * 100,
+			height: rect.height || this.viewport.vh * 100
+		});
+	}
+
+	private getElementSize(element: HTMLElement): { width: number; height: number } {
+		return this.elementSizes.get(element) ?? {
+			width: this.viewport.vw * 100,
+			height: this.viewport.vh * 100
+		};
+	}
+
+	private resolveAxisEndValue(value: unknown, axis: 'x' | 'y', element: HTMLElement): unknown {
+		if (typeof value !== 'string') return value;
+		const trimmed = value.trim();
+
+		// Convert percentages to px using cached element size to avoid hot-path layout reads
+		const percentMatch = trimmed.match(/^(-?\d+(?:\.\d+)?)%$/);
+		if (percentMatch) {
+			const percent = parseFloat(percentMatch[1]) / 100;
+			const size = this.getElementSize(element);
+			return (axis === 'x' ? size.width : size.height) * percent;
+		}
+
+		const pxMatch = trimmed.match(/^(-?\d+(?:\.\d+)?)px$/);
+		if (pxMatch) return parseFloat(pxMatch[1]);
+
+		return value;
+	}
+
+	private withCurrentStartValues(
+		element: HTMLElement,
+		animations: Record<string, unknown>
+	): Record<string, unknown> {
+		const current = this.getElementState(element);
+		const next = { ...animations } as Record<string, unknown>;
+
+		const getEndValue = (value: unknown) =>
+			Array.isArray(value) ? value[value.length - 1] : value;
+
+		if (next.x !== undefined) {
+			const end = this.resolveAxisEndValue(getEndValue(next.x), 'x', element);
+			next.x = [current.x, end];
+		}
+		if (next.y !== undefined) {
+			const end = this.resolveAxisEndValue(getEndValue(next.y), 'y', element);
+			next.y = [current.y, end];
+		}
+		if (next.scale !== undefined) {
+			const rawEnd = getEndValue(next.scale);
+			const end = typeof rawEnd === 'string' ? parseFloat(rawEnd) : rawEnd;
+			next.scale = [current.scale, end];
+		}
+		if (next.opacity !== undefined) {
+			const rawEnd = getEndValue(next.opacity);
+			const end = typeof rawEnd === 'string' ? parseFloat(rawEnd) : rawEnd;
+			next.opacity = [current.opacity, end];
+		}
+
+		return next;
+	}
+
+	animateOut(element: HTMLElement, fromCurrentPosition: boolean = false): Promise<void> {
 		// Get the element's data-kind attribute to determine animation type
-		const kind = element.getAttribute('data-kind') || 'default';
+		const kind = this.getElementKind(element);
 
 		// Check if we have custom animations defined for this kind
-		const outAnimations = this.options.out?.[kind];
+		const outAnimations = this.options.out?.[kind] as Record<string, unknown> | undefined;
 
 		if (outAnimations) {
+			const animationValues = fromCurrentPosition
+				? this.withCurrentStartValues(element, outAnimations)
+				: outAnimations;
 			// Apply custom animation from options
-			return animate(element, outAnimations, {
+			return animate(element, animationValues, {
 				duration: this.options.duration,
 				easing: 'ease-in'
 			}).then(this.goBackRouter);
 		} else {
+			const currentOpacity = fromCurrentPosition ? this.getElementState(element).opacity : 1;
 			// Default animation - fade out
 			return animate(
 				element,
 				{
-					opacity: [1, 0]
+					opacity: [currentOpacity, 0]
 				},
 				{
 					duration: this.options.duration,
@@ -237,33 +347,37 @@ export class PagerAnimator {
 		// GPU acceleration hints
 		element.style.willChange = 'transform, opacity';
 		element.style.backfaceVisibility = 'hidden';
+		element.style.contain = 'paint';
+		this.elementKinds.set(element, element.getAttribute('data-kind') || 'default');
+		this.setElementState(element, 0, 0, 1, 1);
+		this.captureElementSize(element);
 
 		this.stack.push(element);
 
 		// Apply visibility rules first
 		this.applyCombinedVisibility();
 
-		this.updateMainContent();
-		this.updateAllSubElements(0, 0, 'in');
+		const depths = this.updateAllSubElements(0, 0, 'in');
+		this.updateMainContent(0, 0, false, depths);
 	}
 
 	/**
 	 * Unregister a sub element with Motion One out animation
 	 */
-	unregisterElement(element: HTMLElement) {
+	unregisterElement(element: HTMLElement, fromCurrentPosition: boolean = false) {
 		// Remove from stack
 		const lastElement = this.stack.pop();
 
 		// Animate out the element that was on top (lastElement)
 		if (lastElement) {
-			this.animateOut(lastElement);
+			this.animateOut(lastElement, fromCurrentPosition);
 		}
 
 		// Re-apply visibility to keep at most two visible (considering main)
 		this.applyCombinedVisibility();
 
-		this.updateAllSubElements(0, 0);
-		this.updateMainContent();
+		const depths = this.updateAllSubElements(0, 0);
+		this.updateMainContent(0, 0, false, depths);
 	}
 
 	/**
@@ -278,7 +392,7 @@ export class PagerAnimator {
 		// Animate all elements out simultaneously (without calling goBackRouter for each)
 		// Get the element's data-kind attribute to determine animation type
 		for (const element of elementsToRemove) {
-			const kind = element.getAttribute('data-kind') || 'default';
+			const kind = this.getElementKind(element);
 			const outAnimations = this.options.out?.[kind];
 
 			if (outAnimations) {
@@ -312,8 +426,8 @@ export class PagerAnimator {
 
 		// Update visibility and positions once after clearing
 		this.applyCombinedVisibility();
-		this.updateAllSubElements(0, 0);
-		this.updateMainContent();
+		const depths = this.updateAllSubElements(0, 0);
+		this.updateMainContent(0, 0, false, depths);
 	}
 
 	/**
@@ -321,39 +435,46 @@ export class PagerAnimator {
 	 * - On mobile, counts only visible stack items
 	 */
 	subDepth(): number {
-		return this.stack.filter(
-			(item, idx) =>
-				(!this.isMobileMode || this.visibleStackIndices.has(idx)) &&
-				item.getAttribute('data-kind') === 'sub'
-		).length;
+		return this.countVisibleDepths().subDepth;
 	}
 
 	/**
 	 * Modal depth; see subDepth for mobile visibility handling
 	 */
 	modalDepth(): number {
-		return this.stack.filter(
-			(item, idx) =>
-				(!this.isMobileMode || this.visibleStackIndices.has(idx)) &&
-				item.getAttribute('data-kind') === 'modal'
-		).length;
+		return this.countVisibleDepths().modalDepth;
+	}
+
+	private countVisibleDepths(): { subDepth: number; modalDepth: number } {
+		let subDepth = 0;
+		let modalDepth = 0;
+		for (let i = this.stack.length - 1; i >= 0; i--) {
+			if (this.isMobileMode && !this.visibleStackIndices.has(i)) continue;
+			const element = this.stack[i];
+			if (!element) continue;
+			this.getElementKind(element) === 'sub' ? subDepth++ : modalDepth++;
+		}
+		return { subDepth, modalDepth };
 	}
 
 	/**
 	 * Update main content based on registered modal elements
 	 */
-	private updateMainContent(deltaX: number = 0, deltaY: number = 0) {
+	private updateMainContent(
+		deltaX: number = 0,
+		deltaY: number = 0,
+		immediate: boolean = false,
+		depths?: { subDepth: number; modalDepth: number }
+	) {
 		if (!this.main) return;
 
 		// Skip animating main if hidden on mobile
 		if (this.isMobileMode && !this.showMain) return;
 
-		const subDepth = this.subDepth();
-		const modalDepth = this.modalDepth();
+		const { subDepth, modalDepth } = depths ?? this.countVisibleDepths();
 
 		// Calculate transforms similar to current reactive statements
 		const subTweened = subDepth > 0 ? 1 : 0;
-		const modalTweened = modalDepth > 0 ? 1 : 0;
 
 		const swipeProgressX = deltaX > 0 ? this.getSwipeProgress(deltaX, 0) : 0;
 		const swipeProgressY = deltaY > 0 ? this.getSwipeProgress(0, deltaY) : 0;
@@ -363,6 +484,11 @@ export class PagerAnimator {
 		// Disable scale and rotateY on mobile - keep main content flat and full size
 		const scale = this.isMobileMode ? 1 : (200 - (modalDepth - swipeProgressY) * 30) / 200;
 		const rotateY = this.isMobileMode ? 0 : (subTweened - swipeProgressX) * -20;
+		if (immediate) {
+			this.setElementState(this.main, translateX, translateY, scale, 1);
+			this.main.style.transform = `translate3d(${translateX}px, ${translateY}px, 0) scale(${scale}) rotateY(${rotateY}deg)`;
+			return;
+		}
 
 		// Animate main element with Motion One using individual transform properties
 		animate(
@@ -375,8 +501,7 @@ export class PagerAnimator {
 			},
 			{
 				// Shorter duration on mobile for snappier feel
-				duration:
-					deltaX !== 0 || deltaY !== 0 ? 0 : this.isMobileMode ? 0.2 : this.options.duration,
+				duration: this.isMobileMode ? 0.2 : this.options.duration,
 				easing: 'ease-out'
 			}
 		);
@@ -385,39 +510,52 @@ export class PagerAnimator {
 	/**
 	 * Update all sub elements based on current registration
 	 */
-	private updateAllSubElements(deltaX: number = 0, deltaY: number = 0, animateKind?: 'in' | 'out') {
-		// Ensure visibility is applied before animating
-		this.applyCombinedVisibility();
+	private updateAllSubElements(
+		deltaX: number = 0,
+		deltaY: number = 0,
+		animateKind?: 'in' | 'out',
+		immediate: boolean = false
+	): { subDepth: number; modalDepth: number } {
+		if (!immediate) {
+			// Ensure visibility is applied before regular animations
+			this.applyCombinedVisibility();
+		}
 
-		let subDepth = 0;
-		let modalDepth = 0;
+		this.depthBuffer.subDepth = 0;
+		this.depthBuffer.modalDepth = 0;
+		const swipeProgress = this.getSwipeProgress(deltaX, deltaY);
 		for (let i = this.stack.length - 1; i >= 0; i--) {
 			const element = this.stack[i];
+			if (!element) continue;
 
 			// On mobile: skip non-visible elements to save work
 			if (this.isMobileMode && !this.visibleStackIndices.has(i)) {
-				element.style.display = 'none';
+				if (!immediate) element.style.display = 'none';
 				continue;
-			} else {
+			} else if (!immediate) {
 				element.style.display = '';
 			}
 
-			const effectiveSubDepth = subDepth - this.getSwipeProgress(deltaX, deltaY);
-			const effectiveModalDepth = modalDepth - this.getSwipeProgress(deltaX, deltaY);
+			const effectiveSubDepth = this.depthBuffer.subDepth - swipeProgress;
+			const effectiveModalDepth = this.depthBuffer.modalDepth - swipeProgress;
 
-			if (animateKind && subDepth === 0 && modalDepth === 0) {
+			if (animateKind && this.depthBuffer.subDepth === 0 && this.depthBuffer.modalDepth === 0) {
 				animateKind == 'in' ? this.animateIn(element) : this.animateOut(element);
 			} else {
 				this.updateSubElement(
 					element,
-					subDepth == 0 ? subDepth : effectiveSubDepth,
-					modalDepth == 0 ? modalDepth : effectiveModalDepth,
+					this.depthBuffer.subDepth == 0 ? this.depthBuffer.subDepth : effectiveSubDepth,
+					this.depthBuffer.modalDepth == 0 ? this.depthBuffer.modalDepth : effectiveModalDepth,
 					deltaX,
-					deltaY
+					deltaY,
+					immediate
 				);
 			}
-			element.getAttribute('data-kind') === 'sub' ? subDepth++ : modalDepth++;
+			this.getElementKind(element) === 'sub'
+				? this.depthBuffer.subDepth++
+				: this.depthBuffer.modalDepth++;
 		}
+		return this.depthBuffer;
 	}
 
 	/**
@@ -428,9 +566,10 @@ export class PagerAnimator {
 		effectiveSubDepth: number,
 		effectiveModalDepth: number,
 		deltaX: number = 0,
-		deltaY: number = 0
+		deltaY: number = 0,
+		immediate: boolean = false
 	) {
-		const isModal = element.getAttribute('data-kind') === 'modal';
+		const isModal = this.getElementKind(element) === 'modal';
 
 		// Calculate transforms for stacked effect using effective depth
 		const translateX = -effectiveSubDepth * 30 + (effectiveSubDepth == 0 ? deltaX : 0);
@@ -443,6 +582,13 @@ export class PagerAnimator {
 				Math.max(0.85, 1 - effectiveModalDepth * 0.05);
 
 		const opacity = Math.max(0.3, 1 - effectiveSubDepth * 0.3);
+		if (immediate) {
+			this.setElementState(element, translateX, translateY, scale, opacity);
+			element.style.transform = `translate3d(${translateX}px, ${translateY}px, 0) scale(${scale})`;
+			element.style.opacity = `${opacity}`;
+			return;
+		}
+
 		// Motion One animation
 		animate(
 			element,
@@ -454,31 +600,50 @@ export class PagerAnimator {
 			},
 			{
 				// Shorter duration on mobile for snappier feel
-				duration:
-					deltaX !== 0 || deltaY !== 0 ? 0 : this.isMobileMode ? 0.2 : this.options.duration,
+				duration: this.isMobileMode ? 0.2 : this.options.duration,
 				easing: 'ease-out'
 			}
 		);
 	}
 
+	private flushPendingSwipePosition() {
+		if (this.stack.length === 0) return;
+		const depths = this.updateAllSubElements(
+			this.pendingDeltaX,
+			this.pendingDeltaY,
+			undefined,
+			true
+		);
+		this.updateMainContent(this.pendingDeltaX, this.pendingDeltaY, true, depths);
+	}
+
+	private readonly runSwipeFrame = () => {
+		// Update all sub elements with latest pending deltas
+		const depths = this.updateAllSubElements(this.pendingDeltaX, this.pendingDeltaY, undefined, true);
+
+		// Also update main content with delta influence
+		this.updateMainContent(this.pendingDeltaX, this.pendingDeltaY, true, depths);
+		this.rafId = null;
+	};
+
 	/**
-	 * Real-time touch tracking for swipe-to-dismiss using Motion One
+	 * Real-time touch tracking for swipe-to-dismiss using direct style updates
 	 */
 	trackSwipeDismiss(deltaX: number, deltaY: number = 0) {
 		if (this.stack.length === 0) {
+			this.pendingDeltaX = 0;
+			this.pendingDeltaY = 0;
 			return;
 		}
 
-		if (this.rafId) cancelAnimationFrame(this.rafId);
+		this.pendingDeltaX = Math.max(0, deltaX);
+		this.pendingDeltaY = Math.max(0, deltaY);
 
-		this.rafId = requestAnimationFrame(() => {
-			// Update all sub elements with the deltaX and deltaY
-			this.updateAllSubElements(Math.max(0, deltaX), Math.max(0, deltaY));
+		if (this.rafId !== null) {
+			return;
+		}
 
-			// Also update main content with deltaX and deltaY influence
-			this.updateMainContent(Math.max(0, deltaX), Math.max(0, deltaY));
-			this.rafId = null;
-		});
+		this.rafId = requestAnimationFrame(this.runSwipeFrame);
 	}
 
 	/**
@@ -511,13 +676,20 @@ export class PagerAnimator {
 			this.rafId = null;
 		}
 
+		// Ensure the final pointer position is applied before out animation starts
+		this.flushPendingSwipePosition();
+
 		// Get the last element from the stack (top element)
 		const topElement = this.stack[this.stack.length - 1];
 
 		if (!topElement) {
+			this.pendingDeltaX = 0;
+			this.pendingDeltaY = 0;
 			return;
 		}
-		this.unregisterElement(topElement);
+		this.unregisterElement(topElement, true);
+		this.pendingDeltaX = 0;
+		this.pendingDeltaY = 0;
 	}
 
 	/**
@@ -528,6 +700,11 @@ export class PagerAnimator {
 			cancelAnimationFrame(this.rafId);
 			this.rafId = null;
 		}
+
+		// Ensure we start cancel animation from the last pointer position
+		this.flushPendingSwipePosition();
+		this.pendingDeltaX = 0;
+		this.pendingDeltaY = 0;
 
 		// Reset all elements to their original positions (deltaX = 0, deltaY = 0)
 		this.updateAllSubElements(0, 0);
@@ -542,9 +719,16 @@ export class PagerAnimator {
 			cancelAnimationFrame(this.rafId);
 			this.rafId = null;
 		}
+		this.pendingDeltaX = 0;
+		this.pendingDeltaY = 0;
 		// Show everything again in case caller reuses elements
 		this.showAll();
 		// Motion One automatically handles cleanup, but we can clear our arrays
 		this.stack = [];
+		this.elementKinds = new WeakMap<HTMLElement, string>();
+		this.elementStates = new WeakMap<HTMLElement, { x: number; y: number; scale: number; opacity: number }>();
+		this.elementSizes = new WeakMap<HTMLElement, { width: number; height: number }>();
+		this.depthBuffer.subDepth = 0;
+		this.depthBuffer.modalDepth = 0;
 	}
 }

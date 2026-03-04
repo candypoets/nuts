@@ -117,9 +117,14 @@
 	function handleTouchEnd(e: TouchEvent) {
 		if (!element || !pager) return;
 
+		const touchEndX = e.changedTouches[0].clientX;
+		const touchEndY = e.changedTouches[0].clientY;
+
 		// Always handle touch end for vertical gestures
 		if (isVerticalGesture) {
-			const touchEndY = e.changedTouches[0].clientY;
+			const finalDeltaX = Math.max(0, touchEndX - touchStartX);
+			const finalDeltaY = Math.max(0, touchEndY - touchStartY);
+			pager.trackSwipeDismiss(finalDeltaX, finalDeltaY);
 			const touchEndTime = Date.now();
 			const deltaY = touchEndY - touchStartY;
 			const deltaTime = touchEndTime - touchStartTime;
