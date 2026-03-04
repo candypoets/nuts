@@ -4,22 +4,19 @@
 		Contact,
 		Kind10002Parsed,
 		Kind3Parsed,
-		MessageType,
 		ParsedData,
 		type ParsedEvent,
-		type RequestObject,
 		WorkerMessage
 	} from '@candypoets/nipworker';
 	import Icon from '@iconify/svelte';
-	import _, { uniqBy } from 'lodash';
+	import { uniqBy } from 'lodash';
 	import {
+		defaultPipeline,
 		follows,
 		kind0,
-		mutes,
 		kind10000,
 		mutedPubkeys,
-		toggleMutePubkey,
-		defaultPipeline
+		toggleMutePubkey
 	} from 'src/controller/nostr';
 	import { limit } from 'src/controller/pagination';
 	import { now } from 'src/lib/period';
@@ -35,18 +32,17 @@
 		asKind3,
 		asParsedEvent,
 		fbArray,
-		isConnectionStatus,
-		isKind1
+		isConnectionStatus
 	} from '@candypoets/nipworker/utils';
 
+	import { normalizeURL } from 'nostr-tools/utils';
+	import About from 'src/components/About.svelte';
 	import RelaysList from 'src/components/RelaysList.svelte';
+	import { type ContentBlock, parseContent } from 'src/lib';
 	import { onDestroy, onMount } from 'svelte';
 	import Avatar from '../explore/avatar.svelte';
 	import { go } from '../modals/modal';
 	import { userQuery } from '../queries/user';
-	import { parseContent, type ContentBlock } from 'src/lib';
-	import About from 'src/components/About.svelte';
-	import { normalizeURL } from 'nostr-tools/utils';
 
 	// Default relays as fallback
 	const DEFAULT_RELAYS = ['wss://relay.damus.io', 'wss://relay.snort.social', 'wss://nos.lol'];
@@ -494,7 +490,7 @@
 	onNearBottom={handleNearBottom}
 >
 	<svelte:fragment slot="sticky-header">
-		<div class="px-4 py-3 flex items-center justify-between pt-safe">
+		<div class="px-4 py-3 flex items-center justify-between pt-safe bg-base-100 bg-opacity-90">
 			<button on:click={goBack} class="p-1 rounded-full hover:bg-base-200 mr-4">
 				<Icon icon="mdi:arrow-left" class="text-xl" />
 			</button>
