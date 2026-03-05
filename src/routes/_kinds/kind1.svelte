@@ -48,6 +48,9 @@
 
 	const { data } = decode(nevent) as unknown as { data: EventPointer };
 
+	// Track actual relays being used (starts with nevent relays, updated by getUserRelays)
+	let currentRelays: string[] = data.relays || [];
+
 	// Feed items managed by parent
 	let feedItems: ParsedEvent[] = [];
 
@@ -163,6 +166,12 @@
 						relaysub = getUserRelays(
 							parsedEvent?.pubkey()?.toString(),
 							(relays) => {
+								// Use fetched relays or fall back to nevent relays
+								const effectiveRelays = relays.length > 0 ? relays : (data.relays || []);
+								// Update current relays for UI (only if we got valid relays)
+								if (relays.length > 0) {
+									currentRelays = relays;
+								}
 								// Subscribe to replies for this post
 								if (!feedItems.length) {
 									useSubscription(
@@ -173,7 +182,7 @@
 												tags: { '#e': [data?.id] },
 												limit: $limit,
 												noContext: true,
-												relays
+												relays: effectiveRelays
 											}
 										],
 										handleEvents,
@@ -304,7 +313,8 @@
 				</button>
 				<!-- <h1 class="text-lg font-semibold">Post</h1> -->
 				<RelaysList
-					relays={(data.relays || []).map(normalizeURL)}
+					subId={BASE_SUB_ID}
+					relays={currentRelays.map(normalizeURL)}
 					{connectionStatus}
 					mini={$isMobile}
 				/>
