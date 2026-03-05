@@ -105,8 +105,7 @@
 							class="text-white/50 max-w-md mx-auto lg:mx-0 text-sm sm:text-base leading-relaxed"
 							style="font-family: 'Rock Salt', cursive;"
 						>
-							Speak your mind.<br class="hidden sm:block" />
-							Spend your way.
+							easy nuts.
 						</p>
 					</div>
 
