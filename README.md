@@ -1,74 +1,81 @@
-⚠️ don't be reckless!
-This app is in early development and most likely buggy. It does handle real sats though, so be sure to use only amounts that are small enough to lose.
+# NutsCash
 
-# Cashu Wallet
+A Nostr client with integrated Cashu wallet. Browse your Nostr feed, interact with notes, and send/receive Bitcoin payments over Lightning via Cashu ecash tokens.
 
-A web based Cashu Wallet that supports multiple mints
+## Features
 
-Implemented [NUTs](https://github.com/cashubtc/nuts/):
+### Nostr Client
 
-- [x] NUT-00
-- [x] NUT-01
-- [x] NUT-02
-- [x] NUT-03
-- [x] NUT-04
-- [x] NUT-05
-- [x] NUT-06
-- [x] NUT-07
-- [x] NUT-08
+- **Feed browsing** - Timeline with posts from people you follow
+- **Rich content support** - Articles (Kind 30023), Livestreams (Kind 30311), Videos, Images
+- **Interactions** - Like, zap, reply, repost, follow/unfollow
+- **Notifications** - Mentions, replies, zaps
+- **Direct messages** - Encrypted DMs
+- **Search & Explore** - Discover content and users
+- **NIP-05 verification** - User identifier support
 
-## Roadmap
+### Cashu Wallet
 
-- [x] Adding, removing Mints
-- [x] Mobile, web friendly
-- [x] Minting tokens through Lightning
-- [x] Melting tokens through Lightning
-- [x] Sending tokens
-- [x] receiving tokens
-- [x] history for melt/mint
-- [x] history for send/receive
-- [x] support multiple keysets
-- [x] support multiple mints
-- [x] backup tokens
-- [x] Inter-mint swapping
-- [x] Send/receive over Nostr
-- [x] reclaim pending tokens
-- [x] PWA installable app
-- [x] Scan to pay
-- [ ] scan to send
-- [ ] Merged Payment (use multiple mints to pay Invoice)
+- **Multi-mint support** - Add and manage multiple Cashu mints
+- **Send/Receive** - Ecash tokens via QR codes or text
+- **Lightning integration** - Mint tokens via Lightning invoices, melt tokens to pay invoices
+- **Nostr payments** - Send/receive tokens over Nostr DMs
+- **Inter-mint swaps** - Swap tokens between different mints
+- **Transaction history** - Track all your mint/melt/send/receive activity
+- **Backup & recovery** - Export/import token backups
 
-## Developing
+### Technical
 
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+- **PWA** - Installable as a Progressive Web App
+- **Mobile-first** - Responsive design for mobile and desktop
+- **QR Scanner** - Scan to pay/receive
+- **Offline support** - Works without constant internet connection
+
+## Tech Stack
+
+- [SvelteKit](https://kit.svelte.dev/) - Frontend framework
+- [TailwindCSS](https://tailwindcss.com/) - Styling
+- [Cashu TS](https://github.com/cashubtc/cashu-ts) - Cashu protocol implementation
+- [Nostr Tools](https://github.com/nbd-wtf/nostr-tools) - Nostr protocol
+- [Vite PWA](https://vite-pwa-org.netlify.app/) - PWA capabilities
+
+## Development
 
 ```bash
+# Install dependencies
+npm install
+
+# Start dev server
 npm run dev
 
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
+# Build for production
+npm run build
+
+# Preview production build
+npm run preview
 ```
 
-## Building
+### Requirements
 
-To create a production version of your app:
+- Node.js 22+
+
+## Docker
 
 ```bash
-npm run build
+docker build -t nutscash .
+docker run -p 3000:3000 nutscash
 ```
 
-You can preview the production build with `npm run preview`.
+## Umbrel App
 
-> To deploy your app, you may need to install an [adapter](https://kit.svelte.dev/docs/adapters) for your target environment.
+NutsCash includes an [Umbrel](https://umbrel.com) app configuration for easy self-hosting.
 
-## Run with docker
+See `umbrel/nutscash/` for the app scaffold.
 
-As an alternative to node/npm one can use [docker](docs/docker.md) to build and run the application.
+## ⚠️ Disclaimer
 
-## Contributing
+This app handles real Bitcoin (sats). While Cashu provides privacy and convenience, use only amounts you're willing to lose during the beta phase.
 
-Read [this guide](/docs/contribute.md) on how to contribute.
+## License
 
-## Support the project
-
-https://gandlaf.com/donate
+[MIT](LICENSE.md)
