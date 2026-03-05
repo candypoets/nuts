@@ -34,7 +34,7 @@
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import { go } from 'src/routes/modals/modal';
-	import { onDestroy, onMount } from 'svelte';
+	import { onDestroy } from 'svelte';
 	import Notifications from './notifications.svelte';
 
 	export let visible = true;
@@ -144,17 +144,6 @@
 			handleSubRelays(subRelays);
 		});
 	}
-
-	let feedInitialized = false;
-
-	onMount(() => {
-		const timeout = setTimeout(() => {
-			if (!feedInitialized && following.length === 0) {
-				feedInitialized = true;
-			}
-		}, 2000);
-		return () => clearTimeout(timeout);
-	});
 
 	// Default relay for anonymous users
 	const DEFAULT_FEED_RELAYS = ['wss://nostr.wine'];
@@ -334,7 +323,6 @@
 		if (loading) return;
 		if (isInitializing) return; // Prevent re-entry during initialization
 
-		feedInitialized = true;
 		loading = true;
 		isInitializing = true;
 

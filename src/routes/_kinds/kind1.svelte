@@ -286,7 +286,7 @@
 	onNearBottom={handleNearBottom}
 >
 	<svelte:fragment slot="sticky-header">
-		<div class="px-4 py-3 flex items-center justify-between bg-base-100 bg-opacity-90">
+		<div class="px-4 py-3 flex items-center justify-between pt-safe bg-base-100 bg-opacity-90">
 			<button on:click={goBack} class="p-1 rounded-full hover:bg-base-200 mr-4">
 				<Icon icon="mdi:arrow-left" class="text-xl" />
 			</button>

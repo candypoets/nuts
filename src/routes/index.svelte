@@ -72,7 +72,7 @@
 	// $: $key && $key.priv && manager.setSigner('privkey', $key.priv);
 	//
 	manager.addEventListener('auth', (event) => {
-		$key.pub = event.detail;
+		$key.pub = event.detail.pubkey;
 	});
 
 	setupPagerAnimators($viewport, goBackRouter, goToRootRouter);

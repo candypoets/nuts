@@ -38,6 +38,8 @@
 	import { normalizeURL } from 'nostr-tools/utils';
 	import About from 'src/components/About.svelte';
 	import RelaysList from 'src/components/RelaysList.svelte';
+	import { relaySub, setSubRelays } from 'src/controller/relay';
+	import { isEqual } from 'lodash';
 	import { type ContentBlock, parseContent } from 'src/lib';
 	import { onDestroy, onMount } from 'svelte';
 	import Avatar from '../explore/avatar.svelte';
@@ -70,6 +72,11 @@
 	let sub: (() => void) | undefined;
 	let contactSub: (() => void) | undefined;
 	let feedSub: (() => void) | undefined;
+
+	// Relay swapping
+	let relaySubUnsubscribe: (() => void) | undefined;
+	let currentRelaySubId: string | undefined;
+	let relayCounter = 0;
 
 	// Feed items managed by parent
 	let profileFeedItems: ParsedEvent[] = [];
@@ -222,6 +229,7 @@
 		if (paginationTimeout) clearTimeout(paginationTimeout);
 		if (paginationCheckTimeout) clearTimeout(paginationCheckTimeout);
 		followPublishUnsub?.();
+		relaySubUnsubscribe?.();
 	});
 
 	function updateFollowList() {
@@ -398,6 +406,44 @@
 		}, 500); // Wait 500ms for late events to arrive
 	}
 
+	// Base subId for relay swapping (without relay hash)
+	$: baseSubId = mode === 'profile' ? 'kind0P_' + pubkey : 'kind0F_' + pubkey;
+
+	// Handle relay changes from relay swapping modal
+	function handleSubRelays(subRelays: string[] | undefined) {
+		if (!subRelays || subRelays.length === 0) return;
+		
+		const currentRelays = mode === 'profile' ? writeRelays : readRelays;
+		if (!isEqual(currentRelays, subRelays)) {
+			if (mode === 'profile') {
+				writeRelays = subRelays;
+			} else {
+				readRelays = subRelays;
+			}
+			// Trigger re-subscription by incrementing counter and clearing lastSubId
+			relayCounter++;
+			lastSubId = undefined;
+			// Clear feed items to show fresh data
+			if (mode === 'profile') {
+				profileFeedItems = [];
+				profileSeenIds.clear();
+			} else {
+				followsFeedItems = [];
+				followsSeenIds.clear();
+			}
+			connectionStatus = {};
+		}
+	}
+
+	// Subscribe to relay changes for this feed
+	$: if (baseSubId && baseSubId !== currentRelaySubId) {
+		relaySubUnsubscribe?.();
+		currentRelaySubId = baseSubId;
+		relaySubUnsubscribe = relaySub(baseSubId).subscribe((subRelays) => {
+			handleSubRelays(subRelays);
+		});
+	}
+
 	// Reactively compute feed request based on mode and dependencies
 	// Include relay hash in subId so relay changes trigger re-subscription
 	$: feedRequest = (() => {
@@ -479,6 +525,11 @@
 		feedSub = useSubscription(feedRequest.subId, feedRequest.requests, handleFeedEvents, {
 			pipeline: $defaultPipeline.for(feedRequest.subId)
 		});
+		// Set relays for this subId so relay swapping modal can access them
+		const currentRelays = mode === 'profile' ? writeRelays : readRelays;
+		if (currentRelays.length > 0) {
+			setSubRelays(baseSubId, currentRelays);
+		}
 	}
 </script>
 
@@ -618,6 +669,7 @@
 					<p class="mb-4 opacity-1"><About content={parsedAbout || []} /></p>
 				{/if}
 				<RelaysList
+					subId={baseSubId}
 					relays={(mode == 'profile' ? writeRelays : readRelays).map(normalizeURL)}
 					{connectionStatus}
 				/>

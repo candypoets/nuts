@@ -11,18 +11,9 @@
   },
   "lsp": {
     "svelte-language-server": {
-      "binary": {
-        "path": "/root/.volta/bin/node",
-        "arguments": ["/root/.local/share/zed/remote_extensions/work/svelte/node_modules/svelte-language-server/bin/server.js", "--stdio"]
-      },
       "settings": {
-        "svelte": {
-          "plugin": {
-            "typescript": {
-              "enabled": true
-            }
-          }
-        }
+        "svelte.plugin.typescript.enabled": true,
+        "svelte.plugin.svelte.enabled": true
       }
     }
   }
