@@ -165,9 +165,15 @@
 		);
 
 		useSignEvent(claimEvent, async (signed) => {
-			const result = await postClaimEvent(signed, env.PUBLIC_LNUTS_DOMAIN);
-
-			console.log(result);
+			try {
+				// Handle case where signed might be a string
+				const signedEvent = typeof signed === 'string' ? JSON.parse(signed) : signed;
+				const result = await postClaimEvent(signedEvent, env.PUBLIC_LNUTS_DOMAIN);
+				console.log(result);
+			} catch (e) {
+				console.error('Failed to claim handle:', e);
+				alert('Failed to claim handle. Please try again.');
+			}
 		});
 	}
 
@@ -455,7 +461,12 @@
 							@nuts.cash
 						</div>
 					</div>
-					<button class="btn ml-2 text-lg px-4" on:click={() => claimLNURL(lnurlHandle)}>
+					<button 
+						class="btn ml-2 text-lg px-4" 
+						on:click={() => claimLNURL(lnurlHandle)}
+						disabled={!$key?.hasSigner}
+						title={$key?.hasSigner ? 'Claim this handle' : 'You need a signer to claim a handle'}
+					>
 						Claim
 					</button>
 				</div>

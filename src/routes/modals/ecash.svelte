@@ -358,11 +358,15 @@
 			await new Promise<void>((resolve, reject) => {
 				useSignEvent(zapRequest, async (signedZapRequest) => {
 					try {
+						// Handle case where signedZapRequest might be a string
+						const signedEvent = typeof signedZapRequest === 'string' 
+							? JSON.parse(signedZapRequest) 
+							: signedZapRequest;
 						// Get invoice with zap request (LNURL will publish kind 9735 receipt)
 						const { pr } = await getZapInvoice(
 							lnurl,
 							Number(amount),
-							signedZapRequest as NostrEvent
+							signedEvent as NostrEvent
 						);
 						console.log('send zap with request', amount, fromMint, lnurl, pr);
 
