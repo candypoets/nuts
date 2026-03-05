@@ -73,6 +73,7 @@
 	//
 	manager.addEventListener('auth', (event) => {
 		$key.pub = event.detail.pubkey;
+		$key.hasSigner = event.detail.hasSigner;
 	});
 
 	setupPagerAnimators($viewport, goBackRouter, goToRootRouter);

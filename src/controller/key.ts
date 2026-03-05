@@ -5,6 +5,7 @@ export type Key = {
 	npub: string;
 	priv?: string;
 	nsec?: string;
+	hasSigner?: boolean;
 };
 
 export const key = persistentWritable<Key>('key', {});

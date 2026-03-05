@@ -27,6 +27,7 @@
 	const animator = getContext('animator');
 
 	let privateKey = '';
+	let pubkeyInput = '';
 	let name = pronounceable({ min: 6, max: 8 });
 	let picture = '';
 	let about = '';
@@ -224,6 +225,44 @@
 
 	function clearInput() {
 		privateKey = '';
+	}
+
+	async function handlePubkeyLogin() {
+		if (!pubkeyInput) return;
+
+		// Handle npub
+		if (pubkeyInput.startsWith('npub')) {
+			try {
+				const decoded = nip19.decode(pubkeyInput);
+				if (decoded.type === 'npub') {
+					const pubkey = decoded.data as string;
+					manager.setSigner('pubkey', pubkey);
+					// If we have an animator (inside modal), go back, otherwise redirect
+					if (animator) {
+						animator.goBack();
+					} else if (redirect) {
+						goto('/explore');
+					}
+				}
+			} catch (e) {
+				console.error('Invalid npub:', e);
+			}
+			return;
+		}
+
+		// Handle hex pubkey (64 character hex string)
+		if (/^[0-9a-fA-F]{64}$/.test(pubkeyInput)) {
+			manager.setSigner('pubkey', pubkeyInput);
+			// If we have an animator (inside modal), go back, otherwise redirect
+			if (animator) {
+				animator.goBack();
+			} else if (redirect) {
+				goto('/explore');
+			}
+			return;
+		}
+
+		console.error('Invalid pubkey format');
 	}
 
 	async function handleQRConnect() {
@@ -426,6 +465,53 @@
 								<span class="loading loading-spinner loading-sm"></span>
 								<span>Signing in...</span>
 							{/if}
+						</button>
+					</form>
+
+					<!-- Divider -->
+					<div class="relative py-2">
+						<div class="absolute inset-0 flex items-center">
+							<div class="w-full border-t border-white/10"></div>
+						</div>
+						<div class="relative flex justify-center">
+							<span class="bg-[#131716] px-4 text-xs text-white/30 uppercase tracking-wider"
+								>read-only</span
+							>
+						</div>
+					</div>
+
+					<!-- Read-Only Pubkey Form -->
+					<form on:submit|preventDefault={handlePubkeyLogin} class="space-y-4 pt-2">
+						<div class="relative">
+							<div class="absolute left-4 top-1/2 -translate-y-1/2 text-white/30">
+								<Icon icon="ri:eye-line" class="text-lg" />
+							</div>
+							<input
+								placeholder="npub or hex pubkey"
+								class="w-full pl-11 pr-12 py-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:bg-white/[0.07] focus:border-accent/50 transition-all"
+								type="text"
+								bind:value={pubkeyInput}
+							/>
+							<!-- Clear button -->
+							{#if pubkeyInput}
+								<button
+									type="button"
+									class="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-white/30 hover:text-white/60 transition-colors"
+									on:click={() => (pubkeyInput = '')}
+								>
+									<Icon icon="ri:close-circle-fill" class="text-lg" />
+								</button>
+							{/if}
+						</div>
+
+						<button
+							class="w-full py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-medium transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+							type="button"
+							disabled={!pubkeyInput}
+							on:click={handlePubkeyLogin}
+						>
+							<Icon icon="ri:eye-line" class="text-xl" />
+							<span>Read-Only Access</span>
 						</button>
 					</form>
 

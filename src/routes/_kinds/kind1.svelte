@@ -63,6 +63,9 @@
 	let paginationCounter = 0;
 	let prevPaginationSubId: string | undefined = undefined;
 
+	// Base subId for relay swapping
+	$: baseSubId = 'kind1_' + data?.id;
+
 	// Handle incoming events from subscription
 	function handleEvents(message: WorkerMessage) {
 		// Handle connection status
@@ -313,7 +316,7 @@
 				</button>
 				<!-- <h1 class="text-lg font-semibold">Post</h1> -->
 				<RelaysList
-					subId={BASE_SUB_ID}
+					subId={baseSubId}
 					relays={currentRelays.map(normalizeURL)}
 					{connectionStatus}
 					mini={$isMobile}

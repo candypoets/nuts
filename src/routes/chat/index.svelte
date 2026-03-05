@@ -187,7 +187,7 @@
 	// Initialize subscription
 	let unsubscribe: (() => void) | undefined;
 
-	$: if (visible && $key?.pub) {
+	$: if (visible && $key?.pub && $key?.hasSigner) {
 		if (rawEvents.length === 0 && !loading) {
 			loading = true;
 			const requests = buildRequests();
