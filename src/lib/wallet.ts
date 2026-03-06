@@ -146,10 +146,9 @@ const LNURLLookup = async (endpoint: string, amount: number, event?: NostrEvent)
 	const originalHost = endpointUrl.origin;
 	console.log('original host', originalHost);
 	
-	// Use proxy to avoid CORS
-	const response = await fetch(`https://proxy.nuts.cash/?url=${endpoint}`);
+	const response = await fetch(endpoint);
 	if (!response.ok) {
-		throw new Error(`Proxy error: ${response.status} ${response.statusText}. Cannot reach ${originalHost}`);
+		throw new Error(`Error: ${response.status} ${response.statusText}. Cannot reach ${originalHost}`);
 	}
 	const { callback, maxSendable, minSendable } = await response.json() as {
 		callback: string;
@@ -162,8 +161,7 @@ const LNURLLookup = async (endpoint: string, amount: number, event?: NostrEvent)
 
 	console.log('cb raw', callback);
 	
-	// Fix callback: nginx proxy rewrites it to proxy.nuts.cash, restore original host
-	let cb = callback.replace(/^https?:\/\/proxy\.nuts\.cash/, originalHost);
+	let cb = callback;
 	
 	// Prepend original host if callback is relative
 	if (!cb.startsWith('http')) {
@@ -182,11 +180,9 @@ const LNURLLookup = async (endpoint: string, amount: number, event?: NostrEvent)
 	
 	console.log('full cb', cb);
 	
-	// Re-wrap through proxy with proper ?url= parameter
-	const fetchUrl = `https://proxy.nuts.cash/?url=${cb}`;
-	const invoiceResponse = await fetch(fetchUrl);
+	const invoiceResponse = await fetch(cb);
 	if (!invoiceResponse.ok) {
-		throw new Error(`Proxy error: ${invoiceResponse.status} ${invoiceResponse.statusText}. Cannot reach Lightning provider`);
+		throw new Error(`Error: ${invoiceResponse.status} ${invoiceResponse.statusText}. Cannot reach Lightning provider`);
 	}
 	const { pr } = (await invoiceResponse.json()) as { pr: string };
 	return { pr, maxSendable, minSendable };
@@ -245,10 +241,9 @@ export const getZapInvoice = async (
 	const endpointUrl = new URL(endpoint);
 	const originalHost = endpointUrl.origin;
 
-	// Fetch LNURL metadata via proxy to avoid CORS
-	const metaResponse = await fetch(`https://proxy.nuts.cash/?url=${endpoint}`);
+	const metaResponse = await fetch(endpoint);
 	if (!metaResponse.ok) {
-		throw new Error(`Proxy error: ${metaResponse.status} ${metaResponse.statusText}. Cannot reach ${originalHost}`);
+		throw new Error(`Error: ${metaResponse.status} ${metaResponse.statusText}. Cannot reach ${originalHost}`);
 	}
 	const meta = await metaResponse.json();
 
@@ -256,8 +251,7 @@ export const getZapInvoice = async (
 		throw new Error('No callback URL found in LNURL metadata');
 	}
 
-	// Fix callback: nginx proxy rewrites it to proxy.nuts.cash, restore original host
-	let callbackUrl = meta.callback.replace(/^https?:\/\/proxy\.nuts\.cash/, originalHost);
+	let callbackUrl = meta.callback;
 	
 	// Prepend original host if callback is relative
 	if (!callbackUrl.startsWith('http')) {
@@ -277,24 +271,14 @@ export const getZapInvoice = async (
 	callbackUrl += `&comment=${encodeURIComponent(zapContent)}`;
 	callbackUrl += `&lnurl=${encodeURIComponent(lnurl)}`;
 
-	// Try direct fetch first (avoids proxy rate limits for providers with CORS)
-	let invoiceResponse: Response;
-	try {
-		invoiceResponse = await fetch(callbackUrl, {
-			credentials: 'omit',
-			headers: { Accept: 'application/json' }
-		});
-		console.log('[zap] Direct callback succeeded');
-	} catch (e) {
-		// Direct failed (CORS or network error), fall back to proxy
-		console.log('[zap] Direct callback failed, trying proxy:', e);
-		const proxyUrl = `https://proxy.nuts.cash/?url=${callbackUrl}`;
-		invoiceResponse = await fetch(proxyUrl);
-	}
+	const invoiceResponse = await fetch(callbackUrl, {
+		credentials: 'omit',
+		headers: { Accept: 'application/json' }
+	});
 
 	if (!invoiceResponse.ok) {
 		throw new Error(
-			`Proxy error: ${invoiceResponse.status} ${invoiceResponse.statusText}. Lightning provider rate limited or unavailable`
+			`Error: ${invoiceResponse.status} ${invoiceResponse.statusText}. Lightning provider rate limited or unavailable`
 		);
 	}
 	const invoiceData = await invoiceResponse.json();
