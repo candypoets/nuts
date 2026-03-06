@@ -165,7 +165,7 @@
 		);
 	}
 
-	$: if ($key?.pub && $key?.hasSigner && !loading) {
+	$: if ($key?.pub && ($key?.hasSigner !== false) && !loading) {
 		initProofsSubscription();
 	}
 
@@ -237,7 +237,7 @@
 		return unsubscribe;
 	}
 
-	$: if (visible && $key?.pub && $key?.hasSigner && relays?.length) {
+	$: if (visible && $key?.pub && ($key?.hasSigner !== false) && relays?.length) {
 		initWalletFeedSubscription();
 	}
 
@@ -387,7 +387,7 @@
 		);
 	}
 
-	$: if ($key?.pub && $key?.hasSigner && relays?.length) {
+	$: if ($key?.pub && ($key?.hasSigner !== false) && relays?.length) {
 		initActiveWalletSubscription();
 	}
 

@@ -102,7 +102,8 @@
 				manager.setSigner('nip07');
 				$key = {
 					pub: pubkey,
-					npub: nip19.npubEncode(pubkey)
+					npub: nip19.npubEncode(pubkey),
+					hasSigner: true
 				};
 				// If we have an animator (inside modal), go back, otherwise redirect
 				if (animator) {
