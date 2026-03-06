@@ -57,7 +57,7 @@
 	"type": "module",
 	"dependencies": {
 		"@candypoets/lnuts": "^0.1.6",
-		"@candypoets/nipworker": "^0.87.0",
+		"@candypoets/nipworker": "^0.88.1",
 		"@cashu/cashu-ts": "3.1.1",
 		"@gandlaf21/bc-ur": "^1.1.12",
 		"@gandlaf21/bolt11-decode": "^3.1.1",
@@ -94,7 +94,7 @@
 		"tippy.js": "^6.3.7",
 		"vite-plugin-compression": "^0.5.1",
 		"vite-plugin-mkcert": "^1.17.6",
-		"ws": "^8.16.0"
+		"ws": "^8.19.0"
 	},
 	"volta": {
 		"node": "22.21.1"
