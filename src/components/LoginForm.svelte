@@ -67,10 +67,9 @@
 		const privkey = bytesToHex(pk);
 
 		loading = true;
-
 		const loginSub = useSubscription(
 			'login_' + pubkey,
-			[{ kinds: [kinds.Metadata], authors: [pubkey], limit: 1, relays: [] }],
+			[{ kinds: [kinds.Metadata], authors: [pubkey], limit: 3, relays: [] }],
 			(message: WorkerMessage) => {
 				const kind0 = isKind0(message);
 				if (kind0) {
