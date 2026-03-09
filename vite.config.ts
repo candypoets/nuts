@@ -3,6 +3,7 @@ import { SvelteKitPWA as VitePWA } from '@vite-pwa/sveltekit';
 import basicSsl from '@vitejs/plugin-basic-ssl';
 
 import { defineConfig, loadEnv } from 'vite';
+import { nipworkerRelayProxyPlugin } from '@candypoets/nipworker/proxy/vite';
 
 export default defineConfig(({ mode }) => {
 	const env = loadEnv(mode, process.cwd(), 'VITE_');
@@ -16,7 +17,13 @@ export default defineConfig(({ mode }) => {
 		// WARN: this will not be necessary on your project
 		logLevel: 'error',
 		server: {
-			proxy: {},
+			// proxy: {
+			// 	'/ws-proxy': {
+			// 		target: 'ws://0.0.0.0:7777',
+			// 		ws: true,
+			// 		changeOrigin: true
+			// 	}
+			// },
 			host: true,
 			allowedHosts: ['befree'],
 			fs: {
@@ -39,6 +46,7 @@ export default defineConfig(({ mode }) => {
 		plugins: [
 			...(enableSsl ? [basicSsl()] : []),
 			sveltekit(),
+			nipworkerRelayProxyPlugin({ port: 7777, host: '0.0.0.0' }),
 			VitePWA({
 				devOptions: {
 					enabled: true,

@@ -1,15 +1,13 @@
 <script lang="ts">
 	import Kind0 from 'src/routes/_kinds/kind0.svelte';
 	import Kind1 from 'src/routes/_kinds/kind1.svelte';
-	import Kind4 from 'src/routes/_kinds/kind4.svelte';
 	import Kind30023 from 'src/routes/_kinds/kind30023.svelte';
+	import Kind4 from 'src/routes/_kinds/kind4.svelte';
 	import Tags from 'src/routes/_kinds/tags.svelte';
 	import Notifications from 'src/routes/notifications/index.svelte';
 
-	import { onMount, onDestroy, getContext } from 'svelte';
-	import { viewport } from 'src/controller/viewport';
-	import { goBack } from 'src/routes/modals/modal';
 	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
+	import { getContext, onMount } from 'svelte';
 
 	export let path: string;
 	export let visible: boolean;
@@ -137,9 +135,9 @@
 </script>
 
 <div
-	class="absolute right-0 top-0 h-screen lg:p-2 z-20"
+	class="absolute right-0 top-0 h-screen lg:p-2 z-20 bg-base-300 bg-opacity-90 lg:bg-transparent"
+	class:lg:backdrop-blur-md={visible}
 	bind:this={element}
-	class:backdrop-blur-md={visible}
 	data-kind="sub"
 >
 	<div

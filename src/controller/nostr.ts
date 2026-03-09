@@ -6,10 +6,9 @@ import {
 	SaveToDbPipeConfigT,
 	SerializeEventsPipeConfigT,
 	type Kind3Parsed,
-	type ParsedEvent,
-	type WorkerMessage
+	type ParsedEvent
 } from '@candypoets/nipworker';
-import { asKind10002, asKind3, fbArray, isKind10002 } from '@candypoets/nipworker/utils';
+import { asKind10002, asKind3, fbArray } from '@candypoets/nipworker/utils';
 import { derived, writable, type Writable } from 'svelte/store';
 
 export const resolvable = <T = any>() => {
@@ -46,7 +45,7 @@ export const kind10000: Writable<ParsedEvent | undefined> = writable();
 export const mutedPubkeys = derived(kind10000, ($kind10000) => {
 	if (!$kind10000) return [];
 	const pubkeys = new Set<string>();
-	
+
 	// From content field (JSON array) - encrypted in future but plain for now
 	try {
 		const content = $kind10000.content()?.toString() || '[]';
@@ -59,7 +58,7 @@ export const mutedPubkeys = derived(kind10000, ($kind10000) => {
 	} catch (e) {
 		// Invalid JSON, ignore
 	}
-	
+
 	// From p tags
 	const tags = $kind10000.tags() || [];
 	for (let i = 0; i < tags.length; i++) {
@@ -68,7 +67,7 @@ export const mutedPubkeys = derived(kind10000, ($kind10000) => {
 			pubkeys.add(tag[1] as string);
 		}
 	}
-	
+
 	return Array.from(pubkeys);
 });
 
@@ -255,7 +254,7 @@ export function createMuteTemplate(
 		...words.map((w) => ['word', w]),
 		...eventIds.map((e) => ['e', e])
 	];
-	
+
 	return {
 		kind: 10000,
 		created_at: Math.floor(Date.now() / 1000),
@@ -273,12 +272,12 @@ export function toggleMutePubkey(
 	const currentHashtags = currentKind10000 ? getMutedHashtagsFromEvent(currentKind10000) : [];
 	const currentWords = currentKind10000 ? getMutedWordsFromEvent(currentKind10000) : [];
 	const currentEventIds = currentKind10000 ? getMutedEventIdsFromEvent(currentKind10000) : [];
-	
+
 	const isMuted = currentPubkeys.includes(pubkey);
 	const newPubkeys = isMuted
 		? currentPubkeys.filter((p) => p !== pubkey)
 		: [...currentPubkeys, pubkey];
-	
+
 	return createMuteTemplate(newPubkeys, currentHashtags, currentWords, currentEventIds);
 }
 
@@ -291,12 +290,12 @@ export function toggleMuteHashtag(
 	const currentHashtags = currentKind10000 ? getMutedHashtagsFromEvent(currentKind10000) : [];
 	const currentWords = currentKind10000 ? getMutedWordsFromEvent(currentKind10000) : [];
 	const currentEventIds = currentKind10000 ? getMutedEventIdsFromEvent(currentKind10000) : [];
-	
+
 	const isMuted = currentHashtags.includes(hashtag);
 	const newHashtags = isMuted
 		? currentHashtags.filter((t) => t !== hashtag)
 		: [...currentHashtags, hashtag];
-	
+
 	return createMuteTemplate(currentPubkeys, newHashtags, currentWords, currentEventIds);
 }
 
@@ -309,12 +308,10 @@ export function toggleMuteWord(
 	const currentHashtags = currentKind10000 ? getMutedHashtagsFromEvent(currentKind10000) : [];
 	const currentWords = currentKind10000 ? getMutedWordsFromEvent(currentKind10000) : [];
 	const currentEventIds = currentKind10000 ? getMutedEventIdsFromEvent(currentKind10000) : [];
-	
+
 	const isMuted = currentWords.includes(word);
-	const newWords = isMuted
-		? currentWords.filter((w) => w !== word)
-		: [...currentWords, word];
-	
+	const newWords = isMuted ? currentWords.filter((w) => w !== word) : [...currentWords, word];
+
 	return createMuteTemplate(currentPubkeys, currentHashtags, newWords, currentEventIds);
 }
 
@@ -327,19 +324,19 @@ export function toggleMuteEventId(
 	const currentHashtags = currentKind10000 ? getMutedHashtagsFromEvent(currentKind10000) : [];
 	const currentWords = currentKind10000 ? getMutedWordsFromEvent(currentKind10000) : [];
 	const currentEventIds = currentKind10000 ? getMutedEventIdsFromEvent(currentKind10000) : [];
-	
+
 	const isMuted = currentEventIds.includes(eventId);
 	const newEventIds = isMuted
 		? currentEventIds.filter((e) => e !== eventId)
 		: [...currentEventIds, eventId];
-	
+
 	return createMuteTemplate(currentPubkeys, currentHashtags, currentWords, newEventIds);
 }
 
 // Helper functions to extract mute data from a ParsedEvent
 function getMutedPubkeysFromEvent(event: ParsedEvent): string[] {
 	const pubkeys = new Set<string>();
-	
+
 	// From content field
 	try {
 		const content = event.content()?.toString() || '[]';
@@ -352,7 +349,7 @@ function getMutedPubkeysFromEvent(event: ParsedEvent): string[] {
 	} catch (e) {
 		// Invalid JSON, ignore
 	}
-	
+
 	// From p tags
 	const tags = event.tags() || [];
 	for (let i = 0; i < tags.length; i++) {
@@ -361,7 +358,7 @@ function getMutedPubkeysFromEvent(event: ParsedEvent): string[] {
 			pubkeys.add(tag[1] as string);
 		}
 	}
-	
+
 	return Array.from(pubkeys);
 }
 
