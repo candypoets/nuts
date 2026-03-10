@@ -17,13 +17,6 @@ export default defineConfig(({ mode }) => {
 		// WARN: this will not be necessary on your project
 		logLevel: 'error',
 		server: {
-			// proxy: {
-			// 	'/ws-proxy': {
-			// 		target: 'ws://0.0.0.0:7777',
-			// 		ws: true,
-			// 		changeOrigin: true
-			// 	}
-			// },
 			host: true,
 			allowedHosts: ['befree'],
 			fs: {

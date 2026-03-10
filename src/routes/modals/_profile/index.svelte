@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
 
-	import { manager, type ParsedEvent } from '@candypoets/nipworker';
+	import { getManager, type ParsedEvent } from '@candypoets/nipworker';
 	import { asKind0 } from '@candypoets/nipworker/utils';
 	import { key } from 'src/controller';
 	import { kind0 } from 'src/controller/nostr';
@@ -11,6 +11,8 @@
 
 	let animator = getContext('animator');
 	let search: string;
+
+	const manager = getManager();
 
 	$: k0 = asKind0($kind0 as ParsedEvent);
 	// export let encodedToken: string = '';

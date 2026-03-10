@@ -1,6 +1,6 @@
 import { goto } from '$app/navigation';
 import { page } from '$app/stores';
-import { manager } from '@candypoets/nipworker';
+import { getManager } from '@candypoets/nipworker';
 import { get } from 'svelte/store';
 import { key } from 'src/controller';
 
@@ -66,7 +66,7 @@ export const pathNeedsLogin = [
 	'logout'
 	// 'zoom'
 ];
-
+const manager = getManager();
 export function goBack() {
 	// Get current path
 	const currentPath = get(page).url.pathname;

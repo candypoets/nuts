@@ -4,7 +4,7 @@
 	import {
 		Kind10002Parsed,
 		Kind3Parsed,
-		manager,
+		getManager,
 		ParsedData,
 		WorkerMessage,
 		type RequestObject
@@ -68,6 +68,8 @@
 	let carouselInitialized = false;
 
 	let progressContainer: HTMLDivElement | null = null;
+
+	const manager = getManager();
 
 	// $: $key && $key.priv && manager.setSigner('privkey', $key.priv);
 	//
@@ -199,9 +201,7 @@
 				},
 				$kind3 && {
 					kinds: [10002],
-					authors: fbArray(asKind3($kind3) as Kind3Parsed, 'contacts')?.map((p) =>
-						p.pubkey()
-					),
+					authors: fbArray(asKind3($kind3) as Kind3Parsed, 'contacts')?.map((p) => p.pubkey()),
 					relays: ['wss://relay.nostr.band', 'wss://purplepag.es'],
 					noOptimize: true
 				}

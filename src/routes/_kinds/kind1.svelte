@@ -1,6 +1,5 @@
 <script lang="ts">
 	import {
-		manager,
 		MessageType,
 		type ConnectionStatus,
 		type ParsedEvent,

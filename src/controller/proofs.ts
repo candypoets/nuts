@@ -337,9 +337,6 @@ export class NutsWallet {
 		this.loadSpentProofs();
 		this.loadReservedProofs();
 		this.loadAndMonitorMintQuotes();
-
-		console.log(`[wallet] NutsWallet initialized for ${this.pubkey.slice(0, 16)}...`);
-		console.log(`[wallet] Unspent mints: ${Array.from(this.unspentProofs.keys()).join(', ')}`);
 	}
 
 	public get pubkey(): string {
@@ -398,8 +395,6 @@ export class NutsWallet {
 
 		// Update balance stores
 		this.updateBalanceByMint();
-
-		console.log(`[wallet] Added ${unspent.length} proofs to ${mint}, total: ${merged.length}`);
 	};
 
 	public saveProofs = async (mint: string, proofs: Proof[]) => {
@@ -462,8 +457,6 @@ export class NutsWallet {
 
 		// Update balance stores
 		this.updateBalanceByMint();
-
-		console.log(`[wallet] Removed ${proofsToRemove.length} proofs from ${mint}`);
 	};
 
 	/**
@@ -488,8 +481,14 @@ export class NutsWallet {
 		console.log('[meltProofsWithVerification] required (amount + fee_reserve):', requiredAmount);
 		console.log('[meltProofsWithVerification] proofsToSend count:', proofsToSend.length);
 		console.log('[meltProofsWithVerification] proofsToSend total:', proofsTotal);
-		console.log('[meltProofsWithVerification] proofsToSend amounts:', proofsToSend.map((p) => p.amount));
-		console.log('[meltProofsWithVerification] proofsTotal >= required?', proofsTotal >= requiredAmount);
+		console.log(
+			'[meltProofsWithVerification] proofsToSend amounts:',
+			proofsToSend.map((p) => p.amount)
+		);
+		console.log(
+			'[meltProofsWithVerification] proofsTotal >= required?',
+			proofsTotal >= requiredAmount
+		);
 
 		// Execute the melt
 		console.log('[meltProofsWithVerification] Calling wallet.meltProofs...');
@@ -626,14 +625,12 @@ export class NutsWallet {
 		const proofs = this.unspentProofs.get(mint) || [];
 		const key = `unspent_${this.pubkey}_${mint}`;
 		localStorage.setItem(key, JSON.stringify(proofs));
-		console.log(`[wallet] Saved ${proofs.length} unspent proofs for ${mint}`);
 	}
 
 	/**
 	 * Load unspent proofs from localStorage on initialization
 	 */
 	public loadUnspentProofs(): void {
-		console.log('[wallet] Loading unspent proofs from localStorage...');
 		for (let i = 0; i < localStorage.length; i++) {
 			const key = localStorage.key(i);
 			if (key?.startsWith(`unspent_${this.pubkey}_`)) {
@@ -644,7 +641,6 @@ export class NutsWallet {
 						const proofs: Proof[] = JSON.parse(stored);
 						if (proofs.length > 0) {
 							this.unspentProofs.set(mint, proofs);
-							console.log(`[wallet] Loaded ${proofs.length} unspent proofs for ${mint}`);
 						}
 					}
 				} catch (e) {
@@ -670,7 +666,6 @@ export class NutsWallet {
 
 				if (validProofs.length < proofs.length) {
 					const removed = proofs.length - validProofs.length;
-					console.log(`[wallet] ${removed} proofs were spent, removing from ${mint}`);
 					this.unspentProofs.set(mint, validProofs);
 					this.saveUnspentProofs(mint);
 				}
@@ -697,7 +692,6 @@ export class NutsWallet {
 	 * Load spent proofs from localStorage on initialization
 	 */
 	public loadSpentProofs(): void {
-		console.log('[wallet] Loading spent proofs from localStorage...');
 		for (let i = 0; i < localStorage.length; i++) {
 			const key = localStorage.key(i);
 			if (key?.startsWith(`spent_${this.pubkey}_`)) {
@@ -708,7 +702,6 @@ export class NutsWallet {
 						const proofs: Proof[] = JSON.parse(stored);
 						if (proofs.length > 0) {
 							this.spentProofs.set(mint, proofs);
-							console.log(`[wallet] Loaded ${proofs.length} spent proofs for ${mint}`);
 						}
 					}
 				} catch (e) {

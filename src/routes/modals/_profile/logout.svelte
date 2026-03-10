@@ -1,11 +1,13 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
 	import { getContext } from 'svelte';
-	import { manager } from '@candypoets/nipworker';
+	import { getManager } from '@candypoets/nipworker';
 	import { key, walletMnemonic, walletPassphrase } from 'src/controller';
 
 	export let subopen: boolean = false;
 	let animator = getContext('animator');
+
+	const manager = getManager();
 
 	function handleLogout() {
 		// Clear persistent stores to prevent stale data on reload

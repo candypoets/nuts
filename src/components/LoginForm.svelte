@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { ConnectionStatus, manager, type WorkerMessage } from '@candypoets/nipworker';
+	import { ConnectionStatus, getManager, type WorkerMessage } from '@candypoets/nipworker';
 	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
 	import { isConnectionStatus, isKind0, connectWithQRCode } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
@@ -39,6 +39,8 @@
 	let showPassword = false;
 	let showQR = false;
 	let qrText = '';
+
+	const manager = getManager();
 
 	onMount(async () => {
 		if (window?.nostr) {
@@ -211,11 +213,7 @@
 				console.log('message', message);
 				const connectionStatus = isConnectionStatus(message);
 				if (connectionStatus) {
-					console.log(
-						'relayUrl',
-						connectionStatus.relayUrl,
-						connectionStatus.status.toString()
-					);
+					console.log('relayUrl', connectionStatus.relayUrl, connectionStatus.status.toString());
 				}
 				saveWallet();
 			},
@@ -304,16 +302,16 @@
 				>
 					<span class="text-accent">Nuts</span> <span class="">Cash</span>
 				</h1>
-				<p class="text-sm" style="font-family: 'Rock Salt', cursive;">
-					Private. Fast. Simple.
-				</p>
+				<p class="text-sm" style="font-family: 'Rock Salt', cursive;">Private. Fast. Simple.</p>
 			</div>
 		{/if}
 
 		{#if showQR && qrText}
 			<!-- Inline QR Display for Login Page -->
 			<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-				<div class="relative bg-base-300 rounded-2xl p-8 max-w-sm w-full border border-base-content/10">
+				<div
+					class="relative bg-base-300 rounded-2xl p-8 max-w-sm w-full border border-base-content/10"
+				>
 					<button class="absolute top-4 right-4" on:click={closeQR}>
 						<Icon icon="ri:close-line" class="text-2xl" />
 					</button>
@@ -542,7 +540,9 @@
 							</span>
 						</label>
 						<div class="join w-full">
-							<div class="btn join-item btn-outline border-base-content/10 text-base-content/50 bg-base-content/5">
+							<div
+								class="btn join-item btn-outline border-base-content/10 text-base-content/50 bg-base-content/5"
+							>
 								<Icon icon="ri:at-line" />
 							</div>
 							<input
@@ -579,7 +579,9 @@
 							</span>
 						</label>
 						<div class="join w-full">
-							<div class="btn join-item btn-outline border-base-content/10 text-base-content/50 bg-base-content/5">
+							<div
+								class="btn join-item btn-outline border-base-content/10 text-base-content/50 bg-base-content/5"
+							>
 								<Icon icon="ri:link" />
 							</div>
 							<input

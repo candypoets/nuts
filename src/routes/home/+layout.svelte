@@ -265,12 +265,6 @@
 	// Wallet feed subscription - moved from Feed to parent
 	function initWalletFeedSubscription(isPagination = false) {
 		if (!visible || !$key?.pub || !relays?.length) return;
-		console.log(
-			'[wallet] Starting wallet feed subscription with relays:',
-			relays,
-			'isPagination:',
-			isPagination
-		);
 		if (!isPagination) {
 			unsubscribeWallet?.();
 		}
