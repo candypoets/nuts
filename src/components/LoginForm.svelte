@@ -302,9 +302,9 @@
 					class="text-5xl md:text-7xl font-bold mb-4"
 					style="font-family: 'Permanent Marker', cursive;"
 				>
-					<span class="text-accent">Nuts</span> <span class="text-white">Cash</span>
+					<span class="text-accent">Nuts</span> <span class="">Cash</span>
 				</h1>
-				<p class="text-white/50 text-sm" style="font-family: 'Rock Salt', cursive;">
+				<p class="text-sm" style="font-family: 'Rock Salt', cursive;">
 					Private. Fast. Simple.
 				</p>
 			</div>
@@ -313,12 +313,12 @@
 		{#if showQR && qrText}
 			<!-- Inline QR Display for Login Page -->
 			<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-				<div class="relative bg-neutral-900 rounded-2xl p-8 max-w-sm w-full border border-white/10">
-					<button class="absolute top-4 right-4 text-white/50 hover:text-white" on:click={closeQR}>
+				<div class="relative bg-base-300 rounded-2xl p-8 max-w-sm w-full border border-base-content/10">
+					<button class="absolute top-4 right-4" on:click={closeQR}>
 						<Icon icon="ri:close-line" class="text-2xl" />
 					</button>
 					<div class="flex flex-col items-center">
-						<h3 class="text-lg font-semibold mb-4 text-white">Scan with your Nostr app</h3>
+						<h3 class="text-lg font-semibold mb-4 text-base-content">Scan with your Nostr app</h3>
 						<div class="bg-white rounded-2xl p-4">
 							<QRCodeImage
 								text={qrText}
@@ -330,7 +330,7 @@
 								displayClass="rounded-xl"
 							/>
 						</div>
-						<p class="text-sm text-white/50 mt-4 text-center">
+						<p class="text-sm mt-4 text-center text-base-content/70">
 							Scan this QR code with a Nostr signer app to connect
 						</p>
 					</div>
@@ -356,13 +356,13 @@
 								</div>
 							</div>
 							<div class="flex-1 text-left">
-								<p class="text-white font-medium">Scan with your phone</p>
-								<p class="text-white/40 text-sm">Use a Nostr signer app</p>
+								<p class="text-base-content font-medium">Scan with your phone</p>
+								<p class="text-base-content/40 text-sm">Use a Nostr signer app</p>
 							</div>
 							<div class="flex-shrink-0">
 								<Icon
 									icon="ri:arrow-right-s-line"
-									class="text-xl text-white/30 group-hover:text-accent group-hover:translate-x-1 transition-all"
+									class="text-xl text-base-content/30 group-hover:text-accent group-hover:translate-x-1 transition-all"
 								/>
 							</div>
 						</div>
@@ -372,26 +372,26 @@
 					{#if hasExtension}
 						<button
 							type="button"
-							class="group relative w-full overflow-hidden rounded-xl bg-gradient-to-br from-white/5 via-white/3 to-transparent border border-white/10 hover:border-white/20 hover:bg-white/5 transition-all duration-300"
+							class="group relative w-full overflow-hidden rounded-xl bg-gradient-to-br from-base-content/5 via-base-content/[0.03] to-transparent border border-base-content/10 hover:border-base-content/20 hover:bg-base-content/5 transition-all duration-300"
 							on:click={handleExtensionLogin}
 							disabled={loading}
 						>
 							<div class="flex items-center gap-4 p-4">
 								<div class="flex-shrink-0">
 									<div
-										class="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center group-hover:scale-110 transition-transform duration-300"
+										class="w-12 h-12 rounded-xl bg-base-content/5 flex items-center justify-center group-hover:scale-110 transition-transform duration-300"
 									>
-										<Icon icon="ri:puzzle-2-line" class="text-2xl text-white/70" />
+										<Icon icon="ri:puzzle-2-line" class="text-2xl text-base-content/70" />
 									</div>
 								</div>
 								<div class="flex-1 text-left">
-									<p class="text-white font-medium">Browser extension</p>
-									<p class="text-white/40 text-sm">Connect with your Nostr extension</p>
+									<p class="text-base-content font-medium">Browser extension</p>
+									<p class="text-base-content/40 text-sm">Connect with your Nostr extension</p>
 								</div>
 								<div class="flex-shrink-0">
 									<Icon
 										icon="ri:arrow-right-s-line"
-										class="text-xl text-white/30 group-hover:text-white/60 group-hover:translate-x-1 transition-all"
+										class="text-xl text-base-content/30 group-hover:text-base-content/60 group-hover:translate-x-1 transition-all"
 									/>
 								</div>
 							</div>
@@ -401,10 +401,10 @@
 					<!-- Divider -->
 					<div class="relative py-2">
 						<div class="absolute inset-0 flex items-center">
-							<div class="w-full border-t border-white/10"></div>
+							<div class="w-full border-t border-base-content/10"></div>
 						</div>
 						<div class="relative flex justify-center">
-							<span class="bg-[#131716] px-4 text-xs text-white/30 uppercase tracking-wider"
+							<span class="bg-base-300 px-4 text-xs text-base-content/30 uppercase tracking-wider"
 								>or</span
 							>
 						</div>
@@ -413,20 +413,20 @@
 					<!-- Manual Key Input Form -->
 					<form on:submit|preventDefault={handleLogin} class="space-y-4">
 						<div class="relative">
-							<div class="absolute left-4 top-1/2 -translate-y-1/2 text-white/30">
+							<div class="absolute left-4 top-1/2 -translate-y-1/2 text-base-content/30">
 								<Icon icon="ri:key-2-line" class="text-lg" />
 							</div>
 							{#if showPassword}
 								<input
 									placeholder="nsec or bunker url"
-									class="w-full pl-11 pr-24 py-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:bg-white/[0.07] focus:border-accent/50 transition-all"
+									class="w-full pl-11 pr-24 py-4 bg-base-content/5 border border-base-content/10 rounded-xl text-base-content placeholder:text-base-content/30 focus:outline-none focus:bg-base-content/[0.07] focus:border-accent/50 transition-all"
 									type="text"
 									bind:value={privateKey}
 								/>
 							{:else}
 								<input
 									placeholder="nsec or bunker url"
-									class="w-full pl-11 pr-24 py-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:bg-white/[0.07] focus:border-accent/50 transition-all"
+									class="w-full pl-11 pr-24 py-4 bg-base-content/5 border border-base-content/10 rounded-xl text-base-content placeholder:text-base-content/30 focus:outline-none focus:bg-base-content/[0.07] focus:border-accent/50 transition-all"
 									type="password"
 									bind:value={privateKey}
 								/>
@@ -434,7 +434,7 @@
 							<!-- Toggle visibility button -->
 							<button
 								type="button"
-								class="absolute right-11 top-1/2 -translate-y-1/2 p-2 text-white/30 hover:text-white/60 transition-colors"
+								class="absolute right-11 top-1/2 -translate-y-1/2 p-2 text-base-content/30 hover:text-base-content/60 transition-colors"
 								on:click={() => (showPassword = !showPassword)}
 								title={showPassword ? 'Hide' : 'Show'}
 							>
@@ -444,7 +444,7 @@
 							{#if privateKey}
 								<button
 									type="button"
-									class="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-white/30 hover:text-white/60 transition-colors"
+									class="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-base-content/30 hover:text-base-content/60 transition-colors"
 									on:click={clearInput}
 								>
 									<Icon icon="ri:close-circle-fill" class="text-lg" />
@@ -454,7 +454,7 @@
 
 						<!-- Sign In Button - Full width below input -->
 						<button
-							class="w-full py-4 rounded-xl bg-accent hover:bg-accent/90 text-white font-semibold text-lg transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-accent/20 hover:shadow-accent/30 hover:scale-[1.02] active:scale-[0.98]"
+							class="w-full py-4 rounded-xl bg-accent hover:bg-accent/90 text-accent-content font-semibold text-lg transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-accent/20 hover:shadow-accent/30 hover:scale-[1.02] active:scale-[0.98]"
 							type="submit"
 							disabled={loading || !privateKey}
 						>
@@ -471,10 +471,10 @@
 					<!-- Divider -->
 					<div class="relative py-2">
 						<div class="absolute inset-0 flex items-center">
-							<div class="w-full border-t border-white/10"></div>
+							<div class="w-full border-t border-base-content/10"></div>
 						</div>
 						<div class="relative flex justify-center">
-							<span class="bg-[#131716] px-4 text-xs text-white/30 uppercase tracking-wider"
+							<span class="bg-base-300 px-4 text-xs text-base-content/30 uppercase tracking-wider"
 								>read-only</span
 							>
 						</div>
@@ -483,12 +483,12 @@
 					<!-- Read-Only Pubkey Form -->
 					<form on:submit|preventDefault={handlePubkeyLogin} class="space-y-4 pt-2">
 						<div class="relative">
-							<div class="absolute left-4 top-1/2 -translate-y-1/2 text-white/30">
+							<div class="absolute left-4 top-1/2 -translate-y-1/2 text-base-content/30">
 								<Icon icon="ri:eye-line" class="text-lg" />
 							</div>
 							<input
 								placeholder="npub or hex pubkey"
-								class="w-full pl-11 pr-12 py-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:bg-white/[0.07] focus:border-accent/50 transition-all"
+								class="w-full pl-11 pr-12 py-4 bg-base-content/5 border border-base-content/10 rounded-xl text-base-content placeholder:text-base-content/30 focus:outline-none focus:bg-base-content/[0.07] focus:border-accent/50 transition-all"
 								type="text"
 								bind:value={pubkeyInput}
 							/>
@@ -496,7 +496,7 @@
 							{#if pubkeyInput}
 								<button
 									type="button"
-									class="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-white/30 hover:text-white/60 transition-colors"
+									class="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-base-content/30 hover:text-base-content/60 transition-colors"
 									on:click={() => (pubkeyInput = '')}
 								>
 									<Icon icon="ri:close-circle-fill" class="text-lg" />
@@ -505,7 +505,7 @@
 						</div>
 
 						<button
-							class="w-full py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-medium transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+							class="w-full py-3 rounded-xl bg-base-content/10 hover:bg-base-content/20 text-base-content font-medium transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
 							type="button"
 							disabled={!pubkeyInput}
 							on:click={handlePubkeyLogin}
@@ -517,7 +517,7 @@
 
 					<!-- Sign up link -->
 					<div class="text-center pt-4">
-						<p class="text-sm text-white/40">
+						<p class="text-sm text-base-content/40">
 							Not on Nostr yet?
 							<button
 								class="text-accent hover:text-accent/80 font-medium ml-1 transition-colors"
@@ -536,18 +536,18 @@
 					<!-- Handle input -->
 					<div class="form-control">
 						<label class="label">
-							<span class="label-text text-white/70 flex items-center gap-2">
+							<span class="label-text text-base-content/70 flex items-center gap-2">
 								<Icon icon="ri:user-smile-line" />
 								Handle
 							</span>
 						</label>
 						<div class="join w-full">
-							<div class="btn join-item btn-outline border-white/10 text-white/50 bg-white/5">
+							<div class="btn join-item btn-outline border-base-content/10 text-base-content/50 bg-base-content/5">
 								<Icon icon="ri:at-line" />
 							</div>
 							<input
 								type="text"
-								class="join-item flex-grow px-4 bg-white/5 border-y border-white/10 text-white placeholder:text-white/30 focus:outline-none focus:bg-white/10 transition-colors"
+								class="join-item flex-grow px-4 bg-base-content/5 border-y border-base-content/10 text-base-content placeholder:text-base-content/30 focus:outline-none focus:bg-base-content/10 transition-colors"
 								bind:value={name}
 								placeholder="yourname"
 							/>
@@ -557,13 +557,13 @@
 					<!-- About textarea -->
 					<div class="form-control">
 						<label class="label">
-							<span class="label-text text-white/70 flex items-center gap-2">
+							<span class="label-text text-base-content/70 flex items-center gap-2">
 								<Icon icon="ri:file-text-line" />
-								About You <span class="text-white/30">(optional)</span>
+								About You <span class="text-base-content/30">(optional)</span>
 							</span>
 						</label>
 						<textarea
-							class="w-full p-4 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/30 focus:outline-none focus:bg-white/10 focus:border-accent/50 transition-all resize-none"
+							class="w-full p-4 bg-base-content/5 border border-base-content/10 rounded-lg text-base-content placeholder:text-base-content/30 focus:outline-none focus:bg-base-content/10 focus:border-accent/50 transition-all resize-none"
 							rows="3"
 							bind:value={about}
 							placeholder="Tell us a bit about yourself..."
@@ -573,18 +573,18 @@
 					<!-- Picture input -->
 					<div class="form-control">
 						<label class="label">
-							<span class="label-text text-white/70 flex items-center gap-2">
+							<span class="label-text text-base-content/70 flex items-center gap-2">
 								<Icon icon="ri:image-line" />
-								Profile Picture <span class="text-white/30">(optional)</span>
+								Profile Picture <span class="text-base-content/30">(optional)</span>
 							</span>
 						</label>
 						<div class="join w-full">
-							<div class="btn join-item btn-outline border-white/10 text-white/50 bg-white/5">
+							<div class="btn join-item btn-outline border-base-content/10 text-base-content/50 bg-base-content/5">
 								<Icon icon="ri:link" />
 							</div>
 							<input
 								type="text"
-								class="join-item flex-grow px-4 bg-white/5 border-y border-white/10 text-white placeholder:text-white/30 focus:outline-none focus:bg-white/10 transition-colors"
+								class="join-item flex-grow px-4 bg-base-content/5 border-y border-base-content/10 text-base-content placeholder:text-base-content/30 focus:outline-none focus:bg-base-content/10 transition-colors"
 								placeholder="https://..."
 								bind:value={picture}
 							/>
@@ -609,7 +609,7 @@
 
 				<!-- Back to login -->
 				<div class="mt-6 text-center">
-					<p class="text-sm text-white/40">
+					<p class="text-sm text-base-content/40">
 						Already have an account?
 						<button
 							class="btn btn-link btn-sm text-accent hover:text-accent/80 no-underline gap-1"

@@ -12,7 +12,7 @@
   "lsp": {
     "svelte-language-server": {
       "binary": {
-        "path": "./node_modules/.bin/svelteserver",
+        "path": "/root/code/nuts-cash/node_modules/.bin/svelteserver",
         "arguments": ["--stdio"]
       },
       "settings": {

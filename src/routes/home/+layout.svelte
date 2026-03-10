@@ -1,6 +1,7 @@
 <script lang="ts">
 	import {
 		Kind10019Parsed,
+		MessageType,
 		ParsePipeConfigT,
 		PipeConfig,
 		PipeT,
@@ -15,16 +16,17 @@
 		asKind0,
 		asKind10019,
 		asKind9321,
+		asConnectionStatus,
 		asKind9735,
 		ConnectionTracker,
 		fbArray,
 		fbIterable,
-		isConnectionStatus,
 		isKind17375,
 		isKind9321,
 		isKind9735,
 		isParsedEvent,
-		isValidProofs
+		isValidProofs,
+		isConnectionStatus
 	} from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { onDestroy, onMount } from 'svelte';
@@ -78,8 +80,16 @@
 	// Track seen event IDs for deduplication during refresh
 	let seenEventIds = new Set<number>();
 
+	// Track if EOSE has been received for proof verification
+	let eoseReceived = false;
+
 	// Refresh timeout fallback
 	let refreshTimeout: ReturnType<typeof setTimeout> | undefined;
+
+	// Reset EOSE flag on refresh
+	function resetEoseFlag() {
+		eoseReceived = false;
+	}
 
 	// Pagination state
 	let until: number | undefined = undefined;
@@ -121,24 +131,70 @@
 
 	let proofs: () => void;
 
-	function handleProofsMessage(message: WorkerMessage) {
+	async function handleProofsMessage(message: WorkerMessage) {
+		switch (message.type()) {
+			case MessageType.Eoce: {
+				// End of Cache Event - verify all proofs
+				const wallet = get(nutsWallet);
+				if (wallet) {
+					wallet
+						.verifyAndCleanProofs()
+						.catch((e) => console.error('[wallet] EOCE verification failed:', e));
+				}
+				return;
+			}
+			case MessageType.ConnectionStatus: {
+				const status = asConnectionStatus(message) as ConnectionStatus;
+				const statusStr = status?.status()?.toString();
+				if (statusStr === 'EOSE' && !eoseReceived) {
+					eoseReceived = true;
+					const wallet = get(nutsWallet);
+					if (wallet) {
+						wallet
+							.verifyAndCleanProofs()
+							.catch((e) => console.error('[wallet] EOSE verification failed:', e));
+					}
+				}
+				return;
+			}
+		}
+
 		const vps = isValidProofs(message);
 		if (vps) {
 			for (const mintProofs of fbIterable(vps, 'proofs')) {
-				addProofs(
-					mintProofs.mint()!.toString(),
-					fbArray(mintProofs, 'proofs').map((p) => ({
-						C: p.c()!.toString(),
-						amount: Number(p.amount()),
-						id: p.id()!.toString(),
-						secret: p.secret()!.toString(),
-						dleq: {
-							e: p.dleq()?.e()?.toString() as string,
-							r: p.dleq()?.r()?.toString() as string,
-							s: p.dleq()?.s()?.toString() as string
+				const mint = mintProofs.mint()!.toString();
+				const proofs = fbArray(mintProofs, 'proofs').map((p) => ({
+					C: p.c()!.toString(),
+					amount: Number(p.amount()),
+					id: p.id()!.toString(),
+					secret: p.secret()!.toString(),
+					dleq: {
+						e: p.dleq()?.e()?.toString() as string,
+						r: p.dleq()?.r()?.toString() as string,
+						s: p.dleq()?.s()?.toString() as string
+					}
+				}));
+
+				// After EOSE, verify spending state of each proof before adding
+				if (eoseReceived) {
+					const wallet = get(nutsWallet);
+					if (wallet) {
+						try {
+							const validProofs = await wallet.checkAndFilterProofs(mint, proofs);
+							if (validProofs.length > 0) {
+								addProofs(mint, validProofs);
+							}
+						} catch (e) {
+							console.error('[wallet] Proof verification failed:', e);
+							// Fall back to adding without verification
+							addProofs(mint, proofs);
 						}
-					}))
-				);
+					} else {
+						addProofs(mint, proofs);
+					}
+				} else {
+					addProofs(mint, proofs);
+				}
 			}
 		}
 	}
@@ -165,14 +221,13 @@
 		);
 	}
 
-	$: if ($key?.pub && ($key?.hasSigner !== false) && !loading) {
+	$: if ($key?.pub && $key?.hasSigner !== false && !loading) {
+		resetEoseFlag();
 		initProofsSubscription();
 	}
 
 	// Build requests for wallet feed subscription
-	function buildWalletRequests(
-		isPagination = false
-	): {
+	function buildWalletRequests(isPagination = false): {
 		kinds: number[];
 		authors?: string[];
 		tags?: Record<string, string[]>;
@@ -237,7 +292,7 @@
 		return unsubscribe;
 	}
 
-	$: if (visible && $key?.pub && ($key?.hasSigner !== false) && relays?.length) {
+	$: if (visible && $key?.pub && $key?.hasSigner !== false && relays?.length) {
 		initWalletFeedSubscription();
 	}
 
@@ -341,6 +396,7 @@
 		if (refreshing || !$key?.pub) return;
 		refreshing = true;
 		refreshCounter++;
+		resetEoseFlag();
 
 		// Clear any existing timeout
 		if (refreshTimeout) {
@@ -387,7 +443,7 @@
 		);
 	}
 
-	$: if ($key?.pub && ($key?.hasSigner !== false) && relays?.length) {
+	$: if ($key?.pub && $key?.hasSigner !== false && relays?.length) {
 		initActiveWalletSubscription();
 	}
 
