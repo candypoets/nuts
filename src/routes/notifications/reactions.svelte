@@ -13,7 +13,7 @@
 	import User from 'src/routes/explore/user.svelte';
 	import { go } from 'src/routes/modals/modal';
 	import type { ProcessedNotification } from './notifications';
-	
+
 	export let post: ProcessedNotification;
 	export let visible: boolean;
 
@@ -36,11 +36,11 @@
 		timeout = setTimeout(async () => {
 			if (visible) {
 				sub = useSubscription(
-					post.id()?.fnv1aHash() + 'reactions',
+					post.id() + 'reactions',
 					[
 						// {
 						// 	kinds: [0],
-						// 	authors: post.parsed.events.map((event) => event.pubkey()?.toString()),
+						// 	authors: post.parsed.events.map((event) => event.pubkey()),
 						// 	cacheFirst: true,
 						// 	relays: []
 						// },
@@ -95,7 +95,7 @@
 			<div class="md:flex justify-between items-center mb-2">
 				<div class="font-medium">
 					{post.parsed.events.length}
-					{#if originalPost && originalPost.pubkey()?.toString() !== $key?.pub}
+					{#if originalPost && originalPost.pubkey() !== $key?.pub}
 						{post.parsed.events.length === 1 ? 'person' : 'people'} liked a post you were mentioned in
 					{:else}
 						{post.parsed.events.length === 1 ? 'person' : 'people'} liked your post
@@ -113,7 +113,7 @@
 					on:click={() =>
 						go(
 							`nevent:${nip19.neventEncode({
-								id: originalPost?.id().toString(),
+								id: originalPost?.id(),
 								relays: [...$writeRelays, ...$readRelays]
 							})}`
 						)}
@@ -126,7 +126,7 @@
 				<div class="inline-flex -space-x-2 mb-3">
 					{#each post.parsed.events.slice(0, 5) as event}
 						<span class="relative z-0 hover:z-10">
-							<Avatar pubkey={event.pubkey()?.toString()} {context} link />
+							<Avatar pubkey={event.pubkey()} {context} link />
 						</span>
 					{/each}
 					{#if post.parsed.events.length > 5}
@@ -144,7 +144,7 @@
 							<span>
 								{#each post.parsed.events as event, i}
 									<span class="font-medium">
-										<User pubkey={event.pubkey()?.toString()} link {context} />
+										<User pubkey={event.pubkey()} link {context} />
 									</span>
 									{#if i < post.parsed.events.length - 2}
 										,
@@ -158,19 +158,18 @@
 							<a
 								href="/"
 								class="font-medium"
-								on:click|preventDefault={() => go(`nprofile:${post.parsed.events[0].pubkey()?.toString()}`)}
+								on:click|preventDefault={() => go(`nprofile:${post.parsed.events[0].pubkey()}`)}
 							>
-								<User pubkey={post.parsed.events[0].pubkey()?.toString()} link={false} {context} />
+								<User pubkey={post.parsed.events[0].pubkey()} link={false} {context} />
 							</a>,
 							<a
 								href="/"
 								class="font-medium"
-								on:click|preventDefault={() => go(`nprofile:${post.parsed.events[1].pubkey()?.toString()}`)}
+								on:click|preventDefault={() => go(`nprofile:${post.parsed.events[1].pubkey()}`)}
 							>
-								<User pubkey={post.parsed.events[1].pubkey()?.toString()} link={false} {context} />
+								<User pubkey={post.parsed.events[1].pubkey()} link={false} {context} />
 							</a>
-							and <span class="font-medium">{post.parsed.events.length - 2} others</span> liked this
-							post
+							and <span class="font-medium">{post.parsed.events.length - 2} others</span> liked this post
 						{/if}
 					</div>
 				{/if}

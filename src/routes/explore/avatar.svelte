@@ -42,7 +42,7 @@
 	onMount(() => {
 		try {
 			profile = context.find((c) => asKind0(c)) as Kind0Parsed | undefined;
-			imageUrl = profile?.picture && profile?.picture()?.toString();
+			imageUrl = profile?.picture && profile?.picture();
 			proxiedImageUrl = imageUrl ? proxyAvatarUrl(imageUrl) : undefined;
 			if (!profile && query) {
 				sub = useSubscription(
@@ -54,7 +54,7 @@
 								const kind0 = isKind0(message);
 								if (kind0) {
 									profile = kind0;
-									imageUrl = kind0?.picture && kind0.picture()?.toString();
+									imageUrl = kind0?.picture && kind0.picture();
 									proxiedImageUrl = imageUrl ? proxyAvatarUrl(imageUrl) : undefined;
 									sub?.();
 								}

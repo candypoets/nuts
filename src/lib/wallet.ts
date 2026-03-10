@@ -9,14 +9,12 @@ import { HDKey } from '@scure/bip32';
 import { normalizeURL } from 'nostr-tools/utils';
 
 export function decodePrivKey(value: string): Uint8Array {
-	let pk;
 	if (value.startsWith('nsec')) {
 		const { type, data } = nip19.decode(value);
-		pk = data;
+		return data as Uint8Array;
 	} else {
-		pk = hexToBytes(value);
+		return hexToBytes(value);
 	}
-	return pk;
 }
 
 /**
@@ -59,12 +57,12 @@ export function GetLNURLFromProfile(profile: ParsedEvent): string | null {
 		return null;
 	}
 
-	const lud06 = kind0?.lud06()?.toString();
+	const lud06 = kind0?.lud06();
 	// First check if LUD06 (direct LNURL) is available
 	if (lud06) {
 		return lud06;
 	}
-	const lud16 = kind0?.lud16()?.toString();
+	const lud16 = kind0?.lud16();
 	// Check for Lightning Address (LUD16)
 	if (lud16) {
 		const addressParts = lud16.split('@');
@@ -87,14 +85,14 @@ export const getInvoiceFromProfile = async (
 	if (!kind0) {
 		throw new Error('Profile has no content');
 	}
-	const lud16 = kind0?.lud16()?.toString();
+	const lud16 = kind0?.lud16();
 	// Prefer LUD16 (Lightning Address) if available
 	if (lud16) {
 		const res = await getInvoiceFromAddress(lud16, amount);
 		return res;
 	}
 
-	const lud06 = kind0?.lud06()?.toString();
+	const lud06 = kind0?.lud06();
 	// Fall back to LUD06 (LNURL)
 	if (lud06) {
 		const res = await getInvoiceFromLNURL(lud06, amount);

@@ -23,9 +23,9 @@
 		$note &&
 		!nevent &&
 		getUserRelays(
-			$note.pubkey()?.toString(),
+			$note.pubkey(),
 			(relays) => {
-				nevent = nip19.neventEncode({ id: $note.id()?.toString(), relays });
+				nevent = nip19.neventEncode({ id: $note.id(), relays });
 			},
 			'write'
 		);

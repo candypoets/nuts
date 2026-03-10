@@ -23,22 +23,22 @@
 	let isImageContext = getContext('imageContext');
 	let sub: (() => void) | undefined;
 
-	$: notePubkey = note.pubkey()!.toString();
+	$: notePubkey = note.pubkey()!;
 
 	$: decoded = {
 		name:
-			(typeof author?.name === 'function' ? author.name()?.toString() : author?.name?.toString()) ||
+			(typeof author?.name === 'function' ? author.name() : author?.name) ||
 			(typeof author?.displayName === 'function'
-				? author.displayName()?.toString()
-				: author?.displayName?.toString()),
-		picture: author?.picture?.()?.toString(),
-		nip05: author?.nip05?.()?.toString()
+				? author.displayName()
+				: author?.displayName),
+		picture: author?.picture?.(),
+		nip05: author?.nip05?.()
 	};
 
 	onMount(() => {
 		if (!author) {
 			const authorEvent = context.find(
-				(c) => c.pubkey()!.toString() === notePubkey && c.kind() == 0
+				(c) => c.pubkey()! === notePubkey && c.kind() == 0
 			);
 
 			if (!authorEvent) {
@@ -65,7 +65,7 @@
 	function go() {
 		if (isImageContext) return;
 		const currentPath = $page.url.pathname;
-		const profilePath = `nprofile:${note.pubkey()!.toString()}`;
+		const profilePath = `nprofile:${note.pubkey()!}`;
 
 		// Check if the current URL already ends with the profile we're trying to navigate to
 		if (!currentPath.endsWith(profilePath)) {

@@ -23,14 +23,14 @@ Started: Wed Feb 11 10:50:43 AM CET 2026
 - VirtualList components are in `src/components/VirtualList*.svelte`
 - Feed component is at `src/routes/explore/feed.svelte` (not in lib/)
 - TypeScript path alias `src/` maps to the src directory
-- Default item ID extraction uses `item?.id?.()?.fnv1aHash?.()` for Nostr events
+- Default item ID extraction uses `item?.id?.()` for Nostr events
 - Use callback props (not createEventDispatcher) for events: `export let onEvent: ((data: T) => void) | undefined = undefined`
 - Reactive statements with `$:` for computed values that trigger side effects
 - Use `nearBottomThreshold` prop (default 10) for configurable pagination trigger distance
 - Track trigger state with local flag (e.g., `nearBottomTriggered`) to prevent duplicate events
 - **Search/filtering should be done in parent components, not in Feed**: Pass filtered `items` array to Feed
 - For contact search filtering, filter by name, content, and pubkey fields
-- Use `getItemId` prop to specify unique ID extraction (e.g., `(item) => item?.pubkey?.()?.fnv1aHash?.()`)
+- Use `getItemId` prop to specify unique ID extraction (e.g., `(item) => item?.pubkey?.()`)
 - **Migration pattern from old Feed to new Feed API**:
   - Move `useSubscription` calls from Feed to parent component
   - Manage `items` array in parent, pass as prop to Feed
@@ -517,7 +517,7 @@ Started: Thu Feb 12 01:17:20 PM CET 2026
   - No active transaction: logs and returns early
   - Transaction not found in IndexedDB: clears stale activeTxId
   - Already finalized: clears activeTxId
-  - Already aborted: clears activeTxId  
+  - Already aborted: clears activeTxId
   - At finalize step: calls `finalizeTransaction()` to complete
 - For resumable transactions: calls `advanceTransaction()` without awaiting (non-blocking)
 - Added comprehensive logging for all resume attempts and outcomes

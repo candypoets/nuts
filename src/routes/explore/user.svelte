@@ -21,7 +21,7 @@
 	let queried = false;
 
 	onMount(() => {
-		user = context.map((c) => asKind0(c)).find((k0) => k0?.pubkey()?.toString() == pubkey);
+		user = context.map((c) => asKind0(c)).find((k0) => k0?.pubkey()! == pubkey);
 		if (!user && query) {
 			queried = true;
 			sub = useSubscription(
@@ -29,7 +29,7 @@
 				userQuery(pubkey),
 				(message: WorkerMessage) => {
 					const kind0 = isKind0(message);
-					if (kind0 && kind0.pubkey()?.toString() === pubkey) {
+					if (kind0 && kind0.pubkey()! === pubkey) {
 						user = kind0;
 						sub?.();
 					}
@@ -55,14 +55,14 @@
 	<a
 		class="text-accent whitespace-nowrap hover:underline"
 		on:click|stopPropagation|preventDefault={go}
-		>@{user?.name?.()?.toString()?.trim() ||
-			user?.displayName?.()?.toString()?.trim() ||
+		>@{user?.name?.()?.trim() ||
+			user?.displayName?.()?.trim() ||
 			pubkey?.slice(0, 15) + '...'}</a
 	>
 {:else}
 	<span
-		>{user?.name?.()?.toString()?.trim() ||
-			user?.displayName?.()?.toString()?.trim() ||
+		>{user?.name?.()?.trim() ||
+			user?.displayName?.()?.trim() ||
 			pubkey?.slice(0, 15) + '...'}</span
 	>
 {/if}

@@ -38,7 +38,7 @@
 		if (noteId) {
 			let replySub = useSubscription(noteId, [{ ids: [noteId], relays: [] }], (message) => {
 				const parsedEvent = asParsedEvent(message);
-				if (parsedEvent && parsedEvent?.id()?.toString() == noteId) {
+				if (parsedEvent && parsedEvent?.id() == noteId) {
 					note = parsedEvent;
 					replySub?.();
 				}
@@ -61,7 +61,7 @@
 		if (note && reply) {
 			post.id = reply;
 			post.tags = fbArray(note, 'tags').map((sv) =>
-				fbArray(sv, 'items').map((item) => item?.toString())
+				fbArray(sv, 'items').map((item) => item)
 			);
 		}
 
@@ -77,19 +77,19 @@
 			});
 
 			const relaysPromise = new Promise<string[]>((resolve) => {
-				getUserRelays(note.pubkey()!.toString(), resolve);
+				getUserRelays(note.pubkey(), resolve);
 			});
 
 			await Promise.race([timeoutPromise, relaysPromise]).then((result) => {
 				if (result === null) {
 					post.tags = [
 						['e', repost, '', 'mention'],
-						['p', note!.pubkey()!.toString()]
+						['p', note!.pubkey()]
 					];
 				} else {
 					post.tags = [
 						['e', repost, result[0], 'mention'],
-						['p', note!.pubkey()!.toString()]
+						['p', note!.pubkey()]
 					];
 				}
 			});
@@ -104,7 +104,7 @@
 		usePublish(id, post, (message: WorkerMessage) => {
 			const status = isConnectionStatus(message);
 			if (status) {
-				const relayUrl = status.relayUrl()?.toString();
+				const relayUrl = status.relayUrl();
 				sendStatus[relayUrl] = status;
 				updateSendStatus(id, sendStatus);
 			}
@@ -165,7 +165,7 @@
 						{#if reply}
 							Reply to
 							{#if note}
-								<User pubkey={note.pubkey()?.toString()} />
+								<User pubkey={note.pubkey()} />
 							{/if}
 						{:else if repost}
 							Add a quote?

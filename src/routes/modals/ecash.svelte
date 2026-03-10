@@ -81,7 +81,7 @@
 	$: walletReadRelays =
 		$walletKind10019 &&
 		(fbArray(asKind10019($walletKind10019) as Kind10019Parsed, 'readRelays')?.map((r) =>
-			r.toString()
+			r
 		) ||
 			[]);
 
@@ -120,7 +120,7 @@
 
 	let balanceByMint = $nutsWallet?.balanceByMint;
 
-	let fromMint = $activeMintUrl || ($kind17375 && asKind17375($kind17375)?.mints(0)?.toString());
+	let fromMint = $activeMintUrl || ($kind17375 && asKind17375($kind17375)?.mints(0));
 	let toMint: string;
 	let fees: number | undefined;
 	let meltquote: MeltQuoteResponse | undefined;
@@ -153,7 +153,7 @@
 					switch (parsedEvent.parsedType()) {
 						case ParsedData.Kind10019Parsed:
 							kind10019 = asKind10019(parsedEvent) as Kind10019Parsed;
-							toMint = kind10019?.trustedMints(0)?.url()?.toString() as string;
+							toMint = kind10019?.trustedMints(0)?.url() as string;
 							zap = false;
 							break;
 						case ParsedData.Kind10002Parsed:
@@ -161,7 +161,7 @@
 							// Use write relays since LNURL provider needs to publish receipt there
 							receiptRelays = (fbArray(kind1002, 'relays')
 								?.filter((r) => r.write())
-								.map((r) => r.url()?.toString())
+								.map((r) => r.url())
 								.filter(Boolean) || []) as string[];
 							console.log('[zap] Recipient write relays:', receiptRelays);
 							break;
@@ -188,7 +188,7 @@
 					const fromWallet = await $nutsWallet?.getWallet(fromMint);
 					const toWallet = await $nutsWallet?.getWallet(toMint);
 					if (toWallet && fromWallet && kind10019?.p2pkPubkey) {
-						mintquote = await toWallet.createMintQuote(amount, kind10019.p2pkPubkey()?.toString());
+						mintquote = await toWallet.createMintQuote(amount, kind10019.p2pkPubkey());
 						meltquote = await fromWallet.createMeltQuote(mintquote.request);
 						fees = meltquote.fee_reserve;
 						processing = '';
@@ -280,7 +280,7 @@
 				memo,
 				noteId: noteId || undefined,
 				lnurl: lnurl || undefined,
-				p2pkPubkey: kind10019?.p2pkPubkey()?.toString(),
+				p2pkPubkey: kind10019?.p2pkPubkey(),
 				receiptRelays: zapReceiptRelays.length > 0 ? zapReceiptRelays : undefined
 			},
 			proofs
@@ -405,7 +405,7 @@
 			const fromWallet = await $nutsWallet!.getWallet(fromMint);
 			const toWallet = await $nutsWallet!.getWallet(toMint);
 
-			const mintquote = await toWallet.createMintQuote(amount, kind10019.p2pkPubkey()!.toString());
+			const mintquote = await toWallet.createMintQuote(amount, kind10019.p2pkPubkey());
 			const meltquote = await fromWallet.createMeltQuote(mintquote.request);
 
 			await updateTransaction(txId, {
@@ -448,7 +448,7 @@
 				.catch((e) => console.warn('[ecash] Post-send verification failed:', e));
 
 			// Lock minted proofs to recipient and build nutzap
-			const recipientPubkey = kind10019?.p2pkPubkey()?.toString() || pubkey;
+			const recipientPubkey = kind10019?.p2pkPubkey() || pubkey;
 			const lockedProofs = await toWallet.receive(
 				{ mint: toMint, proofs: mintedProofs, unit: 'sat' },
 				{},
@@ -584,7 +584,7 @@
 							<div class="w-1/3 text-center">
 								<MintSelector
 									mints={($kind17375 && fbArray(asKind17375($kind17375), 'mints'))?.map((mint) =>
-										mint?.toString()
+										mint
 									) || []}
 									pubkey={$key?.pub}
 									bind:activeMint={fromMint}
@@ -598,7 +598,7 @@
 								{#if kind10019 && !zap}
 									<MintSelector
 										{pubkey}
-										mints={fbArray(kind10019, 'trustedMints')?.map((m) => m.url()?.toString()) ||
+										mints={fbArray(kind10019, 'trustedMints')?.map((m) => m.url()) ||
 											[]}
 										chevron="right"
 										bind:activeMint={toMint}

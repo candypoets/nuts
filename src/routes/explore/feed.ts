@@ -4,7 +4,17 @@ import type { ParsedEvent } from '@candypoets/nipworker';
  * Safely compute the deterministic hash for an event id.
  */
 export function getEventHash(e: ParsedEvent | undefined | null): number | undefined {
-	return e?.id?.()?.fnv1aHash?.();
+	// fnv1aHash was removed when switching to native strings
+	// Use a simple hash function or return undefined
+	const id = e?.id?.();
+	if (!id) return undefined;
+	// Simple FNV-1a hash implementation for strings
+	let hash = 0x811c9dc5;
+	for (let i = 0; i < id.length; i++) {
+		hash ^= id.charCodeAt(i);
+		hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
+	}
+	return hash >>> 0;
 }
 
 /**

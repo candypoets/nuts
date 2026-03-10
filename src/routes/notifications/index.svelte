@@ -66,7 +66,7 @@
 		// Handle connection status (including EOSE detection via resolutionRate)
 		const status = asConnectionStatus(message);
 		if (status && connectionTracker) {
-			const relayUrl = status.relayUrl()?.toString();
+			const relayUrl = status.relayUrl();
 			if (relayUrl) {
 				connectionTracker.handleMessage(message);
 				// When >50% of relays have reached EOSE, mark loading as done
@@ -82,13 +82,13 @@
 		if (!parsedEvent) return;
 
 		// Filter out events authored by the logged-in user
-		const author = parsedEvent.pubkey()?.toString();
+		const author = parsedEvent.pubkey();
 		if (author === $key?.pub) return;
 
 		const kind = parsedEvent.kind();
 		if (![1, 6, 7].includes(kind)) return;
 
-		const eventId = parsedEvent.id()?.toString();
+		const eventId = parsedEvent.id();
 		if (!eventId) return;
 
 		// Check Set first (O(1)) for duplicate detection
@@ -167,9 +167,17 @@
 
 	// Handle near-bottom pagination
 	function handleNearBottom(event: { distance: number }) {
-		console.log('[Notifications] handleNearBottom called', { loading, hasMore, rawEventsLength: rawEvents.length });
+		console.log('[Notifications] handleNearBottom called', {
+			loading,
+			hasMore,
+			rawEventsLength: rawEvents.length
+		});
 		if (loading || !hasMore || rawEvents.length === 0) {
-			console.log('[Notifications] Pagination blocked:', { loading, hasMore, rawEventsLength: rawEvents.length });
+			console.log('[Notifications] Pagination blocked:', {
+				loading,
+				hasMore,
+				rawEventsLength: rawEvents.length
+			});
 			return;
 		}
 
@@ -182,7 +190,14 @@
 		const cursorItem = rawEvents[overlapIndex];
 		if (cursorItem) {
 			until = cursorItem.createdAt() - 1;
-			console.log('[Notifications] Pagination cursor at index', overlapIndex, 'of', rawEvents.length, 'timestamp:', until);
+			console.log(
+				'[Notifications] Pagination cursor at index',
+				overlapIndex,
+				'of',
+				rawEvents.length,
+				'timestamp:',
+				until
+			);
 		}
 
 		initSubscription(true);
@@ -223,10 +238,8 @@
 	getItemId={(item) => {
 		// ProcessedNotification has id() that returns { fnv1aHash: () => string }
 		const idObj = item?.id?.();
-		if (idObj && typeof idObj.fnv1aHash === 'function') {
-			return idObj.fnv1aHash();
-		}
-		return Math.random().toString();
+
+		return idObj || Math.random().toString();
 	}}
 	onNearBottom={handleNearBottom}
 >

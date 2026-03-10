@@ -186,7 +186,7 @@
 					authors: [$key?.pub],
 					relays: fbArray(asKind10002($kind10002) as Kind10002Parsed, 'relays')
 						?.filter((r) => r.write())
-						.map((r) => r.url()?.toString()),
+						.map((r) => r.url()),
 					noOptimize: true
 				},
 				$kind10002 && {
@@ -194,13 +194,13 @@
 					authors: [$key?.pub],
 					relays: fbArray(asKind10002($kind10002) as Kind10002Parsed, 'relays')
 						?.filter((r) => r.write())
-						.map((r) => r.url()?.toString()),
+						.map((r) => r.url()),
 					noOptimize: true
 				},
 				$kind3 && {
 					kinds: [10002],
 					authors: fbArray(asKind3($kind3) as Kind3Parsed, 'contacts')?.map((p) =>
-						p.pubkey()?.toString()
+						p.pubkey()
 					),
 					relays: ['wss://relay.nostr.band', 'wss://purplepag.es'],
 					noOptimize: true

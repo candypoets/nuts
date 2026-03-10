@@ -156,12 +156,12 @@
 			(message) => {
 				const status = isConnectionStatus(message);
 				if (status) {
-					const relayUrl = status.relayUrl()?.toString();
+					const relayUrl = status.relayUrl();
 					if (relayUrl) {
 						sendStatus[relayUrl] = status;
 						updateSendStatus('newWallet_' + pubkey, sendStatus);
 					}
-					console.log(relayUrl, status.message()?.toString());
+					console.log(relayUrl, status.message());
 					// $key.pub = pubkey;
 					setNutsWallet(bytesToHex(secretKey), pubkey, selectedMints, now());
 					if (redirect) {
@@ -213,7 +213,7 @@
 				if (connectionStatus) {
 					console.log(
 						'relayUrl',
-						connectionStatus.relayUrl?.toString(),
+						connectionStatus.relayUrl,
 						connectionStatus.status.toString()
 					);
 				}

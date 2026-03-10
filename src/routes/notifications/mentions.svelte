@@ -29,7 +29,7 @@
 		timeout = setTimeout(async () => {
 			if (visible) {
 				sub = useSubscription(
-					post.id()?.fnv1aHash() + 'mentions',
+					post.id() + 'mentions',
 					[
 						{
 							kinds: [1],
@@ -93,11 +93,11 @@
 			<!-- Latest mention preview -->
 			<div class=" bg-primary-content bg-opacity-85 p-3 rounded-md mb-3">
 				<div class="flex items-start gap-2 mb-1">
-					<Avatar pubkey={post.parsed.events[0].pubkey()?.toString()} query={false} {context} />
+					<Avatar pubkey={post.parsed.events[0].pubkey()} query={false} {context} />
 					<div>
 						<div class="flex items-center gap-2">
 							<span class="font-medium text-sm">
-								<User pubkey={post.parsed.events[0].pubkey()?.toString()} link={false} {context} />
+								<User pubkey={post.parsed.events[0].pubkey()} link={false} {context} />
 							</span>
 							<span class="text-xs text-gray-500">
 								{formatTime(post.parsed.events[0].createdAt())}
@@ -121,7 +121,7 @@
 				<div class="flex -space-x-2 mb-3">
 					{#each post.parsed.events.slice(0, 5) as event}
 						<a href="/{event.pubkey}" class="relative z-0 hover:z-10">
-							<Avatar pubkey={event.pubkey()?.toString()} query={false} {context} />
+							<Avatar pubkey={event.pubkey()} query={false} {context} />
 						</a>
 					{/each}
 					{#if post.parsed.events.length > 5}
@@ -139,11 +139,11 @@
 				<div class="mt-3 border-t pt-3">
 					{#each post.parsed.events.slice(1, 6) as event}
 						<div class="flex items-start gap-2 mb-3">
-							<Avatar pubkey={event.pubkey()?.toString()} query={false} {context} />
+							<Avatar pubkey={event.pubkey()} query={false} {context} />
 							<div>
 								<div class="flex items-center gap-2">
 									<span class="font-medium text-sm">
-										<User pubkey={event.pubkey()?.toString()} link={false} {context} />
+										<User pubkey={event.pubkey()} link={false} {context} />
 									</span>
 									<span class="text-xs text-gray-500">{formatTime(event.createdAt())}</span>
 								</div>

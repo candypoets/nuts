@@ -20,7 +20,7 @@
 					relays:
 						fbArray(kind10002, 'relays')
 							?.filter((r) => r.write() == true)
-							.map((r) => r.url()?.toString()) || []
+							.map((r) => r.url()) || []
 				}
 			],
 			(message: WorkerMessage) => {

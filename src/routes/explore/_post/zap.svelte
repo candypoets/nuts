@@ -42,14 +42,14 @@
 		timeout = setTimeout(() => {
 			if (visible && !relaysub) {
 				subed++;
-				relaysub = getUserRelays(note.pubkey()!.toString(), (result) => {
+				relaysub = getUserRelays(note.pubkey()!, (result) => {
 					relays = result.slice(0, $isMobile ? 3 : 5);
 					sub = useSubscription(
-						'z_' + note.id()!.fnv1aHash(),
+						'z_' + note.id(),
 						[
 							{
 								kinds: [9735, 9321],
-								tags: { '#e': [note.id()!.toString()] },
+								tags: { '#e': [note.id()!] },
 								noContext: true,
 								limit: 100,
 								since: note.createdAt(),
@@ -83,23 +83,23 @@
 
 	function handleNuts(event: ParsedEvent) {
 		const kind9321 = asKind9321(event) as Kind9321Parsed;
-		if (event.pubkey()!.fnv1aHash() == $kind0?.pubkey()!.fnv1aHash()) zapped = true;
+		if (event.pubkey() == $kind0?.pubkey()) zapped = true;
 		totalZapAmount += kind9321?.amount() || 0;
 
 		biggestNut = (kind9321?.amount() || 0) > (biggestNut?.amount() || 0) ? kind9321 : biggestNut;
 		zaps = sortBy(
-			uniqBy([...zaps, kind9321], (z) => z?.id()?.fnv1aHash()),
+			uniqBy([...zaps, kind9321], (z) => z?.id()),
 			(n) => n?.amount()
 		);
 	}
 
 	function handleZaps(event: ParsedEvent) {
 		const kind9735 = asKind9735(event) as Kind9735Parsed;
-		if (event.pubkey()!.fnv1aHash() == $kind0?.pubkey()!.fnv1aHash()) zapped = true;
+		if (event.pubkey() == $kind0?.pubkey()) zapped = true;
 		totalZapAmount += kind9735?.amount() || 0;
 		biggestZap = (kind9735?.amount() || 0) > (biggestZap?.amount() || 0) ? kind9735 : biggestZap;
 		zaps = sortBy(
-			uniqBy([...zaps, kind9735], (z) => z?.id()?.fnv1aHash()),
+			uniqBy([...zaps, kind9735], (z) => z?.id()),
 			(z) => z?.amount()
 		);
 	}
@@ -133,8 +133,8 @@
 					{totalZapAmount.toLocaleString()}
 				</div>
 				<div class="flex -space-x-2 items-center">
-					{#each zaps.slice(0, 5) as zap (zap.id()?.fnv1aHash())}
-						<Avatar pubkey={zap?.sender()?.toString()} />
+					{#each zaps.slice(0, 5) as zap (zap.id())}
+						<Avatar pubkey={zap?.sender()} />
 					{/each}
 
 					<!-- If there are more than 5 zappers, show a "+X more" badge -->
@@ -152,8 +152,8 @@
 		{/if}
 		{#if biggestZap || biggestNut}
 			{#if (biggestZap?.amount() || 0) >= (biggestNut?.amount() || 0)}
-				{@const comment = biggestZap.content()?.toString()}
-				{@const sender = biggestZap?.sender()?.toString()}
+				{@const comment = biggestZap.content()}
+				{@const sender = biggestZap?.sender()}
 				<!-- Biggest zapper on the left -->
 				<div class="flex shrink-0 items-center text-sm">
 					<div class="text-xs font-bold px-1 rounded-full">
@@ -171,8 +171,8 @@
 					<Avatar pubkey={sender} size="sm" />
 				</div>
 			{:else}
-				{@const comment = biggestNut.comment()?.toString()}
-				{@const sender = biggestNut?.sender()?.toString()}
+				{@const comment = biggestNut.comment()}
+				{@const sender = biggestNut?.sender()}
 				<!-- Biggest zapper on the left -->
 				<div class="flex shrink-0 items-center text-sm">
 					<div class="text-xs font-bold px-1 rounded-full">

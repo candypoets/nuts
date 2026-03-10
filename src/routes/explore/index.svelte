@@ -77,23 +77,18 @@
 
 	$: follows = $kind3
 		? fbArray(asKind3($kind3) as Kind3Parsed, 'contacts')
-				.map((c) => c.pubkey()?.toString())
+				.map((c) => c.pubkey()!)
 				.filter((p): p is string => typeof p === 'string')
 		: [];
 
 	$: following = uniq(
 		[
-			...$followPacks.flatMap(
-				(pack) => fbArray(asNip51(pack) as ListParsed, 'people').map((p) => p.toString()) || []
-			),
-			...(($followPacks.some((fp) => asNip51(fp)?.title()?.toString() == 'followlist') &&
-				follows) ||
-				[])
+			...$followPacks.flatMap((pack) => fbArray(asNip51(pack) as ListParsed, 'people') || []),
+			...(($followPacks.some((fp) => asNip51(fp)?.title() == 'followlist') && follows) || [])
 		].filter((p): p is string => typeof p === 'string')
 	);
 
-	$: subId =
-		$followPacks.reduce((acc, cur) => acc + cur.id()?.fnv1aHash(), 'feed') + tags.join(',');
+	$: subId = $followPacks.reduce((acc, cur) => acc + cur.id(), 'feed') + tags.join(',');
 
 	// Track last subId to detect followlist changes and reset feed
 	let lastSubId: string | undefined;
@@ -195,7 +190,7 @@
 		// Handle connection status (including EOSE detection via resolutionRate)
 		const status = asConnectionStatus(message);
 		if (status && connectionTracker) {
-			const relayUrl = status.relayUrl()?.toString();
+			const relayUrl = status.relayUrl();
 			if (relayUrl) {
 				// Normalize URL to match normalizedRelays keys
 				const normalizedUrl = normalizeURL(relayUrl);
@@ -236,7 +231,7 @@
 				// CASE 2: Has both reply and root
 				if (reply && root) {
 					// If reply ID != root ID, it's a reply to a reply (nested) - skip it
-					if (reply.fnv1aHash() !== root.fnv1aHash()) {
+					if (reply !== root) {
 						return;
 					}
 				}
@@ -249,14 +244,14 @@
 			}
 		}
 
-		const eventId = parsedEvent.id()?.fnv1aHash();
+		const eventId = parsedEvent.id();
 		if (!eventId) return;
 
 		// Check Set first (O(1)) for duplicate detection
 		if (seenEventIds.has(eventId)) return;
 		seenEventIds.add(eventId);
 
-		const existingIndex = feedItems.findIndex((item) => item.id()?.fnv1aHash() === eventId);
+		const existingIndex = feedItems.findIndex((item) => item.id() === eventId);
 
 		if (existingIndex === -1) {
 			// Check if this is a "new" post (user is scrolled down)
@@ -502,7 +497,7 @@
 	// Merge pending new items when user clicks the new posts indicator
 	function mergePendingItems() {
 		newPostsCount = 0;
-		lastSeenTopItem = feedItems[0]?.id()?.fnv1aHash();
+		lastSeenTopItem = feedItems[0]?.id();
 	}
 </script>
 
@@ -525,10 +520,10 @@
 								{@const kind39039 = asNip51(pack)}
 								<div class="cursor-pointer" on:click|stopPropagation={() => go('followlists')}>
 									<img
-										src={proxyAvatarUrl(kind39039?.image()?.toString() || '') || '/followlist.png'}
+										src={proxyAvatarUrl(kind39039?.image() || '') || '/followlist.png'}
 										class="w-8 h-8 border rounded-full"
-										alt={kind39039?.title()?.toString() || 'Follow pack'}
-										title={kind39039?.title()?.toString() || 'Follow pack'}
+										alt={kind39039?.title() || 'Follow pack'}
+										title={kind39039?.title() || 'Follow pack'}
 									/>
 								</div>
 							{/each}
@@ -560,8 +555,7 @@
 						</span>
 						<a class="cursor-pointer" on:click|stopPropagation={() => go('profile')}>
 							<img
-								src={proxyAvatarUrl(asKind0($kind0)?.picture()?.toString() || '') ||
-									'/miss-profile.png'}
+								src={proxyAvatarUrl(asKind0($kind0)?.picture() || '') || '/miss-profile.png'}
 								class="w-8 h-8 border rounded-full"
 								alt="Profile"
 							/>
@@ -591,9 +585,9 @@
 								{@const kind39039 = asNip51(pack)}
 								<div class="cursor-pointer" on:click|stopPropagation={() => go('followlists')}>
 									<img
-										src={proxyAvatarUrl(kind39039?.image()?.toString() || '') || '/followlist.png'}
+										src={proxyAvatarUrl(kind39039?.image() || '') || '/followlist.png'}
 										class="w-8 h-8 border rounded-full"
-										alt={kind39039?.title()?.toString() || 'Follow pack'}
+										alt={kind39039?.title() || 'Follow pack'}
 									/>
 								</div>
 							{/each}
@@ -627,8 +621,7 @@
 						<Notifications />
 						<div class="cursor-pointer" on:click|stopPropagation={() => go('profile')}>
 							<img
-								src={proxyAvatarUrl(asKind0($kind0)?.picture()?.toString() || '') ||
-									'/miss-profile.png'}
+								src={proxyAvatarUrl(asKind0($kind0)?.picture() || '') || '/miss-profile.png'}
 								class="w-8 h-8 border rounded-full"
 								alt="Profile"
 							/>

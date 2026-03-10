@@ -42,7 +42,7 @@
 	function handleEvents(message: WorkerMessage) {
 		const parsedEvent = asParsedEvent(message);
 		if (parsedEvent) {
-			const pubkeyHash = parsedEvent?.pubkey()?.fnv1aHash() as number;
+			const pubkeyHash = parsedEvent?.pubkey() as number;
 			if (seen_npubs.has(pubkeyHash)) return;
 			seen_npubs.set(pubkeyHash, true);
 			feed = [...feed, parsedEvent];
@@ -69,7 +69,7 @@
 			($kind3 &&
 				fbArray(asKind3($kind3) as Kind3Parsed, 'contacts')?.map((p) => ({
 					kinds: [0],
-					authors: [p.pubkey()!.toString()],
+					authors: [p.pubkey()],
 					cacheFirst: true,
 					noContext: true,
 					relays: []
@@ -85,16 +85,16 @@
 			if (!search) return true;
 			const searchTerm = search.toLowerCase();
 			const k0 = asKind0(c);
-			const name = k0?.name?.()?.toString()?.toLowerCase() ?? '';
-			const content = c?.content?.()?.toString()?.toLowerCase() ?? '';
-			const pubkey = c?.pubkey?.()?.toString()?.toLowerCase() ?? '';
+			const name = k0?.name?.()?.toLowerCase() ?? '';
+			const content = c?.content?.()?.toLowerCase() ?? '';
+			const pubkey = c?.pubkey?.()?.toLowerCase() ?? '';
 			return (
 				name.includes(searchTerm) || content.includes(searchTerm) || pubkey.includes(searchTerm)
 			);
 		})
 		.sort((a, b) => {
-			const nameA = asKind0(a)?.name()?.toString()?.trim() ?? '';
-			const nameB = asKind0(b)?.name()?.toString()?.trim() ?? '';
+			const nameA = asKind0(a)?.name()?.trim() ?? '';
+			const nameB = asKind0(b)?.name()?.trim() ?? '';
 			return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
 		});
 </script>
@@ -103,7 +103,7 @@
 	<Feed
 		class="bg-base-300 bg-opacity-85"
 		items={processedFeed}
-		getItemId={(item) => item?.pubkey?.()?.fnv1aHash?.() ?? Math.random()}
+		getItemId={(item) => item?.pubkey?.() ?? Math.random()}
 	>
 		<svelte:fragment slot="header">
 			<div>
@@ -130,15 +130,15 @@
 			{@const nextKind0 = asKind0(processedFeed[index + 1])}
 			{@const isFirst =
 				!prevKind0 ||
-				prevKind0?.name()?.toString().trim().toLowerCase().slice(0, 1) !==
-					kind0?.name()?.toString().trim().toLowerCase().slice(0, 1)}
+				prevKind0?.name().trim().toLowerCase().slice(0, 1) !==
+					kind0?.name().trim().toLowerCase().slice(0, 1)}
 			{@const isLast =
 				!nextKind0 ||
-				nextKind0?.name()?.toString().trim().toLowerCase().slice(0, 1) !==
-					kind0?.name()?.toString().trim().toLowerCase().slice(0, 1)}
+				nextKind0?.name().trim().toLowerCase().slice(0, 1) !==
+					kind0?.name().trim().toLowerCase().slice(0, 1)}
 			{#if isFirst && !search}
 				<strong class="px-2 mx-4">
-					{kind0?.name()?.toString().trim().slice(0, 1).toUpperCase()}
+					{kind0?.name().trim().slice(0, 1).toUpperCase()}
 				</strong>
 			{/if}
 			<div
@@ -148,19 +148,19 @@
 				class:rounded-b-lg={isLast}
 				class:mt-1={search}
 				on:click={() => {
-					selectedContact = kind0?.pubkey()?.toString() || '';
+					selectedContact = kind0?.pubkey() || '';
 				}}
 			>
 				<div class="avatar mr-3">
 					<div class="w-10 h-10 rounded-full">
 						<img
-							src={proxyAvatarUrl(kind0?.picture()?.toString()) || 'default-avatar.png'}
-							alt={kind0?.name()?.toString() || 'Contact'}
+							src={proxyAvatarUrl(kind0?.picture()) || 'default-avatar.png'}
+							alt={kind0?.name() || 'Contact'}
 						/>
 					</div>
 				</div>
 				<div>
-					<p class="font-medium">{kind0?.name()?.toString() || 'Anonymous'}</p>
+					<p class="font-medium">{kind0?.name() || 'Anonymous'}</p>
 				</div>
 			</div>
 		</svelte:fragment>

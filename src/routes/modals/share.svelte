@@ -53,7 +53,7 @@
 			($kind3 &&
 				fbArray(asKind3($kind3) as Kind3Parsed, 'contacts')?.map((p) => ({
 					kinds: [0],
-					authors: [p.pubkey()!.toString()],
+					authors: [p.pubkey()],
 					cacheFirst: true,
 					noContext: true,
 					relays: []
@@ -65,7 +65,7 @@
 	function handleEvents(message: WorkerMessage) {
 		const parsedEvent = asParsedEvent(message);
 		if (parsedEvent) {
-			const pubkeyHash = parsedEvent?.pubkey()?.fnv1aHash() as number;
+			const pubkeyHash = parsedEvent?.pubkey() as number;
 			if (seen_npubs.has(pubkeyHash)) return;
 			seen_npubs.set(pubkeyHash, true);
 			feed = [...feed, parsedEvent];
@@ -88,7 +88,7 @@
 	});
 
 	function toggleContactSelect(contact: ParsedEvent) {
-		if (selectedContact?.pubkey()?.fnv1aHash() === contact?.pubkey()?.fnv1aHash()) {
+		if (selectedContact?.pubkey() === contact?.pubkey()) {
 			selectedContact = undefined;
 		} else {
 			selectedContact = contact;
@@ -102,7 +102,7 @@
 			'nostr:' +
 				nip19.neventEncode({
 					id: noteId as string,
-					author: note?.pubkey()?.toString(),
+					author: note?.pubkey(),
 					relays
 				})
 		);
@@ -114,7 +114,7 @@
 		navigator.clipboard.writeText(
 			`${window.location.origin}/explore/nevent:${nip19.neventEncode({
 				id: noteId as string,
-				author: note?.pubkey()?.toString(),
+				author: note?.pubkey(),
 				relays
 			})}`
 		);
@@ -127,20 +127,19 @@
 			kind: 4,
 			created_at: now(),
 			content: message,
-			tags: [['p', selectedContact!.pubkey()!.toString()]]
+			tags: [['p', selectedContact!.pubkey()]]
 		};
 
 		// post.tags = [['e', noteId as string, result[0], 'mention']];
 		post.content +=
-			'\n\nnostr:' +
-			nip19.neventEncode({ id: noteId as string, author: note?.pubkey()?.toString(), relays });
+			'\n\nnostr:' + nip19.neventEncode({ id: noteId as string, author: note?.pubkey(), relays });
 
 		let sendStatus: { [url: string]: ConnectionStatus } = {};
 		const id = Math.random().toString(36).substring(2, 9);
 		usePublish(id, post, (message: WorkerMessage) => {
 			const status = isConnectionStatus(message);
 			if (status) {
-				const relayUrl = status.relayUrl()?.toString();
+				const relayUrl = status.relayUrl();
 				sendStatus[relayUrl] = status;
 				updateSendStatus(id, sendStatus);
 			}
@@ -157,9 +156,9 @@
 		if (noteId) {
 			let replySub = useSubscription(noteId, [{ ids: [noteId], relays: [] }], (message) => {
 				const parsedEvent = asParsedEvent(message);
-				if (parsedEvent && parsedEvent?.id()?.toString() == noteId) {
+				if (parsedEvent && parsedEvent?.id() == noteId) {
 					note = parsedEvent;
-					getUserRelays(note.pubkey()!.toString(), (result) => (relays = result));
+					getUserRelays(note.pubkey(), (result) => (relays = result));
 					replySub?.();
 				}
 			});
@@ -171,9 +170,9 @@
 		if (!search) return true;
 		const searchTerm = search.toLowerCase();
 		const k0 = asKind0(c);
-		const name = k0?.name?.()?.toString()?.toLowerCase() ?? '';
-		const content = c?.content?.()?.toString()?.toLowerCase() ?? '';
-		const pubkey = c?.pubkey?.()?.toString()?.toLowerCase() ?? '';
+		const name = k0?.name?.()?.toLowerCase() ?? '';
+		const content = c?.content?.()?.toLowerCase() ?? '';
+		const pubkey = c?.pubkey?.()?.toLowerCase() ?? '';
 		return name.includes(searchTerm) || content.includes(searchTerm) || pubkey.includes(searchTerm);
 	});
 </script>
@@ -183,7 +182,7 @@
 	<Feed
 		class="bg-base-300 bg-opacity-85 w-full !h-2/3 !min-h-fit rounded-t-2xl md:rounded-xl md:h-1/2"
 		items={processedFeed}
-		getItemId={(item) => item?.pubkey?.()?.fnv1aHash?.() ?? Math.random()}
+		getItemId={(item) => item?.pubkey?.() ?? Math.random()}
 		stickyFooterVisible={!!selectedContact}
 		itemsPerRow={$isMobile ? 3 : 6}
 	>
@@ -218,7 +217,7 @@
 			>
 				{#each posts as contact (asKind0(contact)?.pubkey())}
 					{@const kind0 = asKind0(contact)}
-					{@const selected = selectedContact?.pubkey()?.fnv1aHash() == kind0?.pubkey()?.fnv1aHash()}
+					{@const selected = selectedContact?.pubkey() == kind0?.pubkey()}
 					<button
 						class="flex flex-col items-center text-center"
 						on:click={() => toggleContactSelect(contact)}
@@ -230,8 +229,8 @@
 								class:border-accent={selected}
 							>
 								<img
-									src={proxyAvatarUrl(kind0?.picture()?.toString()) || 'default-avatar.png'}
-									alt={kind0?.name()?.toString() || 'Contact'}
+									src={proxyAvatarUrl(kind0?.picture()) || 'default-avatar.png'}
+									alt={kind0?.name() || 'Contact'}
 								/>
 							</div>
 						</div>
@@ -251,7 +250,7 @@
 					<div class="flex items-center space-x-2">
 						<input
 							type="text"
-							placeholder="Send as BM to {kind0?.name()?.toString()}"
+							placeholder="Send as BM to {kind0?.name()}"
 							class="input input-bordered flex-grow"
 							bind:value={message}
 						/>

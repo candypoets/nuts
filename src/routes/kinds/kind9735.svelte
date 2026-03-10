@@ -23,17 +23,17 @@
 	let kind9735 = asKind9735(zap);
 
 	let decoded = {
-		id: zap?.id()?.toString(),
+		id: zap?.id(),
 		kind: zap?.kind(),
-		pubkey: zap?.pubkey()?.toString(),
+		pubkey: zap?.pubkey(),
 		createdAt: zap?.createdAt(),
-		content: kind9735?.content()?.toString(),
-		sender: kind9735?.sender()?.toString(),
-		recipient: kind9735?.recipient()?.toString(),
+		content: kind9735?.content(),
+		sender: kind9735?.sender(),
+		recipient: kind9735?.recipient(),
 		amount: kind9735?.amount() || 0,
-		bolt11: kind9735?.bolt11()?.toString(),
-		preimage: kind9735?.preimage()?.toString(),
-		eventId: kind9735?.event()?.toString()
+		bolt11: kind9735?.bolt11(),
+		preimage: kind9735?.preimage(),
+		eventId: kind9735?.event()
 	};
 
 	let relays: string[] = [];
@@ -47,7 +47,7 @@
 				relays =
 					fbArray(kind10002, 'relays')
 						.filter((r) => r.write())
-						.map((r) => r?.url()?.toString()) || [];
+						.map((r) => r?.url()) || [];
 				usub?.();
 			}
 		}

@@ -51,9 +51,9 @@
 			(acc, tag) => {
 				const items = fbArray(tag, 'items');
 				if (items.length >= 2) {
-					const key = items[0]?.toString();
+					const key = items[0];
 					if (key) {
-						acc[key] = items.slice(1).map((item) => item?.toString());
+						acc[key] = items.slice(1);
 					}
 				}
 				return acc;
@@ -97,7 +97,7 @@
 		const seen = new Set<string>();
 		return events
 			.filter((event) => {
-				const id = event.id()?.fnv1aHash();
+				const id = event.id();
 				if (seen.has(id)) return false;
 				seen.add(id);
 				return true;
@@ -127,8 +127,8 @@
 				}
 
 				// Deduplicate by id
-				const eventId = parsedEvent.id()?.fnv1aHash();
-				const exists = rawEvents.some((e) => e.id()?.fnv1aHash() === eventId);
+				const eventId = parsedEvent.id();
+				const exists = rawEvents.some((e) => e.id() === eventId);
 				if (!exists) {
 					rawEvents = [...rawEvents, parsedEvent];
 				}
@@ -309,7 +309,7 @@
 
 <Feed
 	items={dmItems}
-	getItemId={(item) => item?.id?.()?.fnv1aHash?.() ?? 0}
+	getItemId={(item) => item?.id?.() ?? 0}
 	{visible}
 	{bottom}
 	onNearBottom={handleNearBottom}
@@ -372,12 +372,10 @@
 	<svelte:fragment slot="item-content" let:post let:visible let:index>
 		<Message
 			message={post}
-			isFirst={index === 0 ||
-				dmItems[index + 1]?.pubkey?.()?.fnv1aHash() != post.pubkey?.()?.fnv1aHash()}
-			isLast={index === dmItems.length - 1 ||
-				dmItems[index - 1]?.pubkey?.()?.fnv1aHash() != post.pubkey?.()?.fnv1aHash()}
-			incoming={post.pubkey()?.toString() == pubkey}
-			lastSent={post.pubkey()?.toString() == pubkey && index == dmItems.length - 1}
+			isFirst={index === 0 || dmItems[index + 1]?.pubkey?.() != post.pubkey?.()}
+			isLast={index === dmItems.length - 1 || dmItems[index - 1]?.pubkey?.() != post.pubkey?.()}
+			incoming={post.pubkey() == pubkey}
+			lastSent={post.pubkey() == pubkey && index == dmItems.length - 1}
 			date={dmItems.length - 1 == index ||
 				oneDayDiff(post.createdAt(), dmItems[index - 1]?.createdAt())}
 			sent={sendingMap.get(getNonce(post) || '')}

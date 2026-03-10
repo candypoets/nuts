@@ -91,7 +91,7 @@ export function processNotifications(feed: ParsedEvent[]): ProcessedNotification
 				case ParsedData.Kind1Parsed:
 					const kind1 = asKind1(event) as Kind1Parsed;
 					// Check for mention first (highest priority - it's about the user's own content)
-					const isMention = fbArray(kind1, 'mentions')?.some((m) => m.author()?.toString() == get(key)?.pub);
+					const isMention = fbArray(kind1, 'mentions')?.some((m) => m.author() == get(key)?.pub);
 					if (isMention) {
 						notificationType = 'mention';
 						referencedPostId = 'mention-' + event.id?.();
@@ -105,19 +105,19 @@ export function processNotifications(feed: ParsedEvent[]): ProcessedNotification
 						} else {
 							// This is a reply - use the replied-to post as reference
 							notificationType = 'reply';
-							referencedPostId = kind1.reply()?.id()?.toString();
+							referencedPostId = kind1.reply()?.id();
 						}
 					}
 					break;
 				case ParsedData.Kind7Parsed:
 					const kind7 = asKind7(event);
 					notificationType = 'reaction';
-					referencedPostId = kind7?.eventId()?.toString();
+					referencedPostId = kind7?.eventId();
 					break;
 				case ParsedData.Kind6Parsed:
 					const kind6 = asKind6(event) as Kind6Parsed;
 					notificationType = 'repost';
-					referencedPostId = kind6.repostedEvent()?.id()?.toString();
+					referencedPostId = kind6.repostedEvent()?.id();
 					break;
 			}
 		}

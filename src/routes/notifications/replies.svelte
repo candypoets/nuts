@@ -31,11 +31,11 @@
 		timeout = setTimeout(async () => {
 			if (visible) {
 				sub = useSubscription(
-					post.id()?.fnv1aHash() + 'replies',
+					post.id() + 'replies',
 					[
 						{
 							kinds: [0],
-							authors: post.parsed.events.map((event) => event.pubkey()?.toString()),
+							authors: post.parsed.events.map((event) => event.pubkey()),
 							cacheFirst: true,
 							relays: []
 						},
@@ -90,7 +90,7 @@
 			<div class="md:flex justify-between items-center mb-2">
 				<div class="font-medium">
 					{post.parsed.events.length}
-					{#if originalPost && originalPost.pubkey()?.toString() !== $key?.pub}
+					{#if originalPost && originalPost.pubkey() !== $key?.pub}
 						{post.parsed.events.length === 1 ? 'person' : 'people'} replied to a post you were mentioned
 						in
 					{:else}
@@ -106,9 +106,7 @@
 				<a
 					class="cursor-pointer bg-primary-content bg-opacity-85 p-3 rounded-md mb-3 text-sm line-clamp-2 w-post-1"
 					on:click={() =>
-						go(
-							`nevent:${nip19.neventEncode({ id: originalPost?.id()?.toString(), relays: $writeRelays })}`
-						)}
+						go(`nevent:${nip19.neventEncode({ id: originalPost?.id(), relays: $writeRelays })}`)}
 				>
 					<!-- {originalPost.content.slice(0, 100)}... -->
 					<Content note={originalPost} showMedia={false} showQuote={false} depth={1} {context} />
@@ -121,9 +119,9 @@
 					<a
 						href="/"
 						class="relative z-0 hover:z-10"
-						on:click|preventDefault={() => go(`nprofile:${event.pubkey()?.toString()}`)}
+						on:click|preventDefault={() => go(`nprofile:${event.pubkey()}`)}
 					>
-						<Avatar pubkey={event.pubkey()?.toString()} {context} />
+						<Avatar pubkey={event.pubkey()} {context} />
 					</a>
 				{/each}
 				{#if post.parsed.events.length > 5}
@@ -139,7 +137,7 @@
 			{#if post.parsed.events.length > 0}
 				<div class="text-sm mb-2">
 					<span class="font-medium">
-						<User pubkey={post.parsed.events[0].pubkey()?.toString()} link={false} {context} />
+						<User pubkey={post.parsed.events[0].pubkey()} link={false} {context} />
 					</span>: <Content
 						note={post.parsed.events[0]}
 						showMedia={false}
@@ -155,11 +153,11 @@
 				<div class="mt-3 border-t pt-3">
 					{#each post.parsed.events.slice(1, 6) as event}
 						<div class="flex items-start gap-2 mb-3">
-							<Avatar pubkey={event.pubkey()?.toString()} query={false} {context} />
+							<Avatar pubkey={event.pubkey()} query={false} {context} />
 							<div>
 								<div class="flex items-center gap-2">
 									<span class="font-medium text-sm">
-										<User pubkey={event.pubkey()?.toString()} link={false} {context} />
+										<User pubkey={event.pubkey()} link={false} {context} />
 									</span>
 									<span class="text-xs">{formatTime(event.createdAt())}</span>
 								</div>

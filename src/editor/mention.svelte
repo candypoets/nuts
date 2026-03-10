@@ -34,9 +34,9 @@
 		const item = items[index];
 		if (item) {
 			command({
-				pubkey: item.pubkey()?.toString(),
+				pubkey: item.pubkey(),
 				type: 'nprofile',
-				bech32: nip19.nprofileEncode({ pubkey: item.pubkey()?.toString(), relays: [] }),
+				bech32: nip19.nprofileEncode({ pubkey: item.pubkey()!, relays: [] }),
 				relays: []
 			});
 		}
@@ -61,12 +61,12 @@
 			case MessageType.ConnectionStatus:
 				loading = false;
 				eose = true;
-				items = uniqBy([...cachedEvents, ...fetchedEvents, ...items], (item) => item.pubkey()?.fnv1aHash());
+				items = uniqBy([...cachedEvents, ...fetchedEvents, ...items], (item) => item.pubkey());
 				items = sortBy(items, (item) => -calculateScore(item, query));
 				break;
 			case MessageType.Eoce:
 				eoce = true;
-				items = uniqBy([...cachedEvents, ...fetchedEvents, ...items], (item) => item.pubkey()?.fnv1aHash());
+				items = uniqBy([...cachedEvents, ...fetchedEvents, ...items], (item) => item.pubkey());
 				items = sortBy(items, (item) => calculateScore(item, query));
 				break;
 			case MessageType.ParsedNostrEvent:
@@ -78,7 +78,7 @@
 					} else if (!eose) {
 						fetchedEvents = [parsedEvent, ...fetchedEvents];
 					} else {
-						items = uniqBy([parsedEvent, ...items], (item) => item?.pubkey()?.fnv1aHash());
+						items = uniqBy([parsedEvent, ...items], (item) => item?.pubkey());
 						items = sortBy(items, (item) => -calculateScore(item, query));
 					}
 				}
@@ -158,7 +158,7 @@
 			>
 				{#if kind0?.picture()}
 					<img
-						src={proxyAvatarUrl(kind0.picture()?.toString())}
+						src={proxyAvatarUrl(kind0.picture() || '')}
 						alt=""
 						class="w-8 h-8 rounded-full object-cover flex-shrink-0"
 					/>
@@ -172,17 +172,13 @@
 
 				<div class="flex-1 min-w-0">
 					<div class="font-medium text-gray-900 truncate flex items-center">
-						<span>{kind0?.name()?.toString()}</span>
-						{#if cachedEvents.some((cachedItem) => cachedItem.pubkey()?.fnv1aHash() === item
-									.pubkey()
-									?.fnv1aHash())}
+						<span>{kind0?.name()}</span>
+						{#if cachedEvents.some((cachedItem) => cachedItem.pubkey() === item.pubkey())}
 							<Icon icon="mdi:check" class="ml-1 w-4 h-4 text-green-500 flex-shrink-0" />
 						{/if}
 					</div>
 					<div class="text-xs text-gray-500">
-						{item?.pubkey()
-							? `${item.pubkey()?.toString().slice(0, 4)}...${item.pubkey()?.toString().slice(-4)}`
-							: ''}
+						{item?.pubkey() ? `${item.pubkey()?.slice(0, 4)}...${item.pubkey()?.slice(-4)}` : ''}
 					</div>
 				</div>
 			</button>

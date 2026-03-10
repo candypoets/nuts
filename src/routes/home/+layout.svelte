@@ -107,8 +107,7 @@
 	let connectionStatus: { [url: string]: ConnectionStatus } = {};
 
 	$: walletRelays =
-		$kind10019 &&
-		fbArray(asKind10019($kind10019) as Kind10019Parsed, 'readRelays').map((r) => r.toString());
+		$kind10019 && fbArray(asKind10019($kind10019) as Kind10019Parsed, 'readRelays').map((r) => r);
 
 	let defaultRelays: string[];
 
@@ -145,7 +144,7 @@
 			}
 			case MessageType.ConnectionStatus: {
 				const status = asConnectionStatus(message) as ConnectionStatus;
-				const statusStr = status?.status()?.toString();
+				const statusStr = status?.status();
 				if (statusStr === 'EOSE' && !eoseReceived) {
 					eoseReceived = true;
 					const wallet = get(nutsWallet);
@@ -162,16 +161,16 @@
 		const vps = isValidProofs(message);
 		if (vps) {
 			for (const mintProofs of fbIterable(vps, 'proofs')) {
-				const mint = mintProofs.mint()!.toString();
+				const mint = mintProofs.mint()!;
 				const proofs = fbArray(mintProofs, 'proofs').map((p) => ({
-					C: p.c()!.toString(),
+					C: p.c()!,
 					amount: Number(p.amount()),
-					id: p.id()!.toString(),
-					secret: p.secret()!.toString(),
+					id: p.id()!,
+					secret: p.secret()!,
 					dleq: {
-						e: p.dleq()?.e()?.toString() as string,
-						r: p.dleq()?.r()?.toString() as string,
-						s: p.dleq()?.s()?.toString() as string
+						e: p.dleq()?.e() as string,
+						r: p.dleq()?.r() as string,
+						s: p.dleq()?.s() as string
 					}
 				}));
 
@@ -304,11 +303,11 @@
 		if ((!kind9321 && !kind9735) || !event) return;
 
 		// Deduplicate by event ID hash (fnv1a)
-		const eventIdHash = event.id()?.fnv1aHash();
+		const eventIdHash = event.id();
 		if (!eventIdHash) return;
 		if (seenEventIds.has(eventIdHash)) return;
 		seenEventIds.add(eventIdHash);
-		if (rawWalletEvents.some((e) => e.id()?.fnv1aHash() === eventIdHash)) return;
+		if (rawWalletEvents.some((e) => e.id() === eventIdHash)) return;
 
 		rawWalletEvents = [...rawWalletEvents, event];
 	}
@@ -450,7 +449,7 @@
 	function handleWalletEvents(message: WorkerMessage) {
 		const status = isConnectionStatus(message);
 		if (status && connectionTracker) {
-			const relayUrl = status.relayUrl()?.toString();
+			const relayUrl = status.relayUrl();
 			if (relayUrl) {
 				// Normalize URL to match normalizedRelays keys
 				const normalizedUrl = normalizeURL(relayUrl);
@@ -469,13 +468,13 @@
 			// Only update if the store is empty or the event is more recent
 			if (!$kind17375 || parsedEvent.createdAt() > $kind17375.createdAt()) {
 				$kind17375 = parsedEvent;
-				$activeMintUrl = wallet.mints(0).toString() && normalizeMintURL(wallet.mints(0).toString());
+				$activeMintUrl = wallet.mints(0) && normalizeMintURL(wallet.mints(0));
 			}
 			if (wallet.p2pkPrivKey()) {
 				setNutsWallet(
-					wallet.p2pkPrivKey()!.toString(),
-					wallet.p2pkPrivKey()!.toString(),
-					fbArray(wallet, 'mints').map((m) => normalizeMintURL(m.toString())),
+					wallet.p2pkPrivKey()!,
+					wallet.p2pkPrivKey()!,
+					fbArray(wallet, 'mints').map((m) => normalizeMintURL(m)),
 					Number(parsedEvent.createdAt())
 				);
 			}
@@ -490,7 +489,7 @@
 <Pager rootPath="/home">
 	<Feed
 		items={walletItems}
-		getItemId={(item) => item?.id?.()?.fnv1aHash?.()}
+		getItemId={(item) => item?.id?.()}
 		backdrop={!walletItems.length}
 		pullToRefresh
 		onRefresh={handleRefresh}
@@ -527,9 +526,7 @@
 							</button>
 							<div on:click|stopPropagation={() => go('profile')} class="cursor-pointer">
 								<img
-									src={proxyAvatarUrl(
-										asKind0($kind0)?.picture()?.toString() || '/miss-profile.png'
-									)}
+									src={proxyAvatarUrl(asKind0($kind0)?.picture() || '/miss-profile.png')}
 									class="w-8 h-8 border rounded-full"
 								/>
 							</div>

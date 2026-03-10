@@ -53,8 +53,8 @@
 	let repostCount = 0;
 
 	let decoded = {
-		id: note.id()!.toString(),
-		pubkey: note.pubkey()!.toString()
+		id: note.id()!,
+		pubkey: note.pubkey()!
 	};
 
 	const commonEmoticons = ['👍', '❤️', '😂', '🔥', '😍', '🙏', '💯', '🤔', '🫂', '🚀'];
@@ -75,7 +75,7 @@
 		switch (message.type()) {
 			case MessageType.ConnectionStatus:
 				const status = asConnectionStatus(message) as ConnectionStatus;
-				connectionStatus[status.relayUrl()?.toString() as string] = status;
+				connectionStatus[status.relayUrl() as string] = status;
 				break;
 			case MessageType.CountResponse:
 				const count = asCountResponse(message) as CountResponse;
@@ -157,7 +157,7 @@
 			(message: WorkerMessage) => {
 				const status = isConnectionStatus(message);
 				if (status) {
-					const relayUrl = status.relayUrl()?.toString();
+					const relayUrl = status.relayUrl();
 					if (relayUrl) {
 						sendStatus[relayUrl] = status;
 						updateSendStatus('repost_' + decoded.id, sendStatus);
@@ -184,7 +184,7 @@
 		usePublish('repost_' + decoded.id, event, (message: WorkerMessage) => {
 			const status = isConnectionStatus(message);
 			if (status) {
-				const relayUrl = status.relayUrl()?.toString();
+				const relayUrl = status.relayUrl();
 				if (relayUrl) {
 					sendStatus[relayUrl] = status;
 					updateSendStatus('repost_' + decoded.id, sendStatus);
@@ -204,7 +204,7 @@
 			class="flex items-center space-x-1 hover:font-bold hover:text-accent hover:-mt-1 transition-all"
 			class:text-accent={!!replied}
 			class:font-semibold={!!replied}
-			on:click|stopPropagation={() => go('reply:' + note.id()?.toString())}
+			on:click|stopPropagation={() => go('reply:' + note.id())}
 			role="button"
 			tabindex="0"
 		>
@@ -222,7 +222,7 @@
 			class:cursor-default={!!reposted}
 			role="button"
 			tabindex="0"
-			on:click|stopPropagation={() => go('repost:' + note.id()?.toString())}
+			on:click|stopPropagation={() => go('repost:' + note.id())}
 		>
 			<Icon icon="ph:repeat" class="text-2xl" />
 			<span>{repostCount || ''}</span>
@@ -255,7 +255,7 @@
 			class="flex items-center space-x-1 hover:font-bold hover:text-accent hover:-mt-1 transition-all"
 			role="button"
 			tabindex="0"
-			on:click|stopPropagation={() => go('share:' + note.id()?.toString())}
+			on:click|stopPropagation={() => go('share:' + note.id())}
 		>
 			<Icon icon="ph:paper-plane-tilt" class="text-xl" />
 			<span></span>
@@ -269,7 +269,7 @@
 			role="button"
 			tabindex="0"
 			on:click|stopPropagation={() => {
-				go('ecash:' + note.pubkey()?.toString() + ':' + decoded.id);
+				go('ecash:' + note.pubkey() + ':' + decoded.id);
 			}}
 		>
 			<Nutscash class="h-6 w-6" />

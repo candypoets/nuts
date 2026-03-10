@@ -21,29 +21,29 @@
 	$: parsed = getPreGeneric(note);
 
 	// Extract live event data from PreGenericParsed
-	$: title = parsed?.title()?.toString() || '';
-	$: summary = parsed?.description()?.toString() || '';
-	$: rawImage = parsed?.image()?.toString() || '';
+	$: title = parsed?.title() || '';
+	$: summary = parsed?.description() || '';
+	$: rawImage = parsed?.image() || '';
 	$: image = rawImage ? proxyPreviewUrl(rawImage) : '';
-	$: streaming = parsed?.streaming()?.toString() || '';
-	$: recording = parsed?.recording()?.toString() || '';
-	$: status = parsed?.status()?.toString() || 'planned';
-	$: dTag = parsed?.d()?.toString() || '';
+	$: streaming = parsed?.streaming() || '';
+	$: recording = parsed?.recording() || '';
+	$: status = parsed?.status() || 'planned';
+	$: dTag = parsed?.d() || '';
 	$: starts = parsed?.starts();
 	$: ends = parsed?.ends();
 	$: currentParticipants = parsed?.currentParticipants();
 	$: totalParticipants = parsed?.totalParticipants();
 
 	// Topics from parsed
-	$: topics = parsed ? fbArray(parsed, 'topics').map(t => t.toString()) : [];
+	$: topics = parsed ? fbArray(parsed, 'topics') : [];
 
 	// Participants from parsed PreParticipant objects
 	$: participants = parsed 
 		? fbArray(parsed, 'participants').map(p => ({
-				pubkey: p.pubkey()?.toString() || '',
-				relay: p.relay()?.toString(),
-				role: p.role()?.toString(),
-				proof: p.proof()?.toString()
+				pubkey: p.pubkey() || '',
+				relay: p.relay(),
+				role: p.role(),
+				proof: p.proof()
 			}))
 		: [];
 	$: hosts = participants.filter((p) => p.role === 'Host');

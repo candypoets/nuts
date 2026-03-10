@@ -11,8 +11,7 @@
 
 	// Props - Core presentation props
 	export let items: T[] = [];
-	export let getItemId: (item: T) => string | number = (item: any) =>
-		item?.id?.()?.fnv1aHash?.() ?? Math.random();
+	export let getItemId: (item: T) => string | number = (item: any) => item?.id?.() ?? Math.random();
 	export let loading = false;
 
 	// Layout/behavior props

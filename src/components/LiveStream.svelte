@@ -33,14 +33,14 @@
 	}
 
 	$: parsed = getPreGeneric(note);
-	$: title = parsed?.title()?.toString() || '';
-	$: summary = parsed?.description()?.toString() || '';
-	$: image = parsed?.image()?.toString() || '';
-	$: streaming = parsed?.streaming()?.toString() || '';
-	$: recording = parsed?.recording()?.toString() || '';
-	$: status = parsed?.status()?.toString() || 'planned';
+	$: title = parsed?.title() || '';
+	$: summary = parsed?.description() || '';
+	$: image = parsed?.image() || '';
+	$: streaming = parsed?.streaming() || '';
+	$: recording = parsed?.recording() || '';
+	$: status = parsed?.status() || 'planned';
 	$: currentParticipants = parsed?.currentParticipants() || BigInt(0);
-	$: service = parsed?.service()?.toString() || '';
+	$: service = parsed?.service() || '';
 
 	$: isLive = status === 'live';
 	$: isEnded = status === 'ended';
@@ -79,9 +79,9 @@
 	function subscribeToChat() {
 		if (!note) return;
 		
-		const noteId = note.id()?.toString();
-		const author = note.pubkey()?.toString();
-		const dTag = parsed?.d()?.toString();
+		const noteId = note.id();
+		const author = note.pubkey();
+		const dTag = parsed?.d();
 		
 		if (!noteId || !author || !dTag) return;
 
@@ -386,14 +386,14 @@
 									<div class="flex-1 min-w-0">
 										<div class="flex items-center gap-2">
 											<span class="text-xs font-medium text-accent truncate">
-												{msg.pubkey()?.toString().slice(0, 8)}...
+												{msg.pubkey()?.slice(0, 8)}...
 											</span>
 											<span class="text-xs text-white/30">
 												{formatTime(msg.createdAt())}
 											</span>
 										</div>
 										<p class="text-sm text-white/90 break-words">
-											{msg.content()?.toString()}
+											{msg.content()}
 										</p>
 									</div>
 								</div>

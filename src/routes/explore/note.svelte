@@ -66,7 +66,7 @@
 		kind6 = note && asKind6(note as ParsedEvent);
 		isRepost = !!kind6 && typeof kind6?.repostedEvent === 'function';
 		displayNote = isRepost ? kind6?.repostedEvent?.() : note;
-		reposterPubkey = isRepost ? note?.pubkey()?.toString() : undefined;
+		reposterPubkey = isRepost ? note?.pubkey()! : undefined;
 		effectiveShowRoot = isRepost ? false : showRoot;
 		kind1 = displayNote && asKind1(displayNote as ParsedEvent);
 	}
@@ -85,7 +85,7 @@
 		return null;
 	})();
 
-	$: nid = noteId || displayNote?.id()?.toString();
+	$: nid = noteId || displayNote?.id()!;
 
 	// Effective ID for subscriptions - uses synthetic ID for naddr
 	$: effectiveNid = naddrDecoded
@@ -94,8 +94,8 @@
 
 	$: decoded = {
 		noteId: nid,
-		replyID: kind1?.reply()?.id()?.toString(),
-		mentions: fbArray(kind1 as Kind1Parsed, 'mentions').map((m) => m?.id()?.toString())
+		replyID: kind1?.reply()?.id()!,
+		mentions: fbArray(kind1 as Kind1Parsed, 'mentions')
 	};
 
 	// is the note leading in a thread
@@ -124,17 +124,14 @@
 	$: if ((noteId || naddr) && context && !note) {
 		const foundNote = context.find((event) => {
 			if (noteId) {
-				return event?.id()!.toString() === noteId;
+				return event?.id()! === noteId;
 			}
 			// For naddr: match by kind, author, and d-tag
 			if (naddrDecoded && event?.kind() === naddrDecoded.kind) {
 				const tags = fbArray(event, 'tags');
-				const dTag = tags.find((t) => fbArray(t, 'items')[0]?.toString() === 'd');
-				const identifier = dTag ? fbArray(dTag, 'items')[1]?.toString() : '';
-				return (
-					identifier === naddrDecoded.identifier &&
-					event?.pubkey()?.toString() === naddrDecoded.pubkey
-				);
+				const dTag = tags.find((t) => fbArray(t, 'items')[0] === 'd');
+				const identifier = dTag ? fbArray(dTag, 'items')[1] : '';
+				return identifier === naddrDecoded.identifier && event?.pubkey()! === naddrDecoded.pubkey;
 			}
 			return false;
 		});
@@ -156,15 +153,14 @@
 						'wss://relay.primal.net'
 					]);
 				}
-				connectionStatus[normalizeURL(status?.relayUrl()!.toString() as string)] =
-					status as ConnectionStatus;
+				connectionStatus[normalizeURL(status?.relayUrl()! as string)] = status as ConnectionStatus;
 				break;
 			case MessageType.ParsedNostrEvent:
 				const parsedEvent = asParsedEvent(message) as ParsedEvent;
-				context = uniqBy([...context, parsedEvent], (c) => c?.id()?.fnv1aHash());
+				context = uniqBy([...context, parsedEvent], (c) => c?.id());
 				if (
-					parsedEvent?.id()?.toString() !== decoded.noteId &&
-					!replies.some((r) => r.id()?.fnv1aHash() === parsedEvent.id()?.fnv1aHash())
+					parsedEvent?.id()! !== decoded.noteId &&
+					!replies.some((r) => r.id() === parsedEvent.id())
 				) {
 					replies = [...replies, parsedEvent];
 				}
@@ -215,8 +211,8 @@
 							handleEvents
 						);
 						if (effectiveShowRoot && kind1?.reply()) {
-							const pubkey = kind1?.reply()?.author()?.toString();
-							const id = kind1?.reply()?.id()?.toString();
+							const pubkey = kind1?.reply()?.author()!;
+							const id = kind1?.reply()?.id()!;
 							if (pubkey && id) {
 								getUserRelays(pubkey, (relays) => {
 									useSubscription(
@@ -232,8 +228,8 @@
 							const mentions = [];
 							for (let i = 0; i < kind1.mentionsLength(); i++) {
 								const mention = kind1.mentions(i);
-								const pubkey = mention?.author()?.toString();
-								const id = mention?.id()?.toString();
+								const pubkey = mention?.author()!;
+								const id = mention?.id()!;
 								if (pubkey && id) {
 									mentions.push({ pubkey, id });
 								}
@@ -267,7 +263,7 @@
 					}
 					if (!relays.length && !relaysub) {
 						relaysub = getUserRelays(
-							displayNote?.pubkey()?.toString() as string,
+							displayNote?.pubkey()! as string,
 							(result) => {
 								relays = result.slice(0, $isMobile ? 3 : 5);
 							},
@@ -348,7 +344,7 @@
 	</div>
 	<div class="break-words">
 		context
-		{context.map((c) => c?.id()?.toString())}
+		{context.map((c) => c?.id()!)}
 	</div>
 	<div class="break-words">
 		requests
@@ -397,8 +393,8 @@
 				{:else if note?.kind() === 30311}
 					<Kind30311Content note={displayNote} />
 				{:else if !!displayNote.parsed}
-					<!-- {kind1?.reply()?.id()?.toString()} -->
-					<!-- {!!showReplies && note?.id()?.toString()} -->
+					<!-- {kind1?.reply()?.id()!} -->
+					<!-- {!!showReplies && note?.id()!} -->
 					<Content note={displayNote} {context} {visible} {depth} {main} {showQuote} />
 				{:else}
 					<div class="p-3 rounded-lg bg-info-content text-sm flex items-center gap-2 mt-2">

@@ -101,7 +101,7 @@
 		// Handle connection status
 		const status = asConnectionStatus(message);
 		if (status) {
-			const relayUrl = status.relayUrl()?.toString();
+			const relayUrl = status.relayUrl();
 			if (relayUrl) {
 				const normalizedUrl = normalizeURL(relayUrl);
 				connectionStatus = { ...connectionStatus, [normalizedUrl]: status };
@@ -116,16 +116,16 @@
 			case ParsedData.Kind0Parsed:
 				const k0 = asKind0(parsedEvent);
 				headerItem = parsedEvent;
-				parseContent(k0?.about()?.toString() || '').then((result) => (parsedAbout = result));
+				parseContent(k0?.about() || '').then((result) => (parsedAbout = result));
 				break;
 			case ParsedData.Kind10002Parsed:
 				writeRelays = fbArray(asKind10002(parsedEvent) as Kind10002Parsed, 'relays')
 					?.filter((r) => r.write())
-					.map((r) => r.url()?.toString())
+					.map((r) => r.url())
 					.filter(Boolean) as string[];
 				readRelays = fbArray(asKind10002(parsedEvent) as Kind10002Parsed, 'relays')
 					?.filter((r) => r.read())
-					.map((r) => r.url()?.toString())
+					.map((r) => r.url())
 					.filter(Boolean) as string[];
 				if (!contacts.length && writeRelays.length > 0) {
 					contactSub = useSubscription(
@@ -146,7 +146,7 @@
 		// Handle connection status
 		const status = asConnectionStatus(message);
 		if (status) {
-			const relayUrl = status.relayUrl()?.toString();
+			const relayUrl = status.relayUrl();
 			if (relayUrl) {
 				const normalizedUrl = normalizeURL(relayUrl);
 				connectionStatus = { ...connectionStatus, [normalizedUrl]: status };
@@ -159,7 +159,7 @@
 		const kind1 = asKind1(parsedEvent);
 		if (kind1) {
 			// Add kind 1 events to appropriate feed based on mode
-			const eventId = parsedEvent.id()?.toString();
+			const eventId = parsedEvent.id();
 			if (!eventId) return;
 
 			// Check Set first for O(1) duplicate detection
@@ -174,7 +174,7 @@
 				// If this is a reply, check if it's a direct reply to root
 				if (reply && root) {
 					// If reply ID != root ID, it's a reply to a reply (nested) - skip it
-					if (reply.fnv1aHash() !== root.fnv1aHash()) {
+					if (reply !== root) {
 						return;
 					}
 				}
@@ -192,7 +192,7 @@
 				// If this is a reply, check if it's a direct reply to root
 				if (reply && root) {
 					// If reply ID != root ID, it's a reply to a reply (nested) - skip it
-					if (reply.fnv1aHash() !== root.fnv1aHash()) {
+					if (reply !== root) {
 						return;
 					}
 				}
@@ -260,9 +260,9 @@
 
 		followPublishUnsub = usePublish('follow_' + pubkey, template, (message: WorkerMessage) => {
 			const status = isConnectionStatus(message);
-			console.log('status', status?.relayUrl()?.toString(), status?.status()?.toString());
+			console.log('status', status?.relayUrl(), status?.status());
 			if (status) {
-				const relayUrl = status.relayUrl()?.toString();
+				const relayUrl = status.relayUrl();
 				if (relayUrl) {
 					// Trigger reactivity by creating new object
 					followPublishStatus = { ...followPublishStatus, [relayUrl]: status };
@@ -295,9 +295,7 @@
 	}
 
 	// Derived follow states
-	$: hasOkFromRelay = Object.values(followPublishStatus).some(
-		(s) => s.status()?.toString() === 'true'
-	);
+	$: hasOkFromRelay = Object.values(followPublishStatus).some((s) => s.status() === 'true');
 
 	$: isFollowing = followIntent ?? $follows.some((f) => f.pubkey === pubkey);
 	$: isFollowPending = followIntent !== null && !hasOkFromRelay;
@@ -370,7 +368,7 @@
 			return [
 				{
 					kinds: [1, 30023],
-					authors: contacts.map((c) => c.pubkey()?.toString()).filter(Boolean) as string[],
+					authors: contacts.map((c) => c.pubkey()).filter(Boolean) as string[],
 					limit: $limit,
 					until,
 					noContext: true,
@@ -412,7 +410,7 @@
 	// Handle relay changes from relay swapping modal
 	function handleSubRelays(subRelays: string[] | undefined) {
 		if (!subRelays || subRelays.length === 0) return;
-		
+
 		const currentRelays = mode === 'profile' ? writeRelays : readRelays;
 		if (!isEqual(currentRelays, subRelays)) {
 			if (mode === 'profile') {
@@ -476,7 +474,7 @@
 				requests: [
 					{
 						kinds: [1, 30023],
-						authors: contacts.map((c) => c.pubkey()?.toString()).filter(Boolean) as string[],
+						authors: contacts.map((c) => c.pubkey()).filter(Boolean) as string[],
 						limit: $limit,
 						noContext: true,
 						relays: readRelays
@@ -535,7 +533,7 @@
 
 <Feed
 	items={feedItems}
-	getItemId={(item) => item?.id?.()?.fnv1aHash?.() ?? Math.random()}
+	getItemId={(item) => item?.id?.() ?? Math.random()}
 	{visible}
 	{loading}
 	onNearBottom={handleNearBottom}
@@ -553,12 +551,12 @@
 	<svelte:fragment slot="header">
 		<!-- {#if item.id != headerItem.id} -->
 		{@const p = asKind0(headerItem)}
-		{@const banner = p?.banner()?.toString()}
-		{@const name = p?.name()?.toString()}
-		{@const nip05 = p?.nip05()?.toString()}
-		{@const picture = p?.picture()?.toString()}
-		{@const about = p?.about()?.toString()}
-		{@const lnaddress = p?.lud16()?.toString() || p?.lud06()?.toString()}
+		{@const banner = p?.banner()}
+		{@const name = p?.name()}
+		{@const nip05 = p?.nip05()}
+		{@const picture = p?.picture()}
+		{@const about = p?.about()}
+		{@const lnaddress = p?.lud16() || p?.lud06()}
 		<div
 			class="transition-all duration-300 w-feed mx-auto will-change-transform bg-base-300 bg-opacity-85 rounded-lg"
 			class:relative={visible}

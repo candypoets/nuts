@@ -62,7 +62,7 @@ import { SEARCH_RELAYS } from 'src/lib/env';
 			const item = items[activeIndex];
 			if (item) {
 				dispatch('select', item);
-				const profilePath = `nprofile:${item.pubkey()!.toString()}`;
+				const profilePath = `nprofile:${item.pubkey()}`;
 				// if (autoCloseOnSelect) goBack();
 				go(profilePath);
 			}
@@ -83,16 +83,16 @@ import { SEARCH_RELAYS } from 'src/lib/env';
 	function selectItem(item: ParsedEvent, idx: number) {
 		activeIndex = idx;
 		dispatch('select', item);
-		const profilePath = `nprofile:${item.pubkey()!.toString()}`;
+		const profilePath = `nprofile:${item.pubkey()}`;
 		go(profilePath);
 	}
 
 	function getItemId(item: ParsedEvent) {
-		return item.id()?.toString();
+		return item.id();
 	}
 
 	function addOrUpdateEvent(event: ParsedEvent) {
-		const pubkey = event.pubkey()?.toString();
+		const pubkey = event.pubkey();
 		if (!pubkey) return;
 
 		const existing = seenPubkeys.get(pubkey);
@@ -178,7 +178,7 @@ import { SEARCH_RELAYS } from 'src/lib/env';
 			case MessageType.ConnectionStatus: {
 				const status = asConnectionStatus(message) as ConnectionStatus;
 				console.log('[CMDK] ConnectionStatus received:', {
-					relay: status?.relayUrl()?.toString(),
+					relay: status?.relayUrl(),
 					status: status?.status(),
 					itemsCount: items.length,
 					cachedEvents: cachedEvents.length,
@@ -216,9 +216,9 @@ import { SEARCH_RELAYS } from 'src/lib/env';
 				if (isKind0(message)) {
 					const parsedEvent = asParsedEvent(message) as ParsedEvent;
 					console.log('[CMDK] ParsedNostrEvent received:', {
-						relay: typeof relayUrl === 'function' ? relayUrl()?.toString() : relayUrl,
+						relay: typeof relayUrl === 'function' ? relayUrl() : relayUrl,
 						name: parsedEvent.parsed?.name,
-						pubkey: parsedEvent.pubkey()?.toString().slice(0, 16) + '...',
+						pubkey: parsedEvent.pubkey().slice(0, 16) + '...',
 						created_at: parsedEvent.created_at,
 						eoce,
 						eose
@@ -298,14 +298,14 @@ import { SEARCH_RELAYS } from 'src/lib/env';
 									{#if kind0.picture()}
 										<div class="avatar">
 											<div class="w-7 h-7 rounded">
-												<img src={proxyAvatarUrl(kind0.picture()?.toString())} alt="" />
+												<img src={proxyAvatarUrl(kind0.picture())} alt="" />
 											</div>
 										</div>
 									{:else}
 										<div class="w-5"></div>
 									{/if}
 									<div class="min-w-0 flex gap-2">
-										<div class="font-medium truncate">{kind0.name()?.toString()}</div>
+										<div class="font-medium truncate">{kind0.name()}</div>
 									</div>
 								</button>
 							{/if}

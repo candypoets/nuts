@@ -72,7 +72,7 @@ export function getUserRelays(
 			if (kind10002 && !called) {
 				const relays = fbArray(kind10002, 'relays')
 					?.filter((r) => (relayType == 'write' ? r.write() : r.read()))
-					.map((r) => r.url()?.toString())
+					.map((r) => r.url())
 					.filter(Boolean)
 					.sort((a, b) => {
 						const aOpen = get(relayStatusMap).get(normalizeURL(a as string)) == 'open';

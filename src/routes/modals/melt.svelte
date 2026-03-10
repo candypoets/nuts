@@ -33,7 +33,7 @@
 	let meltquote: MeltQuoteResponse;
 	let fees: number = 0;
 	let status = '';
-	let fromMint = $activeMintUrl || ($kind17375 && asKind17375($kind17375)?.mints(0)?.toString());
+	let fromMint = $activeMintUrl || ($kind17375 && asKind17375($kind17375)?.mints(0));
 
 	$: islnurl = isValidLNURL(invoice || '');
 	$: isLa = isLightningAddress(invoice || ''); // new
@@ -346,7 +346,7 @@
 
 	<MintSelector
 		mints={($kind17375 && fbArray(asKind17375($kind17375), 'mints'))?.map((mint) =>
-			mint?.toString()
+			mint
 		) || []}
 		pubkey={$key?.pub}
 		bind:activeMint={fromMint}

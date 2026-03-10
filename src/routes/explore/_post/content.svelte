@@ -50,7 +50,7 @@
 
 	// Helper function to check if current block is the last text block
 	function isLastTextBlock(index: number, content: ContentBlock[]) {
-		if (content.slice(index + 1).some((b) => b.type()?.toString() == 'text')) return false;
+		if (content.slice(index + 1).some((b) => b.type() == 'text')) return false;
 		return true;
 	}
 </script>
@@ -62,8 +62,8 @@
 	class={'w-full text-wrap whitespace-normal break-words relative' + ($$props.class || '')}
 >
 	{#each parsedContent as parsed, index}
-		{#if parsed.type()?.toString() == 'text'}
-			{@const rawText = parsed.text()?.toString() || ''}
+		{#if parsed.type() == 'text'}
+			{@const rawText = parsed.text() || ''}
 			{@const text = (() => {
 				try {
 					// Attempt to unescape if the string has escaped sequences
@@ -97,22 +97,22 @@
 			{@const preview = asLinkPreview(parsed)}
 			{#if preview && preview?.image() && false}
 				<a
-					href={preview?.url()?.toString()}
+					href={preview?.url()}
 					target="_blank"
 					on:click|stopPropagation
 					rel="noopener noreferrer"
 					class="w-full rounded-xl border mt-1 block cursor-pointer"
 				>
-					{#if preview?.image()?.toString()}
-						<img src={preview?.image()?.toString()} alt={preview?.title()?.toString()} />
+					{#if preview?.image()}
+						<img src={preview?.image()} alt={preview?.title()} />
 					{/if}
 					<div class="p-2">
-						{#if preview?.title()?.toString()}
-							<h2 class="text-sm break-all font-semibold">{preview?.title()?.toString()}</h2>
+						{#if preview?.title()}
+							<h2 class="text-sm break-all font-semibold">{preview?.title()}</h2>
 						{/if}
 						{#if preview?.description}
 							<p class="text-xs break-all">
-								{preview?.description()?.toString()?.slice(0, 150)}...
+								{preview?.description()?.slice(0, 150)}...
 							</p>
 						{/if}
 					</div>
@@ -121,34 +121,33 @@
 				<a
 					class="text-accent hover:underline break-words break-all max-w-full w-full"
 					on:click|stopPropagation
-					href={preview?.url()?.toString() || ''}
+					href={preview?.url() || ''}
 					target="_blank"
 					rel="noopener noreferrer"
 				>
-					{parsed.text()?.toString()}
+					{parsed.text()}
 				</a>
 			{/if}
 		{:else if parsed.dataType() == ContentData.HashtagData}
 			{@const hashtag = asHashtagData(parsed)}
 			<a
 				on:click|stopPropagation|preventDefault={() =>
-					go(`tags:${encodeURIComponent(hashtag?.tag()?.toString() ?? '')}`)}
+					go(`tags:${encodeURIComponent(hashtag?.tag() ?? '')}`)}
 				class="font-semibold text-primary"
-				>{parsed.text()?.toString()}
+				>{parsed.text()}
 			</a>
 		{:else if parsed.dataType() == ContentData.NostrData}
 			{@const nostr = asNostrData(parsed)}
 			{@const author = nostr?.author()}
 			{#if author && nostr
 					?.entity()
-					?.toString()
-					.match(/n(profile|pub)/)}
-				<User pubkey={nostr?.author()?.toString()} {context} />
+					?.match(/n(profile|pub)/)}
+				<User pubkey={nostr?.author()} {context} />
 			{:else if nostr?.id()}
 				{#if showQuote}
-					{@const entity = nostr?.entity()?.toString()}
-					{@const id = nostr?.id()?.toString()}
-					{@const entityRelays = fbArray(nostr, 'relays').map((r) => r.toString())}
+					{@const entity = nostr?.entity()}
+					{@const id = nostr?.id()}
+					{@const entityRelays = fbArray(nostr, 'relays')}
 					{#if entity?.startsWith('naddr')}
 						<!-- Use the naddr bech32 string directly -->
 						<Note
@@ -171,16 +170,16 @@
 						/>
 					{/if}
 				{:else}
-					{nostr?.id()?.toString()}
+					{nostr?.id()}
 				{/if}
 			{/if}
 		{:else if parsed.dataType() == ContentData.CashuData}
-			<Cashu cashu={parsed.text()?.toString()} />
+			<Cashu cashu={parsed.text()} />
 		{:else if parsed.dataType() == ContentData.ImageData && showMedia}
-			<ImageGrid {note} links={[{ src: parsed.text()?.toString() || '', type: 'image' }]} />
+			<ImageGrid {note} links={[{ src: parsed.text() || '', type: 'image' }]} />
 			<!-- <img class="lg:min-w-88 rounded-md" src={parsed.text} alt={parsed.text} /> -->
 		{:else if parsed.dataType() == ContentData.VideoData && showMedia}
-			<ImageGrid {note} links={[{ src: parsed.text()?.toString() || '', type: 'video' }]} />
+			<ImageGrid {note} links={[{ src: parsed.text() || '', type: 'video' }]} />
 			<!-- <video class="w-full rounded-md" src={parsed.text} autoplay muted></video> -->
 		{:else if parsed.dataType() == ContentData.MediaGroupData && showMedia}
 			{@const mediaGrid = asMediaGroupData(parsed)}
@@ -189,8 +188,8 @@
 					{note}
 					links={fbArray(mediaGrid, 'items').map((md) =>
 						md.image
-							? { src: md.image()?.url()?.toString() || '', type: 'image' }
-							: { src: md.video()?.url()?.toString() || '', type: 'image' }
+							? { src: md.image()?.url() || '', type: 'image' }
+							: { src: md.video()?.url() || '', type: 'image' }
 					) || []}
 				/>
 			{/if}

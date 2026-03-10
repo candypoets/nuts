@@ -338,9 +338,9 @@ export async function publishProofsBackup(
 			const status = isConnectionStatus(msg);
 			if (status) {
 				const statusValue = status.status();
-				console.log('[backup] ConnectionStatus:', statusValue, status.relayUrl()?.toString());
+				console.log('[backup] ConnectionStatus:', statusValue, status.relayUrl());
 				// Status can be "SENT" (initial) or "ok" (success) - check both with and without newline
-				const statusStr = statusValue?.toString()?.trim();
+				const statusStr = statusValue?.trim();
 				if (statusStr === 'ok' || statusStr === 'SENT') {
 					clearTimeout(timeout);
 					resolve(true);
@@ -459,9 +459,9 @@ export async function publishWithRetry(
 				const status = isConnectionStatus(msg);
 				if (status) {
 					const statusValue = status.status();
-					console.log(`[publish] Status:`, statusValue, 'toString:', statusValue?.toString());
+					console.log(`[publish] Status:`, statusValue);
 					// Status can be "SENT" (string) or "true" (string) - both mean success
-					const statusStr = statusValue?.toString();
+					const statusStr = statusValue;
 					if (statusStr === 'SENT' || statusStr === 'true') {
 						clearTimeout(timeout);
 						resolve(true);

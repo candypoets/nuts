@@ -112,7 +112,7 @@
 		// Handle connection status (including EOSE detection via resolutionRate)
 		const status = asConnectionStatus(message);
 		if (status && connectionTracker) {
-			const relayUrl = status.relayUrl()?.toString();
+			const relayUrl = status.relayUrl();
 			if (relayUrl) {
 				// Normalize URL to match what RelaysList expects
 				const normalizedUrl = normalizeURL(relayUrl);
@@ -144,17 +144,17 @@
 					return;
 				}
 				// CASE 2: Has both reply and root, but reply != root = reply to reply (nested)
-				if (reply && root && reply.fnv1aHash() !== root.fnv1aHash()) {
+				if (reply && root && reply !== root) {
 					return;
 				}
 				// CASE 3: No reply tag = root post (allow it)
 			}
 		}
 
-		const eventId = parsedEvent.id()?.fnv1aHash();
+		const eventId = parsedEvent.id();
 		if (!eventId) return;
 
-		const existingIndex = feedItems.findIndex((item) => item.id()?.fnv1aHash() === eventId);
+		const existingIndex = feedItems.findIndex((item) => item.id() === eventId);
 		if (existingIndex === -1) {
 			feedItems = [...feedItems, parsedEvent].sort((a, b) => b.createdAt() - a.createdAt());
 		}
@@ -263,7 +263,7 @@
 
 <Feed
 	items={feedItems}
-	getItemId={(item) => item?.id?.()?.fnv1aHash?.() ?? Math.random()}
+	getItemId={(item) => item?.id?.() ?? Math.random()}
 	class={imageContext ? 'w-full' : 'w-feed'}
 	{visible}
 	{loading}

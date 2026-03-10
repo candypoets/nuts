@@ -96,8 +96,8 @@
 
 	// Use existing k17375 priv key if present (hex string), otherwise fallback
 	$: defaultSecretKey =
-		(k17375?.p2pkPrivKey()?.toString() &&
-			hexToBytes(k17375?.p2pkPrivKey()?.toString() as string)) ||
+		(k17375?.p2pkPrivKey() &&
+			hexToBytes(k17375?.p2pkPrivKey() as string)) ||
 		fallbackSecretKey;
 
 	// The effective secret key: preference order is user-provided (mnemonic/privkey/create) then existing or fallback
@@ -124,7 +124,7 @@
 	$: selectableMints = availableMints.filter((am) => !selectedMints.some((sm) => sm == am.url));
 
 	// Mints from existing event (if any)
-	$: mints = fbArray(k17375 as Kind17375Parsed, 'mints').map((m) => m.toString());
+	$: mints = fbArray(k17375 as Kind17375Parsed, 'mints');
 	// Preselect defaults (Minibits, Coinos) if no saved mints
 	$: selectedMints = mints && mints.length > 0 ? mints : DEFAULT_MINTS.slice();
 
@@ -161,7 +161,7 @@
 			$key?.pub,
 			selectedMints[0],
 			$readRelays,
-			k17375?.p2pkPubKey()?.toString()
+			k17375?.p2pkPubKey()
 		);
 
 		useSignEvent(claimEvent, async (signed) => {
@@ -269,7 +269,7 @@
 			(message) => {
 				const status = isConnectionStatus(message);
 				if (status) {
-					const relayUrl = status.relayUrl()?.toString();
+					const relayUrl = status.relayUrl();
 					if (relayUrl) {
 						sendStatus[relayUrl] = status;
 						updateSendStatus('newWallet_' + pubkey, sendStatus);
@@ -613,7 +613,7 @@
 			class="btn btn-primary w-full text-white"
 			disabled={areStringListEqual(
 				selectedMints,
-				fbArray(k17375, 'mints').map((m) => m.toString())
+				fbArray(k17375, 'mints')
 			)}
 			on:click={() => {
 				saveWallet();

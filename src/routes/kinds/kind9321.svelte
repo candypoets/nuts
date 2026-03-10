@@ -29,14 +29,14 @@
 	let kind9321 = asKind9321(zap);
 
 	let decoded = {
-		id: zap?.id()?.toString(),
+		id: zap?.id(),
 		kind: zap?.kind(),
-		pubkey: zap?.pubkey()?.toString(),
+		pubkey: zap?.pubkey(),
 		createdAt: zap?.createdAt(),
-		comment: kind9321?.comment()?.toString(),
-		sender: zap?.pubkey()?.toString(),
-		eventId: kind9321?.eventId()?.toString(),
-		recipient: kind9321?.recipient()?.toString()
+		comment: kind9321?.comment(),
+		sender: zap?.pubkey(),
+		eventId: kind9321?.eventId(),
+		recipient: kind9321?.recipient()
 	};
 
 	let redeemed: ParsedEvent | undefined;
@@ -53,7 +53,7 @@
 				relays =
 					fbArray(kind10002, 'relays')
 						.filter((r) => r.write())
-						.map((r) => r?.url()?.toString()) || [];
+						.map((r) => r?.url()) || [];
 				usub?.();
 			}
 		}
@@ -86,7 +86,7 @@
 		// If not found and we are the decoded.recipient, subscribe to find it
 		if (!redeemed && decoded.recipient) {
 			sub = useSubscription(
-				'kind:7376:' + zap.id()?.fnv1aHash(), // Subscription ID related to the zap
+				'kind:7376:' + zap.id(), // Subscription ID related to the zap
 				[
 					// Only subscribe if we are the decoded.recipient
 					{
@@ -95,7 +95,7 @@
 						tags: { '#e': [decoded?.id || ''] }, // Must reference the zap event
 						limit: 1,
 						cacheFirst: true,
-						relays: fbArray(zap, 'relays').map((r) => r.toString()) || [] // Use relays from original zap if possible
+						relays: fbArray(zap, 'relays').map((r) => r) || [] // Use relays from original zap if possible
 					}
 				],
 				(message: WorkerMessage) => {

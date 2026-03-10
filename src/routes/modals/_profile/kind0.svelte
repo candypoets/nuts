@@ -49,13 +49,13 @@
 	};
 
 	// Editable fields
-	let name: string = currentProfileData?.name()?.toString() || '';
-	let nip05: string = currentProfileData?.nip05()?.toString() || '';
-	let about: string = currentProfileData?.about()?.toString() || '';
-	let website: string = currentProfileData?.website()?.toString() || '';
-	let lnAddress: string = currentProfileData?.lud16()?.toString() || '';
-	let picture: string = currentProfileData?.picture()?.toString() || '';
-	let banner: string = currentProfileData?.banner()?.toString() || '';
+	let name: string = currentProfileData?.name() || '';
+	let nip05: string = currentProfileData?.nip05() || '';
+	let about: string = currentProfileData?.about() || '';
+	let website: string = currentProfileData?.website() || '';
+	let lnAddress: string = currentProfileData?.lud16() || '';
+	let picture: string = currentProfileData?.picture() || '';
+	let banner: string = currentProfileData?.banner() || '';
 
 	// Editor instance for about field
 	let aboutEditor: Readable<TipTapEditor>;
@@ -129,7 +129,7 @@
 			usePublish('kind0_update', profileEvent, (message: WorkerMessage) => {
 				const status = isConnectionStatus(message);
 				if (status) {
-					const relayUrl = status.relayUrl()?.toString();
+					const relayUrl = status.relayUrl();
 					if (relayUrl) {
 						sendStatus[relayUrl] = status;
 						updateSendStatus('kind0_update', sendStatus);
@@ -149,13 +149,13 @@
 
 	// Reset form to current values
 	function resetForm() {
-		name = currentProfileData?.name()?.toString() || '';
-		nip05 = currentProfileData?.nip05()?.toString() || '';
-		about = currentProfileData?.about()?.toString() || '';
-		website = currentProfileData?.website()?.toString() || '';
-		lnAddress = currentProfileData?.lud16()?.toString() || '';
-		picture = currentProfileData?.picture()?.toString() || '';
-		banner = currentProfileData?.banner()?.toString() || '';
+		name = currentProfileData?.name() || '';
+		nip05 = currentProfileData?.nip05() || '';
+		about = currentProfileData?.about() || '';
+		website = currentProfileData?.website() || '';
+		lnAddress = currentProfileData?.lud16() || '';
+		picture = currentProfileData?.picture() || '';
+		banner = currentProfileData?.banner() || '';
 
 		// Update editor content
 		if (aboutEditor && $aboutEditor) {
@@ -217,13 +217,13 @@
 		resetForm();
 		// Set currentProfile for comparison
 		currentProfile = {
-			name: currentProfileData?.name()?.toString() || '',
-			nip05: currentProfileData?.nip05()?.toString() || '',
-			about: currentProfileData?.about()?.toString() || '',
-			website: currentProfileData?.website()?.toString() || '',
-			lud16: currentProfileData?.lud16()?.toString() || '',
-			picture: currentProfileData?.picture()?.toString() || '',
-			banner: currentProfileData?.banner()?.toString() || ''
+			name: currentProfileData?.name() || '',
+			nip05: currentProfileData?.nip05() || '',
+			about: currentProfileData?.about() || '',
+			website: currentProfileData?.website() || '',
+			lud16: currentProfileData?.lud16() || '',
+			picture: currentProfileData?.picture() || '',
+			banner: currentProfileData?.banner() || ''
 		};
 	});
 </script>

@@ -32,7 +32,7 @@
 	$: hasMore = relays.length > relayToShow;
 
 	function getStatusClasses(status?: ConnectionStatus) {
-		switch (status?.status()?.toString()) {
+		switch (status?.status()) {
 			case 'EOSE':
 				return 'bg-green-500';
 			case 'FAILED':

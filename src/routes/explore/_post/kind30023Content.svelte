@@ -28,7 +28,7 @@
 			const tag: string[] = [];
 			for (let j = 0; j < tagVec.itemsLength(); j++) {
 				const item = tagVec.items(j);
-				tag.push(item?.toString() || '');
+				tag.push(item || '');
 			}
 			tags.push(tag);
 		}
@@ -54,17 +54,17 @@
 	// Extract data from parsed object or fallback to raw tags
 	$: rawTags = getTagsFromNote(note);
 
-	$: title = parsed?.title()?.toString() || getTagValue(rawTags, 'title') || '';
-	$: summary = parsed?.summary()?.toString() || getTagValue(rawTags, 'summary') || '';
-	$: rawImage = parsed?.image()?.toString() || getTagValue(rawTags, 'image') || '';
+	$: title = parsed?.title() || getTagValue(rawTags, 'title') || '';
+	$: summary = parsed?.summary() || getTagValue(rawTags, 'summary') || '';
+	$: rawImage = parsed?.image() || getTagValue(rawTags, 'image') || '';
 	$: image = rawImage ? proxyPreviewUrl(rawImage) : '';
 	$: canonical =
-		parsed?.canonical()?.toString() ||
+		parsed?.canonical() ||
 		getTagValue(rawTags, 'canonical_url') ||
 		getTagValue(rawTags, 'url') ||
 		'';
-	$: slug = parsed?.slug()?.toString() || getTagValue(rawTags, 'd') || '';
-	$: naddr = parsed?.naddr()?.toString() || '';
+	$: slug = parsed?.slug() || getTagValue(rawTags, 'd') || '';
+	$: naddr = parsed?.naddr() || '';
 	$: publishedAt = parsed?.publishedAt()
 		? new Date(Number(parsed.publishedAt()) * 1000).toLocaleDateString()
 		: getTagValue(rawTags, 'published_at')
@@ -76,7 +76,7 @@
 		if (parsed) {
 			const t: string[] = [];
 			for (let i = 0; i < parsed.topicsLength(); i++) {
-				const topic = parsed.topics(i)?.toString();
+				const topic = parsed.topics(i);
 				if (topic) t.push(topic);
 			}
 			return t;
@@ -90,7 +90,7 @@
 		if (slug && note?.pubkey) {
 			const naddrBech32 = nip19.naddrEncode({
 				kind: note.kind(),
-				pubkey: note.pubkey()?.toString() || '',
+				pubkey: note.pubkey()! || '',
 				identifier: slug
 			});
 			go(`naddr:${naddrBech32}`);

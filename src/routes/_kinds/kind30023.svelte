@@ -83,21 +83,21 @@
 	$: parsed = article ? getKind30023(article) : null;
 
 	// Extract metadata
-	$: title = parsed?.title()?.toString() || '';
-	$: summary = parsed?.summary()?.toString() || '';
-	$: image = parsed?.image()?.toString() || '';
-	$: content = parsed?.content()?.toString() || '';
+	$: title = parsed?.title() || '';
+	$: summary = parsed?.summary() || '';
+	$: image = parsed?.image() || '';
+	$: content = parsed?.content() || '';
 	$: publishedAt = parsed?.publishedAt()
 		? new Date(Number(parsed.publishedAt()) * 1000).toLocaleDateString()
 		: '';
-	$: authorPubkey = article?.pubkey()?.toString() || decoded?.pubkey || '';
+	$: authorPubkey = article?.pubkey() || decoded?.pubkey || '';
 
 	// Get topics array
 	$: topics = (() => {
 		if (!parsed) return [];
 		const t: string[] = [];
 		for (let i = 0; i < parsed.topicsLength(); i++) {
-			const topic = parsed.topics(i)?.toString();
+			const topic = parsed.topics(i);
 			if (topic) t.push(topic);
 		}
 		return t;
@@ -114,7 +114,7 @@
 		// Handle connection status
 		const status = asConnectionStatus(message);
 		if (status) {
-			const relayUrl = status.relayUrl()?.toString();
+			const relayUrl = status.relayUrl();
 			if (relayUrl) {
 				const normalizedUrl = normalizeURL(relayUrl);
 				connectionStatus = { ...connectionStatus, [normalizedUrl]: status };
@@ -136,9 +136,9 @@
 					const tags = fbArray(parsedEvent, 'tags');
 					const dTag = tags.find((tag) => {
 						const items = fbArray(tag, 'items');
-						return items[0]?.toString() === 'd';
+						return items[0] === 'd';
 					});
-					const identifier = dTag ? fbArray(dTag, 'items')[1]?.toString() : '';
+					const identifier = dTag ? fbArray(dTag, 'items')[1] : '';
 
 					if (identifier === decoded.identifier) {
 						article = parsedEvent;

@@ -132,7 +132,7 @@
 		usePublish(id, event, (message: WorkerMessage) => {
 			const status = isConnectionStatus(message);
 			if (status) {
-				const relayUrl = status.relayUrl()?.toString();
+				const relayUrl = status.relayUrl();
 				sendStatus[relayUrl] = status;
 				updateSendStatus(id, sendStatus);
 			}

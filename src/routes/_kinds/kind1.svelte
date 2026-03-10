@@ -71,7 +71,7 @@
 		// Handle connection status
 		const status = asConnectionStatus(message);
 		if (status) {
-			const relayUrl = status.relayUrl()?.toString();
+			const relayUrl = status.relayUrl();
 			if (relayUrl) {
 				const normalizedUrl = normalizeURL(relayUrl);
 				connectionStatus = { ...connectionStatus, [normalizedUrl]: status };
@@ -90,18 +90,17 @@
 				const kind1 = asKind1(parsedEvent);
 				if (kind1) {
 					// only show replies to root posts
-					if (kind1.reply()?.id() && kind1.reply()?.id()?.toString() != data?.id) return;
+					if (kind1.reply()?.id() && kind1.reply()?.id() != data?.id) return;
 					if (
-						(!kind1.reply()?.id() ||
-							kind1.reply()?.id()?.toString() == kind1.root()?.id()?.toString()) &&
-						kind1?.root()?.id()?.toString() != data?.id
+						(!kind1.reply()?.id() || kind1.reply()?.id() == kind1.root()?.id()) &&
+						kind1?.root()?.id() != data?.id
 					)
 						return;
 					// if replies are quote return the feed
-					if (fbArray(kind1, 'mentions').some((q) => q.id()?.toString() == data.id)) return;
+					if (fbArray(kind1, 'mentions').some((q) => q.id() == data.id)) return;
 
-					const eventId = parsedEvent.id()?.fnv1aHash();
-					const existingIndex = feedItems.findIndex((item) => item.id()?.fnv1aHash() === eventId);
+					const eventId = parsedEvent.id();
+					const existingIndex = feedItems.findIndex((item) => item.id() === eventId);
 					if (existingIndex === -1) {
 						if (!eoce) {
 							feedItems = [...feedItems, parsedEvent];
@@ -140,7 +139,7 @@
 						tags: { '#e': [data?.id] },
 						limit: $limit,
 						cacheFirst: true,
-						relays: data.relays || [],
+						relays: data.relays || []
 					}
 				],
 				handleEvents,
@@ -162,15 +161,15 @@
 				(message: WorkerMessage) => {
 					const parsedEvent = isParsedEvent(message);
 					const kind1 = isKind1(message);
-					if (kind1 && parsedEvent && parsedEvent.id()?.toString() == data.id) {
+					if (kind1 && parsedEvent && parsedEvent.id() == data.id) {
 						loading = false;
 						// profile = event;
 						headerItem = parsedEvent;
 						relaysub = getUserRelays(
-							parsedEvent?.pubkey()?.toString(),
+							parsedEvent?.pubkey(),
 							(relays) => {
 								// Use fetched relays or fall back to nevent relays
-								const effectiveRelays = relays.length > 0 ? relays : (data.relays || []);
+								const effectiveRelays = relays.length > 0 ? relays : data.relays || [];
 								// Update current relays for UI (only if we got valid relays)
 								if (relays.length > 0) {
 									currentRelays = relays;
@@ -291,7 +290,7 @@
 
 <Feed
 	items={feedItems}
-	getItemId={(item) => item?.id?.()?.fnv1aHash?.() ?? Math.random()}
+	getItemId={(item) => item?.id?.() ?? Math.random()}
 	class={imageContext ? 'w-full' : 'w-feed'}
 	{visible}
 	{loading}
@@ -340,9 +339,8 @@
 				const rep = replies.filter((r) => {
 					const kind1 = asKind1(r);
 					return (
-						(r.pubkey()?.fnv1aHash() == post?.pubkey()?.fnv1aHash() ||
-							r.pubkey()?.fnv1aHash() == headerItem?.pubkey()?.fnv1aHash()) &&
-						kind1?.reply()?.id()?.fnv1aHash() == newPost?.id()?.fnv1aHash()
+						(r.pubkey() == post?.pubkey() || r.pubkey() == headerItem?.pubkey()) &&
+						kind1?.reply()?.id() == newPost?.id()
 					);
 				});
 				if (!rep.length) {

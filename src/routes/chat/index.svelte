@@ -119,9 +119,9 @@
 		events.forEach((dm) => {
 			const kind4 = asKind4(dm) as Kind4Parsed;
 			if (kind4.chatId()) {
-				const prev = contactsMap[kind4.chatId()!.fnv1aHash()];
+				const prev = contactsMap[kind4.chatId()];
 				if ((prev?.createdAt() || 0) < dm.createdAt()) {
-					contactsMap[kind4.chatId()!.fnv1aHash()] = dm;
+					contactsMap[kind4.chatId()] = dm;
 				}
 			}
 		});
@@ -139,7 +139,7 @@
 		// Handle connection status
 		const status = isConnectionStatus(message);
 		if (status) {
-			const relayUrl = status.relayUrl()?.toString();
+			const relayUrl = status.relayUrl();
 			if (relayUrl) {
 				// Normalize URL to match relay keys
 				const normalizedUrl = normalizeURL(relayUrl);
@@ -158,8 +158,8 @@
 				const parsedEvent = asParsedEvent(message) as ParsedEvent;
 				if (!isKind4(message)) return;
 				// Deduplicate by id
-				const eventId = parsedEvent.id()?.fnv1aHash();
-				const existingIndex = rawEvents.findIndex((item) => item.id()?.fnv1aHash() === eventId);
+				const eventId = parsedEvent.id();
+				const existingIndex = rawEvents.findIndex((item) => item.id() === eventId);
 				if (existingIndex === -1) {
 					if (!eoce) {
 						rawEvents = [...rawEvents, parsedEvent];
@@ -187,7 +187,7 @@
 	// Initialize subscription
 	let unsubscribe: (() => void) | undefined;
 
-	$: if (visible && $key?.pub && ($key?.hasSigner !== false)) {
+	$: if (visible && $key?.pub && $key?.hasSigner !== false) {
 		if (rawEvents.length === 0 && !loading) {
 			loading = true;
 			const requests = buildRequests();
@@ -226,8 +226,8 @@
 
 	function correspondant(post: ParsedEvent) {
 		const kind4 = asKind4(post) as Kind4Parsed;
-		const recipient = kind4.recipient()?.toString() || '';
-		return recipient == $key?.pub ? post.pubkey()!.toString() : (recipient as string);
+		const recipient = kind4.recipient() || '';
+		return recipient == $key?.pub ? post.pubkey()! : (recipient as string);
 	}
 
 	function showChatInfoModal() {
@@ -245,7 +245,7 @@
 <Pager rootPath="/chat">
 	<Feed
 		items={chatItems}
-		getItemId={(item) => item?.id?.()?.fnv1aHash?.() ?? 0}
+		getItemId={(item) => item?.id?.() ?? 0}
 		{loading}
 		pullToRefresh
 		onRefresh={handleRefresh}

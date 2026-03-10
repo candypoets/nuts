@@ -84,7 +84,7 @@
 			return;
 		}
 
-		const eventId = parsedEvent.id()?.fnv1aHash();
+		const eventId = parsedEvent.id();
 		if (!eventId) {
 			return;
 		}
@@ -105,7 +105,7 @@
 		// Handle kind 39089 (Follow Packs)
 		if (kind === 39089) {
 			// Don't add followlist (it's handled reactively via $followList)
-			if (parsedEvent.id()?.toString() === 'followlist') {
+			if (parsedEvent.id() === 'followlist') {
 				return;
 			}
 			if (seenPackIds.has(eventId)) {
@@ -128,7 +128,7 @@
 
 	function toggleFollowPack(pack: ParsedEvent) {
 		// Check if the pack is already in the list
-		const packIndex = fps.findIndex((p) => p.id()?.fnv1aHash() === pack.id()?.fnv1aHash());
+		const packIndex = fps.findIndex((p) => p.id() === pack.id());
 
 		if (packIndex !== -1) {
 			// Pack exists, remove it
@@ -209,7 +209,7 @@
 	// Always include the user's followlist (id = "followlist")
 	$: processedFeed = feed.filter((item) => {
 		const kindList = asNip51(item);
-		const itemId = item?.id?.()?.toString();
+		const itemId = item?.id?.();
 		const kind = item.kind();
 
 		// Always include the user's followlist regardless of filters
@@ -221,8 +221,8 @@
 			// Filter by search query only for follow sets
 			if (!searchQuery) return true;
 			const searchTerm = searchQuery.toLowerCase();
-			const title = kindList?.title?.()?.toString()?.toLowerCase() ?? '';
-			const description = kindList?.description?.()?.toString()?.toLowerCase() ?? '';
+			const title = kindList?.title?.()?.toLowerCase() ?? '';
+			const description = kindList?.description?.()?.toLowerCase() ?? '';
 			return title.includes(searchTerm) || description.includes(searchTerm);
 		}
 
@@ -234,8 +234,8 @@
 		// Filter by search query
 		if (!searchQuery) return true;
 		const searchTerm = searchQuery.toLowerCase();
-		const title = kindList?.title?.()?.toString()?.toLowerCase() ?? '';
-		const description = kindList?.description?.()?.toString()?.toLowerCase() ?? '';
+		const title = kindList?.title?.()?.toLowerCase() ?? '';
+		const description = kindList?.description?.()?.toLowerCase() ?? '';
 		return title.includes(searchTerm) || description.includes(searchTerm);
 	});
 </script>
@@ -243,7 +243,7 @@
 <div class="h-full bg-base-300 bg-opacity-85 lg:pt-4">
 	<Feed
 		items={processedFeed}
-		getItemId={(item) => item?.id?.()?.fnv1aHash?.() ?? Math.random()}
+		getItemId={(item) => item?.id?.() ?? Math.random()}
 		onNearBottom={handleNearBottom}
 		visible
 	>
@@ -285,11 +285,11 @@
 						getTitle={(list) => {
 							const kind39089 = asNip51(list);
 
-							const title = kind39089?.title()?.toString() || '';
+							const title = kind39089?.title() || '';
 							return title.length > 20 ? title.slice(0, 20) + '...' : title;
 						}}
 						removeItem={(list) => {
-							fps = fps.filter((p) => p.id()?.fnv1aHash() != list.id()?.fnv1aHash());
+							fps = fps.filter((p) => p.id() != list.id());
 						}}
 					/>
 				</div>
@@ -330,11 +330,11 @@
 						getTitle={(list) => {
 							const kind39089 = asNip51(list);
 
-							const title = kind39089?.title()?.toString() || '';
+							const title = kind39089?.title() || '';
 							return title.length > 20 ? title.slice(0, 20) + '...' : title;
 						}}
 						removeItem={(list) => {
-							fps = fps.filter((p) => p.id()?.fnv1aHash() != list.id()?.fnv1aHash());
+							fps = fps.filter((p) => p.id() != list.id());
 						}}
 					/>
 				</div>
@@ -342,15 +342,13 @@
 		</svelte:fragment>
 		<svelte:fragment slot="item-content" let:post let:visible>
 			{@const listData = asNip51(post)}
-			{@const isSelected = fps.some((p) => p.id()?.toString() === post.id()?.toString())}
-			{@const imageUrl = listData?.image()?.toString()}
+			{@const isSelected = fps.some((p) => p.id() === post.id())}
+			{@const imageUrl = listData?.image()}
 			{@const hasValidImage = imageUrl && !imageUrl.startsWith('data:')}
-			{@const isFollowList = post?.id?.()?.toString() === 'followlist'}
+			{@const isFollowList = post?.id?.() === 'followlist'}
 			{@const isFollowSet = post.kind() === 30000}
 			{@const isFollowPack = post.kind() === 39089}
-			{@const listTitle =
-				listData?.title?.()?.toString() ||
-				(isFollowSet ? listData?.listIdentifier?.()?.toString() : '')}
+			{@const listTitle = listData?.title?.() || (isFollowSet ? listData?.listIdentifier?.() : '')}
 			<div
 				class="cursor-pointer p-3 relative"
 				on:click={() => toggleFollowPack(post)}
@@ -435,12 +433,12 @@
 					<!-- Content Section -->
 					<div class="p-3">
 						<!-- Description -->
-						{#if listData?.description?.()?.toString()}
+						{#if listData?.description?.()}
 							{@const text = (() => {
 								try {
-									return JSON.parse('"' + listData.description?.()?.toString() + '"');
+									return JSON.parse('"' + listData.description?.() + '"');
 								} catch (e) {
-									return listData.description?.()?.toString().replace(/\\/g, '');
+									return listData.description?.().replace(/\\/g, '');
 								}
 							})()}
 							<p
@@ -456,11 +454,7 @@
 							<div class="flex items-center justify-between">
 								<div class="flex -space-x-2">
 									{#each fbArray(listData, 'people').slice(0, 4) as p}
-										<Avatar
-											pubkey={p?.toString()}
-											size="md"
-											customClass="border-2 border-base-200"
-										/>
+										<Avatar pubkey={p} size="md" customClass="border-2 border-base-200" />
 									{/each}
 									{#if listData?.peopleLength() > 4}
 										<div

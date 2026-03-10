@@ -144,11 +144,11 @@
 
 		let reply = {
 			kind: parent?.kind(),
-			id: parent?.id()?.toString(),
+			id: parent?.id()!,
 			content: content.trim(),
 			created_at: now(),
 			tags: fbArray(parent, 'tags').map((sv) =>
-				fbArray(sv, 'items').map((item) => item?.toString())
+				fbArray(sv, 'items').map((item) => item)
 			)
 		} as EventTemplate;
 
@@ -265,7 +265,7 @@
 >
 	{#if isExpanded}
 		<div class="px-4 pt-3 text-sm text-gray-500 dark:text-gray-400">
-			Replying to <User pubkey={parent.pubkey()?.toString()} {context} />
+			Replying to <User pubkey={parent.pubkey()!} {context} />
 		</div>
 	{/if}
 
@@ -388,7 +388,7 @@
 					{#if isExpanded}
 						{placeholder}
 					{:else}
-						Reply to <User pubkey={parent.pubkey()?.toString()} {context} link={false} />...
+						Reply to <User pubkey={parent.pubkey()!} {context} link={false} />...
 					{/if}
 				</div>
 			{/if}

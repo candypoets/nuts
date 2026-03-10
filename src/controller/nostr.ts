@@ -31,8 +31,8 @@ export const kind3: Writable<ParsedEvent | undefined> = writable();
 export const follows = derived(kind3, ($kind3) => {
 	return $kind3
 		? fbArray(asKind3($kind3) as Kind3Parsed, 'contacts').map((c) => ({
-				pubkey: c.pubkey()?.toString(),
-				relay: c.relays(0)?.toString()
+				pubkey: c.pubkey(),
+				relay: c.relays(0)
 			}))
 		: [];
 });
@@ -41,6 +41,36 @@ export const kind3Ready = resolvable<ParsedEvent>();
 
 export const kind10000: Writable<ParsedEvent | undefined> = writable();
 
+// Helper to convert StringVec tags to string[][]
+function getTagsArray(event: ParsedEvent): string[][] {
+	const tags: string[][] = [];
+	const tagsLength = event.tagsLength();
+	for (let i = 0; i < tagsLength; i++) {
+		const tagVec = event.tags(i);
+		if (tagVec) {
+			const tag: string[] = [];
+			const itemsLength = tagVec.itemsLength();
+			for (let j = 0; j < itemsLength; j++) {
+				tag.push(tagVec.items(j));
+			}
+			tags.push(tag);
+		}
+	}
+	return tags;
+}
+
+// Helper to get content from ParsedEvent
+function getContent(event: ParsedEvent): string | null {
+	const parsed = event.parsed(null);
+	if (!parsed) return null;
+	// Try to get content from the parsed object if available
+	// PreGenericParsed has content field for most event types
+	if ('content' in parsed && typeof parsed.content === 'function') {
+		return parsed.content();
+	}
+	return null;
+}
+
 // Muted pubkeys from content JSON (legacy format) + p tags
 export const mutedPubkeys = derived(kind10000, ($kind10000) => {
 	if (!$kind10000) return [];
@@ -48,7 +78,7 @@ export const mutedPubkeys = derived(kind10000, ($kind10000) => {
 
 	// From content field (JSON array) - encrypted in future but plain for now
 	try {
-		const content = $kind10000.content()?.toString() || '[]';
+		const content = getContent($kind10000) || '[]';
 		const parsed = JSON.parse(content);
 		if (Array.isArray(parsed)) {
 			parsed.forEach((p) => {
@@ -60,7 +90,7 @@ export const mutedPubkeys = derived(kind10000, ($kind10000) => {
 	}
 
 	// From p tags
-	const tags = $kind10000.tags() || [];
+	const tags = getTagsArray($kind10000);
 	for (let i = 0; i < tags.length; i++) {
 		const tag = tags[i];
 		if (tag && tag[0] === 'p' && tag[1]) {
@@ -75,7 +105,7 @@ export const mutedPubkeys = derived(kind10000, ($kind10000) => {
 export const mutedHashtags = derived(kind10000, ($kind10000) => {
 	if (!$kind10000) return [];
 	const hashtags: string[] = [];
-	const tags = $kind10000.tags() || [];
+	const tags = getTagsArray($kind10000);
 	for (let i = 0; i < tags.length; i++) {
 		const tag = tags[i];
 		if (tag && tag[0] === 't' && tag[1]) {
@@ -89,7 +119,7 @@ export const mutedHashtags = derived(kind10000, ($kind10000) => {
 export const mutedWords = derived(kind10000, ($kind10000) => {
 	if (!$kind10000) return [];
 	const words: string[] = [];
-	const tags = $kind10000.tags() || [];
+	const tags = getTagsArray($kind10000);
 	for (let i = 0; i < tags.length; i++) {
 		const tag = tags[i];
 		if (tag && tag[0] === 'word' && tag[1]) {
@@ -103,7 +133,7 @@ export const mutedWords = derived(kind10000, ($kind10000) => {
 export const mutedEventIds = derived(kind10000, ($kind10000) => {
 	if (!$kind10000) return [];
 	const eventIds: string[] = [];
-	const tags = $kind10000.tags() || [];
+	const tags = getTagsArray($kind10000);
 	for (let i = 0; i < tags.length; i++) {
 		const tag = tags[i];
 		if (tag && tag[0] === 'e' && tag[1]) {
@@ -177,7 +207,7 @@ export const kind10096Ready = resolvable<ParsedEvent>();
 // Derived stores for file server URLs
 export const blossomServers = derived(kind10063, ($kind10063) => {
 	if (!$kind10063) return [];
-	const tags = $kind10063.tags() || [];
+	const tags = getTagsArray($kind10063);
 	const servers: string[] = [];
 	for (const tag of tags) {
 		if (tag && tag[0] === 'server' && tag[1]) {
@@ -189,7 +219,7 @@ export const blossomServers = derived(kind10063, ($kind10063) => {
 
 export const nip96Servers = derived(kind10096, ($kind10096) => {
 	if (!$kind10096) return [];
-	const tags = $kind10096.tags() || [];
+	const tags = getTagsArray($kind10096);
 	const servers: string[] = [];
 	for (const tag of tags) {
 		if (tag && tag[0] === 'server' && tag[1]) {
@@ -222,7 +252,7 @@ export const readRelays = derived(kind10002, ($kind10002) => {
 	if (!kind) return relays;
 	return fbArray(kind, 'relays')
 		.filter((r) => r.read())
-		.map((r) => r.url()?.toString());
+		.map((r) => r.url());
 });
 
 export const writeRelays = derived(kind10002, ($kind10002) => {
@@ -232,7 +262,7 @@ export const writeRelays = derived(kind10002, ($kind10002) => {
 	if (!kind) return relays;
 	return fbArray(kind, 'relays')
 		.filter((r) => r.write())
-		.map((r) => r.url()?.toString());
+		.map((r) => r.url());
 });
 
 export const delayedPromise = new Promise<void>((resolve) => {
@@ -339,7 +369,7 @@ function getMutedPubkeysFromEvent(event: ParsedEvent): string[] {
 
 	// From content field
 	try {
-		const content = event.content()?.toString() || '[]';
+		const content = getContent(event) || '[]';
 		const parsed = JSON.parse(content);
 		if (Array.isArray(parsed)) {
 			parsed.forEach((p) => {
@@ -351,7 +381,7 @@ function getMutedPubkeysFromEvent(event: ParsedEvent): string[] {
 	}
 
 	// From p tags
-	const tags = event.tags() || [];
+	const tags = getTagsArray(event);
 	for (let i = 0; i < tags.length; i++) {
 		const tag = tags[i];
 		if (tag && tag[0] === 'p' && tag[1]) {
@@ -364,7 +394,7 @@ function getMutedPubkeysFromEvent(event: ParsedEvent): string[] {
 
 function getMutedHashtagsFromEvent(event: ParsedEvent): string[] {
 	const hashtags: string[] = [];
-	const tags = event.tags() || [];
+	const tags = getTagsArray(event);
 	for (let i = 0; i < tags.length; i++) {
 		const tag = tags[i];
 		if (tag && tag[0] === 't' && tag[1]) {
@@ -376,7 +406,7 @@ function getMutedHashtagsFromEvent(event: ParsedEvent): string[] {
 
 function getMutedWordsFromEvent(event: ParsedEvent): string[] {
 	const words: string[] = [];
-	const tags = event.tags() || [];
+	const tags = getTagsArray(event);
 	for (let i = 0; i < tags.length; i++) {
 		const tag = tags[i];
 		if (tag && tag[0] === 'word' && tag[1]) {
@@ -388,7 +418,7 @@ function getMutedWordsFromEvent(event: ParsedEvent): string[] {
 
 function getMutedEventIdsFromEvent(event: ParsedEvent): string[] {
 	const eventIds: string[] = [];
-	const tags = event.tags() || [];
+	const tags = getTagsArray(event);
 	for (let i = 0; i < tags.length; i++) {
 		const tag = tags[i];
 		if (tag && tag[0] === 'e' && tag[1]) {
