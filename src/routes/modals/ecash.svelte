@@ -359,8 +359,8 @@
 				useSignEvent(zapRequest, async (signedZapRequest) => {
 					try {
 						// Handle case where signedZapRequest might be a string
-						const signedEvent = typeof signedZapRequest === 'string' 
-							? JSON.parse(signedZapRequest) 
+						const signedEvent = typeof signedZapRequest === 'string'
+							? JSON.parse(signedZapRequest)
 							: signedZapRequest;
 						// Get invoice with zap request (LNURL will publish kind 9735 receipt)
 						const { pr } = await getZapInvoice(
@@ -570,55 +570,54 @@
 		<VirtualList items={[]} height="100%" bind:viewport={scroller} getItemId={() => 'header'}>
 			<div slot="feed-header">
 				<div>
-					<button on:click={animator.goBack} class="btn btn-ghost btn-sm">
-						<Icon icon="mingcute:down-line" class="text-xl" />
-					</button>
+					<!-- Header: Close button + Recipient -->
+					<div class="flex items-center justify-between px-2 py-2">
+						<button on:click={animator.goBack} class="btn btn-ghost btn-sm">
+							<Icon icon="mingcute:down-line" class="text-xl" />
+						</button>
+
+						<!-- Recipient in header -->
+						<div class="flex-1 flex justify-center">
+							{#if kind10019 && !zap}
+								<MintSelector
+									{pubkey}
+									mints={fbArray(kind10019, 'trustedMints')?.map((m) => m.url()) || []}
+									chevron="right"
+									bind:activeMint={toMint}
+								/>
+							{:else}
+								<div class="flex gap-2 items-center bg-base-200/50 rounded-full px-4 py-2">
+									<Avatar {pubkey} size="sm" />
+									<User {pubkey} link={false} class="font-medium text-sm" />
+								</div>
+							{/if}
+						</div>
+
+						<!-- Spacer to balance the close button -->
+						<div class="w-10"></div>
+					</div>
+
 					<!-- {#if note}
 						<div class="p-4">
 							<Note {note} context={[]} footer={false} showRoot={false} visible />
 						</div>
 						<div class="mx-8 mt-4 border-b border-gray-600"></div>
 					{/if} -->
-					<div class="md:p-4">
-						<div class="flex md:gap-4 items-center justify-around">
-							<div class="w-1/3 text-center">
-								<MintSelector
-									mints={($kind17375 && fbArray(asKind17375($kind17375), 'mints'))?.map((mint) =>
-										mint
-									) || []}
-									pubkey={$key?.pub}
-									bind:activeMint={fromMint}
-								/>
-							</div>
 
-							<div class="flex justify-center">
-								<Icon icon="mdi:arrow-right" class="text-5xl text-gray-400" />
-							</div>
-							<div class="w-1/3">
-								{#if kind10019 && !zap}
-									<MintSelector
-										{pubkey}
-										mints={fbArray(kind10019, 'trustedMints')?.map((m) => m.url()) ||
-											[]}
-										chevron="right"
-										bind:activeMint={toMint}
-									/>
-								{:else}
-									<div
-										class="flex gap-2 items-center justify-center py-2 border-b last:border-none w-1/2"
-									>
-										<!-- <Icon icon="carbon:lightning" class="w-16 h-6" />
-											-->
-										<Avatar {pubkey} size="lg" />
-										<User {pubkey} link={false} />
-									</div>
-								{/if}
-							</div>
+					<div class="px-4 mt-4">
+						<!-- Sender (Mint) above amount -->
+						<div class="flex justify-center mb-6">
+							<MintSelector
+								mints={($kind17375 && fbArray(asKind17375($kind17375), 'mints'))?.map((mint) =>
+									mint
+								) || []}
+								pubkey={$key?.pub}
+								bind:activeMint={fromMint}
+							/>
 						</div>
-					</div>
 					<div>
 						<div class="w-full gap-3">
-							<div class="md:h-52 flex flex-col items-center">
+							<div class="md:h-48 flex flex-col items-center">
 								{#if !status && (!processing || amountInputFocused)}
 									<div class="join items-center mt-10">
 										<div class="join-item w-0">

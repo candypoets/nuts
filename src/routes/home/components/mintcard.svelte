@@ -3,7 +3,6 @@
 	import { nutsWallet } from 'src/controller/proofs';
 	import { activeMintUrl, fetchMintData, getCachedMintData } from 'src/controller/wallet';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
-	import Avatar from 'src/routes/explore/avatar.svelte';
 	import { go } from 'src/routes/modals/modal';
 
 
@@ -12,7 +11,7 @@
 	export let navigate = false;
 	export let showBalance = true;
 
-	export let pubkey: string = undefined;
+
 
 	function generateColorFromUrl(url: string, opacity: number = 1): string {
 		url = url.replace(/cash/gi, '');
@@ -67,11 +66,6 @@
 		class:cursor-pointer={navigate}
 		on:click={goto}
 	>
-		{#if pubkey}
-			<span class="-top-2 absolute -left-2 z-10">
-				<Avatar {pubkey} {size} />
-			</span>
-		{/if}
 		{#await getMintData(mintUrl)}
 			<div class="w-72 h-32 bg-gray-700/30 rounded-xl animate-pulse shrink-0"></div>
 		{:then mint}
