@@ -240,6 +240,7 @@ export async function blossomUpload(
 		method: 'PUT',
 		headers: {
 			Authorization: authorization,
+			'X-SHA-256': sha256,
 			'Content-Type': file.type || 'application/octet-stream'
 		},
 		body: file

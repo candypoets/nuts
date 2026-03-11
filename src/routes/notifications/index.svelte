@@ -15,6 +15,7 @@
 	import Reactions from './reactions.svelte';
 	import Replies from './replies.svelte';
 	import Mentions from './mentions.svelte';
+	import Reposts from './reposts.svelte';
 
 	export let visible = true;
 	export let goBack: () => void;
@@ -276,24 +277,7 @@
 			{:else if post.type === 'mention'}
 				<Mentions {post} {visible} />
 			{:else if post.type === 'repost'}
-				{@const parsed = post.parsed}
-				<div class="p-4 border-b">
-					<div class="flex items-center">
-						<Icon icon="mdi:repeat" class="text-green-500 mr-2" />
-						<span>
-							{parsed.events?.length || 0}
-							{(parsed.events?.length || 0) === 1 ? 'person' : 'people'} reposted your content
-						</span>
-					</div>
-					<div class="mt-2 pl-6 text-sm text-gray-600">
-						{#if parsed.originalPost}
-							"{parsed.originalPost.content?.substring(0, 100)}{parsed.originalPost.content
-								?.length > 100
-								? '...'
-								: ''}"
-						{/if}
-					</div>
-				</div>
+				<Reposts {post} {visible} />
 			{/if}
 		</div>
 	</svelte:fragment>
