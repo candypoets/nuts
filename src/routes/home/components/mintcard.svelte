@@ -72,7 +72,9 @@
 				<Avatar {pubkey} {size} />
 			</span>
 		{/if}
-		{#await getMintData(mintUrl) then mint}
+		{#await getMintData(mintUrl)}
+			<div class="w-72 h-32 bg-gray-700/30 rounded-xl animate-pulse shrink-0"></div>
+		{:then mint}
 			<div
 				class="rounded-xl shadow-lg p-4 text-white relative overflow-hidden"
 				style="background-image: linear-gradient(to left, {generateColorFromUrl(
@@ -209,6 +211,14 @@
 						{/if}
 					{/if}
 				</div>
+			</div>
+		{:catch error}
+			<div class="w-72 p-4 bg-red-500/20 rounded-xl border border-red-500/30 text-red-200 text-sm shrink-0">
+				<div class="flex items-center gap-2">
+					<Icon icon="ph:warning-circle" class="text-xl" />
+					<span class="font-semibold">Failed to load mint</span>
+				</div>
+				<p class="text-xs mt-1 opacity-70 truncate">{mintUrl}</p>
 			</div>
 		{/await}
 	</div>

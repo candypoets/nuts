@@ -10,8 +10,30 @@ import type { Mint } from 'src/types/mint';
 const mintDataCache = new Map<string, Mint>();
 const pendingFetches = new Map<string, Promise<Mint>>();
 
+// Helper to fetch with timeout
+async function fetchWithTimeout(url: string, timeoutMs = 5000): Promise<Response> {
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(), timeoutMs);
+	try {
+		const response = await fetch(url, { signal: controller.signal });
+		clearTimeout(timeout);
+		return response;
+	} catch (error) {
+		clearTimeout(timeout);
+		throw error;
+	}
+}
+
 export async function fetchMintData(mint: string): Promise<Mint> {
-	const normalizedUrl = normalizeURL(mint).replace(/\/$/, '');
+	let normalizedUrl: string;
+	
+	// Normalize URL with error handling
+	try {
+		normalizedUrl = normalizeURL(mint).replace(/\/$/, '');
+	} catch {
+		// Invalid URL format, return immediate fallback
+		return { name: mint || 'Unknown Mint', url: mint || '' } as Mint;
+	}
 
 	// Return cached data if available
 	if (mintDataCache.has(normalizedUrl)) {
@@ -25,25 +47,41 @@ export async function fetchMintData(mint: string): Promise<Mint> {
 
 	const fetchPromise = (async (): Promise<Mint> => {
 		try {
-			const [response, info] = await Promise.all([
-				fetch(`https://api.audit.8333.space/mints/url/?url=${normalizedUrl}`),
-				fetch(`${normalizedUrl}/v1/info`)
-			]);
+			// Fetch mint's own info (critical) and auditor data (optional) independently
+			const infoPromise = fetchWithTimeout(`${normalizedUrl}/v1/info`, 5000)
+				.then(r => r.ok ? r.json() : null)
+				.catch(() => null);
+			
+			const auditPromise = fetchWithTimeout(
+				`https://api.audit.8333.space/mints/url/?url=${normalizedUrl}`,
+				3000
+			)
+				.then(r => r.ok ? r.json() : null)
+				.catch(() => null);
 
-			if (!response.ok) {
-				throw new Error('Failed to fetch mint data');
+			// Wait for both, but mint info is required
+			const [infores, auditRes] = await Promise.all([infoPromise, auditPromise]);
+
+			// If we can't get mint info, return fallback
+			if (!infores) {
+				throw new Error('Failed to fetch mint info');
 			}
 
-			const [res, infores] = await Promise.all([response.json(), info.json()]);
-			res.parsedInfo = infores;
-			res.name = infores.name.replace(/mint/gi, '').replace(/cashu/gi, '');
-			res.url = normalizedUrl;
+			const result: Mint = {
+				...auditRes,
+				parsedInfo: infores,
+				name: infores.name?.replace(/mint/gi, '').replace(/cashu/gi, '') || 'Unknown Mint',
+				url: normalizedUrl
+			};
 
 			// Cache the result
-			mintDataCache.set(normalizedUrl, res);
-			return res;
+			mintDataCache.set(normalizedUrl, result);
+			return result;
 		} catch (err) {
-			const fallbackMint = { name: mint, url: normalizedUrl } as Mint;
+			const fallbackMint = { 
+				name: mint?.replace(/^https?:\/\//, '').replace(/\/$/, '') || 'Unknown Mint', 
+				url: normalizedUrl 
+			} as Mint;
 			// Cache fallback to avoid repeated failed requests
 			mintDataCache.set(normalizedUrl, fallbackMint);
 			return fallbackMint;
