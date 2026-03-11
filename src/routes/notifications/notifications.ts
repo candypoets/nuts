@@ -175,12 +175,13 @@ export function processNotifications(feed: ParsedEvent[]): ProcessedNotification
 		}
 	}
 	// Convert groups to array and sort by timestamp (newest first)
-	return Object.values(notificationGroups)
-		.sort((a, b) => b.timestamp - a.timestamp)
-		.map((group, index): ProcessedNotification => {
+	return Object.entries(notificationGroups)
+		.sort(([, a], [, b]) => b.timestamp - a.timestamp)
+		.map(([groupKey, group]): ProcessedNotification => {
 			// Create a ProcessedNotification object that satisfies the interface
 			const processedNotification: ProcessedNotification = {
-				id: () => ({ fnv1aHash: () => `notification-${index}` }),
+				// Use stable identity based on type + referenced post id.
+				id: () => ({ fnv1aHash: () => `notification-${groupKey}` }),
 				type: group.type,
 				createdAt: () => group.timestamp,
 				kind: () => 383838, // Custom kind for notifications

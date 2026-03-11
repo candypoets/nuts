@@ -37,6 +37,8 @@ export const relaySubs = writable<Map<string, string[]>>(new Map());
 
 // Track fetch attempts to avoid duplicate requests
 const fetchAttempts = new Set<string>();
+// Track failed fetches to avoid retrying too often (simple negative cache)
+const fetchFailures = new Map<string, number>();
 
 function setRelayInfo(key: string, info: RelayInfo) {
 	relayInfos.update((m) => {
@@ -122,11 +124,12 @@ async function fetchRelayInfo(relayUrl: string): Promise<RelayInfo | null> {
 		}
 	} catch (error) {
 		console.log('Failed to fetch relay info for', relayUrl, error);
+		// Track failure for negative cache (but allow retry after 5 min)
+		fetchFailures.set(key, Date.now());
 	} finally {
 		fetchAttempts.delete(key);
 	}
 
-	// No permanent negative cache; allow retries later
 	return null;
 }
 
@@ -134,6 +137,14 @@ export function initRelayTracking() {
 	useRelayStatus((status, url) => {
 		const key = normalizeURL(url);
 		setRelayStatus(key, status);
-		// fetchRelayInfo(key);
+		
+		// Only fetch NIP-11 info when relay is connected/open
+		if (status === 'open' || status === 'connected') {
+			// Don't retry if failed recently (within 5 minutes)
+			const lastFailure = fetchFailures.get(key);
+			if (!lastFailure || Date.now() - lastFailure > 5 * 60 * 1000) {
+				fetchRelayInfo(key);
+			}
+		}
 	});
 }

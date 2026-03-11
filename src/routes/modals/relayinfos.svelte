@@ -2,7 +2,6 @@
 	import Icon from '@iconify/svelte';
 	import { normalizeURL } from 'nostr-tools/utils';
 	import VirtualList from 'src/components/VirtualList.svelte';
-	import { isMobile } from 'src/controller';
 	import { relayInfos, relayStatusMap, relaySubs, setSubRelays } from 'src/controller/relay';
 	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
@@ -44,8 +43,6 @@
 			);
 		})
 		.sort((a, b) => {
-			// if (sorted) return 0;
-			// sorted = true;
 			const aSelected = relaysToFilter?.includes(a.url) ? 1 : 0;
 			const bSelected = relaysToFilter?.includes(b.url) ? 1 : 0;
 			return bSelected - aSelected;
@@ -83,7 +80,7 @@
 		</div>
 
 		<!-- Search -->
-		<div class="p-4 shrink-0">
+		<div class="px-4 pb-3 shrink-0">
 			<div class="join bg-base-200 rounded-md w-full">
 				<div class="join-item p-2">
 					<Icon icon="carbon:search" />
@@ -97,82 +94,95 @@
 		</div>
 
 		<!-- Virtualized list -->
-		<div class="px-4 pb-safe flex-1 min-h-0">
+		<div class="px-2 pb-safe flex-1 min-h-0 overflow-hidden">
 			{#if filteredRelays.length > 0}
 				<VirtualList
 					items={filteredRelays}
 					{getItemId}
-					itemsPerRow={$isMobile ? 2 : 3}
+					itemsPerRow={1}
 					height="100%"
-					className="w-full"
+					itemHeight={44}
+					className="w-full !max-h-none"
 					let:item
 					let:items
 				>
-					<div
-						class="grid gap-4 mb-4"
-						style="grid-template-columns: repeat({$isMobile ? 2 : 3}, minmax(0, 1fr));"
-					>
-						{#each items as r (r.url)}
-							<div
-								class="bg-base-200 rounded-xl relative cursor-pointer"
-								on:click|stopPropagation={(_) => toggleSelected(r.url)}
-								class:border={relaysSelected?.includes(r.url)}
-								class:border-accent={relaysSelected?.includes(r.url)}
+					{#each items as r (r.url)}
+						{@const isSelected = relaysSelected?.includes(r.url)}
+						{@const nips = Array.isArray(r.info?.supported_nips) ? r.info.supported_nips : []}
+						<div
+							class="flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-base-200/60 transition-colors"
+							class:bg-base-200={isSelected}
+							on:click|stopPropagation={() => toggleSelected(r.url)}
+						>
+							<!-- Checkbox -->
+							<div class="shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors"
+								class:border-accent={isSelected}
+								class:bg-accent={isSelected}
+								class:border-base-300={!isSelected}
 							>
-								<div class="card-body p-4">
-									<div class="flex items-center gap-3">
-										{#if r.info?.icon}
-											<div class="avatar">
-												<div class="w-10 h-10 rounded">
-													<img src={proxyAvatarUrl(r.info.icon)} alt="Relay icon" />
-												</div>
-											</div>
-										{:else}
-											<div class="avatar placeholder">
-												<div
-													class="bg-base-300 text-base-content w-10 h-10 rounded flex items-center justify-center"
-												>
-													<Icon icon="mingcute:server-line" class="text-lg" />
-												</div>
-											</div>
-										{/if}
-										<div class="min-w-0">
-											<div class="font-semibold truncate">
-												{relayName(r)}
-											</div>
-											<div class="text-xs opacity-70 truncate">{r.url}</div>
-										</div>
-										<div class="ml-auto absolute left-2 top-2">
-											{#if r.status === 'open' || r.status === 'connected'}
-												<Icon icon="mingcute:check-circle-fill" class="text-success" />
-											{:else if r.status === 'connecting'}
-												<Icon icon="mingcute:time-line" class="text-warning" />
-											{:else if r.status === 'close'}
-												<Icon icon="codicon:debug-disconnect" />
-											{:else if r.status === 'failed'}
-												<Icon icon="icon-park-solid:applet-closed" class="text-red-500" />
-											{/if}
-										</div>
-									</div>
-									{#if r.info?.description}
-										<p class="text-sm mt-2 line-clamp-3">{r.info.description}</p>
-									{/if}
-									<div class="mt-2 flex flex-wrap gap-2 text-xs opacity-70">
-										{#if r.info?.software}<span>SW: {r.info.software}</span>{/if}
-										{#if r.info?.version}<span>v{r.info.version}</span>{/if}
-										{#if r.info?.supported_nips?.length}
-											<span
-												>NIPs: {r.info.supported_nips.slice(0, 6).join(', ')}{r.info.supported_nips
-													.length > 6
-													? '…'
-													: ''}</span
-											>
-										{/if}
-									</div>
-								</div>
+								{#if isSelected}
+									<Icon icon="mingcute:check-line" class="text-accent-content text-sm" />
+								{/if}
 							</div>
-						{/each}
-					</div>
+
+							<!-- Icon or Status dot -->
+							{#if r.info?.icon}
+								<img src={proxyAvatarUrl(r.info.icon)} alt="" class="w-5 h-5 rounded shrink-0 object-cover" />
+							{:else}
+								<div class="shrink-0 w-2 h-2 rounded-full"
+									class:bg-success={r.status === 'open' || r.status === 'connected'}
+									class:bg-warning={r.status === 'connecting'}
+									class:bg-error={r.status === 'failed'}
+									class:bg-base-300={r.status === 'close' || !r.status}
+								></div>
+							{/if}
+
+							<!-- Relay name & info -->
+							<div class="min-w-0 flex-1 flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-3">
+								<div class="font-medium truncate">
+									{relayName(r)}
+								</div>
+								<!-- Description (if available) -->
+								{#if r.info?.description}
+									<div class="text-xs opacity-50 truncate hidden sm:block flex-1">
+										{r.info.description}
+									</div>
+								{/if}
+							</div>
+
+							<!-- Badges -->
+							<div class="flex items-center gap-1.5 shrink-0">
+								<!-- Search support -->
+								{#if nips.includes(50)}
+									<div class="badge badge-xs badge-info" title="Search support (NIP-50)">search</div>
+								{/if}
+								<!-- Auth required -->
+								{#if nips.includes(42)}
+									<div class="badge badge-xs badge-warning" title="Auth required (NIP-42)">auth</div>
+								{/if}
+								<!-- NIP count -->
+								{#if nips.length}
+									<div class="badge badge-xs"
+										class:badge-accent={isSelected}
+										class:badge-ghost={!isSelected}
+									>
+										{nips.length}
+									</div>
+								{/if}
+								<!-- Software -->
+								{#if r.info?.software}
+									{@const software = r.info.software
+										.replace(/^https?:\/\/github\.com\//, '')
+										.replace(/^nostr-/, '')
+										.replace(/-relay$/, '')
+										.replace(/\.git$/, '')}
+									<div class="badge badge-xs badge-ghost hidden sm:inline-block truncate max-w-16" title={r.info.software}>
+										{software}
+									</div>
+								{/if}
+							</div>
+						</div>
+					{/each}
 				</VirtualList>
 			{:else}
 				<div class="p-8 text-center opacity-70">No relays to show yet.</div>
@@ -180,4 +190,3 @@
 		</div>
 	</div>
 </div>
-—

@@ -8,30 +8,32 @@
 		SaveToDbPipeConfigT,
 		SerializeEventsPipeConfigT,
 		type ConnectionStatus,
+		type Kind3Parsed,
 		type Kind4Parsed,
 		type ParsedEvent,
 		type RequestObject,
-		type SubscriptionConfig,
 		type WorkerMessage
 	} from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import {
+		asKind3,
 		asKind4,
 		asParsedEvent,
 		ConnectionTracker,
+		fbArray,
 		isConnectionStatus,
 		isKind4
 	} from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { formatDistanceToNow } from 'date-fns';
-	import { orderBy, uniq } from 'lodash';
+	import { orderBy } from 'lodash';
 	import { cubicOut } from 'svelte/easing';
 	import { tweened } from 'svelte/motion';
 
 	import Pager from 'src/components/Pager.svelte';
 	import RelaysList from 'src/components/RelaysList.svelte';
 	import { key } from 'src/controller';
-	import { mutePipeConfig, readRelays, writeRelays } from 'src/controller/nostr';
+	import { kind3, mutePipeConfig, readRelays, writeRelays } from 'src/controller/nostr';
 	import Content from 'src/routes/explore/_post/content.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import Feed from 'src/routes/explore/feed.svelte';
@@ -42,13 +44,18 @@
 
 	export let visible = true;
 
+	type ChatListTab = 'messages' | 'request';
+
 	// Feed items managed by parent - grouped by chatId
 	let chatItems: ParsedEvent[] = [];
 	let rawEvents: ParsedEvent[] = [];
 	let loading = false;
 	let refreshing = false;
 
-	let contacts: { [key: string]: ParsedEvent } = {};
+	let activeChatTab: ChatListTab = 'messages';
+	let messageItems: ParsedEvent[] = [];
+	let requestItems: ParsedEvent[] = [];
+	let contactPubkeys = new Set<string>();
 
 	let connectionStatus: { [url: string]: ConnectionStatus } = {};
 	let connectionTracker: ConnectionTracker | undefined;
@@ -113,23 +120,90 @@
 		];
 	}
 
-	// Process raw events into grouped conversations by chatId
-	function processEvents(events: ParsedEvent[]): ParsedEvent[] {
-		const contactsMap: { [key: string]: ParsedEvent } = {};
-		events.forEach((dm) => {
-			const kind4 = asKind4(dm) as Kind4Parsed;
-			if (kind4.chatId()) {
-				const prev = contactsMap[kind4.chatId()];
-				if ((prev?.createdAt() || 0) < dm.createdAt()) {
-					contactsMap[kind4.chatId()] = dm;
-				}
-			}
-		});
-		return orderBy(Object.values(contactsMap), [(contact) => contact.createdAt()], ['desc']);
+	// Keep contact pubkeys ready for classifying message/request lists.
+	$: {
+		const pubs =
+			$kind3
+				? fbArray(asKind3($kind3) as Kind3Parsed, 'contacts')
+						.map((contact) => contact.pubkey())
+						.filter((pubkey): pubkey is string => Boolean(pubkey))
+				: [];
+		contactPubkeys = new Set(pubs);
 	}
 
-	// Reactive: process raw events into chat items
-	$: chatItems = processEvents(rawEvents);
+	// Process raw events into grouped conversations and split by list type.
+	function processEvents(
+		events: ParsedEvent[],
+		knownContacts: Set<string>,
+		hasContactList: boolean
+	): {
+		messages: ParsedEvent[];
+		request: ParsedEvent[];
+	} {
+		const chatMap: {
+			[key: string]: { latest: ParsedEvent; hasOutgoing: boolean; correspondant: string };
+		} = {};
+
+		events.forEach((dm) => {
+			const kind4 = asKind4(dm) as Kind4Parsed;
+			const chatId = kind4.chatId();
+			if (!chatId) return;
+
+			const prev = chatMap[chatId];
+			const isOutgoing = dm.pubkey() === $key?.pub;
+			const peerPubkey = correspondant(dm);
+
+			if (!prev) {
+				chatMap[chatId] = {
+					latest: dm,
+					hasOutgoing: isOutgoing,
+					correspondant: peerPubkey
+				};
+				return;
+			}
+
+			chatMap[chatId] = {
+				latest: prev.latest.createdAt() < dm.createdAt() ? dm : prev.latest,
+				hasOutgoing: prev.hasOutgoing || isOutgoing,
+				correspondant: prev.correspondant || peerPubkey
+			};
+		});
+
+		const sortedChats = orderBy(
+			Object.values(chatMap),
+			[(chat) => chat.latest.createdAt()],
+			['desc']
+		);
+
+		return sortedChats.reduce(
+			(acc, chat) => {
+				const isInContacts = hasContactList ? knownContacts.has(chat.correspondant) : true;
+				if (isInContacts || chat.hasOutgoing) {
+					acc.messages.push(chat.latest);
+				} else {
+					acc.request.push(chat.latest);
+				}
+				return acc;
+			},
+			{ messages: [], request: [] } as { messages: ParsedEvent[]; request: ParsedEvent[] }
+		);
+	}
+
+	// Reactive: process raw events into messages/request lists.
+	$: {
+		const groupedChats = processEvents(rawEvents, contactPubkeys, Boolean($kind3));
+		messageItems = groupedChats.messages;
+		requestItems = groupedChats.request;
+	}
+
+	// Reactive: select list items shown in Feed.
+	$: {
+		if (activeChatTab === 'request') {
+			chatItems = requestItems;
+		} else {
+			chatItems = messageItems;
+		}
+	}
 
 	let subs: string[] = [];
 	let eoce = false;
@@ -209,7 +283,6 @@
 		refreshing = true;
 		eoce = false;
 		rawEvents = [];
-		contacts = {};
 		const requests = buildRequests();
 		if (requests.length > 0) {
 			unsubscribe?.();
@@ -228,6 +301,14 @@
 		const kind4 = asKind4(post) as Kind4Parsed;
 		const recipient = kind4.recipient() || '';
 		return recipient == $key?.pub ? post.pubkey()! : (recipient as string);
+	}
+
+	function selectChatTab(tab: ChatListTab) {
+		activeChatTab = tab;
+		if (start !== 0 || end !== 0) {
+			start = 0;
+			end = 0;
+		}
 	}
 
 	function showChatInfoModal() {
@@ -255,11 +336,34 @@
 	>
 		<svelte:fragment slot="sticky-header">
 			<div class="relative pt-safe bg-base-300 bg-opacity-50">
-				<div class="flex justify-between w-feed lg:m-auto h-16 items-center">
+				<div class="flex justify-between w-feed lg:m-auto h-16 items-center px-1">
 					<h1 class="text-2xl font-semibold">BM</h1>
-					<button class="btn btn-circle btn-sm btn-primary">
+					<button
+						class="btn btn-circle btn-sm btn-primary"
+						on:click|stopPropagation={() => go('newchat')}
+					>
 						<Icon icon="teenyicons:add-outline" class="text-xl"></Icon>
 					</button>
+				</div>
+				<div class="w-feed lg:m-auto pb-2 px-1">
+					<div class="tabs tabs-boxed bg-base-200 bg-opacity-70 w-full">
+						<button
+							class="tab flex-1"
+							class:tab-active={activeChatTab === 'messages'}
+							on:click={() => selectChatTab('messages')}
+						>
+							messages
+							<span class="badge badge-sm ml-2">{messageItems.length}</span>
+						</button>
+						<button
+							class="tab flex-1"
+							class:tab-active={activeChatTab === 'request'}
+							on:click={() => selectChatTab('request')}
+						>
+							request
+							<span class="badge badge-sm ml-2">{requestItems.length}</span>
+						</button>
+					</div>
 				</div>
 			</div>
 		</svelte:fragment>
@@ -301,6 +405,28 @@
 					</button>
 				</div>
 				<RelaysList relays={normalizedRelays} {connectionStatus} />
+				<div class="px-1 mt-2">
+					<div class="tabs tabs-boxed bg-base-200 bg-opacity-70 w-full">
+						<button
+							class="tab flex-1"
+							class:tab-active={activeChatTab === 'messages'}
+							class:!bg-base-100={activeChatTab === 'messages'}
+							on:click={() => selectChatTab('messages')}
+						>
+							messages
+							<span class="badge badge-sm ml-2">{messageItems.length}</span>
+						</button>
+						<button
+							class="tab flex-1"
+							class:tab-active={activeChatTab === 'request'}
+							class:!bg-base-100={activeChatTab === 'request'}
+							on:click={() => selectChatTab('request')}
+						>
+							request
+							<span class="badge badge-sm ml-2">{requestItems.length}</span>
+						</button>
+					</div>
+				</div>
 			</div>
 		</svelte:fragment>
 		<svelte:fragment slot="empty-content">

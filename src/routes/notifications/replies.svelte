@@ -20,18 +20,27 @@
 	let originalPost: ParsedEvent | null = null;
 	let expanded: boolean = false;
 	let timeout: NodeJS.Timeout | undefined;
+	let activePostKey = '';
 
 	let sub: () => void;
+
+	function getNotificationKey() {
+		const idValue = post?.id?.();
+		if (typeof idValue === 'string' && idValue.length > 0) return idValue;
+		const hash = idValue?.fnv1aHash?.();
+		if (typeof hash === 'string' && hash.length > 0) return hash;
+		return `${post?.type || 'reply'}-${post?.parsed?.referencedPostId || post?.createdAt?.() || 'unknown'}`;
+	}
 
 	function toggleExpanded() {
 		expanded = !expanded;
 	}
 
-	function subscribe() {
+	function subscribe(postKey: string, referencedPostId: string) {
 		timeout = setTimeout(async () => {
 			if (visible) {
 				sub = useSubscription(
-					post.id() + 'replies',
+					`${postKey}-replies`,
 					[
 						{
 							kinds: [0],
@@ -41,7 +50,7 @@
 						},
 						{
 							kinds: [1],
-							ids: [post.parsed.referencedPostId],
+							ids: [referencedPostId],
 							relays: [],
 							cacheFirst: true
 						}
@@ -60,11 +69,11 @@
 	}
 
 	function unsubscribe() {
-		if (timeout) {
-			clearTimeout(timeout);
-			timeout = undefined;
-			sub?.();
-		}
+		if (timeout) clearTimeout(timeout);
+		timeout = undefined;
+		sub?.();
+		sub = undefined;
+		activePostKey = '';
 	}
 
 	onMount(() => {
@@ -73,7 +82,20 @@
 		};
 	});
 
-	$: visible ? subscribe() : unsubscribe();
+	$: {
+		const referencedPostId = post?.parsed?.referencedPostId;
+		const postKey = getNotificationKey();
+
+		if (!visible || !referencedPostId) {
+			unsubscribe();
+		} else if (postKey !== activePostKey) {
+			unsubscribe();
+			context = [];
+			originalPost = null;
+			activePostKey = postKey;
+			subscribe(postKey, referencedPostId);
+		}
+	}
 </script>
 
 <!-- {post.parsed.referencedPostId} -->

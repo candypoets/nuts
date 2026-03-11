@@ -231,18 +231,18 @@
 </script>
 
 <!-- Header for the page -->
-<Feed
-	items={notificationItems}
-	{loading}
-	{visible}
-	getItemId={(item) => {
-		// ProcessedNotification has id() that returns { fnv1aHash: () => string }
-		const idObj = item?.id?.();
-
-		return idObj || Math.random().toString();
-	}}
-	onNearBottom={handleNearBottom}
->
+	<Feed
+		items={notificationItems}
+		{loading}
+		{visible}
+		getItemId={(item) => {
+			// Use a stable primitive key. Returning object/random causes row churn.
+			const idObj = item?.id?.();
+			const hash = idObj?.fnv1aHash?.();
+			return hash || `${item?.type || 'notification'}-${item?.parsed?.referencedPostId || item?.createdAt?.() || 'unknown'}`;
+		}}
+		onNearBottom={handleNearBottom}
+	>
 	<svelte:fragment slot="sticky-header">
 		<div
 			class="w-feed pt-safe bg-base-300 bg-opacity-85 mt-1 rounded-lg h-20 pb-2 flex items-center justify-between shadow-sm"
