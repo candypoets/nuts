@@ -51,27 +51,30 @@
 		if (isSubmitting || !content) return;
 		isSubmitting = true;
 
+		// Get tags from the editor (nprofile -> p tags, nevent -> q tags, etc.)
+		const editorTags = $editor.storage.nostr?.getEditorTags() || [];
+
 		let post: EventTemplate = {
 			kind: 1,
 			created_at: now(),
 			content: content.trim(),
-			tags: []
+			tags: editorTags
 		};
 
 		if (note && reply) {
 			post.id = reply;
-			post.tags = fbArray(note, 'tags').map((sv) =>
+			// Start with parent's tags, then add editor tags
+			const parentTags = fbArray(note, 'tags').map((sv) =>
 				fbArray(sv, 'items').map((item) => item)
 			);
+			post.tags = [...parentTags, ...editorTags];
 		}
 
 		if (note && repost) {
-			if (!content.trim()) {
-				post.kind = 1;
-			} else {
-				post.kind = 1;
-			}
+			// Append the quoted event as a nostr:nevent in content
 			post.content += '\n\nnostr:' + nip19.neventEncode({ id: repost });
+			
+			// Get relay hints for the quoted event
 			const timeoutPromise = new Promise<null>((resolve) => {
 				setTimeout(() => resolve(null), 2000);
 			});
@@ -80,19 +83,15 @@
 				getUserRelays(note.pubkey(), resolve);
 			});
 
-			await Promise.race([timeoutPromise, relaysPromise]).then((result) => {
-				if (result === null) {
-					post.tags = [
-						['e', repost, '', 'mention'],
-						['p', note!.pubkey()]
-					];
-				} else {
-					post.tags = [
-						['e', repost, result[0], 'mention'],
-						['p', note!.pubkey()]
-					];
-				}
-			});
+			const result = await Promise.race([timeoutPromise, relaysPromise]);
+			const relayHint = result === null ? '' : result[0];
+			
+			// Add q tag for the quoted event (NIP-18) and p tag for the author
+			post.tags = [
+				...editorTags,
+				['q', repost, relayHint, note!.pubkey()],
+				['p', note!.pubkey()]
+			];
 		}
 
 		post = prepareEvent(post);

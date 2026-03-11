@@ -14,6 +14,8 @@
 	import {
 		asConnectionStatus,
 		asCountResponse,
+		asParsedEvent,
+		fbArray,
 		isConnectionStatus
 	} from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
@@ -51,6 +53,12 @@
 	let reactionCount = 0;
 	let replyCount = 0;
 	let repostCount = 0;
+	let quoteCount = 0;
+
+	// Track seen events to avoid double counting
+	const seenReplyIds = new Set<string>();
+	const seenQuoteIds = new Set<string>();
+	const seenRepostIds = new Set<string>();
 
 	let decoded = {
 		id: note.id()!,
@@ -89,6 +97,7 @@
 						liked = liked || count.you();
 						break;
 					case 1:
+						// Kind 1 with #e tag = replies (quotes with #q are handled separately via raw events)
 						replyCount = count.count() || replyCount;
 						replied = replied || count.you();
 						break;
@@ -97,6 +106,26 @@
 						reposted = reposted || count.you();
 						break;
 				}
+				break;
+			case MessageType.ParsedNostrEvent:
+				// Handle raw events for quotes (kind 1 with #q tag)
+				const event = asParsedEvent(message) as ParsedEvent;
+				if (event && event.kind() === 1) {
+					const eventId = event.id();
+					const tags = event.tags ? fbArray(event, 'tags') : [];
+					const hasQTag = tags.some((tag: any) => {
+						const items = fbArray(tag, 'items');
+						return items[0] === 'q' && items[1] === decoded.id;
+					});
+					if (hasQTag && !seenQuoteIds.has(eventId)) {
+						seenQuoteIds.add(eventId);
+						quoteCount = seenQuoteIds.size;
+						if (event.pubkey() === $key?.pub) {
+							reposted = true;
+						}
+					}
+				}
+				break;
 		}
 	};
 
@@ -108,6 +137,8 @@
 				subed++;
 				relaysub = getUserRelays(decoded.pubkey, (result) => {
 					relays = result.slice(0, $isMobile ? 3 : 5);
+					
+					// Main subscription: replies (kind 1 #e), reposts (kind 6), reactions (kind 7/17)
 					sub = useSubscription(
 						'f_' + decoded.id,
 						[
@@ -120,6 +151,29 @@
 						],
 						handleEvents,
 						subscriptionOptions
+					);
+
+					// Separate subscription for quotes (kind 1 with #q tag)
+					// Uses raw events instead of CounterPipe to distinguish quotes from replies
+					useSubscription(
+						'fq_' + decoded.id,
+						[
+							{
+								kinds: [1],
+								tags: { '#q': [decoded.id] },
+								noContext: true,
+								relays
+							}
+						],
+						handleEvents,
+						{
+							pipeline: [
+								new PipeT(PipeConfig.MuteFilterPipeConfig, $mutePipeConfig),
+								new PipeT(PipeConfig.SaveToDbPipeConfig, new SaveToDbPipeConfigT())
+								// No CounterPipe - we count raw events manually
+							],
+							bytesPerEvent: 256
+						}
 					);
 				});
 			}
@@ -225,7 +279,7 @@
 			on:click|stopPropagation={() => go('repost:' + note.id())}
 		>
 			<Icon icon="ph:repeat" class="text-2xl" />
-			<span>{repostCount || ''}</span>
+			<span>{(repostCount + quoteCount) || ''}</span>
 		</div>
 		<div
 			bind:this={triggerElement}

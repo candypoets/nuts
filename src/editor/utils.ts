@@ -24,7 +24,8 @@ export const contentTags = (text: string) => {
 			]);
 		} else if (nevent) {
 			const { data } = nip19.decode(nevent.replace('nostr:', ''));
-			eventTags.push(['e', data.id, data.relays?.[0] || '']);
+			// Use 'q' tag for quotes (NIP-18) instead of 'e' tag
+			eventTags.push(['q', data.id, data.relays?.[0] || '']);
 		} else if (nprofile) {
 			const { data } = nip19.decode(nprofile.replace('nostr:', ''));
 			profileTags.push(['p', data.pubkey, data.relays?.[0] || '']);
@@ -47,7 +48,13 @@ export const prepareEvent = (partialEvent: EventTemplate | NostrEvent): EventTem
 	const refs = nip10.parse(partialEvent);
 	const ctags = contentTags(partialEvent.content);
 
-	let eTags = [];
+	// Preserve existing q tags from partialEvent (they have priority over parsed ones)
+	const existingQTags = (partialEvent.tags || []).filter((t) => t[0] === 'q');
+	const existingQIds = new Set(existingQTags.map((t) => t[1]));
+
+	let eTags: string[][] = [];
+	let qTags: string[][] = [...existingQTags]; // Start with existing q tags
+
 	if (refs.root) {
 		eTags.push(['e', refs.root.id, refs.root.relays?.[0] || '', 'root']);
 	}
@@ -58,7 +65,12 @@ export const prepareEvent = (partialEvent: EventTemplate | NostrEvent): EventTem
 		eTags.push(['e', mention.id, mention.relays?.[0] || '']);
 	}
 
-	eTags.push(...ctags.events);
+	// Add q tags from content, but skip if we already have that event id from existing tags
+	for (const qTag of ctags.events) {
+		if (!existingQIds.has(qTag[1])) {
+			qTags.push(qTag);
+		}
+	}
 
 	if (partialEvent?.id) {
 		// if there is an id before finalize(), it means we are using that event template to reply to it
@@ -69,7 +81,7 @@ export const prepareEvent = (partialEvent: EventTemplate | NostrEvent): EventTem
 		}
 	}
 
-	let pTags = [];
+	let pTags: string[][] = [];
 
 	for (let profile of refs.profiles) {
 		pTags.push(['p', profile.pubkey, profile.relays?.[0] || '']);
@@ -77,8 +89,10 @@ export const prepareEvent = (partialEvent: EventTemplate | NostrEvent): EventTem
 
 	pTags.push(...ctags.profiles);
 
+	// Deduplicate e tags and q tags separately (they have different semantics)
 	partialEvent.tags = [
 		..._.uniqBy(eTags, (tag) => tag[1]),
+		..._.uniqBy(qTags, (tag) => tag[1]),
 		..._.uniqBy(pTags, (tag) => tag[1]),
 		...ctags.addresses,
 		...ctags.hashtags,
