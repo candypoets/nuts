@@ -3,6 +3,7 @@
 	import { normalizeURL } from 'nostr-tools/utils';
 	import VirtualList from 'src/components/VirtualList.svelte';
 	import SearchInput from 'src/components/SearchInput.svelte';
+	import ModalHandle from 'src/components/ModalHandle.svelte';
 	import { relayInfos, relayStatusMap, relaySubs, setSubRelays } from 'src/controller/relay';
 	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
@@ -71,17 +72,14 @@
 		class="bg-base-300 bg-opacity-85 w-full !h-2/3 !min-h-fit rounded-t-2xl md:rounded-xl md:h-1/2 flex flex-col shadow-widget"
 		on:click|stopPropagation
 	>
+		<ModalHandle />
 		<!-- Header -->
-		<div class="px-4 pt-safe flex justify-between h-16 items-center shrink-0">
-			<div on:click={animator.goBack}>
-				<Icon icon="mingcute:down-line" class="text-xl" />
-			</div>
+		<!-- <div class="px-4 flex justify-center h-16 items-center shrink-0">
 			<h2 class="text-xl font-bold">Relays</h2>
-			<div></div>
-		</div>
+		</div> -->
 
 		<!-- Search -->
-		<div class="px-4 pb-3 shrink-0">
+		<div class="px-2 pb-3 mt-4 shrink-0">
 			<SearchInput
 				placeholder="Search relays"
 				bind:value={search}

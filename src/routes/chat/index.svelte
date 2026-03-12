@@ -348,7 +348,7 @@
 				<div class="w-feed lg:m-auto pb-2 px-1">
 					<div class="tabs tabs-boxed bg-base-200 bg-opacity-70 w-full">
 						<button
-							class="tab flex-1"
+							class="tab flex-1 !text-base-300"
 							class:tab-active={activeChatTab === 'messages'}
 							on:click={() => selectChatTab('messages')}
 						>
