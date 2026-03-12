@@ -26,6 +26,7 @@
 	import { page } from '$app/stores';
 
 	import Alert from 'src/components/Alert.svelte';
+	import KeyboardShortcutsGuide from 'src/components/KeyboardShortcutsGuide.svelte';
 	import Statuses from 'src/components/Statuses.svelte';
 	import { key } from 'src/controller';
 	import {
@@ -456,6 +457,8 @@
 	<div class="flex space-x-2 w-1/2 m-auto" bind:this={progressContainer}></div>
 </div>
 <!-- {/if} -->
+<KeyboardShortcutsGuide />
+
 {#if !homepage}
 	{#each Object.entries($sendStatuses) as [sendId, connectionStatus]}
 		{#if connectionStatus}
