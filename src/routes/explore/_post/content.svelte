@@ -3,6 +3,7 @@
 	import Note from '../note.svelte';
 	import User from '../user.svelte';
 	import Cashu from './cashu.svelte';
+	import YouTube from './YouTube.svelte';
 
 	import {
 		ContentBlock,
@@ -53,6 +54,12 @@
 		if (content.slice(index + 1).some((b) => b.type() == 'text')) return false;
 		return true;
 	}
+
+	// Check if URL is a YouTube link
+	function isYouTubeUrl(url: string | null | undefined): boolean {
+		if (!url) return false;
+		return url.includes('youtube.com') || url.includes('youtu.be');
+	}
 </script>
 
 <div
@@ -95,7 +102,9 @@
 			<!-- {/if} -->
 		{:else if parsed.dataType() == ContentData.LinkPreviewData}
 			{@const preview = asLinkPreview(parsed)}
-			{#if preview && preview?.image() && false}
+			{#if preview && isYouTubeUrl(preview?.url())}
+				<YouTube url={preview?.url() || ''} />
+			{:else if preview && preview?.image() && false}
 				<a
 					href={preview?.url()}
 					target="_blank"

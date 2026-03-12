@@ -570,27 +570,21 @@
 		<VirtualList items={[]} height="100%" bind:viewport={scroller} getItemId={() => 'header'}>
 			<div slot="feed-header">
 				<div>
-					<!-- Header: Close button + Recipient -->
-					<div class="flex items-center justify-between px-2 py-2">
+					<!-- Header: Close button + Sender -->
+					<div class="flex items-start justify-between px-2 py-2">
 						<button on:click={animator.goBack} class="btn btn-ghost btn-sm">
 							<Icon icon="mingcute:down-line" class="text-xl" />
 						</button>
 
-						<!-- Recipient in header -->
-						<div class="flex-1 flex justify-center pt-safe">
-							{#if kind10019 && !zap}
-								<MintSelector
-									{pubkey}
-									mints={fbArray(kind10019, 'trustedMints')?.map((m) => m.url()) || []}
-									chevron="right"
-									bind:activeMint={toMint}
-								/>
-							{:else}
-								<div class="flex gap-2 items-center bg-base-200/50 rounded-full px-4 py-2">
-									<Avatar {pubkey} size="sm" />
-									<User {pubkey} link={false} class="font-medium text-sm" />
-								</div>
-							{/if}
+						<!-- Sender (Mint) in header -->
+						<div class="flex-1 flex justify-center pt-safe mt-4">
+							<MintSelector
+								mints={($kind17375 && fbArray(asKind17375($kind17375), 'mints'))?.map((mint) =>
+									mint
+								) || []}
+								pubkey={$key?.pub}
+								bind:activeMint={fromMint}
+							/>
 						</div>
 
 						<!-- Spacer to balance the close button -->
@@ -605,15 +599,26 @@
 					{/if} -->
 
 					<div class="px-4 mt-4">
-						<!-- Sender (Mint) above amount -->
+						<!-- Down arrow indicating flow -->
+						<div class="flex justify-center mb-4">
+							<Icon icon="mdi:arrow-down" class="text-2xl text-base-content/50" />
+						</div>
+
+						<!-- Recipient below sender -->
 						<div class="flex justify-center mb-6">
-							<MintSelector
-								mints={($kind17375 && fbArray(asKind17375($kind17375), 'mints'))?.map((mint) =>
-									mint
-								) || []}
-								pubkey={$key?.pub}
-								bind:activeMint={fromMint}
-							/>
+							{#if kind10019 && !zap}
+								<MintSelector
+									{pubkey}
+									mints={fbArray(kind10019, 'trustedMints')?.map((m) => m.url()) || []}
+									chevron="right"
+									bind:activeMint={toMint}
+								/>
+							{:else}
+								<div class="flex gap-2 items-center bg-base-200/50 rounded-full px-4 py-2">
+									<Avatar {pubkey} size="sm" />
+									<User {pubkey} link={false} class="font-medium text-sm" />
+								</div>
+							{/if}
 						</div>
 					<div>
 						<div class="w-full gap-3">

@@ -4,12 +4,13 @@
 	import { activeMintUrl, fetchMintData, getCachedMintData } from 'src/controller/wallet';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import { go } from 'src/routes/modals/modal';
-
+	import Avatar from 'src/routes/explore/avatar.svelte';
 
 	export let mintUrl: string | null;
 	export let size = 'lg';
 	export let navigate = false;
 	export let showBalance = true;
+	export let pubkey: string = '';
 
 
 
@@ -66,6 +67,12 @@
 		class:cursor-pointer={navigate}
 		on:click={goto}
 	>
+		<!-- Recipient avatar in top-right corner when pubkey is provided -->
+		{#if pubkey}
+			<div class="absolute -top-3 -right-3 z-10">
+				<Avatar {pubkey} size="md" customClass="border-2 border-white shadow-md" />
+			</div>
+		{/if}
 		{#await getMintData(mintUrl)}
 			<div class="w-72 h-32 bg-gray-700/30 rounded-xl animate-pulse shrink-0"></div>
 		{:then mint}
