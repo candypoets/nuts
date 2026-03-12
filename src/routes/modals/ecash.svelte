@@ -577,7 +577,7 @@
 						</button>
 
 						<!-- Recipient in header -->
-						<div class="flex-1 flex justify-center">
+						<div class="flex-1 flex justify-center pt-safe">
 							{#if kind10019 && !zap}
 								<MintSelector
 									{pubkey}

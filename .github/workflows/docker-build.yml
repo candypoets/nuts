@@ -61,6 +61,9 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             NODE_OPTIONS=--max-old-space-size=8192
+            VITE_DEFAULT_RELAYS=wss://relay.thibautduchene.fr,wss://relay.damus.io,wss://relay.nuts.cash
+            VITE_INDEXER_RELAYS=wss://purplepag.es,wss://user.kindpag.es,wss://relay.damus.io
+            VITE_SEARCH_RELAYS=wss://relay.nuts.cash
 
       - name: Build summary
         if: github.event_name != 'pull_request'
