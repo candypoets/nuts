@@ -122,12 +122,11 @@
 
 	// Keep contact pubkeys ready for classifying message/request lists.
 	$: {
-		const pubs =
-			$kind3
-				? fbArray(asKind3($kind3) as Kind3Parsed, 'contacts')
-						.map((contact) => contact.pubkey())
-						.filter((pubkey): pubkey is string => Boolean(pubkey))
-				: [];
+		const pubs = $kind3
+			? fbArray(asKind3($kind3) as Kind3Parsed, 'contacts')
+					.map((contact) => contact.pubkey())
+					.filter((pubkey): pubkey is string => Boolean(pubkey))
+			: [];
 		contactPubkeys = new Set(pubs);
 	}
 
@@ -348,16 +347,18 @@
 				<div class="w-feed lg:m-auto pb-2 px-1">
 					<div class="tabs tabs-boxed bg-base-200 bg-opacity-70 w-full">
 						<button
-							class="tab flex-1 !text-base-300"
+							class="tab flex-1 !text-inherit"
 							class:tab-active={activeChatTab === 'messages'}
+							class:!bg-base-100={activeChatTab === 'messages'}
 							on:click={() => selectChatTab('messages')}
 						>
 							messages
 							<span class="badge badge-sm ml-2">{messageItems.length}</span>
 						</button>
 						<button
-							class="tab flex-1"
+							class="tab flex-1 !text-inherit"
 							class:tab-active={activeChatTab === 'request'}
+							class:!bg-base-100={activeChatTab === 'request'}
 							on:click={() => selectChatTab('request')}
 						>
 							request
@@ -408,7 +409,7 @@
 				<div class="px-1 mt-2">
 					<div class="tabs tabs-boxed bg-base-200 bg-opacity-70 w-full">
 						<button
-							class="tab flex-1"
+							class="tab flex-1 !text-inherit"
 							class:tab-active={activeChatTab === 'messages'}
 							class:!bg-base-100={activeChatTab === 'messages'}
 							on:click={() => selectChatTab('messages')}
@@ -417,7 +418,7 @@
 							<span class="badge badge-sm ml-2">{messageItems.length}</span>
 						</button>
 						<button
-							class="tab flex-1"
+							class="tab flex-1 !text-inherit"
 							class:tab-active={activeChatTab === 'request'}
 							class:!bg-base-100={activeChatTab === 'request'}
 							on:click={() => selectChatTab('request')}
