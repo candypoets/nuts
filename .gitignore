@@ -16,3 +16,4 @@ src/model/nostr-worker/target
 screenshots
 archive/
 *.wasm
+server.js

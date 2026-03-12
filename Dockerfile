@@ -35,6 +35,9 @@ RUN rm -rf .svelte-kit build
 # Build the application
 RUN npm run build
 
+# Build the custom server
+RUN npx tsc server.ts --esModuleInterop --target ES2022 --module nodenext --moduleResolution nodenext --skipLibCheck --outDir .
+
 # Production stage
 FROM node:20-alpine AS runner
 
@@ -55,10 +58,11 @@ COPY --from=builder /app/package-lock.json ./
 # Install only production dependencies using the fresh lockfile
 RUN npm ci --only=production && npm cache clean --force
 
-# Copy built application
+# Copy built application and server
 COPY --from=builder /app/build ./build
+COPY --from=builder /app/server.js ./server.js
 
 EXPOSE 3000
 
-# Start the server
-CMD ["node", "build/index.js"]
+# Start the custom server (with nipworker proxy attached)
+CMD ["node", "server.js"]
