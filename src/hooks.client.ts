@@ -1,6 +1,6 @@
 import { createNostrManager, setGlobalManager } from '@candypoets/nipworker';
 
-console.log('client hooks here');
+console.log('client hooks here with url', import.meta.env.VITE_NIPWORKER_PROXY_URL);
 
 // Get proxy URL from environment variable (Vite exposes env vars prefixed with VITE_)
 const proxyUrl = import.meta.env.VITE_NIPWORKER_PROXY_URL;
