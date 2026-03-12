@@ -3,22 +3,11 @@
 	import Icon from '@iconify/svelte';
 	import { fly, fade } from 'svelte/transition';
 
-	let collapsed = true;
+	let expanded = false;
 	let loaded = false;
 	let containerEl: HTMLDivElement;
 
 	onMount(() => {
-		// Check if user has dismissed it before
-		const dismissed = localStorage.getItem('shortcuts-guide-dismissed');
-		if (dismissed === 'true') {
-			collapsed = true;
-		} else {
-			// Auto-expand on first visit, then collapse after 5 seconds
-			collapsed = false;
-			setTimeout(() => {
-				collapsed = true;
-			}, 5000);
-		}
 		loaded = true;
 
 		// Add click outside listener
@@ -31,34 +20,26 @@
 
 	function toggle(event?: MouseEvent) {
 		event?.stopPropagation();
-		collapsed = !collapsed;
+		expanded = !expanded;
 	}
 
 	function dismiss() {
 		localStorage.setItem('shortcuts-guide-dismissed', 'true');
-		collapsed = true;
+		expanded = false;
 	}
 
 	function handleClickOutside(event: MouseEvent) {
-		if (!collapsed && containerEl && !containerEl.contains(event.target as Node)) {
-			collapsed = true;
+		if (expanded && containerEl && !containerEl.contains(event.target as Node)) {
+			expanded = false;
 		}
 	}
 
-	const shortcuts = [
-		{ keys: ['←', '→'], description: 'Navigate feeds', separator: '/' },
+	const otherShortcuts = [
 		{ keys: ['Esc'], description: 'Go back' },
 		{ keys: ['Ctrl', 'K'], description: 'Search' },
 		{ keys: ['Ctrl', 'P'], description: 'New post' },
 		{ keys: ['Ctrl', 'T'], description: 'Themes' }
 	];
-
-	function formatKeys(keys: string[], separator?: string) {
-		if (separator && keys.length === 2) {
-			return `${keys[0]} ${separator} ${keys[1]}`;
-		}
-		return keys.join(' + ');
-	}
 </script>
 
 {#if loaded}
@@ -67,15 +48,18 @@
 		class="fixed top-4 left-4 z-40 hidden lg:block"
 		transition:fade={{ duration: 200 }}
 	>
-		{#if collapsed}
-			<!-- Collapsed: Just a hint button -->
+		{#if !expanded}
+			<!-- Compact: Just the essential arrows -->
 			<button
-				class="btn btn-ghost btn-sm gap-2 text-xs opacity-60 hover:opacity-100 transition-opacity"
+				class="flex items-center gap-1.5 bg-base-200/80 hover:bg-base-200 backdrop-blur-sm rounded-lg px-2 py-1.5 shadow-widget transition-all"
 				on:click={(e) => toggle(e)}
-				title="Show keyboard shortcuts"
+				title="Click for more shortcuts"
 			>
-				<Icon icon="mdi:keyboard-outline" class="text-lg" />
-				<span class="text-[10px]">Shortcuts</span>
+				<kbd class="kbd kbd-sm text-xs min-w-[1.5rem] text-center bg-primary text-primary-content border-primary">←</kbd>
+				<span class="text-xs opacity-50">/</span>
+				<kbd class="kbd kbd-sm text-xs min-w-[1.5rem] text-center bg-primary text-primary-content border-primary">→</kbd>
+				<span class="text-[10px] opacity-60 ml-1">navigate</span>
+				<span class="text-[10px] opacity-40 ml-0.5">+more</span>
 			</button>
 		{:else}
 			<!-- Expanded: Full shortcuts panel -->
@@ -106,23 +90,30 @@
 					</div>
 				</div>
 
-				<div class="space-y-2">
-					{#each shortcuts as shortcut}
+				<!-- Main shortcuts - always shown at top -->
+				<div class="bg-primary/10 rounded-lg p-2 mb-2 border border-primary/20">
+					<div class="flex items-center justify-between gap-3">
+						<span class="text-xs font-medium text-primary">Navigate between feeds</span>
+						<span class="flex items-center gap-1 shrink-0">
+							<kbd class="kbd kbd-sm text-xs min-w-[1.75rem] text-center bg-primary text-primary-content border-primary">←</kbd>
+							<span class="text-xs opacity-50">/</span>
+							<kbd class="kbd kbd-sm text-xs min-w-[1.75rem] text-center bg-primary text-primary-content border-primary">→</kbd>
+						</span>
+					</div>
+				</div>
+
+				<!-- Other shortcuts -->
+				<div class="space-y-1.5 pt-1">
+					{#each otherShortcuts as shortcut}
 						<div class="flex items-center justify-between gap-3">
-							<span class="text-xs opacity-70">{shortcut.description}</span>
+							<span class="text-xs opacity-60">{shortcut.description}</span>
 							<span class="flex items-center gap-1 shrink-0">
-								{#if shortcut.separator && shortcut.keys.length === 2}
-									<kbd class="kbd kbd-sm text-[10px] min-w-[1.5rem] text-center">{shortcut.keys[0]}</kbd>
-									<span class="text-xs opacity-50">{shortcut.separator}</span>
-									<kbd class="kbd kbd-sm text-[10px] min-w-[1.5rem] text-center">{shortcut.keys[1]}</kbd>
-								{:else}
-									{#each shortcut.keys as key, i}
-										<kbd class="kbd kbd-sm text-[10px] min-w-[1.5rem] text-center">{key}</kbd>
-										{#if i < shortcut.keys.length - 1}
-											<span class="text-xs opacity-50">+</span>
-										{/if}
-									{/each}
-								{/if}
+								{#each shortcut.keys as key, i}
+									<kbd class="kbd kbd-sm text-[10px] min-w-[1.5rem] text-center">{key}</kbd>
+									{#if i < shortcut.keys.length - 1}
+										<span class="text-xs opacity-40">+</span>
+									{/if}
+								{/each}
 							</span>
 						</div>
 					{/each}
