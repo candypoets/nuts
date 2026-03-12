@@ -19,11 +19,14 @@
 	import { onDestroy } from 'svelte';
 	import VirtualList from 'src/components/VirtualList.svelte';
 	import { mutePipeConfig } from 'src/controller/nostr';
-import { SEARCH_RELAYS } from 'src/lib/env';
+	import { SEARCH_RELAYS } from 'src/lib/env';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import { go } from './modal';
 
 	export let goBack: () => void;
+
+	// Mode: 'profiles' for searching profiles, 'hashtags' for jumping to hashtag view
+	export let mode: 'profiles' | 'hashtags' = 'profiles';
 
 	let selectedIndex = 0;
 	let loading = true;
@@ -37,17 +40,21 @@ import { SEARCH_RELAYS } from 'src/lib/env';
 	let fetchedEvents: ParsedEvent[] = [];
 	let seenPubkeys = new Map<string, ParsedEvent>();
 
-	export let placeholder = 'Search…';
+	let _placeholder = mode === 'hashtags' ? 'Enter hashtag…' : 'Search…';
+	export { _placeholder as placeholder };
 	export let hotkey: string = 'k';
 	export let requireMetaOrCtrl = true;
 	export let maxHeight = '60vh';
 	export let autoCloseOnSelect = true;
 
-	const dispatch = createEventDispatcher<{ select: ParsedEvent }>();
+	const dispatch = createEventDispatcher<{ select: ParsedEvent | string }>();
 
 	let query = '';
 	let inputEl: HTMLInputElement;
 	let activeIndex = 0;
+
+	// For hashtag mode: track if we have a valid tag to suggest
+	$: tagSuggestion = mode === 'hashtags' && query.trim() ? query.trim().replace(/^#/, '') : null;
 
 	$: if (activeIndex >= items.length) activeIndex = Math.max(0, items.length - 1);
 
@@ -59,13 +66,34 @@ import { SEARCH_RELAYS } from 'src/lib/env';
 			e.preventDefault();
 			activeIndex = Math.max(activeIndex - 1, 0);
 		} else if (e.key === 'Enter') {
-			const item = items[activeIndex];
-			if (item) {
-				dispatch('select', item);
-				const profilePath = `nprofile:${item.pubkey()}`;
-				// if (autoCloseOnSelect) goBack();
-				go(profilePath);
+			if (mode === 'hashtags') {
+				// In hashtag mode, navigate to tag view on Enter
+				const tag = query.trim().replace(/^#/, '');
+				if (tag) {
+					dispatch('select', tag);
+					go(`tags:${encodeURIComponent(tag)}`);
+				}
+			} else {
+				// Profile mode: existing behavior
+				const item = items[activeIndex];
+				if (item) {
+					dispatch('select', item);
+					const profilePath = `nprofile:${item.pubkey()}`;
+					go(profilePath);
+				}
 			}
+		} else if (e.key === 'Tab' && !e.shiftKey && !query.trim()) {
+			// Allow toggling between modes with Tab key only when input is empty
+			e.preventDefault();
+			mode = mode === 'profiles' ? 'hashtags' : 'profiles';
+		}
+	}
+
+	function goToTag(tag: string) {
+		const cleanTag = tag.replace(/^#/, '');
+		if (cleanTag) {
+			dispatch('select', cleanTag);
+			go(`tags:${encodeURIComponent(cleanTag)}`);
 		}
 	}
 
@@ -239,8 +267,8 @@ import { SEARCH_RELAYS } from 'src/lib/env';
 		}
 	};
 
-	// Reset selection when query changes
-	$: query && subscribe(query);
+	// Reset selection when query changes (only in profile mode)
+	$: if (query && mode === 'profiles') subscribe(query);
 </script>
 
 <div class="flex items-start md:items-center justify-center p-4 h-screen" on:keydown={onKey}>
@@ -254,11 +282,11 @@ import { SEARCH_RELAYS } from 'src/lib/env';
 		<div
 			class="flex items-center bg-base-200 gap-3 px-4 md:px-5 py-3 md:py-4 border-b border-base-300"
 		>
-			<Icon icon="carbon:search" class="text-xl opacity-70" />
+			<Icon icon={mode === 'hashtags' ? 'carbon:hashtag' : 'carbon:search'} class="text-xl opacity-70" />
 			<input
 				bind:this={inputEl}
 				bind:value={query}
-				{placeholder}
+				placeholder={_placeholder}
 				class="flex-1 text-lg md:text-xl bg-transparent outline-none py-2"
 				autofocus
 			/>
@@ -266,63 +294,109 @@ import { SEARCH_RELAYS } from 'src/lib/env';
 				<kbd class="kbd kbd-sm">⌘</kbd><kbd class="kbd kbd-sm">{hotkey.toUpperCase()}</kbd>
 			</div>
 		</div>
+
+		<!-- Mode Toggle -->
+		<div class="flex items-center gap-2 px-4 py-2 bg-base-200/50 border-b border-base-300">
+			<button
+				type="button"
+				class="px-3 py-1 rounded-full text-sm transition-colors {mode === 'profiles' ? 'bg-primary text-primary-content' : 'hover:bg-base-300'}"
+				on:click={() => mode = 'profiles'}
+			>
+				Profiles
+			</button>
+			<button
+				type="button"
+				class="px-3 py-1 rounded-full text-sm transition-colors {mode === 'hashtags' ? 'bg-primary text-primary-content' : 'hover:bg-base-300'}"
+				on:click={() => mode = 'hashtags'}
+			>
+				Hashtags
+			</button>
+			<span class="text-xs opacity-50 ml-2">(Press Tab to toggle)</span>
+		</div>
+
 		<!-- Results -->
 		<div class="h-full" style={`max-height: ${maxHeight};`}>
-			{#if loading && query}
-				<div class="px-6 py-10 text-center">
-					<Icon icon="mdi:loading" class="animate-spin h-6 w-6 mx-auto mb-2 opacity-70" />
-					<div class="opacity-60 text-sm">Searching...</div>
-				</div>
-			{:else if items.length > 0 && query}
-				<VirtualList
-					{items}
-					{getItemId}
-					itemsPerRow={1}
-					height="100%"
-					className="w-full"
-					let:item
-					let:items
-					let:itemIndex
-				>
+			{#if mode === 'hashtags'}
+				<!-- Hashtag Mode -->
+				{#if query.trim()}
 					<div class="divide-y divide-base-300">
-						{#each items as it, i (getItemId(it))}
-							{@const kind0 = asKind0(item)}
-							{#if kind0}
-								<button
-									type="button"
-									class="w-full text-left px-4 md:px-5 py-3 bg-base-300 opacity-75 hover:opacity-100 focus:opacity-100 outline-none flex items-center gap-3"
-									class:opacity-100={itemIndex === activeIndex}
-									class:!bg-base-200={itemIndex === activeIndex}
-									on:click={() => selectItem(it, i)}
-								>
-									{#if kind0.picture()}
-										<div class="avatar">
-											<div class="w-7 h-7 rounded">
-												<img src={proxyAvatarUrl(kind0.picture())} alt="" />
-											</div>
-										</div>
-									{:else}
-										<div class="w-5"></div>
-									{/if}
-									<div class="min-w-0 flex gap-2">
-										<div class="font-medium truncate">{kind0.name()}</div>
-									</div>
-								</button>
-							{/if}
-						{/each}
+						<button
+							type="button"
+							class="w-full text-left px-4 md:px-5 py-3 bg-base-300 opacity-75 hover:opacity-100 focus:opacity-100 outline-none flex items-center gap-3 opacity-100 !bg-base-200"
+							on:click={() => goToTag(query)}
+						>
+							<Icon icon="carbon:hashtag" class="text-xl text-primary" />
+							<div class="min-w-0 flex gap-2 items-center">
+								<div class="font-medium truncate">#{query.trim().replace(/^#/, '')}</div>
+								<span class="text-sm opacity-60">View tag feed</span>
+							</div>
+						</button>
 					</div>
-				</VirtualList>
-			{:else if query && !loading}
-				<div class="px-6 py-10 text-center opacity-70">
-					<Icon icon="carbon:search" class="h-8 w-8 mx-auto mb-2 opacity-50" />
-					<div>No results found for "{query}"</div>
-					<div class="text-sm opacity-60 mt-1">Try a different search term</div>
-				</div>
+				{:else}
+					<div class="px-6 py-10 text-center opacity-50">
+						<Icon icon="carbon:hashtag" class="h-8 w-8 mx-auto mb-2" />
+						<div>Type a hashtag to view its feed</div>
+						<div class="text-sm opacity-60 mt-1">Press Enter to navigate</div>
+					</div>
+				{/if}
 			{:else}
-				<div class="px-6 py-10 text-center opacity-50">
-					<Icon icon="carbon:search" class="h-8 w-8 mx-auto mb-2" />
-					<div>Start typing to search profiles</div>
-				</div>
+				<!-- Profile Mode (existing behavior) -->
+				{#if loading && query}
+					<div class="px-6 py-10 text-center">
+						<Icon icon="mdi:loading" class="animate-spin h-6 w-6 mx-auto mb-2 opacity-70" />
+						<div class="opacity-60 text-sm">Searching...</div>
+					</div>
+				{:else if items.length > 0 && query}
+					<VirtualList
+						{items}
+						{getItemId}
+						itemsPerRow={1}
+						height="100%"
+						className="w-full"
+						let:item
+						let:items
+						let:itemIndex
+					>
+						<div class="divide-y divide-base-300">
+							{#each items as it, i (getItemId(it))}
+								{@const kind0 = asKind0(item)}
+								{#if kind0}
+									<button
+										type="button"
+										class="w-full text-left px-4 md:px-5 py-3 bg-base-300 opacity-75 hover:opacity-100 focus:opacity-100 outline-none flex items-center gap-3"
+										class:opacity-100={itemIndex === activeIndex}
+										class:!bg-base-200={itemIndex === activeIndex}
+										on:click={() => selectItem(it, i)}
+									>
+										{#if kind0.picture()}
+											<div class="avatar">
+												<div class="w-7 h-7 rounded">
+													<img src={proxyAvatarUrl(kind0.picture())} alt="" />
+												</div>
+											</div>
+										{:else}
+											<div class="w-5"></div>
+										{/if}
+										<div class="min-w-0 flex gap-2">
+											<div class="font-medium truncate">{kind0.name()}</div>
+										</div>
+									</button>
+								{/if}
+							{/each}
+						</div>
+					</VirtualList>
+				{:else if query && !loading}
+					<div class="px-6 py-10 text-center opacity-70">
+						<Icon icon="carbon:search" class="h-8 w-8 mx-auto mb-2 opacity-50" />
+						<div>No results found for "{query}"</div>
+						<div class="text-sm opacity-60 mt-1">Try a different search term</div>
+					</div>
+				{:else}
+					<div class="px-6 py-10 text-center opacity-50">
+						<Icon icon="carbon:search" class="h-8 w-8 mx-auto mb-2" />
+						<div>Start typing to search profiles</div>
+					</div>
+				{/if}
 			{/if}
 		</div>
 	</div>

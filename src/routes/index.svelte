@@ -391,13 +391,13 @@
 				return;
 			}
 			carouselAnimator.navigateRight();
-		} else if (e.metaKey && e.key === 'k') {
+		} else if (e.ctrlKey && e.key === 'k') {
 			e.preventDefault();
 			go('cmdk');
-		} else if (e.metaKey && e.key === 'p') {
+		} else if (e.ctrlKey && e.key === 'p') {
 			e.preventDefault();
 			go('post');
-		} else if (e.metaKey && e.key === 'y') {
+		} else if (e.ctrlKey && e.key === 't') {
 			e.preventDefault();
 			go('theme');
 		}

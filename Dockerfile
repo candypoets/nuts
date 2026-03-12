@@ -11,13 +11,14 @@ ARG VITE_SEARCH_RELAYS="wss://relay.nostr.band"
 ARG VITE_DEFAULT_RELAYS="wss://relay.thibautduchene.fr,wss://relay.damus.io,wss://nos.lol"
 ARG PUBLIC_LNUTS_DOMAIN="nuts.cash"
 ARG VITE_ENABLE_SSL="false"
+ARG VITE_NIPWORKER_PROXY_URL
 
 # Set environment variables from build arguments
 ENV VITE_INDEXER_RELAYS=$VITE_INDEXER_RELAYS
 ENV VITE_SEARCH_RELAYS=$VITE_SEARCH_RELAYS
 ENV VITE_DEFAULT_RELAYS=$VITE_DEFAULT_RELAYS
 ENV PUBLIC_LNUTS_DOMAIN=$PUBLIC_LNUTS_DOMAIN
-ENV VITE_ENABLE_SSL=$VITE_ENABLE_SSL
+ENV VITE_NIPWORKER_PROXY_URL=$VITE_NIPWORKER_PROXY_URL
 
 # Copy ONLY package.json (ignore local package-lock.json to fix cross-platform Rollup issues)
 COPY package.json ./
