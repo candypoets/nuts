@@ -15,6 +15,7 @@
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import { go } from 'src/routes/modals/modal';
+	import SearchInput from 'src/components/SearchInput.svelte';
 	import { getContext } from 'svelte';
 	import Kind4 from '../_kinds/kind4.svelte';
 
@@ -114,14 +115,13 @@
 				</div>
 			</div>
 			<div class="px-4 pb-4">
-				<div class="join bg-base-200 rounded-md w-full">
-					<div class="join-item p-2">To :</div>
-					<input
-						placeholder=""
-						bind:value={search}
-						class="join-item flex-grow px-2 outline-none bg-transparent"
-					/>
-				</div>
+				<SearchInput
+					placeholder=""
+					prefix="To :"
+					bind:value={search}
+					showSearchIcon={false}
+					showClearButton={true}
+				/>
 			</div>
 		</svelte:fragment>
 		<svelte:fragment slot="item-content" let:post let:index>

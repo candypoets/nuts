@@ -30,9 +30,11 @@
 	import Theme from './theme.svelte';
 	import Kind0 from './_profile/kind0.svelte';
 
-	export let path: string;
+	export let path = '';
 	export let visible: boolean;
 	export let depth: number = 0;
+
+	$: modalKey = path.split(':')[0];
 
 	let pager: PagerAnimator | undefined = getContext('animator');
 	let element: HTMLElement;
@@ -160,7 +162,7 @@
 	bind:this={element}
 	on:click|stopPropagation={pager?.goBack}
 	style="width: {$viewport.vw * 100}px;"
-	data-kind={path.includes('zoom') ? 'zoom' : 'modal'}
+	data-kind={modalKey === 'zoom' ? 'zoom' : 'modal'}
 >
 	<div
 		class="m-auto relative overflow-hidden h-full w-feed"
@@ -169,63 +171,63 @@
 		on:touchmove|stopPropagation={handleTouchMove}
 		on:touchend|stopPropagation={handleTouchEnd}
 	>
-		{#if path.includes('cmdk')}
+		{#if modalKey === 'cmdk'}
 			<Cmdk goBack={pager?.goBack} />
-		{:else if path.includes('receive')}
+		{:else if modalKey === 'receive'}
 			<Topup />
-		{:else if path.includes('send')}
+		{:else if modalKey === 'send'}
 			<Send />
-		{:else if path.includes('scan')}
+		{:else if modalKey === 'scan'}
 			<Scan />
-		{:else if path.startsWith('melt')}
+		{:else if modalKey === 'melt'}
 			<Melt invoice={decodeURIComponent(path.slice(5))} />
-		{:else if path.startsWith('melted')}
+		{:else if modalKey === 'melted'}
 			<Melted mint={path.split(':')?.[1]} amount={path.split(':')?.[2]} />
-		{:else if path.startsWith('qr')}
+		{:else if modalKey === 'qr'}
 			<QR qrText={decodeURIComponent(path.slice(3))} />
-		{:else if path.startsWith('ecash')}
+		{:else if modalKey === 'ecash'}
 			<Ecash pubkey={path.split(':')?.[1]} noteId={path.split(':')?.[2]} />
-		{:else if path.includes('followlist')}
+		{:else if modalKey === 'followlists' || modalKey === 'followlist'}
 			<Followlists />
-		{:else if path.includes('kind0')}
+		{:else if modalKey === 'kind0'}
 			<Kind0 />
-		{:else if path.includes('lightning')}
+		{:else if modalKey === 'lightning'}
 			<Lightning invoice={path.split(':')?.[1]} />
-		{:else if path.includes('login')}
+		{:else if modalKey === 'login'}
 			<Login />
-		{:else if path.includes('minting')}
+		{:else if modalKey === 'minting'}
 			<Minting />
-		{:else if path.includes('minted')}
+		{:else if modalKey === 'minted'}
 			<Minted mint={path.split(':')?.[1]} amount={path.split(':')?.[2]} />
-		{:else if path.startsWith('newchat')}
+		{:else if modalKey === 'newchat'}
 			<Newchat />
-		{:else if path.includes('tapcash')}
+		{:else if modalKey === 'tapcash'}
 			<Tapcash />
-		{:else if path.includes('profile')}
+		{:else if modalKey === 'profile'}
 			<Profile />
-		{:else if path.includes('zaps')}
+		{:else if modalKey === 'zaps'}
 			<!-- <Zaps /> -->
-		{:else if path.includes('keys')}
+		{:else if modalKey === 'keys'}
 			<Keys />
-		{:else if path.includes('relayinfos')}
+		{:else if modalKey === 'relayinfos'}
 			<RelayInfos subId={path.split(':')?.[1]} />
-		{:else if path.includes('reply')}
+		{:else if modalKey === 'reply'}
 			<Post reply={path.split(':')?.[1]} />
-		{:else if path.includes('repost')}
+		{:else if modalKey === 'repost'}
 			<Post repost={path.split(':')?.[1]} />
-		{:else if path.includes('post')}
+		{:else if modalKey === 'post'}
 			<Post />
-		{:else if path.includes('share')}
+		{:else if modalKey === 'share'}
 			<Share noteId={path.split(':')?.[1]} />
-		{:else if path.includes('wallet')}
+		{:else if modalKey === 'wallet'}
 			<Wallet />
-		{:else if path.includes('relays')}
+		{:else if modalKey === 'relays'}
 			<Relays />
-		{:else if path.includes('theme')}
+		{:else if modalKey === 'theme'}
 			<Theme />
-		{:else if path.includes('logout')}
+		{:else if modalKey === 'logout'}
 			<Logout />
-		{:else if path.includes('zoom')}
+		{:else if modalKey === 'zoom'}
 			<ImageZoom />
 		{/if}
 	</div>

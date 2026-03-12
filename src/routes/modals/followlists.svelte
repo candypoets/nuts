@@ -10,6 +10,7 @@
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import MultiSelect from 'src/routes/modals/components/MultiSelect.svelte';
+	import SearchInput from 'src/components/SearchInput.svelte';
 	import { getContext, onDestroy, onMount } from 'svelte';
 
 	let animator: PagerAnimator = getContext('animator');
@@ -262,22 +263,12 @@
 			</div>
 			<div on:click|stopPropagation>
 				<div class="px-4 pt-2">
-					<div class="relative">
-						<input
-							type="text"
-							bind:value={searchQuery}
-							placeholder="Search follow packs..."
-							class="outline-none w-full rounded-full px-4 bg-primary-content text-black placeholder-gray-600"
-						/>
-						{#if searchQuery}
-							<button
-								class="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-base-200"
-								on:click={() => (searchQuery = '')}
-							>
-								<Icon icon="mdi:close" class="text-lg" />
-							</button>
-						{/if}
-					</div>
+					<SearchInput
+						placeholder="Search follow packs..."
+						bind:value={searchQuery}
+						showSearchIcon={true}
+						showClearButton={true}
+					/>
 				</div>
 				<div class="px-1">
 					<MultiSelect
@@ -307,22 +298,12 @@
 					<span class="w-12" />
 				</div>
 				<div class="px-4 pb-3">
-					<div class="relative">
-						<input
-							type="text"
-							bind:value={searchQuery}
-							placeholder="Search..."
-							class="outline-none w-full rounded-full px-4 bg-primary-content text-black placeholder-gray-600"
-						/>
-						{#if searchQuery}
-							<button
-								class="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-base-200"
-								on:click={() => (searchQuery = '')}
-							>
-								<Icon icon="mdi:close" class="text-lg" />
-							</button>
-						{/if}
-					</div>
+					<SearchInput
+						placeholder="Search follow packs..."
+						bind:value={searchQuery}
+						showSearchIcon={true}
+						showClearButton={true}
+					/>
 				</div>
 				<div class="px-1">
 					<MultiSelect

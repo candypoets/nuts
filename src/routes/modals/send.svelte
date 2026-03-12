@@ -12,6 +12,7 @@
 	import type { Contact } from 'src/model/contact';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import { go } from 'src/routes/modals/modal';
+	import SearchInput from 'src/components/SearchInput.svelte';
 
 	let active: string;
 	let search: string;
@@ -137,16 +138,12 @@
 			<h2 class="text-xl font-bold px-4 pt-4">Send Money</h2>
 		</div>
 		<div class="p-4">
-			<div class="join bg-base-200 rounded-md w-full">
-				<div class="join-item p-2">
-					<Icon icon="carbon:search" />
-				</div>
-				<input
-					placeholder="Search"
-					bind:value={search}
-					class="join-item flex-grow px-2 outline-none bg-transparent"
-				/>
-			</div>
+			<SearchInput
+				placeholder="Search contacts"
+				bind:value={search}
+				showSearchIcon={true}
+				showClearButton={true}
+			/>
 			<div class="my-4 rounded-lg border border-primary-content">
 				<div
 					class="flex items-center justify-around py-2 border-b border-primary-content opacity-40"

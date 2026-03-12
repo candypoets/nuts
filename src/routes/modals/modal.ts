@@ -98,7 +98,8 @@ export function goToRoot() {
 
 export function go(eventPath: string) {
 	console.log('go', !get(key)?.pub, eventPath);
-	if (!get(key)?.pub && pathNeedsLogin.some((p) => eventPath.includes(p))) {
+	const eventKey = eventPath.split(':')[0];
+	if (!get(key)?.pub && pathNeedsLogin.includes(eventKey)) {
 		console.log('login');
 		eventPath = 'login';
 	}

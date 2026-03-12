@@ -2,6 +2,7 @@
 	import Icon from '@iconify/svelte';
 	import { normalizeURL } from 'nostr-tools/utils';
 	import VirtualList from 'src/components/VirtualList.svelte';
+	import SearchInput from 'src/components/SearchInput.svelte';
 	import { relayInfos, relayStatusMap, relaySubs, setSubRelays } from 'src/controller/relay';
 	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
@@ -81,16 +82,12 @@
 
 		<!-- Search -->
 		<div class="px-4 pb-3 shrink-0">
-			<div class="join bg-base-200 rounded-md w-full">
-				<div class="join-item p-2">
-					<Icon icon="carbon:search" />
-				</div>
-				<input
-					placeholder="Search relays"
-					bind:value={search}
-					class="join-item flex-grow px-2 outline-none bg-transparent"
-				/>
-			</div>
+			<SearchInput
+				placeholder="Search relays"
+				bind:value={search}
+				showSearchIcon={true}
+				showClearButton={true}
+			/>
 		</div>
 
 		<!-- Virtualized list -->
@@ -110,8 +107,8 @@
 						{@const isSelected = relaysSelected?.includes(r.url)}
 						{@const nips = Array.isArray(r.info?.supported_nips) ? r.info.supported_nips : []}
 						<div
-							class="flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-base-200/60 transition-colors"
-							class:bg-base-200={isSelected}
+							class="flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-base-200/60 transition-colors mb-1"
+							class:bg-base-100={isSelected}
 							on:click|stopPropagation={() => toggleSelected(r.url)}
 						>
 							<!-- Checkbox -->

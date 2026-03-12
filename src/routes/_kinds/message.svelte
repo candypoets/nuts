@@ -41,7 +41,7 @@
 		class="px-4 py-2 bg-base-200 text-base-content rounded-2xl bg-gradient-to-br from-base-300 to-base-100 max-w-[80%] relative"
 		class:mr-4={!incoming}
 		class:!from-sky-600={!incoming}
-		class:!to-base-100={!incoming}
+		class:!to-sky-500={!incoming}
 		class:overflow-hidden={!isLast}
 		class:!rounded-l-md={!isFirst && incoming}
 		class:!rounded-r-md={!isFirst && !incoming}
