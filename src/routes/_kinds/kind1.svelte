@@ -42,13 +42,25 @@
 	let sub: (() => void) | undefined;
 	let cachesub: (() => void) | undefined;
 	let relaysub: (() => void) | undefined;
+	let repliesSub: (() => void) | undefined;
+	let paginationSub: (() => void) | undefined;
+	let currentEventId: string | undefined = undefined;
 
 	let connectionStatus: { [url: string]: ConnectionStatus } = {};
 
-	const { data } = decode(nevent) as unknown as { data: EventPointer };
+	let data: EventPointer = { id: '', relays: [] } as EventPointer;
+	$: {
+		try {
+			const decoded = decode(nevent) as unknown as { data: EventPointer };
+			data = decoded?.data || ({ id: '', relays: [] } as EventPointer);
+		} catch (err) {
+			console.error('kind1 failed to decode nevent', err);
+			data = { id: '', relays: [] } as EventPointer;
+		}
+	}
 
 	// Track actual relays being used (starts with nevent relays, updated by getUserRelays)
-	let currentRelays: string[] = data.relays || [];
+	let currentRelays: string[] = [];
 
 	// Feed items managed by parent
 	let feedItems: ParsedEvent[] = [];
@@ -64,6 +76,22 @@
 
 	// Base subId for relay swapping
 	$: baseSubId = 'kind1_' + data?.id;
+
+	function resetStateForEvent() {
+		eoce = false;
+		eose = false;
+		headerItem = undefined;
+		context = [];
+		feedItems = [];
+		loading = true;
+		connectionStatus = {};
+		currentRelays = data.relays || [];
+		until = undefined;
+		hasMore = true;
+		itemsBeforePagination = 0;
+		paginationCounter = 0;
+		prevPaginationSubId = undefined;
+	}
 
 	// Handle incoming events from subscription
 	function handleEvents(message: WorkerMessage) {
@@ -120,7 +148,7 @@
 	}
 
 	function subscribe() {
-		if (visible && !sub) {
+		if (visible && data?.id && !sub) {
 			// Timeout to stop loading if event is not found
 			timeout = setTimeout(() => {
 				if (loading) {
@@ -174,8 +202,8 @@
 									currentRelays = relays;
 								}
 								// Subscribe to replies for this post
-								if (!feedItems.length) {
-									useSubscription(
+								if (!feedItems.length && !repliesSub) {
+									repliesSub = useSubscription(
 										'replies_' + data?.id,
 										[
 											{
@@ -212,6 +240,10 @@
 		relaysub = undefined;
 		cachesub?.();
 		cachesub = undefined;
+		repliesSub?.();
+		repliesSub = undefined;
+		paginationSub?.();
+		paginationSub = undefined;
 	}
 
 	// Handle near-bottom pagination
@@ -229,7 +261,8 @@
 		}
 
 		const pageSubId = 'replies_' + data?.id + '_page_' + paginationCounter + '_' + until;
-		useSubscription(
+		paginationSub?.();
+		paginationSub = useSubscription(
 			pageSubId,
 			[
 				{
@@ -283,6 +316,24 @@
 		if (paginationTimeout) clearTimeout(paginationTimeout);
 		if (paginationCheckTimeout) clearTimeout(paginationCheckTimeout);
 	});
+
+	// Reset and re-subscribe when the target nevent changes in-place
+	$: if (data?.id && data.id !== currentEventId) {
+		unsubscribe();
+		if (paginationTimeout) {
+			clearTimeout(paginationTimeout);
+			paginationTimeout = undefined;
+		}
+		if (paginationCheckTimeout) {
+			clearTimeout(paginationCheckTimeout);
+			paginationCheckTimeout = undefined;
+		}
+		currentEventId = data.id;
+		resetStateForEvent();
+		if (visible) {
+			subscribe();
+		}
+	}
 
 	$: visible ? subscribe() : unsubscribe();
 </script>
