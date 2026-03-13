@@ -1,4 +1,7 @@
-import { attachRelayProxyToServer } from '@candypoets/nipworker/proxy';
+// TODO: Switch back to '@candypoets/nipworker/proxy/server' once v0.90.1+ is released
+// The library fixed the tree-shaking issue but v0.90.0 still has the bug.
+// See: https://github.com/candypoets/nipworker/issues/XXX
+import { attachRelayProxyToServer } from './src/lib/relayProxyWorkaround.js';
 import { createServer } from 'http';
 import { handler } from './build/handler.js';
 
