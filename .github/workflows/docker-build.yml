@@ -135,7 +135,7 @@ jobs:
             VITE_DEFAULT_RELAYS=wss://relay.thibautduchene.fr,wss://relay.damus.io,wss://relay.nuts.cash
             VITE_INDEXER_RELAYS=wss://purplepag.es,wss://user.kindpag.es,wss://relay.damus.io
             VITE_SEARCH_RELAYS=wss://relay.nuts.cash
-            VITE_NIPWORKER_PROXY_URL=wss://alpha.nuts.cash/ws-proxy
+            VITE_NIPWORKER_PROXY_URL=ws://befree:7777
 
       - name: Build summary
         if: github.event_name != 'pull_request'

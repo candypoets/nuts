@@ -16,7 +16,7 @@
 	import { sortBy, throttle } from 'lodash';
 	import { createEventDispatcher } from 'svelte';
 
-	import { onDestroy } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import VirtualList from 'src/components/VirtualList.svelte';
 	import { mutePipeConfig } from 'src/controller/nostr';
 	import { SEARCH_RELAYS } from 'src/lib/env';
@@ -52,11 +52,46 @@
 	let query = '';
 	let inputEl: HTMLInputElement;
 	let activeIndex = 0;
+	let hashtagHistory: string[] = [];
+	const HASHTAG_HISTORY_KEY = 'cmdk_hashtag_history';
 
 	// For hashtag mode: track if we have a valid tag to suggest
 	$: tagSuggestion = mode === 'hashtags' && query.trim() ? query.trim().replace(/^#/, '') : null;
 
 	$: if (activeIndex >= items.length) activeIndex = Math.max(0, items.length - 1);
+
+	// Load hashtag history from sessionStorage
+	function loadHashtagHistory(): string[] {
+		try {
+			const stored = sessionStorage.getItem(HASHTAG_HISTORY_KEY);
+			return stored ? JSON.parse(stored) : [];
+		} catch {
+			return [];
+		}
+	}
+
+	// Save hashtag to history
+	function saveHashtagToHistory(tag: string) {
+		try {
+			const cleanTag = tag.replace(/^#/, '');
+			if (!cleanTag) return;
+			
+			const history = loadHashtagHistory();
+			// Remove if exists (to move to top) and add to front
+			const filtered = history.filter(h => h.toLowerCase() !== cleanTag.toLowerCase());
+			const newHistory = [cleanTag, ...filtered].slice(0, 10); // Keep last 10
+			
+			sessionStorage.setItem(HASHTAG_HISTORY_KEY, JSON.stringify(newHistory));
+			hashtagHistory = newHistory;
+		} catch {
+			// Ignore storage errors
+		}
+	}
+
+	// Initialize history on mount
+	onMount(() => {
+		hashtagHistory = loadHashtagHistory();
+	});
 
 	function onKey(e: KeyboardEvent) {
 		if (e.key === 'ArrowDown') {
@@ -70,8 +105,7 @@
 				// In hashtag mode, navigate to tag view on Enter
 				const tag = query.trim().replace(/^#/, '');
 				if (tag) {
-					dispatch('select', tag);
-					go(`tags:${encodeURIComponent(tag)}`);
+					goToTag(tag);
 				}
 			} else {
 				// Profile mode: existing behavior
@@ -92,6 +126,7 @@
 	function goToTag(tag: string) {
 		const cleanTag = tag.replace(/^#/, '');
 		if (cleanTag) {
+			saveHashtagToHistory(cleanTag);
 			dispatch('select', cleanTag);
 			go(`tags:${encodeURIComponent(cleanTag)}`);
 		}
