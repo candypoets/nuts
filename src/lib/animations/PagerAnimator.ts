@@ -28,7 +28,7 @@ export class PagerAnimator {
 	private elementKinds = new WeakMap<HTMLElement, string>();
 	private elementStates = new WeakMap<
 		HTMLElement,
-		{ x: number; y: number; scale: number; opacity: number }
+		{ x: number; y: number; scale: number; opacity: number; rotateY?: number }
 	>();
 	private elementSizes = new WeakMap<HTMLElement, { width: number; height: number }>();
 	// private modalElementStack: HTMLElement[] = [];
@@ -234,13 +234,14 @@ export class PagerAnimator {
 		x: number,
 		y: number,
 		scale: number,
-		opacity: number
+		opacity: number,
+		rotateY?: number
 	) {
-		this.elementStates.set(element, { x, y, scale, opacity });
+		this.elementStates.set(element, { x, y, scale, opacity, rotateY });
 	}
 
-	private getElementState(element: HTMLElement): { x: number; y: number; scale: number; opacity: number } {
-		return this.elementStates.get(element) ?? { x: 0, y: 0, scale: 1, opacity: 1 };
+	private getElementState(element: HTMLElement): { x: number; y: number; scale: number; opacity: number; rotateY?: number } {
+		return this.elementStates.get(element) ?? { x: 0, y: 0, scale: 1, opacity: 1, rotateY: 0 };
 	}
 
 	private captureElementSize(element: HTMLElement) {
@@ -303,6 +304,11 @@ export class PagerAnimator {
 			const rawEnd = getEndValue(next.opacity);
 			const end = typeof rawEnd === 'string' ? parseFloat(rawEnd) : rawEnd;
 			next.opacity = [current.opacity, end];
+		}
+		if (next.rotateY !== undefined) {
+			const rawEnd = getEndValue(next.rotateY);
+			const end = typeof rawEnd === 'string' ? parseFloat(rawEnd) : rawEnd;
+			next.rotateY = [current.rotateY ?? 0, end];
 		}
 
 		return next;
@@ -485,7 +491,7 @@ export class PagerAnimator {
 		const scale = this.isMobileMode ? 1 : (200 - (modalDepth - swipeProgressY) * 30) / 200;
 		const rotateY = this.isMobileMode ? 0 : (subTweened - swipeProgressX) * -20;
 		if (immediate) {
-			this.setElementState(this.main, translateX, translateY, scale, 1);
+			this.setElementState(this.main, translateX, translateY, scale, 1, rotateY);
 			this.main.style.transform = `translate3d(${translateX}px, ${translateY}px, 0) scale(${scale}) rotateY(${rotateY}deg)`;
 			return;
 		}
@@ -583,20 +589,22 @@ export class PagerAnimator {
 
 		const opacity = Math.max(0.3, 1 - effectiveSubDepth * 0.3);
 		if (immediate) {
+			// Update state so future animations know where we are
 			this.setElementState(element, translateX, translateY, scale, opacity);
 			element.style.transform = `translate3d(${translateX}px, ${translateY}px, 0) scale(${scale})`;
 			element.style.opacity = `${opacity}`;
 			return;
 		}
 
-		// Motion One animation
+		// Motion One animation - start from current state to target
+		const current = this.getElementState(element);
 		animate(
 			element,
 			{
-				x: translateX,
-				y: translateY,
-				scale: scale,
-				opacity: opacity
+				x: [current.x, translateX],
+				y: [current.y, translateY],
+				scale: [current.scale, scale],
+				opacity: [current.opacity, opacity]
 			},
 			{
 				// Shorter duration on mobile for snappier feel

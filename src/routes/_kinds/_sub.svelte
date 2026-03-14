@@ -123,7 +123,7 @@
 				pagerAnimator.completeSwipeDismiss();
 			} else {
 				// Cancel swipe dismiss - animate back to original position
-				addLog('Canceling swipe dismiss');
+				addLog(`Canceling swipe dismiss: deltaX=${deltaX}, velocity=${velocity.toFixed(2)}`);
 				pagerAnimator.cancelSwipeDismiss();
 			}
 		}
@@ -164,13 +164,13 @@
 		{/if}
 
 		<!-- Debug overlay -->
-		<!-- <div
+		<div
 			class="absolute top-4 left-4 bg-black bg-opacity-75 text-white text-xs p-2 rounded max-w-xs z-50"
 		>
 			<div class="font-bold mb-1">Touch Debug:</div>
-			{#each debugLogs as log}
+			{#each debugLogs.slice(-5) as log}
 				<div class="text-xs">{log}</div>
 			{/each}
-		</div> -->
+		</div>
 	</div>
 </div>
