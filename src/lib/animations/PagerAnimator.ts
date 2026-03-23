@@ -240,7 +240,13 @@ export class PagerAnimator {
 		this.elementStates.set(element, { x, y, scale, opacity, rotateY });
 	}
 
-	private getElementState(element: HTMLElement): { x: number; y: number; scale: number; opacity: number; rotateY?: number } {
+	private getElementState(element: HTMLElement): {
+		x: number;
+		y: number;
+		scale: number;
+		opacity: number;
+		rotateY?: number;
+	} {
 		return this.elementStates.get(element) ?? { x: 0, y: 0, scale: 1, opacity: 1, rotateY: 0 };
 	}
 
@@ -253,10 +259,12 @@ export class PagerAnimator {
 	}
 
 	private getElementSize(element: HTMLElement): { width: number; height: number } {
-		return this.elementSizes.get(element) ?? {
-			width: this.viewport.vw * 100,
-			height: this.viewport.vh * 100
-		};
+		return (
+			this.elementSizes.get(element) ?? {
+				width: this.viewport.vw * 100,
+				height: this.viewport.vh * 100
+			}
+		);
 	}
 
 	private resolveAxisEndValue(value: unknown, axis: 'x' | 'y', element: HTMLElement): unknown {
@@ -511,6 +519,7 @@ export class PagerAnimator {
 				easing: 'ease-out'
 			}
 		);
+		this.setElementState(this.main, translateX, translateY, scale, 1, rotateY);
 	}
 
 	/**
@@ -612,6 +621,7 @@ export class PagerAnimator {
 				easing: 'ease-out'
 			}
 		);
+		this.setElementState(element, translateX, translateY, scale, opacity);
 	}
 
 	private flushPendingSwipePosition() {
@@ -627,7 +637,12 @@ export class PagerAnimator {
 
 	private readonly runSwipeFrame = () => {
 		// Update all sub elements with latest pending deltas
-		const depths = this.updateAllSubElements(this.pendingDeltaX, this.pendingDeltaY, undefined, true);
+		const depths = this.updateAllSubElements(
+			this.pendingDeltaX,
+			this.pendingDeltaY,
+			undefined,
+			true
+		);
 
 		// Also update main content with delta influence
 		this.updateMainContent(this.pendingDeltaX, this.pendingDeltaY, true, depths);
@@ -734,7 +749,10 @@ export class PagerAnimator {
 		// Motion One automatically handles cleanup, but we can clear our arrays
 		this.stack = [];
 		this.elementKinds = new WeakMap<HTMLElement, string>();
-		this.elementStates = new WeakMap<HTMLElement, { x: number; y: number; scale: number; opacity: number }>();
+		this.elementStates = new WeakMap<
+			HTMLElement,
+			{ x: number; y: number; scale: number; opacity: number }
+		>();
 		this.elementSizes = new WeakMap<HTMLElement, { width: number; height: number }>();
 		this.depthBuffer.subDepth = 0;
 		this.depthBuffer.modalDepth = 0;

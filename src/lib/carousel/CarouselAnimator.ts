@@ -412,15 +412,16 @@ export class CarouselAnimator {
 				}
 			}
 
-			// Always animate to target position, even if it's the same as current
+			// Always animate to target position, even if it's the same as current.
+			// Delay the route change until the transition settles so the page swap
+			// does not interrupt the card animation on mobile.
 			const targetX = targetIndex * this.scrollerWidth;
-			this.animateToPosition(targetX, 250, isMobile, targetIndex);
-
-			// Only update route and index if actually navigating
-			if (targetIndex !== currentIdx) {
-				goto(this.activeRoutes[targetIndex].route);
-				this.setCurrentIndex(targetIndex);
-			}
+			this.animateToPosition(targetX, 250, isMobile, targetIndex, () => {
+				if (targetIndex !== currentIdx) {
+					this.setCurrentIndex(targetIndex);
+					goto(this.activeRoutes[targetIndex].route);
+				}
+			});
 		}
 
 		this.isSwiping = false;
@@ -480,7 +481,11 @@ export class CarouselAnimator {
 
 	private updateProgressBars(virtualXPosition: number, force: boolean = false) {
 		if (!this.progressBars.length) return;
-		if (!force && Number.isFinite(this.lastProgressX) && Math.abs(this.lastProgressX - virtualXPosition) < 0.25)
+		if (
+			!force &&
+			Number.isFinite(this.lastProgressX) &&
+			Math.abs(this.lastProgressX - virtualXPosition) < 0.25
+		)
 			return;
 		this.lastProgressX = virtualXPosition;
 
@@ -520,7 +525,11 @@ export class CarouselAnimator {
 		}
 		animation.cancel();
 
-		const prev = this.currentStates[index] ?? { transform: '', opacity: '1', zIndex: item.style.zIndex || '0' };
+		const prev = this.currentStates[index] ?? {
+			transform: '',
+			opacity: '1',
+			zIndex: item.style.zIndex || '0'
+		};
 		const nextState: ItemState = {
 			transform: item.style.transform || prev.transform,
 			opacity: item.style.opacity || prev.opacity,
@@ -538,7 +547,8 @@ export class CarouselAnimator {
 		virtualXPosition: number,
 		duration = 400,
 		isMobile: boolean = false,
-		targetIndex?: number
+		targetIndex?: number,
+		onComplete?: () => void
 	) {
 		// Guard: don't animate if items haven't been set yet
 		if (!this.isReady) {
@@ -558,6 +568,13 @@ export class CarouselAnimator {
 		const originIndex = this.getCurrentIndex();
 		const destIndex = this.clampIndex(targetIndex ?? originIndex);
 		const immediate = duration <= 0;
+		let finished = false;
+		const complete = () => {
+			if (finished) return;
+			finished = true;
+			if (isMobile) this.finalizeMobileVisibilityIdle(destIndex);
+			onComplete?.();
+		};
 
 		// Only apply mobile visibility restrictions when animating
 		if (isMobile && duration > 0) {
@@ -596,7 +613,9 @@ export class CarouselAnimator {
 			const currentOpacity = currentState.opacity || '1';
 
 			const needsAnimation =
-				currentTransform !== targetTransform || currentOpacity !== targetOpacity || currentState.zIndex !== targetZ;
+				currentTransform !== targetTransform ||
+				currentOpacity !== targetOpacity ||
+				currentState.zIndex !== targetZ;
 
 			if (!needsAnimation || immediate) {
 				item.style.transform = targetTransform;
@@ -614,7 +633,10 @@ export class CarouselAnimator {
 			pending++;
 			const anim = item.animate(
 				[
-					{ transform: currentTransform === 'none' ? targetTransform : currentTransform, opacity: currentOpacity },
+					{
+						transform: currentTransform === 'none' ? targetTransform : currentTransform,
+						opacity: currentOpacity
+					},
 					{ transform: targetTransform, opacity: targetOpacity }
 				],
 				{
@@ -651,7 +673,7 @@ export class CarouselAnimator {
 					pending--;
 					if (pending === 0) {
 						this.isAnimating = false;
-						if (isMobile) this.finalizeMobileVisibilityIdle();
+						complete();
 					}
 				},
 				{ once: true }
@@ -660,8 +682,8 @@ export class CarouselAnimator {
 
 		if (pending > 0) {
 			this.isAnimating = true;
-		} else if (isMobile) {
-			this.finalizeMobileVisibilityIdle();
+		} else {
+			complete();
 		}
 	}
 
@@ -787,7 +809,11 @@ export class CarouselAnimator {
 				item.style.opacity = st.opacity || '1';
 				item.style.zIndex = st.zIndex || '0';
 			} else {
-				item.style.transform = this.getTransformForTouchPosition(index, this.virtualXPosition, true);
+				item.style.transform = this.getTransformForTouchPosition(
+					index,
+					this.virtualXPosition,
+					true
+				);
 				item.style.opacity = '1';
 				item.style.zIndex = index === this.currentIndexValue ? '10' : '0';
 				this.currentStates[index] = {
@@ -826,8 +852,8 @@ export class CarouselAnimator {
 		}
 	}
 
-	private finalizeMobileVisibilityIdle() {
-		this.setVisibleIndicesMobile([this.currentIndexValue]);
+	private finalizeMobileVisibilityIdle(index: number = this.currentIndexValue) {
+		this.setVisibleIndicesMobile([index]);
 	}
 
 	// === STATIC UTILS ===
