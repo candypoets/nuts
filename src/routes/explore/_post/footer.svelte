@@ -1,7 +1,6 @@
 <script lang="ts">
 	import {
 		CounterPipeConfigT,
-		CountResponse,
 		MessageType,
 		PipeConfig,
 		PipeT,
@@ -14,8 +13,6 @@
 	import {
 		asConnectionStatus,
 		asCountResponse,
-		asParsedEvent,
-		fbArray,
 		isConnectionStatus
 	} from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
@@ -36,11 +33,10 @@
 	export let main = false;
 
 	let sub: (() => void) | undefined;
+	let quoteSub: (() => void) | undefined;
 	let relaysub: (() => void) | undefined;
 
 	let relays: string[] = [];
-
-	let reactions: ParsedEvent[] = [];
 
 	// replies are exported back to the parent, if the parent decides to show some
 	export let connectionStatus: { [url: string]: ConnectionStatus } = {};
@@ -55,11 +51,6 @@
 	let repostCount = 0;
 	let quoteCount = 0;
 
-	// Track seen events to avoid double counting
-	const seenReplyIds = new Set<string>();
-	const seenQuoteIds = new Set<string>();
-	const seenRepostIds = new Set<string>();
-
 	let decoded = {
 		id: note.id()!,
 		pubkey: note.pubkey()!
@@ -67,95 +58,104 @@
 
 	const commonEmoticons = ['👍', '❤️', '😂', '🔥', '😍', '🙏', '💯', '🤔', '🫂', '🚀'];
 
-	$: subscriptionOptions = {
-		pipeline: [
-			new PipeT(PipeConfig.MuteFilterPipeConfig, $mutePipeConfig),
-			new PipeT(PipeConfig.SaveToDbPipeConfig, new SaveToDbPipeConfigT()),
-			new PipeT(
-				PipeConfig.CounterPipeConfig,
-				new CounterPipeConfigT([1, 6, 7, 17], $key?.pub || '')
-			)
-		],
-		bytesPerEvent: 256
-	};
+	function createSubscriptionOptions(
+		countKinds: number[],
+		muteConfig: typeof $mutePipeConfig,
+		pubkey: string
+	) {
+		return {
+			pipeline: [
+				new PipeT(PipeConfig.MuteFilterPipeConfig, muteConfig),
+				new PipeT(PipeConfig.SaveToDbPipeConfig, new SaveToDbPipeConfigT()),
+				new PipeT(PipeConfig.CounterPipeConfig, new CounterPipeConfigT(countKinds, pubkey))
+			],
+			bytesPerEvent: 256
+		};
+	}
+
+	// $: subscriptionOptions = createSubscriptionOptions(
+	// 	[1, 6, 7, 17],
+	// 	$mutePipeConfig,
+	// 	$key?.pub || ''
+	// );
+	// $: quoteSubscriptionOptions = createSubscriptionOptions([1], $mutePipeConfig, $key?.pub || '');
+
+	function updateConnectionStatus(message: WorkerMessage) {
+		if (message.type() !== MessageType.ConnectionStatus) return;
+
+		const status = asConnectionStatus(message) as ConnectionStatus;
+		connectionStatus[status.relayUrl() as string] = status;
+	}
 
 	const handleEvents = (message: WorkerMessage) => {
 		switch (message.type()) {
 			case MessageType.ConnectionStatus:
-				const status = asConnectionStatus(message) as ConnectionStatus;
-				connectionStatus[status.relayUrl() as string] = status;
+				updateConnectionStatus(message);
 				break;
 			case MessageType.CountResponse:
-				const count = asCountResponse(message) as CountResponse;
+				const count = asCountResponse(message);
+				if (!count) return;
+
 				switch (count.kind()) {
 					case 7:
-						reactionCount = count.count() || reactionCount;
-						liked = liked || count.you();
+						reactionCount = count.count();
+						if (count.you() && !liked) liked = 'true';
 						break;
 					case 17:
-						reactionCount = count.count() || reactionCount;
-						liked = liked || count.you();
+						reactionCount = count.count();
+						if (count.you() && !liked) liked = 'true';
 						break;
 					case 1:
-						// Kind 1 with #e tag = replies (quotes with #q are handled separately via raw events)
-						replyCount = count.count() || replyCount;
+						replyCount = count.count();
 						replied = replied || count.you();
 						break;
 					case 6:
-						repostCount = count.count() || repostCount;
+						repostCount = count.count();
 						reposted = reposted || count.you();
 						break;
-				}
-				break;
-			case MessageType.ParsedNostrEvent:
-				// Handle raw events for quotes (kind 1 with #q tag)
-				const event = asParsedEvent(message) as ParsedEvent;
-				if (event && event.kind() === 1) {
-					const eventId = event.id();
-					const tags = event.tags ? fbArray(event, 'tags') : [];
-					const hasQTag = tags.some((tag: any) => {
-						const items = fbArray(tag, 'items');
-						return items[0] === 'q' && items[1] === decoded.id;
-					});
-					if (hasQTag && !seenQuoteIds.has(eventId)) {
-						seenQuoteIds.add(eventId);
-						quoteCount = seenQuoteIds.size;
-						if (event.pubkey() === $key?.pub) {
-							reposted = true;
-						}
-					}
 				}
 				break;
 		}
 	};
 
-	let subed = 0;
+	const handleQuoteEvents = (message: WorkerMessage) => {
+		switch (message.type()) {
+			case MessageType.ConnectionStatus:
+				updateConnectionStatus(message);
+				break;
+			case MessageType.CountResponse:
+				const count = asCountResponse(message);
+				if (!count || count.kind() !== 1) return;
+
+				quoteCount = count.count();
+				reposted = reposted || count.you();
+				break;
+		}
+	};
 
 	function subscribe() {
 		timeout = setTimeout(async () => {
 			if (visible && !relaysub) {
-				subed++;
 				relaysub = getUserRelays(decoded.pubkey, (result) => {
 					relays = result.slice(0, $isMobile ? 3 : 5);
-					
+
 					// Main subscription: replies (kind 1 #e), reposts (kind 6), reactions (kind 7/17)
 					sub = useSubscription(
 						'f_' + decoded.id,
 						[
 							{
-								kinds: [1, 6, 7, 17],
+								kinds: [1, 6, 7],
 								tags: { '#e': [decoded.id] },
 								noContext: true,
 								relays
 							}
 						],
 						handleEvents,
-						subscriptionOptions
+						createSubscriptionOptions([1, 6, 7], $mutePipeConfig, $key?.pub || '')
 					);
 
 					// Separate subscription for quotes (kind 1 with #q tag)
-					// Uses raw events instead of CounterPipe to distinguish quotes from replies
-					useSubscription(
+					quoteSub = useSubscription(
 						'fq_' + decoded.id,
 						[
 							{
@@ -165,15 +165,8 @@
 								relays
 							}
 						],
-						handleEvents,
-						{
-							pipeline: [
-								new PipeT(PipeConfig.MuteFilterPipeConfig, $mutePipeConfig),
-								new PipeT(PipeConfig.SaveToDbPipeConfig, new SaveToDbPipeConfigT())
-								// No CounterPipe - we count raw events manually
-							],
-							bytesPerEvent: 256
-						}
+						handleQuoteEvents,
+						createSubscriptionOptions([1], $mutePipeConfig, $key?.pub || '')
 					);
 				});
 			}
@@ -185,9 +178,11 @@
 			clearTimeout(timeout);
 			timeout = undefined;
 			sub?.();
+			quoteSub?.();
 			relaysub?.();
+			sub = undefined;
+			quoteSub = undefined;
 			relaysub = undefined;
-			subed--;
 		}
 	}
 
@@ -204,7 +199,6 @@
 			created_at: now()
 		};
 
-		console.log('reaction');
 		usePublish(
 			'reaction_' + decoded.id,
 			event,
@@ -220,31 +214,6 @@
 			},
 			{ defaultRelays: relays, trackStatus: true }
 		);
-	}
-
-	function sendRepost() {
-		if (!$key.pub) return;
-		let sendStatus: { [url: string]: ConnectionStatus } = {};
-		const event: EventTemplate = {
-			kind: kinds.Repost,
-			tags: [
-				['e', decoded.id],
-				['p', decoded.pubkey]
-			],
-			content: JSON.stringify(note),
-			created_at: now()
-		};
-
-		usePublish('repost_' + decoded.id, event, (message: WorkerMessage) => {
-			const status = isConnectionStatus(message);
-			if (status) {
-				const relayUrl = status.relayUrl();
-				if (relayUrl) {
-					sendStatus[relayUrl] = status;
-					updateSendStatus('repost_' + decoded.id, sendStatus);
-				}
-			}
-		});
 	}
 
 	onDestroy(unsubscribe);
@@ -279,7 +248,7 @@
 			on:click|stopPropagation={() => go('repost:' + note.id())}
 		>
 			<Icon icon="ph:repeat" class="text-2xl" />
-			<span>{(repostCount + quoteCount) || ''}</span>
+			<span>{repostCount + quoteCount || ''}</span>
 		</div>
 		<div
 			bind:this={triggerElement}
