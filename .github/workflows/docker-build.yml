@@ -60,7 +60,7 @@ jobs:
             NODE_OPTIONS=--max-old-space-size=8192
             VITE_DEFAULT_RELAYS=wss://relay.thibautduchene.fr,wss://relay.damus.io,wss://relay.nuts.cash
             VITE_INDEXER_RELAYS=wss://purplepag.es,wss://user.kindpag.es,wss://relay.damus.io
-            VITE_SEARCH_RELAYS=wss://relay.nuts.cash
+            VITE_SEARCH_RELAYS=wss://search.nuts.cash
             # VITE_NIPWORKER_PROXY_URL is undefined for main (uses default)
 
       - name: Build summary
@@ -134,7 +134,7 @@ jobs:
             NODE_OPTIONS=--max-old-space-size=8192
             VITE_DEFAULT_RELAYS=wss://relay.thibautduchene.fr,wss://relay.damus.io,wss://relay.nuts.cash
             VITE_INDEXER_RELAYS=wss://purplepag.es,wss://user.kindpag.es,wss://relay.damus.io
-            VITE_SEARCH_RELAYS=wss://relay.nuts.cash
+            VITE_SEARCH_RELAYS=wss://search.nuts.cash
             VITE_NIPWORKER_PROXY_URL=wss://alpha.nuts.cash/ws-proxy
 
       - name: Build summary
