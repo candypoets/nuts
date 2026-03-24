@@ -40,7 +40,10 @@ export default defineConfig(({ mode }) => {
 			...(enableSsl ? [basicSsl()] : []),
 			sveltekit(),
 			// Only use nipworker proxy plugin in development (production uses src/server.ts)
-			...(mode === 'development' ? [nipworkerRelayProxyPlugin({ port: 7777, host: '0.0.0.0' })] : []),
+			...(mode === 'development'
+				? [nipworkerRelayProxyPlugin({ port: 7777, host: '0.0.0.0' })]
+				: []),
+			// nipworkerRelayProxyPlugin({ port: 7777, host: '0.0.0.0' }),
 			VitePWA({
 				devOptions: {
 					enabled: true,
