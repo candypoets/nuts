@@ -163,14 +163,5 @@
 			<Tags tags={[path.split(':')?.[1]]} {visible} goBack={pagerAnimator?.goBack} />
 		{/if}
 
-		<!-- Debug overlay -->
-		<div
-			class="absolute top-4 left-4 bg-black bg-opacity-75 text-white text-xs p-2 rounded max-w-xs z-50"
-		>
-			<div class="font-bold mb-1">Touch Debug:</div>
-			{#each debugLogs.slice(-5) as log}
-				<div class="text-xs">{log}</div>
-			{/each}
-		</div>
 	</div>
 </div>
