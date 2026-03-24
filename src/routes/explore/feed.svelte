@@ -52,7 +52,6 @@
 		const distance = items.length - end;
 		if (distance <= nearBottomThreshold && distance >= 0) {
 			nearBottomTriggered = true;
-			console.log('onNearBottom');
 			onNearBottom({ distance });
 		}
 	}
