@@ -154,8 +154,10 @@
 			!existing ||
 			(event.created_at && existing.created_at && event.created_at > existing.created_at)
 		) {
+			console.log('[CMDK] addOrUpdateEvent: adding', event.parsed?.name || 'unnamed', pubkey.slice(0, 16));
 			seenPubkeys.set(pubkey, event);
 		} else {
+			console.log('[CMDK] addOrUpdateEvent: skipping (older)', event.parsed?.name || 'unnamed');
 		}
 	}
 
@@ -163,24 +165,53 @@
 		if (!searchQuery) return true;
 		const lowerQuery = searchQuery.toLowerCase();
 		
+		const name = item.parsed?.name?.toLowerCase() || '';
+		const displayName = item.parsed?.display_name?.toLowerCase() || '';
+		const nip05 = item.parsed?.nip05?.toLowerCase() || '';
+		
 		// Check name field
-		if (item.parsed?.name?.toLowerCase().includes(lowerQuery)) return true;
+		if (name.includes(lowerQuery)) {
+			console.log('[CMDK] ✓ MATCH name:', item.parsed?.name, '- query:', searchQuery);
+			return true;
+		}
 		
 		// Check display_name field
-		if (item.parsed?.display_name?.toLowerCase().includes(lowerQuery)) return true;
+		if (displayName.includes(lowerQuery)) {
+			console.log('[CMDK] ✓ MATCH display_name:', item.parsed?.display_name, '- query:', searchQuery);
+			return true;
+		}
 		
 		// Check nip05 field
-		if (item.parsed?.nip05?.toLowerCase().includes(lowerQuery)) return true;
+		if (nip05.includes(lowerQuery)) {
+			console.log('[CMDK] ✓ MATCH nip05:', item.parsed?.nip05, '- query:', searchQuery);
+			return true;
+		}
 		
+		console.log('[CMDK] ✗ FILTERED OUT:', {
+			name: item.parsed?.name,
+			display_name: item.parsed?.display_name,
+			nip05: item.parsed?.nip05,
+			pubkey: item.pubkey().slice(0, 16) + '...',
+			query: searchQuery
+		});
 		return false;
 	}
 
 	function getItemsFromMap(): ParsedEvent[] {
 		// Client-side filter: only return items that match the search query
-		return Array.from(seenPubkeys.values()).filter(item => matchesSearch(item, query));
+		const allItems = Array.from(seenPubkeys.values());
+		const filtered = allItems.filter(item => matchesSearch(item, query));
+		console.log('[CMDK] FILTER SUMMARY:', {
+			query: query,
+			totalReceived: allItems.length,
+			filteredIn: filtered.length,
+			filteredOut: allItems.length - filtered.length
+		});
+		return filtered;
 	}
 
 	const subscribe = throttle((search: string) => {
+		console.log('[CMDK] subscribe called with search:', search);
 		// Clean up previous subscription before creating a new one
 		if (sub) {
 			sub();
@@ -247,6 +278,13 @@
 			case MessageType.ParsedNostrEvent: {
 				if (isKind0(message)) {
 					const parsedEvent = asParsedEvent(message) as ParsedEvent;
+					console.log('[CMDK] received event:', {
+						name: parsedEvent.parsed?.name,
+						display_name: parsedEvent.parsed?.display_name,
+						nip05: parsedEvent.parsed?.nip05,
+						pubkey: parsedEvent.pubkey().slice(0, 16) + '...',
+						content_preview: parsedEvent.parsed?.about?.slice(0, 50)
+					});
 					if (eose) {
 						// After EOSE, process immediately
 						addOrUpdateEvent(parsedEvent);
