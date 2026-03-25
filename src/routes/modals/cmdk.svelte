@@ -164,18 +164,8 @@
 			!existing ||
 			(event.created_at && existing.created_at && event.created_at > existing.created_at)
 		) {
-			console.log('[CMDK] adding/updating event:', {
-				pubkey: pubkey.slice(0, 16),
-				created_at: event.created_at,
-				existing: existing?.created_at
-			});
 			seenPubkeys.set(pubkey, event);
 		} else {
-			console.log('[CMDK] skipping event (older or duplicate):', {
-				pubkey: pubkey.slice(0, 16),
-				created_at: event.created_at,
-				existing: existing?.created_at
-			});
 		}
 	}
 
@@ -184,18 +174,10 @@
 	}
 
 	const subscribe = throttle((search: string) => {
-		console.log('[CMDK] subscribe called:', { search, relays: SEARCH_RELAYS });
 		// Clean up previous subscription before creating a new one
 		if (sub) {
-			console.log('[CMDK] cleaning up previous subscription');
 			sub();
 		}
-		console.log(
-			'[CMDK] resetting state, items was:',
-			items.length,
-			'seenPubkeys was:',
-			seenPubkeys.size
-		);
 		seenPubkeys.clear();
 		items = [];
 		cachedEvents = [];
@@ -206,12 +188,6 @@
 		loading = true;
 		const subscriptionId = 'cmdk_' + search;
 		const filters = [{ kinds: [0], search, limit: 10, noCache: true, relays: SEARCH_RELAYS }];
-		console.log('[CMDK] creating subscription:', {
-			subscriptionId,
-			search,
-			filters,
-			relays: SEARCH_RELAYS
-		});
 		sub = useSubscription(subscriptionId, filters, handleEvents, subscriptionOptions);
 	}, 600);
 
@@ -236,56 +212,25 @@
 	}
 
 	const handleEvents = (message: WorkerMessage) => {
-		console.log('[CMDK] handleEvents:', { type: message.type(), query });
 		switch (message.type()) {
 			case MessageType.ConnectionStatus: {
 				const status = asConnectionStatus(message) as ConnectionStatus;
-				console.log('[CMDK] ConnectionStatus received:', {
-					relay: status?.relayUrl(),
-					status: status?.status(),
-					itemsCount: items.length,
-					cachedEvents: cachedEvents.length,
-					fetchedEvents: fetchedEvents.length
-				});
 				loading = false;
 				eose = true;
 				// Process both cached and fetched events on EOSE
 				cachedEvents.forEach(addOrUpdateEvent);
 				fetchedEvents.forEach(addOrUpdateEvent);
 				items = sortBy(getItemsFromMap(), (item) => -calculateScore(item, query));
-				console.log(
-					'[CMDK] after ConnectionStatus, items count:',
-					items.length,
-					'seenPubkeys:',
-					seenPubkeys.size
-				);
 				break;
 			}
 			case MessageType.Eoce:
-				console.log('[CMDK] Eoce received, cachedEvents count:', cachedEvents.length);
 				eoce = true;
 				cachedEvents.forEach(addOrUpdateEvent);
 				items = sortBy(getItemsFromMap(), (item) => calculateScore(item, query));
-				console.log(
-					'[CMDK] after Eoce, items count:',
-					items.length,
-					'seenPubkeys:',
-					seenPubkeys.size
-				);
 				break;
 			case MessageType.ParsedNostrEvent: {
-				// Log relay info for every event - check if message has relayUrl method
-				const relayUrl = (message as any).relayUrl?.() || (message as any).relay?.() || 'unknown';
 				if (isKind0(message)) {
 					const parsedEvent = asParsedEvent(message) as ParsedEvent;
-					console.log('[CMDK] ParsedNostrEvent received:', {
-						relay: typeof relayUrl === 'function' ? relayUrl() : relayUrl,
-						name: parsedEvent.parsed?.name,
-						pubkey: parsedEvent.pubkey().slice(0, 16) + '...',
-						created_at: parsedEvent.created_at,
-						eoce,
-						eose
-					});
 					if (eose) {
 						// After EOSE, process immediately
 						addOrUpdateEvent(parsedEvent);
