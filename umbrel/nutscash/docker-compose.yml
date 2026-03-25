@@ -14,10 +14,9 @@ services:
       HOST: 0.0.0.0
       PORT: 3000
       ORIGIN: http://${DEVICE_DOMAIN_NAME}:3195
-      # Relay defaults can include Umbrel's Nostr Relay app
-      VITE_DEFAULT_RELAYS: ws://${DEVICE_HOSTNAME}:4848,wss://relay.damus.io,wss://relay.nostr.band
-      VITE_INDEXER_RELAYS: ws://${DEVICE_HOSTNAME}:4848,wss://relay.nostr.band,wss://purplepag.es
-      VITE_SEARCH_RELAYS: ws://${DEVICE_HOSTNAME}:4848,wss://relay.nostr.band
       # Optional LNURL domain used by lnuts utils
       PUBLIC_LNUTS_DOMAIN: ${DEVICE_DOMAIN_NAME}
-      VITE_ENABLE_SSL: "false"
+      # Note: Relay configuration is baked in at build time via VITE_* build args.
+      # The local nostr-relay (ws://${DEVICE_HOSTNAME}:4848) is NOT included in
+      # default relays as those are for public publishing. Users can manually
+      # add their local relay in the app settings if desired.
