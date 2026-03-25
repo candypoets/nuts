@@ -32,6 +32,16 @@ This directory contains a first-pass Umbrel App Store packaging scaffold for Nut
 
 5. **Consider adding release notes** when publishing updates
 
+## Notes about proxy endpoints
+
+### WebSocket Relay Proxy (`/ws-proxy`)
+The server attaches a WebSocket relay proxy at `/ws-proxy` for proxying Nostr relay connections. This helps with:
+- CORS bypass for browser connections
+- Connecting to `.onion` relays via SOCKS (if configured)
+
+### Media Proxy
+There is **no** `/api/proxy/*` endpoint in this app. The `src/lib/proxy.ts` functions are deprecated and return original URLs directly.
+
 ## Notes about dependency on Nostr Relay
 
 - The manifest currently declares:
