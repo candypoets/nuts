@@ -148,50 +148,56 @@
 		const pubkey = event.pubkey();
 		if (!pubkey) return;
 
+		const kind0 = asKind0(event);
+		const name = kind0?.name() || 'unnamed';
+
 		const existing = seenPubkeys.get(pubkey);
 		// Always add if no existing, or if new event has newer created_at
 		if (
 			!existing ||
-			(event.created_at && existing.created_at && event.created_at > existing.created_at)
+			(event.createdAt() && existing.createdAt() && event.createdAt() > existing.createdAt())
 		) {
-			console.log('[CMDK] addOrUpdateEvent: adding', event.parsed?.name || 'unnamed', pubkey.slice(0, 16));
+			console.log('[CMDK] addOrUpdateEvent: adding', name, pubkey.slice(0, 16));
 			seenPubkeys.set(pubkey, event);
 		} else {
-			console.log('[CMDK] addOrUpdateEvent: skipping (older)', event.parsed?.name || 'unnamed');
+			console.log('[CMDK] addOrUpdateEvent: skipping (older)', name);
 		}
 	}
 
 	function matchesSearch(item: ParsedEvent, searchQuery: string): boolean {
 		if (!searchQuery) return true;
 		const lowerQuery = searchQuery.toLowerCase();
-		
-		const name = item.parsed?.name?.toLowerCase() || '';
-		const displayName = item.parsed?.display_name?.toLowerCase() || '';
-		const nip05 = item.parsed?.nip05?.toLowerCase() || '';
-		
+
+		const kind0 = asKind0(item);
+		if (!kind0) return false;
+
+		const name = (kind0.name() || '').toLowerCase();
+		const displayName = (kind0.displayName() || '').toLowerCase();
+		const nip05 = (kind0.nip05() || '').toLowerCase();
+
 		// Check name field
 		if (name.includes(lowerQuery)) {
-			console.log('[CMDK] ✓ MATCH name:', item.parsed?.name, '- query:', searchQuery);
+			console.log('[CMDK] ✓ MATCH name:', kind0.name(), '- query:', searchQuery);
 			return true;
 		}
-		
-		// Check display_name field
+
+		// Check displayName field
 		if (displayName.includes(lowerQuery)) {
-			console.log('[CMDK] ✓ MATCH display_name:', item.parsed?.display_name, '- query:', searchQuery);
+			console.log('[CMDK] ✓ MATCH displayName:', kind0.displayName(), '- query:', searchQuery);
 			return true;
 		}
-		
+
 		// Check nip05 field
 		if (nip05.includes(lowerQuery)) {
-			console.log('[CMDK] ✓ MATCH nip05:', item.parsed?.nip05, '- query:', searchQuery);
+			console.log('[CMDK] ✓ MATCH nip05:', kind0.nip05(), '- query:', searchQuery);
 			return true;
 		}
-		
+
 		console.log('[CMDK] ✗ FILTERED OUT:', {
-			name: item.parsed?.name,
-			display_name: item.parsed?.display_name,
-			nip05: item.parsed?.nip05,
-			pubkey: item.pubkey().slice(0, 16) + '...',
+			name: kind0.name(),
+			displayName: kind0.displayName(),
+			nip05: kind0.nip05(),
+			pubkey: item.pubkey()?.slice(0, 16) + '...',
 			query: searchQuery
 		});
 		return false;
@@ -245,16 +251,18 @@
 	});
 
 	function calculateScore(item: ParsedEvent, searchQuery: string): number {
-		if (!item.parsed?.name || !searchQuery) return 0; // No name or query means no match score
+		const kind0 = asKind0(item);
+		const name = kind0?.name();
+		if (!name || !searchQuery) return 0; // No name or query means no match score
 
-		const lowerName = item.parsed.name.toLowerCase();
+		const lowerName = name.toLowerCase();
 		const lowerQuery = searchQuery.toLowerCase();
 		let score = 0;
 
 		if (lowerName === lowerQuery) score = 3; // Exact match: highest score
 		if (lowerName.startsWith(lowerQuery)) score = 2; // Starts with query: high score
 		if (lowerName.includes(lowerQuery)) score = 1; // Contains query: medium score
-		if (cachedEvents.some((e) => e.pubkey == item.pubkey)) score += 3;
+		if (cachedEvents.some((e) => e.pubkey() == item.pubkey())) score += 3;
 		return score;
 	}
 
@@ -278,12 +286,13 @@
 			case MessageType.ParsedNostrEvent: {
 				if (isKind0(message)) {
 					const parsedEvent = asParsedEvent(message) as ParsedEvent;
+					const kind0 = asKind0(parsedEvent);
 					console.log('[CMDK] received event:', {
-						name: parsedEvent.parsed?.name,
-						display_name: parsedEvent.parsed?.display_name,
-						nip05: parsedEvent.parsed?.nip05,
-						pubkey: parsedEvent.pubkey().slice(0, 16) + '...',
-						content_preview: parsedEvent.parsed?.about?.slice(0, 50)
+						name: kind0?.name(),
+						displayName: kind0?.displayName(),
+						nip05: kind0?.nip05(),
+						pubkey: parsedEvent.pubkey()?.slice(0, 16) + '...',
+						about: kind0?.about()?.slice(0, 50)
 					});
 					if (eose) {
 						// After EOSE, process immediately
