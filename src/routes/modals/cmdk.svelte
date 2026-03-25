@@ -252,17 +252,40 @@
 
 	function calculateScore(item: ParsedEvent, searchQuery: string): number {
 		const kind0 = asKind0(item);
-		const name = kind0?.name();
-		if (!name || !searchQuery) return 0; // No name or query means no match score
+		if (!kind0 || !searchQuery) return 0;
 
-		const lowerName = name.toLowerCase();
 		const lowerQuery = searchQuery.toLowerCase();
 		let score = 0;
 
-		if (lowerName === lowerQuery) score = 3; // Exact match: highest score
-		if (lowerName.startsWith(lowerQuery)) score = 2; // Starts with query: high score
-		if (lowerName.includes(lowerQuery)) score = 1; // Contains query: medium score
-		if (cachedEvents.some((e) => e.pubkey() == item.pubkey())) score += 3;
+		// Check name first (primary field)
+		const name = kind0.name();
+		if (name) {
+			const lowerName = name.toLowerCase();
+			if (lowerName === lowerQuery) score = 100; // Exact match: highest score
+			else if (lowerName.startsWith(lowerQuery)) score = 50; // Starts with: high score
+			else if (lowerName.includes(lowerQuery)) score = 10; // Contains: medium score
+		}
+
+		// Check displayName if no match on name (or add to score)
+		const displayName = kind0.displayName();
+		if (displayName && score < 100) {
+			const lowerDisplayName = displayName.toLowerCase();
+			if (lowerDisplayName === lowerQuery) score = Math.max(score, 90); // Exact on displayName
+			else if (lowerDisplayName.startsWith(lowerQuery)) score = Math.max(score, 40);
+			else if (lowerDisplayName.includes(lowerQuery)) score = Math.max(score, 5);
+		}
+
+		// Check nip05 as well
+		const nip05 = kind0.nip05();
+		if (nip05 && score < 50) {
+			const lowerNip05 = nip05.toLowerCase();
+			if (lowerNip05 === lowerQuery) score = Math.max(score, 80); // Exact on nip05
+			else if (lowerNip05.includes(lowerQuery)) score = Math.max(score, 8);
+		}
+
+		// Small bonus for cached events, but don't override match quality
+		if (cachedEvents.some((e) => e.pubkey() == item.pubkey())) score += 5;
+
 		return score;
 	}
 
@@ -287,13 +310,6 @@
 				if (isKind0(message)) {
 					const parsedEvent = asParsedEvent(message) as ParsedEvent;
 					const kind0 = asKind0(parsedEvent);
-					console.log('[CMDK] received event:', {
-						name: kind0?.name(),
-						displayName: kind0?.displayName(),
-						nip05: kind0?.nip05(),
-						pubkey: parsedEvent.pubkey()?.slice(0, 16) + '...',
-						about: kind0?.about()?.slice(0, 50)
-					});
 					if (eose) {
 						// After EOSE, process immediately
 						addOrUpdateEvent(parsedEvent);
