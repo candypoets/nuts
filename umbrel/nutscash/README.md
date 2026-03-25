@@ -9,10 +9,28 @@ This directory contains a first-pass Umbrel App Store packaging scaffold for Nut
 
 ## What is still needed before official submission
 
-1. Replace Docker image tag+digest with a **multi-arch** image digest (`linux/amd64` + `linux/arm64`).
-2. Add gallery assets to the final Umbrel PR (3–5 images).
-3. Verify the dependency behavior with `nostr-relay` on real umbrelOS.
-4. Consider adding an Umbrel hook if you want dynamic relay defaults (Tor/hostname aware).
+1. **✅ GitHub Action updated for multi-arch** (`linux/amd64` + `linux/arm64`)
+   - The workflow now builds for both platforms
+   - After the next release build, update `docker-compose.yml` with the new multi-arch digest:
+     ```bash
+     docker pull ticruz38/nuts:latest
+     docker inspect ticruz38/nuts:latest --format='{{index .RepoDigests 0}}'
+     ```
+   - Then update the image line in `docker-compose.yml` with the new digest
+   
+2. ✅ **Gallery assets** - Added 4 screenshots (1440x900px PNG format) and icon.svg
+   - Screenshots show: Login page, App views
+   - Note: Screenshots currently show the login page as the app requires Nostr key authentication
+   
+3. **Verify the dependency behavior with `nostr-relay` on real umbrelOS.**
+   - The manifest declares `dependencies: [nostr-relay]`
+   - Relay defaults include `ws://${DEVICE_HOSTNAME}:4848` for local Nostr Relay
+   
+4. **Update submission field** - Add the PR link to umbrel-apps repo once submitted
+   - Current: `submission: ''`
+   - Should be: `submission: https://github.com/getumbrel/umbrel-apps/pull/XXX`
+
+5. **Consider adding release notes** when publishing updates
 
 ## Notes about dependency on Nostr Relay
 

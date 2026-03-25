@@ -3,7 +3,7 @@ id: nutscash
 category: bitcoin
 name: NutsCash
 tagline: Cashu wallet and Nostr client in one app
-version: "0.2.7"
+version: '0.2.7'
 description: >-
   NutsCash is an open-source web wallet for Cashu ecash with integrated Nostr social features.
 
@@ -14,13 +14,17 @@ developer: ticruz38
 website: https://nuts.cash
 dependencies:
   - nostr-relay
-repo: https://github.com/ticruz38/nuts-cash
-support: https://github.com/ticruz38/nuts-cash/issues
+repo: https://github.com/candypoets/nuts
+support: https://github.com/candypoets/nuts/issues
 port: 3195
-gallery: []
-path: ""
-defaultUsername: ""
-defaultPassword: ""
-releaseNotes: ""
+gallery:
+  - 1.png
+  - 2.png
+  - 3.png
+  - 4.png
+path: ''
+defaultUsername: ''
+defaultPassword: ''
+releaseNotes: ''
 submitter: ticruz38
-submission: ""
+submission: ''
