@@ -3,11 +3,12 @@
  "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd">
 <svg version="1.0" xmlns="http://www.w3.org/2000/svg"
  width="517.000000pt" height="483.000000pt" viewBox="0 0 517.000000 483.000000"
- style="--icon-fill: var(--fallback-a,oklch(var(--a)/var(--tw-text-opacity, 1)))"
  preserveAspectRatio="xMidYMid meet">
 
+<rect x="0" y="0" width="517" height="483" fill="white"/>
+
 <g transform="translate(0.000000,483.000000) scale(0.100000,-0.100000)"
-fill="var(--icon-fill)" stroke="none">
+fill="black" stroke="none">
 <path d="M3411 4685 c-12 -25 -26 -43 -30 -41 -4 3 -13 -4 -20 -16 -9 -15 -9
 -18 0 -13 7 5 10 3 7 -6 -3 -8 -11 -13 -17 -11 -6 1 -23 -24 -37 -57 -21 -48
 -29 -58 -45 -54 -12 4 -19 0 -19 -10 0 -17 -39 -68 -40 -51 0 7 7 24 15 40 9
