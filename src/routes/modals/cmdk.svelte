@@ -207,12 +207,6 @@
 		// Client-side filter: only return items that match the search query
 		const allItems = Array.from(seenPubkeys.values());
 		const filtered = allItems.filter(item => matchesSearch(item, query));
-		console.log('[CMDK] FILTER SUMMARY:', {
-			query: query,
-			totalReceived: allItems.length,
-			filteredIn: filtered.length,
-			filteredOut: allItems.length - filtered.length
-		});
 		return filtered;
 	}
 

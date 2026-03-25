@@ -162,11 +162,15 @@ export async function nip96Upload(
 	});
 
 	const json = await res.json().catch(() => null as any);
-	const url = extractUploadedUrl(json);
+	let url = extractUploadedUrl(json);
 
 	if (!res.ok || !url) {
 		throw new Error((json?.message as string) || `Upload failed with status ${res.status}`);
 	}
+	
+	// Fix malformed URLs with duplicate protocol (e.g., https://https://...)
+	url = url.replace(/^https:\/\/https:\/\//, 'https://');
+	url = url.replace(/^http:\/\/http:\/\//, 'http://');
 
 	// Build additional NIP-94 tags
 	const tags = await buildNip94Tags(file, sha256, url, opts);
@@ -256,7 +260,11 @@ export async function blossomUpload(
 	const json = await res.json().catch(() => null as any);
 
 	// Construct the URL from the server response or use the upload URL
-	const url = json?.url || uploadUrl;
+	let url = json?.url || uploadUrl;
+	
+	// Fix malformed URLs with duplicate protocol (e.g., https://https://...)
+	url = url.replace(/^https:\/\/https:\/\//, 'https://');
+	url = url.replace(/^http:\/\/http:\/\//, 'http://');
 
 	// Build NIP-94 tags
 	const tags = await buildNip94Tags(file, sha256, url, opts);

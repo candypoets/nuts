@@ -11,10 +11,6 @@
   },
   "lsp": {
     "svelte-language-server": {
-      "binary": {
-        "path": "/root/.local/bin/svelteserver-wrapper",
-        "arguments": ["--stdio"]
-      },
       "settings": {
         "svelte.plugin.typescript.enabled": true,
         "svelte.plugin.svelte.enabled": true
