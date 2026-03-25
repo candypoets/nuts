@@ -24,7 +24,7 @@ This directory contains a first-pass Umbrel App Store packaging scaffold for Nut
    
 3. **Verify the dependency behavior with `nostr-relay` on real umbrelOS.**
    - The manifest declares `dependencies: [nostr-relay]`
-   - Relay defaults include `ws://${DEVICE_HOSTNAME}:4848` for local Nostr Relay
+   - Users can manually add their local relay at `ws://${DEVICE_HOSTNAME}:4848` in app settings
    
 4. **Update submission field** - Add the PR link to umbrel-apps repo once submitted
    - Current: `submission: ''`
@@ -46,7 +46,9 @@ There is **no** `/api/proxy/*` endpoint in this app. The `src/lib/proxy.ts` func
 
 - The manifest currently declares:
   - `dependencies: [nostr-relay]`
-- Relay defaults include `ws://${DEVICE_HOSTNAME}:4848` so NutsCash can talk to the local Nostr Relay app by default.
+- The local relay at `ws://${DEVICE_HOSTNAME}:4848` is NOT automatically added to default relays
+- Users can manually add their local relay in the app settings if desired
+- This is intentional as default relays are for public publishing, not local relays
 
 ## Local test
 
