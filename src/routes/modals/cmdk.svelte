@@ -75,12 +75,12 @@
 		try {
 			const cleanTag = tag.replace(/^#/, '');
 			if (!cleanTag) return;
-			
+
 			const history = loadHashtagHistory();
 			// Remove if exists (to move to top) and add to front
 			const filtered = history.filter(h => h.toLowerCase() !== cleanTag.toLowerCase());
 			const newHistory = [cleanTag, ...filtered].slice(0, 10); // Keep last 10
-			
+
 			sessionStorage.setItem(HASHTAG_HISTORY_KEY, JSON.stringify(newHistory));
 			hashtagHistory = newHistory;
 		} catch {
@@ -132,16 +132,6 @@
 		}
 	}
 
-	$: subscriptionOptions = {
-		pipeline: [
-			new PipeT(PipeConfig.MuteFilterPipeConfig, $mutePipeConfig),
-			new PipeT(PipeConfig.ParsePipeConfig, new ParsePipeConfigT()),
-			new PipeT(
-				PipeConfig.SerializeEventsPipeConfig,
-				new SerializeEventsPipeConfigT(new TextEncoder().encode('cmdk'))
-			)
-		]
-	};
 
 	function selectItem(item: ParsedEvent, idx: number) {
 		activeIndex = idx;
@@ -169,8 +159,25 @@
 		}
 	}
 
+	function matchesSearch(item: ParsedEvent, searchQuery: string): boolean {
+		if (!searchQuery) return true;
+		const lowerQuery = searchQuery.toLowerCase();
+		
+		// Check name field
+		if (item.parsed?.name?.toLowerCase().includes(lowerQuery)) return true;
+		
+		// Check display_name field
+		if (item.parsed?.display_name?.toLowerCase().includes(lowerQuery)) return true;
+		
+		// Check nip05 field
+		if (item.parsed?.nip05?.toLowerCase().includes(lowerQuery)) return true;
+		
+		return false;
+	}
+
 	function getItemsFromMap(): ParsedEvent[] {
-		return Array.from(seenPubkeys.values());
+		// Client-side filter: only return items that match the search query
+		return Array.from(seenPubkeys.values()).filter(item => matchesSearch(item, query));
 	}
 
 	const subscribe = throttle((search: string) => {
@@ -187,8 +194,17 @@
 		selectedIndex = 0;
 		loading = true;
 		const subscriptionId = 'cmdk_' + search;
-		const filters = [{ kinds: [0], search, limit: 10, noCache: true, relays: SEARCH_RELAYS }];
-		sub = useSubscription(subscriptionId, filters, handleEvents, subscriptionOptions);
+		// Search broadly with higher limit, then filter client-side
+		const filters = [{ kinds: [0], search, limit: 50, noCache: true, relays: SEARCH_RELAYS }];
+		sub = useSubscription(subscriptionId, filters, handleEvents, {
+			pipeline: [
+				new PipeT(PipeConfig.MuteFilterPipeConfig, $mutePipeConfig),
+				new PipeT(PipeConfig.ParsePipeConfig, new ParsePipeConfigT()),
+				new PipeT(
+					PipeConfig.SerializeEventsPipeConfig,
+					new SerializeEventsPipeConfigT(new TextEncoder().encode('cmdk'))
+				)
+			]})
 	}, 600);
 
 	onDestroy(() => {
