@@ -12,7 +12,10 @@
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"test:unit": "vitest",
 		"lint": "prettier --plugin-search-dir . --check . && eslint .",
-		"format": "prettier --plugin-search-dir . --write ."
+		"format": "prettier --plugin-search-dir . --write .",
+		"bump:patch": "./scripts/bump-version.sh patch",
+		"bump:minor": "./scripts/bump-version.sh minor",
+		"bump:major": "./scripts/bump-version.sh major"
 	},
 	"devDependencies": {
 		"@gandlaf21/bolt11-decode": "^3.0.6",
@@ -59,7 +62,7 @@
 	"type": "module",
 	"dependencies": {
 		"@candypoets/lnuts": "^0.1.6",
-		"@candypoets/nipworker": "^0.91.3",
+		"@candypoets/nipworker": "^0.92.0",
 		"@cashu/cashu-ts": "3.1.1",
 		"@gandlaf21/bc-ur": "^1.1.12",
 		"@gandlaf21/bolt11-decode": "^3.1.1",
