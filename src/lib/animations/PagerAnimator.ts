@@ -505,13 +505,15 @@ export class PagerAnimator {
 		}
 
 		// Animate main element with Motion One using individual transform properties
+		// Start from current state to ensure smooth continuity after swipe
+		const current = this.getElementState(this.main);
 		animate(
 			this.main,
 			{
-				x: translateX,
-				y: translateY,
-				scale,
-				rotateY
+				x: [current.x, translateX],
+				y: [current.y, translateY],
+				scale: [current.scale, scale],
+				rotateY: [current.rotateY ?? 0, rotateY]
 			},
 			{
 				// Shorter duration on mobile for snappier feel
@@ -646,8 +648,9 @@ export class PagerAnimator {
 
 		// Also update main content with delta influence
 		this.updateMainContent(this.pendingDeltaX, this.pendingDeltaY, true, depths);
+
 		this.rafId = null;
-	};
+	}
 
 	/**
 	 * Real-time touch tracking for swipe-to-dismiss using direct style updates
