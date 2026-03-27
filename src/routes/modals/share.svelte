@@ -10,7 +10,9 @@
 		asKind3,
 		asParsedEvent,
 		fbArray,
-		isConnectionStatus
+		isConnectionStatus,
+		isKind1,
+		isParsedEvent
 	} from '@candypoets/nipworker/utils';
 	import type {
 		ConnectionStatus,
@@ -25,6 +27,7 @@
 	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
 	import { isMobile } from 'src/controller';
 	import { nip19, type EventTemplate } from 'nostr-tools';
+	import { decode } from 'nostr-tools/nip19';
 	import { now } from 'src/lib/period';
 	import { getUserRelays } from 'src/routes/queries/user';
 	import { updateSendStatus } from 'src/controller/sendStatus';
@@ -145,17 +148,48 @@
 		});
 	}
 
+	let replySub: (() => void) | undefined;
+
 	onMount(() => {
 		if (noteId) {
-			let replySub = useSubscription(noteId, [{ ids: [noteId], relays: [] }], (message) => {
-				const parsedEvent = asParsedEvent(message);
-				if (parsedEvent && parsedEvent?.id() == noteId) {
-					note = parsedEvent;
-					getUserRelays(note.pubkey(), (result) => (relays = result));
-					replySub?.();
+			// Try to decode as nevent to get hex id and relay hints
+			let hexId = noteId;
+			let relayHints: string[] = [];
+			try {
+				const decoded = decode(noteId);
+				if (decoded && decoded.type === 'nevent') {
+					hexId = decoded.data.id;
+					relayHints = decoded.data.relays || [];
 				}
-			});
+			} catch {
+				// Not an nevent, use noteId as-is (it's already a hex id)
+			}
+
+			replySub = useSubscription(
+				'share_' + hexId,
+				[
+					{
+						kinds: [1],
+						ids: [hexId],
+						limit: 1,
+						relays: relayHints,
+						cacheFirst: true
+					}
+				],
+				(message) => {
+					const parsedEvent = isParsedEvent(message);
+					const kind1 = isKind1(message);
+					if (kind1 && parsedEvent && parsedEvent.id() === hexId) {
+						note = parsedEvent;
+						getUserRelays(note.pubkey(), (result) => (relays = result));
+					}
+				}
+			);
 		}
+	});
+
+	onDestroy(() => {
+		replySub?.();
 	});
 
 	// Process feed: filter by search

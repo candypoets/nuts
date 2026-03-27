@@ -16,7 +16,7 @@
 		isConnectionStatus
 	} from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
-	import { kinds, type EventTemplate } from 'nostr-tools';
+	import { kinds, nip19, type EventTemplate } from 'nostr-tools';
 	import { onDestroy } from 'svelte';
 
 	import EmojiPickerContent from 'src/components/EmojiPickerContent.svelte';
@@ -227,7 +227,17 @@
 			class="flex items-center space-x-1 hover:font-bold hover:text-accent hover:-mt-1 transition-all"
 			class:text-accent={!!replied}
 			class:font-semibold={!!replied}
-			on:click|stopPropagation={() => go('reply:' + note.id())}
+			on:click|stopPropagation={() => {
+				const goReply = (/** @type {string[]} */ r) => {
+					const nevent = nip19.neventEncode({ id: note.id(), relays: r });
+					go('reply:' + nevent);
+				};
+				if (relays.length > 0) {
+					goReply(relays);
+				} else {
+					getUserRelays(note.pubkey(), goReply);
+				}
+			}}
 			role="button"
 			tabindex="0"
 		>
@@ -245,7 +255,17 @@
 			class:cursor-default={!!reposted}
 			role="button"
 			tabindex="0"
-			on:click|stopPropagation={() => go('repost:' + note.id())}
+			on:click|stopPropagation={() => {
+				const goRepost = (/** @type {string[]} */ r) => {
+					const nevent = nip19.neventEncode({ id: note.id(), relays: r });
+					go('repost:' + nevent);
+				};
+				if (relays.length > 0) {
+					goRepost(relays);
+				} else {
+					getUserRelays(note.pubkey(), goRepost);
+				}
+			}}
 		>
 			<Icon icon="ph:repeat" class="text-2xl" />
 			<span>{repostCount + quoteCount || ''}</span>
@@ -278,7 +298,17 @@
 			class="flex items-center space-x-1 hover:font-bold hover:text-accent hover:-mt-1 transition-all"
 			role="button"
 			tabindex="0"
-			on:click|stopPropagation={() => go('share:' + note.id())}
+			on:click|stopPropagation={() => {
+				const goShare = (/** @type {string[]} */ r) => {
+					const nevent = nip19.neventEncode({ id: note.id(), relays: r });
+					go('share:' + nevent);
+				};
+				if (relays.length > 0) {
+					goShare(relays);
+				} else {
+					getUserRelays(note.pubkey(), goShare);
+				}
+			}}
 		>
 			<Icon icon="ph:paper-plane-tilt" class="text-xl" />
 			<span></span>

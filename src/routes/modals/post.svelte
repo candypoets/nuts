@@ -1,23 +1,25 @@
 <script lang="ts">
 	import { ParsedEvent, WorkerMessage, type ConnectionStatus } from '@candypoets/nipworker';
 	import { usePublish, useSignEvent, useSubscription } from '@candypoets/nipworker/hooks';
-	import { asParsedEvent, fbArray, isConnectionStatus } from '@candypoets/nipworker/utils';
+	import { asParsedEvent, fbArray, isConnectionStatus, isKind1, isParsedEvent } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { nip19, type EventTemplate, type NostrEvent } from 'nostr-tools';
 	import Editor from 'src/components/Editor.svelte';
 	import VirtualListBottom from 'src/components/VirtualListBottom.svelte';
-	import { isMobile } from 'src/controller';
+	import { isMobile, readRelays, writeRelays } from 'src/controller';
 	import { composing } from 'src/controller/editor';
+	import { get } from 'svelte/store';
 	import { updateSendStatus } from 'src/controller/sendStatus';
 	import { prepareEvent } from 'src/editor/utils';
 	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
 	import { now } from 'src/lib/period';
-	import { getContext, onMount } from 'svelte';
+	import { getContext, onDestroy, onMount } from 'svelte';
 	import type { Readable } from 'svelte/store';
 	import { fly } from 'svelte/transition';
 	import Note from '../explore/note.svelte';
 	import User from '../explore/user.svelte';
 	import { getUserRelays } from '../queries/user';
+	import { decode } from 'nostr-tools/nip19';
 
 	export let placeholder = "Speak your mind it's Nostr";
 	export let initialContent = '';
@@ -28,22 +30,69 @@
 	export let repost: string | undefined = undefined;
 
 	$: noteId = reply || repost;
+	$: hexId = (() => {
+		if (!noteId) return undefined;
+		try {
+			const decoded = decode(noteId);
+			if (decoded?.type === 'nevent') {
+				return decoded.data.id;
+			}
+		} catch {
+			// Not an nevent, assume it's already a hex id
+		}
+		return noteId;
+	})();
 
 	let editor: Readable<Editor>;
 	let isSubmitting = false;
 	let pagerAnimator: PagerAnimator | undefined = getContext('animator');
 	let showPicker = false;
 
+	let replySub: (() => void) | undefined;
+
 	onMount(async () => {
 		if (noteId) {
-			let replySub = useSubscription(noteId, [{ ids: [noteId], relays: [] }], (message) => {
-				const parsedEvent = asParsedEvent(message);
-				if (parsedEvent && parsedEvent?.id() == noteId) {
-					note = parsedEvent;
-					replySub?.();
+			// Try to decode as nevent to get hex id and relay hints
+			let hexId = noteId;
+			let relayHints: string[] = [];
+			try {
+				const decoded = decode(noteId);
+				if (decoded && decoded.type === 'nevent') {
+					hexId = decoded.data.id;
+					relayHints = decoded.data.relays || [];
 				}
-			});
+			} catch {
+				// Not an nevent, use noteId as-is (it's already a hex id)
+			}
+
+			// Add user's read and write relays as fallback
+			const userReadRelays = get(readRelays);
+			const userWriteRelays = get(writeRelays);
+			const allRelays = [...new Set([...relayHints, ...userReadRelays, ...userWriteRelays])];
+
+			replySub = useSubscription(
+				'post_' + hexId,
+				[
+					{
+						kinds: [1],
+						ids: [hexId],
+						limit: 5,
+						relays: allRelays
+					}
+				],
+				(message) => {
+					const parsedEvent = isParsedEvent(message);
+					const kind1 = isKind1(message);
+					if (kind1 && parsedEvent && parsedEvent.id() === hexId) {
+						note = parsedEvent;
+					}
+				}
+			);
 		}
+	});
+
+	onDestroy(() => {
+		replySub?.();
 	});
 
 	async function handleSubmit() {
@@ -139,7 +188,7 @@
 				</div>
 				{#if noteId && note}
 					<Note
-						{noteId}
+						noteId={hexId}
 						depth={1}
 						showRoot={false}
 						footer={false}
@@ -147,6 +196,11 @@
 						context={[note]}
 					/>
 					<br />
+				{:else if noteId}
+					<!-- Loading state -->
+					<div class="h-32 flex items-center justify-center">
+						<Icon icon="carbon:circle-dash" class="w-8 h-8 animate-spin text-gray-400" />
+					</div>
 				{:else if $isMobile}
 					<div class="h-32" />
 				{/if}
