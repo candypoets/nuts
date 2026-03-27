@@ -178,6 +178,7 @@
 						subed++;
 
 						// Build the main request based on whether it's naddr or regular note
+						// Skip loading note by ID if we already have it (naddr always needs loading)
 						const mainRequest = naddrDecoded
 							? {
 									// Naddr: query by kind + author + d-tag
@@ -188,13 +189,15 @@
 									relays: relays.slice(0, 5) || [],
 									cacheFirst: true
 								}
-							: {
-									// Regular note: query by id
-									ids: nid ? [nid] : [],
-									limit: 5,
-									relays: relays.slice(0, 5) || [],
-									cacheFirst: true
-								};
+							: note
+								? null // Already have the note, skip the ids request
+								: {
+										// Regular note: query by id
+										ids: nid ? [nid] : [],
+										limit: 5,
+										relays: relays.slice(0, 5) || [],
+										cacheFirst: true
+									};
 
 						// Collect ancestor IDs to bulk load (up to 5 levels deep)
 						const ancestorIds: string[] = [];
@@ -208,24 +211,30 @@
 							currentReply = (currentReply as any)?.reply?.() || undefined;
 						}
 
-						sub = useSubscription(
-							subId || effectiveNid || 'unknown',
-							[
-								mainRequest,
-								// Bulk load ancestors if any (not already in context)
-								...(ancestorIds.length > 0
-									? [{ ids: ancestorIds, limit: ancestorIds.length * 2, relays: relays || [] }]
-									: []),
-								// For naddr, replies work differently (no #e tag to query)
-								...(naddrDecoded
-									? []
-									: [{ limit: 10, tags: { '#e': [nid] }, relays: relays || [] }]),
-								...(displayNote
-									? fbArray(displayNote, 'requests').map((r) => toRequestObject(r))
-									: [])
-							],
-							handleEvents
-						);
+						const requests = [
+							// Only include main request if we need to load the note
+							...(mainRequest ? [mainRequest] : []),
+							// Bulk load ancestors if any (not already in context)
+							...(ancestorIds.length > 0
+								? [{ ids: ancestorIds, limit: ancestorIds.length * 2, relays: relays || [] }]
+								: []),
+							// For naddr, replies work differently (no #e tag to query)
+							...(naddrDecoded
+								? []
+								: [{ limit: 10, tags: { '#e': [nid] }, relays: relays || [] }]),
+							...(displayNote
+								? fbArray(displayNote, 'requests').map((r) => toRequestObject(r))
+								: [])
+						];
+
+						// Only subscribe if there are requests to make
+						if (requests.length > 0) {
+							sub = useSubscription(
+								subId || effectiveNid || 'unknown',
+								requests,
+								handleEvents
+							);
+						}
 						// Fallback: if displayNote not yet available, load direct ancestor separately
 						// This handles cases where kind1 is parsed but the note hasn't loaded yet
 						if (effectiveShowRoot && kind1?.reply() && !displayNote) {
@@ -306,8 +315,7 @@
 		}
 	}
 
-	// Only subscribe if note not already in context (avoid duplicate requests)
-	$: visible == true && (nid || naddrDecoded) && !note ? subscribe() : unsubscribe();
+	$: visible == true && (nid || naddrDecoded) ? subscribe() : unsubscribe();
 
 	$: hasRoot =
 		decoded.replyID &&
