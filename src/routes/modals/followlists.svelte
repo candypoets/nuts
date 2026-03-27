@@ -27,9 +27,10 @@
 	// Combine in order: followList -> followSets -> otherPacks
 	$: feed = [$followList, ...followSets, ...otherPacks];
 
-	// Track seen event IDs separately for each kind to avoid duplicates
-	let seenFollowSetIds = new Set<number>();
-	let seenPackIds = new Set<number>();
+	// Track seen d tags separately for each kind to avoid duplicates (parameterized replaceable events)
+	// Maps d tag -> { createdAt, index } to keep only the most recent event for each d tag
+	let seenFollowSetDTag = new Map<string, { createdAt: number; index: number }>();
+	let seenPackDTag = new Map<string, { createdAt: number; index: number }>();
 	let loading = false;
 
 	let unsubscribe: (() => void) | undefined;
@@ -85,35 +86,69 @@
 			return;
 		}
 
-		const eventId = parsedEvent.id();
-		if (!eventId) {
-			return;
-		}
+			const kind = parsedEvent.kind();
 
-		const kind = parsedEvent.kind();
-
-		// Handle kind 30000 (Follow Sets)
+		// Handle kind 30000 (Follow Sets) - deduplicate by d tag, keep most recent
 		if (kind === 30000) {
-			if (seenFollowSetIds.has(eventId)) {
+			const dTag = kindList.d();
+			if (!dTag) return;
+
+			const existing = seenFollowSetDTag.get(dTag);
+			if (existing) {
+				// If we already have an event with this d tag, only keep the most recent
+				if (parsedEvent.createdAt() > existing.createdAt) {
+					// Replace the older event with the newer one
+					followSets[existing.index] = parsedEvent;
+					seenFollowSetDTag.set(dTag, { createdAt: parsedEvent.createdAt(), index: existing.index });
+					followSets = followSets; // trigger reactivity
+				}
 				return;
 			}
-			seenFollowSetIds.add(eventId);
+			const newIndex = followSets.length;
+			seenFollowSetDTag.set(dTag, { createdAt: parsedEvent.createdAt(), index: newIndex });
 			followSets = [...followSets, parsedEvent].sort((a, b) => b.createdAt() - a.createdAt());
+			// Update indices after sort
+			followSets.forEach((ev, idx) => {
+				const evDTag = asNip51(ev)?.d();
+				if (evDTag) {
+					seenFollowSetDTag.set(evDTag, { createdAt: ev.createdAt(), index: idx });
+				}
+			});
 			loading = false;
 			return;
 		}
 
-		// Handle kind 39089 (Follow Packs)
+		// Handle kind 39089 (Follow Packs) - deduplicate by d tag, keep most recent
 		if (kind === 39089) {
 			// Don't add followlist (it's handled reactively via $followList)
 			if (parsedEvent.id() === 'followlist') {
 				return;
 			}
-			if (seenPackIds.has(eventId)) {
+
+			const dTag = kindList.d();
+			if (!dTag) return;
+
+			const existing = seenPackDTag.get(dTag);
+			if (existing) {
+				// If we already have an event with this d tag, only keep the most recent
+				if (parsedEvent.createdAt() > existing.createdAt) {
+					// Replace the older event with the newer one
+					otherPacks[existing.index] = parsedEvent;
+					seenPackDTag.set(dTag, { createdAt: parsedEvent.createdAt(), index: existing.index });
+					otherPacks = otherPacks; // trigger reactivity
+				}
 				return;
 			}
-			seenPackIds.add(eventId);
+			const newIndex = otherPacks.length;
+			seenPackDTag.set(dTag, { createdAt: parsedEvent.createdAt(), index: newIndex });
 			otherPacks = [...otherPacks, parsedEvent].sort((a, b) => b.createdAt() - a.createdAt());
+			// Update indices after sort
+			otherPacks.forEach((ev, idx) => {
+				const evDTag = asNip51(ev)?.d();
+				if (evDTag) {
+					seenPackDTag.set(evDTag, { createdAt: ev.createdAt(), index: idx });
+				}
+			});
 			loading = false;
 			return;
 		}
