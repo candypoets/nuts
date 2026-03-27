@@ -15,7 +15,10 @@
 		"format": "prettier --plugin-search-dir . --write .",
 		"bump:patch": "./scripts/bump-version.sh patch",
 		"bump:minor": "./scripts/bump-version.sh minor",
-		"bump:major": "./scripts/bump-version.sh major"
+		"bump:major": "./scripts/bump-version.sh major",
+		"bump:patch:notes": "./scripts/bump-version.sh patch --notes",
+		"bump:minor:notes": "./scripts/bump-version.sh minor --notes",
+		"bump:major:notes": "./scripts/bump-version.sh major --notes"
 	},
 	"devDependencies": {
 		"@gandlaf21/bolt11-decode": "^3.0.6",
