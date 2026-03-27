@@ -45,7 +45,7 @@
 {#if loaded}
 	<div
 		bind:this={containerEl}
-		class="fixed top-4 left-4 z-40 hidden lg:block"
+		class="fixed bottom-4 right-4 z-40 hidden lg:block"
 		transition:fade={{ duration: 200 }}
 	>
 		{#if !expanded}
