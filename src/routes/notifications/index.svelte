@@ -8,7 +8,7 @@
 		ConnectionTracker
 	} from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
-	import { key, lastNotificationView, writeRelays } from 'src/controller';
+	import { defaultPipeline, key, lastNotificationView, writeRelays } from 'src/controller';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import { onMount, onDestroy } from 'svelte';
 	import { processNotifications, type ProcessedNotification } from './notifications';
@@ -128,6 +128,7 @@
 			connectionTracker = new ConnectionTracker();
 			const unsub = useSubscription(subId, requests, handleEvents, {
 				bytesPerEvent: 10 * 1024,
+				pipeline: $defaultPipeline.for(subId),
 				pagination: isPagination ? prevPaginationSubId : undefined
 			});
 			if (!isPagination) {
@@ -232,18 +233,21 @@
 </script>
 
 <!-- Header for the page -->
-	<Feed
-		items={notificationItems}
-		{loading}
-		{visible}
-		getItemId={(item) => {
-			// Use a stable primitive key. Returning object/random causes row churn.
-			const idObj = item?.id?.();
-			const hash = idObj?.fnv1aHash?.();
-			return hash || `${item?.type || 'notification'}-${item?.parsed?.referencedPostId || item?.createdAt?.() || 'unknown'}`;
-		}}
-		onNearBottom={handleNearBottom}
-	>
+<Feed
+	items={notificationItems}
+	{loading}
+	{visible}
+	getItemId={(item) => {
+		// Use a stable primitive key. Returning object/random causes row churn.
+		const idObj = item?.id?.();
+		const hash = idObj?.fnv1aHash?.();
+		return (
+			hash ||
+			`${item?.type || 'notification'}-${item?.parsed?.referencedPostId || item?.createdAt?.() || 'unknown'}`
+		);
+	}}
+	onNearBottom={handleNearBottom}
+>
 	<svelte:fragment slot="sticky-header">
 		<div
 			class="w-feed pt-safe bg-base-300 bg-opacity-85 mt-1 rounded-lg h-20 pb-2 flex items-center justify-between shadow-sm"
