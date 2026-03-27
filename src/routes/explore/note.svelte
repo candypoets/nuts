@@ -196,10 +196,26 @@
 									cacheFirst: true
 								};
 
+						// Collect ancestor IDs to bulk load (up to 5 levels deep)
+						const ancestorIds: string[] = [];
+						let currentReply = kind1?.reply?.();
+						while (currentReply && ancestorIds.length < 5) {
+							const replyId = currentReply?.id?.();
+							if (replyId && !context.some((e) => e?.id() === replyId)) {
+								ancestorIds.push(replyId);
+							}
+							// Access the next reply in chain (if currentReply has its own reply)
+							currentReply = (currentReply as any)?.reply?.() || undefined;
+						}
+
 						sub = useSubscription(
 							subId || effectiveNid || 'unknown',
 							[
 								mainRequest,
+								// Bulk load ancestors if any (not already in context)
+								...(ancestorIds.length > 0
+									? [{ ids: ancestorIds, limit: ancestorIds.length * 2, relays: relays || [] }]
+									: []),
 								// For naddr, replies work differently (no #e tag to query)
 								...(naddrDecoded
 									? []
@@ -210,7 +226,9 @@
 							],
 							handleEvents
 						);
-						if (effectiveShowRoot && kind1?.reply()) {
+						// Fallback: if displayNote not yet available, load direct ancestor separately
+						// This handles cases where kind1 is parsed but the note hasn't loaded yet
+						if (effectiveShowRoot && kind1?.reply() && !displayNote) {
 							const pubkey = kind1?.reply()?.author()!;
 							const id = kind1?.reply()?.id()!;
 							if (pubkey && id) {
@@ -288,7 +306,8 @@
 		}
 	}
 
-	$: visible == true && (nid || naddrDecoded) ? subscribe() : unsubscribe();
+	// Only subscribe if note not already in context (avoid duplicate requests)
+	$: visible == true && (nid || naddrDecoded) && !note ? subscribe() : unsubscribe();
 
 	$: hasRoot =
 		decoded.replyID &&
