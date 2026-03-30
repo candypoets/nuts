@@ -48,6 +48,9 @@
 	let gesture = 'unknown'; // 'unknown' | 'vertical' | 'horizontal'
 	let pullY = 0; // raw measured pull distance in px (not used to transform)
 
+	// Get height context from Feed
+	const heightContext = getContext('noteHeights');
+
 	$: rowCount = Math.ceil((items?.length || 0) / itemsPerRow);
 	$: rowsData = Array.from({ length: rowCount }, (_, i) =>
 		items.slice(i * itemsPerRow, (i + 1) * itemsPerRow)
@@ -67,6 +70,14 @@
 	const isImageContext = getContext('imageContext');
 	const isModalContext = getContext('modal');
 
+	function getItemHeight(itemId) {
+		// Use context height if available, otherwise itemHeight prop, or default
+		if (heightContext?.getHeight) {
+			return heightContext.getHeight(itemId);
+		}
+		return itemHeight || 200;
+	}
+
 	async function refresh(items, viewport_height, itemHeight) {
 		const { scrollTop } = viewport;
 
@@ -84,7 +95,8 @@
 				await tick(); // render the newly visible row
 				row = rows[i - start];
 			}
-			const row_height = (height_map[rowIds[i - start]] = itemHeight || row?.offsetHeight) || 200;
+			// Use context height or fall back to prop/default
+			const row_height = (height_map[rowIds[i - start]] = getItemHeight(rowIds[i - start]));
 			content_height += row_height;
 			i += 1;
 		}
@@ -108,10 +120,9 @@
 		down = scrollTop > lastScrollTop;
 		lastScrollTop = down ? scrollTop - 5 : scrollTop + 5;
 
+		// Update height map with current calculated heights from context
 		for (let v = 0; v < rows.length; v += 1) {
-			const row = rows[v];
-
-			height_map[rowIds[v]] = itemHeight || rows[v].offsetHeight;
+			height_map[rowIds[v]] = getItemHeight(rowIds[v]);
 		}
 
 		const totalRows = Math.ceil(items.length / itemsPerRow);

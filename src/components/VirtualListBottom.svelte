@@ -1,6 +1,6 @@
 <script>
 	import _, { uniqBy } from 'lodash';
-	import { onMount, tick } from 'svelte';
+	import { getContext, onMount, tick } from 'svelte';
 
 	// props
 	export let items;
@@ -32,6 +32,17 @@
 	let bottom = 0;
 	let average_height;
 	let lastScrollTop = 0;
+
+	// Get height context from Feed
+	const heightContext = getContext('noteHeights');
+
+	function getItemHeight(itemId) {
+		// Use context height if available, otherwise itemHeight prop, or default
+		if (heightContext?.getHeight) {
+			return heightContext.getHeight(itemId);
+		}
+		return itemHeight || 200;
+	}
 
 	function reverseScroll(event) {
 		event.preventDefault();
@@ -95,7 +106,8 @@
 				row = rows[i - start];
 			}
 
-			const row_height = (height_map[i] = itemHeight || row?.offsetHeight) || 200;
+			// Use context height or fall back to prop/default
+			const row_height = (height_map[i] = getItemHeight(getItemId(items[i])));
 			content_height += row_height;
 			i += 1;
 		}
@@ -118,8 +130,9 @@
 
 		const old_start = start;
 
+		// Update height map with current calculated heights from context
 		for (let v = 0; v < rows.length; v += 1) {
-			height_map[v] = itemHeight || rows[v].offsetHeight;
+			height_map[v] = getItemHeight(getItemId(items[start + v]));
 		}
 
 		let i = 0;
@@ -201,7 +214,7 @@
 		</svelte-virtual-list-row>
 		{#each visible as row, index (getItemId(row.data))}
 			<svelte-virtual-list-row style="transform: rotateZ(180deg);">
-				<slot item={row.data} itemIndex={index}>Missing template</slot>
+				<slot item={row.data} items={[row.data]} itemIndex={index}>Missing template</slot>
 			</svelte-virtual-list-row>
 		{/each}
 	</svelte-virtual-list-contents>

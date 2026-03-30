@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
 	import Note from '../note.svelte';
 	import User from '../user.svelte';
 	import Cashu from './cashu.svelte';
@@ -21,7 +20,6 @@
 		asNostrData,
 		fbArray
 	} from '@candypoets/nipworker/utils';
-	import { Relaysets } from 'nostr-tools/kinds';
 	import ImageGrid from 'src/components/ImageGrid.svelte';
 	import { go } from 'src/routes/modals/modal';
 	import { getContext } from 'svelte';
@@ -148,9 +146,7 @@
 		{:else if parsed.dataType() == ContentData.NostrData}
 			{@const nostr = asNostrData(parsed)}
 			{@const author = nostr?.author()}
-			{#if author && nostr
-					?.entity()
-					?.match(/n(profile|pub)/)}
+			{#if author && nostr?.entity()?.match(/n(profile|pub)/)}
 				<User pubkey={nostr?.author()} {context} />
 			{:else if nostr?.id()}
 				{#if showQuote}
@@ -186,10 +182,8 @@
 			<Cashu cashu={parsed.text()} />
 		{:else if parsed.dataType() == ContentData.ImageData && showMedia}
 			<ImageGrid {note} links={[{ src: parsed.text() || '', type: 'image' }]} />
-			<!-- <img class="lg:min-w-88 rounded-md" src={parsed.text} alt={parsed.text} /> -->
 		{:else if parsed.dataType() == ContentData.VideoData && showMedia}
 			<ImageGrid {note} links={[{ src: parsed.text() || '', type: 'video' }]} />
-			<!-- <video class="w-full rounded-md" src={parsed.text} autoplay muted></video> -->
 		{:else if parsed.dataType() == ContentData.MediaGroupData && showMedia}
 			{@const mediaGrid = asMediaGroupData(parsed)}
 			{#if mediaGrid}

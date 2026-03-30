@@ -9,7 +9,7 @@
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import { nip19 } from 'nostr-tools';
 	import type { AddressPointer } from 'nostr-tools/nip19';
-	import { getContext, onDestroy } from 'svelte';
+	import { getContext, onDestroy, onMount, setContext } from 'svelte';
 
 	import {
 		asConnectionStatus,
@@ -26,6 +26,13 @@
 	import { isMobile } from 'src/controller';
 	import { relaySub, setSubRelays } from 'src/controller/relay';
 	import { toRequestObject } from 'src/lib/request';
+	import {
+		calculateNoteHeight,
+		estimateNoteHeight,
+		getContentWidth,
+		getNoteCompositeId,
+		LAYOUT
+	} from 'src/lib/heightCalculator';
 	import Content from 'src/routes/explore/_post/content.svelte';
 	import Footer from 'src/routes/explore/_post/footer.svelte';
 	import Header from 'src/routes/explore/_post/header.svelte';
@@ -35,6 +42,7 @@
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import { getUserRelays } from 'src/routes/queries/user';
 	import { go } from '../modals/modal';
+	import { dimensions } from 'src/controller';
 
 	export let main: boolean = false;
 	export let noteId: string | undefined = undefined;
@@ -48,9 +56,37 @@
 	export let showReplies:
 		| ((post: ParsedEvent) => (events: ParsedEvent[]) => ParsedEvent[])
 		| undefined = undefined;
-	// for replies, show the original post above
 	export let showRoot: boolean = true;
 	export let depth = 0;
+
+	// Get parent context - always exists (Feed provides global, parents provide theirs)
+	const parentContext = getContext<{
+		register: (id: string, calc: () => number) => void;
+		getHeight: (id: string) => number;
+	}>('noteHeights');
+
+	// Create our own context for children (quoted notes, ancestors, replies)
+	const childCalculators = new Map<string, () => number>();
+	const childContext = {
+		register: (id: string, calc: () => number) => {
+			childCalculators.set(id, calc);
+		},
+		getHeight: (id: string): number => {
+			const calc = childCalculators.get(id);
+			if (calc) {
+				try {
+					return calc();
+				} catch (e) {
+					console.error('Height calculation failed for', id, e);
+					return LAYOUT.skeletonHeight;
+				}
+			}
+			return LAYOUT.skeletonHeight;
+		}
+	};
+
+	// Override context for our children
+	setContext('noteHeights', childContext);
 
 	// Repost handling variables
 	let kind6: ReturnType<typeof asKind6> | undefined;
@@ -85,7 +121,7 @@
 		return null;
 	})();
 
-	$: nid = noteId || displayNote?.id()!;
+	$: nid = noteId || note?.id()!;
 
 	// Effective ID for subscriptions - uses synthetic ID for naddr
 	$: effectiveNid = naddrDecoded
@@ -219,9 +255,7 @@
 								? [{ ids: ancestorIds, limit: ancestorIds.length * 2, relays: relays || [] }]
 								: []),
 							// For naddr, replies work differently (no #e tag to query)
-							...(naddrDecoded
-								? []
-								: [{ limit: 10, tags: { '#e': [nid] }, relays: relays || [] }]),
+							...(naddrDecoded ? [] : [{ limit: 10, tags: { '#e': [nid] }, relays: relays || [] }]),
 							...(displayNote
 								? fbArray(displayNote, 'requests').map((r) => toRequestObject(r))
 								: [])
@@ -229,11 +263,7 @@
 
 						// Only subscribe if there are requests to make
 						if (requests.length > 0) {
-							sub = useSubscription(
-								subId || effectiveNid || 'unknown',
-								requests,
-								handleEvents
-							);
+							sub = useSubscription(subId || effectiveNid || 'unknown', requests, handleEvents);
 						}
 						// Fallback: if displayNote not yet available, load direct ancestor separately
 						// This handles cases where kind1 is parsed but the note hasn't loaded yet
@@ -347,6 +377,47 @@
 				connectionStatus = {};
 			}
 		});
+
+	// Height calculation function - registered with context on mount
+	// Recomputes displayNote inside to avoid closure capture issues
+	function calculateHeight(): number {
+		if (displayNote) {
+			const contentWidth = getContentWidth($dimensions?.width || 600, depth);
+
+			// Calculate self height (content blocks including quoted notes)
+			const result = calculateNoteHeight(
+				displayNote,
+				contentWidth,
+				// Get quote heights from our child context (quoted notes register here)
+				(id) => childContext.getHeight(id),
+				depth
+			);
+
+			let totalHeight = result.totalHeight;
+
+			// Add ancestor height if present (registered in our child context)
+			if (hasRoot && decoded.replyID) {
+				totalHeight += childContext.getHeight(decoded.replyID);
+			}
+
+			// Add replies heights if present (registered in our child context)
+			for (const reply of visibleReplies) {
+				totalHeight += childContext.getHeight(reply.id()!);
+			}
+
+			return totalHeight;
+		}
+		// Skeleton/loading state uses fixed height - matches the shimmer UI structure
+		return LAYOUT.skeletonHeight;
+	}
+
+	// Register height calculator on mount
+	// calculateHeight uses getDisplayNote() to get current value, avoiding closure issues
+	onMount(() => {
+		if (noteId || note) {
+			parentContext.register(noteId || note.id(), calculateHeight);
+		}
+	});
 </script>
 
 {#if hasRoot}

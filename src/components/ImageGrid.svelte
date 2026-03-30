@@ -17,11 +17,36 @@
 	import { getContext } from 'svelte';
 	import VideoTile from './VideoTile.svelte';
 
-	export let links: { src: string; type?: 'image' | 'video'; blurhash?: string }[];
+	export let links: { src: string; type?: 'image' | 'video'; blurhash?: string; dim?: string }[];
 	export let note: ParsedEvent<Kind1Parsed> | undefined = undefined;
 	export let context: ParsedEvent<AnyKind>[] = [];
 
 	let isImageContext = getContext('imageContext');
+
+	// Height constants matching heightCalculator.ts
+	const MAX_IMAGE_HEIGHT = 384; // max-h-96 = 24rem = 384px
+	const IMAGE_GRID_HEIGHT = 192; // h-48 = 12rem = 192px
+
+	function parseDim(dim: string | null | undefined): { width: number; height: number } | null {
+		if (!dim) return null;
+		const [w, h] = dim.split('x').map(Number);
+		if (!w || !h || isNaN(w) || isNaN(h)) return null;
+		return { width: w, height: h };
+	}
+
+	// Calculate image height - square aspect ratio for images without dim
+	function getImageHeight(dim: string | undefined, containerWidth: number): number {
+		const parsed = parseDim(dim);
+		if (!parsed) {
+			// No dimensions: square aspect ratio (1:1), capped at max
+			return Math.min(containerWidth, MAX_IMAGE_HEIGHT);
+		}
+		const { width: imgWidth, height: imgHeight } = parsed;
+		const scaledHeight = (imgHeight * containerWidth) / imgWidth;
+		return Math.min(scaledHeight, MAX_IMAGE_HEIGHT);
+	}
+
+	let containerWidth = 0;
 
 	// Generate unique ID for this grid to scope transition names
 	const gridId = Math.random().toString(36).substring(7);
@@ -108,6 +133,7 @@
 </script>
 
 <div
+	bind:clientWidth={containerWidth}
 	class={cx(
 		'grid-cols-' + columns,
 		'relative my-2 grid cursor-pointer gap-1 overflow-hidden rounded-lg'
@@ -151,11 +177,12 @@
 				/>
 			</span>
 		{:else}
+			{@const imgHeight = displayLinks.length === 1 ? getImageHeight(link.dim, containerWidth) : IMAGE_GRID_HEIGHT}
 			<div
-				class={cx('relative', displayLinks.length === 1 ? '' : 'h-48')}
-				style={$zoomedStore === undefined && i === 0
+				class={cx('relative')}
+				style="height: {imgHeight}px; {$zoomedStore === undefined && i === 0
 					? `view-transition-name: image-zoom-${gridId}-0`
-					: ''}
+					: ''}"
 			>
 				<img
 					class={cx(

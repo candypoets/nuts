@@ -67,6 +67,7 @@
 		"@candypoets/lnuts": "^0.1.6",
 		"@candypoets/nipworker": "^0.92.0",
 		"@cashu/cashu-ts": "3.1.1",
+		"@chenglou/pretext": "^0.0.3",
 		"@gandlaf21/bc-ur": "^1.1.12",
 		"@gandlaf21/bolt11-decode": "^3.1.1",
 		"@gandlaf21/cashu-crypto": "^0.2.6",
