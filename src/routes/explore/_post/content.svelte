@@ -32,9 +32,9 @@
 	export let showMedia = true;
 	export let showQuote = true;
 	export let main = false;
+	export let showFull = false;
 
 	let imageContext = getContext('imageContext');
-	let showFullContent = false;
 
 	let kind1 = asKind1(note) as Kind1Parsed;
 	let kind4 = asKind4(note) as Kind4Parsed;
@@ -43,7 +43,7 @@
 
 	$: hasShortened = !content && fbArray(kind1, 'shortenedContent')?.length > 0;
 	$: parsedContent =
-		content || (hasShortened && !showFullContent)
+		content || (hasShortened && !showFull)
 			? fbArray(kind1, 'shortenedContent') || []
 			: fbArray(kind1 || kind4, 'parsedContent') || [];
 
@@ -92,9 +92,9 @@
 			{#if hasShortened && isLastTextBlock(index, parsedContent)}
 				<button
 					class="text-primary text-sm font-medium ml-1 hover:underline"
-					on:click|stopPropagation={() => (showFullContent = !showFullContent)}
+					on:click|stopPropagation={() => (showFull = !showFull)}
 				>
-					{showFullContent ? 'See less' : 'See more'}
+					{showFull ? 'See less' : 'See more'}
 				</button>
 			{/if}
 			<!-- {/if} -->

@@ -148,7 +148,7 @@
 				visible={subVisible}
 				index={itemIndex}
 			>
-				{noteHeightsContext.getHeight(getItemId(item))}
+				<!-- {noteHeightsContext.getHeight(getItemId(item))} -->
 				<!-- {getItemId(item)} -->
 				<Note note={item} context={[]} visible={subVisible} zaps />
 			</slot>

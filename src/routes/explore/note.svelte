@@ -59,6 +59,8 @@
 	export let showRoot: boolean = true;
 	export let depth = 0;
 
+	let showFull = false;
+
 	// Get parent context - always exists (Feed provides global, parents provide theirs)
 	const parentContext = getContext<{
 		register: (id: string, calc: () => number) => void;
@@ -71,6 +73,7 @@
 		register: (id: string, calc: () => number) => {
 			childCalculators.set(id, calc);
 		},
+		getAll: () => childCalculators,
 		getHeight: (id: string): number => {
 			const calc = childCalculators.get(id);
 			if (calc) {
@@ -382,29 +385,32 @@
 	// Recomputes displayNote inside to avoid closure capture issues
 	function calculateHeight(): number {
 		if (displayNote) {
-			const contentWidth = getContentWidth($dimensions?.width || 600, depth);
+			// const contentWidth = getContentWidth($dimensions?.width || 600, depth);
 
 			// Calculate self height (content blocks including quoted notes)
 			const result = calculateNoteHeight(
-				displayNote,
-				contentWidth,
+				!showFull && fbArray(kind1, 'shortenedContent')?.length > 0
+					? fbArray(kind1, 'shortenedContent')
+					: fbArray(kind1, 'parsedContent'),
+				$dimensions.width,
 				// Get quote heights from our child context (quoted notes register here)
-				(id) => childContext.getHeight(id),
 				depth
 			);
 
 			let totalHeight = result.totalHeight;
 
-			// Add ancestor height if present (registered in our child context)
-			if (hasRoot && decoded.replyID) {
-				totalHeight += childContext.getHeight(decoded.replyID);
-			}
+			// // Add ancestor height if present (registered in our child context)
+			// if (hasRoot && decoded.replyID) {
+			// 	totalHeight += childContext.getHeight(decoded.replyID);
+			// }
 
-			// Add replies heights if present (registered in our child context)
-			for (const reply of visibleReplies) {
-				totalHeight += childContext.getHeight(reply.id()!);
+			// // Add replies heights if present (registered in our child context)
+			// for (const reply of visibleReplies) {
+			// 	totalHeight += childContext.getHeight(reply.id()!);
+			// }
+			for (const child of childContext.getAll().values()) {
+				totalHeight += child();
 			}
-
 			return totalHeight;
 		}
 		// Skeleton/loading state uses fixed height - matches the shimmer UI structure
@@ -416,6 +422,14 @@
 	onMount(() => {
 		if (noteId || note) {
 			parentContext.register(noteId || note.id(), calculateHeight);
+		}
+	});
+
+	onDestroy(() => {
+		unsubscribe();
+		// Unregister height calculator to prevent memory leak
+		if ((noteId || note) && parentContext?.unregister) {
+			parentContext.unregister(noteId || note.id());
 		}
 	});
 </script>
@@ -493,7 +507,15 @@
 				{:else if !!displayNote.parsed}
 					<!-- {kind1?.reply()?.id()!} -->
 					<!-- {!!showReplies && note?.id()!} -->
-					<Content note={displayNote} {context} {visible} {depth} {main} {showQuote} />
+					<Content
+						bind:showFull
+						note={displayNote}
+						{context}
+						{visible}
+						{depth}
+						{main}
+						{showQuote}
+					/>
 				{:else}
 					<div class="p-3 rounded-lg bg-info-content text-sm flex items-center gap-2 mt-2">
 						<Icon icon="mdi:information-outline" class="shrink-0 w-6 h-6 text-info" />

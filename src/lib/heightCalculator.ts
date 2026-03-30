@@ -197,8 +197,7 @@ export interface ContentBlockHeight {
  */
 export function calculateBlockHeight(
 	block: ContentBlock,
-	containerWidth: number,
-	getQuoteHeight?: (id: string) => number | undefined
+	containerWidth: number
 ): ContentBlockHeight {
 	const blockType = block.type();
 	const dataType = block.dataType();
@@ -248,14 +247,14 @@ export function calculateBlockHeight(
 	if (dataType === ContentData.NostrData) {
 		const nostrData = asNostrData(block);
 		const id = nostrData?.id?.() || nostrData?.entity?.();
-		if (id) {
-			const childHeight = getQuoteHeight?.(id);
-			if (childHeight) {
-				return { type: 'quote', height: childHeight, quoteId: id, isEstimate: false };
-			}
-		}
+		// if (id) {
+		// 	const childHeight = getQuoteHeight?.(id);
+		// 	if (childHeight) {
+		// 		return { type: 'quote', height: childHeight, quoteId: id, isEstimate: false };
+		// 	}
+		// }
 		// Estimate until child loads
-		return { type: 'quote', height: LAYOUT.quoteEstimateHeight, quoteId: id, isEstimate: true };
+		// return { type: 'quote', height: LAYOUT.quoteEstimateHeight, quoteId: id, isEstimate: true };
 	}
 
 	// Link preview (YouTube or regular link)
@@ -281,52 +280,33 @@ export function calculateBlockHeight(
 export interface NoteHeightResult {
 	totalHeight: number;
 	blocks: ContentBlockHeight[];
-	estimatedQuoteIds: string[]; // IDs of quotes that need height updates
 }
 
 /**
  * Calculate total note height from content blocks
  */
 export function calculateNoteHeight(
-	note: ParsedEvent,
+	content: ContentBlock[],
 	containerWidth: number,
-	getQuoteHeight?: (id: string) => number | undefined,
 	depth: number = 0
 ): NoteHeightResult {
-	const kind1 = asKind1(note);
-	if (!kind1) {
-		return {
-			totalHeight: LAYOUT.headerHeight + LAYOUT.footerHeight,
-			blocks: [],
-			estimatedQuoteIds: []
-		};
-	}
-
-	// Get parsed content
-	const parsedContent = fbArray(kind1, 'parsedContent') || fbArray(kind1, 'shortenedContent') || [];
-
 	// Adjust width for depth indentation
 	const adjustedWidth = getContentWidth(containerWidth, depth);
 
 	let totalHeight = LAYOUT.headerHeight; // Start with header
 	const blocks: ContentBlockHeight[] = [];
-	const estimatedQuoteIds: string[] = [];
 
 	// Calculate each content block
-	for (const block of parsedContent) {
-		const blockHeight = calculateBlockHeight(block, adjustedWidth, getQuoteHeight);
+	for (const block of content) {
+		const blockHeight = calculateBlockHeight(block, adjustedWidth);
 		blocks.push(blockHeight);
-		totalHeight += blockHeight.height + 4; // Small gap between blocks
-
-		if (blockHeight.isEstimate && blockHeight.quoteId) {
-			estimatedQuoteIds.push(blockHeight.quoteId);
-		}
+		totalHeight += blockHeight.height;
 	}
 
 	// Add footer
 	totalHeight += LAYOUT.footerHeight;
 
-	return { totalHeight, blocks, estimatedQuoteIds };
+	return { totalHeight, blocks };
 }
 
 /**
