@@ -586,7 +586,10 @@
 		{/if}
 		<div class="flex items-center gap-2 px-2 py-2" class:ml-10={!depth}>
 			<Icon icon="mdi:cloud-off-outline" class="w-4 h-4 opacity-50 shrink-0" />
-			<span class="text-xs opacity-60 truncate flex-1">Not found</span>
+			<div class="flex-1 min-w-0">
+				<span class="text-xs opacity-60 truncate block">Not found</span>
+				<span class="text-[10px] opacity-40 truncate block font-mono" title={effectiveNid}>{effectiveNid.slice(0, 12)}...</span>
+			</div>
 			<button 
 				class="btn btn-xs btn-primary gap-1"
 				on:click|stopPropagation={retryWithFallbackRelays}

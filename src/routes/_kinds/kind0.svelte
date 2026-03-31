@@ -69,6 +69,11 @@
 	let followPublishUnsub: (() => void) | undefined;
 	let followPublishStatus: { [url: string]: ConnectionStatus } = {};
 
+	// Optimistic mute state
+	let muteIntent: boolean | null = null;
+	let mutePublishUnsub: (() => void) | undefined;
+	let mutePublishStatus: { [url: string]: ConnectionStatus } = {};
+
 	let sub: (() => void) | undefined;
 	let contactSub: (() => void) | undefined;
 	let feedSub: (() => void) | undefined;
@@ -230,6 +235,8 @@
 		if (paginationCheckTimeout) clearTimeout(paginationCheckTimeout);
 		followPublishUnsub?.();
 		relaySubUnsubscribe?.();
+		mutePublishUnsub?.();
+		mutePublishUnsub?.();
 	});
 
 	function updateFollowList() {
@@ -274,8 +281,26 @@
 	function toggleMute() {
 		if (!$kind0) return;
 
+		const currentState = muteIntent ?? $mutedPubkeys.includes(pubkey);
+		const newMuteState = !currentState;
+
+		// Optimistically update UI immediately
+		muteIntent = newMuteState;
+
+		// Clean up any previous publish subscription and reset relay tracking
+		mutePublishUnsub?.();
+		mutePublishStatus = {};
+
 		const template = toggleMutePubkey($kind10000, pubkey);
-		usePublish('mute_' + pubkey, template);
+		mutePublishUnsub = usePublish('mute_' + pubkey, template, (message: WorkerMessage) => {
+			const status = isConnectionStatus(message);
+			if (status) {
+				const relayUrl = status.relayUrl();
+				if (relayUrl) {
+					mutePublishStatus = { ...mutePublishStatus, [relayUrl]: status };
+				}
+			}
+		});
 	}
 
 	onMount(() => {
@@ -300,12 +325,21 @@
 	$: isFollowing = followIntent ?? $follows.some((f) => f.pubkey === pubkey);
 	$: isFollowPending = followIntent !== null && !hasOkFromRelay;
 
+	$: isMuted = muteIntent ?? $mutedPubkeys.includes(pubkey);
+	$: isMutePending = muteIntent !== null && !hasMuteOkFromRelay;
+	$: hasMuteOkFromRelay = Object.values(mutePublishStatus).some((s) => s.status() === 'true');
+
 	$: console.log('followIntent', followIntent);
 
 	// Reset intent when store confirms the change
 	$: if (followIntent !== null && $follows.some((f) => f.pubkey === pubkey) === followIntent) {
 		followIntent = null;
 		followPublishStatus = {};
+	}
+
+	$: if (muteIntent !== null && $mutedPubkeys.includes(pubkey) === muteIntent) {
+		muteIntent = null;
+		mutePublishStatus = {};
 	}
 
 	// Timeout for relay discovery - fallback to default relays if Kind10002 not received
@@ -631,17 +665,25 @@
 							<Icon icon="ion:flash" class="text-lg" />
 						</button>
 
+					<div class="relative">
 						<button
-							class="z-10 btn btn-sm btn-circle border border-white bg-opacity-80"
+							class="z-10 btn btn-sm btn-circle border border-white bg-opacity-80 disabled:opacity-100"
 							on:click={toggleMute}
-							title={$mutedPubkeys.includes(pubkey) ? 'Unmute' : 'Mute'}
+							title={isMuted ? 'Unmute' : 'Mute'}
+							disabled={isMutePending}
 						>
-							{#if $mutedPubkeys.includes(pubkey)}
+							{#if isMuted}
 								<Icon icon="mdi:volume-high" class="text-lg" />
 							{:else}
 								<Icon icon="mdi:volume-off" class="text-lg" />
 							{/if}
 						</button>
+						{#if isMutePending}
+							<div
+								class="absolute inset-0 -m-1 rounded-full border-2 border-primary border-t-transparent animate-spin pointer-events-none"
+							></div>
+						{/if}
+					</div>
 					</div>
 					<img
 						src={picture ? proxyAvatarUrl(picture) : '/miss-profile.png'}
