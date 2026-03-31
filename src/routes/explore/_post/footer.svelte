@@ -15,7 +15,7 @@
 		asCountResponse,
 		isConnectionStatus
 	} from '@candypoets/nipworker/utils';
-	import Icon from '@iconify/svelte';
+	import { IconReply, IconRepost, IconShare, IconLike } from 'src/components/icons';
 	import { kinds, nip19, type EventTemplate } from 'nostr-tools';
 	import { onDestroy } from 'svelte';
 
@@ -57,6 +57,17 @@
 	};
 
 	const commonEmoticons = ['👍', '❤️', '😂', '🔥', '😍', '🙏', '💯', '🤔', '🫂', '🚀'];
+
+	// Like animation state
+	let isAnimating = false;
+
+	function triggerLikeAnimation() {
+		if (liked) return;
+		isAnimating = true;
+		setTimeout(() => {
+			isAnimating = false;
+		}, 600);
+	}
 
 	function createSubscriptionOptions(
 		countKinds: number[],
@@ -199,6 +210,8 @@
 			created_at: now()
 		};
 
+		triggerLikeAnimation();
+
 		usePublish(
 			'reaction_' + decoded.id,
 			event,
@@ -224,7 +237,7 @@
 <div class="flex-grow flex px-2 w-full h-6 pl-10 mt-2" class:!pl-2={main}>
 	<div class="flex items-center gap-2 cursor-pointer w-full">
 		<div
-			class="flex items-center space-x-1 hover:font-bold hover:text-accent hover:-mt-1 transition-all"
+			class="action-btn flex items-center space-x-1 hover:-mt-1 transition-all"
 			class:text-accent={!!replied}
 			class:font-semibold={!!replied}
 			on:click|stopPropagation={() => {
@@ -241,17 +254,17 @@
 			role="button"
 			tabindex="0"
 		>
-			<Icon icon="iconamoon:comment-light" class="text-xl" />
+			<div class="icon-container" class:is-active={!!replied}>
+				<IconReply />
+			</div>
 			<span>{replyCount || ''}</span>
 		</div>
 
 		<!-- Repost Button -->
 		<div
-			class="flex items-center space-x-1 hover:font-bold hover:text-accent hover:-mt-1 transition-all"
+			class="action-btn flex items-center space-x-1 hover:-mt-1 transition-all"
 			class:text-primary={!!reposted}
 			class:font-semibold={!!reposted}
-			class:hover:text-primary={!!reposted}
-			class:hover:mt-0={!!reposted}
 			class:cursor-default={!!reposted}
 			role="button"
 			tabindex="0"
@@ -267,35 +280,33 @@
 				}
 			}}
 		>
-			<Icon icon="ph:repeat" class="text-2xl" />
+			<div class="icon-container" class:is-active={!!reposted}>
+				<IconRepost />
+			</div>
 			<span>{repostCount + quoteCount || ''}</span>
 		</div>
+		<!-- Like Button -->
 		<div
 			bind:this={triggerElement}
-			class="reaction-trigger flex items-center space-x-1 hover:text-accent hover:-mt-1 transition-all cursor-pointer"
+			class="action-btn reaction-trigger flex items-center space-x-1 hover:-mt-1 transition-all cursor-pointer"
 			class:text-accent={liked}
 			class:font-semibold={liked}
 			title={liked ? 'You reacted' : 'React to this post'}
 			aria-label="React to post"
 			on:click|stopPropagation
 		>
-			<!-- {#if liked}
-				{#if liked.startsWith('http')}
-					<img src={liked} alt={liked} class="w-4 h-4 inline-block" />
-				{:else if !!liked && liked != 'undefined'}
-					<span class="max-w-6 inline-block overflow-hidden text-xl">{liked}</span>
-				{/if}
-			{:else} -->
-			<Icon icon="icon-park-outline:like" class="text-xl pointer-events-none" />
+			<div class="heart-container" class:is-liked={liked} class:is-animating={isAnimating}>
+				<IconLike />
+			</div>
 			<span>{reactionCount || ''}</span>
-			<!-- {/if} -->
 		</div>
 
 		{#if triggerElement}
 			<EmojiPickerContent {triggerElement} emojis={commonEmoticons} onSelect={sendReaction} />
 		{/if}
+		<!-- Share Button -->
 		<div
-			class="flex items-center space-x-1 hover:font-bold hover:text-accent hover:-mt-1 transition-all"
+			class="action-btn flex items-center space-x-1 hover:-mt-1 transition-all"
 			role="button"
 			tabindex="0"
 			on:click|stopPropagation={() => {
@@ -310,7 +321,9 @@
 				}
 			}}
 		>
-			<Icon icon="ph:paper-plane-tilt" class="text-xl" />
+			<div class="icon-container">
+				<IconShare />
+			</div>
 			<span></span>
 		</div>
 	</div>
@@ -330,3 +343,188 @@
 		</div>
 	</div>
 </div>
+
+
+<style>
+	/* Icon container base styles - unified size */
+	.icon-container,
+	:global(.heart-container) {
+		position: relative;
+		width: 1.25rem;
+		height: 1.25rem;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	:global(.action-btn) {
+		cursor: pointer;
+		padding: 2px;
+		border-radius: 4px;
+		transition: all 0.2s ease;
+	}
+
+	:global(.action-btn:hover) {
+		transform: translateY(-2px);
+		background: rgba(128, 128, 128, 0.1);
+	}
+
+	:global(.action-svg),
+	:global(.heart-svg) {
+		width: 100%;
+		height: 100%;
+		overflow: visible;
+		transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+	}
+
+	/* Reply icon - subtle bounce + tilt on hover */
+	:global(.action-btn:hover .action-svg:not(.repost-svg):not(.share-svg)) {
+		transform: scale(1.15) rotate(-8deg);
+	}
+
+	/* Repost - rotation effect */
+	:global(.repost-svg) {
+		transition: transform 0.3s ease;
+	}
+
+	:global(.action-btn:hover .repost-svg) {
+		transform: rotate(-45deg);
+	}
+
+	.icon-container.is-active :global(.repost-svg) {
+		animation: repost-spin 0.5s ease;
+	}
+
+	@keyframes repost-spin {
+		0% { transform: rotate(0deg); }
+		100% { transform: rotate(-360deg); }
+	}
+
+	/* Share - fly away effect */
+	:global(.share-svg) {
+		transition: transform 0.3s ease, opacity 0.2s ease;
+	}
+
+	:global(.action-btn:hover .share-svg) {
+		transform: translate(3px, -3px) rotate(-20deg);
+	}
+
+	/* Active state for reply - wobble bounce */
+	.icon-container.is-active :global(.action-svg:not(.repost-svg)) {
+		animation: reply-bounce 0.4s ease;
+	}
+
+	@keyframes reply-bounce {
+		0%, 100% { transform: scale(1) rotate(0deg); }
+		25% { transform: scale(1.2) rotate(-10deg); }
+		50% { transform: scale(1.1) rotate(5deg); }
+		75% { transform: scale(1.15) rotate(-3deg); }
+	}
+
+	/* Heart styles */
+	:global(.heart-outline) {
+		transition: all 0.3s ease;
+		opacity: 1;
+	}
+
+	:global(.heart-fill) {
+		fill: currentColor;
+		opacity: 0;
+		transform: scale(0);
+		transform-origin: center;
+		transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+	}
+
+	:global(.heart-container.is-liked .heart-outline) {
+		opacity: 0;
+	}
+
+	:global(.heart-container.is-liked .heart-fill) {
+		opacity: 1;
+		transform: scale(1);
+	}
+
+	/* Animation states */
+	:global(.heart-container.is-animating .heart-fill) {
+		animation: heart-burst 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+	}
+
+	@keyframes heart-burst {
+		0% {
+			transform: scale(0);
+			opacity: 0;
+		}
+		25% {
+			transform: scale(1.3);
+			opacity: 0.8;
+		}
+		50% {
+			transform: scale(0.9);
+			opacity: 1;
+		}
+		75% {
+			transform: scale(1.1);
+			opacity: 1;
+		}
+		100% {
+			transform: scale(1);
+			opacity: 1;
+		}
+	}
+
+	/* Particles */
+	:global(.particle) {
+		opacity: 0;
+		transform-origin: center;
+	}
+
+	:global(.heart-container.is-animating .particle) {
+		animation: particle-burst 0.5s ease-out;
+	}
+
+	:global(.heart-container.is-animating .p1) { animation-delay: 0ms; }
+	:global(.heart-container.is-animating .p2) { animation-delay: 25ms; }
+	:global(.heart-container.is-animating .p3) { animation-delay: 50ms; }
+	:global(.heart-container.is-animating .p4) { animation-delay: 75ms; }
+	:global(.heart-container.is-animating .p5) { animation-delay: 100ms; }
+	:global(.heart-container.is-animating .p6) { animation-delay: 125ms; }
+	:global(.heart-container.is-animating .p7) { animation-delay: 150ms; }
+	:global(.heart-container.is-animating .p8) { animation-delay: 175ms; }
+
+	@keyframes particle-burst {
+		0% {
+			transform: translate(0, 0) scale(0);
+			opacity: 1;
+		}
+		100% {
+			transform: translate(var(--tx), var(--ty)) scale(0);
+			opacity: 0;
+		}
+	}
+
+	/* Individual particle directions */
+	:global(.p1) { --tx: 0px; --ty: -20px; }
+	:global(.p2) { --tx: 14px; --ty: -14px; }
+	:global(.p3) { --tx: 20px; --ty: 0px; }
+	:global(.p4) { --tx: 14px; --ty: 14px; }
+	:global(.p5) { --tx: 0px; --ty: 20px; }
+	:global(.p6) { --tx: -14px; --ty: 14px; }
+	:global(.p7) { --tx: -20px; --ty: 0px; }
+	:global(.p8) { --tx: -14px; --ty: -14px; }
+
+	/* Hover effect when not liked */
+	:global(.heart-container:not(.is-liked):hover .heart-outline) {
+		transform: scale(1.1);
+		stroke-width: 2.5;
+	}
+
+	/* Subtle pulse for already-liked state */
+	:global(.heart-container.is-liked:hover .heart-fill) {
+		animation: subtle-pulse 0.3s ease;
+	}
+
+	@keyframes subtle-pulse {
+		0%, 100% { transform: scale(1); }
+		50% { transform: scale(1.1); }
+	}
+</style>

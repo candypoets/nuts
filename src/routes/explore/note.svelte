@@ -87,7 +87,7 @@
 		return null;
 	})();
 
-	$: nid = noteId || note?.id()!;
+	$: nid = noteId || displayNote?.id()!;
 
 	// Effective ID for subscriptions - uses synthetic ID for naddr
 	$: effectiveNid = naddrDecoded

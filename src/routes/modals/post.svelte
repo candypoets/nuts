@@ -149,14 +149,28 @@
 
 		let sendStatus: { [url: string]: ConnectionStatus } = {};
 		const id = Math.random().toString(36).substring(2, 9);
-		usePublish(id, post, (message: WorkerMessage) => {
-			const status = isConnectionStatus(message);
-			if (status) {
-				const relayUrl = status.relayUrl();
-				sendStatus[relayUrl] = status;
-				updateSendStatus(id, sendStatus);
-			}
-		});
+
+		// Determine which subscriptions to optimistically update
+		const optimisticSubIds: string[] = [];
+		if (hexId) {
+			// Reply/quote case: optimistically update footer sub and kind1 replies sub
+			optimisticSubIds.push('f_' + hexId); // footer subscription
+			optimisticSubIds.push('replies_' + hexId); // kind1 thread replies subscription
+		}
+
+		usePublish(
+			id,
+			post,
+			(message: WorkerMessage) => {
+				const status = isConnectionStatus(message);
+				if (status) {
+					const relayUrl = status.relayUrl();
+					sendStatus[relayUrl] = status;
+					updateSendStatus(id, sendStatus);
+				}
+			},
+			{ subId: optimisticSubIds.length > 0 ? optimisticSubIds : undefined }
+		);
 
 		isSubmitting = false;
 		pagerAnimator.goBack();
