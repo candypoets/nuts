@@ -132,7 +132,7 @@
 
 		// Update height map with current calculated heights from context
 		for (let v = 0; v < rows.length; v += 1) {
-			height_map[v] = getItemHeight(getItemId(items[start + v]));
+			height_map[start + v] = getItemHeight(getItemId(items[start + v]));
 		}
 
 		let i = 0;
