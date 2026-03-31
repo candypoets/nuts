@@ -28,9 +28,13 @@
 		resizeObserver = new ResizeObserver((entries) => {
 			for (const entry of entries) {
 				const h = entry.contentRect.height;
-				minHeight = h;
-				if (heightContext?.setHeight) {
-					heightContext.setHeight(id, h);
+				// Don't report 0 height - happens when element is display:none (carousel switch)
+				// Keep previous minHeight to avoid layout jumps
+				if (h > 0) {
+					minHeight = h;
+					if (heightContext?.setHeight) {
+						heightContext.setHeight(id, h);
+					}
 				}
 			}
 		});
