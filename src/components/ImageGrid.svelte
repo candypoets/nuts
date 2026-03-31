@@ -177,10 +177,12 @@
 				/>
 			</span>
 		{:else}
-			{@const imgHeight = displayLinks.length === 1 ? getImageHeight(link.dim, containerWidth) : IMAGE_GRID_HEIGHT}
+			{@const imgHeight = displayLinks.length === 1
+				? (link.dim ? getImageHeight(link.dim, containerWidth) : undefined)
+				: IMAGE_GRID_HEIGHT}
 			<div
 				class={cx('relative')}
-				style="height: {imgHeight}px; {$zoomedStore === undefined && i === 0
+				style="{imgHeight !== undefined ? `height: ${imgHeight}px; ` : ''}{$zoomedStore === undefined && i === 0
 					? `view-transition-name: image-zoom-${gridId}-0`
 					: ''}"
 			>
