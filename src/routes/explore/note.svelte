@@ -9,7 +9,7 @@
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import { nip19 } from 'nostr-tools';
 	import type { AddressPointer } from 'nostr-tools/nip19';
-	import { getContext, onDestroy, onMount, setContext } from 'svelte';
+	import { getContext, onDestroy } from 'svelte';
 
 	import {
 		asConnectionStatus,
@@ -19,20 +19,12 @@
 		ConnectionTracker,
 		fbArray
 	} from '@candypoets/nipworker/utils';
-	import Icon from '@iconify/svelte';
-	import { isEqual, uniqBy } from 'lodash';
 	import { normalizeURL } from 'nostr-tools/utils';
+	import Icon from '@iconify/svelte';
 	import RelaysList from 'src/components/RelaysList.svelte';
 	import { isMobile } from 'src/controller';
 	import { relaySub, setSubRelays } from 'src/controller/relay';
 	import { toRequestObject } from 'src/lib/request';
-	import {
-		calculateNoteHeight,
-		estimateNoteHeight,
-		getContentWidth,
-		getNoteCompositeId,
-		LAYOUT
-	} from 'src/lib/heightCalculator';
 	import Content from 'src/routes/explore/_post/content.svelte';
 	import Footer from 'src/routes/explore/_post/footer.svelte';
 	import Header from 'src/routes/explore/_post/header.svelte';
@@ -43,6 +35,7 @@
 	import { getUserRelays } from 'src/routes/queries/user';
 	import { go } from '../modals/modal';
 	import { dimensions } from 'src/controller';
+	import { isEqual, uniqBy } from 'lodash';
 
 	export let main: boolean = false;
 	export let noteId: string | undefined = undefined;
@@ -60,36 +53,6 @@
 	export let depth = 0;
 
 	let showFull = false;
-
-	// Get parent context - always exists (Feed provides global, parents provide theirs)
-	const parentContext = getContext<{
-		register: (id: string, calc: () => number) => void;
-		getHeight: (id: string) => number;
-	}>('noteHeights');
-
-	// Create our own context for children (quoted notes, ancestors, replies)
-	const childCalculators = new Map<string, () => number>();
-	const childContext = {
-		register: (id: string, calc: () => number) => {
-			childCalculators.set(id, calc);
-		},
-		getAll: () => childCalculators,
-		getHeight: (id: string): number => {
-			const calc = childCalculators.get(id);
-			if (calc) {
-				try {
-					return calc();
-				} catch (e) {
-					console.error('Height calculation failed for', id, e);
-					return LAYOUT.skeletonHeight;
-				}
-			}
-			return LAYOUT.skeletonHeight;
-		}
-	};
-
-	// Override context for our children
-	setContext('noteHeights', childContext);
 
 	// Repost handling variables
 	let kind6: ReturnType<typeof asKind6> | undefined;
@@ -380,58 +343,6 @@
 				connectionStatus = {};
 			}
 		});
-
-	// Height calculation function - registered with context on mount
-	// Recomputes displayNote inside to avoid closure capture issues
-	function calculateHeight(): number {
-		if (displayNote) {
-			// const contentWidth = getContentWidth($dimensions?.width || 600, depth);
-
-			// Calculate self height (content blocks including quoted notes)
-			const result = calculateNoteHeight(
-				!showFull && fbArray(kind1, 'shortenedContent')?.length > 0
-					? fbArray(kind1, 'shortenedContent')
-					: fbArray(kind1, 'parsedContent'),
-				$dimensions.width,
-				// Get quote heights from our child context (quoted notes register here)
-				depth
-			);
-
-			let totalHeight = result.totalHeight;
-
-			// // Add ancestor height if present (registered in our child context)
-			// if (hasRoot && decoded.replyID) {
-			// 	totalHeight += childContext.getHeight(decoded.replyID);
-			// }
-
-			// // Add replies heights if present (registered in our child context)
-			// for (const reply of visibleReplies) {
-			// 	totalHeight += childContext.getHeight(reply.id()!);
-			// }
-			for (const child of childContext.getAll().values()) {
-				totalHeight += child();
-			}
-			return totalHeight;
-		}
-		// Skeleton/loading state uses fixed height - matches the shimmer UI structure
-		return LAYOUT.skeletonHeight;
-	}
-
-	// Register height calculator on mount
-	// calculateHeight uses getDisplayNote() to get current value, avoiding closure issues
-	onMount(() => {
-		if (noteId || note) {
-			parentContext.register(noteId || note.id(), calculateHeight);
-		}
-	});
-
-	onDestroy(() => {
-		unsubscribe();
-		// Unregister height calculator to prevent memory leak
-		if ((noteId || note) && parentContext?.unregister) {
-			parentContext.unregister(noteId || note.id());
-		}
-	});
 </script>
 
 {#if hasRoot}

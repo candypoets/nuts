@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { getContext, setContext } from 'svelte';
+	import { writable, type Writable } from 'svelte/store';
 	import VirtualList from 'src/components/VirtualList.svelte';
 	import VirtualListBottom from 'src/components/VirtualListBottom.svelte';
 	import Note from './note.svelte';
@@ -55,29 +56,31 @@
 		}
 	}
 
-	// Height calculator registry - Map of item ID to height calculation function
-	// Items register themselves and provide a function that returns their current height
-	const heightCalculators = new Map<string | number, () => number>();
+	// Reactive height registry - Map of item ID to measured height
+	// Using a Svelte store so VirtualList gets reactive updates
+	const heightRegistry: Writable<Map<string | number, number>> = writable(new Map());
 
 	const noteHeightsContext = {
-		// Register a height calculator for an item
-		register: (id: string | number, calculator: () => number) => {
-			heightCalculators.set(id, calculator);
+		// Set height for an item (called by Placeholder via ResizeObserver)
+		setHeight: (id: string | number, height: number) => {
+			heightRegistry.update(m => {
+				m.set(id, height);
+				return m;
+			});
 		},
-		// Get height for an item (called by VirtualList and child notes)
+		// Delete height entry when item unmounts
+		deleteHeight: (id: string | number) => {
+			heightRegistry.update(m => {
+				m.delete(id);
+				return m;
+			});
+		},
+		// Get current height value (synchronous for VirtualList)
 		getHeight: (id: string | number): number => {
-			const calculator = heightCalculators.get(id);
-			if (calculator) {
-				try {
-					return calculator();
-				} catch (e) {
-					console.error('Height calculation failed for', id, e);
-					return 200;
-				}
-			}
-			// No calculator registered yet - return default estimate
-			return 200;
-		}
+			return $heightRegistry.get(id) ?? itemHeight ?? 200;
+		},
+		// Expose the store for reactive subscriptions
+		heightRegistry
 	};
 
 	setContext('noteHeights', noteHeightsContext);
@@ -138,23 +141,19 @@
 		<svelte:fragment slot="empty-content">
 			<slot name="empty-content" />
 		</svelte:fragment>
-		<div class="block w-feed m-auto px-1 max-w-full">
-			<!-- {#if heightBinding} -->
-			<!-- <Placeholder visible={screenVisible}> -->
-			<slot
-				name="item-content"
-				post={item}
-				posts={itemsPerRow > 1 ? items : undefined}
-				visible={subVisible}
-				index={itemIndex}
-			>
-				<!-- {noteHeightsContext.getHeight(getItemId(item))} -->
-				<!-- {getItemId(item)} -->
-				<Note note={item} context={[]} visible={subVisible} zaps />
-			</slot>
-			<!-- </Placeholder> -->
-			<!-- {/if} -->
-		</div>
+			<div class="block w-feed m-auto px-1 max-w-full">
+				<Placeholder id={getItemId(item)} visible={screenVisible}>
+					<slot
+						name="item-content"
+						post={item}
+						posts={itemsPerRow > 1 ? items : undefined}
+						visible={subVisible}
+						index={itemIndex}
+					>
+						<Note note={item} context={[]} visible={subVisible} zaps />
+					</slot>
+				</Placeholder>
+			</div>
 	</svelte:component>
 </div>
 

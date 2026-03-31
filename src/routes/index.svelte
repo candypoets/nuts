@@ -495,11 +495,11 @@
 				{/if}
 				<div class="w-full h-full relative overflow-hidden">
 					{#if feed.id === 'home'}
-						<!-- <Home visible={!$isMobile || $currentIndexStore == index} /> -->
+						<Home visible={!$isMobile || $currentIndexStore == index} />
 					{:else if feed.id === 'explore'}
 						<Explore visible={!$isMobile || $currentIndexStore == index} />
 					{:else if feed.id === 'chat'}
-						<!-- <Chat visible={!$isMobile || $currentIndexStore == index} /> -->
+						<Chat visible={!$isMobile || $currentIndexStore == index} />
 					{/if}
 				</div>
 			</div>
