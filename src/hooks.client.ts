@@ -1,4 +1,4 @@
-import { createNostrManager, setGlobalManager } from '@candypoets/nipworker';
+import { createNostrManager, setManager } from '@candypoets/nipworker';
 
 console.log('client hooks here with url', import.meta.env.VITE_NIPWORKER_PROXY_URL);
 
@@ -11,4 +11,4 @@ const manager = createNostrManager({
 	...(proxyUrl ? { proxy: { url: proxyUrl } } : {})
 });
 
-setGlobalManager(manager);
+setManager(manager);

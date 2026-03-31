@@ -23,7 +23,8 @@
 	import Icon from '@iconify/svelte';
 	import RelaysList from 'src/components/RelaysList.svelte';
 	import { isMobile } from 'src/controller';
-	import { relaySub, setSubRelays } from 'src/controller/relay';
+	import { relaySub, relayStatusMap, setSubRelays } from 'src/controller/relay';
+	import { get } from 'svelte/store';
 	import { toRequestObject } from 'src/lib/request';
 	import Content from 'src/routes/explore/_post/content.svelte';
 	import Footer from 'src/routes/explore/_post/footer.svelte';
@@ -157,7 +158,14 @@
 				}
 				connectionStatus[normalizeURL(status?.relayUrl()! as string)] = status as ConnectionStatus;
 				break;
+			case MessageType.Eose:
+				handleEose();
+				break;
+			case MessageType.Eoce:
+				handleEose();
+				break;
 			case MessageType.ParsedNostrEvent:
+				eventsReceived++;
 				const parsedEvent = asParsedEvent(message) as ParsedEvent;
 				context = uniqBy([...context, parsedEvent], (c) => c?.id());
 				if (
@@ -176,6 +184,9 @@
 		timeout = setTimeout(
 			async () => {
 				if (visible) {
+					// Start tracking search state
+					startSearchTimeout();
+					
 					if (!sub && (nid || naddrDecoded)) {
 						subed++;
 
@@ -303,12 +314,16 @@
 		if (timeout) {
 			clearTimeout(timeout);
 			timeout = undefined;
-			sub?.();
-			sub = undefined;
-			subed--;
-			relaysub?.();
-			relaysub = undefined;
 		}
+		if (searchTimeout) {
+			clearTimeout(searchTimeout);
+			searchTimeout = undefined;
+		}
+		sub?.();
+		sub = undefined;
+		subed--;
+		relaysub?.();
+		relaysub = undefined;
 	}
 
 	$: visible == true && (nid || naddrDecoded) ? subscribe() : unsubscribe();
@@ -332,6 +347,123 @@
 	onDestroy(unsubscribe);
 
 	let relayCounter = 0;
+
+	// Search state tracking
+	let searchState: 'loading' | 'found' | 'not-found' | 'unrenderable' = 'loading';
+	let searchTimeout: ReturnType<typeof setTimeout> | undefined;
+	let eventsReceived = 0;
+
+	// Fallback relays for retry
+	const FALLBACK_RELAYS = [
+		'wss://nostr.wine',
+		'wss://relay.snort.social',
+		'wss://relay.damus.io',
+		'wss://relay.primal.net',
+		'wss://nos.lol'
+	];
+
+	// Get additional working relays from global relay status for deep search
+	function getWorkingRelays(): string[] {
+		const working: string[] = [];
+		const statusMap = relayStatusMap; // imported from relay.ts
+		// We'll use the connectionStatus we already track in this component
+		// plus we could subscribe to relayStatusMap
+		return working;
+	}
+
+	// Check if the found note can be rendered
+	function checkRenderability(note: ParsedEvent | undefined | null): 'found' | 'not-found' | 'unrenderable' {
+		if (!note) return 'not-found';
+		
+		const kind = note.kind();
+		
+		// Kind 1 is always renderable (via Content component)
+		if (kind === 1) return 'found';
+		
+		// Kind 30023 and 30311 have dedicated components
+		if (kind === 30023 || kind === 30311) return 'found';
+		
+		// Kind 6 needs a valid reposted event
+		if (kind === 6) {
+			const k6 = asKind6(note);
+			if (k6?.repostedEvent?.()) return 'found';
+			return 'unrenderable'; // Kind 6 but can't extract reposted event
+		}
+		
+		// Other kinds - check if parsed content exists
+		if (note.parsed) return 'found';
+		
+		return 'unrenderable';
+	}
+
+	// Start search timeout when subscribing
+	function startSearchTimeout() {
+		// Clear any existing timeout
+		if (searchTimeout) clearTimeout(searchTimeout);
+		
+		// Reset state
+		searchState = 'loading';
+		eventsReceived = 0;
+		
+		// Set timeout for not-found detection (2.5 seconds - sweet spot)
+		searchTimeout = setTimeout(() => {
+			if (!displayNote && searchState === 'loading') {
+				searchState = 'not-found';
+			}
+		}, 2500);
+	}
+
+	// Handle EOSE - wait for sufficient resolution rate before marking not found
+	function handleEose() {
+		// Only mark as not-found if we have a decent resolution rate (half or more relays responded)
+		// and still haven't found the event
+		if (!displayNote && searchState === 'loading' && connectionTracker.resolutionRate >= 0.5) {
+			if (searchTimeout) clearTimeout(searchTimeout);
+			searchState = 'not-found';
+		}
+	}
+
+	// Retry search with fallback relays + any currently working relays from global pool
+	function retryWithFallbackRelays() {
+		// Get currently working relays from global relay status (connected/open)
+		const workingRelays: string[] = [];
+		const globalStatus = get(relayStatusMap);
+		globalStatus.forEach((status, url) => {
+			if ((status === 'open' || status === 'connected') && !relays.includes(url)) {
+				workingRelays.push(url);
+			}
+		});
+		
+		// Also check our own connection status for working relays not yet in the list
+		Object.entries(connectionStatus).forEach(([url, status]) => {
+			if (status?.status?.() !== 'FAILED' && !relays.includes(url)) {
+				workingRelays.push(url);
+			}
+		});
+		
+		// Combine: existing relays + working relays from global pool + fallback relays
+		const newRelays = [...new Set([...relays, ...workingRelays.slice(0, 5), ...FALLBACK_RELAYS])];
+		
+		// Only proceed if we actually added new relays
+		if (newRelays.length > relays.length) {
+			relays = newRelays;
+			// Reset and re-subscribe
+			unsubscribe();
+			startSearchTimeout();
+			subscribe(effectiveNid + '_retry_' + relayCounter);
+			relayCounter++;
+		}
+	}
+
+	// Update search state when displayNote changes
+	$: if (displayNote) {
+		const renderable = checkRenderability(displayNote);
+		searchState = renderable;
+		if (searchTimeout) clearTimeout(searchTimeout);
+	} else if (searchState === 'found' || searchState === 'unrenderable') {
+		// Note was lost (shouldn't happen often)
+		searchState = 'not-found';
+	}
 
 	$: effectiveNid &&
 		relaySub(effectiveNid).subscribe((subRelays) => {
@@ -444,25 +576,56 @@
 					' border-b border-primary-content absolute right-3 mt-2'}
 			/>
 		{/if} -->
+	{:else if searchState === 'not-found'}
+		<!-- Not found state - compact -->
+		{#if leading || visibleReplies.length}
+			<div class="absolute border-primary-content left-4 h-full border-r-2" />
+		{/if}
+		{#if hasRoot || tailing}
+			<div class="absolute border-primary-content left-4 h-8 border-r-2 -mt-8" />
+		{/if}
+		<div class="flex items-center gap-2 px-2 py-2" class:ml-10={!depth}>
+			<Icon icon="mdi:cloud-off-outline" class="w-4 h-4 opacity-50 shrink-0" />
+			<span class="text-xs opacity-60 truncate flex-1">Not found</span>
+			<button 
+				class="btn btn-xs btn-primary gap-1"
+				on:click|stopPropagation={retryWithFallbackRelays}
+			>
+				<Icon icon="mdi:reload" />
+				Deep search
+			</button>
+		</div>
+	{:else if searchState === 'unrenderable'}
+		<!-- Unrenderable state - compact -->
+		{#if leading || visibleReplies.length}
+			<div class="absolute border-primary-content left-4 h-full border-r-2" />
+		{/if}
+		{#if hasRoot || tailing}
+			<div class="absolute border-primary-content left-4 h-8 border-r-2 -mt-8" />
+		{/if}
+		<div class="flex items-center gap-2 px-2 py-2" class:ml-10={!depth}>
+			<Icon icon="mdi:alert-circle-outline" class="w-4 h-4 text-warning shrink-0" />
+			<span class="text-xs opacity-60 truncate flex-1">Kind {displayNote?.kind?.() || note?.kind?.() || '?'} not supported</span>
+			<button 
+				class="btn btn-xs btn-ghost px-1"
+				on:click|stopPropagation={() => goto()}
+				title="Open in app"
+			>
+				<Icon icon="mdi:open-in-new" />
+			</button>
+		</div>
 	{:else}
-		<div class="flex flex-col gap-2">
-			<div class="flex items-start justify-between gap-2">
-				<div class="flex gap-2 items-center">
-					<div class="w-8 h-8 shimmer rounded-full"></div>
-					<div class="h-4 shimmer rounded w-24"></div>
-				</div>
-				<RelaysList subId={nid} {relays} {connectionStatus} mini />
-			</div>
-			{#if leading}
-				<div class="absolute border-gray-300 left-4 h-full border-r-2" />
-			{/if}
-			<div class="flex gap-2 w-full">
-				<div class="min-w-8"></div>
-				<div class="flex-1 space-y-2">
-					<div class="h-4 shimmer rounded w-3/4"></div>
-					<div class="h-4 shimmer rounded w-1/2"></div>
-				</div>
-			</div>
+		<!-- Loading state - compact to match not-found -->
+		{#if leading || visibleReplies.length}
+			<div class="absolute border-primary-content left-4 h-full border-r-2" />
+		{/if}
+		{#if hasRoot || tailing}
+			<div class="absolute border-primary-content left-4 h-8 border-r-2 -mt-8" />
+		{/if}
+		<div class="flex items-center gap-2 px-2 py-2" class:ml-10={!depth}>
+			<div class="w-6 h-6 shimmer rounded-full shrink-0"></div>
+			<div class="h-3 shimmer rounded w-20 flex-1 max-w-[100px]"></div>
+			<div class="w-16 h-3 shimmer rounded shrink-0"></div>
 		</div>
 	{/if}
 </div>
