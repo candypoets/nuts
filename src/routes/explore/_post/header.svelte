@@ -5,7 +5,7 @@
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import { asKind0, isKind0 } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
-	import { formatDistanceToNow } from 'date-fns';
+	import { format } from 'date-fns';
 	import { getContext, onMount } from 'svelte';
 
 	import { isMobile } from 'src/controller';
@@ -61,6 +61,20 @@
 		}
 		return () => sub?.();
 	});
+
+	function formatTimeShort(timestamp: number): string {
+		const now = Date.now();
+		const diff = now - timestamp * 1000;
+		const minutes = Math.floor(diff / 60000);
+		const hours = Math.floor(diff / 3600000);
+		const days = Math.floor(diff / 86400000);
+
+		if (minutes < 1) return 'now';
+		if (minutes < 60) return `${minutes}m`;
+		if (hours < 24) return `${hours}h`;
+		if (days < 30) return `${days}d`;
+		return format(timestamp * 1000, 'yyyy/MM/dd');
+	}
 
 	function go() {
 		if (isImageContext) return;
@@ -119,7 +133,7 @@
 							</a>
 							<Icon icon="bitcoin-icons:verify-filled" class="inline text-lg text-primary" />
 							<p class="text-xs opacity-50 ml-2">
-								{formatDistanceToNow((note?.createdAt() || 0) * 1000, { addSuffix: true })}
+								{formatTimeShort(note?.createdAt() || 0)}
 							</p>
 						</div>
 						{#if decoded?.nip05}
@@ -129,7 +143,7 @@
 				{/if}
 				{#if oneline && note?.createdAt()}
 					<p class="text-xs opacity-50 ml-2">
-						{formatDistanceToNow((note?.createdAt() || 0) * 1000, { addSuffix: true })}
+						{formatTimeShort(note?.createdAt() || 0)}
 					</p>
 				{/if}
 			</div>

@@ -636,7 +636,7 @@
 			<!-- Content adjusts size/layout based on visible state -->
 			<div class="px-4 my-6">
 				<div class="flex items-center gap-3 mb-4">
-					<div class="absolute right-4 top-20 flex gap-2">
+					<div class="absolute left-36 top-48 flex gap-2 items-end">
 						<div class="relative">
 							<button
 								class="z-10 btn btn-sm btn-circle border border-white bg-opacity-80 disabled:opacity-100"
@@ -665,25 +665,25 @@
 							<Icon icon="ion:flash" class="text-lg" />
 						</button>
 
-					<div class="relative">
-						<button
-							class="z-10 btn btn-sm btn-circle border border-white bg-opacity-80 disabled:opacity-100"
-							on:click={toggleMute}
-							title={isMuted ? 'Unmute' : 'Mute'}
-							disabled={isMutePending}
-						>
-							{#if isMuted}
-								<Icon icon="mdi:volume-high" class="text-lg" />
-							{:else}
-								<Icon icon="mdi:volume-off" class="text-lg" />
+						<div class="relative">
+							<button
+								class="z-10 btn btn-sm btn-circle border border-white bg-opacity-80 disabled:opacity-100"
+								on:click={toggleMute}
+								title={isMuted ? 'Unmute' : 'Mute'}
+								disabled={isMutePending}
+							>
+								{#if isMuted}
+									<Icon icon="mdi:volume-high" class="text-lg" />
+								{:else}
+									<Icon icon="mdi:volume-off" class="text-lg" />
+								{/if}
+							</button>
+							{#if isMutePending}
+								<div
+									class="absolute inset-0 -m-1 rounded-full border-2 border-primary border-t-transparent animate-spin pointer-events-none"
+								></div>
 							{/if}
-						</button>
-						{#if isMutePending}
-							<div
-								class="absolute inset-0 -m-1 rounded-full border-2 border-primary border-t-transparent animate-spin pointer-events-none"
-							></div>
-						{/if}
-					</div>
+						</div>
 					</div>
 					<img
 						src={picture ? proxyAvatarUrl(picture) : '/miss-profile.png'}
