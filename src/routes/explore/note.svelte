@@ -37,6 +37,8 @@
 	import { go } from '../modals/modal';
 	import { dimensions } from 'src/controller';
 	import { isEqual, uniqBy } from 'lodash';
+	import { readRelays } from 'src/controller/nostr';
+	import { DEFAULT_RELAYS } from 'src/lib/env';
 
 	export let main: boolean = false;
 	export let noteId: string | undefined = undefined;
@@ -80,7 +82,12 @@
 		try {
 			const result = nip19.decode(naddr);
 			if (result.type === 'naddr') {
-				return result.data as AddressPointer;
+				const data = result.data as AddressPointer;
+				// Use relay hints from naddr if available
+				if (data.relays?.length && relays.length === 0) {
+					relays = data.relays.slice(0, 5);
+				}
+				return data;
 			}
 		} catch (e) {
 			console.error('Failed to decode naddr:', e);
@@ -186,7 +193,7 @@
 				if (visible) {
 					// Start tracking search state
 					startSearchTimeout();
-					
+
 					if (!sub && (nid || naddrDecoded)) {
 						subed++;
 
@@ -195,7 +202,7 @@
 						const mainRequest = naddrDecoded
 							? {
 									// Naddr: query by kind + author + d-tag
-									// kinds: [naddrDecoded.kind],
+									kinds: [naddrDecoded.kind],
 									authors: [naddrDecoded.pubkey],
 									tags: { '#d': [naddrDecoded.identifier] },
 									limit: 5,
@@ -335,6 +342,11 @@
 		effectiveShowRoot;
 
 	function goto() {
+		// Prevent navigation if user has selected text
+		const selection = window.getSelection();
+		if (selection && selection.toString().trim().length > 0) {
+			return;
+		}
 		// if (isImageContext) return;
 		if (naddr) {
 			go(`naddr:${naddr}`);
@@ -372,27 +384,26 @@
 	}
 
 	// Check if the found note can be rendered
-	function checkRenderability(note: ParsedEvent | undefined | null): 'found' | 'not-found' | 'unrenderable' {
+	function checkRenderability(
+		note: ParsedEvent | undefined | null
+	): 'found' | 'not-found' | 'unrenderable' {
 		if (!note) return 'not-found';
-		
+
 		const kind = note.kind();
-		
+
 		// Kind 1 is always renderable (via Content component)
 		if (kind === 1) return 'found';
-		
+
 		// Kind 30023 and 30311 have dedicated components
 		if (kind === 30023 || kind === 30311) return 'found';
-		
+
 		// Kind 6 needs a valid reposted event
 		if (kind === 6) {
 			const k6 = asKind6(note);
 			if (k6?.repostedEvent?.()) return 'found';
 			return 'unrenderable'; // Kind 6 but can't extract reposted event
 		}
-		
-		// Other kinds - check if parsed content exists
-		if (note.parsed) return 'found';
-		
+
 		return 'unrenderable';
 	}
 
@@ -400,11 +411,11 @@
 	function startSearchTimeout() {
 		// Clear any existing timeout
 		if (searchTimeout) clearTimeout(searchTimeout);
-		
+
 		// Reset state
 		searchState = 'loading';
 		eventsReceived = 0;
-		
+
 		// Set timeout for not-found detection (2.5 seconds - sweet spot)
 		searchTimeout = setTimeout(() => {
 			if (!displayNote && searchState === 'loading') {
@@ -433,21 +444,48 @@
 				workingRelays.push(url);
 			}
 		});
-		
+
 		// Also check our own connection status for working relays not yet in the list
 		Object.entries(connectionStatus).forEach(([url, status]) => {
 			if (status?.status?.() !== 'FAILED' && !relays.includes(url)) {
 				workingRelays.push(url);
 			}
 		});
-		
-		// Combine: existing relays + working relays from global pool + fallback relays
-		const newRelays = [...new Set([...relays, ...workingRelays.slice(0, 5), ...FALLBACK_RELAYS])];
-		
-		// Only proceed if we actually added new relays
-		if (newRelays.length > relays.length) {
+
+		// Get user's read relays from kind 10002
+		const userReadRelays = get(readRelays) || [];
+
+		// Get default/app relays (from .env - includes ditto)
+		const defaultRelays = DEFAULT_RELAYS || [];
+
+		// Combine all relay sources:
+		// 1. Existing relays (already tried)
+		// 2. Working relays from global pool (newly connected since last attempt)
+		// 3. User's read relays from NIP-65
+		// 4. Default/app relays (including ditto)
+		// 5. Fallback relays (well-known public relays)
+		const allRelaySources = [
+			...workingRelays,
+			...userReadRelays,
+			...defaultRelays,
+			...FALLBACK_RELAYS
+		];
+
+		// Filter out already-used relays, shuffle for better distribution, take up to 15
+		const unusedRelays = allRelaySources
+			.filter((url) => !relays.includes(url))
+			.sort(() => Math.random() - 0.5) // Shuffle
+			.slice(0, 15);
+
+		// Combine: existing + up to 15 new unique relays
+		const newRelays = [...new Set([...relays, ...unusedRelays])];
+
+		// Always retry - even with same relays, the previous attempt might have timed out
+		// Only skip if we have absolutely no relays (shouldn't happen with fallbacks)
+		if (newRelays.length > 0) {
+			const hasNewRelays = newRelays.length > relays.length;
 			relays = newRelays;
-			// Reset and re-subscribe
+			// Reset and re-subscribe with a new subId
 			unsubscribe();
 			startSearchTimeout();
 			subscribe(effectiveNid + '_retry_' + relayCounter);
@@ -588,9 +626,11 @@
 			<Icon icon="mdi:cloud-off-outline" class="w-4 h-4 opacity-50 shrink-0" />
 			<div class="flex-1 min-w-0">
 				<span class="text-xs opacity-60 truncate block">Not found</span>
-				<span class="text-[10px] opacity-40 truncate block font-mono" title={effectiveNid}>{effectiveNid.slice(0, 12)}...</span>
+				<span class="text-[10px] opacity-40 truncate block font-mono" title={effectiveNid}
+					>{effectiveNid.slice(0, 12)}...</span
+				>
 			</div>
-			<button 
+			<button
 				class="btn btn-xs btn-primary gap-1"
 				on:click|stopPropagation={retryWithFallbackRelays}
 			>
@@ -608,8 +648,10 @@
 		{/if}
 		<div class="flex items-center gap-2 px-2 py-2" class:ml-10={!depth}>
 			<Icon icon="mdi:alert-circle-outline" class="w-4 h-4 text-warning shrink-0" />
-			<span class="text-xs opacity-60 truncate flex-1">Kind {displayNote?.kind?.() || note?.kind?.() || '?'} not supported</span>
-			<button 
+			<span class="text-xs opacity-60 truncate flex-1"
+				>Kind {displayNote?.kind?.() || note?.kind?.() || '?'} not supported</span
+			>
+			<button
 				class="btn btn-xs btn-ghost px-1"
 				on:click|stopPropagation={() => goto()}
 				title="Open in app"

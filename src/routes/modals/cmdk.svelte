@@ -406,6 +406,7 @@
 						itemsPerRow={1}
 						height="100%"
 						className="w-full"
+						itemHeight={64}
 						let:item
 						let:items
 						let:itemIndex

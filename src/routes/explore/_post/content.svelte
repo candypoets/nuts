@@ -64,7 +64,7 @@
 	class:pr-2={imageContext}
 	class:!w-full={main}
 	class:text-sm={!!depth}
-	class={'w-full text-wrap whitespace-normal break-words relative' + ($$props.class || '')}
+	class={'w-full text-wrap whitespace-normal break-words relative select-text' + ($$props.class || '')}
 >
 	{#each parsedContent as parsed, index}
 		{#if parsed.type() == 'text'}

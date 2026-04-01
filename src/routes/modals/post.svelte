@@ -121,7 +121,7 @@
 
 		if (note && repost) {
 			// Append the quoted event as a nostr:nevent in content
-			post.content += '\n\nnostr:' + nip19.neventEncode({ id: repost });
+			post.content += '\n\nnostr:' + nip19.neventEncode({ id: hexId });
 			
 			// Get relay hints for the quoted event
 			const timeoutPromise = new Promise<null>((resolve) => {
@@ -138,7 +138,7 @@
 			// Add q tag for the quoted event (NIP-18) and p tag for the author
 			post.tags = [
 				...editorTags,
-				['q', repost, relayHint, note!.pubkey()],
+				['q', hexId, relayHint, note!.pubkey()],
 				['p', note!.pubkey()]
 			];
 		}
