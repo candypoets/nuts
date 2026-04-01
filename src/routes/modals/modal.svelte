@@ -27,7 +27,7 @@
 	import ImageZoom from 'src/components/ImageZoom.svelte';
 	import Login from './_profile/login.svelte';
 	import Newchat from './newchat.svelte';
-	import Theme from './theme.svelte';
+	import Kind1111 from './kind1111.svelte';
 	import Kind0 from './_profile/kind0.svelte';
 
 	export let path = '';
@@ -227,6 +227,8 @@
 			<Theme />
 		{:else if modalKey === 'logout'}
 			<Logout />
+		{:else if modalKey === 'kind1111'}
+			<Kind1111 noteId={path.split(':')?.[1]} />
 		{:else if modalKey === 'zoom'}
 			<ImageZoom />
 		{/if}

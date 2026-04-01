@@ -152,7 +152,7 @@
 		if (useGlobalFeed) {
 			return [
 				{
-					kinds: [1, 6],
+					kinds: [20],
 					// kinds: [30023],
 					limit: $limit,
 					since: forPagination ? undefined : ago(31 * 24 * 60 * 60),
@@ -171,7 +171,7 @@
 		const feedRelays = $key?.pub ? relays : DEFAULT_FEED_RELAYS;
 
 		const baseRequest: RequestObject = {
-			kinds: [1, 6],
+			kinds: [20],
 			// kinds: [30023],
 			authors,
 			limit: $limit,
@@ -242,6 +242,12 @@
 				const kind6 = asKind6(parsedEvent);
 				if (!kind6.repostedEvent()) return;
 			}
+		} else if (kind === 20) {
+			// kind20 is always a root post (image posts), always allow them
+			// No filtering needed
+		} else {
+			// Skip other kinds
+			return;
 		}
 
 		const eventId = parsedEvent.id();
