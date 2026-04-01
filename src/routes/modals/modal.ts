@@ -13,6 +13,7 @@ export const pathOptions = [
 	'cmdk',
 	'followlists',
 	'kind0',
+	'kind1111',
 	'lightning',
 	'login',
 	'minting',

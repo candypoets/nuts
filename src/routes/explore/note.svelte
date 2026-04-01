@@ -29,6 +29,7 @@
 	import Content from 'src/routes/explore/_post/content.svelte';
 	import Footer from 'src/routes/explore/_post/footer.svelte';
 	import Header from 'src/routes/explore/_post/header.svelte';
+	import Kind20Content from 'src/routes/explore/_post/kind20Content.svelte';
 	import Kind30023Content from 'src/routes/explore/_post/kind30023Content.svelte';
 	import Kind30311Content from 'src/routes/explore/_post/kind30311Content.svelte';
 	import Zap from 'src/routes/explore/_post/zap.svelte';
@@ -64,6 +65,7 @@
 	let reposterPubkey: string | undefined;
 	let effectiveShowRoot = showRoot;
 	let kind1: ReturnType<typeof asKind1> | undefined;
+	let isKind20 = false;
 
 	// Check if this is a repost (kind 6) and extract the reposted event
 	// Grouped in a single reactive statement to avoid false positive cycle detection
@@ -74,6 +76,7 @@
 		reposterPubkey = isRepost ? note?.pubkey()! : undefined;
 		effectiveShowRoot = isRepost ? false : showRoot;
 		kind1 = displayNote && asKind1(displayNote as ParsedEvent);
+		isKind20 = displayNote?.kind?.() === 20;
 	}
 
 	// Decode naddr when provided
@@ -401,8 +404,11 @@
 		if (kind === 6) {
 			const k6 = asKind6(note);
 			if (k6?.repostedEvent?.()) return 'found';
-			return 'unrenderable'; // Kind 6 but can't extract reposted event
+			return 'unrenderable';
 		}
+
+		// Kind 20 (image posts) is renderable
+		if (kind === 20) return 'found';
 
 		return 'unrenderable';
 	}
@@ -551,10 +557,16 @@
 			<Zap note={displayNote} {visible} />
 		{/if}
 		{#if leading || visibleReplies.length}
-			<div class="absolute border-primary-content left-4 h-full border-r-2" />
+			<div
+				class="absolute border-primary-content left-4 h-full border-r-2"
+				class:hidden={isKind20}
+			/>
 		{/if}
 		{#if hasRoot || tailing}
-			<div class="absolute border-primary-content left-4 h-8 border-r-2 -mt-8" />
+			<div
+				class="absolute border-primary-content left-4 h-8 border-r-2 -mt-8"
+				class:hidden={isKind20}
+			/>
 		{/if}
 		{#if isRepost}
 			<!-- Repost indicator with reposter's avatar -->
@@ -573,19 +585,24 @@
 			<div class="main">main</div>
 		{/if} -->
 		<div class="flex gap-2 w-full" class:!gap-0={!!depth}>
-			<!-- {#if !depth} -->
-			<div class:!min-w-0={!!main || !!depth} class="min-w-8" />
-			<!-- {/if} -->
+			<div class:!min-w-0={!!main || !!depth} class="min-w-8" class:hidden={isKind20} />
 			<div
 				class="-mt-3 pr-2 flex-grow"
 				class:!mt-0={!!depth || isImageContext}
 				class:!mt-2={!!main}
+					class:!pr-0={isKind20}
 			>
-				{#if note?.kind() === 30023}
+				{#if displayNote?.kind?.() === 20}
+					{#key displayNote.id()}
+						<Kind20Content note={displayNote} />
+					{/key}
+				{:else if displayNote?.kind?.() === 30023}
 					<Kind30023Content note={displayNote} />
-				{:else if note?.kind() === 30311}
+				{:else if displayNote?.kind?.() === 30311}
 					<Kind30311Content note={displayNote} />
 				{:else if !!displayNote.parsed}
+					<!-- Debug -->
+					<!-- {console.log('[note] displayNote kind:', displayNote?.kind?.(), 'parsed:', !!displayNote.parsed)} -->
 					<!-- {kind1?.reply()?.id()!} -->
 					<!-- {!!showReplies && note?.id()!} -->
 					<Content

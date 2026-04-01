@@ -15,7 +15,7 @@
 		asCountResponse,
 		isConnectionStatus
 	} from '@candypoets/nipworker/utils';
-	import { IconReply, IconRepost, IconShare, IconLike } from 'src/components/icons';
+	import { IconReply, IconRepost, IconShare, IconLike, IconComment } from 'src/components/icons';
 	import { kinds, nip19, type EventTemplate } from 'nostr-tools';
 	import { onDestroy } from 'svelte';
 
@@ -38,7 +38,12 @@
 
 	let relays: string[] = [];
 
-	// replies are exported back to the parent, if the parent decides to show some
+	// Add kind1111 comment count
+	let commentCount = 0;
+	let commentSub: (() => void) | undefined;
+
+	// Check if note supports kind1111 comments (kind20 and other non-kind1 events)
+	$: supportsKind1111 = note?.kind?.() !== 1 && note?.kind?.() !== 6;
 	export let connectionStatus: { [url: string]: ConnectionStatus } = {};
 	let reposts: ParsedEvent[] = [];
 	let liked = '';
@@ -124,6 +129,9 @@
 						repostCount = count.count();
 						reposted = reposted || count.you();
 						break;
+					case 1111:
+						commentCount = count.count();
+						break;
 				}
 				break;
 		}
@@ -162,7 +170,22 @@
 							}
 						],
 						handleEvents,
-						createSubscriptionOptions([1, 6, 7], $mutePipeConfig, $key?.pub || '')
+						createSubscriptionOptions([1, 6, 7, 1111], $mutePipeConfig, $key?.pub || '')
+					);
+
+					// Separate subscription for kind1111 comments (NIP-22, uses #E tag for root)
+					commentSub = useSubscription(
+						'comment_' + decoded.id,
+						[
+							{
+								kinds: [1111],
+								tags: { '#E': [decoded.id] },
+								noContext: true,
+								relays
+							}
+						],
+						handleEvents,
+						createSubscriptionOptions([1111], $mutePipeConfig, $key?.pub || '')
 					);
 
 					// Separate subscription for quotes (kind 1 with #q tag)
@@ -191,9 +214,11 @@
 			sub?.();
 			quoteSub?.();
 			relaysub?.();
+			commentSub?.();
 			sub = undefined;
 			quoteSub = undefined;
 			relaysub = undefined;
+			commentSub = undefined;
 		}
 	}
 
@@ -236,29 +261,57 @@
 
 <div class="flex-grow flex px-2 w-full h-6 pl-10 mt-2" class:!pl-2={main}>
 	<div class="flex items-center gap-2 cursor-pointer w-full">
-		<div
-			class="action-btn flex items-center space-x-1 hover:-mt-1 transition-all"
-			class:text-accent={!!replied}
-			class:font-semibold={!!replied}
-			on:click|stopPropagation={() => {
-				const goReply = (/** @type {string[]} */ r) => {
-					const nevent = nip19.neventEncode({ id: note.id(), relays: r });
-					go('reply:' + nevent);
-				};
-				if (relays.length > 0) {
-					goReply(relays);
-				} else {
-					getUserRelays(note.pubkey(), goReply);
-				}
-			}}
-			role="button"
-			tabindex="0"
-		>
-			<div class="icon-container" class:is-active={!!replied}>
-				<IconReply />
+		<!-- Reply Button (for kind1 posts) -->
+		{#if !supportsKind1111}
+			<div
+				class="action-btn flex items-center space-x-1 hover:-mt-1 transition-all"
+				class:text-accent={!!replied}
+				class:font-semibold={!!replied}
+				on:click|stopPropagation={() => {
+					const goReply = (/** @type {string[]} */ r) => {
+						const nevent = nip19.neventEncode({ id: note.id(), relays: r });
+						go('reply:' + nevent);
+					};
+					if (relays.length > 0) {
+						goReply(relays);
+					} else {
+						getUserRelays(note.pubkey(), goReply);
+					}
+				}}
+				role="button"
+				tabindex="0"
+			>
+				<div class="icon-container" class:is-active={!!replied}>
+					<IconReply />
+				</div>
+				<span>{replyCount || ''}</span>
 			</div>
-			<span>{replyCount || ''}</span>
-		</div>
+		{/if}
+
+		<!-- Comments Button (for non-kind1 posts using kind1111) -->
+		{#if supportsKind1111}
+			<div
+				class="action-btn flex items-center space-x-1 hover:-mt-1 transition-all"
+				on:click|stopPropagation={() => {
+					const goComments = (/** @type {string[]} */ r) => {
+						const nevent = nip19.neventEncode({ id: note.id(), relays: r });
+						go('kind1111:' + nevent);
+					};
+					if (relays.length > 0) {
+						goComments(relays);
+					} else {
+						getUserRelays(note.pubkey(), goComments);
+					}
+				}}
+				role="button"
+				tabindex="0"
+			>
+				<div class="icon-container">
+					<IconComment />
+				</div>
+				<span>{commentCount || ''}</span>
+			</div>
+		{/if}
 
 		<!-- Repost Button -->
 		<div

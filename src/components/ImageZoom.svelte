@@ -299,6 +299,7 @@
 		>
 			<Carousel
 				keyboardShortcut
+				autoFocus
 				items={$links}
 				currentIndex={$zoomed}
 				let:item

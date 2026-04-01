@@ -53,9 +53,8 @@
 			resizeObserver.disconnect();
 			resizeObserver = null;
 		}
-		if (id && heightContext?.deleteHeight) {
-			heightContext.deleteHeight(id);
-		}
+		// Don't delete height from registry on unmount - this prevents scroll jumps
+		// when items come back into view. Heights are stable for static content.
 	});
 </script>
 
