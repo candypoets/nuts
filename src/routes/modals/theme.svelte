@@ -64,8 +64,8 @@
 			[
 				{
 					kinds: [THEME_DEFINITION_KIND],
-					authors: [pubkey],
-					limit: 100,
+					authors: [],
+					limit: 50,
 					relays,
 					closeOnEOSE: true
 				}
@@ -91,8 +91,8 @@
 	$: customThemesList = [...customThemesMap.values()];
 
 	function selectTheme(theme: DittoTheme) {
+		console.log('[ThemeSelect] Selected:', theme.name, 'isDefault:', theme.isDefault);
 		applyTheme(theme);
-		animator?.goBack();
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
