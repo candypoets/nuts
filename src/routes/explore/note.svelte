@@ -19,12 +19,14 @@
 		ConnectionTracker,
 		fbArray
 	} from '@candypoets/nipworker/utils';
-	import { normalizeURL } from 'nostr-tools/utils';
 	import Icon from '@iconify/svelte';
+	import { isEqual, uniqBy } from 'lodash';
+	import { normalizeURL } from 'nostr-tools/utils';
 	import RelaysList from 'src/components/RelaysList.svelte';
 	import { isMobile } from 'src/controller';
-	import { relaySub, relayStatusMap, setSubRelays } from 'src/controller/relay';
-	import { get } from 'svelte/store';
+	import { readRelays } from 'src/controller/nostr';
+	import { relayStatusMap, relaySub, setSubRelays } from 'src/controller/relay';
+	import { DEFAULT_RELAYS } from 'src/lib/env';
 	import { toRequestObject } from 'src/lib/request';
 	import Content from 'src/routes/explore/_post/content.svelte';
 	import Footer from 'src/routes/explore/_post/footer.svelte';
@@ -35,11 +37,8 @@
 	import Zap from 'src/routes/explore/_post/zap.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import { getUserRelays } from 'src/routes/queries/user';
+	import { get } from 'svelte/store';
 	import { go } from '../modals/modal';
-	import { dimensions } from 'src/controller';
-	import { isEqual, uniqBy } from 'lodash';
-	import { readRelays } from 'src/controller/nostr';
-	import { DEFAULT_RELAYS } from 'src/lib/env';
 
 	export let main: boolean = false;
 	export let noteId: string | undefined = undefined;
@@ -166,13 +165,14 @@
 						'wss://relay.primal.net'
 					]);
 				}
+				// Check resolution rate to handle EOSE equivalent behavior
+				if (connectionTracker.resolutionRate >= 0.5) {
+					handleEose();
+				}
 				connectionStatus[normalizeURL(status?.relayUrl()! as string)] = status as ConnectionStatus;
 				break;
-			case MessageType.Eose:
-				handleEose();
-				break;
 			case MessageType.Eoce:
-				handleEose();
+				// EOCE is just for tracking - EOSE detection is done via ConnectionTracker
 				break;
 			case MessageType.ParsedNostrEvent:
 				eventsReceived++;

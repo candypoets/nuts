@@ -159,11 +159,8 @@
 					}
 				}
 				break;
-			case MessageType.Eose:
 			case MessageType.Eoce:
-				if (connectionTracker.resolutionRate >= 0.5) {
-					loading = false;
-				}
+				// EOCE is just for tracking - EOSE detection is done via ConnectionTracker
 				break;
 			case MessageType.ParsedNostrEvent:
 				const parsed = asParsedEvent(message);
