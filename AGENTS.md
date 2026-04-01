@@ -19,6 +19,23 @@
 
 Keep TypeScript types in `<script lang="ts">` blocks only.
 
+## Module Import Patterns
+
+### Avoid Runtime Dynamic Imports
+This is a **Vite application** - use static imports at the top of files. Runtime `import()` is unnecessary and adds complexity.
+
+```typescript
+// ❌ BAD: Runtime dynamic import
+const { useSubscription } = await import('@candypoets/nipworker/hooks');
+
+// ✅ GOOD: Static import at top of file
+import { useSubscription } from '@candypoets/nipworker/hooks';
+```
+
+Vite handles tree-shaking and code splitting automatically. Only use dynamic imports for:
+- True code-splitting (lazy-loaded routes/components)
+- Conditional loading of large libraries that may not be needed
+
 ## NIP Worker Patterns
 
 ### Fetching Events by ID

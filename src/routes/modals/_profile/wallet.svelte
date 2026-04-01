@@ -118,15 +118,10 @@
 	let searchFocused = false;
 	let filteredMints: MintInfo[] = [];
 
-	let newMints: string[] = [];
-	let availableMints: MintInfo[] = []; // Initialize as empty array
+	let availableMints: MintInfo[] = [];
+	let selectedMints: string[] = [];
 
 	$: selectableMints = availableMints.filter((am) => !selectedMints.some((sm) => sm == am.url));
-
-	// Mints from existing event (if any)
-	$: mints = fbArray(k17375 as Kind17375Parsed, 'mints');
-	// Preselect defaults (Minibits, Coinos) if no saved mints
-	$: selectedMints = mints && mints.length > 0 ? mints : DEFAULT_MINTS.slice();
 
 	// Pubkey/npub/nsec
 	$: pubkey = secretKey && getPublicKey(secretKey);
@@ -139,6 +134,12 @@
 		availableMints = await fetchAvailableMints();
 		queryAlias();
 	});
+
+	// Initialize selectedMints from existing wallet or defaults (once when availableMints loads)
+	$: if (selectedMints.length === 0 && availableMints.length > 0) {
+		const mints = fbArray(k17375 as Kind17375Parsed, 'mints');
+		selectedMints = mints && mints.length > 0 ? [...mints] : [...DEFAULT_MINTS];
+	}
 
 	function filterMints() {
 		if (!search.trim()) {
@@ -182,28 +183,20 @@
 		alias = aliases?.[0] || null;
 	}
 
-	async function addMint(newMint: string) {
-		loading = true;
-		// const isValid = await isMintUrlValid(newMintUrl);
-		loading = false;
-		// isInvalid = !isValid;
-		// if (isValid) {
-		selectedMints.unshift(newMint);
-		selectedMints = uniq(selectedMints);
-		// }
-	}
-
 	function removeMint(url: string) {
-		selectedMints = selectedMints.filter((sm) => sm != url);
+		selectedMints = selectedMints.filter((sm) => sm !== url);
 	}
 
 	async function selectMint(mint: MintInfo) {
-		// newMintUrl = mint.url;
 		loading = true;
 		const isValid = await isMintUrlValid(mint.url);
 		loading = false;
-		selectedMints.unshift(mint.url);
-		selectedMints = uniq(selectedMints);
+		if (isValid) {
+			selectedMints = uniq([mint.url, ...selectedMints]);
+			search = '';
+			filteredMints = [];
+			searchFocused = false;
+		}
 	}
 
 	async function selectMintUrl(url: string) {
@@ -217,18 +210,23 @@
 		const isValid = await isMintUrlValid(url);
 		loading = false;
 		if (isValid) {
-			selectedMints.unshift(url);
-			selectedMints = uniq(selectedMints);
+			selectedMints = uniq([url, ...selectedMints]);
 			isInvalid = false;
+			search = '';
+			filteredMints = [];
+			searchFocused = false;
 		} else {
 			isInvalid = true;
 		}
 	}
 
 	function handleKeyDown(event: KeyboardEvent) {
-		if (event.key === 'Enter' && filteredMints.length > 0) {
-			filteredMints = [];
-			addMint(filteredMints[0].url);
+		if (event.key === 'Enter') {
+			if (filteredMints.length > 0) {
+				selectMint(filteredMints[0]);
+			} else if (search.trim()) {
+				selectMintUrl(search);
+			}
 		}
 	}
 
@@ -287,7 +285,7 @@
 	}
 </script>
 
-<div class="h-screen bg-base-300 bg-opacity-85 pt-4 overflow-scroll" on:touchmove|stopPropagation>
+<div class="h-screen bg-base-300 bg-opacity-85 pt-4 overflow-scroll" data-scroll-container>
 	{#if header}
 		<div class="flex justify-between mb-6 px-4 pt-safe">
 			<button class="w-1/4" aria-label="Return to previous screen" on:click={animator.goBack}>
@@ -477,134 +475,121 @@
 		<div class="bg-base-300 border-primary-content border p-4 rounded-lg">
 			<h3 class="font-semibold mb-3">Mints</h3>
 
+			<!-- Search to add mints -->
 			<div class="relative w-full mb-4">
-				<div class="join w-full border">
-					<input
-						class="w-full join-item px-2"
-						type="text"
-						bind:value={search}
-						on:keydown={handleKeyDown}
-						on:input={filterMints}
-						on:focus={() => {
-							searchFocused = true;
-							filterMints();
-						}}
-						on:blur={() => {
-							setTimeout(() => {
-								searchFocused = false;
-							}, 200);
-						}}
-						placeholder="Search available mints or enter URL"
-					/>
-					{#if loading}
-						<button class="btn join-item"><span class="loading loading-dots"></span></button>
-					{:else}
-						<button class="btn join-item" on:click={(_) => selectMintUrl(search)}>Add</button>
-					{/if}
-				</div>
+				<input
+					class="w-full px-3 py-2 input input-bordered"
+					type="text"
+					bind:value={search}
+					on:keydown={handleKeyDown}
+					on:input={filterMints}
+					on:focus={() => {
+						searchFocused = true;
+						filterMints();
+					}}
+					on:blur={() => {
+						setTimeout(() => {
+							searchFocused = false;
+						}, 200);
+					}}
+					placeholder="Search mints to add..."
+				/>
 
-				{#if searchFocused && filteredMints.length > 0}
+				{#if searchFocused && (filteredMints.length > 0 || isInvalid)}
 					<div
-						class="absolute w-full mt-1 bg-base-100 shadow-lg rounded-md z-10 max-h-60 overflow-y-auto"
+						class="absolute w-full mt-1 bg-base-100 shadow-lg rounded-md z-10 max-h-60 overflow-y-auto border border-primary-content"
 					>
-						{#each filteredMints as mint}
-							<button
-								class="w-full text-left p-3 hover:bg-base-300 cursor-pointer border-b border-primary-content flex items-center"
-								on:click={() => {
-									selectMint(mint);
-								}}
-							>
-								<div class="flex items-start space-x-2 flex-1 min-w-0">
-									{#if mint.iconUrl}
-										<img
-											src={mint.iconUrl}
-											alt="Mint icon"
-											class="w-6 h-6 rounded-full flex-shrink-0"
-											on:error={() => {
-												const img = document.activeElement;
-												if (img instanceof HTMLImageElement) img.style.display = 'none';
-											}}
-										/>
-									{:else}
-										<div class="w-6 h-6 rounded-full bg-gray-300 flex-shrink-0"></div>
-									{/if}
-									<div class="flex-1 min-w-0">
-										<div class="font-medium truncate">{mint.title}</div>
-										<div class="text-xs truncate opacity-70">{mint.url}</div>
-										<div class="text-xs opacity-50 truncate">{mint.description}</div>
-										<div class="flex items-center justify-between text-xs mt-1">
-											<div class="flex items-center gap-2">
+						{#if isInvalid}
+							<div class="p-3 text-error text-sm">Invalid mint URL</div>
+						{:else}
+							{#each filteredMints as mint}
+								<button
+									class="w-full text-left p-3 hover:bg-base-300 cursor-pointer border-b border-primary-content last:border-none flex items-center"
+									on:click={() => selectMint(mint)}
+								>
+									<div class="flex items-start space-x-3 flex-1 min-w-0">
+										{#if mint.iconUrl}
+											<img
+												src={mint.iconUrl}
+												alt=""
+												class="w-8 h-8 rounded-full flex-shrink-0"
+												on:error={(e) => (e.currentTarget.style.display = 'none')}
+											/>
+										{:else}
+											<div class="w-8 h-8 rounded-full bg-gray-300 flex-shrink-0"></div>
+										{/if}
+										<div class="flex-1 min-w-0">
+											<div class="font-medium truncate">{mint.title}</div>
+											<div class="text-xs truncate opacity-70">{mint.url}</div>
+											<div class="flex items-center gap-2 text-xs mt-1">
 												<span class={`w-2 h-2 rounded-full ${getStatusColor(mint.state)}`}></span>
 												<span class="opacity-70">{getStatsText(mint)}</span>
+												<span>{getRatingDisplay(mint.rating)}</span>
 											</div>
-											<span>{getRatingDisplay(mint.rating)}</span>
 										</div>
 									</div>
-								</div>
-							</button>
-						{/each}
+								</button>
+							{/each}
+						{/if}
 					</div>
 				{/if}
 			</div>
 
-			{#if isInvalid}
-				<div class="text-error text-sm mb-2">Invalid mint URL. Please enter a valid URL.</div>
-			{/if}
-
-			<h4 class="text-sm font-medium mb-2">Your Mints</h4>
-			<div class="">
-				{#each selectedMints as mint}
-					{@const nurl = normalizeURL(mint)}
-					{@const mintInfo = availableMints.find((m) => m.url === nurl)}
-					<div
-						class="flex justify-between items-center border-b last:border-none p-3 hover:bg-base-300 cursor-pointer"
-					>
-						{#if mintInfo}
-							<div class="flex items-start space-x-2 flex-1 min-w-0">
-								{#if mintInfo?.iconUrl}
-									<img
-										src={proxyAvatarUrl(mintInfo.iconUrl)}
-										alt="Mint icon"
-										class="w-6 h-6 rounded-full flex-shrink-0"
-									/>
-								{:else}
-									<div class="w-6 h-6 rounded-full bg-gray-300 flex-shrink-0"></div>
-								{/if}
-								<div class="flex-1 min-w-0">
-									<div class="font-medium truncate">{mintInfo?.title || nurl}</div>
-									<div class="text-xs truncate opacity-70">{nurl}</div>
-									<div class="flex items-center gap-4 text-xs mt-1">
-										<div class="flex items-center gap-2">
-											<span
-												class={`w-2 h-2 rounded-full ${
-													mintInfo && getStatusColor(mintInfo?.state)
-												}`}
-											></span>
-											{#if mintInfo}
+			<!-- Selected mints (Your Mints) -->
+			{#if selectedMints.length > 0}
+				<h4 class="text-sm font-medium mb-2 opacity-70">Your Mints ({selectedMints.length})</h4>
+				<div class="space-y-2">
+					{#each selectedMints as mint}
+						{@const nurl = normalizeURL(mint)}
+						{@const mintInfo = availableMints.find((m) => m.url === nurl)}
+						<div
+							class="flex justify-between items-center p-3 bg-base-200 rounded-lg border border-primary-content"
+						>
+							{#if mintInfo}
+								<div class="flex items-start space-x-3 flex-1 min-w-0">
+									{#if mintInfo?.iconUrl}
+										<img
+											src={proxyAvatarUrl(mintInfo.iconUrl)}
+											alt=""
+											class="w-8 h-8 rounded-full flex-shrink-0"
+										/>
+									{:else}
+										<div class="w-8 h-8 rounded-full bg-gray-300 flex-shrink-0"></div>
+									{/if}
+									<div class="flex-1 min-w-0">
+										<div class="font-medium truncate">{mintInfo?.title || nurl}</div>
+										<div class="text-xs truncate opacity-70">{nurl}</div>
+										{#if mintInfo}
+											<div class="flex items-center gap-2 text-xs mt-1">
+												<span class={`w-2 h-2 rounded-full ${getStatusColor(mintInfo.state)}`}></span>
 												<span class="opacity-70">{getStatsText(mintInfo)}</span>
-											{/if}
-										</div>
+											</div>
+										{/if}
 									</div>
 								</div>
-							</div>
-						{:else}
-							<div class="flex items-center space-x-2 flex-1 min-w-0">
-								<div class="w-6 h-6 rounded-full bg-gray-300 flex-shrink-0"></div>
-								<div class="flex-1 min-w-0">
-									<div class="font-medium truncate">{nurl}</div>
-									<div class="text-xs mt-1"></div>
+							{:else}
+								<div class="flex items-center space-x-3 flex-1 min-w-0">
+									<div class="w-8 h-8 rounded-full bg-gray-300 flex-shrink-0"></div>
+									<div class="flex-1 min-w-0">
+										<div class="font-medium truncate">{nurl}</div>
+									</div>
 								</div>
-							</div>
-						{/if}
-						<input
-							type="radio"
-							class="radio radio-primary"
-							checked
-							on:click={() => removeMint(nurl)}
-						/>
-					</div>
-				{/each}
-			</div>
+							{/if}
+							<button
+								class="btn btn-ghost btn-sm"
+								on:click={() => removeMint(mint)}
+								title="Remove mint"
+							>
+								<Icon icon="mdi:delete-outline" class="w-5 h-5" />
+							</button>
+						</div>
+					{/each}
+				</div>
+			{:else}
+				<div class="text-center py-6 opacity-50">
+					<p class="text-sm">No mints selected. Search above to add.</p>
+				</div>
+			{/if}
 		</div>
 	</div>
 

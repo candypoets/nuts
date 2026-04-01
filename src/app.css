@@ -14,26 +14,85 @@
 	--tw-ring-color: #3b82f67f;
 	--tw-ring-offset-shadow: 0 0 #0000;
 	--tw-ring-shadow: 0 0 #0000;
+
+	/* Theme CSS custom properties - will be overridden by dynamic themes */
+	--primary: #158777;
+	--primary-content: #9b9ea4;
+	--secondary: #D926AA;
+	--secondary-content: #c1cad6;
+	--base-100: #f9fafb;
+	--base-200: #f2f2f3;
+	--base-300: #f8fdfd;
+	--accent: #6d28d9;
+	--neutral: #2a323c;
+	--info: #00b5ff;
+	--success: #00a96e;
+	--warning: #ffbe00;
+	--error: #ff5861;
+	--highlight: #ffffff;
+	
+	/* Shadow variables */
+	--shadow-outer-color: rgba(0, 0, 0, 0.15);
+	--shadow-inset-highlight: rgba(255, 255, 255, 0.3);
+	--shadow-inset-subtle: rgba(255, 255, 255, 0.08);
+	
+	/* Background image variable */
+	--bg-basic: url('/touchgrass.jpg');
 }
 
-/* If you use DaisyUI's data-theme */
+/* Dynamic theme support - CSS custom properties are applied to :root via JS */
+/* DaisyUI themes still work via data-theme attribute for backwards compatibility */
 html[data-theme='nightsky'] {
 	--bg-basic: url('/nightsky.jpg');
+	--primary: #1fb092;
+	--primary-content: #48505a;
+	--base-100: #131716;
+	--base-200: #1a1a1a;
+	--base-300: #1f2937;
+	--accent: #c19bfd;
+	--shadow-outer-color: rgba(0, 0, 0, 0.5);
+	--shadow-inset-highlight: rgba(255, 255, 255, 0.1);
 }
 html[data-theme='touchgrass'] {
 	--bg-basic: url('/touchgrass.jpg');
 }
 html[data-theme='matteblack'] {
 	--bg-basic: url('/');
+	--primary: #1fb092;
+	--primary-content: #a0a0a0;
+	--base-100: #333333;
+	--base-200: #1a1a1a;
+	--base-300: #262626;
+	--accent: #a855f7;
+	--shadow-outer-color: rgba(0, 0, 0, 0.6);
+	--shadow-inset-highlight: rgba(255, 255, 255, 0.05);
 }
 html[data-theme='snowwhite'] {
 	--bg-basic: url('/');
+	--primary: #158777;
+	--base-100: #e8e8e8;
+	--base-200: #f8f8f8;
+	--base-300: #ffffff;
+	--accent: #3366ff;
+	--shadow-outer-color: rgba(0, 0, 0, 0.1);
+	--shadow-inset-highlight: rgba(255, 255, 255, 0.4);
 }
 html[data-theme='downfox'] {
 	--bg-basic: url('/downfox.jpg');
+	--primary: #ADD8E6;
+	--primary-content: #999999;
+	--base-100: #00213f;
+	--base-200: #161616;
+	--accent: #f7931a;
+	--shadow-outer-color: rgba(0, 0, 0, 0.65);
 }
 html[data-theme='sunset'] {
 	--bg-basic: url('/beach.jpg');
+	--primary: #ff6347;
+	--secondary: #ffb347;
+	--base-100: #f4e4bc;
+	--base-200: #e8d5a8;
+	--accent: #1e90ff;
 }
 
 @font-face {

@@ -6,7 +6,7 @@
 	import LiveStream from 'src/components/LiveStream.svelte';
 	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
-	import { dimensions, key } from 'src/controller';
+	import { dimensions, key, loadStoredTheme } from 'src/controller';
 	import { initRelayTracking } from 'src/controller/relay';
 	import { zoomed, liveStreamOpen } from 'src/controller/image';
 	import { resumePendingTransactions, clearOldTransactions } from 'src/model/cashu/tx-recovery';
@@ -25,13 +25,19 @@
 	}
 
 	onMount(() => {
-		let theme = localStorage.getItem('theme') || 'matteblack';
 		setViewport();
 		initRelayTracking();
-		document.getElementsByTagName('html')[0].setAttribute('data-theme', theme);
+		
+		// Load stored theme from localStorage or use default
+		const storedTheme = loadStoredTheme();
+		if (!storedTheme) {
+			// Apply default matteblack theme if no stored theme
+			document.getElementsByTagName('html')[0].setAttribute('data-theme', 'matteblack');
+		}
+		
 		document
 			.querySelector('meta[name="theme-color"]')
-			?.setAttribute('content', theme === 'dark' ? '#131716' : '#f9fafb');
+			?.setAttribute('content', document.documentElement.getAttribute('data-theme') === 'snowwhite' ? '#f9fafb' : '#131716');
 
 		window.addEventListener('resize', setViewport);
 		// Visual Viewport API for better keyboard detection

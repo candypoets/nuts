@@ -684,10 +684,14 @@
 		{#if hasRoot || tailing}
 			<div class="absolute border-primary-content left-4 h-8 border-r-2 -mt-8" />
 		{/if}
-		<div class="flex items-center gap-2 px-2 py-2" class:ml-10={!depth}>
-			<div class="w-6 h-6 shimmer rounded-full shrink-0"></div>
-			<div class="h-3 shimmer rounded w-20 flex-1 max-w-[100px]"></div>
-			<div class="w-16 h-3 shimmer rounded shrink-0"></div>
+		<div class="flex gap-2 px-2 py-2">
+			<div class="w-8 min-w-8">
+				<div class="w-8 h-8 shimmer rounded-full shrink-0"></div>
+			</div>
+			<div class="flex items-center gap-2 flex-1">
+				<div class="h-3 shimmer rounded w-20 flex-1 max-w-[100px]"></div>
+				<div class="w-16 h-3 shimmer rounded shrink-0"></div>
+			</div>
 		</div>
 	{/if}
 </div>

@@ -29,6 +29,7 @@
 	import Newchat from './newchat.svelte';
 	import Kind1111 from './kind1111.svelte';
 	import Kind0 from './_profile/kind0.svelte';
+	import Theme from './theme.svelte';
 
 	export let path = '';
 	export let visible: boolean;
@@ -98,6 +99,21 @@
 				if (!isVerticalGesture) {
 					addLog('Not vertical gesture, returning');
 					return;
+				}
+
+				// Check if the scrollable content is at the top
+				// Find the scrollable container (could be VirtualList or regular overflow container)
+				const scrollContainer = element.querySelector('[data-scroll-container], .overflow-scroll, .overflow-auto, [style*="overflow"]');
+				const scrollableElement = scrollContainer || element.querySelector('.h-screen, .h-full');
+				
+				if (scrollableElement) {
+					const scrollTop = (scrollableElement as HTMLElement).scrollTop;
+					addLog(`Scroll check: scrollTop=${scrollTop}`);
+					if (scrollTop > 0) {
+						addLog('Content not at top, canceling vertical gesture');
+						isVerticalGesture = false;
+						return;
+					}
 				}
 			} else {
 				return; // Not enough movement yet
