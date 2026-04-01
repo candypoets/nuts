@@ -16,6 +16,8 @@
 	export let forceAspectRatio: number | undefined = undefined;
 	// When true, removes the gap between slides (for feed carousels that need full width)
 	export let noGap = false;
+	// When true, autofocuses the carousel on mount (for fullscreen/keyboard navigation)
+	export let autoFocus = false;
 
 	// Compute unified aspect ratio from first image if enabled
 	function parseAspectRatio(dimStr: string | undefined): number | null {
@@ -147,6 +149,7 @@
 	bind:this={container}
 	on:keydown|stopPropagation|preventDefault={handleKeydown}
 	tabindex="-1"
+	autofocus={autoFocus}
 >
 	<div
 		class="bg-transparent scrollbar-hide flex h-full snap-x snap-mandatory items-center overflow-x-scroll scroll-smooth {noGap ? '' : 'gap-4 rounded-xl'}"
