@@ -554,7 +554,7 @@
 		{note.id}
 		{JSON.stringify(note.requests)} -->
 		{#if zaps && !depth}
-			<Zap note={displayNote} {visible} />
+			<Zap note={displayNote} {visible} class={isRepost && 'absolute'} />
 		{/if}
 		{#if leading || visibleReplies.length}
 			<div
@@ -590,7 +590,7 @@
 				class="-mt-3 pr-2 flex-grow"
 				class:!mt-0={!!depth || isImageContext}
 				class:!mt-2={!!main}
-					class:!pr-0={isKind20}
+				class:!pr-0={isKind20}
 			>
 				{#if displayNote?.kind?.() === 20}
 					{#key displayNote.id()}

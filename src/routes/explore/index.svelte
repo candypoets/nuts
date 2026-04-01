@@ -27,7 +27,7 @@
 	import Pager from 'src/components/Pager.svelte';
 	import RelaysList from 'src/components/RelaysList.svelte';
 	import { key } from 'src/controller';
-	import { followPacks } from 'src/controller/feed';
+	import { followPacks, feedKinds, ALL_FEED_KINDS, KIND_LABELS, KIND_ICONS, type FeedKind } from 'src/controller/feed';
 	import { defaultPipeline, kind0, kind3, readRelays } from 'src/controller/nostr';
 	import { limit } from 'src/controller/pagination';
 	import { relaySub, setSubRelays } from 'src/controller/relay';
@@ -73,7 +73,9 @@
 	let newPostsCount = 0;
 	let lastSeenTopItem: number | undefined;
 
-	// Observable array of tags derived from the current URL.
+	// Track current feed kinds for subscription
+	$: feedKindsValue = $feedKinds;
+	$: effectiveKinds = feedKindsValue.length > 0 ? feedKindsValue : (ALL_FEED_KINDS as FeedKind[]);
 	let tags: string[] = [];
 
 	$: follows = $kind3
@@ -89,7 +91,7 @@
 		].filter((p): p is string => typeof p === 'string')
 	);
 
-	$: subId = $followPacks.reduce((acc, cur) => acc + cur.id(), 'feed') + tags.join(',');
+	$: subId = $followPacks.reduce((acc, cur) => acc + cur.id(), 'feed') + tags.join(',') + $feedKinds.join(',');
 
 	// Track last subId to detect followlist changes and reset feed
 	let lastSubId: string | undefined;
@@ -150,11 +152,14 @@
 
 	// Build subscription requests based on current state
 	function buildRequests(forPagination = false): RequestObject[] {
+		// Determine which kinds to request
+		// If feedKinds is empty, request all supported kinds
+		const kindsToRequest = $feedKinds.length > 0 ? $feedKinds : (ALL_FEED_KINDS as FeedKind[]);
+		
 		if (useGlobalFeed) {
 			return [
 				{
-					kinds: [1, 6, 20],
-					// kinds: [30023],
+					kinds: kindsToRequest,
 					limit: $limit,
 					since: forPagination ? undefined : ago(31 * 24 * 60 * 60),
 					until: forPagination ? until : undefined,
@@ -172,8 +177,7 @@
 		const feedRelays = $key?.pub ? relays : DEFAULT_FEED_RELAYS;
 
 		const baseRequest: RequestObject = {
-			kinds: [1, 6, 20],
-			// kinds: [30023],
+			kinds: kindsToRequest,
 			authors,
 			limit: $limit,
 			since: forPagination ? undefined : ago(31 * 24 * 60 * 60),
@@ -184,6 +188,14 @@
 		};
 
 		return [baseRequest];
+	}
+
+	// Check if kind should be included based on feedKinds filter
+	function shouldIncludeKind(kind: number): boolean {
+		// If no kinds are selected, include all
+		if ($feedKinds.length === 0) return true;
+		// Otherwise, only include selected kinds
+		return $feedKinds.includes(kind as FeedKind);
 	}
 
 	// Handle incoming events from subscription
@@ -215,6 +227,10 @@
 		const parsedEvent = asParsedEvent(message);
 		if (!parsedEvent) return;
 		const kind = parsedEvent.kind();
+		
+		// Filter by kind based on feedKinds selection
+		if (!shouldIncludeKind(kind)) return;
+		
 		// if (kind !== 1 && kind !== 6) return;
 		// Filter: only show root posts or direct replies to root posts
 		// Skip nested replies (replies to replies)
@@ -254,9 +270,6 @@
 					return;
 				}
 			}
-		} else {
-			// Skip other kinds
-			return;
 		}
 
 		const eventId = parsedEvent.id();
@@ -542,6 +555,18 @@
 									/>
 								</div>
 							{/each}
+							<!-- Show selected content kinds -->
+							{#if $feedKinds.length > 0 && $feedKinds.length < ALL_FEED_KINDS.length}
+								{#each $feedKinds as kind}
+									<div
+										class="cursor-pointer w-8 h-8 border rounded-full flex items-center justify-center bg-base-200"
+										on:click|stopPropagation={() => go('followlists')}
+										title={KIND_LABELS[kind]}
+									>
+																					<Icon icon={KIND_ICONS[kind]} class="text-sm" />
+									</div>
+								{/each}
+							{/if}
 						{:else}
 							<!-- Global feed (no followlist) - show infinity icon -->
 							<div
@@ -606,6 +631,18 @@
 									/>
 								</div>
 							{/each}
+							<!-- Show selected content kinds -->
+							{#if $feedKinds.length > 0 && $feedKinds.length < ALL_FEED_KINDS.length}
+								{#each $feedKinds as kind}
+									<div
+										class="cursor-pointer w-8 h-8 border rounded-full flex items-center justify-center bg-base-200"
+										on:click|stopPropagation={() => go('followlists')}
+										title={KIND_LABELS[kind]}
+									>
+																					<Icon icon={KIND_ICONS[kind]} class="text-sm" />
+									</div>
+								{/each}
+							{/if}
 						{:else}
 							<!-- Global feed (no followlist) - show infinity icon -->
 							<div

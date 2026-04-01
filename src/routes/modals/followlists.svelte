@@ -4,7 +4,15 @@
 	import { asNip51, fbArray, isNip51, isParsedEvent } from '@candypoets/nipworker/utils';
 
 	import Icon from '@iconify/svelte';
-	import { followList, followPacks } from 'src/controller/feed';
+	import {
+		ALL_FEED_KINDS,
+		feedKinds,
+		followList,
+		followPacks,
+		KIND_DESCRIPTIONS,
+		KIND_LABELS,
+		type FeedKind
+	} from 'src/controller/feed';
 	import { key } from 'src/controller/key';
 	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
 	import Avatar from 'src/routes/explore/avatar.svelte';
@@ -15,10 +23,16 @@
 
 	let animator: PagerAnimator = getContext('animator');
 
+	// Tab state
+	type Tab = 'packs' | 'content';
+	let activeTab: Tab = 'packs';
+
 	let searchQuery = '';
+	let contentSearchQuery = '';
 	let subscriptionID = 'followlists';
 
 	let fps = $followPacks;
+	let selectedKinds: FeedKind[] = $feedKinds;
 
 	// Separate arrays for different list types
 	let followSets: ParsedEvent[] = []; // kind 30000 - user's follow sets
@@ -86,7 +100,7 @@
 			return;
 		}
 
-			const kind = parsedEvent.kind();
+		const kind = parsedEvent.kind();
 
 		// Handle kind 30000 (Follow Sets) - deduplicate by d tag, keep most recent
 		if (kind === 30000) {
@@ -99,7 +113,10 @@
 				if (parsedEvent.createdAt() > existing.createdAt) {
 					// Replace the older event with the newer one
 					followSets[existing.index] = parsedEvent;
-					seenFollowSetDTag.set(dTag, { createdAt: parsedEvent.createdAt(), index: existing.index });
+					seenFollowSetDTag.set(dTag, {
+						createdAt: parsedEvent.createdAt(),
+						index: existing.index
+					});
 					followSets = followSets; // trigger reactivity
 				}
 				return;
@@ -175,6 +192,15 @@
 		}
 	}
 
+	function toggleKind(kind: FeedKind) {
+		const index = selectedKinds.indexOf(kind);
+		if (index !== -1) {
+			selectedKinds = selectedKinds.filter((k) => k !== kind);
+		} else {
+			selectedKinds = [...selectedKinds, kind];
+		}
+	}
+
 	// Helper to determine if an item is a follow set (kind 30000)
 	function isFollowSet(item: ParsedEvent): boolean {
 		return item.kind() === 30000;
@@ -182,6 +208,7 @@
 
 	onDestroy(() => {
 		$followPacks = fps;
+		$feedKinds = selectedKinds;
 		unsubscribe?.();
 		if (paginationTimeout) clearTimeout(paginationTimeout);
 		prevPaginationSubId = undefined;
@@ -274,13 +301,31 @@
 		const description = kindList?.description?.()?.toLowerCase() ?? '';
 		return title.includes(searchTerm) || description.includes(searchTerm);
 	});
+
+	// Kind icons mapping
+	const KIND_ICONS: Record<FeedKind, string> = {
+		1: 'mdi:text-box-outline',
+		6: 'mdi:repeat',
+		20: 'mdi:image-multiple',
+		34235: 'mdi:video',
+		6969: 'mdi:poll'
+	};
+
+	// Kind gradient colors for cards
+	const KIND_GRADIENTS: Record<FeedKind, string> = {
+		1: 'from-blue-500/30 to-cyan-500/30',
+		6: 'from-green-500/30 to-emerald-500/30',
+		20: 'from-purple-500/30 to-pink-500/30',
+		34235: 'from-red-500/30 to-orange-500/30',
+		6969: 'from-yellow-500/30 to-amber-500/30'
+	};
 </script>
 
 <div class="h-full bg-base-300 bg-opacity-85 lg:pt-4">
 	<Feed
-		items={processedFeed}
+		items={activeTab === 'packs' ? processedFeed : []}
 		getItemId={(item) => item?.id?.() ?? Math.random()}
-		onNearBottom={handleNearBottom}
+		onNearBottom={activeTab === 'packs' ? handleNearBottom : undefined}
 		visible
 	>
 		<svelte:fragment slot="sticky-header">
@@ -293,34 +338,65 @@
 				>
 					<Icon icon="mingcute:down-line" class="text-xl" />
 				</button>
-				<h1 class="text-lg font-semibold">Follow Packs</h1>
+				<h1 class="text-lg font-semibold">Feed Builder</h1>
 				<span class="w-12" />
 			</div>
-			<div on:click|stopPropagation>
-				<div class="px-4 pt-2">
-					<SearchInput
-						placeholder="Search follow packs..."
-						bind:value={searchQuery}
-						showSearchIcon={true}
-						showClearButton={true}
-					/>
-				</div>
-				<div class="px-1">
-					<MultiSelect
-						selectedLists={fps}
-						getTitle={(list) => {
-							const kind39089 = asNip51(list);
-
-							const title = kind39089?.title() || '';
-							return title.length > 20 ? title.slice(0, 20) + '...' : title;
-						}}
-						removeItem={(list) => {
-							fps = fps.filter((p) => p.id() != list.id());
-						}}
-					/>
+			<!-- Tab bar -->
+			<div class="px-4 pb-2">
+				<div class="join w-full">
+					<button
+						class="join-item btn flex-1 {activeTab === 'packs' ? 'btn-primary' : 'btn-ghost'}"
+						on:click={() => (activeTab = 'packs')}
+					>
+						<Icon icon="mdi:account-group" class="mr-2" />
+						Follow Packs
+					</button>
+					<button
+						class="join-item btn flex-1 {activeTab === 'content' ? 'btn-primary' : 'btn-ghost'}"
+						on:click={() => (activeTab = 'content')}
+					>
+						<Icon icon="mdi:filter-variant" class="mr-2" />
+						Content Types
+					</button>
 				</div>
 			</div>
+
+			{#if activeTab === 'packs'}
+				<div on:click|stopPropagation>
+					<div class="px-4 pt-2">
+						<SearchInput
+							placeholder="Search follow packs..."
+							bind:value={searchQuery}
+							showSearchIcon={true}
+							showClearButton={true}
+						/>
+					</div>
+					<div class="px-1">
+						<MultiSelect
+							selectedLists={fps}
+							getTitle={(list) => {
+								const kind39089 = asNip51(list);
+
+								const title = kind39089?.title() || '';
+								return title.length > 20 ? title.slice(0, 20) + '...' : title;
+							}}
+							removeItem={(list) => {
+								fps = fps.filter((p) => p.id() != list.id());
+							}}
+						/>
+					</div>
+				</div>
+			{:else if activeTab === 'content'}
+				<div class="px-1 pt-2">
+					<MultiSelect
+						selectedLists={selectedKinds}
+						getTitle={(kind) => KIND_LABELS[kind]}
+						removeItem={(kind) => toggleKind(kind)}
+					/>
+				</div>
+			{/if}
 		</svelte:fragment>
+
 		<svelte:fragment slot="header">
 			<div>
 				<div
@@ -329,167 +405,279 @@
 					<button on:click={animator.goBack} class="p-1 rounded-full hover:bg-base-200 mr-4">
 						<Icon icon="mingcute:down-line" class="text-xl" />
 					</button>
-					<h1 class="text-lg font-semibold">Follow Packs</h1>
+					<h1 class="text-lg font-semibold">Feed Builder</h1>
 					<span class="w-12" />
 				</div>
-				<div class="px-4 pb-3">
-					<SearchInput
-						placeholder="Search follow packs..."
-						bind:value={searchQuery}
-						showSearchIcon={true}
-						showClearButton={true}
-					/>
+				<!-- Tab bar -->
+				<div class="px-4 pb-2">
+					<div class="join w-full">
+						<button
+							class="join-item btn flex-1 {activeTab === 'packs' ? 'btn-primary' : 'btn-ghost'}"
+							on:click={() => (activeTab = 'packs')}
+						>
+							<Icon icon="mdi:account-group" class="mr-2" />
+							Follow Packs
+						</button>
+						<button
+							class="join-item btn flex-1 {activeTab === 'content' ? 'btn-primary' : 'btn-ghost'}"
+							on:click={() => (activeTab = 'content')}
+						>
+							<Icon icon="mdi:filter-variant" class="mr-2" />
+							Content Types
+						</button>
+					</div>
 				</div>
-				<div class="px-1">
-					<MultiSelect
-						selectedLists={fps}
-						getTitle={(list) => {
-							const kind39089 = asNip51(list);
 
-							const title = kind39089?.title() || '';
-							return title.length > 20 ? title.slice(0, 20) + '...' : title;
-						}}
-						removeItem={(list) => {
-							fps = fps.filter((p) => p.id() != list.id());
-						}}
-					/>
-				</div>
-			</div>
-		</svelte:fragment>
-		<svelte:fragment slot="item-content" let:post let:visible>
-			{@const listData = asNip51(post)}
-			{@const isSelected = fps.some((p) => p.id() === post.id())}
-			{@const imageUrl = listData?.image()}
-			{@const hasValidImage = imageUrl && !imageUrl.startsWith('data:')}
-			{@const isFollowList = post?.id?.() === 'followlist'}
-			{@const isFollowSet = post.kind() === 30000}
-			{@const isFollowPack = post.kind() === 39089}
-			{@const listTitle = listData?.title?.() || (isFollowSet ? listData?.listIdentifier?.() : '')}
-			<div
-				class="cursor-pointer p-3 relative"
-				on:click={() => toggleFollowPack(post)}
-				role="button"
-				tabindex="0"
-			>
-				<!-- Card container with selection border -->
-				<div
-					class="relative rounded-xl overflow-hidden bg-base-200 transition-all duration-200 {isSelected
-						? 'ring-2 ring-primary shadow-lg shadow-primary/20'
-						: 'hover:bg-base-100'}"
-				>
-					<!-- Hero Image Section -->
-					<div class="relative h-32 w-full">
-						{#if hasValidImage}
-							<img
-								src={imageUrl}
-								alt={listTitle}
-								class="w-full h-full object-cover"
-								on:error={(e) => {
-									e.currentTarget.style.display = 'none';
-									e.currentTarget.nextElementSibling?.classList.remove('hidden');
+				{#if activeTab === 'packs'}
+					<div>
+						<div class="px-4 pb-3">
+							<SearchInput
+								placeholder="Search follow packs..."
+								bind:value={searchQuery}
+								showSearchIcon={true}
+								showClearButton={true}
+							/>
+						</div>
+						<div class="px-1">
+							<MultiSelect
+								selectedLists={fps}
+								getTitle={(list) => {
+									const kind39089 = asNip51(list);
+
+									const title = kind39089?.title() || '';
+									return title.length > 20 ? title.slice(0, 20) + '...' : title;
+								}}
+								removeItem={(list) => {
+									fps = fps.filter((p) => p.id() != list.id());
 								}}
 							/>
-							<div
-								class="w-full h-full bg-gradient-to-br from-primary/30 to-secondary/30 flex items-center justify-center hidden"
-							>
-								<Icon icon="mdi:image-off-outline" class="text-4xl text-base-content/40" />
-							</div>
-						{:else}
-							<div
-								class="w-full h-full bg-gradient-to-br from-primary/30 to-secondary/30 flex items-center justify-center"
-							>
-								<Icon icon="mdi:image-off-outline" class="text-4xl text-base-content/40" />
-							</div>
-						{/if}
-
-						<!-- Gradient overlay for text readability -->
-						<div
-							class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent"
-						></div>
-
-						<!-- Kind badge (Follow Set vs Follow Pack) -->
-						<div class="absolute top-3 left-3">
-							{#if isFollowSet}
-								<span
-									class="px-2 py-1 rounded-full bg-accent/80 text-white text-xs font-medium backdrop-blur-sm"
-								>
-									Follow Set
-								</span>
-							{:else if isFollowPack}
-								<span
-									class="px-2 py-1 rounded-full bg-secondary/80 text-white text-xs font-medium backdrop-blur-sm"
-								>
-									Pack
-								</span>
-							{/if}
-						</div>
-
-						<!-- Selection checkmark -->
-						{#if isSelected}
-							<div class="absolute top-3 right-3">
-								<div
-									class="w-8 h-8 rounded-full bg-primary flex items-center justify-center shadow-lg"
-								>
-									<Icon icon="mdi:check" class="text-white text-lg" />
-								</div>
-							</div>
-						{/if}
-
-						<!-- Title and member count overlaid on image -->
-						<div class="absolute bottom-0 left-0 right-0 p-3">
-							<h3 class="text-lg font-bold text-white leading-tight">
-								{listTitle || 'Unnamed List'}
-							</h3>
-							{#if listData?.peopleLength() > 0}
-								<span class="text-white/80 text-sm">{listData.peopleLength()} members</span>
-							{/if}
 						</div>
 					</div>
+				{:else}
+					<div class="px-4 pt-2">
+						<SearchInput
+							placeholder="Search content types..."
+							bind:value={contentSearchQuery}
+							showSearchIcon={true}
+							showClearButton={true}
+						/>
+					</div>
+					<div class="px-1">
+						<MultiSelect
+							selectedLists={selectedKinds}
+							getTitle={(kind) => KIND_LABELS[kind]}
+							removeItem={(kind) => toggleKind(kind)}
+						/>
+					</div>
+				{/if}
+			</div>
+		</svelte:fragment>
 
-					<!-- Content Section -->
-					<div class="p-3">
-						<!-- Description -->
-						{#if listData?.description?.()}
-							{@const text = (() => {
-								try {
-									return JSON.parse('"' + listData.description?.() + '"');
-								} catch (e) {
-									return listData.description?.().replace(/\\/g, '');
-								}
-							})()}
-							<p
-								class="text-sm text-base-content/70 mb-3"
-								style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;"
+		<svelte:fragment slot="empty-content">
+			{#if activeTab === 'content'}
+				<div class="p-4 space-y-3">
+					<p class="text-sm text-base-content/60 mb-4">
+						Select content types to filter your feed. None selected means show all.
+					</p>
+					{#each ALL_FEED_KINDS.filter((k) => {
+						if (!contentSearchQuery) return true;
+						const term = contentSearchQuery.toLowerCase();
+						return (
+							KIND_LABELS[k].toLowerCase().includes(term) ||
+							KIND_DESCRIPTIONS[k].toLowerCase().includes(term)
+						);
+					}) as kind}
+						{@const isSelected = selectedKinds.includes(kind)}
+						{@const icon = KIND_ICONS[kind]}
+						{@const gradient = KIND_GRADIENTS[kind]}
+						{@const label = KIND_LABELS[kind]}
+						{@const description = KIND_DESCRIPTIONS[kind]}
+						<div
+							class="cursor-pointer relative"
+							on:click={() => toggleKind(kind)}
+							role="button"
+							tabindex="0"
+						>
+							<div
+								class="relative rounded-xl overflow-hidden bg-base-200 transition-all duration-200 {isSelected
+									? 'ring-2 ring-primary shadow-lg shadow-primary/20'
+									: 'hover:bg-base-100'}"
 							>
-								{text}
-							</p>
-						{/if}
+								<div class="relative h-24 w-full bg-gradient-to-br {gradient}">
+									<div class="absolute inset-0 flex items-center justify-center">
+										<Icon {icon} class="text-5xl text-white/80" />
+									</div>
+									<div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
 
-						<!-- Member avatars row -->
-						{#if listData?.peopleLength() > 0}
-							<div class="flex items-center justify-between">
-								<div class="flex -space-x-2">
-									{#each fbArray(listData, 'people').slice(0, 4) as p}
-										<Avatar pubkey={p} size="md" customClass="border-2 border-base-200" />
-									{/each}
-									{#if listData?.peopleLength() > 4}
-										<div
-											class="w-7 h-7 rounded-full bg-base-300 border-2 border-base-200 flex items-center justify-center text-xs font-medium text-base-content/70"
-										>
-											+{listData?.peopleLength() - 4}
+									{#if isSelected}
+										<div class="absolute top-3 right-3">
+											<div
+												class="w-8 h-8 rounded-full bg-primary flex items-center justify-center shadow-lg"
+											>
+												<Icon icon="mdi:check" class="text-white text-lg" />
+											</div>
 										</div>
 									{/if}
+
+									<div class="absolute bottom-0 left-0 right-0 p-3">
+										<h3 class="text-lg font-bold text-white leading-tight">{label}</h3>
+									</div>
 								</div>
-								{#if isSelected}
-									<span class="text-xs text-primary font-medium">Selected</span>
-								{:else}
-									<span class="text-xs text-base-content/50">Tap to select</span>
+
+								<div class="p-3">
+									<p class="text-sm text-base-content/70 mb-2">{description}</p>
+									<div class="flex justify-end">
+										{#if isSelected}
+											<span class="text-xs text-primary font-medium">Selected</span>
+										{:else}
+											<span class="text-xs text-base-content/50">Tap to select</span>
+										{/if}
+									</div>
+								</div>
+							</div>
+						</div>
+					{/each}
+				</div>
+			{/if}
+		</svelte:fragment>
+
+		<svelte:fragment slot="item-content" let:post let:visible>
+			{#if activeTab === 'packs'}
+				{@const listData = asNip51(post)}
+				{@const isSelected = fps.some((p) => p.id() === post.id())}
+				{@const imageUrl = listData?.image()}
+				{@const hasValidImage = imageUrl && !imageUrl.startsWith('data:')}
+				{@const isFollowList = post?.id?.() === 'followlist'}
+				{@const isFollowSet = post.kind() === 30000}
+				{@const isFollowPack = post.kind() === 39089}
+				{@const listTitle =
+					listData?.title?.() || (isFollowSet ? listData?.listIdentifier?.() : '')}
+				<div
+					class="cursor-pointer p-3 relative"
+					on:click={() => toggleFollowPack(post)}
+					role="button"
+					tabindex="0"
+				>
+					<!-- Card container with selection border -->
+					<div
+						class="relative rounded-xl overflow-hidden bg-base-200 transition-all duration-200 {isSelected
+							? 'ring-2 ring-primary shadow-lg shadow-primary/20'
+							: 'hover:bg-base-100'}"
+					>
+						<!-- Hero Image Section -->
+						<div class="relative h-32 w-full">
+							{#if hasValidImage}
+								<img
+									src={imageUrl}
+									alt={listTitle}
+									class="w-full h-full object-cover"
+									on:error={(e) => {
+										e.currentTarget.style.display = 'none';
+										e.currentTarget.nextElementSibling?.classList.remove('hidden');
+									}}
+								/>
+								<div
+									class="w-full h-full bg-gradient-to-br from-primary/30 to-secondary/30 flex items-center justify-center hidden"
+								>
+									<Icon icon="mdi:image-off-outline" class="text-4xl text-base-content/40" />
+								</div>
+							{:else}
+								<div
+									class="w-full h-full bg-gradient-to-br from-primary/30 to-secondary/30 flex items-center justify-center"
+								>
+									<Icon icon="mdi:image-off-outline" class="text-4xl text-base-content/40" />
+								</div>
+							{/if}
+
+							<!-- Gradient overlay for text readability -->
+							<div
+								class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent"
+							></div>
+
+							<!-- Kind badge (Follow Set vs Follow Pack) -->
+							<div class="absolute top-3 left-3">
+								{#if isFollowSet}
+									<span
+										class="px-2 py-1 rounded-full bg-accent/80 text-white text-xs font-medium backdrop-blur-sm"
+									>
+										Follow Set
+									</span>
+								{:else if isFollowPack}
+									<span
+										class="px-2 py-1 rounded-full bg-secondary/80 text-white text-xs font-medium backdrop-blur-sm"
+									>
+										Pack
+									</span>
 								{/if}
 							</div>
-						{/if}
+
+							<!-- Selection checkmark -->
+							{#if isSelected}
+								<div class="absolute top-3 right-3">
+									<div
+										class="w-8 h-8 rounded-full bg-primary flex items-center justify-center shadow-lg"
+									>
+										<Icon icon="mdi:check" class="text-white text-lg" />
+									</div>
+								</div>
+							{/if}
+
+							<!-- Title and member count overlaid on image -->
+							<div class="absolute bottom-0 left-0 right-0 p-3">
+								<h3 class="text-lg font-bold text-white leading-tight">
+									{listTitle || 'Unnamed List'}
+								</h3>
+								{#if listData?.peopleLength() > 0}
+									<span class="text-white/80 text-sm">{listData.peopleLength()} members</span>
+								{/if}
+							</div>
+						</div>
+
+						<!-- Content Section -->
+						<div class="p-3">
+							<!-- Description -->
+							{#if listData?.description?.()}
+								{@const text = (() => {
+									try {
+										return JSON.parse('"' + listData.description?.() + '"');
+									} catch (e) {
+										return listData.description?.().replace(/\\/g, '');
+									}
+								})()}
+								<p
+									class="text-sm text-base-content/70 mb-3"
+									style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;"
+								>
+									{text}
+								</p>
+							{/if}
+
+							<!-- Member avatars row -->
+							{#if listData?.peopleLength() > 0}
+								<div class="flex items-center justify-between">
+									<div class="flex -space-x-2">
+										{#each fbArray(listData, 'people').slice(0, 4) as p}
+											<Avatar pubkey={p} size="md" customClass="border-2 border-base-200" />
+										{/each}
+										{#if listData?.peopleLength() > 4}
+											<div
+												class="w-7 h-7 rounded-full bg-base-300 border-2 border-base-200 flex items-center justify-center text-xs font-medium text-base-content/70"
+											>
+												+{listData?.peopleLength() - 4}
+											</div>
+										{/if}
+									</div>
+									{#if isSelected}
+										<span class="text-xs text-primary font-medium">Selected</span>
+									{:else}
+										<span class="text-xs text-base-content/50">Tap to select</span>
+									{/if}
+								</div>
+							{/if}
+						</div>
 					</div>
 				</div>
-			</div>
+			{/if}
 		</svelte:fragment>
 	</Feed>
 </div>

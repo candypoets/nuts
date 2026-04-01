@@ -1,4 +1,10 @@
-import {
+export const KIND_ICONS: Record<FeedKind, string> = {
+	1: 'mdi:text-box-outline',
+	6: 'mdi:repeat',
+	20: 'mdi:image-multiple',
+	34235: 'mdi:video',
+	6969: 'mdi:poll'
+};import {
 	ListParsed,
 	ListParsedT,
 	ParsedData,
@@ -14,6 +20,40 @@ import { now } from 'src/lib/period';
 import { persistentWritable } from 'src/lib/persistentWritable';
 import { derived } from 'svelte/store';
 import { kind3 } from './nostr';
+
+export type FeedKind = 1 | 6 | 20 | 34235 | 6969;
+
+export const ALL_FEED_KINDS: FeedKind[] = [1, 6, 20, 34235, 6969];
+
+export const KIND_LABELS: Record<FeedKind, string> = {
+	1: 'Posts',
+	6: 'Reposts',
+	20: 'Media',
+	34235: 'Videos',
+	6969: 'Polls'
+};
+
+export const KIND_DESCRIPTIONS: Record<FeedKind, string> = {
+	1: 'Text notes, thoughts, updates - the classic Nostr post',
+	6: 'Shared posts from others with commentary',
+	20: 'Images and media uploads (NIP-68). Photos, memes, artwork',
+	34235: 'Video content (NIP-71). Long-form and short clips',
+	6969: 'Interactive polls and surveys (NIP-69). Vote and see results'
+};
+
+export const feedKinds = persistentWritable<FeedKind[]>(
+	'feedkinds',
+	[], // Default: empty means all kinds
+	(storage: unknown) => {
+		// storage is already parsed by persistentWritable (it's the result of JSON.parse)
+		// Validate that all items are valid FeedKind values
+		if (Array.isArray(storage) && storage.every((k) => ALL_FEED_KINDS.includes(k))) {
+			return storage as FeedKind[];
+		}
+		return [];
+	},
+	(kinds) => JSON.stringify(kinds)
+);
 
 // Shape we persist to localStorage for kind 39089
 type SerializedParsedEvent39089 = {

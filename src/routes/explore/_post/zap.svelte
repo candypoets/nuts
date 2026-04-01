@@ -124,7 +124,7 @@
 	<!-- Zap summary showing total amount -->
 
 	<!-- Zappers visualization -->
-	<div class="flex items-center w-full justify-end pl-10">
+	<div class={'flex items-center w-full justify-end pl-10 ' + $$props.class}>
 		{#if zaps.length > 0}
 			<!-- Other zappers with overlapping profile pictures -->
 			<div class="flex items-center flex-grow gap-1">
