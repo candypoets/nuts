@@ -3,6 +3,7 @@
 	import type { ParsedEvent, Kind1111Parsed } from '@candypoets/nipworker';
 	import User from 'src/routes/explore/user.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
+	import Content from 'src/routes/explore/_post/content.svelte';
 
 	interface CommentNode {
 		event: ParsedEvent;
@@ -14,7 +15,6 @@
 
 	$: kind1111 = asKind1111(node.event) as Kind1111Parsed | null;
 	$: pubkey = node.event.pubkey();
-	$: content = kind1111 ? fbArray(kind1111, 'parsedContent') : [];
 
 	function formatTime(timestamp: number): string {
 		const date = new Date(timestamp * 1000);
@@ -30,20 +30,6 @@
 		if (diffDays < 7) return `${diffDays}d`;
 		return date.toLocaleDateString();
 	}
-
-	// Helper to render content blocks as simple text
-	function renderContentBlock(block: any): string {
-		if (!block) return '';
-		const text = block.text?.() || '';
-		const dataType = block.dataType?.();
-		
-		// For text blocks, return the text
-		if (block.type?.() === 'text' || !dataType) {
-			return text;
-		}
-		// For other types (links, mentions, etc), return the raw text
-		return text;
-	}
 </script>
 
 <div class="flex gap-2 items-start" style="margin-left: {node.depth * 24}px">
@@ -55,12 +41,8 @@
 				{formatTime(node.event.createdAt())}
 			</span>
 		</div>
-		{#if content && content.length > 0}
-			<div class="text-sm break-words text-base-content">
-				{#each content as block}
-					{renderContentBlock(block)}
-				{/each}
-			</div>
+		{#if kind1111}
+			<Content note={node.event} depth={node.depth} visible={true} showMedia={true} />
 		{/if}
 	</div>
 </div>

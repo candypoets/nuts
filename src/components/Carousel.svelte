@@ -11,8 +11,23 @@
 	export let noScroll = false;
 	export let verticalPan = true;
 	export let onIndexChange: (index: number) => void = () => {};
+	// When set, forces all slides to use this aspect ratio number (e.g., 1.33 for 4:3)
+	// When undefined (default), each slide uses its own aspect ratio (for fullscreen mode)
+	export let forceAspectRatio: number | undefined = undefined;
+	// When true, removes the gap between slides (for feed carousels that need full width)
+	export let noGap = false;
 
-	// Ensure items have proxied URLs if they contain src properties
+	// Compute unified aspect ratio from first image if enabled
+	function parseAspectRatio(dimStr: string | undefined): number | null {
+		if (!dimStr) return null;
+		const match = dimStr.match(/(\d+)x(\d+)/);
+		if (match) {
+			const w = parseInt(match[1], 10);
+			const h = parseInt(match[2], 10);
+			if (h > 0) return w / h;
+		}
+		return null;
+	}
 	// Use full preset for carousel (zoom view) to get high quality images
 	$: processedItems = items.map((item) => {
 		if (item && typeof item === 'object' && item.src) {
@@ -115,10 +130,13 @@
 	}
 
 	onMount(() => {
-		carouselElement.scrollTo({
-			left: currentIndex * carouselElement.offsetWidth,
-			behavior: 'instant'
-		});
+		// Only set initial position if needed, reactive statement handles updates
+		if (carouselElement && currentIndex > 0) {
+			carouselElement.scrollTo({
+				left: currentIndex * carouselElement.offsetWidth,
+				behavior: 'instant'
+			});
+		}
 	});
 
 	$: scrollToIndex(currentIndex);
@@ -129,12 +147,11 @@
 	bind:this={container}
 	on:keydown|stopPropagation|preventDefault={handleKeydown}
 	tabindex="-1"
-	autofocus
 >
 	<div
-		class="bg-transparent scrollbar-hide flex h-full snap-x snap-mandatory items-center gap-4 overflow-x-scroll scroll-smooth rounded-xl"
+		class="bg-transparent scrollbar-hide flex h-full snap-x snap-mandatory items-center overflow-x-scroll scroll-smooth {noGap ? '' : 'gap-4 rounded-xl'}"
 		bind:this={carouselElement}
-		on:touchmove|nonpassive={handleScroll}
+		on:touchmove|nonpassive|stopPropagation={handleScroll}
 		on:touchend={(e) => {
 			onTouchEnd(e);
 			handleScroll(e);
@@ -143,11 +160,11 @@
 	>
 		{#each processedItems as item, index}
 			<div
-				class="h-full w-full shrink-0 snap-always overflow-hidden rounded-xl bg-opacity-50"
+				class="h-full w-full shrink-0 snap-always overflow-hidden {noGap ? '' : 'rounded-xl'} bg-opacity-50"
 				class:snap-start={index === 0}
 				class:snap-center={index !== 0}
 			>
-				<slot {item} {index}>Missing template</slot>
+				<slot {item} {index} forcedAspectRatio={forceAspectRatio}>Missing template</slot>
 			</div>
 		{/each}
 	</div>

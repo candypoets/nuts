@@ -14,6 +14,7 @@
 		asKind1,
 		asKind3,
 		asKind6,
+		asKind20,
 		asNip51,
 		asParsedEvent,
 		ConnectionTracker,
@@ -152,7 +153,7 @@
 		if (useGlobalFeed) {
 			return [
 				{
-					kinds: [20],
+					kinds: [1, 6, 20],
 					// kinds: [30023],
 					limit: $limit,
 					since: forPagination ? undefined : ago(31 * 24 * 60 * 60),
@@ -171,7 +172,7 @@
 		const feedRelays = $key?.pub ? relays : DEFAULT_FEED_RELAYS;
 
 		const baseRequest: RequestObject = {
-			kinds: [20],
+			kinds: [1, 6, 20],
 			// kinds: [30023],
 			authors,
 			limit: $limit,
@@ -244,7 +245,15 @@
 			}
 		} else if (kind === 20) {
 			// kind20 is always a root post (image posts), always allow them
-			// No filtering needed
+			// But skip if images have no dimensions declared (prevents scroll jumps)
+			const kind20 = asKind20(parsedEvent);
+			if (kind20) {
+				const images = fbArray(kind20, 'images');
+				// If any image has no dim, skip this note
+				if (images.some((img) => !img.dim())) {
+					return;
+				}
+			}
 		} else {
 			// Skip other kinds
 			return;

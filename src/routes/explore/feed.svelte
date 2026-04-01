@@ -3,7 +3,7 @@
 	import { writable, type Writable } from 'svelte/store';
 	import VirtualList from 'src/components/VirtualList.svelte';
 	import VirtualListBottom from 'src/components/VirtualListBottom.svelte';
-	import Note from './note.svelte';
+		import Note from './note.svelte';
 	import Placeholder from 'src/components/Placeholder.svelte';
 
 	// Generic type for feed items
@@ -56,7 +56,6 @@
 		}
 	}
 
-	// Reactive height registry - Map of item ID to measured height
 	// Using a Svelte store so VirtualList gets reactive updates
 	const heightRegistry: Writable<Map<string | number, number>> = writable(new Map());
 

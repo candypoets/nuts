@@ -9,12 +9,14 @@
 		ContentData,
 		type Kind1Parsed,
 		type Kind4Parsed,
+		type Kind1111Parsed,
 		type ParsedEvent
 	} from '@candypoets/nipworker';
 	import {
 		asHashtagData,
 		asKind1,
 		asKind4,
+		asKind1111,
 		asLinkPreview,
 		asMediaGroupData,
 		asNostrData,
@@ -38,14 +40,15 @@
 
 	let kind1 = asKind1(note) as Kind1Parsed;
 	let kind4 = asKind4(note) as Kind4Parsed;
+	let kind1111 = asKind1111(note) as Kind1111Parsed;
 
-	let kind = kind1 || kind4;
+	let kind = kind1 || kind4 || kind1111;
 
 	$: hasShortened = !content && fbArray(kind1, 'shortenedContent')?.length > 0;
 	$: parsedContent =
 		content || (hasShortened && !showFull)
 			? fbArray(kind1, 'shortenedContent') || []
-			: fbArray(kind1 || kind4, 'parsedContent') || [];
+			: fbArray(kind1 || kind4 || kind1111, 'parsedContent') || [];
 
 	// Helper function to check if current block is the last text block
 	function isLastTextBlock(index: number, content: ContentBlock[]) {
