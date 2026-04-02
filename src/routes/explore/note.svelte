@@ -219,6 +219,8 @@
 		timeout = setTimeout(
 			async () => {
 				if (visible) {
+					// Reset tracker for fresh search state
+					connectionTracker.reset();
 					// Start tracking search state
 					startSearchTimeout();
 
@@ -674,7 +676,7 @@
 			<div class="flex-1 min-w-0">
 				<span class="text-xs opacity-60 truncate block">Not found</span>
 				<span class="text-[10px] opacity-40 truncate block font-mono" title={effectiveNid}
-					>{effectiveNid.slice(0, 12)}...</span
+					>{effectiveNid.slice(0, 12)}...</spankind
 				>
 			</div>
 			<div>

@@ -26,6 +26,7 @@
 	import Feed from 'src/routes/explore/feed.svelte';
 	import Note from 'src/routes/explore/note.svelte';
 	import { getUserRelays } from 'src/routes/queries/user';
+	import { ALL_FEED_KINDS, type FeedKind } from 'src/controller/feed';
 
 	export let nevent: string;
 	export let visible: boolean;
@@ -159,10 +160,10 @@
 
 			// eagerly fetch from the cache before 10002 resolve
 			cachesub = useSubscription(
-				'repliescache_' + data?.id,
+				'replies_cache' + data?.id,
 				[
 					{
-						kinds: [1],
+						kinds: ALL_FEED_KINDS,
 						tags: { '#e': [data?.id] },
 						limit: $limit,
 						cacheFirst: true,
@@ -171,7 +172,7 @@
 				],
 				handleEvents,
 				{
-					pipeline: $defaultPipeline.for('replies_' + data?.id)
+					pipeline: $defaultPipeline.for('replies_cache' + data?.id)
 				}
 			);
 			sub = useSubscription(
@@ -180,11 +181,11 @@
 					{
 						kinds: [1],
 						ids: [data?.id],
-						limit: 5,
+						limit: 1,
 						relays: data.relays || [],
 						cacheFirst: true
 					}
-				], // limits higher to accomodate for huge posts
+				],
 				(message: WorkerMessage) => {
 					const parsedEvent = isParsedEvent(message);
 					const kind1 = isKind1(message);
@@ -207,7 +208,6 @@
 										'replies_' + data?.id,
 										[
 											{
-												kinds: [1],
 												tags: { '#e': [data?.id] },
 												limit: $limit,
 												noContext: true,
@@ -224,6 +224,10 @@
 							'read'
 						);
 					}
+				},
+				{
+					bytesPerEvent: 50 * 1024,
+					pipeline: $defaultPipeline.for('kind1_' + data?.id)
 				}
 			);
 		}

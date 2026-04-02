@@ -264,10 +264,8 @@ function hslToHex(hsl: string): string {
  * Convert a Ditto/Soapbox Kind 36767 ThemeDefinition event to DittoTheme
  */
 export function eventToTheme(event: ParsedEvent): DittoTheme | null {
-	console.log('[eventToTheme] Processing event kind:', event.kind(), 'id:', event.id()?.slice(0, 8));
 	
 	if (event.kind() !== THEME_DEFINITION_KIND) {
-		console.log('[eventToTheme] Wrong kind, skipping');
 		return null;
 	}
 
@@ -275,15 +273,12 @@ export function eventToTheme(event: ParsedEvent): DittoTheme | null {
 	const title = extractTagValue(event, 'title');
 	const description = extractTagValue(event, 'description') || '';
 	
-	console.log('[eventToTheme] dTag:', dTag, 'title:', title);
 
 	if (!dTag || !title) {
-		console.log('[eventToTheme] Missing dTag or title');
 		return null;
 	}
 
 	// Log all tags for debugging
-	console.log('[eventToTheme] All tags:');
 	const tagsLength = event.tagsLength();
 	for (let i = 0; i < tagsLength; i++) {
 		const tagVec = event.tags(i);
@@ -292,7 +287,6 @@ export function eventToTheme(event: ParsedEvent): DittoTheme | null {
 		for (let j = 0; j < tagVec.itemsLength(); j++) {
 			tagItems.push(tagVec.items(j));
 		}
-		console.log('  Tag', i, ':', tagItems);
 	}
 
 	// Parse color tags (c tags with role: background, text, primary)
@@ -342,15 +336,12 @@ export function eventToTheme(event: ParsedEvent): DittoTheme | null {
 
 	// Show color summary if 3 or more colors resolved
 	if (resolvedColors.length >= 3) {
-		console.log(`[eventToTheme] ✓ Resolved ${resolvedColors.length} colors from event:`);
 		resolvedColors.forEach(({ role, hsl, hex }) => {
 			// Create a colored square in console
-			console.log(`  - ${role}: ${hsl} → %c${hex}`, `background:${hex};color:white;padding:2px 6px;border-radius:3px;`);
 		});
 	}
 
 	if (!properties['--primary'] || !properties['--base-100']) {
-		console.log('[eventToTheme] Missing required colors (primary or background)');
 		return null;
 	}
 	
@@ -358,7 +349,6 @@ export function eventToTheme(event: ParsedEvent): DittoTheme | null {
 		properties['--bg-image'] = bgImage;
 	}
 	
-	console.log('[eventToTheme] Success - returning theme');
 
 	// Derive missing colors that Ditto doesn't provide but nuts needs
 	const completeProperties = deriveMissingColors(properties);
@@ -378,78 +368,187 @@ export function eventToTheme(event: ParsedEvent): DittoTheme | null {
  * Derive missing theme colors from the core Ditto colors
  * Ditto only provides: primary, background, text
  * Nuts needs many more: base-200, base-300, secondary, accent, info, success, warning, error, etc.
+ * 
+ * KEY INSIGHT: Primary and accent should OPPOSE the background tint.
+ * If bg is greenish, primary should be reddish/orange. If bg is bluish, 
+ * primary should be orange/amber. This creates visual pop and readability.
  */
 function deriveMissingColors(props: ThemeProperties): ThemeProperties {
 	const base100 = props['--base-100'] || '#ffffff';
 	const primary = props['--primary'] || '#158777';
 	const primaryContent = props['--primary-content'] || '#000000';
 	
-	console.log('[deriveMissingColors] Input:', { base100, primary, primaryContent });
 
-	// Detect if dark theme by checking background brightness
 	const isDark = isColorDark(base100);
-	console.log('[deriveMissingColors] Detected theme type:', isDark ? 'dark' : 'light');
 
 	const result: ThemeProperties = { ...props };
 
-	// Derive base-200 and base-300 from base-100
-	// Logic: base-100 is the main background
-	//        base-200 is for cards/surfaces (opposite direction from bg)
-	//        base-300 is for elevated elements
-	const base200Adjustment = isDark ? 12 : -8;   // Dark: lighter, Light: darker
-	const base300Adjustment = isDark ? 20 : -4;    // Dark: even lighter, Light: slightly darker
+	// === BASE LAYERS (keep existing good logic) ===
+	const base200Adjustment = isDark ? 12 : -8;
+	const base300Adjustment = isDark ? 20 : -4;
 	
 	if (!result['--base-200']) {
 		result['--base-200'] = adjustBrightness(base100, base200Adjustment);
-		console.log(`[deriveMissingColors] base-200: ${base100} + ${base200Adjustment}% = ${result['--base-200']}`);
 	}
 	if (!result['--base-300']) {
 		result['--base-300'] = adjustBrightness(base100, base300Adjustment);
-		console.log(`[deriveMissingColors] base-300: ${base100} + ${base300Adjustment}% = ${result['--base-300']}`);
 	}
 
-	// Derive secondary - use neutralized version of primary
+	// === COLOR OPPOSITION LOGIC ===
+	// If background has a tint, primary/accent should oppose it for contrast
+	const bgHsl = hexToHslObject(base100);
+	const primaryHsl = hexToHslObject(primary);
+	
+	// Detect if bg has a noticeable tint (>8% saturation)
+	const bgHasTint = bgHsl.s > 8;
+	
+	// Check if provided primary is too similar to bg hue (within 60° = analogous)
+	// Proper hue distance calculation (handles wrap-around at 360°)
+	const hueDiff = primaryHsl.h - bgHsl.h;
+	const hueDistance = Math.abs(((hueDiff % 360) + 540) % 360 - 180);
+	const primaryTooCloseToBg = hueDistance < 60;
+	
+
+	// === PRIMARY: Oppose background if needed ===
+	// If bg has a tint and primary is too similar, rotate primary to oppose bg
+	let finalPrimary = primary;
+	let finalPrimaryHsl = { ...primaryHsl };
+	
+	if (bgHasTint && primaryTooCloseToBg) {
+		// Opposing hue = bg hue + 180°
+		// Add ±30° jitter based on bg hue to favor pleasing oppositions
+		// (reds oppose greens, blues oppose oranges, etc.)
+		let opposingHue = (bgHsl.h + 180 + 30) % 360;
+		
+		// Avoid red zone (0-30° and 330-360°) - shift toward orange or purple
+		opposingHue = avoidRedZone(opposingHue);
+		
+		finalPrimaryHsl = {
+			h: opposingHue,
+			s: Math.max(35, Math.min(55, primaryHsl.s * 0.8)), // Reduced saturation (was 60-85)
+			l: isDark ? 50 : 48 // Mid-toned, not too bright
+		};
+		finalPrimary = hslObjectToHex(finalPrimaryHsl);
+		result['--primary'] = finalPrimary;
+	} else {
+		// Even if not rotating, check if primary is in red zone and nudge it
+		const safePrimaryHue = avoidRedZone(finalPrimaryHsl.h);
+		if (safePrimaryHue !== finalPrimaryHsl.h) {
+			finalPrimaryHsl.h = safePrimaryHue;
+			finalPrimary = hslObjectToHex(finalPrimaryHsl);
+			result['--primary'] = finalPrimary;
+		}
+	}
+
+	// === PRIMARY CONTENT: Oppose both primary AND text color ===
+	if (!result['--primary-content']) {
+		// Ditto provides text color as --base-content
+		// We need primary-content to contrast with BOTH primary AND text
+		const baseContent = props['--base-content'] || '#000000';
+		const primaryIsDark = isColorDark(finalPrimary);
+		const textIsDark = isColorDark(baseContent);
+		
+		// Primary-content should oppose text color for visual separation
+		// But also needs contrast against primary itself
+		if (primaryIsDark && textIsDark) {
+			// Both primary and text are dark - use light but distinct from text
+			result['--primary-content'] = '#e8e8e8';
+		} else if (!primaryIsDark && !textIsDark) {
+			// Both primary and text are light - use dark but distinct from text  
+			result['--primary-content'] = '#1a1a1a';
+		} else {
+			// One is dark, one is light - standard contrast
+			result['--primary-content'] = primaryIsDark ? '#ffffff' : '#1a1a1a';
+		}
+	}
+
+	// === SECONDARY: Desaturated neutral ===
 	if (!result['--secondary']) {
-		result['--secondary'] = isDark ? '#444444' : '#cccccc';
+		// Neutral gray with subtle warmth/coolness from primary hue
+		const s = isDark ? 8 : 5;
+		const l = isDark ? 30 : 80;
+		result['--secondary'] = hslObjectToHex({ h: finalPrimaryHsl.h, s, l });
 	}
 	if (!result['--secondary-content']) {
-		result['--secondary-content'] = isDark ? '#b0b0b0' : '#333333';
+		const baseContent = props['--base-content'] || '#000000';
+		const textIsDark = isColorDark(baseContent);
+		// Secondary-content should oppose text color
+		result['--secondary-content'] = textIsDark ? '#c0c0c0' : '#505050';
 	}
 
-	// Derive accent - use complementary or contrasting color
+	// === ACCENT: Split-complementary to primary ===
+	// Rotate ±30-60° from primary for a harmonious but distinct pop
 	if (!result['--accent']) {
-		result['--accent'] = isDark ? '#c19bfd' : '#6d28d9';
+		// Choose direction that maximizes distance from background
+		let accentHue1 = (finalPrimaryHsl.h + 30) % 360;
+		let accentHue2 = (finalPrimaryHsl.h - 30 + 360) % 360;
+		
+		// Avoid red zone for both options
+		accentHue1 = avoidRedZone(accentHue1);
+		accentHue2 = avoidRedZone(accentHue2);
+		
+		const dist1 = Math.abs((((accentHue1 - bgHsl.h) % 360) + 540) % 360 - 180);
+		const dist2 = Math.abs((((accentHue2 - bgHsl.h) % 360) + 540) % 360 - 180);
+		
+		// Pick the accent that contrasts more with background
+		const accentHue = dist1 > dist2 ? accentHue1 : accentHue2;
+		const accentSat = Math.max(40, Math.min(60, finalPrimaryHsl.s * 1.1)); // Reduced (was 70+)
+		const accentLight = isDark ? 55 : 52;
+		
+		result['--accent'] = hslObjectToHex({ h: accentHue, s: accentSat, l: accentLight });
+		
+		// Accent content opposes text color
+		const baseContent = props['--base-content'] || '#000000';
+		const textIsDark = isColorDark(baseContent);
+		const accentIsDark = isColorDark(result['--accent']);
+		
+		if (accentIsDark && textIsDark) {
+			result['--accent-content'] = '#e8e8e8';
+		} else if (!accentIsDark && !textIsDark) {
+			result['--accent-content'] = '#1a1a1a';
+		} else {
+			result['--accent-content'] = accentIsDark ? '#ffffff' : '#1a1a1a';
+		}
 	}
 
-	// Derive semantic colors
+	// === SEMANTIC COLORS: Derived from primary's hue family ===
 	if (!result['--info']) {
-		result['--info'] = '#00b5ff';
+		// Cyan/blue shift (toward 200°)
+		const infoHue = shiftHueToward(finalPrimaryHsl.h, 200, 0.6);
+		result['--info'] = hslObjectToHex({ h: infoHue, s: 55, l: isDark ? 55 : 50 });
 	}
 	if (!result['--success']) {
-		result['--success'] = '#00a96e';
+		// Green shift (toward 145°)
+		const successHue = shiftHueToward(finalPrimaryHsl.h, 145, 0.5);
+		result['--success'] = hslObjectToHex({ h: successHue, s: 45, l: isDark ? 50 : 45 });
 	}
 	if (!result['--warning']) {
-		result['--warning'] = '#ffbe00';
+		// Yellow/orange (toward 45°)
+		const warnHue = shiftHueToward(finalPrimaryHsl.h, 45, 0.4);
+		result['--warning'] = hslObjectToHex({ h: warnHue, s: 60, l: isDark ? 60 : 55 });
 	}
 	if (!result['--error']) {
-		result['--error'] = '#ff5861';
+		// Red/magenta (toward 10° or 350°)
+		const errHue = shiftHueToward(finalPrimaryHsl.h, 10, 0.5);
+		result['--error'] = hslObjectToHex({ h: errHue, s: 50, l: isDark ? 55 : 50 });
 	}
 
-	// Neutral
+	// === NEUTRAL: Near-gray, harmonized hue ===
 	if (!result['--neutral']) {
-		result['--neutral'] = isDark ? '#2a323c' : '#e5e7eb';
+		const l = isDark ? 25 : 88;
+		result['--neutral'] = hslObjectToHex({ h: bgHsl.h, s: 6, l });
 	}
 
-	// Shadows - adjust based on theme type
+	// === SHADOWS ===
 	if (!result['--shadow-outer-color']) {
 		result['--shadow-outer-color'] = isDark 
-			? 'rgba(0, 0, 0, 0.5)' 
+			? `rgba(0, 0, 0, ${0.4 + (bgHsl.l / 500)})` // Darker shadows on dark tinted bgs
 			: 'rgba(0, 0, 0, 0.15)';
 	}
 	if (!result['--shadow-inset-highlight']) {
 		result['--shadow-inset-highlight'] = isDark 
-			? 'rgba(255, 255, 255, 0.1)' 
-			: 'rgba(255, 255, 255, 0.3)';
+			? 'rgba(255, 255, 255, 0.08)' 
+			: 'rgba(255, 255, 255, 0.35)';
 	}
 	if (!result['--shadow-inset-subtle']) {
 		result['--shadow-inset-subtle'] = isDark 
@@ -457,12 +556,29 @@ function deriveMissingColors(props: ThemeProperties): ThemeProperties {
 			: 'rgba(255, 255, 255, 0.08)';
 	}
 
-	// Highlight
+	// === HIGHLIGHT: Brighter version of bg ===
 	if (!result['--highlight']) {
-		result['--highlight'] = isDark ? '#000000' : '#ffffff';
+		result['--highlight'] = isDark 
+			? hslObjectToHex({ h: bgHsl.h, s: bgHsl.s * 0.5, l: Math.min(95, bgHsl.l + 35) })
+			: hslObjectToHex({ h: bgHsl.h, s: bgHsl.s * 0.3, l: Math.max(95, bgHsl.l + 8) });
 	}
 
-	console.log('[deriveMissingColors] Output:', result);
+	// === FINAL SAFETY GUARD: Ensure no red slips through ===
+	if (result['--primary']) {
+		const primaryHsl = hexToHslObject(result['--primary']);
+		const safeHue = avoidRedZone(primaryHsl.h);
+		if (safeHue !== primaryHsl.h) {
+			result['--primary'] = hslObjectToHex({ h: safeHue, s: primaryHsl.s, l: primaryHsl.l });
+		}
+	}
+	if (result['--accent']) {
+		const accentHsl = hexToHslObject(result['--accent']);
+		const safeHue = avoidRedZone(accentHsl.h);
+		if (safeHue !== accentHsl.h) {
+			result['--accent'] = hslObjectToHex({ h: safeHue, s: accentHsl.s, l: accentHsl.l });
+		}
+	}
+
 	return result;
 }
 
@@ -520,50 +636,125 @@ function adjustBrightness(hex: string, percent: number): string {
 export function applyTheme(theme: DittoTheme | null) {
 	if (!theme) return;
 
-	console.log('[Theme] Applying:', theme.name, 'dTag:', theme.dTag);
-	console.log('[Theme] Properties:', JSON.stringify(theme.properties, null, 2));
 
 	const root = document.documentElement;
 
 	// Apply custom properties
 	Object.entries(theme.properties).forEach(([prop, value]) => {
 		if (value) {
-			console.log(`[Theme] ${prop} = ${value}`);
 			root.style.setProperty(prop, value);
 		}
 	});
 
 	// Set DaisyUI internal OkLCH variables for custom themes (built-ins already have them in CSS)
-	console.log('[Theme] Theme isDefault:', theme.isDefault, 'name:', theme.name);
 	
 	if (!theme.isDefault) {
 		const base100 = theme.properties['--base-100'] || '#f9fafb';
+		const isDark = isColorDark(base100);
 		const base200 = theme.properties['--base-200'] || base100;
 		const base300 = theme.properties['--base-300'] || base100;
-		const baseContent = theme.properties['--base-content'] || (isColorDark(base100) ? '#ffffff' : '#000000');
+		const baseContent = theme.properties['--base-content'] || (isDark ? '#ffffff' : '#1a1a1a');
 		
-		const oklch100 = hexToOkLCH(base100);
-		const oklch200 = hexToOkLCH(base200);
-		const oklch300 = hexToOkLCH(base300);
-		const oklchBC = hexToOkLCH(baseContent);
+		const primary = theme.properties['--primary'] || '#158777';
+		const safePrimary = avoidRedInHex(primary);
+		const primaryContentFromProps = theme.properties['--primary-content'];
+		const primaryContent = primaryContentFromProps || (() => {
+			const textIsDark = isColorDark(baseContent);
+			const primaryIsDark = isColorDark(safePrimary);
+			if (primaryIsDark && textIsDark) return '#e8e8e8';
+			if (!primaryIsDark && !textIsDark) return '#1a1a1a';
+			return primaryIsDark ? '#ffffff' : '#1a1a1a';
+		})();
+		const secondary = theme.properties['--secondary'] || (isDark ? '#444444' : '#cccccc');
+		const secondaryContentFromProps = theme.properties['--secondary-content'];
+		const secondaryContent = secondaryContentFromProps || (() => {
+			const textIsDark = isColorDark(baseContent);
+			if (textIsDark) return '#c0c0c0';
+			return '#505050';
+		})();
+		const accent = theme.properties['--accent'] || '#6d28d9';
+		const safeAccent = avoidRedInHex(accent);
+		const accentContentFromProps = theme.properties['--accent-content'];
+		// If not provided, derive it opposing text color
+		const accentContent = accentContentFromProps || (() => {
+			const textIsDark = isColorDark(baseContent);
+			const accentIsDark = isColorDark(safeAccent);
+			if (accentIsDark && textIsDark) return '#e8e8e8';
+			if (!accentIsDark && !textIsDark) return '#1a1a1a';
+			return accentIsDark ? '#ffffff' : '#1a1a1a';
+		})();
+		const neutral = theme.properties['--neutral'] || (isDark ? '#2a323c' : '#e5e7eb');
+		const info = theme.properties['--info'] || '#00b5ff';
+		const success = theme.properties['--success'] || '#00a96e';
+		const warning = theme.properties['--warning'] || '#ffbe00';
+		const error = theme.properties['--error'] || '#ff5861';
 		
-		console.log('[Theme] DaisyUI OkLCH (custom theme):');
-		console.log(`  --b1 (base-100): ${base100} → ${oklch100}`);
-		console.log(`  --b2 (base-200): ${base200} → ${oklch200}`);
-		console.log(`  --b3 (base-300): ${base300} → ${oklch300}`);
-		console.log(`  --bc (base-content): ${baseContent} → ${oklchBC}`);
 
-		root.style.setProperty('--b1', oklch100);
-		root.style.setProperty('--b2', oklch200);
-		root.style.setProperty('--b3', oklch300);
-		root.style.setProperty('--bc', oklchBC);
+		// Base colors
+		root.style.setProperty('--b1', hexToOkLCH(base100));
+		root.style.setProperty('--b2', hexToOkLCH(base200));
+		root.style.setProperty('--b3', hexToOkLCH(base300));
+		root.style.setProperty('--bc', hexToOkLCH(baseContent));
+		
+		// Primary
+		root.style.setProperty('--p', hexToOkLCH(safePrimary));
+		root.style.setProperty('--pc', hexToOkLCH(primaryContent));
+		
+		// Secondary
+		root.style.setProperty('--s', hexToOkLCH(secondary));
+		root.style.setProperty('--sc', hexToOkLCH(secondaryContent));
+		
+		// Accent
+		root.style.setProperty('--a', hexToOkLCH(safeAccent));
+		root.style.setProperty('--ac', hexToOkLCH(accentContent));
+		
+		// Neutral
+		root.style.setProperty('--n', hexToOkLCH(neutral));
+		root.style.setProperty('--nc', hexToOkLCH(isColorDark(neutral) ? '#ffffff' : '#1a1a1a'));
+		
+		// Semantic colors
+		root.style.setProperty('--in', hexToOkLCH(info));
+		root.style.setProperty('--inc', hexToOkLCH('#ffffff'));
+		root.style.setProperty('--su', hexToOkLCH(success));
+		root.style.setProperty('--suc', hexToOkLCH('#ffffff'));
+		root.style.setProperty('--wa', hexToOkLCH(warning));
+		root.style.setProperty('--wac', hexToOkLCH('#1a1a1a'));
+		root.style.setProperty('--er', hexToOkLCH(error));
+		root.style.setProperty('--erc', hexToOkLCH('#ffffff'));
 	} else {
 		// For built-in themes, clear the OkLCH variables to let DaisyUI handle them
-		console.log('[Theme] Built-in theme, clearing OkLCH and CSS variables to let DaisyUI handle them');
+		
+		// Base colors
 		root.style.removeProperty('--b1');
 		root.style.removeProperty('--b2');
 		root.style.removeProperty('--b3');
 		root.style.removeProperty('--bc');
+		
+		// Primary
+		root.style.removeProperty('--p');
+		root.style.removeProperty('--pc');
+		
+		// Secondary
+		root.style.removeProperty('--s');
+		root.style.removeProperty('--sc');
+		
+		// Accent
+		root.style.removeProperty('--a');
+		root.style.removeProperty('--ac');
+		
+		// Neutral
+		root.style.removeProperty('--n');
+		root.style.removeProperty('--nc');
+		
+		// Semantic
+		root.style.removeProperty('--in');
+		root.style.removeProperty('--inc');
+		root.style.removeProperty('--su');
+		root.style.removeProperty('--suc');
+		root.style.removeProperty('--wa');
+		root.style.removeProperty('--wac');
+		root.style.removeProperty('--er');
+		root.style.removeProperty('--erc');
 		
 		// Also clear CSS custom properties that might conflict
 		root.style.removeProperty('--primary');
@@ -577,13 +768,10 @@ export function applyTheme(theme: DittoTheme | null) {
 	}
 
 	root.setAttribute('data-theme', theme.dTag);
-	console.log('[Theme] data-theme set to:', theme.dTag);
 
 	if (theme.properties['--bg-image']) {
-		console.log('[Theme] BG image:', theme.properties['--bg-image']);
 		root.style.setProperty('--bg-basic', theme.properties['--bg-image']);
 	} else {
-		console.log('[Theme] No BG image, clearing --bg-basic');
 		root.style.setProperty('--bg-basic', 'none');
 	}
 
@@ -598,7 +786,6 @@ export function applyTheme(theme: DittoTheme | null) {
 	);
 
 	currentTheme.set(theme);
-	console.log('[Theme] Applied successfully');
 }
 
 /**
@@ -675,6 +862,118 @@ function hexToOkLCH(hex: string): string {
 	const scaledC = C * 0.01; // Scale down by 100x to match DaisyUI range
 	return `${L.toFixed(4)}% ${scaledC.toFixed(5)} ${scaledC < 0.0001 ? 0 : H.toFixed(5)}`;
 }
+/**
+ * Convert hex to HSL object {h,s,l} - returns values in degrees and percentages
+ */
+function hexToHslObject(hex: string): { h: number; s: number; l: number } {
+	const rgb = hexToRgb(hex);
+	if (!rgb) return { h: 0, s: 0, l: 50 };
+
+	const r = rgb.r / 255;
+	const g = rgb.g / 255;
+	const b = rgb.b / 255;
+
+	const max = Math.max(r, g, b);
+	const min = Math.min(r, g, b);
+	let h = 0, s = 0;
+	const l = (max + min) / 2;
+
+	if (max !== min) {
+		const d = max - min;
+		s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+		switch (max) {
+			case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+			case g: h = (b - r) / d + 2; break;
+			case b: h = (r - g) / d + 4; break;
+		}
+		h /= 6;
+	}
+
+	return { h: h * 360, s: s * 100, l: l * 100 };
+}
+
+/**
+ * Convert HSL object to hex string
+ */
+function hslObjectToHex({ h, s, l }: { h: number; s: number; l: number }): string {
+	h = ((h % 360) + 360) % 360;
+	s = Math.max(0, Math.min(100, s));
+	l = Math.max(0, Math.min(100, l));
+
+	const hp = h / 360;
+	const sp = s / 100;
+	const lp = l / 100;
+
+	let r, g, b;
+
+	if (sp === 0) {
+		r = g = b = lp;
+	} else {
+		const q = lp < 0.5 ? lp * (1 + sp) : lp + sp - lp * sp;
+		const p = 2 * lp - q;
+		const hue2rgb = (p: number, q: number, t: number) => {
+			if (t < 0) t += 1;
+			if (t > 1) t -= 1;
+			if (t < 1/6) return p + (q - p) * 6 * t;
+			if (t < 1/2) return q;
+			if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+			return p;
+		};
+		r = hue2rgb(p, q, hp + 1/3);
+		g = hue2rgb(p, q, hp);
+		b = hue2rgb(p, q, hp - 1/3);
+	}
+
+	return rgbToHex(r * 255, g * 255, b * 255);
+}
+
+/**
+ * Shift hue toward target by factor (0-1)
+ * factor 0 = no change, 1 = full shift to target
+ */
+function shiftHueToward(current: number, target: number, factor: number): number {
+	const diff = ((target - current + 180) % 360) - 180;
+	return current + diff * factor;
+}
+
+/**
+ * Nudge hue away from red zone (0-30° and 330-360°)
+ * Returns modified hue if in red zone, otherwise returns original
+ */
+function avoidRedZone(hue: number): number {
+	// Red zone: 0-30° (push to orange ~35°) and 330-360° (push to purple ~325°)
+	const redZoneLow = 0;
+	const redZoneHigh = 30;
+	const purpleZone = 325;
+	const orangeZone = 35;
+	
+	// Normalize to 0-360
+	hue = ((hue % 360) + 360) % 360;
+	
+	if (hue >= redZoneLow && hue <= redZoneHigh) {
+		// In red-orange zone, push toward orange
+		return orangeZone;
+	}
+	if (hue >= 330 && hue < 360) {
+		// In magenta-red zone, push toward purple
+		return purpleZone;
+	}
+	
+	return hue;
+}
+
+/**
+ * Check if hex color is in red zone and nudge it out
+ */
+function avoidRedInHex(hex: string): string {
+	const hsl = hexToHslObject(hex);
+	const safeHue = avoidRedZone(hsl.h);
+	if (safeHue !== hsl.h) {
+		return hslObjectToHex({ h: safeHue, s: hsl.s, l: hsl.l });
+	}
+	return hex;
+}
+
 export function resetToDefault() {
 	const defaultTheme = builtInThemes.find((t) => t.dTag === 'touchgrass');
 	if (defaultTheme) {

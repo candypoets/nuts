@@ -7,21 +7,21 @@
 		SerializeEventsPipeConfigT,
 		type ConnectionStatus,
 		type ParsedEvent,
-		type SubscriptionConfig,
 		type WorkerMessage
 	} from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
-	import { asKind0, asParsedEvent, asConnectionStatus, isKind0 } from '@candypoets/nipworker/utils';
-	import Loader from 'src/components/Loader.svelte';
+	import { asConnectionStatus, asKind0, asParsedEvent, isKind0 } from '@candypoets/nipworker/utils';
 	import { sortBy, throttle } from 'lodash';
+	import Loader from 'src/components/Loader.svelte';
 	import { createEventDispatcher } from 'svelte';
 
-	import { onDestroy, onMount } from 'svelte';
 	import VirtualList from 'src/components/VirtualList.svelte';
 	import { mutePipeConfig } from 'src/controller/nostr';
 	import { SEARCH_RELAYS } from 'src/lib/env';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
+	import { onDestroy, onMount } from 'svelte';
 	import { go } from './modal';
+	import Icon from '@iconify/svelte';
 
 	export let goBack: () => void;
 
@@ -78,7 +78,7 @@
 
 			const history = loadHashtagHistory();
 			// Remove if exists (to move to top) and add to front
-			const filtered = history.filter(h => h.toLowerCase() !== cleanTag.toLowerCase());
+			const filtered = history.filter((h) => h.toLowerCase() !== cleanTag.toLowerCase());
 			const newHistory = [cleanTag, ...filtered].slice(0, 10); // Keep last 10
 
 			sessionStorage.setItem(HASHTAG_HISTORY_KEY, JSON.stringify(newHistory));
@@ -131,7 +131,6 @@
 			go(`tags:${encodeURIComponent(cleanTag)}`);
 		}
 	}
-
 
 	function selectItem(item: ParsedEvent, idx: number) {
 		activeIndex = idx;
@@ -206,7 +205,7 @@
 	function getItemsFromMap(): ParsedEvent[] {
 		// Client-side filter: only return items that match the search query
 		const allItems = Array.from(seenPubkeys.values());
-		const filtered = allItems.filter(item => matchesSearch(item, query));
+		const filtered = allItems.filter((item) => matchesSearch(item, query));
 		return filtered;
 	}
 
@@ -235,7 +234,8 @@
 					PipeConfig.SerializeEventsPipeConfig,
 					new SerializeEventsPipeConfigT(new TextEncoder().encode('cmdk'))
 				)
-			]})
+			]
+		});
 	}, 600);
 
 	onDestroy(() => {
@@ -255,8 +255,10 @@
 		const name = kind0.name();
 		if (name) {
 			const lowerName = name.toLowerCase();
-			if (lowerName === lowerQuery) score = 100; // Exact match: highest score
-			else if (lowerName.startsWith(lowerQuery)) score = 50; // Starts with: high score
+			if (lowerName === lowerQuery)
+				score = 100; // Exact match: highest score
+			else if (lowerName.startsWith(lowerQuery))
+				score = 50; // Starts with: high score
 			else if (lowerName.includes(lowerQuery)) score = 10; // Contains: medium score
 		}
 
@@ -264,7 +266,8 @@
 		const displayName = kind0.displayName();
 		if (displayName && score < 100) {
 			const lowerDisplayName = displayName.toLowerCase();
-			if (lowerDisplayName === lowerQuery) score = Math.max(score, 90); // Exact on displayName
+			if (lowerDisplayName === lowerQuery)
+				score = Math.max(score, 90); // Exact on displayName
 			else if (lowerDisplayName.startsWith(lowerQuery)) score = Math.max(score, 40);
 			else if (lowerDisplayName.includes(lowerQuery)) score = Math.max(score, 5);
 		}
@@ -273,7 +276,8 @@
 		const nip05 = kind0.nip05();
 		if (nip05 && score < 50) {
 			const lowerNip05 = nip05.toLowerCase();
-			if (lowerNip05 === lowerQuery) score = Math.max(score, 80); // Exact on nip05
+			if (lowerNip05 === lowerQuery)
+				score = Math.max(score, 80); // Exact on nip05
 			else if (lowerNip05.includes(lowerQuery)) score = Math.max(score, 8);
 		}
 
@@ -335,7 +339,10 @@
 		<div
 			class="flex items-center bg-base-200 gap-3 px-4 md:px-5 py-3 md:py-4 border-b border-base-300"
 		>
-			<Icon icon={mode === 'hashtags' ? 'carbon:hashtag' : 'carbon:search'} class="text-xl opacity-70" />
+			<Icon
+				icon={mode === 'hashtags' ? 'carbon:hashtag' : 'carbon:search'}
+				class="text-xl opacity-70"
+			/>
 			<input
 				bind:this={inputEl}
 				bind:value={query}
@@ -352,15 +359,19 @@
 		<div class="flex items-center gap-2 px-4 py-2 bg-base-200/50 border-b border-base-300">
 			<button
 				type="button"
-				class="px-3 py-1 rounded-full text-sm transition-colors {mode === 'profiles' ? 'bg-primary text-primary-content' : 'hover:bg-base-300'}"
-				on:click={() => mode = 'profiles'}
+				class="px-3 py-1 rounded-full text-sm transition-colors {mode === 'profiles'
+					? 'bg-primary text-primary-content'
+					: 'hover:bg-base-300'}"
+				on:click={() => (mode = 'profiles')}
 			>
 				Profiles
 			</button>
 			<button
 				type="button"
-				class="px-3 py-1 rounded-full text-sm transition-colors {mode === 'hashtags' ? 'bg-primary text-primary-content' : 'hover:bg-base-300'}"
-				on:click={() => mode = 'hashtags'}
+				class="px-3 py-1 rounded-full text-sm transition-colors {mode === 'hashtags'
+					? 'bg-primary text-primary-content'
+					: 'hover:bg-base-300'}"
+				on:click={() => (mode = 'hashtags')}
 			>
 				Hashtags
 			</button>

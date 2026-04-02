@@ -8,9 +8,10 @@
 		type ParsedEvent,
 		WorkerMessage
 	} from '@candypoets/nipworker';
-	import Loader from 'src/components/Loader.svelte';
 	import Icon from '@iconify/svelte';
 	import { uniqBy } from 'lodash';
+	import Loader from 'src/components/Loader.svelte';
+	import { ALL_FEED_KINDS } from 'src/controller/feed';
 	import {
 		defaultPipeline,
 		follows,
@@ -36,11 +37,11 @@
 		isConnectionStatus
 	} from '@candypoets/nipworker/utils';
 
+	import { isEqual } from 'lodash';
 	import { normalizeURL } from 'nostr-tools/utils';
 	import About from 'src/components/About.svelte';
 	import RelaysList from 'src/components/RelaysList.svelte';
 	import { relaySub, setSubRelays } from 'src/controller/relay';
-	import { isEqual } from 'lodash';
 	import { type ContentBlock, parseContent } from 'src/lib';
 	import { onDestroy, onMount } from 'svelte';
 	import Avatar from '../explore/avatar.svelte';
@@ -330,8 +331,6 @@
 	$: isMutePending = muteIntent !== null && !hasMuteOkFromRelay;
 	$: hasMuteOkFromRelay = Object.values(mutePublishStatus).some((s) => s.status() === 'true');
 
-	$: console.log('followIntent', followIntent);
-
 	// Reset intent when store confirms the change
 	$: if (followIntent !== null && $follows.some((f) => f.pubkey === pubkey) === followIntent) {
 		followIntent = null;
@@ -389,7 +388,7 @@
 		if (mode === 'profile' && writeRelays.length > 0) {
 			return [
 				{
-					kinds: [1, 30023],
+					kinds: ALL_FEED_KINDS,
 					authors: [pubkey],
 					limit: $limit,
 					until,
@@ -402,7 +401,7 @@
 		if (mode === 'follows' && readRelays.length > 0 && contacts.length > 0) {
 			return [
 				{
-					kinds: [1, 30023],
+					kinds: ALL_FEED_KINDS,
 					authors: contacts.map((c) => c.pubkey()).filter(Boolean) as string[],
 					limit: $limit,
 					until,
@@ -489,7 +488,7 @@
 				subId: 'kind0P_' + pubkey + '_' + relayHash,
 				requests: [
 					{
-						kinds: [1, 30023],
+						kinds: ALL_FEED_KINDS,
 						authors: [pubkey],
 						limit: $limit,
 						noContext: true,
@@ -508,7 +507,7 @@
 				subId: 'kind0F_' + pubkey + '_' + relayHash,
 				requests: [
 					{
-						kinds: [1, 30023],
+						kinds: ALL_FEED_KINDS,
 						authors: contacts.map((c) => c.pubkey()).filter(Boolean) as string[],
 						limit: $limit,
 						noContext: true,
