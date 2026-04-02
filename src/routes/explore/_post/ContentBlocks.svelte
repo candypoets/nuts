@@ -81,7 +81,6 @@
 				</button>
 			{/if}
 		{:else if parsed.type() === 'emoji'}
-			{'emoji'}
 			{@const emoji = asEmojiData(parsed)}
 			{#if emoji}
 				<img

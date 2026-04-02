@@ -83,7 +83,7 @@
 		// Get the source for content blocks (repost wraps another note, so unwrap it)
 		// First try kind6's reposted event, then the already-computed kind1, then try kind4/kind1111
 		let contentSource: any = null;
-		
+
 		const repostedEvent = kind6?.repostedEvent?.();
 		if (repostedEvent) {
 			// For reposts, narrow the reposted event to kind1
@@ -95,7 +95,7 @@
 			// Fallback: try kind4 or kind1111
 			contentSource = asKind4(displayNote) || asKind1111(displayNote);
 		}
-		
+
 		parsedContent = fbArray(contentSource, 'parsedContent') || [];
 		shortContent = fbArray(contentSource, 'shortenedContent') || [];
 	}
@@ -519,7 +519,7 @@
 			// Reset and re-subscribe with a new subId
 			unsubscribe();
 			startSearchTimeout();
-			subscribe(effectiveNid + '_retry_' + relayCounter);
+			subscribe(effectiveNid + relayCounter);
 			relayCounter++;
 		}
 	}
@@ -668,6 +668,7 @@
 		{#if hasRoot || tailing}
 			<div class="absolute border-primary-content left-4 h-8 border-r-2 -mt-8" />
 		{/if}
+
 		<div class="flex items-center gap-2 px-2 py-2" class:ml-10={!depth}>
 			<Icon icon="mdi:cloud-off-outline" class="w-4 h-4 opacity-50 shrink-0" />
 			<div class="flex-1 min-w-0">
@@ -676,13 +677,18 @@
 					>{effectiveNid.slice(0, 12)}...</span
 				>
 			</div>
-			<button
-				class="btn btn-xs btn-primary gap-1"
-				on:click|stopPropagation={retryWithFallbackRelays}
-			>
-				<Icon icon="mdi:reload" />
-				Deep search
-			</button>
+			<div>
+				<span class="absolute top-1 right-2">
+					<RelaysList subId={nid} {relays} {connectionStatus} mini />
+				</span>
+				<button
+					class="btn btn-xs btn-primary gap-1 mt-2"
+					on:click|stopPropagation={retryWithFallbackRelays}
+				>
+					<Icon icon="mdi:reload" />
+					Deep search
+				</button>
+			</div>
 		</div>
 	{:else if searchState === 'unrenderable'}
 		<!-- Unrenderable state - compact -->

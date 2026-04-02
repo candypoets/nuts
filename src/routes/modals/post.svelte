@@ -1,7 +1,13 @@
 <script lang="ts">
 	import { ParsedEvent, WorkerMessage, type ConnectionStatus } from '@candypoets/nipworker';
 	import { usePublish, useSignEvent, useSubscription } from '@candypoets/nipworker/hooks';
-	import { asParsedEvent, fbArray, isConnectionStatus, isKind1, isParsedEvent } from '@candypoets/nipworker/utils';
+	import {
+		asParsedEvent,
+		fbArray,
+		isConnectionStatus,
+		isKind1,
+		isParsedEvent
+	} from '@candypoets/nipworker/utils';
 	import Loader from 'src/components/Loader.svelte';
 	import PollCreator from 'src/components/PollCreator.svelte';
 	import Icon from '@iconify/svelte';
@@ -104,13 +110,11 @@
 	async function handleSubmit() {
 		let content = $editor.getText();
 		if (isSubmitting) return;
-		
+
 		// Check if we have content (for regular posts) or valid poll (for poll posts)
-		const validPollOptions = isPollMode 
-			? pollOptions.filter(o => o.trim().length > 0)
-			: [];
+		const validPollOptions = isPollMode ? pollOptions.filter((o) => o.trim().length > 0) : [];
 		const hasValidPoll = isPollMode && validPollOptions.length >= 2;
-		
+
 		if (!content && !repost && !hasValidPoll) return;
 		isSubmitting = true;
 
@@ -120,17 +124,19 @@
 		let post: EventTemplate;
 
 		if (isPollMode) {
-			// Create kind 1068 poll
+			// Store poll-specific tags to add after prepareEvent
+			const pollTags = [
+				['polltype', pollType === 'singlechoice' ? 'singlechoice' : 'multiplechoice'],
+				...validPollOptions.map((opt, i) => ['option', i.toString(), opt.trim()]),
+				...(pollEndsAt ? [['endsAt', pollEndsAt.toString()]] : [])
+			];
+
+			// Create kind 1068 poll with base tags only (editor tags + reply/repost context)
 			post = {
 				kind: 1068,
 				created_at: now(),
 				content: content.trim(), // Poll question
-				tags: [
-					...editorTags,
-					['poll_type', pollType === 'singlechoice' ? 'singlechoice' : 'multiplechoice'],
-					...validPollOptions.map((opt, i) => ['option', opt.trim(), i.toString()]),
-					...(pollEndsAt ? [['ends_at', pollEndsAt.toString()]] : [])
-				]
+				tags: [...editorTags]
 			};
 
 			if (note && reply) {
@@ -143,7 +149,7 @@
 
 			if (note && repost) {
 				post.content += '\n\nnostr:' + nip19.neventEncode({ id: hexId });
-				
+
 				const timeoutPromise = new Promise<null>((resolve) => {
 					setTimeout(() => resolve(null), 2000);
 				});
@@ -154,13 +160,14 @@
 
 				const result = await Promise.race([timeoutPromise, relaysPromise]);
 				const relayHint = result === null ? '' : result[0];
-				
-				post.tags = [
-					...post.tags,
-					['q', hexId, relayHint, note!.pubkey()],
-					['p', note!.pubkey()]
-				];
+
+				post.tags = [...post.tags, ['q', hexId, relayHint, note!.pubkey()], ['p', note!.pubkey()]];
 			}
+
+			post = prepareEvent(post);
+
+			// Add poll-specific tags after prepareEvent
+			post.tags = [...post.tags, ...pollTags];
 		} else {
 			// Create kind 1 post
 			post = {
@@ -180,7 +187,7 @@
 
 			if (note && repost) {
 				post.content += '\n\nnostr:' + nip19.neventEncode({ id: hexId });
-				
+
 				const timeoutPromise = new Promise<null>((resolve) => {
 					setTimeout(() => resolve(null), 2000);
 				});
@@ -191,16 +198,12 @@
 
 				const result = await Promise.race([timeoutPromise, relaysPromise]);
 				const relayHint = result === null ? '' : result[0];
-				
-				post.tags = [
-					...editorTags,
-					['q', hexId, relayHint, note!.pubkey()],
-					['p', note!.pubkey()]
-				];
-			}
-		}
 
-		post = prepareEvent(post);
+				post.tags = [...editorTags, ['q', hexId, relayHint, note!.pubkey()], ['p', note!.pubkey()]];
+			}
+
+			post = prepareEvent(post);
+		}
 
 		onSubmit(post as NostrEvent);
 
@@ -229,7 +232,7 @@
 		);
 
 		isSubmitting = false;
-		pagerAnimator.goBack();
+		pagerAnimator?.goBack();
 	}
 
 	function togglePollMode() {
@@ -347,7 +350,9 @@
 						<!-- Poll button -->
 						<button
 							type="button"
-							class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 {isPollMode ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'text-gray-500 dark:text-gray-400'}"
+							class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 {isPollMode
+								? 'text-blue-500 bg-blue-50 dark:bg-blue-900/20'
+								: 'text-gray-500 dark:text-gray-400'}"
 							title="Create poll"
 							on:click={togglePollMode}
 						>
@@ -384,7 +389,9 @@
 							type="button"
 							class="px-4 py-2 bg-blue-500 text-highlight rounded-full font-medium hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300 dark:focus:ring-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
 							on:click={handleSubmit}
-							disabled={isSubmitting || ((!$editor?.getText().trim() && !repost) || (isPollMode && pollOptions.filter(o => o.trim()).length < 2))}
+							disabled={isSubmitting ||
+								(!$editor?.getText().trim() && !repost) ||
+								(isPollMode && pollOptions.filter((o) => o.trim()).length < 2)}
 						>
 							<div class="flex items-center space-x-1">
 								{#if isSubmitting}
