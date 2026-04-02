@@ -676,7 +676,7 @@
 			<div class="flex-1 min-w-0">
 				<span class="text-xs opacity-60 truncate block">Not found</span>
 				<span class="text-[10px] opacity-40 truncate block font-mono" title={effectiveNid}
-					>{effectiveNid.slice(0, 12)}...</spankind
+					>{effectiveNid.slice(0, 12)}...</span
 				>
 			</div>
 			<div>
