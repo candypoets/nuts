@@ -15,16 +15,16 @@ import { persistentWritable } from 'src/lib/persistentWritable';
 import { derived } from 'svelte/store';
 import { kind3 } from './nostr';
 
-export type FeedKind = 1 | 6 | 20 | 34235 | 6969 | 30023;
+export type FeedKind = 1 | 6 | 20 | 34235 | 1068 | 30023;
 
-export const ALL_FEED_KINDS: FeedKind[] = [1, 6, 20, 34235, 6969, 30023];
+export const ALL_FEED_KINDS: FeedKind[] = [1, 6, 20, 34235, 1068, 30023];
 
 export const KIND_ICONS: Record<FeedKind, string> = {
 	1: 'mdi:text-box-outline',
 	6: 'mdi:repeat',
 	20: 'mdi:image-multiple',
 	34235: 'mdi:video',
-	6969: 'mdi:poll',
+	1068: 'mdi:poll',
 	30023: 'mdi:file-document-outline'
 };
 
@@ -33,17 +33,17 @@ export const KIND_LABELS: Record<FeedKind, string> = {
 	6: 'Reposts',
 	20: 'Media',
 	34235: 'Videos',
-	6969: 'Polls',
+	1068: 'Polls',
 	30023: 'Articles'
 };
 
 export const KIND_DESCRIPTIONS: Record<FeedKind, string> = {
 	1: 'Text notes, thoughts, updates - the classic Nostr post',
 	6: 'Shared posts from others with commentary',
-	20: 'Images and media uploads (NIP-68). Photos, memes, artwork',
-	30023: 'Long-form articles and blog posts (NIP-23). In-depth content',
-	34235: 'Video content (NIP-71). Long-form and short clips',
-	6969: 'Interactive polls and surveys (NIP-69). Vote and see results'
+	20: 'Images and media uploads. Photos, memes, artwork',
+	30023: 'Long-form articles and blog posts. In-depth content',
+	34235: 'Video content. Long-form and short clips',
+	1068: 'Interactive polls and surveys. Vote and see results'
 };
 
 export const feedKinds = persistentWritable<FeedKind[]>(

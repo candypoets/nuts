@@ -1,11 +1,14 @@
 <script lang="ts">
-	import type { ParsedEvent } from '@candypoets/nipworker';
+	import type { Kind4Parsed, ParsedEvent } from '@candypoets/nipworker';
 	import Icon from '@iconify/svelte';
 	import { formatDistanceToNow } from 'date-fns';
 	import { timestamp1 } from 'src/controller';
-	import Content from 'src/routes/explore/_post/content.svelte';
+	import { asKind4, fbArray } from '@candypoets/nipworker/utils';
+	import ContentBlocks from 'src/routes/explore/_post/ContentBlocks.svelte';
 
 	export let message: ParsedEvent;
+
+	$: content = fbArray(asKind4(message) as Kind4Parsed, 'parsedContent') || [];
 
 	export let sent: number | undefined;
 	export let incoming = false;
@@ -50,7 +53,7 @@
 		class:!rounded-br-md={isFirst && !incoming}
 		class:!rounded-bl-md={isFirst && incoming}
 	>
-		<Content note={message} class="!w-auto" visible={true} showMedia={false} />
+		<ContentBlocks {content} class="!w-auto" visible={true} showMedia={false} />
 		{#if !incoming && sent != undefined}
 			<div class="chat-footer absolute bottom-1 -left-5">
 				{#if sent === 0}

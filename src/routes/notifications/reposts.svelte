@@ -1,13 +1,13 @@
 <script lang="ts">
-	import type { ParsedEvent } from '@candypoets/nipworker';
+	import type { Kind1Parsed, ParsedEvent } from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
-	import { isKind1, isParsedEvent } from '@candypoets/nipworker/utils';
+	import { isKind1, isParsedEvent, fbArray, asKind1 } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { nip19 } from 'nostr-tools';
 	import { onMount } from 'svelte';
 
 	import { key, writeRelays, readRelays } from 'src/controller';
-	import Content from 'src/routes/explore/_post/content.svelte';
+	import ContentBlocks from 'src/routes/explore/_post/ContentBlocks.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import User from 'src/routes/explore/user.svelte';
 	import { go } from 'src/routes/modals/modal';
@@ -106,7 +106,8 @@
 				<div class="font-medium">
 					{post.parsed.events.length}
 					{#if originalPost && originalPost.pubkey() !== $key?.pub}
-						{post.parsed.events.length === 1 ? 'person' : 'people'} reposted a post you were mentioned in
+						{post.parsed.events.length === 1 ? 'person' : 'people'} reposted a post you were mentioned
+						in
 					{:else}
 						{post.parsed.events.length === 1 ? 'person' : 'people'} reposted your post
 					{/if}
@@ -128,7 +129,13 @@
 							})}`
 						)}
 				>
-					<Content note={originalPost} showMedia={false} showQuote={false} depth={2} {context} />
+					<ContentBlocks
+						content={fbArray(asKind1(originalPost), 'parsedContent') || []}
+						{context}
+						showMedia={false}
+						showQuote={false}
+						depth={2}
+					/>
 				</a>
 			{/if}
 
@@ -181,7 +188,8 @@
 							>
 								<User pubkey={post.parsed.events[1].pubkey()} link={false} {context} />
 							</a>
-							and <span class="font-medium">{post.parsed.events.length - 2} others</span> reposted this post
+							and <span class="font-medium">{post.parsed.events.length - 2} others</span> reposted this
+							post
 						{/if}
 					</div>
 				{/if}

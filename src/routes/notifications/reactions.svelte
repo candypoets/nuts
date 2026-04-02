@@ -1,14 +1,14 @@
 <script lang="ts">
-	import type { ParsedEvent } from '@candypoets/nipworker';
+	import type { Kind1Parsed, ParsedEvent } from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
-	import { isKind1, isParsedEvent } from '@candypoets/nipworker/utils';
+	import { isKind1, isParsedEvent, fbArray, asKind1 } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { formatDistanceToNow } from 'date-fns';
 	import { nip19 } from 'nostr-tools';
 	import { onMount } from 'svelte';
 
 	import { key, readRelays, writeRelays } from 'src/controller';
-	import Content from 'src/routes/explore/_post/content.svelte';
+	import ContentBlocks from 'src/routes/explore/_post/ContentBlocks.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import User from 'src/routes/explore/user.svelte';
 	import { go } from 'src/routes/modals/modal';
@@ -141,7 +141,13 @@
 							})}`
 						)}
 				>
-					<Content note={originalPost} showMedia={false} showQuote={false} depth={2} {context} />
+					<ContentBlocks
+						content={fbArray(asKind1(originalPost), 'parsedContent') || []}
+						{context}
+						showMedia={false}
+						showQuote={false}
+						depth={2}
+					/>
 				</a>
 			{/if}
 			<div class="inline-flex space-x-2 items-start">

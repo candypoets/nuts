@@ -14,7 +14,9 @@
 	import {
 		asConnectionStatus,
 		asKind1,
+		asKind4,
 		asKind6,
+		asKind1111,
 		asParsedEvent,
 		ConnectionTracker,
 		fbArray
@@ -28,9 +30,10 @@
 	import { relayStatusMap, relaySub, setSubRelays } from 'src/controller/relay';
 	import { DEFAULT_RELAYS } from 'src/lib/env';
 	import { toRequestObject } from 'src/lib/request';
-	import Content from 'src/routes/explore/_post/content.svelte';
+	import ContentBlocks from 'src/routes/explore/_post/ContentBlocks.svelte';
 	import Footer from 'src/routes/explore/_post/footer.svelte';
 	import Header from 'src/routes/explore/_post/header.svelte';
+	import Kind1068Content from 'src/routes/explore/_post/kind1068Content.svelte';
 	import Kind20Content from 'src/routes/explore/_post/kind20Content.svelte';
 	import Kind30023Content from 'src/routes/explore/_post/kind30023Content.svelte';
 	import Kind30311Content from 'src/routes/explore/_post/kind30311Content.svelte';
@@ -55,8 +58,6 @@
 	export let showRoot: boolean = true;
 	export let depth = 0;
 
-	let showFull = false;
-
 	// Repost handling variables
 	let kind6: ReturnType<typeof asKind6> | undefined;
 	let isRepost = false;
@@ -77,7 +78,31 @@
 		kind1 = displayNote && asKind1(displayNote as ParsedEvent);
 		isKind20 = displayNote?.kind?.() === 20;
 	}
+	// Extract content blocks for ContentBlocks component - single reactive statement
+	$: {
+		// Get the source for content blocks (repost wraps another note, so unwrap it)
+		// First try kind6's reposted event, then the already-computed kind1, then try kind4/kind1111
+		let contentSource: any = null;
+		
+		const repostedEvent = kind6?.repostedEvent?.();
+		if (repostedEvent) {
+			// For reposts, narrow the reposted event to kind1
+			contentSource = asKind1(repostedEvent);
+		} else if (kind1) {
+			// Use the already-computed kind1 if available
+			contentSource = kind1;
+		} else if (displayNote) {
+			// Fallback: try kind4 or kind1111
+			contentSource = asKind4(displayNote) || asKind1111(displayNote);
+		}
+		
+		parsedContent = fbArray(contentSource, 'parsedContent') || [];
+		shortContent = fbArray(contentSource, 'shortenedContent') || [];
+	}
 
+	// Reactive declarations for parsedContent and shortContent
+	let parsedContent: any[] = [];
+	let shortContent: any[] = [];
 	// Decode naddr when provided
 	$: naddrDecoded = (() => {
 		if (!naddr) return null;
@@ -397,8 +422,8 @@
 		// Kind 1 is always renderable (via Content component)
 		if (kind === 1) return 'found';
 
-		// Kind 30023 and 30311 have dedicated components
-		if (kind === 30023 || kind === 30311) return 'found';
+		// Kind 30023, 30311, and 1068 have dedicated components
+		if (kind === 30023 || kind === 30311 || kind === 1068) return 'found';
 
 		// Kind 6 needs a valid reposted event
 		if (kind === 6) {
@@ -596,6 +621,10 @@
 					{#key displayNote.id()}
 						<Kind20Content note={displayNote} />
 					{/key}
+				{:else if displayNote?.kind?.() === 1068}
+					{#key displayNote.id()}
+						<Kind1068Content note={displayNote} {visible} />
+					{/key}
 				{:else if displayNote?.kind?.() === 30023}
 					<Kind30023Content note={displayNote} />
 				{:else if displayNote?.kind?.() === 30311}
@@ -605,13 +634,13 @@
 					<!-- {console.log('[note] displayNote kind:', displayNote?.kind?.(), 'parsed:', !!displayNote.parsed)} -->
 					<!-- {kind1?.reply()?.id()!} -->
 					<!-- {!!showReplies && note?.id()!} -->
-					<Content
-						bind:showFull
+					<ContentBlocks
+						content={parsedContent}
+						{shortContent}
 						note={displayNote}
 						{context}
 						{visible}
 						{depth}
-						{main}
 						{showQuote}
 					/>
 				{:else}

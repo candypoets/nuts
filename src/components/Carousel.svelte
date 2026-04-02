@@ -149,7 +149,7 @@
 	bind:this={container}
 	on:keydown|stopPropagation|preventDefault={handleKeydown}
 	tabindex="-1"
-	autofocus={autoFocus}
+	autofocus={autoFocus || undefined}
 >
 	<div
 		class="bg-transparent scrollbar-hide flex h-full snap-x snap-mandatory items-center overflow-x-scroll scroll-smooth {noGap ? '' : 'gap-4 rounded-xl'}"

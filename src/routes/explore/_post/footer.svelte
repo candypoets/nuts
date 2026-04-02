@@ -170,7 +170,7 @@
 							}
 						],
 						handleEvents,
-						createSubscriptionOptions([1, 6, 7, 1111], $mutePipeConfig, $key?.pub || '')
+						createSubscriptionOptions([1, 6, 7], $mutePipeConfig, $key?.pub || '')
 					);
 
 					// Separate subscription for kind1111 comments (NIP-22, uses #E tag for root)
@@ -247,6 +247,10 @@
 					if (relayUrl) {
 						sendStatus[relayUrl] = status;
 						updateSendStatus('repost_' + decoded.id, sendStatus);
+						// Optimistic update when any relay confirms
+						if (status.status() === 'true' && !liked) {
+							liked = 'true';
+						}
 					}
 				}
 			},
@@ -397,7 +401,6 @@
 	</div>
 </div>
 
-
 <style>
 	/* Icon container base styles - unified size */
 	.icon-container,
@@ -449,13 +452,19 @@
 	}
 
 	@keyframes repost-spin {
-		0% { transform: rotate(0deg); }
-		100% { transform: rotate(-360deg); }
+		0% {
+			transform: rotate(0deg);
+		}
+		100% {
+			transform: rotate(-360deg);
+		}
 	}
 
 	/* Share - fly away effect */
 	:global(.share-svg) {
-		transition: transform 0.3s ease, opacity 0.2s ease;
+		transition:
+			transform 0.3s ease,
+			opacity 0.2s ease;
 	}
 
 	:global(.action-btn:hover .share-svg) {
@@ -468,10 +477,19 @@
 	}
 
 	@keyframes reply-bounce {
-		0%, 100% { transform: scale(1) rotate(0deg); }
-		25% { transform: scale(1.2) rotate(-10deg); }
-		50% { transform: scale(1.1) rotate(5deg); }
-		75% { transform: scale(1.15) rotate(-3deg); }
+		0%,
+		100% {
+			transform: scale(1) rotate(0deg);
+		}
+		25% {
+			transform: scale(1.2) rotate(-10deg);
+		}
+		50% {
+			transform: scale(1.1) rotate(5deg);
+		}
+		75% {
+			transform: scale(1.15) rotate(-3deg);
+		}
 	}
 
 	/* Heart styles */
@@ -535,14 +553,30 @@
 		animation: particle-burst 0.5s ease-out;
 	}
 
-	:global(.heart-container.is-animating .p1) { animation-delay: 0ms; }
-	:global(.heart-container.is-animating .p2) { animation-delay: 25ms; }
-	:global(.heart-container.is-animating .p3) { animation-delay: 50ms; }
-	:global(.heart-container.is-animating .p4) { animation-delay: 75ms; }
-	:global(.heart-container.is-animating .p5) { animation-delay: 100ms; }
-	:global(.heart-container.is-animating .p6) { animation-delay: 125ms; }
-	:global(.heart-container.is-animating .p7) { animation-delay: 150ms; }
-	:global(.heart-container.is-animating .p8) { animation-delay: 175ms; }
+	:global(.heart-container.is-animating .p1) {
+		animation-delay: 0ms;
+	}
+	:global(.heart-container.is-animating .p2) {
+		animation-delay: 25ms;
+	}
+	:global(.heart-container.is-animating .p3) {
+		animation-delay: 50ms;
+	}
+	:global(.heart-container.is-animating .p4) {
+		animation-delay: 75ms;
+	}
+	:global(.heart-container.is-animating .p5) {
+		animation-delay: 100ms;
+	}
+	:global(.heart-container.is-animating .p6) {
+		animation-delay: 125ms;
+	}
+	:global(.heart-container.is-animating .p7) {
+		animation-delay: 150ms;
+	}
+	:global(.heart-container.is-animating .p8) {
+		animation-delay: 175ms;
+	}
 
 	@keyframes particle-burst {
 		0% {
@@ -556,14 +590,38 @@
 	}
 
 	/* Individual particle directions */
-	:global(.p1) { --tx: 0px; --ty: -20px; }
-	:global(.p2) { --tx: 14px; --ty: -14px; }
-	:global(.p3) { --tx: 20px; --ty: 0px; }
-	:global(.p4) { --tx: 14px; --ty: 14px; }
-	:global(.p5) { --tx: 0px; --ty: 20px; }
-	:global(.p6) { --tx: -14px; --ty: 14px; }
-	:global(.p7) { --tx: -20px; --ty: 0px; }
-	:global(.p8) { --tx: -14px; --ty: -14px; }
+	:global(.p1) {
+		--tx: 0px;
+		--ty: -20px;
+	}
+	:global(.p2) {
+		--tx: 14px;
+		--ty: -14px;
+	}
+	:global(.p3) {
+		--tx: 20px;
+		--ty: 0px;
+	}
+	:global(.p4) {
+		--tx: 14px;
+		--ty: 14px;
+	}
+	:global(.p5) {
+		--tx: 0px;
+		--ty: 20px;
+	}
+	:global(.p6) {
+		--tx: -14px;
+		--ty: 14px;
+	}
+	:global(.p7) {
+		--tx: -20px;
+		--ty: 0px;
+	}
+	:global(.p8) {
+		--tx: -14px;
+		--ty: -14px;
+	}
 
 	/* Hover effect when not liked */
 	:global(.heart-container:not(.is-liked):hover .heart-outline) {
@@ -577,7 +635,12 @@
 	}
 
 	@keyframes subtle-pulse {
-		0%, 100% { transform: scale(1); }
-		50% { transform: scale(1.1); }
+		0%,
+		100% {
+			transform: scale(1);
+		}
+		50% {
+			transform: scale(1.1);
+		}
 	}
 </style>

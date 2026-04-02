@@ -4,19 +4,10 @@
 	import Cashu from './cashu.svelte';
 	import YouTube from './YouTube.svelte';
 
+	import { ContentBlock, ContentData, type ParsedEvent } from '@candypoets/nipworker';
 	import {
-		ContentBlock,
-		ContentData,
-		type Kind1Parsed,
-		type Kind4Parsed,
-		type Kind1111Parsed,
-		type ParsedEvent
-	} from '@candypoets/nipworker';
-	import {
+		asEmojiData,
 		asHashtagData,
-		asKind1,
-		asKind4,
-		asKind1111,
 		asLinkPreview,
 		asMediaGroupData,
 		asNostrData,
@@ -26,33 +17,23 @@
 	import { go } from 'src/routes/modals/modal';
 	import { getContext } from 'svelte';
 
-	export let note: ParsedEvent;
+	export let content: ContentBlock[];
+	export let shortContent: ContentBlock[] | undefined = undefined;
+	export let showFull = false;
+	export let note: ParsedEvent | undefined = undefined;
 	export let context: ParsedEvent[] = [];
-	export let content: ContentBlock[] = undefined;
-	export let depth = 0;
 	export let visible: boolean = false;
+	export let depth = 0;
 	export let showMedia = true;
 	export let showQuote = true;
-	export let main = false;
-	export let showFull = false;
 
 	let imageContext = getContext('imageContext');
 
-	let kind1 = asKind1(note) as Kind1Parsed;
-	let kind4 = asKind4(note) as Kind4Parsed;
-	let kind1111 = asKind1111(note) as Kind1111Parsed;
-
-	let kind = kind1 || kind4 || kind1111;
-
-	$: hasShortened = !content && fbArray(kind1, 'shortenedContent')?.length > 0;
-	$: parsedContent =
-		content || (hasShortened && !showFull)
-			? fbArray(kind1, 'shortenedContent') || []
-			: fbArray(kind1 || kind4 || kind1111, 'parsedContent') || [];
+	$: displayContent = shortContent?.length && !showFull ? shortContent : content;
 
 	// Helper function to check if current block is the last text block
-	function isLastTextBlock(index: number, content: ContentBlock[]) {
-		if (content.slice(index + 1).some((b) => b.type() == 'text')) return false;
+	function isLastTextBlock(index: number, blocks: ContentBlock[]) {
+		if (blocks.slice(index + 1).some((b) => b.type() == 'text')) return false;
 		return true;
 	}
 
@@ -65,11 +46,11 @@
 
 <div
 	class:pr-2={imageContext}
-	class:!w-full={main}
 	class:text-sm={!!depth}
-	class={'w-full text-wrap whitespace-normal break-words relative select-text' + ($$props.class || '')}
+	class={'w-full text-wrap whitespace-normal break-words relative select-text' +
+		($$props.class || '')}
 >
-	{#each parsedContent as parsed, index}
+	{#each displayContent as parsed, index}
 		{#if parsed.type() == 'text'}
 			{@const rawText = parsed.text() || ''}
 			{@const text = (() => {
@@ -83,16 +64,15 @@
 				}
 			})()}
 
-			<!-- {#if !isImageUrl(part.content)} -->
 			<span class="break-words text-highlight">
 				{@html (index == 0
 					? text?.trimStart()
-					: index == parsedContent.length - 1
+					: index == displayContent.length - 1
 						? text?.trimEnd()
 						: text
 				).replace(/\r\n|\r|\n/g, '<br>')}
 			</span>
-			{#if hasShortened && isLastTextBlock(index, parsedContent)}
+			{#if shortContent?.length && isLastTextBlock(index, displayContent)}
 				<button
 					class="text-primary text-sm font-medium ml-1 hover:underline"
 					on:click|stopPropagation={() => (showFull = !showFull)}
@@ -100,7 +80,17 @@
 					{showFull ? 'See less' : 'See more'}
 				</button>
 			{/if}
-			<!-- {/if} -->
+		{:else if parsed.type() === 'emoji'}
+			{'emoji'}
+			{@const emoji = asEmojiData(parsed)}
+			{#if emoji}
+				<img
+					src={emoji.url() || ''}
+					alt={emoji.shortcode() || ''}
+					title={emoji.shortcode() || ''}
+					class="inline-block h-6 w-6 align-middle mx-0.5"
+				/>
+			{/if}
 		{:else if parsed.dataType() == ContentData.LinkPreviewData}
 			{@const preview = asLinkPreview(parsed)}
 			{#if preview && isYouTubeUrl(preview?.url())}
@@ -201,10 +191,4 @@
 			{/if}
 		{/if}
 	{/each}
-
-	<!-- <div class="w-full" on:click={(e) => e.stopPropagation()">
-		{#each previews.filter((p) => p?.images?.length) as preview}
-
-		{/each}
-	</div> -->
 </div>

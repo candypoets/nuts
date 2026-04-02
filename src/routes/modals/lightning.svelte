@@ -2,7 +2,7 @@
 	import { asKind17375, fbArray } from '@candypoets/nipworker/utils';
 	import type { MeltQuoteResponse } from '@cashu/cashu-ts';
 	import { decode } from '@gandlaf21/bolt11-decode';
-	import Icon from '@iconify/svelte';
+	import Loader from 'src/components/Loader.svelte';
 	import MintSelector from 'src/components/MintSelector.svelte';
 	import { key, kind17375 } from 'src/controller';
 	import { nutsWallet } from 'src/controller/proofs';

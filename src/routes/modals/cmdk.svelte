@@ -12,7 +12,7 @@
 	} from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import { asKind0, asParsedEvent, asConnectionStatus, isKind0 } from '@candypoets/nipworker/utils';
-	import Icon from '@iconify/svelte';
+	import Loader from 'src/components/Loader.svelte';
 	import { sortBy, throttle } from 'lodash';
 	import { createEventDispatcher } from 'svelte';
 
@@ -396,7 +396,7 @@
 				<!-- Profile Mode (existing behavior) -->
 				{#if loading && query}
 					<div class="px-6 py-10 text-center">
-						<Icon icon="mdi:loading" class="animate-spin h-6 w-6 mx-auto mb-2 opacity-70" />
+						<Loader size="md" className="mx-auto mb-2 opacity-70" />
 						<div class="opacity-60 text-sm">Searching...</div>
 					</div>
 				{:else if items.length > 0 && query}

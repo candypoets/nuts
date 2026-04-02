@@ -4,9 +4,10 @@
 	import Icon from '@iconify/svelte';
 	import { onMount } from 'svelte';
 
-	import { isKind1, isParsedEvent } from '@candypoets/nipworker/utils';
+	import { isKind1, isParsedEvent, fbArray, asKind1 } from '@candypoets/nipworker/utils';
 	import { readRelays, writeRelays } from 'src/controller';
-	import Content from 'src/routes/explore/_post/content.svelte';
+	import ContentBlocks from 'src/routes/explore/_post/ContentBlocks.svelte';
+	import type { Kind1Parsed } from '@candypoets/nipworker';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import User from 'src/routes/explore/user.svelte';
 	import { formatTime, type ProcessedNotification } from 'src/routes/notifications/notifications';
@@ -126,8 +127,8 @@
 							</span>
 						</div>
 						<p class="w-post-2 overflow-hidden">
-							<Content
-								note={post.parsed.events?.[0]}
+							<ContentBlocks
+								content={fbArray(asKind1(post.parsed.events[0]), 'parsedContent') || []}
 								{context}
 								showMedia={false}
 								showQuote={false}

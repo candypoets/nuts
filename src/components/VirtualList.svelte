@@ -1,5 +1,5 @@
 <script>
-	import Icon from '@iconify/svelte';
+	import Loader from 'src/components/Loader.svelte';
 	import _, { uniqBy } from 'lodash';
 	import { getContext, onMount, tick } from 'svelte';
 
@@ -272,26 +272,7 @@
 				class="mt-2 flex items-center gap-2 text-sm text-slate-400 select-none transition-opacity duration-150 ease-out"
 				style="opacity: {isRefreshing || pulling ? 1 : 0};"
 			>
-				<svg
-					class={'w-4 h-4 ' + (isRefreshing ? 'animate-spin' : '')}
-					viewBox="0 0 24 24"
-					fill="none"
-				>
-					<circle
-						cx="12"
-						cy="12"
-						r="9"
-						stroke="currentColor"
-						stroke-opacity="0.25"
-						stroke-width="3"
-					/>
-					<path
-						d="M21 12a9 9 0 0 0-9-9"
-						stroke="currentColor"
-						stroke-width="3"
-						stroke-linecap="round"
-					/>
-				</svg>
+					<Loader size="sm" className={isRefreshing ? '' : 'animate-none'} />
 				<span>
 					{#if isRefreshing}
 						Refreshing…
@@ -328,7 +309,7 @@
 
 		{#if loading}
 			<div class="flex justify-center items-center w-full h-20">
-				<Icon icon="ei:spinner" class="animate-spin w-8 h-8" />
+				<Loader size="lg" />
 			</div>
 		{/if}
 	</svelte-virtual-list-contents>

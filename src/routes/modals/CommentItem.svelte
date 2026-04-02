@@ -3,7 +3,7 @@
 	import type { ParsedEvent, Kind1111Parsed } from '@candypoets/nipworker';
 	import User from 'src/routes/explore/user.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
-	import Content from 'src/routes/explore/_post/content.svelte';
+	import ContentBlocks from 'src/routes/explore/_post/ContentBlocks.svelte';
 
 	interface CommentNode {
 		event: ParsedEvent;
@@ -42,7 +42,12 @@
 			</span>
 		</div>
 		{#if kind1111}
-			<Content note={node.event} depth={node.depth} visible={true} showMedia={true} />
+			<ContentBlocks
+				content={fbArray(kind1111, 'parsedContent') || []}
+				depth={node.depth}
+				visible={true}
+				showMedia={true}
+			/>
 		{/if}
 	</div>
 </div>

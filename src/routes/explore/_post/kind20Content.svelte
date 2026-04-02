@@ -62,6 +62,7 @@
 				verticalPan={false}
 				forceAspectRatio={firstImageAspect || 4/3}
 				noGap={true}
+				autoFocus={false}
 				let:item
 				let:forcedAspectRatio
 			>

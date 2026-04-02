@@ -308,7 +308,8 @@
 		6: 'mdi:repeat',
 		20: 'mdi:image-multiple',
 		34235: 'mdi:video',
-		6969: 'mdi:poll'
+		6969: 'mdi:poll',
+		1068: 'mdi:poll'
 	};
 
 	// Kind gradient colors for cards
@@ -317,7 +318,8 @@
 		6: 'from-green-500/30 to-emerald-500/30',
 		20: 'from-purple-500/30 to-pink-500/30',
 		34235: 'from-red-500/30 to-orange-500/30',
-		6969: 'from-yellow-500/30 to-amber-500/30'
+		6969: 'from-yellow-500/30 to-amber-500/30',
+		1068: 'from-yellow-500/30 to-amber-500/30'
 	};
 </script>
 
@@ -329,72 +331,74 @@
 		visible
 	>
 		<svelte:fragment slot="sticky-header">
-			<div class="pt-safe w-feed h-20 flex items-center justify-between shadow-sm px-4">
-				<button
-					on:click={() => {
-						animator?.goBack();
-					}}
-					class="p-1 rounded-full hover:bg-base-200 mr-4"
-				>
-					<Icon icon="mingcute:down-line" class="text-xl" />
-				</button>
-				<h1 class="text-lg font-semibold">Feed Builder</h1>
-				<span class="w-12" />
-			</div>
-			<!-- Tab bar -->
-			<div class="px-4 pb-2">
-				<div class="join w-full">
+			<div class="bg-base-300 bg-opacity-80">
+				<div class="pt-safe w-feed h-20 flex items-center justify-between shadow-sm px-4">
 					<button
-						class="join-item btn flex-1 {activeTab === 'packs' ? 'btn-primary' : 'btn-ghost'}"
-						on:click={() => (activeTab = 'packs')}
+						on:click={() => {
+							animator?.goBack();
+						}}
+						class="p-1 rounded-full hover:bg-base-200 mr-4"
 					>
-						<Icon icon="mdi:account-group" class="mr-2" />
-						Follow Packs
+						<Icon icon="mingcute:down-line" class="text-xl" />
 					</button>
-					<button
-						class="join-item btn flex-1 {activeTab === 'content' ? 'btn-primary' : 'btn-ghost'}"
-						on:click={() => (activeTab = 'content')}
-					>
-						<Icon icon="mdi:filter-variant" class="mr-2" />
-						Content Types
-					</button>
+					<h1 class="text-lg font-semibold">Feed Builder</h1>
+					<span class="w-12" />
 				</div>
-			</div>
-
-			{#if activeTab === 'packs'}
-				<div on:click|stopPropagation>
-					<div class="px-4 pt-2">
-						<SearchInput
-							placeholder="Search follow packs..."
-							bind:value={searchQuery}
-							showSearchIcon={true}
-							showClearButton={true}
-						/>
+				<!-- Tab bar -->
+				<div class="px-4 pb-2">
+					<div class="join w-full">
+						<button
+							class="join-item btn flex-1 {activeTab === 'packs' ? 'btn-primary' : 'btn-ghost'}"
+							on:click={() => (activeTab = 'packs')}
+						>
+							<Icon icon="mdi:account-group" class="mr-2" />
+							Follow Packs
+						</button>
+						<button
+							class="join-item btn flex-1 {activeTab === 'content' ? 'btn-primary' : 'btn-ghost'}"
+							on:click={() => (activeTab = 'content')}
+						>
+							<Icon icon="mdi:filter-variant" class="mr-2" />
+							Content Types
+						</button>
 					</div>
-					<div class="px-1">
+				</div>
+
+				{#if activeTab === 'packs'}
+					<div on:click|stopPropagation>
+						<div class="px-4 pt-2">
+							<SearchInput
+								placeholder="Search follow packs..."
+								bind:value={searchQuery}
+								showSearchIcon={true}
+								showClearButton={true}
+							/>
+						</div>
+						<div class="px-1">
+							<MultiSelect
+								selectedLists={fps}
+								getTitle={(list) => {
+									const kind39089 = asNip51(list);
+
+									const title = kind39089?.title() || '';
+									return title.length > 20 ? title.slice(0, 20) + '...' : title;
+								}}
+								removeItem={(list) => {
+									fps = fps.filter((p) => p.id() != list.id());
+								}}
+							/>
+						</div>
+					</div>
+				{:else if activeTab === 'content'}
+					<div class="px-1 pt-2">
 						<MultiSelect
-							selectedLists={fps}
-							getTitle={(list) => {
-								const kind39089 = asNip51(list);
-
-								const title = kind39089?.title() || '';
-								return title.length > 20 ? title.slice(0, 20) + '...' : title;
-							}}
-							removeItem={(list) => {
-								fps = fps.filter((p) => p.id() != list.id());
-							}}
+							selectedLists={selectedKinds}
+							getTitle={(kind) => KIND_LABELS[kind]}
+							removeItem={(kind) => toggleKind(kind)}
 						/>
 					</div>
-				</div>
-			{:else if activeTab === 'content'}
-				<div class="px-1 pt-2">
-					<MultiSelect
-						selectedLists={selectedKinds}
-						getTitle={(kind) => KIND_LABELS[kind]}
-						removeItem={(kind) => toggleKind(kind)}
-					/>
-				</div>
-			{/if}
+				{/if}
+			</div>
 		</svelte:fragment>
 
 		<svelte:fragment slot="header">

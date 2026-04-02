@@ -1,34 +1,26 @@
 <script lang="ts">
-	import {
-		MessageType,
-		MuteFilterPipeConfigT,
-		PipeConfig,
-		PipeT,
-		type ParsedEvent,
-		type WorkerMessage
-	} from '@candypoets/nipworker';
+	import { MessageType, type ParsedEvent, type WorkerMessage } from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import { nip19 } from 'nostr-tools';
 	import type { EventPointer } from 'nostr-tools/nip19';
-	import { onDestroy, onMount } from 'svelte';
 	import ModalHandle from 'src/components/ModalHandle.svelte';
 	import VirtualList from 'src/components/VirtualList.svelte';
-	import { getContext } from 'svelte';
 	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
+	import { getContext, onDestroy, onMount } from 'svelte';
 
 	import {
 		asConnectionStatus,
 		asKind1111,
 		asParsedEvent,
-		ConnectionTracker,
-		fbArray
+		ConnectionTracker
 	} from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { normalizeURL } from 'nostr-tools/utils';
-	import { isMobile } from 'src/controller';
+	import Loader from 'src/components/Loader.svelte';
+	import RelaysList from 'src/components/RelaysList.svelte';
+	import { defaultPipeline, isMobile } from 'src/controller';
 	import { getUserRelays } from 'src/routes/queries/user';
 	import CommentItem from './CommentItem.svelte';
-	import RelaysList from 'src/components/RelaysList.svelte';
 
 	export let noteId: string | undefined = undefined;
 
@@ -50,8 +42,8 @@
 	// Flatten comment tree for VirtualList
 	$: flatComments = flattenCommentTree(buildCommentTree(comments));
 
-	function flattenCommentTree(nodes: CommentNode[]): Array<{event: ParsedEvent; depth: number}> {
-		const result: Array<{event: ParsedEvent; depth: number}> = [];
+	function flattenCommentTree(nodes: CommentNode[]): Array<{ event: ParsedEvent; depth: number }> {
+		const result: Array<{ event: ParsedEvent; depth: number }> = [];
 		function traverse(nodeList: CommentNode[]) {
 			for (const node of nodeList) {
 				result.push({ event: node.event, depth: node.depth });
@@ -185,29 +177,15 @@
 		loading = true;
 		connectionTracker = new ConnectionTracker();
 
-		relaysub = getUserRelays(decoded.author || '', (result) => {
-			if (relays.length === 0) {
-				relays = result.slice(0, $isMobile ? 3 : 5);
-			}
-
-			sub = useSubscription(
-				'kind1111_modal_' + decoded!.id,
-				[
-					{
-						kinds: [1111],
-						tags: { '#E': [decoded!.id] },
-						relays: relays.length > 0 ? relays : ['wss://nostr.wine'],
-						noContext: true
-					}
-				],
-				handleEvents,
-				{
-					pipeline: [
-						new PipeT(PipeConfig.MuteFilterPipeConfig, new MuteFilterPipeConfigT([], [], [], []))
-					],
-					bytesPerEvent: 5 * 1024
-				}
-			);
+		const subreq = {
+			kinds: [1111],
+			tags: { '#E': [decoded!.id] },
+			relays,
+			noContext: true
+		};
+		// console.log('subreq', subreq);
+		sub = useSubscription('kind1111_' + decoded!.id, [subreq], handleEvents, {
+			pipeline: $defaultPipeline.for('kind1111_' + decoded!.id)
 		});
 	}
 
@@ -226,7 +204,7 @@
 		}, 5000);
 	}
 
-	const getItemId = (item: {event: ParsedEvent; depth: number}) => item.event.id()!;
+	const getItemId = (item: { event: ParsedEvent; depth: number }) => item.event.id()!;
 </script>
 
 <div class="h-screen flex items-end" on:click={animator.goBack}>
@@ -235,18 +213,16 @@
 		on:click|stopPropagation
 	>
 		<ModalHandle />
-
-		<!-- Header -->
-		<div class="px-4 flex justify-center h-16 items-center shrink-0">
-			<div class="flex items-center gap-2">
-				<Icon icon="mdi:comment-multiple-outline" class="text-xl text-primary" />
-				<h2 class="text-xl font-bold">Comments</h2>
-				<span class="text-sm text-base-content/60">({comments.length})</span>
-			</div>
-		</div>
-
 		<!-- RelaysList -->
-		<div class="px-4 py-2 border-y border-base-200 bg-base-200/50 shrink-0">
+		<div class="flex items-center justify-between px-4 py-2">
+			<!-- Header -->
+			<div class="px-4 flex justify-center h-16 items-center shrink-0">
+				<div class="flex items-center gap-2">
+					<Icon icon="mdi:comment-multiple-outline" class="text-xl text-primary" />
+					<h2 class="text-xl font-bold">Comments</h2>
+					<span class="text-sm text-base-content/60">({comments.length})</span>
+				</div>
+			</div>
 			<RelaysList subId={'kind1111_' + (decoded?.id || '')} {relays} {connectionStatus} mini />
 		</div>
 
@@ -259,8 +235,7 @@
 				</div>
 			{:else if loading && comments.length === 0}
 				<div class="flex flex-col items-center justify-center py-8">
-					<div class="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mb-2" />
-					<p class="text-sm text-base-content/60">Loading comments...</p>
+					<Loader size="lg" />
 				</div>
 			{:else if comments.length === 0}
 				<div class="flex flex-col items-center justify-center py-8 text-base-content/60">

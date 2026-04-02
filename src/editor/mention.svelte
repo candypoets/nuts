@@ -2,7 +2,7 @@
 	import { MessageType, type ParsedEvent, type WorkerMessage } from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import { asKind0, asParsedEvent, isKind0 } from '@candypoets/nipworker/utils';
-	import Icon from '@iconify/svelte';
+	import Loader from 'src/components/Loader.svelte';
 	import { sortBy, throttle, uniqBy } from 'lodash';
 	import { nip19 } from 'nostr-tools';
 	import { SEARCH_RELAYS } from 'src/lib/env';
@@ -140,7 +140,7 @@
 <div class="bg-white rounded-lg shadow-lg w-72 max-h-80 overflow-scroll">
 	{#if loading && query}
 		<div class="py-3 px-4 text-center text-gray-500">
-			<Icon icon="mdi:loading" class="animate-spin h-5 w-5 mx-auto mb-1 text-gray-500" />
+			<Loader size="sm" className="mx-auto mb-1 text-gray-500" />
 			<div class="text-xs">Searching...</div>
 		</div>
 	{/if}

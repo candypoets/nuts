@@ -8,6 +8,7 @@
 		type ParsedEvent,
 		WorkerMessage
 	} from '@candypoets/nipworker';
+	import Loader from 'src/components/Loader.svelte';
 	import Icon from '@iconify/svelte';
 	import { uniqBy } from 'lodash';
 	import {
@@ -651,9 +652,9 @@
 								{/if}
 							</button>
 							{#if isFollowPending}
-								<div
-									class="absolute inset-0 -m-1 rounded-full border-2 border-primary border-t-transparent animate-spin pointer-events-none"
-								></div>
+								<div class="absolute inset-0 -m-1 pointer-events-none">
+									<Loader size="sm" />
+								</div>
 							{/if}
 						</div>
 
@@ -679,9 +680,9 @@
 								{/if}
 							</button>
 							{#if isMutePending}
-								<div
-									class="absolute inset-0 -m-1 rounded-full border-2 border-primary border-t-transparent animate-spin pointer-events-none"
-								></div>
+								<div class="absolute inset-0 -m-1 pointer-events-none">
+									<Loader size="sm" />
+								</div>
 							{/if}
 						</div>
 					</div>

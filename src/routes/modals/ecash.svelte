@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
+	import Loader from 'src/components/Loader.svelte';
 	import type { EventTemplate, NostrEvent } from 'nostr-tools';
 	import { getContext, onMount, tick } from 'svelte';
 
@@ -734,7 +735,7 @@
 									on:click={sendEcash}
 								>
 									{#if processing === 'sending'}
-										<Icon icon="mdi:loading" class="animate-spin" />
+										<Loader size="sm" />
 									{:else}
 										<Icon icon="mdi:send" />
 									{/if}

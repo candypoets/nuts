@@ -2,6 +2,8 @@
 	import { ParsedEvent, WorkerMessage, type ConnectionStatus } from '@candypoets/nipworker';
 	import { usePublish, useSignEvent, useSubscription } from '@candypoets/nipworker/hooks';
 	import { asParsedEvent, fbArray, isConnectionStatus, isKind1, isParsedEvent } from '@candypoets/nipworker/utils';
+	import Loader from 'src/components/Loader.svelte';
+	import PollCreator from 'src/components/PollCreator.svelte';
 	import Icon from '@iconify/svelte';
 	import { nip19, type EventTemplate, type NostrEvent } from 'nostr-tools';
 	import Editor from 'src/components/Editor.svelte';
@@ -47,6 +49,10 @@
 	let isSubmitting = false;
 	let pagerAnimator: PagerAnimator | undefined = getContext('animator');
 	let showPicker = false;
+	let isPollMode = false;
+	let pollOptions: string[] = ['', ''];
+	let pollType: 'singlechoice' | 'multiplechoice' = 'singlechoice';
+	let pollEndsAt: number | null = null;
 
 	let replySub: (() => void) | undefined;
 
@@ -97,50 +103,101 @@
 
 	async function handleSubmit() {
 		let content = $editor.getText();
-		if (isSubmitting || !content) return;
+		if (isSubmitting) return;
+		
+		// Check if we have content (for regular posts) or valid poll (for poll posts)
+		const validPollOptions = isPollMode 
+			? pollOptions.filter(o => o.trim().length > 0)
+			: [];
+		const hasValidPoll = isPollMode && validPollOptions.length >= 2;
+		
+		if (!content && !repost && !hasValidPoll) return;
 		isSubmitting = true;
 
 		// Get tags from the editor (nprofile -> p tags, nevent -> q tags, etc.)
 		const editorTags = $editor.storage.nostr?.getEditorTags() || [];
 
-		let post: EventTemplate = {
-			kind: 1,
-			created_at: now(),
-			content: content.trim(),
-			tags: editorTags
-		};
+		let post: EventTemplate;
 
-		if (note && reply) {
-			post.id = reply;
-			// Start with parent's tags, then add editor tags
-			const parentTags = fbArray(note, 'tags').map((sv) =>
-				fbArray(sv, 'items').map((item) => item)
-			);
-			post.tags = [...parentTags, ...editorTags];
-		}
+		if (isPollMode) {
+			// Create kind 1068 poll
+			post = {
+				kind: 1068,
+				created_at: now(),
+				content: content.trim(), // Poll question
+				tags: [
+					...editorTags,
+					['poll_type', pollType === 'singlechoice' ? 'singlechoice' : 'multiplechoice'],
+					...validPollOptions.map((opt, i) => ['option', opt.trim(), i.toString()]),
+					...(pollEndsAt ? [['ends_at', pollEndsAt.toString()]] : [])
+				]
+			};
 
-		if (note && repost) {
-			// Append the quoted event as a nostr:nevent in content
-			post.content += '\n\nnostr:' + nip19.neventEncode({ id: hexId });
-			
-			// Get relay hints for the quoted event
-			const timeoutPromise = new Promise<null>((resolve) => {
-				setTimeout(() => resolve(null), 2000);
-			});
+			if (note && reply) {
+				post.id = reply;
+				const parentTags = fbArray(note, 'tags').map((sv) =>
+					fbArray(sv, 'items').map((item) => item)
+				);
+				post.tags = [...post.tags, ...parentTags];
+			}
 
-			const relaysPromise = new Promise<string[]>((resolve) => {
-				getUserRelays(note.pubkey(), resolve);
-			});
+			if (note && repost) {
+				post.content += '\n\nnostr:' + nip19.neventEncode({ id: hexId });
+				
+				const timeoutPromise = new Promise<null>((resolve) => {
+					setTimeout(() => resolve(null), 2000);
+				});
 
-			const result = await Promise.race([timeoutPromise, relaysPromise]);
-			const relayHint = result === null ? '' : result[0];
-			
-			// Add q tag for the quoted event (NIP-18) and p tag for the author
-			post.tags = [
-				...editorTags,
-				['q', hexId, relayHint, note!.pubkey()],
-				['p', note!.pubkey()]
-			];
+				const relaysPromise = new Promise<string[]>((resolve) => {
+					getUserRelays(note.pubkey(), resolve);
+				});
+
+				const result = await Promise.race([timeoutPromise, relaysPromise]);
+				const relayHint = result === null ? '' : result[0];
+				
+				post.tags = [
+					...post.tags,
+					['q', hexId, relayHint, note!.pubkey()],
+					['p', note!.pubkey()]
+				];
+			}
+		} else {
+			// Create kind 1 post
+			post = {
+				kind: 1,
+				created_at: now(),
+				content: content.trim(),
+				tags: editorTags
+			};
+
+			if (note && reply) {
+				post.id = reply;
+				const parentTags = fbArray(note, 'tags').map((sv) =>
+					fbArray(sv, 'items').map((item) => item)
+				);
+				post.tags = [...parentTags, ...editorTags];
+			}
+
+			if (note && repost) {
+				post.content += '\n\nnostr:' + nip19.neventEncode({ id: hexId });
+				
+				const timeoutPromise = new Promise<null>((resolve) => {
+					setTimeout(() => resolve(null), 2000);
+				});
+
+				const relaysPromise = new Promise<string[]>((resolve) => {
+					getUserRelays(note.pubkey(), resolve);
+				});
+
+				const result = await Promise.race([timeoutPromise, relaysPromise]);
+				const relayHint = result === null ? '' : result[0];
+				
+				post.tags = [
+					...editorTags,
+					['q', hexId, relayHint, note!.pubkey()],
+					['p', note!.pubkey()]
+				];
+			}
 		}
 
 		post = prepareEvent(post);
@@ -153,9 +210,8 @@
 		// Determine which subscriptions to optimistically update
 		const optimisticSubIds: string[] = [];
 		if (hexId) {
-			// Reply/quote case: optimistically update footer sub and kind1 replies sub
-			optimisticSubIds.push('f_' + hexId); // footer subscription
-			optimisticSubIds.push('replies_' + hexId); // kind1 thread replies subscription
+			optimisticSubIds.push('f_' + hexId);
+			optimisticSubIds.push('replies_' + hexId);
 		}
 
 		usePublish(
@@ -174,6 +230,16 @@
 
 		isSubmitting = false;
 		pagerAnimator.goBack();
+	}
+
+	function togglePollMode() {
+		isPollMode = !isPollMode;
+		if (!isPollMode) {
+			// Reset poll state when disabling
+			pollOptions = ['', ''];
+			pollType = 'singlechoice';
+			pollEndsAt = null;
+		}
 	}
 
 	function toggleGifPicker() {
@@ -213,7 +279,7 @@
 				{:else if noteId}
 					<!-- Loading state -->
 					<div class="h-32 flex items-center justify-center">
-						<Icon icon="carbon:circle-dash" class="w-8 h-8 animate-spin text-gray-400" />
+						<Loader size="lg" className="text-gray-400" />
 					</div>
 				{:else if $isMobile}
 					<div class="h-32" />
@@ -242,6 +308,16 @@
 					</Editor>
 				</div>
 
+				<!-- Poll Creator (shown when poll mode is enabled) -->
+				{#if isPollMode}
+					<PollCreator
+						bind:options={pollOptions}
+						bind:pollType
+						bind:endsAt={pollEndsAt}
+						disabled={isSubmitting}
+					/>
+				{/if}
+
 				<!-- Actions section -->
 				<div
 					class="flex items-center justify-end mt-3 pt-2 border-t border-primary-content dark:border-gray-700 transition-opacity duration-200 pb-safe md:pb-4"
@@ -268,6 +344,17 @@
 							<EmojiPicker onEmojiSelect={handleEmojiSelect} position="bottom" />
 						</div> -->
 
+						<!-- Poll button -->
+						<button
+							type="button"
+							class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 {isPollMode ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'text-gray-500 dark:text-gray-400'}"
+							title="Create poll"
+							on:click={togglePollMode}
+						>
+							<Icon icon="mdi:poll" class="w-5 h-5" />
+						</button>
+
+						<!-- GIF button -->
 						<button
 							type="button"
 							class="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
@@ -297,22 +384,22 @@
 							type="button"
 							class="px-4 py-2 bg-blue-500 text-highlight rounded-full font-medium hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300 dark:focus:ring-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
 							on:click={handleSubmit}
-							disabled={isSubmitting || (!$editor?.getText().trim() && !repost)}
+							disabled={isSubmitting || ((!$editor?.getText().trim() && !repost) || (isPollMode && pollOptions.filter(o => o.trim()).length < 2))}
 						>
 							<div class="flex items-center space-x-1">
 								{#if isSubmitting}
 									<span>Signing...</span>
-									<Icon icon="carbon:circle-dash" class="w-4 h-4 animate-spin" />
+									<Loader size="sm" />
+								{:else if isPollMode}
+									<span>Poll</span>
+								{:else if reply}
+									<span>Reply</span>
+								{:else if repost}
+									<span>Repost</span>
 								{:else}
-									{#if reply}
-										<span>Reply</span>
-									{:else if repost}
-										<span>Repost</span>
-									{:else}
-										<span>Post</span>
-									{/if}
-									<Icon icon="carbon:send" class="w-4 h-4" />
+									<span>Post</span>
 								{/if}
+								<Icon icon="carbon:send" class="w-4 h-4" />
 							</div>
 						</button>
 					</div>

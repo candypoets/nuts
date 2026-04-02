@@ -1,13 +1,13 @@
 <script lang="ts">
-	import type { ParsedEvent } from '@candypoets/nipworker';
+	import type { Kind1Parsed, ParsedEvent } from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
-	import { asKind1, isKind1, isParsedEvent } from '@candypoets/nipworker/utils';
+	import { asKind1, isKind1, isParsedEvent, fbArray } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { nip19 } from 'nostr-tools';
 	import { onMount } from 'svelte';
 
 	import { key, writeRelays } from 'src/controller';
-	import Content from 'src/routes/explore/_post/content.svelte';
+	import ContentBlocks from 'src/routes/explore/_post/ContentBlocks.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import User from 'src/routes/explore/user.svelte';
 	import { go } from 'src/routes/modals/modal';
@@ -131,7 +131,13 @@
 						go(`nevent:${nip19.neventEncode({ id: originalPost?.id(), relays: $writeRelays })}`)}
 				>
 					<!-- {originalPost.content.slice(0, 100)}... -->
-					<Content note={originalPost} showMedia={false} showQuote={false} depth={1} {context} />
+					<ContentBlocks
+						content={fbArray(asKind1(originalPost), 'parsedContent') || []}
+						{context}
+						showMedia={false}
+						showQuote={false}
+						depth={1}
+					/>
 				</a>
 			{/if}
 
@@ -160,12 +166,13 @@
 				<div class="text-sm mb-2">
 					<span class="font-medium">
 						<User pubkey={post.parsed.events[0].pubkey()} link={false} {context} />
-					</span>: <Content
-						note={post.parsed.events[0]}
+					</span>:
+					<ContentBlocks
+						content={fbArray(asKind1(post.parsed.events[0]), 'parsedContent') || []}
+						{context}
 						showMedia={false}
 						showQuote={false}
 						depth={1}
-						{context}
 					/>
 				</div>
 			{/if}
@@ -183,12 +190,12 @@
 									</span>
 									<span class="text-xs">{formatTime(event.createdAt())}</span>
 								</div>
-								<Content
-									note={post.parsed.events[0]}
+								<ContentBlocks
+									content={fbArray(asKind1(post.parsed.events[0]), 'parsedContent') || []}
+									{context}
 									showMedia={false}
 									showQuote={false}
 									depth={1}
-									{context}
 								/>
 							</div>
 						</div>

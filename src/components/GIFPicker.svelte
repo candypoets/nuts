@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { fly } from 'svelte/transition';
-	import Icon from '@iconify/svelte';
+	import Loader from 'src/components/Loader.svelte';
 	import axios from 'axios';
 
 	// Props

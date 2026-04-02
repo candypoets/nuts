@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { AnyKind, ConnectionStatus, Kind1Parsed, ParsedEvent } from '@candypoets/nipworker';
-	import Icon from '@iconify/svelte';
+	import Loader from 'src/components/Loader.svelte';
 	import type { EventTemplate, NostrEvent } from 'nostr-tools';
 	import { getContext, onDestroy, onMount } from 'svelte';
 	import { Editor, EditorContent, createEditor } from 'svelte-tiptap';
@@ -353,7 +353,7 @@
 						<div class="flex items-center space-x-1">
 							{#if isSubmitting}
 								<span>Signing...</span>
-								<Icon icon="carbon:circle-dash" class="w-4 h-4 animate-spin" />
+								<Loader size="sm" />
 							{:else}
 								<span>Send</span>
 								<Icon icon="carbon:send" class="w-4 h-4" />

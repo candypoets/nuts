@@ -34,7 +34,7 @@
 	import RelaysList from 'src/components/RelaysList.svelte';
 	import { key } from 'src/controller';
 	import { kind3, mutePipeConfig, readRelays, writeRelays } from 'src/controller/nostr';
-	import Content from 'src/routes/explore/_post/content.svelte';
+	import ContentBlocks from 'src/routes/explore/_post/ContentBlocks.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import User from 'src/routes/explore/user.svelte';
@@ -454,7 +454,11 @@
 						<span class="flex gap-1 max-h-6">
 							{#if post.pubkey == $key?.pub}<span class="text-primary">you:</span>
 							{/if}
-							<Content note={post} showQuote={false} class="!w-auto flex-grow" />
+							<ContentBlocks
+								content={fbArray(k4, 'parsedContent') || []}
+								showQuote={false}
+								class="!w-auto flex-grow"
+							/>
 						</span>
 					</div>
 				</div>
