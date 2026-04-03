@@ -154,7 +154,7 @@
 	<div
 		class="bg-transparent scrollbar-hide flex h-full snap-x snap-mandatory items-center overflow-x-scroll scroll-smooth {noGap ? '' : 'gap-4 rounded-xl'}"
 		bind:this={carouselElement}
-		on:touchmove|nonpassive|stopPropagation={handleScroll}
+		on:touchmove|nonpassive={handleScroll}
 		on:touchend={(e) => {
 			onTouchEnd(e);
 			handleScroll(e);

@@ -3,6 +3,9 @@
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import { isParsedEvent } from '@candypoets/nipworker/utils';
 	import type { WorkerMessage, ParsedEvent } from '@candypoets/nipworker';
+	import Icon from '@iconify/svelte';
+	import Feed from 'src/routes/explore/feed.svelte';
+	import Loader from 'src/components/Loader.svelte';
 	import {
 		builtInThemes,
 		currentTheme,
@@ -22,6 +25,13 @@
 	let highlightedIndex: number = 0;
 	let mounted = false;
 	let unsubscribe: (() => void) | null = null;
+
+	// Pagination state
+	let loadingMore = false;
+	let hasMore = true;
+	let oldestTimestamp: number | undefined = undefined;
+	let paginationCount = 0;
+	const THEMES_PER_PAGE = 50;
 
 	// Use Map for O(1) deduplication of custom themes
 	let customThemesMap = new Map<string, DittoTheme>();
@@ -56,18 +66,31 @@
 		}
 	});
 
-	function fetchUserThemes(pubkey: string) {
-		const relays = get(readRelays);
+	function fetchUserThemes(pubkey: string, loadMore = false) {
+		if (loadingMore) return;
+		if (loadMore && !hasMore) return;
 
+		if (loadMore) {
+			loadingMore = true;
+			paginationCount++;
+		}
+
+		const relays = get(readRelays).filter((r): r is string => !!r);
+
+		const subId = `themes_${pubkey}_${loadMore ? 'page_' + paginationCount : 'initial'}`;
+
+		unsubscribe?.();
 		unsubscribe = useSubscription(
-			`themes_${pubkey}`,
+			subId,
 			[
 				{
 					kinds: [THEME_DEFINITION_KIND],
-					authors: [],
-					limit: 50,
+					// authors: [pubkey],
+					limit: THEMES_PER_PAGE,
 					relays,
-					closeOnEOSE: true
+					cacheFirst: true,
+					closeOnEOSE: true,
+					...(oldestTimestamp ? { until: oldestTimestamp - 1 } : {})
 				}
 			],
 			(message: WorkerMessage) => {
@@ -77,17 +100,45 @@
 				const theme = eventToTheme(parsed);
 				if (theme) {
 					// O(1) deduplication using Map
+					const isNew = !customThemesMap.has(theme.dTag);
 					customThemesMap.set(theme.dTag, theme);
-					// Trigger reactivity by reassigning
-					customThemesMap = customThemesMap;
+					if (isNew) {
+						// Trigger reactivity by reassigning
+						customThemesMap = customThemesMap;
+					}
+
+					// Track oldest timestamp for pagination
+					const eventTime = (parsed as ParsedEvent).createdAt();
+					if (!oldestTimestamp || eventTime < oldestTimestamp) {
+						oldestTimestamp = eventTime;
+					}
 				}
 			}
 		);
+
+		// Reset loading after a delay (since we don't have onEose callback)
+		if (loadMore) {
+			setTimeout(() => {
+				loadingMore = false;
+				// If we got fewer than expected, likely no more themes
+				if (customThemesMap.size < THEMES_PER_PAGE * paginationCount) {
+					hasMore = false;
+				}
+			}, 2000);
+		}
+	}
+
+	function handleNearBottom() {
+		if (!hasMore || loadingMore) return;
+
+		const currentKey = get(key);
+		if (currentKey?.pub) {
+			fetchUserThemes(currentKey.pub, true);
+		}
 	}
 
 	// Merge built-in and custom themes
 	$: allThemes = [...builtInThemes, ...customThemesMap.values()];
-	$: builtInThemesList = builtInThemes;
 	$: customThemesList = [...customThemesMap.values()];
 
 	function selectTheme(theme: DittoTheme) {
@@ -111,82 +162,74 @@
 			}
 		}
 	}
+
+	function getItemId(item: DittoTheme) {
+		return item?.dTag || Math.random().toString();
+	}
 </script>
 
-<!-- Modal structure -->
-<div class="h-screen flex items-center">
-	<div class="w-feed bg-base-300 p-4 rounded-lg max-h-[80vh] overflow-y-auto">
-		<h3 class="font-bold text-lg">Select Theme</h3>
-		<p class="py-4 text-sm text-gray-500">Choose your preferred theme.</p>
-
-		<!-- Built-in Themes Section -->
-		<div class="mb-6">
-			<h4 class="text-sm font-semibold text-gray-500 uppercase mb-2">Built-in Themes</h4>
-			<div class="grid grid-cols-1 gap-2">
-				{#each builtInThemesList as theme, index}
-					{@const active = $currentTheme?.dTag === theme.dTag}
-					{@const highlighted = highlightedIndex === index}
-					<button
-						class="btn btn-outline btn-sm justify-start"
-						class:btn-active={active}
-						class:ring-accent={highlighted}
-						class:border-2={highlighted}
-						on:click={() => selectTheme(theme)}
-						on:mouseenter={() => (highlightedIndex = index)}
-					>
-						<span
-							class="w-4 h-4 rounded-full mr-2"
-							style="background-color: {theme.properties['--primary'] || '#ccc'}"
-						></span>
-						<span class="flex-1 text-left">{theme.name}</span>
-						{#if active}
-							<span class="text-xs opacity-70">active</span>
+<Feed
+	class="bg-base-300 bg-opacity-85"
+	items={allThemes}
+	{getItemId}
+	itemHeight={48}
+	onNearBottom={handleNearBottom}
+	stickyFooterVisible={loadingMore || !hasMore}
+>
+	<svelte:fragment slot="header">
+		<div>
+			<div class="px-4 pt-safe flex justify-between h-20 items-center">
+				<button type="button" class="btn btn-ghost btn-sm" on:click={animator?.goBack}>
+					<Icon icon="mingcute:down-line" class="text-xl" />
+				</button>
+			</div>
+			<h2 class="text-xl font-bold px-4 pt-2">Select Theme</h2>
+			<p class="px-4 py-2 text-sm text-gray-500">Choose your preferred theme.</p>
+				<div class="px-4 pb-2">
+					<span class="text-sm font-semibold text-gray-500 uppercase">
+						{#if customThemesList.length > 0}
+							Custom Themes ({customThemesList.length})
+						{:else}
+							No Themes Available
 						{/if}
-					</button>
-				{/each}
-			</div>
-		</div>
-
-		<!-- Custom Themes Section -->
-		{#if customThemesList.length > 0}
-			<div class="mb-6">
-				<h4 class="text-sm font-semibold text-gray-500 uppercase mb-2">
-					Custom Themes ({customThemesList.length})
-				</h4>
-				<div class="grid grid-cols-1 gap-2">
-					{#each customThemesList as theme, index}
-						{@const displayIndex = builtInThemesList.length + index}
-						{@const active = $currentTheme?.dTag === theme.dTag}
-						{@const highlighted = highlightedIndex === displayIndex}
-						<button
-							class="btn btn-outline btn-sm justify-start"
-							class:btn-active={active}
-							class:ring-accent={highlighted}
-							class:border-2={highlighted}
-							on:click={() => selectTheme(theme)}
-							on:mouseenter={() => (highlightedIndex = displayIndex)}
-						>
-							<span
-								class="w-4 h-4 rounded-full mr-2"
-								style="background-color: {theme.properties['--primary'] || '#ccc'}"
-							></span>
-							<span class="flex-1 text-left">{theme.name}</span>
-							{#if active}
-								<span class="text-xs opacity-70">active</span>
-							{/if}
-						</button>
-					{/each}
+					</span>
 				</div>
+		</div>
+	</svelte:fragment>
+
+	<svelte:fragment slot="item-content" let:post let:index>
+		{@const theme = post}
+		{@const active = $currentTheme?.dTag === theme.dTag}
+		{@const isHighlighted = highlightedIndex === index}
+		<button
+			class="btn btn-outline btn-sm justify-start w-full mb-2"
+			class:btn-active={active}
+			class:ring-accent={isHighlighted}
+			class:border-2={isHighlighted}
+			on:click={() => selectTheme(theme)}
+			on:mouseenter={() => (highlightedIndex = index)}
+			type="button"
+		>
+			<span
+				class="w-4 h-4 rounded-full mr-2"
+				style="background-color: {theme.properties['--primary'] || '#ccc'}"
+			></span>
+			<span class="flex-1 text-left">{theme.name}</span>
+			{#if active}
+				<span class="text-xs opacity-70">active</span>
+			{/if}
+		</button>
+	</svelte:fragment>
+
+	<!-- <svelte:fragment slot="sticky-footer">
+		{#if loadingMore}
+			<div class="flex justify-center items-center py-4 bg-base-300/80 backdrop-blur-sm">
+				<Loader size="sm" />
 			</div>
-		{:else if $key?.pub}
-			<div class="mb-6">
-				<h4 class="text-sm font-semibold text-gray-500 uppercase mb-2">Custom Themes</h4>
-				<p class="text-sm text-gray-500 py-2">No custom themes found.</p>
+		{:else if !hasMore && customThemesList.length > 0}
+			<div class="text-center py-4 text-sm text-gray-500 bg-base-300/80 backdrop-blur-sm">
+				{customThemesList.length} custom theme{customThemesList.length === 1 ? '' : 's'}
 			</div>
 		{/if}
-
-		<div class="modal-action">
-			<button class="btn btn-sm" on:click={() => animator?.goBack()}>Close</button>
-		</div>
-	</div>
-</div>
+	</svelte:fragment> -->
+</Feed>

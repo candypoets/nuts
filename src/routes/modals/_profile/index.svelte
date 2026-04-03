@@ -46,9 +46,6 @@
 					<Icon icon="material-symbols:add" class="text-xl" />
 				</button>
 			</div>
-			<button class="btn btn-outline btn-circle" on:click={() => go('theme')}>
-				<Icon icon="mdi:palette" class="text-2xl" />
-			</button>
 		</div>
 	</div>
 	<div class="p-4 overflow-scroll">
@@ -113,11 +110,19 @@
 				</div>
 				<Icon icon="carbon:arrow-right" class="w-16 h-6" />
 			</div>
-			<div class="flex items-center justify-around py-2" on:click={() => go('wallet')}>
+			<div class="flex items-center justify-around py-2 border-b" on:click={() => go('wallet')}>
 				<Icon icon="mdi:bank-outline" class="w-16 h-6" />
 				<div class="flex-grow">
 					<strong>Wallet</strong>
 					<p class="text-xs">Your wallet preferences</p>
+				</div>
+				<Icon icon="carbon:arrow-right" class="w-16 h-6" />
+			</div>
+			<div class="flex items-center justify-around py-2" on:click={() => go('theme')}>
+				<Icon icon="mdi:palette" class="w-16 h-6" />
+				<div class="flex-grow">
+					<strong>Theme</strong>
+					<p class="text-xs">Customize your appearance</p>
 				</div>
 				<Icon icon="carbon:arrow-right" class="w-16 h-6" />
 			</div>

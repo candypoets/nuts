@@ -22,6 +22,8 @@
 		await import('media-chrome');
 	});
 
+	import { swipeDismiss } from 'src/actions/swipeDismiss';
+
 	// Toggle for showing the context sidebar
 	let showContext: boolean = true;
 	let videoEl: HTMLVideoElement;
@@ -30,19 +32,8 @@
 	let sharedVideoContainer: HTMLElement;
 	let currentCarouselIndex: number = $zoomed ?? 0;
 
-	// Touch gesture state with axis-locking
-	let touchStartX = 0;
-	let touchStartY = 0;
-	let touchStartTime = 0;
-	let isSwiping = false;
-	let isVerticalGesture = false;
-	let isHorizontalGesture = false;
-	let currentDeltaY = 0;
-
 	let isDismissing = false;
-
-	const MIN_LOCK_MOVE = 10; // px before declaring axis
-	const VERTICAL_ANGLE_DEG = 60; // >60° feels vertical, <30° feels horizontal
+	let currentDeltaY = 0;
 	const DISMISS_DURATION = 300;
 
 	$: console.log($zoomed);
@@ -106,108 +97,28 @@
 		handleSharedVideo(index);
 	}
 
-	// Cleanup when zoom closes
 	function cleanupSharedVideo() {
 		returnSharedVideo();
 	}
 
-	function handleTouchStart(e: TouchEvent) {
-		const t = e.touches[0];
-		touchStartX = t.clientX;
-		touchStartY = t.clientY;
-		touchStartTime = Date.now();
-		isSwiping = false;
-		isVerticalGesture = false;
-		isHorizontalGesture = false;
-		currentDeltaY = 0;
-	}
-
-	function handleTouchMove(e: TouchEvent) {
+	// Swipe dismiss handlers
+	function handleSwipe(progress: number, deltaX: number, deltaY: number) {
 		if (!carouselContainer) return;
-
-		const t = e.touches[0];
-		const dx = t.clientX - touchStartX;
-		const dy = t.clientY - touchStartY;
-		const absX = Math.abs(dx);
-		const absY = Math.abs(dy);
-
-		// Decide axis lock once sufficient movement occurs
-		if (!isVerticalGesture && !isHorizontalGesture) {
-			if (absX < MIN_LOCK_MOVE && absY < MIN_LOCK_MOVE) {
-				return; // not enough movement yet
-			}
-			const angleDeg = Math.atan2(absY, absX) * (180 / Math.PI);
-			if (angleDeg >= VERTICAL_ANGLE_DEG) {
-				isVerticalGesture = true;
-			} else if (angleDeg <= 180 - VERTICAL_ANGLE_DEG) {
-				// ~<=30° from horizontal axis -> treat as horizontal
-				isHorizontalGesture = true;
-			} else {
-				// ambiguous band, wait for more movement
-				return;
-			}
-		}
-
-		// Let the Carousel handle horizontal gestures
-		if (isHorizontalGesture) {
-			return;
-		}
-
-		// Vertical gesture -> swipe-to-dismiss handling
-		isSwiping = true;
-		e.preventDefault();
-		e.stopPropagation();
-		currentDeltaY = dy;
-
+		currentDeltaY = deltaY;
 		// Apply real-time visual feedback
-		const opacity = Math.max(0.3, 1 - Math.abs(dy) / window.innerHeight);
-		carouselContainer.style.transform = `translateY(${dy}px)`;
+		const opacity = Math.max(0.3, 1 - Math.abs(deltaY) / window.innerHeight);
+		carouselContainer.style.transform = `translateY(${deltaY}px)`;
 		carouselContainer.style.opacity = String(opacity);
 	}
 
-	function handleTouchEnd(e: TouchEvent) {
-		if (!carouselContainer) return;
-
-		// Only handle vertical gestures
-		if (isVerticalGesture) {
-			const touchEndTime = Date.now();
-			const deltaTime = touchEndTime - touchStartTime;
-
-			// Calculate velocity in pixels per millisecond
-			const velocity = currentDeltaY / deltaTime;
-
-			// Trigger dismiss if swipe distance is more than 1/3 of viewport height
-			// OR if velocity is high enough (> 0.5 px/ms) and minimum distance (50px)
-			const distanceThreshold = Math.abs(currentDeltaY) > window.innerHeight / 3;
-			const velocityThreshold = Math.abs(velocity) > 0.5 && Math.abs(currentDeltaY) > 50;
-
-			if (isSwiping && (distanceThreshold || velocityThreshold)) {
-				// Dismiss with animation
-				const direction = currentDeltaY > 0 ? 1 : -1;
-				animateDismiss(direction);
-			} else {
-				// Cancel swipe dismiss - animate back to original position
-				animateCancel();
-			}
-
-			// We handled the vertical gesture; block bubbling to carousel
-			e.stopPropagation();
-		}
-
-		// Reset touch states
-		isSwiping = false;
-		isVerticalGesture = false;
-		isHorizontalGesture = false;
-		currentDeltaY = 0;
-	}
-
-	function animateDismiss(direction: number) {
+	function animateDismiss(direction: number, fromY?: number) {
 		if (!carouselContainer) return;
 
 		isDismissing = true;
 		if (overlayEl) overlayEl.style.pointerEvents = 'none';
 
 		const distance = direction > 0 ? window.innerHeight : -window.innerHeight;
+		const startY = fromY ?? currentDeltaY;
 		const backdrop = overlayEl;
 
 		if (backdrop) {
@@ -220,7 +131,7 @@
 
 		carouselContainer.animate(
 			[
-				{ transform: `translateY(${currentDeltaY}px)`, opacity: 0.3 },
+				{ transform: `translateY(${startY}px)`, opacity: 0.3 },
 				{ transform: `translateY(${distance}px)`, opacity: 0 }
 			],
 			{ duration: DISMISS_DURATION, easing: 'cubic-bezier(0.32, 0.72, 0.06, 1)', fill: 'forwards' }
@@ -248,6 +159,16 @@
 		// Reset inline styles
 		carouselContainer.style.transform = 'translateY(0px)';
 		carouselContainer.style.opacity = '1';
+		currentDeltaY = 0;
+	}
+
+	function handleDismiss(deltaX: number, deltaY: number) {
+		const direction = deltaY > 0 ? 1 : -1;
+		animateDismiss(direction, deltaY);
+	}
+
+	function handleCancel() {
+		animateCancel();
 	}
 
 	function closeZoom() {
@@ -293,9 +214,12 @@
 		<div
 			bind:this={carouselContainer}
 			class="flex-1 flex items-center justify-center w-full"
-			on:touchstart|nonpassive={handleTouchStart}
-			on:touchmove|nonpassive={handleTouchMove}
-			on:touchend={handleTouchEnd}
+			use:swipeDismiss={{
+				direction: 'vertical',
+				onSwipe: handleSwipe,
+				onDismiss: handleDismiss,
+				onCancel: handleCancel
+			}}
 		>
 			<Carousel
 				keyboardShortcut
