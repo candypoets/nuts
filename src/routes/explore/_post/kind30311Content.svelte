@@ -1,16 +1,10 @@
 <script lang="ts">
-	import type { ParsedEvent, PreGenericParsed } from '@candypoets/nipworker';
-	import { asPreGeneric, fbArray, isParsedEvent } from '@candypoets/nipworker/utils';
-	import {
-		openLiveStream,
-		sharedLiveVideoElement,
-		sharedLiveAudioElement
-	} from 'src/controller/image';
-	import Icon from '@iconify/svelte';
-	import { onMount } from 'svelte';
+	import type { ParsedEvent } from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
+	import { asPreGeneric, fbArray, isParsedEvent } from '@candypoets/nipworker/utils';
+	import Icon from '@iconify/svelte';
+	import { openLiveStream } from 'src/controller/image';
 	import { onDestroy } from 'svelte';
-	import Kind1311Content from './kind1311Content.svelte';
 
 	export let note: ParsedEvent;
 
