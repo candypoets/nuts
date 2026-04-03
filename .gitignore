@@ -1,4 +1,6 @@
-.DS_Store
+
+# Release notes
+RELEASE_NOTES.md
 node_modules
 /build
 /.svelte-kit
