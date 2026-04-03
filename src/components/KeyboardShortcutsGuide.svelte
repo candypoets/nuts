@@ -55,9 +55,15 @@
 				on:click={(e) => toggle(e)}
 				title="Click for more shortcuts"
 			>
-				<kbd class="kbd kbd-sm text-xs min-w-[1.5rem] text-center bg-primary text-primary-content border-primary">←</kbd>
+				<kbd
+					class="kbd kbd-sm text-xs min-w-[1.5rem] text-center bg-sky-500 text-primary-content border-sky-500"
+					>←</kbd
+				>
 				<span class="text-xs opacity-50">/</span>
-				<kbd class="kbd kbd-sm text-xs min-w-[1.5rem] text-center bg-primary text-primary-content border-primary">→</kbd>
+				<kbd
+					class="kbd kbd-sm text-xs min-w-[1.5rem] text-center bg-sky-500 text-primary-content border-sky-500"
+					>→</kbd
+				>
 				<span class="text-[10px] opacity-60 ml-1">navigate</span>
 				<span class="text-[10px] opacity-40 ml-0.5">+more</span>
 			</button>
@@ -91,13 +97,19 @@
 				</div>
 
 				<!-- Main shortcuts - always shown at top -->
-				<div class="bg-primary/10 rounded-lg p-2 mb-2 border border-primary/20">
+				<div class="bg-info/10 rounded-lg p-2 mb-2 border border-primary/20">
 					<div class="flex items-center justify-between gap-3">
 						<span class="text-xs font-medium text-primary">Navigate between feeds</span>
 						<span class="flex items-center gap-1 shrink-0">
-							<kbd class="kbd kbd-sm text-xs min-w-[1.75rem] text-center bg-primary text-primary-content border-primary">←</kbd>
+							<kbd
+								class="kbd kbd-sm text-xs min-w-[1.75rem] text-center bg-primary text-primary-content border-primary"
+								>←</kbd
+							>
 							<span class="text-xs opacity-50">/</span>
-							<kbd class="kbd kbd-sm text-xs min-w-[1.75rem] text-center bg-primary text-primary-content border-primary">→</kbd>
+							<kbd
+								class="kbd kbd-sm text-xs min-w-[1.75rem] text-center bg-primary text-primary-content border-primary"
+								>→</kbd
+							>
 						</span>
 					</div>
 				</div>

@@ -54,7 +54,7 @@
 	</div>
 {:else}
 	<button
-		class="fixed bottom-4 left-4 btn btn-sm btn-circle btn-primary cursor-pointer z-10"
+		class="fixed bottom-4 left-4 btn btn-sm btn-circle btn-info cursor-pointer z-10"
 		on:click={toggleVisibility}
 		title="Show Debug Metrics"
 	>
