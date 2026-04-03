@@ -285,17 +285,13 @@
 
 		const publishId = Math.random().toString(36).substring(2, 9);
 
-		usePublish(
-			publishId,
-			post,
-			(message) => {
-				const status = isConnectionStatus(message);
-				if (status && status.success()) {
-					chatInput = '';
-					isSubmitting = false;
-				}
+		usePublish(publishId, post, (message) => {
+			const status = isConnectionStatus(message);
+			if (status && status.success()) {
+				chatInput = '';
+				isSubmitting = false;
 			}
-		);
+		});
 	}
 
 	// Auto-scroll chat to bottom when new messages arrive (desktop only)
@@ -342,11 +338,11 @@
 			on:click|stopPropagation
 		>
 			<!-- Video Section -->
-			<div
-				class="w-full md:flex-1 flex flex-col bg-black shrink-0 md:shrink"
-			>
+			<div class="w-full md:flex-1 flex flex-col bg-black shrink-0 md:shrink">
 				<!-- Video Player Container -->
-				<div class="relative w-full aspect-video md:aspect-auto md:flex-1 flex items-center justify-center overflow-hidden">
+				<div
+					class="relative w-full aspect-video md:aspect-auto md:flex-1 flex items-center justify-center overflow-hidden"
+				>
 					{#if error}
 						<div class="text-center p-4">
 							<Icon icon="ri:error-warning-line" class="text-6xl text-error mx-auto mb-4" />
@@ -373,10 +369,14 @@
 							{/if}
 
 							{#if parsed?.title()}
-								<h2 class="text-xl md:text-2xl font-bold text-highlight text-center">{parsed.title()}</h2>
+								<h2 class="text-xl md:text-2xl font-bold text-highlight text-center">
+									{parsed.title()}
+								</h2>
 							{/if}
 							{#if parsed?.description()}
-								<p class="text-highlight/60 text-center max-w-md text-sm md:text-base">{parsed.description()}</p>
+								<p class="text-highlight/60 text-center max-w-md text-sm md:text-base">
+									{parsed.description()}
+								</p>
 							{/if}
 
 							<!-- Audio controls -->
@@ -385,7 +385,10 @@
 									class="p-3 md:p-4 rounded-full bg-accent hover:bg-accent/80 text-accent-content transition-colors"
 									on:click={togglePlay}
 								>
-									<Icon icon={isPlaying ? 'ri:pause-fill' : 'ri:play-fill'} class="text-2xl md:text-3xl" />
+									<Icon
+										icon={isPlaying ? 'ri:pause-fill' : 'ri:play-fill'}
+										class="text-2xl md:text-3xl"
+									/>
 								</button>
 								<button
 									class="p-2 md:p-3 rounded-full bg-base-100 hover:bg-base-200 text-base-content transition-colors"
@@ -451,7 +454,10 @@
 										class="p-2 md:p-3 rounded-full bg-base-100 hover:bg-base-200 text-base-content transition-colors"
 										on:click={togglePlay}
 									>
-										<Icon icon={isPlaying ? 'ri:pause-fill' : 'ri:play-fill'} class="text-lg md:text-xl" />
+										<Icon
+											icon={isPlaying ? 'ri:pause-fill' : 'ri:play-fill'}
+											class="text-lg md:text-xl"
+										/>
 									</button>
 									<button
 										class="p-1.5 md:p-2 rounded-full bg-base-100 hover:bg-base-200 text-base-content transition-colors"
@@ -475,9 +481,13 @@
 				</div>
 
 				<!-- Streamer info bar (shows below video on mobile, hidden on desktop) -->
-				<div class="w-full p-2 md:p-3 border-t border-white/10 bg-base-300 flex items-center gap-2 md:gap-3 shrink-0 md:hidden">
+				<div
+					class="w-full p-2 md:p-3 border-t border-white/10 bg-base-300 flex items-center gap-2 md:gap-3 shrink-0 md:hidden"
+				>
 					{#if isLive}
-						<span class="bg-error text-error-content px-2 py-0.5 rounded text-xs font-bold animate-pulse">
+						<span
+							class="bg-error text-error-content px-2 py-0.5 rounded text-xs font-bold animate-pulse"
+						>
 							LIVE
 						</span>
 					{:else if isEnded}
@@ -504,7 +514,9 @@
 					on:click|stopPropagation
 				>
 					<!-- Chat header -->
-					<div class="p-3 border-b border-white/10 bg-base-300/80 backdrop-blur-sm flex items-center justify-between shrink-0">
+					<div
+						class="p-3 border-b border-white/10 bg-base-300/80 backdrop-blur-sm flex items-center justify-between shrink-0"
+					>
 						<div class="flex items-center gap-2">
 							{#if isLive}
 								<span
@@ -514,7 +526,9 @@
 									LIVE
 								</span>
 							{:else if isEnded}
-								<span class="bg-base-100 text-base-content/70 px-2 py-0.5 rounded text-xs">Ended</span>
+								<span class="bg-base-100 text-base-content/70 px-2 py-0.5 rounded text-xs"
+									>Ended</span
+								>
 							{:else}
 								<span class="bg-warning/20 text-warning px-2 py-0.5 rounded text-xs">Upcoming</span>
 							{/if}
@@ -540,13 +554,13 @@
 						{:else}
 							<!-- Desktop: oldest first (scrolls to bottom) -->
 							<div class="hidden md:contents">
-								{#each sortedChatMessages as msg}
+								{#each sortedChatMessages as msg (msg.id())}
 									<Kind1311Content note={msg} context={sortedChatMessages} />
 								{/each}
 							</div>
 							<!-- Mobile: newest first (no auto-scroll) -->
 							<div class="contents md:hidden">
-								{#each reversedChatMessages as msg}
+								{#each reversedChatMessages as msg (msg.id())}
 									<Kind1311Content note={msg} context={reversedChatMessages} />
 								{/each}
 							</div>
