@@ -302,6 +302,33 @@
 		return title.includes(searchTerm) || description.includes(searchTerm);
 	});
 
+	// Unified selected items for the shared MultiSelect
+	let unifiedSelected: Array<{ type: 'pack' | 'kind'; value: ParsedEvent | FeedKind }> = [];
+
+	$: {
+		const packs = fps.map((p) => ({ type: 'pack' as const, value: p }));
+		const kinds = selectedKinds.map((k) => ({ type: 'kind' as const, value: k }));
+		unifiedSelected = [...packs, ...kinds];
+	}
+
+	function getUnifiedTitle(item: { type: 'pack' | 'kind'; value: ParsedEvent | FeedKind }) {
+		if (item.type === 'pack') {
+			const kind39089 = asNip51(item.value as ParsedEvent);
+			const title = kind39089?.title() || '';
+			return title.length > 20 ? title.slice(0, 20) + '...' : title;
+		} else {
+			return KIND_LABELS[item.value as FeedKind];
+		}
+	}
+
+	function removeUnifiedItem(item: { type: 'pack' | 'kind'; value: ParsedEvent | FeedKind }) {
+		if (item.type === 'pack') {
+			fps = fps.filter((p) => p.id() !== (item.value as ParsedEvent).id());
+		} else {
+			toggleKind(item.value as FeedKind);
+		}
+	}
+
 	// Kind icons mapping
 	const KIND_ICONS: Record<FeedKind, string> = {
 		1: 'mdi:text-box-outline',
@@ -366,6 +393,15 @@
 					</div>
 				</div>
 
+				<!-- Shared MultiSelect - always visible across all tabs -->
+				<div class="px-1" on:click|stopPropagation>
+					<MultiSelect
+						selectedLists={unifiedSelected}
+						getTitle={getUnifiedTitle}
+						removeItem={removeUnifiedItem}
+					/>
+				</div>
+
 				{#if activeTab === 'packs'}
 					<div on:click|stopPropagation>
 						<div class="px-4 pt-2">
@@ -376,27 +412,14 @@
 								showClearButton={true}
 							/>
 						</div>
-						<div class="px-1">
-							<MultiSelect
-								selectedLists={fps}
-								getTitle={(list) => {
-									const kind39089 = asNip51(list);
-
-									const title = kind39089?.title() || '';
-									return title.length > 20 ? title.slice(0, 20) + '...' : title;
-								}}
-								removeItem={(list) => {
-									fps = fps.filter((p) => p.id() != list.id());
-								}}
-							/>
-						</div>
 					</div>
 				{:else if activeTab === 'content'}
-					<div class="px-1 pt-2">
-						<MultiSelect
-							selectedLists={selectedKinds}
-							getTitle={(kind) => KIND_LABELS[kind]}
-							removeItem={(kind) => toggleKind(kind)}
+					<div class="px-4 pt-2">
+						<SearchInput
+							placeholder="Search content types..."
+							bind:value={contentSearchQuery}
+							showSearchIcon={true}
+							showClearButton={true}
 						/>
 					</div>
 				{/if}
@@ -434,6 +457,15 @@
 					</div>
 				</div>
 
+				<!-- Shared MultiSelect - always visible across all tabs -->
+				<div class="px-1">
+					<MultiSelect
+						selectedLists={unifiedSelected}
+						getTitle={getUnifiedTitle}
+						removeItem={removeUnifiedItem}
+					/>
+				</div>
+
 				{#if activeTab === 'packs'}
 					<div>
 						<div class="px-4 pb-3">
@@ -444,20 +476,6 @@
 								showClearButton={true}
 							/>
 						</div>
-						<div class="px-1">
-							<MultiSelect
-								selectedLists={fps}
-								getTitle={(list) => {
-									const kind39089 = asNip51(list);
-
-									const title = kind39089?.title() || '';
-									return title.length > 20 ? title.slice(0, 20) + '...' : title;
-								}}
-								removeItem={(list) => {
-									fps = fps.filter((p) => p.id() != list.id());
-								}}
-							/>
-						</div>
 					</div>
 				{:else}
 					<div class="px-4 pt-2">
@@ -466,13 +484,6 @@
 							bind:value={contentSearchQuery}
 							showSearchIcon={true}
 							showClearButton={true}
-						/>
-					</div>
-					<div class="px-1">
-						<MultiSelect
-							selectedLists={selectedKinds}
-							getTitle={(kind) => KIND_LABELS[kind]}
-							removeItem={(kind) => toggleKind(kind)}
 						/>
 					</div>
 				{/if}
