@@ -27,12 +27,18 @@
 	import Pager from 'src/components/Pager.svelte';
 	import RelaysList from 'src/components/RelaysList.svelte';
 	import { key } from 'src/controller';
-	import { followPacks, feedKinds, ALL_FEED_KINDS, KIND_LABELS, KIND_ICONS, type FeedKind } from 'src/controller/feed';
+	import {
+		followPacks,
+		feedKinds,
+		ALL_FEED_KINDS,
+		KIND_LABELS,
+		KIND_ICONS,
+		type FeedKind
+	} from 'src/controller/feed';
 	import { defaultPipeline, kind0, kind3, readRelays } from 'src/controller/nostr';
 	import { limit } from 'src/controller/pagination';
 	import { relaySub, setSubRelays } from 'src/controller/relay';
 	import { ago } from 'src/lib/period';
-	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import { go } from 'src/routes/modals/modal';
 	import { onDestroy } from 'svelte';
@@ -91,7 +97,10 @@
 		].filter((p): p is string => typeof p === 'string')
 	);
 
-	$: subId = $followPacks.reduce((acc, cur) => acc + cur.id(), 'feed') + tags.join(',') + $feedKinds.join(',');
+	$: subId =
+		$followPacks.reduce((acc, cur) => acc + cur.id(), 'feed') +
+		tags.join(',') +
+		$feedKinds.join(',');
 
 	// Track last subId to detect followlist changes and reset feed
 	let lastSubId: string | undefined;
@@ -155,7 +164,7 @@
 		// Determine which kinds to request
 		// If feedKinds is empty, request all supported kinds
 		const kindsToRequest = $feedKinds.length > 0 ? $feedKinds : (ALL_FEED_KINDS as FeedKind[]);
-		
+
 		if (useGlobalFeed) {
 			return [
 				{
@@ -227,10 +236,10 @@
 		const parsedEvent = asParsedEvent(message);
 		if (!parsedEvent) return;
 		const kind = parsedEvent.kind();
-		
+
 		// Filter by kind based on feedKinds selection
 		if (!shouldIncludeKind(kind)) return;
-		
+
 		// if (kind !== 1 && kind !== 6) return;
 		// Filter: only show root posts or direct replies to root posts
 		// Skip nested replies (replies to replies)
@@ -542,31 +551,19 @@
 		<svelte:fragment slot="sticky-header">
 			<div class="bg-base-300 bg-opacity-80 md:border-b border-base-200 pt-safe">
 				<div class="flex justify-between w-feed lg:m-auto h-16 items-center">
-					<div class="flex gap-1 items-center w-1/3">
+					<div class="flex gap-1 items-center min-w-0 flex-1">
 						{#if following.length > 0}
 							{#each $followPacks as pack}
 								{@const kind39039 = asNip51(pack)}
 								<div class="cursor-pointer" on:click|stopPropagation={() => go('followlists')}>
 									<img
-										src={proxyAvatarUrl(kind39039?.image() || '') || '/followlist.png'}
+										src={kind39039?.image() || '/followlist.png'}
 										class="w-8 h-8 border rounded-full"
 										alt={kind39039?.title() || 'Follow pack'}
 										title={kind39039?.title() || 'Follow pack'}
 									/>
 								</div>
 							{/each}
-							<!-- Show selected content kinds -->
-							{#if $feedKinds.length > 0 && $feedKinds.length < ALL_FEED_KINDS.length}
-								{#each $feedKinds as kind}
-									<div
-										class="cursor-pointer w-8 h-8 border rounded-full flex items-center justify-center bg-base-200"
-										on:click|stopPropagation={() => go('followlists')}
-										title={KIND_LABELS[kind]}
-									>
-																					<Icon icon={KIND_ICONS[kind]} class="text-sm" />
-									</div>
-								{/each}
-							{/if}
 						{:else}
 							<!-- Global feed (no followlist) - show infinity icon -->
 							<div
@@ -578,6 +575,18 @@
 									<Icon icon="mdi:infinity" class="text-2xl" />
 								</div>
 							</div>
+						{/if}
+						<!-- Show selected content kinds (visible regardless of followlist) -->
+						{#if $feedKinds.length > 0 && $feedKinds.length < ALL_FEED_KINDS.length}
+							{#each $feedKinds as kind}
+								<div
+									class="cursor-pointer w-8 h-8 border rounded-full flex items-center justify-center bg-base-200"
+									on:click|stopPropagation={() => go('followlists')}
+									title={KIND_LABELS[kind]}
+								>
+									<Icon icon={KIND_ICONS[kind]} class="text-sm" />
+								</div>
+							{/each}
 						{/if}
 					</div>
 					<div
@@ -595,7 +604,7 @@
 						</span>
 						<a class="cursor-pointer" on:click|stopPropagation={() => go('profile')}>
 							<img
-								src={proxyAvatarUrl(asKind0($kind0)?.picture() || '') || '/miss-profile.png'}
+								src={asKind0($kind0)?.picture() || '/miss-profile.png'}
 								class="w-8 h-8 border rounded-full"
 								alt="Profile"
 							/>
@@ -625,24 +634,12 @@
 								{@const kind39039 = asNip51(pack)}
 								<div class="cursor-pointer" on:click|stopPropagation={() => go('followlists')}>
 									<img
-										src={proxyAvatarUrl(kind39039?.image() || '') || '/followlist.png'}
+										src={kind39039?.image() || '/followlist.png'}
 										class="w-8 h-8 border rounded-full"
 										alt={kind39039?.title() || 'Follow pack'}
 									/>
 								</div>
 							{/each}
-							<!-- Show selected content kinds -->
-							{#if $feedKinds.length > 0 && $feedKinds.length < ALL_FEED_KINDS.length}
-								{#each $feedKinds as kind}
-									<div
-										class="cursor-pointer w-8 h-8 border rounded-full flex items-center justify-center bg-base-200"
-										on:click|stopPropagation={() => go('followlists')}
-										title={KIND_LABELS[kind]}
-									>
-																					<Icon icon={KIND_ICONS[kind]} class="text-sm" />
-									</div>
-								{/each}
-							{/if}
 						{:else}
 							<!-- Global feed (no followlist) - show infinity icon -->
 							<div
@@ -654,6 +651,18 @@
 									<Icon icon="mdi:infinity" class="text-2xl" />
 								</div>
 							</div>
+						{/if}
+						<!-- Show selected content kinds -->
+						{#if $feedKinds.length > 0 && $feedKinds.length < ALL_FEED_KINDS.length}
+							{#each $feedKinds as kind}
+								<div
+									class="cursor-pointer w-8 h-8 border rounded-full flex items-center justify-center bg-base-200"
+									on:click|stopPropagation={() => go('followlists')}
+									title={KIND_LABELS[kind]}
+								>
+									<Icon icon={KIND_ICONS[kind]} class="text-sm" />
+								</div>
+							{/each}
 						{/if}
 					</div>
 					<div class="flex gap-2 items-center">
@@ -673,7 +682,7 @@
 						<Notifications />
 						<div class="cursor-pointer" on:click|stopPropagation={() => go('profile')}>
 							<img
-								src={proxyAvatarUrl(asKind0($kind0)?.picture() || '') || '/miss-profile.png'}
+								src={asKind0($kind0)?.picture() || '/miss-profile.png'}
 								class="w-8 h-8 border rounded-full"
 								alt="Profile"
 							/>
