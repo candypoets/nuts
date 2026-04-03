@@ -175,6 +175,7 @@
 					pipeline: $defaultPipeline.for('replies_cache' + data?.id)
 				}
 			);
+
 			sub = useSubscription(
 				'kind1_' + data?.id,
 				[
@@ -203,7 +204,7 @@
 									currentRelays = relays;
 								}
 								// Subscribe to replies for this post
-								if (!feedItems.length && !repliesSub) {
+								if (!repliesSub) {
 									repliesSub = useSubscription(
 										'replies_' + data?.id,
 										[

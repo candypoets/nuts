@@ -295,6 +295,9 @@ export class NutsWallet {
 	// Map to track reserved proofs (in-flight transactions) - persisted to localStorage
 	public reservedProofs: Map<string, Proof[]> = new Map();
 
+	// Track active mint quote monitoring loops to prevent duplicates
+	private activeMintQuoteMonitors: Set<string> = new Set();
+
 	private _pubkey: string;
 	private _privkey: string;
 
@@ -519,11 +522,30 @@ export class NutsWallet {
 		createdAt: number,
 		mintUrl: string
 	): Promise<void> => {
+		const quoteId = quote.quote;
+
+		// Prevent duplicate monitoring loops for the same quote
+		if (this.activeMintQuoteMonitors.has(quoteId)) {
+			console.log('Already monitoring quote:', quoteId);
+			return;
+		}
+		this.activeMintQuoteMonitors.add(quoteId);
+
 		const wallet = await this.getWallet(mintUrl);
 		const quoteExpiry = quote.expiry;
 		let interval = 1; // Start with 1 second
 		const maxInterval = 30; // Maximum interval of 30 seconds
 		let isPaid = false; // Flag to track if the quote has been paid
+		let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+		const cleanup = () => {
+			isPaid = true;
+			this.activeMintQuoteMonitors.delete(quoteId);
+			if (timeoutId) {
+				clearTimeout(timeoutId);
+				timeoutId = null;
+			}
+		};
 
 		const checkQuote = async () => {
 			if (isPaid) return; // Stop if already paid
@@ -540,6 +562,7 @@ export class NutsWallet {
 						go(`minted:${mintUrl}:${quote.amount}`);
 					}
 					this.deleteMintQuote(createdAt);
+					cleanup(); // Remove from active monitors
 					const token: Token = { mint: mintUrl, proofs };
 					const tokenString = getEncodedToken(token);
 					console.log('Cashu token:', tokenString);
@@ -562,6 +585,7 @@ export class NutsWallet {
 
 			if (timeUntilExpiry <= 0) {
 				console.log('Quote expired:', quote.quote);
+				cleanup(); // Remove from active monitors
 				return;
 			}
 
@@ -569,7 +593,7 @@ export class NutsWallet {
 			const timeSinceCreation = n - createdAt;
 			interval = Math.min(1 + Math.floor(timeSinceCreation / 15), maxInterval);
 
-			setTimeout(async () => {
+			timeoutId = setTimeout(async () => {
 				await checkQuote();
 				if (!isPaid) {
 					scheduleNextCheck();

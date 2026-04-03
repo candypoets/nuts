@@ -309,7 +309,8 @@
 		20: 'mdi:image-multiple',
 		34235: 'mdi:video',
 		6969: 'mdi:poll',
-		1068: 'mdi:poll'
+		1068: 'mdi:poll',
+		30311: 'mdi:broadcast'
 	};
 
 	// Kind gradient colors for cards
@@ -319,7 +320,8 @@
 		20: 'from-purple-500/30 to-pink-500/30',
 		34235: 'from-red-500/30 to-orange-500/30',
 		6969: 'from-yellow-500/30 to-amber-500/30',
-		1068: 'from-yellow-500/30 to-amber-500/30'
+		1068: 'from-yellow-500/30 to-amber-500/30',
+		30311: 'from-rose-500/30 to-red-500/30'
 	};
 </script>
 
@@ -348,14 +350,14 @@
 				<div class="px-4 pb-2">
 					<div class="join w-full">
 						<button
-							class="join-item btn flex-1 {activeTab === 'packs' ? 'btn-primary' : 'btn-ghost'}"
+							class="join-item btn flex-1 {activeTab === 'packs' ? 'btn-accent' : 'btn-ghost'}"
 							on:click={() => (activeTab = 'packs')}
 						>
 							<Icon icon="mdi:account-group" class="mr-2" />
 							Follow Packs
 						</button>
 						<button
-							class="join-item btn flex-1 {activeTab === 'content' ? 'btn-primary' : 'btn-ghost'}"
+							class="join-item btn flex-1 {activeTab === 'content' ? 'btn-accent' : 'btn-ghost'}"
 							on:click={() => (activeTab = 'content')}
 						>
 							<Icon icon="mdi:filter-variant" class="mr-2" />
@@ -416,14 +418,14 @@
 				<div class="px-4 pb-2">
 					<div class="join w-full">
 						<button
-							class="join-item btn flex-1 {activeTab === 'packs' ? 'btn-primary' : 'btn-ghost'}"
+							class="join-item btn flex-1 {activeTab === 'packs' ? 'btn-accent' : 'btn-ghost'}"
 							on:click={() => (activeTab = 'packs')}
 						>
 							<Icon icon="mdi:account-group" class="mr-2" />
 							Follow Packs
 						</button>
 						<button
-							class="join-item btn flex-1 {activeTab === 'content' ? 'btn-primary' : 'btn-ghost'}"
+							class="join-item btn flex-1 {activeTab === 'content' ? 'btn-accent' : 'btn-ghost'}"
 							on:click={() => (activeTab = 'content')}
 						>
 							<Icon icon="mdi:filter-variant" class="mr-2" />

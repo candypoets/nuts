@@ -15,9 +15,9 @@ import { persistentWritable } from 'src/lib/persistentWritable';
 import { derived } from 'svelte/store';
 import { kind3 } from './nostr';
 
-export type FeedKind = 1 | 6 | 20 | 34235 | 1068 | 30023;
+export type FeedKind = 1 | 6 | 20 | 34235 | 1068 | 30023 | 30311;
 
-export const ALL_FEED_KINDS: FeedKind[] = [1, 6, 20, 34235, 1068, 30023];
+export const ALL_FEED_KINDS: FeedKind[] = [1, 6, 20, 34235, 1068, 30023, 30311];
 
 export const KIND_ICONS: Record<FeedKind, string> = {
 	1: 'mdi:text-box-outline',
@@ -25,7 +25,8 @@ export const KIND_ICONS: Record<FeedKind, string> = {
 	20: 'mdi:image-multiple',
 	34235: 'mdi:video',
 	1068: 'mdi:poll',
-	30023: 'mdi:file-document-outline'
+	30023: 'mdi:file-document-outline',
+	30311: 'mdi:broadcast'
 };
 
 export const KIND_LABELS: Record<FeedKind, string> = {
@@ -34,7 +35,8 @@ export const KIND_LABELS: Record<FeedKind, string> = {
 	20: 'Media',
 	34235: 'Videos',
 	1068: 'Polls',
-	30023: 'Articles'
+	30023: 'Articles',
+	30311: 'Live Streams'
 };
 
 export const KIND_DESCRIPTIONS: Record<FeedKind, string> = {
@@ -43,7 +45,8 @@ export const KIND_DESCRIPTIONS: Record<FeedKind, string> = {
 	20: 'Images and media uploads. Photos, memes, artwork',
 	30023: 'Long-form articles and blog posts. In-depth content',
 	34235: 'Video content. Long-form and short clips',
-	1068: 'Interactive polls and surveys. Vote and see results'
+	1068: 'Interactive polls and surveys. Vote and see results',
+	30311: 'Live streaming events, broadcasts, and audio spaces'
 };
 
 export const feedKinds = persistentWritable<FeedKind[]>(

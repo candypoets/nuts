@@ -18,12 +18,26 @@ export const sharedVideoGridId: Writable<string> = writable('');
 export const liveStreamNote: Writable<ParsedEvent<AnyKind> | null> = writable(null);
 export const liveStreamOpen: Writable<boolean> = writable(false);
 
-export function openLiveStream(eventNote: ParsedEvent<AnyKind>) {
+// Shared video element for seamless live stream fullscreen
+export const sharedLiveVideoElement: Writable<HTMLVideoElement | null> = writable(null);
+export const sharedLiveAudioElement: Writable<HTMLAudioElement | null> = writable(null);
+
+export function openLiveStream(eventNote: ParsedEvent<AnyKind>, videoEl?: HTMLVideoElement, audioEl?: HTMLAudioElement) {
 	liveStreamNote.set(eventNote);
+	if (videoEl) {
+		sharedLiveVideoElement.set(videoEl);
+	}
+	if (audioEl) {
+		sharedLiveAudioElement.set(audioEl);
+	}
 	liveStreamOpen.set(true);
 }
 
 export function closeLiveStream() {
 	liveStreamOpen.set(false);
-	setTimeout(() => liveStreamNote.set(null), 300);
+	setTimeout(() => {
+		liveStreamNote.set(null);
+		sharedLiveVideoElement.set(null);
+		sharedLiveAudioElement.set(null);
+	}, 300);
 }

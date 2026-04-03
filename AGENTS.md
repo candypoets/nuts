@@ -1,5 +1,48 @@
 # Agent Guidelines for nutscash
 
+## Zero-Copy FlatBuffer Consumption
+
+**Avoid reactive statements that just extract fields from FlatBuffers.** The whole point of FlatBuffers is zero-copy access - reading fields directly from the buffer without creating intermediate JavaScript objects.
+
+```svelte
+<!-- ❌ BAD: Creating reactive variables for every field -->
+<script>
+  $: parsed = asKind1(note);
+  $: content = parsed?.content();  // Unnecessary copy
+  $: createdAt = parsed?.createdAt();  // Unnecessary copy
+  $: author = parsed?.pubkey();  // Unnecessary copy
+</script>
+<p>{content} by {author} at {createdAt}</p>
+
+<!-- ✅ GOOD: Read directly from FlatBuffer view in template -->
+<script>
+  $: parsed = asKind1(note);
+</script>
+<p>{parsed?.content()} by {parsed?.pubkey()} at {parsed?.createdAt()}</p>
+```
+
+**When to use reactive statements with FlatBuffers:**
+- Only when you need computed/derived state (e.g., `$: isLive = parsed?.status() === 'live'`)
+- Only when the value is needed in multiple places and you want to cache the method call
+- Only for DOM element bindings or event handlers that can't access the view directly
+
+**Preferred pattern:**
+```svelte
+<script>
+  import { asKind1, fbArray } from '@candypoets/nipworker/utils';
+  
+  $: parsed = asKind1(note);
+  
+  // Only reactive for actual computed values
+  $: isMedia = fbArray(parsed, 'contentBlocks').some(b => b.type() === 'image');
+</script>
+
+<!-- Access FlatBuffer fields directly in template -->
+{#if parsed?.title()}
+  <h1>{parsed.title()}</h1>
+{/if}
+```
+
 ## Svelte Template Constraints
 
 ### TypeScript in Templates
