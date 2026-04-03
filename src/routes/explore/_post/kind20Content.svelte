@@ -34,6 +34,10 @@
 		}
 		return null;
 	}
+
+	function stopTouchPropagation(event: TouchEvent) {
+		event.stopPropagation();
+	}
 </script>
 
 <br />
@@ -55,7 +59,13 @@
 	{:else}
 		<!-- Multiple images - carousel with unified aspect ratio (prevents height jumps between slides) -->
 		{@const firstImageAspect = parseAspectRatio(kind20Images[0]?.dimensions)}
-		<div class="w-full" style:aspect-ratio={firstImageAspect || '4 / 3'}>
+		<div
+			class="w-full"
+			style:aspect-ratio={firstImageAspect || '4 / 3'}
+			on:touchstart={stopTouchPropagation}
+			on:touchmove={stopTouchPropagation}
+			on:touchend={stopTouchPropagation}
+		>
 			<Carousel
 				items={kind20Images}
 				keyboardShortcut={false}

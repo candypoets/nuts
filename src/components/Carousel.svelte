@@ -46,6 +46,7 @@
 
 	let carouselElement: HTMLElement;
 	let container: HTMLElement;
+	$: touchAction = verticalPan || noScroll ? 'pan-x' : 'auto';
 
 	function scrollToIndex(index: number) {
 		if (carouselElement) {
@@ -69,6 +70,11 @@
 	}
 
 	function handleScroll(event: WheelEvent | TouchEvent) {
+		// Early return if vertical pan is disabled (let browser handle scrolling naturally)
+		if (!verticalPan && 'touches' in event) {
+			return;
+		}
+
 		// Handle wheel events (mouse/trackpad)
 		if ('deltaY' in event) {
 			const wheel = event as WheelEvent;
@@ -154,12 +160,12 @@
 	<div
 		class="bg-transparent scrollbar-hide flex h-full snap-x snap-mandatory items-center overflow-x-scroll scroll-smooth {noGap ? '' : 'gap-4 rounded-xl'}"
 		bind:this={carouselElement}
-		on:touchmove|nonpassive={handleScroll}
+		on:touchmove|passive={handleScroll}
 		on:touchend={(e) => {
 			onTouchEnd(e);
 			handleScroll(e);
 		}}
-		style={`touch-action: pan-x; transform: translateY(${$translateY}px)`}
+		style={`touch-action: ${touchAction}; transform: translateY(${$translateY}px)`}
 	>
 		{#each processedItems as item, index}
 			<div
