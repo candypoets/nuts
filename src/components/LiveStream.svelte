@@ -568,8 +568,8 @@
 					</div>
 
 					<!-- Chat input -->
-					<div class="px-3 pt-3 border-t border-white/10 shrink-0 pb-safe">
-						<form class="flex gap-2" on:submit|preventDefault={sendMessage}>
+					<div class="p-3 border-t border-white/10 shrink-0">
+						<form class="flex gap-2 pb-safe" on:submit|preventDefault={sendMessage}>
 							<input
 								type="text"
 								placeholder="Say something..."
