@@ -361,7 +361,7 @@
 							class:!bg-base-100={activeChatTab === 'request'}
 							on:click={() => selectChatTab('request')}
 						>
-							request
+							requests
 							<span class="badge badge-sm ml-2">{requestItems.length}</span>
 						</button>
 					</div>

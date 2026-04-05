@@ -375,16 +375,20 @@
 				</div>
 				<!-- Tab bar -->
 				<div class="px-4 pb-2">
-					<div class="join w-full">
+					<div class="tabs tabs-boxed bg-base-200 bg-opacity-70 w-full">
 						<button
-							class="join-item btn flex-1 {activeTab === 'packs' ? 'btn-accent' : 'btn-ghost'}"
+							class="tab flex-1 !text-inherit"
+							class:tab-active={activeTab === 'packs'}
+							class:!bg-base-100={activeTab === 'packs'}
 							on:click={() => (activeTab = 'packs')}
 						>
 							<Icon icon="mdi:account-group" class="mr-2" />
 							Follow Packs
 						</button>
 						<button
-							class="join-item btn flex-1 {activeTab === 'content' ? 'btn-accent' : 'btn-ghost'}"
+							class="tab flex-1 !text-inherit"
+							class:tab-active={activeTab === 'content'}
+							class:!bg-base-100={activeTab === 'content'}
 							on:click={() => (activeTab = 'content')}
 						>
 							<Icon icon="mdi:filter-variant" class="mr-2" />
@@ -439,16 +443,20 @@
 				</div>
 				<!-- Tab bar -->
 				<div class="px-4 pb-2">
-					<div class="join w-full">
+					<div class="tabs tabs-boxed bg-base-200 bg-opacity-70 w-full">
 						<button
-							class="join-item btn flex-1 {activeTab === 'packs' ? 'btn-accent' : 'btn-ghost'}"
+							class="tab flex-1 !text-inherit"
+							class:tab-active={activeTab === 'packs'}
+							class:!bg-base-100={activeTab === 'packs'}
 							on:click={() => (activeTab = 'packs')}
 						>
 							<Icon icon="mdi:account-group" class="mr-2" />
 							Follow Packs
 						</button>
 						<button
-							class="join-item btn flex-1 {activeTab === 'content' ? 'btn-accent' : 'btn-ghost'}"
+							class="tab flex-1 !text-inherit"
+							class:tab-active={activeTab === 'content'}
+							class:!bg-base-100={activeTab === 'content'}
 							on:click={() => (activeTab = 'content')}
 						>
 							<Icon icon="mdi:filter-variant" class="mr-2" />
