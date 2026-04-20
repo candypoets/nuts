@@ -13,6 +13,7 @@
 	import { onDestroy } from 'svelte';
 
 	import { kind0 } from 'src/controller/nostr';
+	import { DEFAULT_RELAYS } from 'src/lib/env';
 	import { getRelaysFromNote } from 'src/lib/getRelaysFromNote';
 	import { getUserRelays } from 'src/routes/queries/user';
 	import Avatar from '../avatar.svelte';
@@ -44,6 +45,7 @@
 				subed++;
 				relaysub = getUserRelays(note.pubkey()!, (result) => {
 					relays = result.slice(0, $isMobile ? 3 : 5);
+						const allRelays = [...new Set([...relays, ...DEFAULT_RELAYS])];
 					sub = useSubscription(
 						'z_' + note.id(),
 						[
@@ -53,7 +55,7 @@
 								noContext: true,
 								limit: 100,
 								since: note.createdAt(),
-								relays: relays || []
+								relays: allRelays
 							}
 						],
 						handleEvents

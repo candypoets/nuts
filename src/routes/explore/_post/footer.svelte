@@ -392,7 +392,15 @@
 			role="button"
 			tabindex="0"
 			on:click|stopPropagation={() => {
-				go('ecash:' + note.pubkey() + ':' + decoded.id);
+				const goZap = (/** @type {string[]} */ r) => {
+					const nevent = nip19.neventEncode({ id: note.id(), relays: r });
+					go('ecash:' + note.pubkey() + ':' + nevent);
+				};
+				if (relays.length > 0) {
+					goZap(relays);
+				} else {
+					getUserRelays(note.pubkey(), goZap);
+				}
 			}}
 		>
 			<Nutscash class="h-6 w-6" />

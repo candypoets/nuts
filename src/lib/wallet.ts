@@ -232,10 +232,12 @@ export const getZapInvoice = async (
 	amount: number,
 	zapRequest: NostrEvent
 ): Promise<{ pr: string }> => {
-	// Decode LNURL to get the endpoint
-	const endpoint = isValidLNURL(lnurl) ? await decodeLNURL(lnurl) : lnurl; // If it's already a URL endpoint
+	console.log('[zap] getZapInvoice called:', { lnurl, amount, zapRequestKind: zapRequest?.kind, zapRequestId: zapRequest?.id, zapRequestPubkey: zapRequest?.pubkey });
 
-	// Extract original host from endpoint before proxying
+	// Decode LNURL to get the endpoint
+	const endpoint = isValidLNURL(lnurl) ? await decodeLNURL(lnurl) : lnurl;
+	console.log('[zap] Decoded endpoint:', endpoint);
+
 	const endpointUrl = new URL(endpoint);
 	const originalHost = endpointUrl.origin;
 
@@ -244,47 +246,68 @@ export const getZapInvoice = async (
 		throw new Error(`Error: ${metaResponse.status} ${metaResponse.statusText}. Cannot reach ${originalHost}`);
 	}
 	const meta = await metaResponse.json();
+	console.log('[zap] LNURL metadata:', JSON.stringify(meta));
 
 	if (!meta.callback) {
 		throw new Error('No callback URL found in LNURL metadata');
 	}
 
+	// NIP-57: provider MUST support Nostr for zap receipts
+	if (!meta.allowsNostr) {
+		console.warn('[zap] LNURL provider does not support Nostr (allowsNostr is missing/false). Zap receipt will not be published.');
+	} else {
+		console.log('[zap] Provider supports Nostr. nostrPubkey:', meta.nostrPubkey);
+	}
+
 	let callbackUrl = meta.callback;
-	
-	// Prepend original host if callback is relative
 	if (!callbackUrl.startsWith('http')) {
 		callbackUrl = `${originalHost}${callbackUrl}`;
 	}
+	console.log('[zap] Callback base:', callbackUrl);
 
-	// Build callback URL with zap request
-	callbackUrl += callbackUrl.includes('?') ? '&' : '?';
-	callbackUrl += `amount=${amount * 1000}`; // Convert to millisats
-	// Handle case where zapRequest might already be stringified (from useSignEvent)
+	// Build callback URL per LUD-06 + NIP-57
+	const cb = new URL(callbackUrl);
+	cb.searchParams.set('amount', String(amount * 1000));
+
+	// NIP-57: send signed zap request as nostr parameter
 	const nostrValue = typeof zapRequest === 'string' ? zapRequest : JSON.stringify(zapRequest);
-	callbackUrl += `&nostr=${encodeURIComponent(nostrValue)}`;
-	// Extract comment from the zap request
-	const zapContent = typeof zapRequest === 'string' 
-		? (JSON.parse(zapRequest).content || '') 
-		: (zapRequest.content || '');
-	callbackUrl += `&comment=${encodeURIComponent(zapContent)}`;
-	callbackUrl += `&lnurl=${encodeURIComponent(lnurl)}`;
+	console.log('[zap] nostr param length:', nostrValue.length, 'nostr param (first 200 chars):', nostrValue.slice(0, 200));
+	cb.searchParams.set('nostr', nostrValue);
 
-	const invoiceResponse = await fetch(callbackUrl, {
+	// Only send comment if provider allows it and content is non-empty
+	const commentAllowed = meta.commentAllowed ?? 0;
+	const zapContent = typeof zapRequest === 'string'
+		? (JSON.parse(zapRequest).content || '')
+		: (zapRequest.content || '');
+	console.log('[zap] commentAllowed:', commentAllowed, 'zapContent:', zapContent);
+	if (commentAllowed > 0 && zapContent) {
+		cb.searchParams.set('comment', zapContent.slice(0, commentAllowed));
+	}
+
+	const fullUrl = cb.toString();
+	console.log('[zap] Full callback URL length:', fullUrl.length);
+	console.log('[zap] Full callback URL:', fullUrl);
+
+	const invoiceResponse = await fetch(fullUrl, {
 		credentials: 'omit',
 		headers: { Accept: 'application/json' }
 	});
 
 	if (!invoiceResponse.ok) {
+		const text = await invoiceResponse.text().catch(() => '');
+		console.error('[zap] Invoice fetch failed:', invoiceResponse.status, text);
 		throw new Error(
 			`Error: ${invoiceResponse.status} ${invoiceResponse.statusText}. Lightning provider rate limited or unavailable`
 		);
 	}
 	const invoiceData = await invoiceResponse.json();
+	console.log('[zap] Invoice response:', JSON.stringify(invoiceData));
 
 	if (!invoiceData.pr) {
 		throw new Error('No payment request in LNURL response');
 	}
 
+	console.log('[zap] Got invoice:', invoiceData.pr.slice(0, 50) + '...');
 	return { pr: invoiceData.pr };
 };
 

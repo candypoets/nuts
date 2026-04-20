@@ -45,6 +45,7 @@
 	} from 'src/model/cashu/tx-recovery';
 	import { fly } from 'svelte/transition';
 	import { getUserRelays } from '../queries/user';
+	import { decode } from 'nostr-tools/nip19';
 
 	const normalizeRelay = (relay?: string | null): string | null => {
 		if (!relay) return null;
@@ -68,7 +69,6 @@
 	let animator = getContext('animator');
 	let memo: string = '';
 
-	let note: ParsedEvent;
 	let kind0: ParsedEvent;
 
 	let processing = '';
@@ -140,13 +140,28 @@
 	$: balance = $balanceByMint?.[fromMint || ''] || 0;
 	$: amountPlusFees = Number(amount || 0) + Number(fees || 0);
 
+	// Decode noteId if it's an nevent
+	let hexNoteId = noteId;
+	if (noteId) {
+		try {
+			const decoded = decode(noteId);
+			if (decoded?.type === 'nevent') {
+				hexNoteId = decoded.data.id;
+				console.log('[ecash] Decoded nevent:', hexNoteId);
+			}
+		} catch {
+			// Not an nevent, use noteId as-is (already hex)
+			console.log('[ecash] noteId is not nevent, using as hex:', noteId);
+		}
+	}
+
 	onMount(() => {
+		console.log('[ecash] Modal opened - hexNoteId:', hexNoteId, 'pubkey:', pubkey);
 		const requests: RequestObject[] = [
 			{ kinds: [0], authors: [pubkey], limit: 1, cacheFirst: true, relays: [] },
 			{ kinds: [10002], authors: [pubkey], limit: 3, cacheFirst: true, relays: [] },
 			{ kinds: [10019], authors: [pubkey], limit: 3, cacheFirst: true, relays: [] }
 		];
-		if (noteId) requests.push({ kinds: [1], ids: [noteId], cacheFirst: true, relays: [] });
 		getUserRelays(pubkey, (relays: string[]) => {
 			useSubscription('wallet_' + pubkey, requests, (message: WorkerMessage) => {
 				const parsedEvent = isParsedEvent(message);
@@ -166,10 +181,7 @@
 								.filter(Boolean) || []) as string[];
 							console.log('[zap] Recipient write relays:', receiptRelays);
 							break;
-						case ParsedData.Kind1Parsed:
-							note = parsedEvent;
-							tick().then(() => scrollTo({ top: 10000 }));
-							break;
+
 						case ParsedData.Kind0Parsed:
 							kind0 = parsedEvent;
 							computeFees(Number(amount), fromMint || '', toMint || '', zap);
@@ -340,7 +352,8 @@
 		keep: Proof[]
 	) => {
 		if (txType === 'zap' && lnurl && kind0 && fromMint) {
-			console.log('send zap', amount, fromMint, lnurl);
+			console.log('[ecash] Sending zap:', { amount, fromMint, lnurl });
+			console.log('[ecash] Sending zap with noteId:', hexNoteId);
 
 			// Create zap request (kind 9734) for NIP-57 compliance
 			const finalReceiptRelays =
@@ -351,9 +364,10 @@
 				kind: 9734,
 				content: memo,
 				created_at: now(),
-				tags: [['p', pubkey], ...(noteId ? [['e', noteId]] : []), ['relays', ...finalReceiptRelays]]
+				tags: [['p', pubkey], ...(hexNoteId ? [['e', hexNoteId]] : []), ['relays', ...finalReceiptRelays]]
 			};
-			console.log('[zap] Zap request:', zapRequest);
+			console.log('[ecash] Zap request created:', JSON.stringify(zapRequest));
+			console.log('[ecash] Event reference in zap request:', noteId ? `e tag present: ${noteId}` : 'NO e tag - noteId was missing!');
 
 			// Sign the zap request and get invoice
 			await new Promise<void>((resolve, reject) => {

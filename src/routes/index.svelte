@@ -375,6 +375,7 @@
 
 			if (pathParts.length >= 2) {
 				// On a subpath (e.g., /explore/notifications), go back to parent
+				e.preventDefault();
 				$pagerAnimator?.goBack();
 			}
 			// else {
