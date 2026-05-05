@@ -15,7 +15,7 @@ export default defineConfig(({ mode }) => {
 			// noExternal: ['idb']
 		},
 		// WARN: this will not be necessary on your project
-		logLevel: 'error',
+		logLevel: 'info',
 		server: {
 			host: true,
 			allowedHosts: ['befree'],
