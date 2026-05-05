@@ -24,6 +24,7 @@
 	import { parseContent, renderMarkdown, type ContentBlock } from 'src/lib/parseContent';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import Feed from 'src/routes/explore/feed.svelte';
+	import Footer from 'src/routes/explore/_post/footer.svelte';
 	import User from 'src/routes/explore/user.svelte';
 	import { go } from '../modals/modal';
 	import { getUserRelays } from '../queries/user';
@@ -284,6 +285,10 @@
 					</div>
 				{/if}
 
+				<div class="mb-4 bg-base-300 bg-opacity-85 backdrop-blur-gpu rounded-lg px-4 py-3">
+					<Footer bind:connectionStatus note={article} {visible} main />
+				</div>
+
 				<!-- Article Content -->
 				<div class="bg-base-300 bg-opacity-85 backdrop-blur-gpu rounded-lg p-6">
 					<div class="prose prose-invert max-w-none">
@@ -381,12 +386,8 @@
 						{/if}
 					</div>
 				</div>
-				<!-- Article Footer -->
-				<div class="mt-4 flex items-center justify-between text-sm opacity-60 px-2">
-					<div class="flex items-center gap-2">
-						<Icon icon="mdi:file-document-outline" />
-						<span>Kind 30023 - Long-form Content</span>
-					</div>
+
+				<div class="mt-3 flex justify-end text-sm opacity-60 px-2">
 					{#if decoded?.identifier}
 						<button
 							class="hover:text-primary transition-colors"

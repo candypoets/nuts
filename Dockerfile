@@ -1,5 +1,5 @@
 # Multi-stage build for NutsCash SvelteKit application
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 # Install build tools required for native modules (better-sqlite3)
 RUN apk add --no-cache python3 make g++
@@ -12,6 +12,8 @@ ARG VITE_DEFAULT_RELAYS="wss://relay.thibautduchene.fr,wss://relay.damus.io,wss:
 ARG PUBLIC_LNUTS_DOMAIN="nuts.cash"
 ARG VITE_ENABLE_SSL="false"
 ARG VITE_NIPWORKER_PROXY_URL
+ARG VITE_APP_VERSION
+ARG NODE_OPTIONS
 
 # Set environment variables from build arguments
 ENV VITE_INDEXER_RELAYS=$VITE_INDEXER_RELAYS
@@ -19,12 +21,14 @@ ENV VITE_SEARCH_RELAYS=$VITE_SEARCH_RELAYS
 ENV VITE_DEFAULT_RELAYS=$VITE_DEFAULT_RELAYS
 ENV PUBLIC_LNUTS_DOMAIN=$PUBLIC_LNUTS_DOMAIN
 ENV VITE_NIPWORKER_PROXY_URL=$VITE_NIPWORKER_PROXY_URL
+ENV VITE_APP_VERSION=$VITE_APP_VERSION
+ENV NODE_OPTIONS=$NODE_OPTIONS
 
-# Copy ONLY package.json (ignore local package-lock.json to fix cross-platform Rollup issues)
-COPY package.json ./
+# Copy dependency manifests first for better Docker layer caching
+COPY package.json package-lock.json ./
 
-# Install dependencies (this generates a fresh, correct package-lock.json for Alpine)
-RUN npm install
+# Install exactly the dependency graph committed to the repository
+RUN npm ci
 
 # Copy source code
 COPY . .
@@ -39,7 +43,7 @@ RUN npm run build
 RUN npx tsc server.ts --esModuleInterop --target ES2022 --module nodenext --moduleResolution nodenext --skipLibCheck --outDir .
 
 # Production stage
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 
 # Install build tools for native modules in production
 RUN apk add --no-cache python3 make g++

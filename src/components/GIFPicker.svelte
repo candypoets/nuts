@@ -1,8 +1,6 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount } from 'svelte';
 	import { fly } from 'svelte/transition';
-	import Loader from 'src/components/Loader.svelte';
-	import axios from 'axios';
 
 	// Props
 	export let onGifSelect = (gif: any) => {}; // Callback for when a GIF is selected
@@ -19,6 +17,21 @@
 	let isLoading = false;
 	let searchInput: HTMLInputElement;
 
+	async function fetchTenorGifs(endpoint: string, params: Record<string, string | number>) {
+		const searchParams = new URLSearchParams({
+			key: apiKey,
+			limit: String(limit),
+			...Object.fromEntries(Object.entries(params).map(([key, value]) => [key, String(value)]))
+		});
+		const response = await fetch(`https://tenor.googleapis.com/v2/${endpoint}?${searchParams}`);
+
+		if (!response.ok) {
+			throw new Error(`Tenor request failed with status ${response.status}`);
+		}
+
+		return response.json();
+	}
+
 	onMount(() => {
 		fetchTrendingGifs();
 		if (searchInput && searchOnFocus) {
@@ -31,10 +44,8 @@
 
 		isLoading = true;
 		try {
-			const response = await axios.get(
-				`https://tenor.googleapis.com/v2/featured?key=${apiKey}&limit=${limit}`
-			);
-			trendingGifs = response.data.results;
+			const data = await fetchTenorGifs('featured', {});
+			trendingGifs = data.results;
 			gifs = trendingGifs;
 		} catch (error) {
 			console.error('Error loading trending GIFs:', error);
@@ -51,10 +62,8 @@
 
 		isLoading = true;
 		try {
-			const response = await axios.get(
-				`https://tenor.googleapis.com/v2/search?key=${apiKey}&q=${encodeURIComponent(searchTerm)}&limit=${limit}`
-			);
-			gifs = response.data.results;
+			const data = await fetchTenorGifs('search', { q: searchTerm });
+			gifs = data.results;
 		} catch (error) {
 			console.error('Error searching GIFs:', error);
 		} finally {
