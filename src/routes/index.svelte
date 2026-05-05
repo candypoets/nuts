@@ -235,9 +235,11 @@
 		}
 	}
 
+	const escapeKeyListenerOptions = { capture: true };
+
 	// Watch for route changes
 	onMount(() => {
-		window.addEventListener('keydown', handleKeydown);
+		window.addEventListener('keydown', handleKeydown, escapeKeyListenerOptions);
 
 		if (localStorage.getItem('theme')) {
 			let theme = localStorage.getItem('theme');
@@ -299,7 +301,7 @@
 		initializePositions();
 
 		return () => {
-			window.removeEventListener('keydown', handleKeydown);
+			window.removeEventListener('keydown', handleKeydown, escapeKeyListenerOptions);
 			// relaySub && relaySub();
 			profileSub && profileSub();
 
@@ -374,8 +376,10 @@
 			const pathParts = pathname.split('/').filter(Boolean);
 
 			if (pathParts.length >= 2) {
-				// On a subpath (e.g., /explore/notifications), go back to parent
+				// On a modal/sub path, capture Escape before Safari treats it as a fullscreen exit.
 				e.preventDefault();
+				e.stopPropagation();
+				e.stopImmediatePropagation();
 				$pagerAnimator?.goBack();
 			}
 			// else {
