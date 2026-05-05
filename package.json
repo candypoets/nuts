@@ -6,7 +6,7 @@
 		"dev": "vite dev",
 		"dev:host": "vite dev --host",
 		"build": "vite build",
-		"start": "node server.js",
+		"start": "node server.ts",
 		"preview": "vite preview",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",

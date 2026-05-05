@@ -86,10 +86,10 @@
 				'post_' + hexId,
 				[
 					{
-						kinds: [1],
 						ids: [hexId],
 						limit: 5,
-						relays: allRelays
+						relays: allRelays,
+						cacheFirst: true
 					}
 				],
 				(message) => {
@@ -140,7 +140,7 @@
 			};
 
 			if (note && reply) {
-				post.id = reply;
+				post.id = hexId;
 				const parentTags = fbArray(note, 'tags').map((sv) =>
 					fbArray(sv, 'items').map((item) => item)
 				);
@@ -178,7 +178,7 @@
 			};
 
 			if (note && reply) {
-				post.id = reply;
+				post.id = hexId;
 				const parentTags = fbArray(note, 'tags').map((sv) =>
 					fbArray(sv, 'items').map((item) => item)
 				);
@@ -224,6 +224,7 @@
 				const status = isConnectionStatus(message);
 				if (status) {
 					const relayUrl = status.relayUrl();
+					console.log('relay url', status.relayUrl(), status.message(), status.status(), post);
 					sendStatus[relayUrl] = status;
 					updateSendStatus(id, sendStatus);
 				}
