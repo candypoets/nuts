@@ -158,7 +158,7 @@
 				relaysub = getUserRelays(decoded.pubkey, (result) => {
 					relays = result.slice(0, $isMobile ? 3 : 5);
 
-					// Main subscription: replies (kind 1 #e), reposts (kind 6), reactions (kind 7/17)
+					// Main subscription: replies (kind 1 #e), comments (kind 1111 #E), reposts, reactions
 					sub = useSubscription(
 						'f_' + decoded.id,
 						[
@@ -167,10 +167,16 @@
 								tags: { '#e': [decoded.id] },
 								noContext: true,
 								relays
+							},
+							{
+								kinds: [1111],
+								tags: { '#E': [decoded.id] },
+								noContext: true,
+								relays
 							}
 						],
 						handleEvents,
-						createSubscriptionOptions([1, 6, 7], $mutePipeConfig, $key?.pub || '')
+						createSubscriptionOptions([1, 6, 7, 1111], $mutePipeConfig, $key?.pub || '')
 					);
 
 					// Separate subscription for kind1111 comments (NIP-22, uses #E tag for root)
@@ -298,7 +304,12 @@
 				class="action-btn flex items-center space-x-1 hover:-mt-1 transition-all"
 				on:click|stopPropagation={() => {
 					const goComments = (/** @type {string[]} */ r) => {
-						const nevent = nip19.neventEncode({ id: note.id(), relays: r });
+						const nevent = nip19.neventEncode({
+							id: note.id(),
+							relays: r,
+							author: note.pubkey(),
+							kind: note.kind()
+						});
 						go('kind1111:' + nevent);
 					};
 					if (relays.length > 0) {
