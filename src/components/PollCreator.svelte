@@ -53,6 +53,7 @@
 					on:input={(e) => updateOption(index, e.currentTarget.value)}
 					{disabled}
 					class="flex-1 input input-sm input-bordered bg-base-100"
+					on:keydown|stopPropagation
 				/>
 				{#if options.length > 2}
 					<button
@@ -89,6 +90,7 @@
 				bind:value={pollType}
 				{disabled}
 				class="select select-sm select-bordered bg-base-100"
+				on:keydown|stopPropagation
 			>
 				<option value="singlechoice">Single choice</option>
 				<option value="multiplechoice">Multiple choice</option>

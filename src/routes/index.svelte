@@ -369,6 +369,18 @@
 	const overviewModeStore = carouselAnimator.overviewMode;
 
 	// Handle keyboard navigation
+	function isEditing(): boolean {
+		const target = document.activeElement as HTMLElement | null;
+		if (!target) return false;
+		const tagName = target.tagName;
+		return (
+			tagName === 'INPUT' ||
+			tagName === 'TEXTAREA' ||
+			tagName === 'SELECT' ||
+			target.isContentEditable
+		);
+	}
+
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key == 'Escape') {
 			const pathname = $page.url.pathname;
@@ -387,13 +399,15 @@
 			//	carouselAnimator.toggleOverviewMode(500, $isMobile);
 			// }
 		} else if (e.key === 'ArrowLeft') {
-			if ($overviewModeStore) {
+			if ($overviewModeStore || isEditing()) {
 				// In overview mode, arrow keys do nothing (or could navigate selection)
+				// Also ignore when user is typing in an input
 				return;
 			}
 			carouselAnimator.navigateLeft();
 		} else if (e.key === 'ArrowRight') {
-			if ($overviewModeStore) {
+			if ($overviewModeStore || isEditing()) {
+				// Ignore when user is typing in an input
 				return;
 			}
 			carouselAnimator.navigateRight();

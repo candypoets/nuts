@@ -290,7 +290,7 @@
 				{/if}
 
 				<!-- Editor container -->
-				<div class="min-h-[120px] rounded-md relative transition-all duration-200" tabindex="-1">
+				<div class="min-h-[120px] rounded-md relative transition-all duration-200" tabindex="-1" on:keydown|stopPropagation>
 					<Editor
 						{initialContent}
 						class="min-h-32 rounded-md border border-primary-content"
