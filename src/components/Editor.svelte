@@ -14,6 +14,9 @@
 	export let initialContent = '';
 	export let autoFocus = false;
 	export let sendButton = false;
+	export let inline = false;
+	export let hasText = false;
+	export let focused = false;
 	export let onSubmit: (content: string) => void;
 
 	// Bindings - expose editor instance
@@ -39,12 +42,26 @@
 					autocorrect: 'off',
 					autocapitalize: 'off',
 					'data-gramm': 'false'
+				},
+				handleDOMEvents: {
+					focus: () => {
+						focused = true;
+						return false;
+					},
+					blur: () => {
+						focused = false;
+						return false;
+					}
 				}
+			},
+			onUpdate: ({ editor }) => {
+				hasText = !!editor.getText().trim();
 			}
 		});
 
 		if (initialContent) {
 			$editor.commands.setContent(initialContent);
+			hasText = !!$editor.getText().trim();
 		}
 
 		editorReady = true;
@@ -76,18 +93,21 @@
 	export function focus() {
 		console.log('focus');
 		showPicker = false;
+		focused = true;
 		focusEditor();
 	}
 
 	export function clear() {
 		if (editor) {
 			$editor.commands.clearContent();
+			hasText = false;
 		}
 	}
 
 	export function setContent(content: string) {
 		if (editor) {
 			$editor.commands.setContent(content);
+			hasText = !!$editor.getText().trim();
 		}
 	}
 
@@ -132,6 +152,7 @@
 	function submit() {
 		onSubmit($editor.getText());
 		$editor.commands.clearContent();
+		hasText = false;
 		$editor.commands.focus();
 	}
 
@@ -141,16 +162,18 @@
 <div class="w-full" on:keydown|stopPropagation={handleKeyDown}>
 	<GifPicker show={showPicker} onGifSelect={handleGifSelect} />
 	<div
-		class="flex items-center relative mt-2 dark:prose-invert gap-1 prose-sm max-w-none rounded-md overflow-hidden"
+		class="flex items-center relative dark:prose-invert gap-1 prose-sm max-w-none rounded-md overflow-hidden"
+		class:mt-2={!inline}
 	>
 		<slot name="toolbar" />
 		<div
 			bind:this={editorElement}
 			class={'flex items-stretch bg-opacity-90 bg-base-300 justify-between w-full not-prose p-3 md:py-2 py-2 cursor-text text-highlight ' +
+				(inline ? '!p-2 ' : '') +
 				($$props.class || '')}
 			style="-webkit-backdrop-filter: blur(12px);"
 		>
-			<div class="h-6">
+			<div class={inline ? 'min-h-5' : 'h-6'}>
 				<!-- Placeholder text -->
 				{#if !$editor?.getText().trim() && $$slots.default}
 					<div
