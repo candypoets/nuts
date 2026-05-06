@@ -47,6 +47,7 @@
 	} from 'src/controller/nostr';
 	import { pagerAnimator, setupPagerAnimators } from 'src/controller/pager';
 	import { isMobile, viewport } from 'src/controller/viewport';
+	import { zoomed } from 'src/controller/image';
 
 	import { carouselAnimator } from 'src/controller/carrousel';
 	import { sendStatuses } from 'src/controller/sendStatus';
@@ -383,6 +384,11 @@
 
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key == 'Escape') {
+			// If image zoom is open, let it handle Escape itself
+			if ($zoomed !== undefined) {
+				return;
+			}
+
 			const pathname = $page.url.pathname;
 			// Split path and filter out empty strings (leading/trailing slashes)
 			const pathParts = pathname.split('/').filter(Boolean);
