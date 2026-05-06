@@ -1,24 +1,36 @@
 <script lang="ts">
-	import { MessageType, type ParsedEvent, type WorkerMessage } from '@candypoets/nipworker';
-	import { useSubscription } from '@candypoets/nipworker/hooks';
-	import { nip19 } from 'nostr-tools';
+	import {
+		MessageType,
+		type ConnectionStatus,
+		type ParsedEvent,
+		type WorkerMessage
+	} from '@candypoets/nipworker';
+	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
+	import { nip19, type EventTemplate, type NostrEvent } from 'nostr-tools';
 	import type { EventPointer } from 'nostr-tools/nip19';
+	import Editor from 'src/components/Editor.svelte';
 	import ModalHandle from 'src/components/ModalHandle.svelte';
 	import VirtualList from 'src/components/VirtualList.svelte';
 	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
 	import { getContext, onDestroy, onMount } from 'svelte';
+	import { slide } from 'svelte/transition';
+	import type { Readable } from 'svelte/store';
 
 	import {
 		asConnectionStatus,
 		asKind1111,
 		asParsedEvent,
-		ConnectionTracker
+		ConnectionTracker,
+		isConnectionStatus
 	} from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { normalizeURL } from 'nostr-tools/utils';
 	import Loader from 'src/components/Loader.svelte';
 	import RelaysList from 'src/components/RelaysList.svelte';
 	import { defaultPipeline, isMobile } from 'src/controller';
+	import { updateSendStatus } from 'src/controller/sendStatus';
+	import { prepareEvent } from 'src/editor/utils';
+	import { now } from 'src/lib/period';
 	import { getUserRelays } from 'src/routes/queries/user';
 	import CommentItem from './CommentItem.svelte';
 
@@ -30,6 +42,11 @@
 	let relays: string[] = [];
 	let sub: (() => void) | undefined;
 	let relaysub: (() => void) | undefined;
+	let editor: Readable<Editor>;
+	let showPicker = false;
+	let isSubmitting = false;
+	let composerHasText = false;
+	let composerFocused = false;
 
 	// Comments list
 	let comments: ParsedEvent[] = [];
@@ -85,6 +102,11 @@
 		}
 
 		if (decoded) {
+			if (relays.length === 0 && decoded.author) {
+				relaysub = getUserRelays(decoded.author, (result) => {
+					relays = result.slice(0, $isMobile ? 3 : 5);
+				});
+			}
 			subscribe();
 		}
 	});
@@ -205,6 +227,65 @@
 	}
 
 	const getItemId = (item: { event: ParsedEvent; depth: number }) => item.event.id()!;
+
+	async function handleSubmit() {
+		const content = $editor?.getText().trim();
+		if (!decoded || !content || isSubmitting) return;
+
+		isSubmitting = true;
+		const relayHint = relays[0] || decoded.relays?.[0] || '';
+		const rootAuthor = decoded.author || '';
+		const rootKind = decoded.kind?.toString();
+		const editorTags = $editor.storage.nostr?.getEditorTags() || [];
+		const rootTags: string[][] = [['E', decoded.id, relayHint]];
+		if (rootKind) rootTags.push(['K', rootKind]);
+		if (rootAuthor) rootTags.push(['P', rootAuthor]);
+
+		let comment: EventTemplate = {
+			kind: 1111,
+			created_at: now(),
+			content,
+			tags: [...rootTags, ...editorTags]
+		};
+
+		comment = prepareEvent(comment);
+		comment.tags = [
+			...rootTags,
+			...comment.tags.filter((tag) => tag[0] !== 'E' && tag[0] !== 'K' && tag[0] !== 'P')
+		];
+
+		let sendStatus: { [url: string]: ConnectionStatus } = {};
+		const id = 'kind1111_comment_' + decoded.id + '_' + Math.random().toString(36).substring(2, 9);
+
+		usePublish(
+			id,
+			comment as NostrEvent,
+			(message: WorkerMessage) => {
+				const status = isConnectionStatus(message);
+				if (status) {
+					const relayUrl = status.relayUrl();
+					if (relayUrl) {
+						sendStatus[relayUrl] = status;
+						updateSendStatus(id, sendStatus);
+						if (status.status() === 'true') {
+							$editor.commands.clearContent();
+							showPicker = false;
+							isSubmitting = false;
+						}
+					}
+				}
+			},
+			{
+				defaultRelays: relays,
+				subId: ['kind1111_' + decoded.id, 'comment_' + decoded.id, 'f_' + decoded.id],
+				trackStatus: true
+			}
+		);
+
+		setTimeout(() => {
+			isSubmitting = false;
+		}, 5000);
+	}
 </script>
 
 <div class="h-screen flex items-end" on:click={animator.goBack}>
@@ -225,6 +306,73 @@
 			</div>
 			<RelaysList subId={'kind1111_' + (decoded?.id || '')} {relays} {connectionStatus} mini />
 		</div>
+
+		{#if decoded && !error}
+			<div class="px-4 pb-3 border-b border-primary-content/40">
+				<div class="rounded-md border border-primary-content/60 bg-base-100/70">
+					<Editor
+						class="min-h-10 rounded-md"
+						onSubmit={handleSubmit}
+						bind:editor
+						bind:hasText={composerHasText}
+						bind:focused={composerFocused}
+						{showPicker}
+						inline
+					>
+						Add a comment
+					</Editor>
+					{#if composerFocused || composerHasText || showPicker}
+						<div
+							class="flex items-center justify-between px-2 py-2"
+							transition:slide={{ duration: 160 }}
+						>
+							<div class="flex items-center gap-1">
+								<button
+									type="button"
+									class="p-2 text-base-content/60 hover:text-base-content rounded-full hover:bg-base-200"
+									title="Upload image"
+									on:click|stopPropagation={() => {
+										if ($editor) {
+											$editor.commands.selectFiles();
+											$editor.commands.focus();
+										}
+									}}
+								>
+									<Icon icon="carbon:image" class="w-5 h-5" />
+								</button>
+								<button
+									type="button"
+									class="p-2 text-base-content/60 hover:text-base-content rounded-full hover:bg-base-200"
+									title="Insert GIF"
+									on:click|stopPropagation={() => {
+										showPicker = !showPicker;
+									}}
+									data-gif-trigger
+								>
+									<Icon icon="mage:gif" class="w-5 h-5" />
+								</button>
+							</div>
+							<button
+								type="button"
+								class="px-4 py-2 bg-blue-500 text-highlight rounded-full font-medium hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:opacity-50 disabled:cursor-not-allowed transition"
+								on:click|stopPropagation={handleSubmit}
+								disabled={isSubmitting || !$editor?.getText().trim()}
+							>
+								<div class="flex items-center gap-1">
+									{#if isSubmitting}
+										<span>Signing...</span>
+										<Loader size="sm" />
+									{:else}
+										<span>Comment</span>
+									{/if}
+									<Icon icon="carbon:send" class="w-4 h-4" />
+								</div>
+							</button>
+						</div>
+					{/if}
+				</div>
+			</div>
+		{/if}
 
 		<!-- Content with VirtualList -->
 		<div class="px-2 pb-safe flex-1 min-h-0 overflow-hidden">
