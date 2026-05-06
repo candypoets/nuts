@@ -549,7 +549,7 @@
 		bind:end
 	>
 		<svelte:fragment slot="sticky-header">
-			<div class="bg-base-300 bg-opacity-80 md:border-b border-base-200 pt-safe">
+			<div class="relative bg-base-300 bg-opacity-80 md:border-b border-base-200 pt-safe">
 				<div class="flex justify-between w-feed lg:m-auto h-16 items-center">
 					<div class="flex gap-1 items-center min-w-0 flex-1">
 						{#if following.length > 0}
@@ -589,14 +589,7 @@
 							{/each}
 						{/if}
 					</div>
-					<div
-						class="text-primary cursor-pointer flex-grow text-center"
-						on:click={mergePendingItems}
-					>
-						{#if newPostsCount > 0}
-							{newPostsCount} new posts
-						{/if}
-					</div>
+
 					<div class="flex gap-2 items-center w-1/3 justify-end">
 						<!-- <span class="text font-semibold">{$balance} Sats</span> -->
 						<span class="cursor-pointer" on:click|stopPropagation={() => go('notifications')}>
@@ -610,6 +603,12 @@
 							/>
 						</a>
 					</div>
+				</div>
+				<div
+					class="absolute left-1/2 top-full z-20 mt-2 -translate-x-1/2 cursor-pointer rounded-full bg-info px-4 py-1.5 text-sm font-medium text-info-content shadow-lg backdrop-blur-sm transition-all duration-300 ease-out {newPostsCount > 0 ? 'translate-y-0 opacity-100' : '-translate-y-2 opacity-0 pointer-events-none'}"
+					on:click={mergePendingItems}
+				>
+					{newPostsCount} new posts
 				</div>
 			</div>
 		</svelte:fragment>
