@@ -10,7 +10,12 @@
 	import { activeMintUrl } from 'src/controller/wallet';
 	import { now } from 'src/lib/period';
 	import { DEFAULT_RELAYS } from 'src/lib/env';
-	import { getInvoiceFromProfile, GetLNURLFromProfile, getZapInvoice } from 'src/lib/wallet';
+	import {
+		buildZapRequestTemplate,
+		getInvoiceFromProfile,
+		GetLNURLFromProfile,
+		getZapInvoice
+	} from 'src/lib/wallet';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import User from 'src/routes/explore/user.svelte';
 
@@ -78,6 +83,7 @@
 
 	let zap = true;
 	let receiptRelays: string[] = [];
+	let zapReceiptSupported: boolean | undefined;
 
 	$: walletReadRelays =
 		$walletKind10019 &&
@@ -133,6 +139,7 @@
 		meltquote = undefined;
 		mintquote = undefined;
 		processing = '';
+		zapReceiptSupported = undefined;
 		// status = '';
 		progress = 0;
 	};
@@ -360,12 +367,15 @@
 				zapReceiptRelays.length > 0 ? zapReceiptRelays : ['wss://relay.damus.io', 'wss://nos.lol'];
 			console.log('[zap] Final receipt relays for LNURL:', finalReceiptRelays);
 
-			const zapRequest = {
-				kind: 9734,
+			const zapRequest = buildZapRequestTemplate({
+				pubkey,
+				amount: Number(amount),
+				lnurl,
+				relays: finalReceiptRelays,
 				content: memo,
-				created_at: now(),
-				tags: [['p', pubkey], ...(hexNoteId ? [['e', hexNoteId]] : []), ['relays', ...finalReceiptRelays]]
-			};
+				noteId: hexNoteId,
+				createdAt: now()
+			});
 			console.log('[ecash] Zap request created:', JSON.stringify(zapRequest));
 			console.log('[ecash] Event reference in zap request:', noteId ? `e tag present: ${noteId}` : 'NO e tag - noteId was missing!');
 
@@ -378,11 +388,12 @@
 							? JSON.parse(signedZapRequest)
 							: signedZapRequest;
 						// Get invoice with zap request (LNURL will publish kind 9735 receipt)
-						const { pr } = await getZapInvoice(
+						const { pr, allowsNostr } = await getZapInvoice(
 							lnurl,
 							Number(amount),
 							signedEvent as NostrEvent
 						);
+						zapReceiptSupported = allowsNostr;
 						console.log('send zap with request', amount, fromMint, lnurl, pr);
 
 						const wallet = await $nutsWallet!.getWallet(fromMint);
@@ -393,7 +404,9 @@
 						const { quote, change } = await wallet.meltProofs(meltquote, proofs);
 						if (quote.state !== 'PAID') throw new Error('Payment failed');
 
-						status = 'Zap sent! ⚡️';
+						status = allowsNostr
+							? 'Zap sent! ⚡️'
+							: 'Lightning payment sent. No zap receipt is expected.';
 						// Clear status after 1.5 seconds to show idle state
 						setTimeout(() => {
 							status = '';
@@ -718,6 +731,14 @@
 								<div class="text-sm text-primary">
 									A fee of {fees} sats may apply for this transaction. This covers Lightning network costs
 									and is only reserved - you might get some or all of it refunded.
+								</div>
+							</div>
+						{/if}
+						{#if zapReceiptSupported === false}
+							<div class="px-4 w-full mt-4" transition:fly>
+								<div class="text-sm text-warning">
+									This Lightning Address does not support zap receipts, so this was sent as a normal
+									Lightning payment.
 								</div>
 							</div>
 						{/if}
