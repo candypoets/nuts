@@ -32,6 +32,8 @@
 		asKind1,
 		asKind10002,
 		asKind3,
+		asKind6,
+		asKind20,
 		asParsedEvent,
 		fbArray,
 		isConnectionStatus
@@ -163,53 +165,53 @@
 
 		const parsedEvent = asParsedEvent(message);
 		if (!parsedEvent) return;
-		const kind1 = asKind1(parsedEvent);
-		if (kind1) {
-			// Add kind 1 events to appropriate feed based on mode
-			const eventId = parsedEvent.id();
-			if (!eventId) return;
 
-			// Check Set first for O(1) duplicate detection
-			if (mode === 'profile') {
-				if (profileSeenIds.has(eventId)) return;
-				const reply = kind1.reply()?.id();
-				const root = kind1.root()?.id();
+		if (!shouldIncludeFeedEvent(parsedEvent)) return;
 
-				if (reply && !root) {
-					return;
-				}
-				// If this is a reply, check if it's a direct reply to root
-				if (reply && root) {
-					// If reply ID != root ID, it's a reply to a reply (nested) - skip it
-					if (reply !== root) {
-						return;
-					}
-				}
-				profileSeenIds.add(eventId);
-				profileFeedItems = [...profileFeedItems, parsedEvent].sort(
-					(a, b) => b.createdAt() - a.createdAt()
-				);
-			} else {
-				if (followsSeenIds.has(eventId)) return;
-				const reply = kind1.reply()?.id();
-				const root = kind1.root()?.id();
-				if (reply && !root) {
-					return;
-				}
-				// If this is a reply, check if it's a direct reply to root
-				if (reply && root) {
-					// If reply ID != root ID, it's a reply to a reply (nested) - skip it
-					if (reply !== root) {
-						return;
-					}
-				}
-				followsSeenIds.add(eventId);
-				followsFeedItems = [...followsFeedItems, parsedEvent].sort(
-					(a, b) => b.createdAt() - a.createdAt()
-				);
-			}
-			loading = false;
+		const eventId = parsedEvent.id();
+		if (!eventId) return;
+
+		if (mode === 'profile') {
+			if (profileSeenIds.has(eventId)) return;
+			profileSeenIds.add(eventId);
+			profileFeedItems = [...profileFeedItems, parsedEvent].sort(
+				(a, b) => b.createdAt() - a.createdAt()
+			);
+		} else {
+			if (followsSeenIds.has(eventId)) return;
+			followsSeenIds.add(eventId);
+			followsFeedItems = [...followsFeedItems, parsedEvent].sort(
+				(a, b) => b.createdAt() - a.createdAt()
+			);
 		}
+		loading = false;
+	}
+
+	function shouldIncludeFeedEvent(parsedEvent: ParsedEvent): boolean {
+		const kind = parsedEvent.kind();
+
+		if (!ALL_FEED_KINDS.includes(kind as (typeof ALL_FEED_KINDS)[number])) return false;
+
+		if (kind === 1 || kind === 6) {
+			const kind1 = asKind1(parsedEvent);
+			if (kind1) {
+				const reply = kind1.reply()?.id();
+				const root = kind1.root()?.id();
+
+				if (reply && !root) return false;
+				if (reply && root && reply !== root) return false;
+			}
+
+			if (kind === 6) {
+				const kind6 = asKind6(parsedEvent);
+				if (!kind6?.repostedEvent()) return false;
+			}
+		} else if (kind === 20) {
+			const kind20 = asKind20(parsedEvent);
+			if (kind20 && fbArray(kind20, 'images').some((img) => !img.dim())) return false;
+		}
+
+		return true;
 	}
 
 	function subscribe() {
