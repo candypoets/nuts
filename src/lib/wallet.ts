@@ -2,7 +2,7 @@ import type { Kind0Parsed, ParsedEvent } from '@candypoets/nipworker';
 import { asKind0 } from '@candypoets/nipworker/utils';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 import { bech32 } from 'bech32';
-import { getPublicKey, nip19, type NostrEvent } from 'nostr-tools';
+import { getPublicKey, nip19, type EventTemplate, type NostrEvent } from 'nostr-tools';
 import { generateMnemonic, validateMnemonic, mnemonicToSeedSync } from '@scure/bip39';
 import { wordlist } from '@scure/bip39/wordlists/english';
 import { HDKey } from '@scure/bip32';
@@ -136,6 +136,80 @@ const decodeLNURL = async (lnurl: string): Promise<string> => {
 	return new TextDecoder().decode(Uint8Array.from(requestByteArray));
 };
 
+export const encodeLNURL = (url: string): string => {
+	if (url.toLowerCase().startsWith('lnurl')) {
+		return url.toLowerCase();
+	}
+	return bech32.encode('lnurl', bech32.toWords(new TextEncoder().encode(url)), 2000);
+};
+
+const resolveLNURLEndpoint = async (lnurl: string): Promise<string> => {
+	if (!lnurl.toLowerCase().startsWith('lnurl')) {
+		return lnurl;
+	}
+
+	const endpoint = await decodeLNURL(lnurl);
+	if (!endpoint.startsWith('http://') && !endpoint.startsWith('https://')) {
+		throw new Error('LNURL did not decode to an HTTP endpoint');
+	}
+	return endpoint;
+};
+
+export type ZapRequestParams = {
+	pubkey: string;
+	amount: number;
+	lnurl: string;
+	relays: string[];
+	content?: string;
+	noteId?: string;
+	createdAt: number;
+};
+
+const HEX_64 = /^[0-9a-f]{64}$/i;
+
+export const buildZapRequestTemplate = ({
+	pubkey,
+	amount,
+	lnurl,
+	relays,
+	content = '',
+	noteId,
+	createdAt
+}: ZapRequestParams): EventTemplate => {
+	const amountMsats = Number(amount) * 1000;
+	const encodedLnurl = encodeLNURL(lnurl);
+	const cleanRelays = relays.map((relay) => relay.trim()).filter(Boolean);
+
+	if (!HEX_64.test(pubkey)) {
+		throw new Error('Zap request recipient pubkey must be a 64-character hex string');
+	}
+	if (!Number.isFinite(amountMsats) || amountMsats <= 0 || !Number.isInteger(amountMsats)) {
+		throw new Error('Zap request amount must convert to a positive integer millisat value');
+	}
+	if (!encodedLnurl.startsWith('lnurl')) {
+		throw new Error('Zap request lnurl tag must be a bech32 LNURL value');
+	}
+	if (!cleanRelays.length) {
+		throw new Error('Zap request must include at least one receipt relay');
+	}
+	if (noteId && !HEX_64.test(noteId)) {
+		throw new Error('Zap request event tag must be a 64-character hex string');
+	}
+
+	return {
+		kind: 9734,
+		content,
+		created_at: createdAt,
+		tags: [
+			['p', pubkey],
+			['amount', String(amountMsats)],
+			['lnurl', encodedLnurl],
+			...(noteId ? [['e', noteId]] : []),
+			['relays', ...cleanRelays]
+		]
+	};
+};
+
 const LNURLLookup = async (endpoint: string, amount: number, event?: NostrEvent) => {
 	console.log('ep', endpoint);
 	
@@ -231,11 +305,11 @@ export const getZapInvoice = async (
 	lnurl: string,
 	amount: number,
 	zapRequest: NostrEvent
-): Promise<{ pr: string }> => {
+): Promise<{ pr: string; allowsNostr: boolean }> => {
 	console.log('[zap] getZapInvoice called:', { lnurl, amount, zapRequestKind: zapRequest?.kind, zapRequestId: zapRequest?.id, zapRequestPubkey: zapRequest?.pubkey });
 
 	// Decode LNURL to get the endpoint
-	const endpoint = isValidLNURL(lnurl) ? await decodeLNURL(lnurl) : lnurl;
+	const endpoint = await resolveLNURLEndpoint(lnurl);
 	console.log('[zap] Decoded endpoint:', endpoint);
 
 	const endpointUrl = new URL(endpoint);
@@ -308,7 +382,7 @@ export const getZapInvoice = async (
 	}
 
 	console.log('[zap] Got invoice:', invoiceData.pr.slice(0, 50) + '...');
-	return { pr: invoiceData.pr };
+	return { pr: invoiceData.pr, allowsNostr: !!meta.allowsNostr };
 };
 
 // NIP-06 base derivation path for Nostr
