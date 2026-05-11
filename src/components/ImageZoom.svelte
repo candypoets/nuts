@@ -15,11 +15,21 @@
 	} from 'src/controller/image';
 	import Footer from 'src/routes/explore/_post/footer.svelte';
 	import { fade } from 'svelte/transition';
-	import { onMount } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
+
+	function handleKeydown(e: KeyboardEvent) {
+		if (e.key === 'Escape') {
+			closeZoom();
+		}
+	}
 
 	// Load media-chrome for zoom video controls
 	onMount(async () => {
 		await import('media-chrome');
+		window.addEventListener('keydown', handleKeydown);
+		return () => {
+			window.removeEventListener('keydown', handleKeydown);
+		};
 	});
 
 	import { swipeDismiss } from 'src/actions/swipeDismiss';
