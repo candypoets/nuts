@@ -21,3 +21,4 @@ archive/
 *.wasm
 server.js
 .pi
+.kimi/

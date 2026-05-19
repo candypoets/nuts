@@ -2,6 +2,7 @@
 	import { MessageType, type ParsedEvent, type WorkerMessage } from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import { asKind0, asParsedEvent, isKind0 } from '@candypoets/nipworker/utils';
+	import Icon from '@iconify/svelte';
 	import Loader from 'src/components/Loader.svelte';
 	import { sortBy, throttle, uniqBy } from 'lodash';
 	import { nip19 } from 'nostr-tools';
@@ -147,7 +148,7 @@
 	{#if items.length === 0}
 		<div class="py-3 px-4 text-center text-gray-500">No matching profiles found</div>
 	{:else}
-		{#each items as item, index}
+		{#each items as item, index (item.pubkey())}
 			{@const kind0 = asKind0(item)}
 			<button
 				class="w-full px-3 py-2 flex items-center gap-2 hover:bg-gray-100 text-left {selectedIndex ===

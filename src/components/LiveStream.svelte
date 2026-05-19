@@ -287,7 +287,7 @@
 
 		usePublish(publishId, post, (message) => {
 			const status = isConnectionStatus(message);
-			if (status && status.success()) {
+			if (status?.status() === 'true') {
 				chatInput = '';
 				isSubmitting = false;
 			}
