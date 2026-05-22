@@ -142,6 +142,9 @@
 
 	let sub: (() => void) | undefined;
 	let relaysub: (() => void) | undefined;
+	let relayStoreUnsubscribe: (() => void) | undefined;
+	let currentRelayStoreId: string | undefined;
+	let currentRelayKey = '';
 	let connectionStatus: { [url: string]: ConnectionStatus } = {};
 
 	let replies: ParsedEvent[] = [];
@@ -386,7 +389,10 @@
 		}
 	}
 
-	onDestroy(unsubscribe);
+	onDestroy(() => {
+		relayStoreUnsubscribe?.();
+		unsubscribe();
+	});
 
 	let relayCounter = 0;
 
@@ -536,9 +542,15 @@
 		searchState = 'not-found';
 	}
 
-	$: effectiveNid &&
-		relaySub(effectiveNid).subscribe((subRelays) => {
-			if (subRelays && !isEqual(relays, subRelays)) {
+	$: if (effectiveNid && effectiveNid !== currentRelayStoreId) {
+		relayStoreUnsubscribe?.();
+		currentRelayStoreId = effectiveNid;
+		currentRelayKey = relays.join('\n');
+
+		relayStoreUnsubscribe = relaySub(effectiveNid).subscribe((subRelays) => {
+			const nextRelayKey = subRelays?.join('\n') ?? '';
+			if (subRelays && nextRelayKey !== currentRelayKey) {
+				currentRelayKey = nextRelayKey;
 				relays = subRelays;
 				unsubscribe();
 				subscribe(effectiveNid + relayCounter);
@@ -546,6 +558,7 @@
 				connectionStatus = {};
 			}
 		});
+	}
 </script>
 
 {#if hasRoot}
