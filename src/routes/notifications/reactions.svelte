@@ -211,10 +211,10 @@
 				<div class="mt-3 border-t pt-3">
 					{#each post.parsed.events.slice(0, 10) as event}
 						<div class="flex items-center gap-2 mb-2">
-							<Avatar pubkey={event.pubkey} {context} />
+							<Avatar pubkey={event.pubkey()} {context} />
 							<div class="flex items-center gap-2">
 								<span class="font-medium text-sm">
-									<User pubkey={event.pubkey} link={false} {context} />
+									<User pubkey={event.pubkey()} link {context} />
 								</span>
 								<span class="text-xs text-gray-500">{formatTime(event.createdAt())}</span>
 							</div>

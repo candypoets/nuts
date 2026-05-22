@@ -143,7 +143,7 @@
 			{#if post.parsed.events.length > 1}
 				<div class="flex -space-x-2 mb-3">
 					{#each post.parsed.events.slice(0, 5) as event}
-						<a href="/{event.pubkey}" class="relative z-0 hover:z-10">
+						<a href="/{event.pubkey()}" class="relative z-0 hover:z-10">
 							<Avatar pubkey={event.pubkey()} query={false} {context} />
 						</a>
 					{/each}
