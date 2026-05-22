@@ -68,6 +68,21 @@ export const pathNeedsLogin = [
 	// 'zoom'
 ];
 const manager = getManager();
+let cleanupTimer: ReturnType<typeof setTimeout> | undefined;
+
+function scheduleCleanup(delay = 1000) {
+	if (cleanupTimer) clearTimeout(cleanupTimer);
+
+	cleanupTimer = setTimeout(() => {
+		cleanupTimer = undefined;
+		requestAnimationFrame(() => {
+			requestAnimationFrame(() => {
+				manager.cleanup();
+			});
+		});
+	}, delay);
+}
+
 export function goBack() {
 	// Get current path
 	const currentPath = get(page).url.pathname;
@@ -76,7 +91,6 @@ export function goBack() {
 
 	// Find the last "/" and get everything before it
 	const lastSlashIndex = currentPath.lastIndexOf('/');
-	manager.cleanup();
 	if (lastSlashIndex > 0) {
 		// Navigate to the parent path (everything before last slash)
 		const parentPath = currentPath.substring(0, lastSlashIndex);
@@ -85,6 +99,7 @@ export function goBack() {
 		// If no slash or at root, go to root
 		goto(rootPath);
 	}
+	scheduleCleanup();
 }
 
 export function goToRoot() {
@@ -93,8 +108,8 @@ export function goToRoot() {
 
 	// Get the root segment (e.g., /home, /explore, /chat from /home/some/modal)
 	const rootPath = currentPath.split('/')[1];
-	manager.cleanup();
 	goto('/' + rootPath);
+	scheduleCleanup();
 }
 
 export function go(eventPath: string) {
@@ -109,9 +124,7 @@ export function go(eventPath: string) {
 
 	// Check if the current URL already ends with the profile we're trying to navigate to
 	if (!currentPath.endsWith(eventPath)) {
-		setTimeout(() => {
-			manager.cleanup();
-		}, 300);
 		goto(`${currentPath}/${eventPath}`);
+		scheduleCleanup();
 	}
 }
