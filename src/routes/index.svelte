@@ -405,6 +405,10 @@
 			//	carouselAnimator.toggleOverviewMode(500, $isMobile);
 			// }
 		} else if (e.key === 'ArrowLeft') {
+			if ($zoomed !== undefined) {
+				return;
+			}
+
 			if ($overviewModeStore || isEditing()) {
 				// In overview mode, arrow keys do nothing (or could navigate selection)
 				// Also ignore when user is typing in an input
@@ -412,6 +416,10 @@
 			}
 			carouselAnimator.navigateLeft();
 		} else if (e.key === 'ArrowRight') {
+			if ($zoomed !== undefined) {
+				return;
+			}
+
 			if ($overviewModeStore || isEditing()) {
 				// Ignore when user is typing in an input
 				return;
