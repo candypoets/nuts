@@ -12,6 +12,7 @@
 	import { resumePendingTransactions, clearOldTransactions } from 'src/model/cashu/tx-recovery';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
+	$: standaloneRoute = $page.url.pathname.startsWith('/create');
 
 	function setViewport() {
 		document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
@@ -62,9 +63,13 @@
 	{@html webManifestLink}
 </svelte:head>
 
-{#key $key?.pub}
-	<App />
-{/key}
+{#if standaloneRoute}
+	<slot />
+{:else}
+	{#key $key?.pub}
+		<App />
+	{/key}
+{/if}
 
 {#if $zoomed !== undefined}
 	<ImageZoom />
