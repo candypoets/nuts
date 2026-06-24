@@ -162,18 +162,18 @@
 		<div>
 			<p class="small">Trust</p>
 			<h2>Real People. Real Communities.</h2>
-		</div>
-		<div class="prose">
-			<p>Most social networks spend billions fighting bots.</p>
-			<p>Nuts starts somewhere else.</p>
-			<p>Communities grow through relationships.</p>
-			<p>Invite someone. Share a QR code. Print a flyer. Meet at an event.</p>
-			<p>Join through people you trust.</p>
-			<p>
-				A sports club knows its members. A church knows its congregation. A village knows its
-				residents.
-			</p>
-			<p>Trust emerges naturally.</p>
+			<div class="prose">
+				<p>Most social networks spend billions fighting bots.</p>
+				<p>Nuts starts somewhere else.</p>
+				<p>Communities grow through relationships.</p>
+				<p>Invite someone. Share a QR code. Print a flyer. Meet at an event.</p>
+				<p>Join through people you trust.</p>
+				<p>
+					A sports club knows its members. A church knows its congregation. A village knows its
+					residents.
+				</p>
+				<p>Trust emerges naturally.</p>
+			</div>
 		</div>
 		<div class="visual-slot dark-slot">
 			<span>Visual placeholder</span>
@@ -199,8 +199,8 @@
 			{/each}
 		</div>
 		<div class="callout">
-			<p>Most social networks ask: <strong>Who do you follow?</strong></p>
-			<p>Nuts asks: <strong>What are you part of?</strong></p>
+			<p>Followers don’t define who you are.</p>
+			<p>Communities do.</p>
 		</div>
 	</section>
 
@@ -330,7 +330,7 @@
 	}
 
 	.trust-slide {
-		grid-template-columns: minmax(0, 0.9fr) minmax(260px, 0.72fr) minmax(280px, 0.58fr);
+		grid-template-columns: minmax(0, 1fr) minmax(280px, 0.58fr);
 		background: #4a5541;
 		color: #fff8ea;
 	}
@@ -600,6 +600,7 @@
 	.trust-slide .prose {
 		display: grid;
 		gap: 12px;
+		margin-top: 32px;
 	}
 
 	.trust-slide .prose p {

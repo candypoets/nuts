@@ -8,7 +8,7 @@ WORKDIR /app
 
 ARG VITE_INDEXER_RELAYS="wss://relay.nostr.band,wss://purplepag.es,wss://relay.damus.io"
 ARG VITE_SEARCH_RELAYS="wss://relay.nostr.band"
-ARG VITE_DEFAULT_RELAYS="wss://relay.thibautduchene.fr,wss://relay.damus.io,wss://nos.lol"
+ARG VITE_DEFAULT_RELAYS="wss://relay.nuts.cash,wss://relay.thibautduchene.fr,wss://relay.damus.io,wss://nos.lol"
 ARG PUBLIC_LNUTS_DOMAIN="nuts.cash"
 ARG VITE_ENABLE_SSL="false"
 ARG VITE_NIPWORKER_PROXY_URL

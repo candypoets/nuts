@@ -1,16 +1,36 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
 
-	import { getManager, type ParsedEvent } from '@candypoets/nipworker';
+	import {
+		getManager,
+		type ParsedEvent,
+		type RequestObject,
+		type WorkerMessage
+	} from '@candypoets/nipworker';
+	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import { asKind0 } from '@candypoets/nipworker/utils';
+	import { asNip51, isParsedEvent } from '@candypoets/nipworker/utils';
 	import { key } from 'src/controller';
 	import { kind0 } from 'src/controller/nostr';
+	import {
+		fetchAdminRelayInfo,
+		relaySetAddressesFromRelayFeed,
+		relayUrlsFromNip51List,
+		type RelayInfo
+	} from 'src/lib/adminRelays';
+	import { DEFAULT_RELAYS, INDEXER_RELAYS } from 'src/lib/env';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import { go } from 'src/routes/modals/modal';
-	import { getContext } from 'svelte';
+	import { getContext, onDestroy, onMount } from 'svelte';
 
-	let animator = getContext('animator');
+	let animator: { goBack: () => void } = getContext('animator');
 	let search: string;
+	let adminRelaySets: ParsedEvent[] = [];
+	let adminRelays: RelayInfo[] = [];
+	let adminRelaysLoading = false;
+	let relayFeedReady = false;
+	let unsubscribeRelayFeed: (() => void) | undefined;
+	let unsubscribeRelaySets: (() => void) | undefined;
 
 	const manager = getManager();
 
@@ -22,6 +42,126 @@
 	$: accounts = Object.keys(manager.getAccounts()).sort((a, b) =>
 		$key?.pub === a ? -1 : $key?.pub === b ? 1 : a.localeCompare(b)
 	);
+
+	function loadAdminRelayInfos() {
+		const pubkey = $key?.pub;
+		if (!pubkey) return;
+
+		const urls = Array.from(
+			new Set(
+				adminRelaySets.flatMap((event) => {
+					const list = asNip51(event);
+					return relayUrlsFromNip51List(list);
+				})
+			)
+		);
+		adminRelays = urls.map((url) => ({ url, isAdmin: false }));
+		if (!urls.length) {
+			adminRelaysLoading = false;
+			return;
+		}
+
+		adminRelaysLoading = true;
+		Promise.all(urls.map((url) => fetchAdminRelayInfo(url, pubkey))).then((infos) => {
+			adminRelays = infos;
+			adminRelaysLoading = false;
+		});
+	}
+
+	function subscribeAdminRelaySets(addresses: string[]) {
+		const pubkey = $key?.pub;
+		if (!pubkey) return;
+		unsubscribeRelaySets?.();
+		adminRelaySets = [];
+		adminRelays = [];
+
+		const relays = Array.from(
+			new Set([...INDEXER_RELAYS, ...DEFAULT_RELAYS, 'wss://relay.nuts.cash'])
+		);
+		const requests: RequestObject[] = addresses.map((address) => {
+			const [, author, d] = address.split(':');
+			return {
+				kinds: [30002],
+				authors: [author || pubkey],
+				tags: { '#d': [d] },
+				limit: 1,
+				relays,
+				cacheFirst: true
+			};
+		});
+
+		if (!requests.length) {
+			adminRelaysLoading = false;
+			return;
+		}
+
+		unsubscribeRelaySets = useSubscription(
+			'profile_relay_sets_' + pubkey,
+			requests,
+			handleAdminRelaySet,
+			{ bytesPerEvent: 10 * 1024 }
+		);
+		window.setTimeout(() => {
+			if (!adminRelaySets.length) adminRelaysLoading = false;
+		}, 1800);
+	}
+
+	function handleRelayFeed(message: WorkerMessage) {
+		const parsedEvent = isParsedEvent(message);
+		if (!parsedEvent || parsedEvent.kind() !== 10012) return;
+		const list = asNip51(parsedEvent);
+		relayFeedReady = true;
+		subscribeAdminRelaySets(relaySetAddressesFromRelayFeed(list));
+	}
+
+	function handleAdminRelaySet(message: WorkerMessage) {
+		const parsedEvent = isParsedEvent(message);
+		if (!parsedEvent || parsedEvent.kind() !== 30002) return;
+		const address = `30002:${parsedEvent.pubkey()}:${asNip51(parsedEvent)?.d()}`;
+		const existingIndex = adminRelaySets.findIndex(
+			(event) => `30002:${event.pubkey()}:${asNip51(event)?.d()}` === address
+		);
+		if (existingIndex !== -1) {
+			if (parsedEvent.createdAt() <= adminRelaySets[existingIndex].createdAt()) return;
+			adminRelaySets = adminRelaySets.map((event, index) =>
+				index === existingIndex ? parsedEvent : event
+			);
+		} else {
+			adminRelaySets = [...adminRelaySets, parsedEvent];
+		}
+		loadAdminRelayInfos();
+	}
+
+	onMount(() => {
+		if (!$key?.pub) return;
+		adminRelaysLoading = true;
+		const relays = Array.from(
+			new Set([...INDEXER_RELAYS, ...DEFAULT_RELAYS, 'wss://relay.nuts.cash'])
+		);
+		const requests: RequestObject[] = [
+			{
+				kinds: [10012],
+				authors: [$key.pub],
+				limit: 1,
+				relays,
+				cacheFirst: true
+			}
+		];
+		unsubscribeRelayFeed = useSubscription(
+			'profile_relay_feed_' + $key.pub,
+			requests,
+			handleRelayFeed,
+			{ bytesPerEvent: 10 * 1024 }
+		);
+		window.setTimeout(() => {
+			if (!relayFeedReady) adminRelaysLoading = false;
+		}, 1800);
+	});
+
+	onDestroy(() => {
+		unsubscribeRelayFeed?.();
+		unsubscribeRelaySets?.();
+	});
 </script>
 
 <div class="h-screen bg-base-300 bg-opacity-85">
@@ -33,7 +173,7 @@
 		</div>
 		<div class="flex items-center justify-between px-4 mt-4">
 			<div class="flex gap-2">
-				{#each accounts as key, index}
+				{#each accounts as key, index (key)}
 					<button
 						on:click={() => (index ? manager.switchAccount(key) : go('kind0'))}
 						class="btn btn-circle"
@@ -126,6 +266,37 @@
 				</div>
 				<Icon icon="carbon:arrow-right" class="w-16 h-6" />
 			</div>
+		</div>
+		<h3 class="font-bold">Admin relays</h3>
+		<div class="my-4 rounded-lg border">
+			{#if adminRelaysLoading}
+				<div class="flex items-center gap-3 p-4">
+					<span class="loading loading-spinner loading-sm"></span>
+					<span class="text-sm">Checking relays</span>
+				</div>
+			{:else if adminRelays.length}
+				{#each adminRelays as relay (relay.url)}
+					<div class="flex items-center justify-around py-3 border-b last:border-none">
+						<Icon icon="mingcute:server-line" class="w-16 h-6" />
+						<div class="min-w-0 flex-grow pr-3">
+							<strong class="block truncate">{relay.name || relay.url}</strong>
+							<p class="truncate text-xs opacity-70">{relay.url}</p>
+							{#if relay.error}
+								<p class="text-xs text-warning">{relay.error}</p>
+							{/if}
+						</div>
+						<span
+							class={`badge mr-4 ${
+								relay.isAdmin ? 'badge-success' : relay.error ? 'badge-warning' : 'badge-ghost'
+							}`}
+						>
+							{relay.isAdmin ? 'admin' : relay.error ? 'unknown' : 'not admin'}
+						</span>
+					</div>
+				{/each}
+			{:else}
+				<div class="p-4 text-sm opacity-70">No admin relay set found.</div>
+			{/if}
 		</div>
 	</div>
 </div>

@@ -1,4 +1,9 @@
-const FALLBACK_RELAYS = ['wss://relay.damus.io', 'wss://relay.nostr.band', 'wss://purplepag.es'];
+const FALLBACK_RELAYS = [
+	'wss://relay.nuts.cash',
+	'wss://relay.damus.io',
+	'wss://relay.nostr.band',
+	'wss://purplepag.es'
+];
 
 function parseRelayEnv(value: string | undefined, fallback = FALLBACK_RELAYS) {
 	return (value || fallback.join(','))

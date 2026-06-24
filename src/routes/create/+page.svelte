@@ -1,168 +1,456 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { QRCode } from 'svelte-qrcode-image/util';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
+	import {
+		getManager,
+		type ParsedEvent,
+		type RequestObject,
+		type WorkerMessage
+	} from '@candypoets/nipworker';
+	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
+	import { asNip51, isConnectionStatus, isParsedEvent } from '@candypoets/nipworker/utils';
+	import { schnorr } from '@noble/curves/secp256k1';
+	import { bytesToHex } from '@noble/hashes/utils';
 	import {
 		ArrowLeft,
 		ArrowRight,
+		CalendarDays,
 		CheckCircle2,
-		Copy,
-		Download,
+		Ellipsis,
 		ImagePlus,
+		Loader2,
+		Rocket,
+		Ticket,
+		TreePine,
+		UserRound,
+		UsersRound,
 		Users
 	} from 'lucide-svelte';
+	import { nip19, type EventTemplate } from 'nostr-tools';
+	import { QRCode } from 'svelte-qrcode-image/util';
 
-	type CommunityType = 'Sports club' | 'Association' | 'School' | 'Event' | 'Local group';
-	type Visibility = 'Public' | 'Private';
-	type Participation = 'Members only' | 'Everyone can reply' | 'Open';
-	type MembershipChoice = 'No' | 'Yes' | 'Later';
+	import { key } from 'src/controller';
+	import CommunityBenefitsPanel from 'src/components/CommunityBenefitsPanel.svelte';
+	import CommunityCreatedScreen from 'src/components/CommunityCreatedScreen.svelte';
+	import {
+		ADMIN_RELAY_SET_D,
+		buildAdminRelaySetTags,
+		mergeRelayFeedIndexTags
+	} from 'src/lib/adminRelays';
+	import { DEFAULT_RELAYS, INDEXER_RELAYS } from 'src/lib/env';
+	import { now } from 'src/lib/period';
+	import { onDestroy, onMount } from 'svelte';
 
-	const steps = [
-		'Community',
-		'Visibility',
-		'Participation',
-		'Joining',
-		'Memberships',
-		'Done'
+	type CreateState = 'idle' | 'creating-account' | 'creating-relay' | 'done' | 'error';
+	type CommunityType =
+		| 'Sports Club'
+		| 'Startup Community'
+		| 'Village'
+		| 'Event'
+		| 'Organization'
+		| 'Other';
+
+	type RelayRecord = {
+		id: string;
+		name?: string;
+		status: string;
+		domain: string;
+		relay_url: string;
+		base_url: string;
+		required_badge: string;
+		badge_issuer_pubkey: string;
+		admin_pubkeys: string[];
+	};
+
+	const manager = getManager();
+	const coordinatorUrl = import.meta.env.VITE_COORDINATOR_URL || 'https://coordinator.nuts.cash';
+	const RELAY_LIST_PUBLISH_RELAYS = ['wss://relay.nuts.cash', 'wss://relay.damus.io'];
+	const communityTypes: Array<{ label: CommunityType; icon: typeof Users }> = [
+		{ label: 'Sports Club', icon: UsersRound },
+		{ label: 'Startup Community', icon: Rocket },
+		{ label: 'Village', icon: TreePine },
+		{ label: 'Event', icon: Ticket },
+		{ label: 'Organization', icon: Users },
+		{ label: 'Other', icon: Ellipsis }
 	];
 
-	const communityTypes: CommunityType[] = [
-		'Sports club',
-		'Association',
-		'School',
-		'Event',
-		'Local group'
-	];
-
-	const visibilityOptions: Array<{ value: Visibility; title: string; description: string }> = [
-		{
-			value: 'Public',
-			title: 'Public',
-			description: 'Anyone can follow and read public posts.'
-		},
-		{
-			value: 'Private',
-			title: 'Private',
-			description: 'Only invited people can see the community.'
-		}
-	];
-
-	const participationOptions: Array<{ value: Participation; title: string; description: string }> = [
-		{
-			value: 'Members only',
-			title: 'Members only',
-			description: 'Members can post and reply.'
-		},
-		{
-			value: 'Everyone can reply',
-			title: 'Everyone can reply',
-			description: 'Members can post. Anyone can reply.'
-		},
-		{
-			value: 'Open',
-			title: 'Open',
-			description: 'Anyone can post and reply.'
-		}
-	];
-
-	const joinOptions = [
-		{
-			key: 'inviteLinks',
-			title: 'Invite links',
-			description: 'Create links you can send on WhatsApp or email.'
-		},
-		{
-			key: 'qrCodes',
-			title: 'QR codes',
-			description: 'Print flyers, stickers or posters.'
-		},
-		{
-			key: 'manualApproval',
-			title: 'Manual approval',
-			description: 'Review people before they become members.'
-		}
-	] as const;
-
-	const membershipOptions: Array<{ value: MembershipChoice; title: string }> = [
-		{ value: 'No', title: 'No, people join for free.' },
-		{ value: 'Yes', title: 'Yes, we sell memberships.' },
-		{ value: 'Later', title: 'Later.' }
-	];
-
-	const benefitOptions = ['Can post', 'Can comment', 'Member badge', 'Event access'];
-
-	let currentStep = 0;
-	let name = 'FC Avenir';
-	let communityType: CommunityType = 'Sports club';
-	let description = 'A place for players, parents and supporters.';
-	let location = 'Luxembourg';
-	let visibility: Visibility = 'Public';
-	let participation: Participation = 'Open';
-	let inviteLinks = true;
-	let qrCodes = true;
-	let manualApproval = true;
-	let membershipChoice: MembershipChoice = 'Yes';
-	let membershipName = 'Club Member';
-	let membershipPrice = '€100 / year';
-	let benefits = ['Can post', 'Can comment', 'Member badge', 'Event access'];
-	let imageUrl = '';
-	let imageDataUrl = '';
-	let imageName = '';
+	let communityName = '';
+	let communityDescription = '';
+	let communityImage = '';
+	let communityImageName = '';
+	let communityType: CommunityType = 'Sports Club';
+	let creatorName = '';
+	let picture = '';
+	let pictureName = '';
+	let state: CreateState = 'idle';
+	let error = '';
+	let relay: RelayRecord | undefined;
+	let recoveryNsec = '';
 	let qrDataUrl = '';
 	let qrRequest = 0;
-	let isExportingPdf = false;
+	let adminRelaySet: ParsedEvent | undefined;
+	let relayFeed: ParsedEvent | undefined;
+	let adminRelaySetFetch: Promise<ParsedEvent | undefined> | undefined;
+	let relayFeedFetch: Promise<ParsedEvent | undefined> | undefined;
+	let unsubscribeAdminRelaySet: (() => void) | undefined;
+	let unsubscribeRelayFeed: (() => void) | undefined;
+	let publishUnsubscribers: Array<() => void> = [];
 
-	$: progress = ((currentStep + 1) / steps.length) * 100;
-	$: accessSummary = visibility === 'Private' ? 'Private community' : `${participation} community`;
-	$: inviteUrl = `https://nuts.cash/join/${
-		name
-			.toLowerCase()
-			.replace(/[^a-z0-9]+/g, '-')
-			.replace(/^-|-$/g, '') || 'community'
-	}`;
-	$: selectedJoinMethods = [
-		inviteLinks && 'Invite links',
-		qrCodes && 'QR codes',
-		manualApproval && 'Manual approval'
-	].filter(Boolean);
-	$: generateQr(inviteUrl);
+	$: communitySlug = slugFromName(communityName);
+	$: inviteUrl = relay ? `${relay.base_url}/redeem` : `https://nuts.cash/join/${communitySlug}`;
+	$: forceSuccess = $page.url.searchParams.has('success');
+	$: successInviteUrl = forceSuccess ? `https://nuts.cash/join/${communitySlug}` : inviteUrl;
+	$: displayCommunityName = forceSuccess && !communityName ? 'The Office' : communityName;
+	$: displayCommunityDescription =
+		forceSuccess && !communityDescription ? 'Coolest coworking in town' : communityDescription;
+	$: accountReady = Boolean($key?.pub);
+	$: canCreate = communityName.trim().length > 1 && (accountReady || creatorName.trim().length > 1);
+	$: generateQr(successInviteUrl);
 
-	function goToStep(step: number) {
-		currentStep = Math.min(Math.max(step, 0), steps.length - 1);
+	function slugFromName(value: string) {
+		return (
+			value
+				.toLowerCase()
+				.replace(/[^a-z0-9]+/g, '-')
+				.replace(/^-|-$/g, '')
+				.slice(0, 63)
+				.replace(/-$/g, '') || 'community'
+		);
 	}
 
-	function next() {
-		goToStep(currentStep + 1);
-	}
-
-	function previous() {
-		goToStep(currentStep - 1);
-	}
-
-	function toggleBenefit(benefit: string) {
-		benefits = benefits.includes(benefit)
-			? benefits.filter((item) => item !== benefit)
-			: [...benefits, benefit];
-	}
-
-	function toggleJoin(key: (typeof joinOptions)[number]['key']) {
-		if (key === 'inviteLinks') inviteLinks = !inviteLinks;
-		if (key === 'qrCodes') qrCodes = !qrCodes;
-		if (key === 'manualApproval') manualApproval = !manualApproval;
-	}
-
-	function handleImageUpload(event: Event) {
+	function readImageFile(event: Event, onLoad: (value: string, name: string) => void) {
 		const input = event.currentTarget as HTMLInputElement;
 		const file = input.files?.[0];
 		if (!file) return;
-		if (imageUrl) URL.revokeObjectURL(imageUrl);
-		imageUrl = URL.createObjectURL(file);
-		imageName = file.name;
 
 		const reader = new FileReader();
 		reader.onload = () => {
-			imageDataUrl = typeof reader.result === 'string' ? reader.result : '';
+			const value = typeof reader.result === 'string' ? reader.result : '';
+			onLoad(value, file.name);
 		};
 		reader.readAsDataURL(file);
+	}
+
+	function handleCommunityImageUpload(event: Event) {
+		readImageFile(event, (value, name) => {
+			communityImage = value;
+			communityImageName = name;
+		});
+	}
+
+	function handlePictureUpload(event: Event) {
+		readImageFile(event, (value, name) => {
+			picture = value;
+			pictureName = name;
+		});
+	}
+
+	async function connectWithExtension() {
+		const nostr = (window as Window & { nostr?: { getPublicKey: () => Promise<string> } }).nostr;
+		if (!nostr) return;
+		state = 'creating-account';
+		error = '';
+		try {
+			const pubkey = await nostr.getPublicKey();
+			manager.setSigner('nip07');
+			$key = {
+				pub: pubkey,
+				npub: nip19.npubEncode(pubkey),
+				hasSigner: true
+			};
+			state = 'idle';
+		} catch (err) {
+			state = 'error';
+			error = err instanceof Error ? err.message : 'Could not connect signer.';
+		}
+	}
+
+	function createLocalAccount() {
+		const secret = schnorr.utils.randomSecretKey();
+		const privkey = bytesToHex(secret);
+		const pubkey = bytesToHex(schnorr.getPublicKey(secret));
+		recoveryNsec = nip19.nsecEncode(secret);
+
+		manager.setSigner('privkey', privkey);
+		$key = {
+			pub: pubkey,
+			priv: privkey,
+			npub: nip19.npubEncode(pubkey),
+			nsec: recoveryNsec,
+			hasSigner: true
+		};
+
+		const metadata: EventTemplate = {
+			kind: 0,
+			tags: [],
+			content: JSON.stringify({
+				name: creatorName.trim(),
+				display_name: creatorName.trim(),
+				picture,
+				about: `Creator of ${communityName.trim()}`
+			}),
+			created_at: now()
+		};
+
+		usePublish('community_signup_' + pubkey, metadata, () => undefined, {
+			trackStatus: true,
+			defaultRelays: INDEXER_RELAYS
+		});
+
+		return pubkey;
+	}
+
+	function publishRelayList(pubkey: string, communityRelay: string) {
+		const relays = Array.from(new Set([communityRelay, ...INDEXER_RELAYS]));
+		const relayList: EventTemplate = {
+			kind: 10002,
+			tags: relays.map((relayUrl) => ['r', relayUrl]),
+			content: '',
+			created_at: now()
+		};
+
+		usePublish('community_relay_list_' + pubkey, relayList, () => undefined, {
+			trackStatus: true,
+			defaultRelays: INDEXER_RELAYS
+		});
+	}
+
+	function cleanupPublishes() {
+		for (const unsubscribe of publishUnsubscribers) {
+			unsubscribe();
+		}
+		publishUnsubscribers = [];
+	}
+
+	function publishRequiredEvent(
+		pubId: string,
+		event: EventTemplate,
+		onSuccess: () => void,
+		onError: (error: Error) => void
+	) {
+		let settled = false;
+		let unsubscribePublish: () => void = () => {};
+		const timeout = window.setTimeout(() => {
+			if (settled) return;
+			settled = true;
+			unsubscribePublish();
+			onError(new Error(`Could not publish kind ${event.kind} to the relay list relays.`));
+		}, 8000);
+
+		unsubscribePublish = usePublish(
+			pubId,
+			event,
+			(message: WorkerMessage) => {
+				const status = isConnectionStatus(message);
+				if (status?.status() !== 'true') return;
+				if (settled) return;
+				settled = true;
+				window.clearTimeout(timeout);
+				window.setTimeout(() => {
+					unsubscribePublish();
+					publishUnsubscribers = publishUnsubscribers.filter(
+						(unsubscribe) => unsubscribe !== unsubscribePublish
+					);
+					onSuccess();
+				}, 0);
+			},
+			{
+				trackStatus: true,
+				defaultRelays: RELAY_LIST_PUBLISH_RELAYS
+			}
+		);
+
+		publishUnsubscribers.push(unsubscribePublish);
+	}
+
+	function publishCommunityRelaySet(
+		pubkey: string,
+		communityRelay: string,
+		onSuccess: () => void,
+		onError: (error: Error) => void
+	) {
+		const relaySet: EventTemplate = {
+			kind: 30002,
+			tags: buildAdminRelaySetTags(adminRelaySet, communityRelay),
+			content: '',
+			created_at: now()
+		};
+
+		const relayFeeds: EventTemplate = {
+			kind: 10012,
+			tags: mergeRelayFeedIndexTags(relayFeed, pubkey, ['admin', 'member', 'following']),
+			content: '',
+			created_at: now()
+		};
+
+		publishRequiredEvent(
+			'community_relay_feeds_' + pubkey,
+			relayFeeds,
+			() => {
+				publishRequiredEvent('community_admin_relay_set_' + pubkey, relaySet, onSuccess, onError);
+			},
+			onError
+		);
+	}
+
+	function fetchAdminRelaySet(pubkey: string) {
+		unsubscribeAdminRelaySet?.();
+
+		const relays = Array.from(
+			new Set([...INDEXER_RELAYS, ...DEFAULT_RELAYS, 'wss://relay.nuts.cash'])
+		);
+		const requests: RequestObject[] = [
+			{
+				kinds: [30002],
+				authors: [pubkey],
+				tags: { '#d': [ADMIN_RELAY_SET_D] },
+				limit: 10,
+				relays,
+				cacheFirst: false,
+				noCache: true
+			}
+		];
+
+		adminRelaySetFetch = new Promise((resolveAdminRelaySet) => {
+			let resolved = false;
+			const resolveLatest = () => {
+				if (resolved) return;
+				resolved = true;
+				window.clearTimeout(timeout);
+				resolveAdminRelaySet(adminRelaySet);
+			};
+			const timeout = window.setTimeout(resolveLatest, 3000);
+			unsubscribeAdminRelaySet = useSubscription(
+				'community_admin_relay_set_fetch_' + pubkey,
+				requests,
+				(message: WorkerMessage) => {
+					const status = isConnectionStatus(message);
+					if (status?.status() === 'EOSE') {
+						resolveLatest();
+						return;
+					}
+
+					const parsedEvent = isParsedEvent(message);
+					if (!parsedEvent || parsedEvent.kind() !== 30002) return;
+					const list = asNip51(parsedEvent);
+					if (list?.d() !== ADMIN_RELAY_SET_D) return;
+					if (!adminRelaySet || parsedEvent.createdAt() > adminRelaySet.createdAt()) {
+						adminRelaySet = parsedEvent;
+					}
+				},
+				{ bytesPerEvent: 10 * 1024 }
+			);
+		});
+
+		return adminRelaySetFetch;
+	}
+
+	function fetchRelayFeed(pubkey: string) {
+		unsubscribeRelayFeed?.();
+
+		const relays = Array.from(
+			new Set([...INDEXER_RELAYS, ...DEFAULT_RELAYS, 'wss://relay.nuts.cash'])
+		);
+		const requests: RequestObject[] = [
+			{
+				kinds: [10012],
+				authors: [pubkey],
+				limit: 10,
+				relays,
+				cacheFirst: false,
+				noCache: true
+			}
+		];
+
+		relayFeedFetch = new Promise((resolveRelayFeed) => {
+			let resolved = false;
+			const resolveLatest = () => {
+				if (resolved) return;
+				resolved = true;
+				window.clearTimeout(timeout);
+				resolveRelayFeed(relayFeed);
+			};
+			const timeout = window.setTimeout(resolveLatest, 3000);
+			unsubscribeRelayFeed = useSubscription(
+				'community_relay_feed_fetch_' + pubkey,
+				requests,
+				(message: WorkerMessage) => {
+					const status = isConnectionStatus(message);
+					if (status?.status() === 'EOSE') {
+						resolveLatest();
+						return;
+					}
+
+					const parsedEvent = isParsedEvent(message);
+					if (!parsedEvent || parsedEvent.kind() !== 10012) return;
+					if (!relayFeed || parsedEvent.createdAt() > relayFeed.createdAt()) {
+						relayFeed = parsedEvent;
+					}
+				},
+				{ bytesPerEvent: 10 * 1024 }
+			);
+		});
+
+		return relayFeedFetch;
+	}
+
+	async function createRelay(adminPubkey: string) {
+		const response = await fetch(`${coordinatorUrl.replace(/\/$/, '')}/relays`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				name: communityName.trim(),
+				domain_label: communitySlug,
+				admin_pubkeys: [adminPubkey],
+				badge_d: 'members'
+			})
+		});
+
+		if (!response.ok) {
+			const body = await response.text();
+			throw new Error(body || `Coordinator returned ${response.status}`);
+		}
+
+		return (await response.json()) as RelayRecord;
+	}
+
+	async function createCommunity() {
+		if (!canCreate || state === 'creating-account' || state === 'creating-relay') return;
+
+		error = '';
+		recoveryNsec = '';
+		relay = undefined;
+
+		try {
+			let adminPubkey = $key?.pub;
+			if (!adminPubkey) {
+				state = 'creating-account';
+				adminPubkey = createLocalAccount();
+			} else {
+				relayFeed = await (relayFeedFetch || fetchRelayFeed(adminPubkey));
+			}
+
+			state = 'creating-relay';
+			relay = await createRelay(adminPubkey);
+			adminRelaySet = await (adminRelaySetFetch || fetchAdminRelaySet(adminPubkey));
+			publishRelayList(adminPubkey, relay.relay_url);
+			publishCommunityRelaySet(
+				adminPubkey,
+				relay.relay_url,
+				() => {
+					if (!relay) return;
+					void goto(resolve(`/admin/${encodeURIComponent(relay.relay_url)}`));
+				},
+				(err) => {
+					state = 'error';
+					error = err.message;
+				}
+			);
+		} catch (err) {
+			state = 'error';
+			error = err instanceof Error ? err.message : 'Could not create community.';
+		}
 	}
 
 	async function generateQr(text: string) {
@@ -180,1181 +468,318 @@
 		qrDataUrl = nextQrDataUrl;
 	}
 
-	function escapeXml(value: string) {
-		return value
-			.replace(/&/g, '&amp;')
-			.replace(/</g, '&lt;')
-			.replace(/>/g, '&gt;')
-			.replace(/"/g, '&quot;');
-	}
-
-	function wrapText(value: string, maxLength: number, maxLines: number) {
-		const words = value.split(/\s+/).filter(Boolean);
-		const lines: string[] = [];
-		let line = '';
-		for (const word of words) {
-			const next = line ? `${line} ${word}` : word;
-			if (next.length > maxLength && line) {
-				lines.push(line);
-				line = word;
-			} else {
-				line = next;
-			}
-			if (lines.length === maxLines) break;
+	onMount(() => {
+		if ($key?.pub) {
+			fetchAdminRelaySet($key.pub);
+			fetchRelayFeed($key.pub);
 		}
-		if (line && lines.length < maxLines) lines.push(line);
-		return lines;
-	}
+	});
 
-	function buildPosterSvg() {
-		const title = escapeXml(name || 'Community');
-		const kind = escapeXml(communityType);
-		const place = escapeXml(location || 'Community');
-		const invite = escapeXml(inviteUrl);
-		const lines = wrapText(description || 'Scan to join this community.', 34, 3);
-		const descriptionSvg = lines
-			.map((line, index) => `<tspan x="92" dy="${index === 0 ? 0 : 34}">${escapeXml(line)}</tspan>`)
-			.join('');
-		const iconSvg = imageDataUrl
-			? `<image href="${escapeXml(
-					imageDataUrl
-				)}" x="92" y="92" width="128" height="128" preserveAspectRatio="xMidYMid slice" />`
-			: `<rect x="92" y="92" width="128" height="128" fill="#dfe7c4" /><text x="156" y="166" text-anchor="middle" font-size="54" font-family="Arial, sans-serif" font-weight="700" fill="#151411">${escapeXml(
-					(name || 'N').slice(0, 1).toUpperCase()
-				)}</text>`;
-
-		return `<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1200" viewBox="0 0 900 1200">
-<rect width="900" height="1200" fill="#fff8ea" />
-<rect x="48" y="48" width="804" height="1104" fill="none" stroke="#151411" stroke-width="2" />
-${iconSvg}
-<text x="252" y="124" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#716341" letter-spacing="2">${kind}</text>
-<text x="252" y="188" font-family="Arial, sans-serif" font-size="66" font-weight="700" fill="#151411">${title}</text>
-<text x="92" y="302" font-family="Arial, sans-serif" font-size="26" font-weight="500" fill="#4f493d">${descriptionSvg}</text>
-<rect x="92" y="432" width="716" height="2" fill="#151411" opacity="0.18" />
-<text x="92" y="500" font-family="Arial, sans-serif" font-size="28" font-weight="700" fill="#151411">${place}</text>
-<text x="92" y="548" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#716341">Scan to join</text>
-<image href="${escapeXml(qrDataUrl)}" x="250" y="610" width="400" height="400" />
-<rect x="92" y="1060" width="716" height="58" fill="#151411" />
-<text x="450" y="1098" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#fff8ea">${invite}</text>
-</svg>`;
-	}
-
-	function downloadPosterSvg() {
-		const svg = buildPosterSvg();
-		const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
-		const url = URL.createObjectURL(blob);
-		const link = document.createElement('a');
-		link.href = url;
-		link.download = `${fileSlug()}-qr-poster.svg`;
-		link.click();
-		URL.revokeObjectURL(url);
-	}
-
-	function fileSlug() {
-		return (
-			name
-				.toLowerCase()
-				.replace(/[^a-z0-9]+/g, '-')
-				.replace(/^-|-$/g, '') || 'community'
-		);
-	}
-
-	function textToAsciiBytes(value: string) {
-		const bytes = new Uint8Array(value.length);
-		for (let index = 0; index < value.length; index += 1) {
-			bytes[index] = value.charCodeAt(index) & 0xff;
-		}
-		return bytes;
-	}
-
-	function concatBytes(parts: Uint8Array[]) {
-		const length = parts.reduce((total, part) => total + part.length, 0);
-		const bytes = new Uint8Array(length);
-		let offset = 0;
-		for (const part of parts) {
-			bytes.set(part, offset);
-			offset += part.length;
-		}
-		return bytes;
-	}
-
-	function dataUrlToBytes(dataUrl: string) {
-		const base64 = dataUrl.split(',')[1] || '';
-		const binary = atob(base64);
-		return textToAsciiBytes(binary);
-	}
-
-	function makePosterPdf(jpegBytes: Uint8Array) {
-		const pageWidth = 595.28;
-		const pageHeight = 793.7;
-		const imageCommand = `q\n${pageWidth} 0 0 ${pageHeight} 0 0 cm\n/Poster Do\nQ\n`;
-		const objects = [
-			'1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n',
-			'2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n',
-			`3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /XObject << /Poster 4 0 R >> >> /Contents 5 0 R >>\nendobj\n`,
-			`4 0 obj\n<< /Type /XObject /Subtype /Image /Width 1800 /Height 2400 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpegBytes.length} >>\nstream\n`,
-			`5 0 obj\n<< /Length ${imageCommand.length} >>\nstream\n${imageCommand}endstream\nendobj\n`
-		];
-		const header = textToAsciiBytes('%PDF-1.4\n');
-		const parts: Uint8Array[] = [header];
-		const offsets = [0];
-		let position = header.length;
-
-		for (let index = 0; index < objects.length; index += 1) {
-			offsets.push(position);
-			const objectStart = textToAsciiBytes(objects[index]);
-			parts.push(objectStart);
-			position += objectStart.length;
-			if (index === 3) {
-				const objectEnd = textToAsciiBytes('\nendstream\nendobj\n');
-				parts.push(jpegBytes, objectEnd);
-				position += jpegBytes.length + objectEnd.length;
-			}
-		}
-
-		const xrefOffset = position;
-		const xref = [
-			'xref',
-			`0 ${objects.length + 1}`,
-			'0000000000 65535 f ',
-			...offsets.slice(1).map((offset) => `${String(offset).padStart(10, '0')} 00000 n `),
-			'trailer',
-			`<< /Size ${objects.length + 1} /Root 1 0 R >>`,
-			'startxref',
-			String(xrefOffset),
-			'%%EOF'
-		].join('\n');
-		parts.push(textToAsciiBytes(xref));
-
-		return concatBytes(parts);
-	}
-
-	async function downloadPosterPdf() {
-		isExportingPdf = true;
-		try {
-			const svg = buildPosterSvg();
-			const svgBlob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
-			const svgUrl = URL.createObjectURL(svgBlob);
-			const image = new Image();
-			image.decoding = 'async';
-			image.src = svgUrl;
-			await image.decode();
-
-			const canvas = document.createElement('canvas');
-			canvas.width = 1800;
-			canvas.height = 2400;
-			const context = canvas.getContext('2d');
-			if (!context) throw new Error('Canvas is not available.');
-			context.fillStyle = '#fff8ea';
-			context.fillRect(0, 0, canvas.width, canvas.height);
-			context.drawImage(image, 0, 0, canvas.width, canvas.height);
-			URL.revokeObjectURL(svgUrl);
-
-			const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.92);
-			const pdfBytes = makePosterPdf(dataUrlToBytes(jpegDataUrl));
-			const url = URL.createObjectURL(new Blob([pdfBytes], { type: 'application/pdf' }));
-			const link = document.createElement('a');
-			link.href = url;
-			link.download = `${fileSlug()}-qr-poster.pdf`;
-			link.click();
-			URL.revokeObjectURL(url);
-		} catch {
-			downloadPosterSvg();
-		} finally {
-			isExportingPdf = false;
-		}
-	}
-
-	async function copyInviteLink() {
-		await navigator.clipboard?.writeText(inviteUrl);
-	}
+	onDestroy(() => {
+		unsubscribeAdminRelaySet?.();
+		unsubscribeRelayFeed?.();
+		cleanupPublishes();
+	});
 </script>
 
 <svelte:head>
 	<title>Create community - Nuts</title>
 	<meta
 		name="description"
-		content="Create a Nuts community with simple social rules, invite links, QR codes and memberships."
+		content="Create a Nuts community with a local account, private relay and invite link."
 	/>
 </svelte:head>
 
-<main class="create-page">
-	<section class="wizard-shell">
-		<header class="topbar">
-			<a href={resolve('/')} aria-label="Back to Nuts">
-				<ArrowLeft size={18} />
-				<span>Nuts</span>
-			</a>
-			<div class="step-count">Step {currentStep + 1} of {steps.length}</div>
-		</header>
+<main class="min-h-screen bg-[#f4f0e8] text-[#171614]">
+	<section class="flex items-start gap-8">
+		<CommunityBenefitsPanel />
+		{#if (state === 'done' && relay) || forceSuccess}
+			<CommunityCreatedScreen
+				communityName={displayCommunityName}
+				communityDescription={displayCommunityDescription}
+				{communityImage}
+				inviteUrl={successInviteUrl}
+				{qrDataUrl}
+				{recoveryNsec}
+			/>
+		{:else}
+			<section class="min-w-0 flex-1 px-6 pb-10 lg:px-12 xl:px-16">
+				<a
+					class="mt-2 inline-flex items-center gap-3 text-sm font-black text-[#5f594d] no-underline"
+					href={resolve('/')}
+				>
+					<ArrowLeft size={17} />
+					Back
+				</a>
+				<p class="mt-14 text-sm font-black uppercase text-[#317a57]">Create community</p>
+				<h1 class="mt-5 max-w-4xl text-5xl font-black leading-none tracking-normal lg:text-7xl">
+					Launch your community<span class="text-[#47a873]">.</span>
+				</h1>
+				{#if accountReady}
+					<p class="mt-8 max-w-3xl text-xl font-semibold leading-9 text-[#5f594d]">
+						Create the digital home for your club, association, village, event or organization.
+					</p>
+				{:else}
+					<p class="mt-8 max-w-3xl text-xl font-semibold leading-9 text-[#5f594d]">
+						Already have a Nuts or Nostr account? Sign in first. New here? We’ll create your account
+						with the community.
+					</p>
+				{/if}
 
-		<div class="layout">
-			<aside class="wizard-steps" aria-label="Create community steps">
-				<div class="progress-track">
-					<div class="progress-fill" style:width={`${progress}%`}></div>
-				</div>
-				{#each steps as step, index (step)}
-					<button
-						type="button"
-						class:active={index === currentStep}
-						class:complete={index < currentStep}
-						on:click={() => goToStep(index)}
-					>
-						<span>{index < currentStep ? '✓' : index + 1}</span>
-						{step}
-					</button>
-				{/each}
-			</aside>
-
-			<section class="panel" aria-live="polite">
-				{#if currentStep === 0}
-					<div class="step-head">
-						<p>What are you creating?</p>
-						<h1>Create your community.</h1>
+				<div class="mt-12">
+					<h2 class="text-lg font-black">1. What are you creating?</h2>
+					<div class="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+						{#each communityTypes as type (type.label)}
+							<button
+								type="button"
+								class={`grid h-32 place-items-center rounded-lg border bg-white/40 p-3 text-center font-black text-[#5f594d] shadow-sm transition ${
+									communityType === type.label
+										? 'border-[#47a873] text-[#214636] ring-1 ring-[#47a873]'
+										: 'border-black/10 hover:border-black/30'
+								}`}
+								on:click={() => (communityType = type.label)}
+							>
+								<svelte:component this={type.icon} size={30} />
+								<span class="text-sm">{type.label}</span>
+							</button>
+						{/each}
 					</div>
-					<div class="field-grid identity-grid">
-						<label class="form-cell name-field">
-							<span>Name</span>
-							<input bind:value={name} />
-						</label>
-						<label class="form-cell type-field">
-							<span>Type</span>
-							<select bind:value={communityType}>
-								{#each communityTypes as type (type)}
-									<option>{type}</option>
-								{/each}
-							</select>
-						</label>
-						<label class="form-cell description-field">
-							<span>Description</span>
-							<textarea rows="4" bind:value={description}></textarea>
-						</label>
-						<label class="form-cell location-field">
-							<span>Location</span>
-							<input bind:value={location} />
-						</label>
-						<label class="form-cell image-field">
-							<span>Icon or image</span>
+				</div>
+
+				<div class="mt-8">
+					<h2 class="text-lg font-black">2. Community details</h2>
+					<div class="mt-5 grid max-w-4xl gap-5">
+						<label class="grid gap-2">
+							<span class="text-sm font-black text-[#5f594d]">Community name</span>
 							<input
-								class="file-input"
+								class="w-full rounded-lg border border-black/10 bg-white/40 px-4 py-4 text-lg font-black outline-none transition focus:border-[#47a873] focus:ring-1 focus:ring-[#47a873]"
+								bind:value={communityName}
+								autocomplete="organization"
+								maxlength="50"
+								placeholder="FC Avenir"
+							/>
+							<small class="justify-self-end text-xs font-black text-[#8a8377]"
+								>{communityName.length}/50</small
+							>
+						</label>
+
+						<label class="grid gap-2">
+							<span class="text-sm font-black text-[#5f594d]">Description</span>
+							<textarea
+								class="min-h-28 w-full resize-y rounded-lg border border-black/10 bg-white/40 px-4 py-4 text-base font-bold leading-6 outline-none transition focus:border-[#47a873] focus:ring-1 focus:ring-[#47a873]"
+								rows="3"
+								maxlength="200"
+								bind:value={communityDescription}
+								placeholder="A place for players, parents and supporters."
+							></textarea>
+							<small class="justify-self-end text-xs font-black text-[#8a8377]"
+								>{communityDescription.length}/200</small
+							>
+						</label>
+
+						<label class="grid gap-2">
+							<span class="text-sm font-black text-[#5f594d]"
+								>Community image <em class="font-semibold not-italic">(optional)</em></span
+							>
+							<input
+								class="sr-only"
 								type="file"
 								accept="image/*"
-								on:change={handleImageUpload}
+								on:change={handleCommunityImageUpload}
 							/>
-							<span class="upload-box">
-								{#if imageUrl}
-									<img src={imageUrl} alt="" />
+							<span
+								class="grid min-h-28 cursor-pointer grid-cols-[72px_1fr] items-center gap-4 rounded-lg border border-dashed border-black/20 bg-white/25 p-4"
+							>
+								{#if communityImage}
+									<img
+										class="h-[72px] w-[72px] rounded-md object-cover"
+										src={communityImage}
+										alt=""
+									/>
 								{:else}
-									<span class="upload-icon">
+									<span
+										class="grid h-[72px] w-[72px] place-items-center rounded-md bg-[#245b40] text-white"
+									>
 										<ImagePlus size={28} />
 									</span>
 								{/if}
-								<small>{imageName || 'Upload club crest or community image'}</small>
+								<span>
+									<strong class="block text-lg font-black">Upload image</strong>
+									<small class="mt-1 block text-sm font-semibold text-[#5f594d]"
+										>{communityImageName || 'JPG, PNG or GIF. Max 5MB'}</small
+									>
+								</span>
 							</span>
 						</label>
-					</div>
-				{:else if currentStep === 1}
-					<div class="step-head">
-						<p>Who can see it?</p>
-						<h1>Choose visibility.</h1>
-					</div>
-					<div class="option-list">
-						{#each visibilityOptions as option (option.value)}
-							<label class="choice" class:selected={visibility === option.value}>
-								<input type="radio" bind:group={visibility} value={option.value} />
-								<span>
-									<strong>{option.title}</strong>
-									<small>{option.description}</small>
-								</span>
-							</label>
-						{/each}
-					</div>
-				{:else if currentStep === 2}
-					<div class="step-head">
-						<p>Who can post?</p>
-						<h1>Set participation.</h1>
-					</div>
-					<div class="option-list">
-						{#each participationOptions as option (option.value)}
-							<label class="choice" class:selected={participation === option.value}>
-								<input type="radio" bind:group={participation} value={option.value} />
-								<span>
-									<strong>{option.title}</strong>
-									<small>{option.description}</small>
-								</span>
-							</label>
-						{/each}
-					</div>
-					<p class="technical-note">
-						Reactions and quotes are open to followers unless the community is private.
-					</p>
-				{:else if currentStep === 3}
-					<div class="step-head">
-						<p>How do people join?</p>
-						<h1>Pick join methods.</h1>
-					</div>
-					<div class="option-list">
-						{#each joinOptions as option (option.key)}
-							<label
-								class="choice"
-								class:selected={(option.key === 'inviteLinks' && inviteLinks) ||
-									(option.key === 'qrCodes' && qrCodes) ||
-									(option.key === 'manualApproval' && manualApproval)}
-							>
+
+						{#if !accountReady}
+							<label class="grid gap-2">
+								<span class="text-sm font-black text-[#5f594d]">Your name</span>
 								<input
-									type="checkbox"
-									checked={(option.key === 'inviteLinks' && inviteLinks) ||
-										(option.key === 'qrCodes' && qrCodes) ||
-										(option.key === 'manualApproval' && manualApproval)}
-									on:change={() => toggleJoin(option.key)}
+									class="w-full rounded-lg border border-black/10 bg-white/40 px-4 py-4 text-lg font-black outline-none transition focus:border-[#47a873] focus:ring-1 focus:ring-[#47a873]"
+									bind:value={creatorName}
+									autocomplete="name"
+									placeholder="Marie"
 								/>
-								<span>
-									<strong>{option.title}</strong>
-									<small>{option.description}</small>
+							</label>
+
+							<label class="grid gap-2">
+								<span class="text-sm font-black text-[#5f594d]"
+									>Your picture <em class="font-semibold not-italic">(optional)</em></span
+								>
+								<input
+									class="sr-only"
+									type="file"
+									accept="image/*"
+									on:change={handlePictureUpload}
+								/>
+								<span
+									class="grid min-h-24 cursor-pointer grid-cols-[64px_1fr] items-center gap-4 rounded-lg border border-dashed border-black/20 bg-white/25 p-4"
+								>
+									{#if picture}
+										<img class="h-16 w-16 rounded-md object-cover" src={picture} alt="" />
+									{:else}
+										<span
+											class="grid h-16 w-16 place-items-center rounded-md bg-[#dfe8c7] text-[#171614]"
+										>
+											<ImagePlus size={28} />
+										</span>
+									{/if}
+									<span>
+										<strong class="block font-black">Upload profile picture</strong>
+										<small class="mt-1 block text-sm font-semibold text-[#5f594d]"
+											>{pictureName || 'Optional account picture'}</small
+										>
+									</span>
 								</span>
 							</label>
-						{/each}
-					</div>
-				{:else if currentStep === 4}
-					<div class="step-head">
-						<p>Memberships</p>
-						<h1>Does your community have memberships?</h1>
-					</div>
-					<div class="option-list compact">
-						{#each membershipOptions as option (option.value)}
-							<label class="choice" class:selected={membershipChoice === option.value}>
-								<input type="radio" bind:group={membershipChoice} value={option.value} />
-								<span>
-									<strong>{option.title}</strong>
-								</span>
-							</label>
-						{/each}
-					</div>
-
-					{#if membershipChoice === 'Yes'}
-						<div class="membership-box">
-							<label>
-								<span>Membership name</span>
-								<input bind:value={membershipName} />
-							</label>
-							<label>
-								<span>Price</span>
-								<input bind:value={membershipPrice} />
-							</label>
-							<div class="benefits">
-								<span>Benefits</span>
-								<div>
-									{#each benefitOptions as benefit (benefit)}
-										<label class:selected={benefits.includes(benefit)}>
-											<input
-												type="checkbox"
-												checked={benefits.includes(benefit)}
-												on:change={() => toggleBenefit(benefit)}
-											/>
-											{benefit}
-										</label>
-									{/each}
-								</div>
-							</div>
-						</div>
-					{/if}
-				{:else}
-					<div class="done-state">
-						<span class="done-icon">
-							<CheckCircle2 size={44} />
-						</span>
-						<p>Your community is ready.</p>
-						<h1>{name}</h1>
-						<span>{accessSummary}</span>
-						<div class="done-actions">
-							<button type="button" on:click={copyInviteLink}>
-								<Copy size={18} />
-								Copy invite link
-							</button>
-							<button
-								type="button"
-								class="secondary"
-								disabled={isExportingPdf}
-								on:click={downloadPosterPdf}
-							>
-				<Download size={18} />
-				{isExportingPdf ? 'Building PDF' : 'Download QR poster'}
-			</button>
-						</div>
-					</div>
-				{/if}
-
-				{#if currentStep < steps.length - 1}
-					<footer class="controls" class:single={currentStep === 0}>
-						{#if currentStep > 0}
-							<button type="button" class="ghost" on:click={previous}>
-								<ArrowLeft size={18} />
-								Back
-							</button>
 						{/if}
-						<button type="button" on:click={next}>
-							Continue
-							<ArrowRight size={18} />
-						</button>
-					</footer>
-				{:else}
-					<footer class="controls">
-						<button type="button" class="ghost" on:click={previous}>
-							<ArrowLeft size={18} />
-							Back
-						</button>
-						<a href={resolve('/explore')}>Open community</a>
-					</footer>
-				{/if}
-			</section>
-
-			<aside class="preview" aria-label="Setup context">
-				{#if currentStep === steps.length - 1}
-					<div class="poster-preview">
-						<div class="poster-head">
-							{#if imageUrl}
-								<img src={imageUrl} alt="" />
-							{:else}
-								<span>{(name || 'N').slice(0, 1)}</span>
-							{/if}
-							<div>
-								<p>{communityType}</p>
-								<h2>{name || 'New community'}</h2>
-							</div>
-						</div>
-						<small>{description}</small>
-						<div class="poster-qr">
-							{#if qrDataUrl}
-								<img src={qrDataUrl} alt="Invite QR code" />
-							{/if}
-						</div>
-						<strong>{inviteUrl}</strong>
 					</div>
-				{:else}
-					<div class="community-card">
-						<div>
-							<p>{communityType}</p>
-							<h2>{name || 'New community'}</h2>
-						</div>
-						{#if imageUrl}
-							<img class="community-image" src={imageUrl} alt="" />
-						{:else}
-							<span class="community-image placeholder">
-								<Users size={22} />
-							</span>
-						{/if}
-						<small>{description || 'Add a short description.'}</small>
-						<div>
-							<span>{location || 'Location'}</span>
-							<span>{currentStep >= 1 ? visibility : 'Visibility later'}</span>
-						</div>
-					</div>
-				{/if}
-
-				<div class="context-card">
-					<p>Setup so far</p>
-					<ul>
-						<li class:active={currentStep >= 0}>Community basics</li>
-						<li class:active={currentStep >= 1}>{currentStep >= 1 ? visibility : 'Visibility'}</li>
-						<li class:active={currentStep >= 2}>
-							{currentStep >= 2 ? participation : 'Participation'}
-						</li>
-						<li class:active={currentStep >= 3}>
-							{currentStep >= 3 ? selectedJoinMethods.join(' + ') : 'Join methods'}
-						</li>
-					</ul>
 				</div>
-			</aside>
-		</div>
+
+				{#if !accountReady}
+					<div class="mt-5 flex flex-wrap items-center gap-3 text-sm font-bold text-[#5f594d]">
+						<button
+							class="rounded-md border border-black/20 px-4 py-2 font-black"
+							type="button"
+							on:click={connectWithExtension}>Sign in</button
+						>
+						<span>or continue below to create a new account</span>
+					</div>
+				{/if}
+
+				{#if state === 'error'}
+					<p
+						class="mt-5 max-w-4xl break-words rounded-md bg-[#ffe0d7] p-4 font-bold text-[#8a210b]"
+					>
+						{error}
+					</p>
+				{/if}
+
+				<div class="mt-8 flex flex-wrap items-center gap-5">
+					<button
+						type="button"
+						class="inline-flex items-center justify-center gap-4 rounded-lg bg-[#47a873] px-8 py-5 text-lg font-black text-white shadow-lg shadow-[#47a873]/20 transition hover:bg-[#3b9663] disabled:cursor-not-allowed disabled:opacity-50"
+						disabled={!canCreate || state === 'creating-account' || state === 'creating-relay'}
+						on:click={createCommunity}
+					>
+						{#if state === 'creating-account' || state === 'creating-relay'}
+							<span class="animate-spin">
+								<Loader2 size={18} />
+							</span>
+							{state === 'creating-account' ? 'Creating account' : 'Creating community'}
+						{:else}
+							Create community
+							<ArrowRight size={20} />
+						{/if}
+					</button>
+					<p class="max-w-sm text-sm font-semibold text-[#6f685d]">
+						You'll be able to invite members and customize more after creation.
+					</p>
+				</div>
+			</section>
+		{/if}
+
+		<aside
+			class="mx-auto w-full max-w-[420px] px-6 pb-10 xl:sticky xl:top-6 xl:w-[390px] xl:px-0 2xl:w-[420px] 2xl:self-start"
+			aria-label="Community preview"
+		>
+			<div class="w-full min-w-0 rounded-xl border border-black/10 bg-white/25 p-5 shadow-sm">
+				<p class="inline-flex items-center gap-2 text-sm font-black uppercase text-[#171614]">
+					<span class="h-3 w-3 rounded-full bg-[#47a873]"></span>
+					Live preview
+				</p>
+				<div class="mt-5 w-full min-w-0 overflow-hidden rounded-xl bg-[#fbf7ef] shadow-md">
+					<div class="grid justify-items-center bg-[#11161a] px-8 py-12 text-center text-white">
+						<div class="grid h-32 w-32 place-items-center rounded-xl bg-[#dfe8c7] text-[#171614]">
+							{#if communityImage}
+								<img class="h-32 w-32 rounded-xl object-cover" src={communityImage} alt="" />
+							{:else}
+								<UserRound size={40} />
+							{/if}
+						</div>
+						<h2 class="mt-6 max-w-full break-words text-3xl font-black">
+							{displayCommunityName || 'New community'}
+						</h2>
+						<p class="mt-2 max-w-full break-words text-base font-semibold text-white/65">
+							{displayCommunityDescription || 'A home for your people.'}
+						</p>
+						<div class="mt-7 grid grid-cols-[1fr_auto_1fr] items-center gap-8 text-white/85">
+							<span class="text-lg font-black"
+								><UsersRound class="mx-auto mb-1" size={18} />0<br /><small
+									class="text-sm font-semibold text-white/55">Members</small
+								></span
+							>
+							<span class="h-12 w-px bg-white/10"></span>
+							<span class="text-lg font-black"
+								><CalendarDays class="mx-auto mb-1" size={18} />0<br /><small
+									class="text-sm font-semibold text-white/55">Events</small
+								></span
+							>
+						</div>
+					</div>
+					<div class="p-6">
+						<p class="break-words text-base font-semibold leading-7 text-[#171614]">
+							{displayCommunityDescription ||
+								'A community for people to meet, share, organize and grow together.'}
+						</p>
+						<hr class="my-6 border-black/10" />
+						<h3 class="text-sm font-black uppercase">What members can do</h3>
+						<ul class="mt-5 grid gap-5">
+							<li class="flex gap-3 text-sm">
+								<CheckCircle2 class="mt-1 shrink-0 text-[#47a873]" size={17} />
+								<span
+									><strong class="block text-base">Join and connect</strong>Find your people.</span
+								>
+							</li>
+							<li class="flex gap-3 text-sm">
+								<CheckCircle2 class="mt-1 shrink-0 text-[#47a873]" size={17} />
+								<span
+									><strong class="block text-base">Share and discuss</strong>Posts, polls, events
+									and more.</span
+								>
+							</li>
+							<li class="flex gap-3 text-sm">
+								<CheckCircle2 class="mt-1 shrink-0 text-[#47a873]" size={17} />
+								<span
+									><strong class="block text-base">Organize events</strong>Meetups, trainings,
+									workshops...</span
+								>
+							</li>
+							<li class="flex gap-3 text-sm">
+								<CheckCircle2 class="mt-1 shrink-0 text-[#47a873]" size={17} />
+								<span
+									><strong class="block text-base">Grow together</strong>Build something meaningful.</span
+								>
+							</li>
+						</ul>
+						<button
+							class="mt-8 flex w-full items-center justify-between rounded-lg bg-[#e7efd7] px-6 py-4 font-black"
+							type="button">Join community <UsersRound size={22} /></button
+						>
+					</div>
+				</div>
+			</div>
+		</aside>
 	</section>
 </main>
-
-<style>
-	:global(body) {
-		margin: 0;
-		background: #f3eadc;
-	}
-
-	.create-page {
-		min-height: 100vh;
-		background: #f3eadc;
-		color: #151411;
-		font-family: "Suisse Int'l", Inter, ui-sans-serif, system-ui, sans-serif;
-	}
-
-	.wizard-shell {
-		min-height: 100vh;
-		padding: clamp(18px, 3vw, 36px);
-	}
-
-	.topbar {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		margin: 0 auto clamp(18px, 3vw, 34px);
-		max-width: 1360px;
-	}
-
-	.topbar a,
-	.controls a {
-		display: inline-flex;
-		align-items: center;
-		gap: 9px;
-		color: inherit;
-		font-weight: 900;
-		text-decoration: none;
-	}
-
-	.step-count {
-		color: #716341;
-		font-size: 0.86rem;
-		font-weight: 900;
-		text-transform: uppercase;
-	}
-
-	.layout {
-		display: grid;
-		grid-template-columns: 210px minmax(0, 760px) minmax(260px, 340px);
-		gap: clamp(18px, 3vw, 38px);
-		align-items: start;
-		justify-content: center;
-		max-width: 1360px;
-		margin: 0 auto;
-	}
-
-	.wizard-steps,
-	.panel,
-	.preview {
-		min-width: 0;
-	}
-
-	.wizard-steps {
-		position: sticky;
-		top: 28px;
-		display: grid;
-		gap: 8px;
-	}
-
-	.progress-track {
-		height: 4px;
-		overflow: hidden;
-		background: rgba(21, 20, 17, 0.12);
-	}
-
-	.progress-fill {
-		height: 100%;
-		background: #53b86a;
-		transition: width 180ms ease;
-	}
-
-	button,
-	input,
-	select,
-	textarea,
-	a {
-		font: inherit;
-		letter-spacing: 0;
-	}
-
-	button {
-		border: 0;
-		cursor: pointer;
-	}
-
-	.wizard-steps button {
-		display: grid;
-		grid-template-columns: 34px 1fr;
-		align-items: center;
-		gap: 10px;
-		background: transparent;
-		color: #716341;
-		padding: 8px 0;
-		text-align: left;
-		font-weight: 900;
-	}
-
-	.wizard-steps button span {
-		display: grid;
-		width: 32px;
-		height: 32px;
-		place-items: center;
-		border: 1px solid rgba(21, 20, 17, 0.18);
-		background: #fff8ea;
-		color: #151411;
-		font-size: 0.84rem;
-	}
-
-	.wizard-steps button.active,
-	.wizard-steps button.complete {
-		color: #151411;
-	}
-
-	.wizard-steps button.active span,
-	.wizard-steps button.complete span {
-		border-color: #151411;
-		background: #151411;
-		color: #fff8ea;
-	}
-
-	.panel {
-		min-height: min(720px, calc(100vh - 112px));
-		background: #fff8ea;
-		padding: clamp(26px, 4vw, 56px);
-	}
-
-	.step-head {
-		max-width: 740px;
-		margin-bottom: clamp(28px, 4vw, 46px);
-	}
-
-	.step-head p {
-		margin: 0;
-		color: #716341;
-		font-size: 0.82rem;
-		font-weight: 900;
-		text-transform: uppercase;
-	}
-
-	h1,
-	p {
-		letter-spacing: 0;
-	}
-
-	h1 {
-		margin: 10px 0 0;
-		font-size: clamp(2.5rem, 5vw, 5rem);
-		line-height: 0.92;
-	}
-
-	.field-grid {
-		display: grid;
-		grid-template-columns: minmax(0, 1.18fr) minmax(210px, 0.82fr);
-		gap: 1px;
-		align-items: stretch;
-		background: rgba(21, 20, 17, 0.2);
-		border: 1px solid rgba(21, 20, 17, 0.2);
-	}
-
-	.identity-grid {
-		grid-template-areas:
-			'name type'
-			'description location'
-			'description image';
-	}
-
-	.name-field {
-		grid-area: name;
-	}
-
-	.type-field {
-		grid-area: type;
-	}
-
-	.description-field {
-		grid-area: description;
-	}
-
-	.location-field {
-		grid-area: location;
-	}
-
-	.image-field {
-		grid-area: image;
-		min-height: 130px;
-	}
-
-	label,
-	.benefits {
-		display: grid;
-		gap: 8px;
-	}
-
-	.form-cell {
-		display: grid;
-		align-content: start;
-		gap: 12px;
-		background: #f3eadc;
-		padding: 18px;
-	}
-
-	.form-cell.description-field,
-	.form-cell.location-field {
-		min-height: 190px;
-	}
-
-	.form-cell.image-field {
-		min-height: 150px;
-	}
-
-	label span,
-	.benefits > span {
-		color: #4f493d;
-		font-size: 0.9rem;
-		font-weight: 900;
-	}
-
-	input,
-	select,
-	textarea {
-		width: 100%;
-		border: 0;
-		border-radius: 0;
-		background: transparent;
-		color: #151411;
-		padding: 0;
-		outline: 0;
-	}
-
-	.file-input {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		overflow: hidden;
-		clip: rect(0 0 0 0);
-		white-space: nowrap;
-	}
-
-	.upload-box {
-		display: grid;
-		min-height: 86px;
-		grid-template-columns: 64px 1fr;
-		align-items: center;
-		gap: 14px;
-		border: 1px dashed rgba(21, 20, 17, 0.28);
-		padding: 10px;
-		color: #4f493d;
-		cursor: pointer;
-	}
-
-	.upload-box img,
-	.community-image {
-		width: 64px;
-		height: 64px;
-		object-fit: cover;
-	}
-
-	.upload-icon {
-		display: grid;
-		place-items: center;
-	}
-
-	.upload-box small {
-		overflow-wrap: anywhere;
-		font-size: 0.88rem;
-		font-weight: 900;
-		line-height: 1.25;
-	}
-
-	textarea {
-		min-height: 116px;
-		resize: vertical;
-	}
-
-	input:focus,
-	select:focus,
-	textarea:focus {
-		box-shadow: 0 2px 0 0 #151411;
-	}
-
-	.option-list {
-		display: grid;
-		gap: 12px;
-		max-width: 760px;
-	}
-
-	.option-list.compact {
-		gap: 8px;
-	}
-
-	.choice {
-		display: grid;
-		grid-template-columns: 22px 1fr;
-		align-items: start;
-		gap: 14px;
-		border: 1px solid rgba(21, 20, 17, 0.18);
-		background: #f3eadc;
-		padding: 18px;
-		cursor: pointer;
-	}
-
-	.choice.selected {
-		border-color: #151411;
-		background: #dfe7c4;
-	}
-
-	.choice input,
-	.benefits input {
-		width: 18px;
-		height: 18px;
-		accent-color: #151411;
-	}
-
-	.choice strong {
-		display: block;
-		font-size: 1.08rem;
-	}
-
-	.choice small,
-	.technical-note {
-		color: #4f493d;
-		line-height: 1.45;
-	}
-
-	.technical-note {
-		max-width: 660px;
-		margin: 22px 0 0;
-	}
-
-	.membership-box {
-		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 18px;
-		max-width: 760px;
-		margin-top: 24px;
-		border-top: 1px solid rgba(21, 20, 17, 0.18);
-		padding-top: 24px;
-	}
-
-	.benefits {
-		grid-column: 1 / -1;
-	}
-
-	.benefits div {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 10px;
-	}
-
-	.benefits label {
-		display: inline-flex;
-		align-items: center;
-		gap: 8px;
-		border: 1px solid rgba(21, 20, 17, 0.18);
-		background: #f3eadc;
-		padding: 10px 12px;
-		color: #4f493d;
-		font-weight: 900;
-	}
-
-	.benefits label.selected {
-		border-color: #151411;
-		background: #dfe7c4;
-		color: #151411;
-	}
-
-	.controls {
-		display: flex;
-		justify-content: space-between;
-		gap: 14px;
-		margin-top: clamp(34px, 5vw, 72px);
-	}
-
-	.controls.single {
-		justify-content: flex-end;
-	}
-
-	.controls button,
-	.controls a,
-	.done-actions button {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		gap: 9px;
-		background: #53b86a;
-		color: #151411;
-		padding: 14px 18px;
-		font-weight: 900;
-	}
-
-	.controls .ghost {
-		border: 1px solid rgba(21, 20, 17, 0.22);
-		background: transparent;
-	}
-
-	.done-state {
-		display: grid;
-		min-height: 470px;
-		align-content: center;
-		justify-items: start;
-	}
-
-	.done-icon {
-		display: inline-flex;
-		color: #53b86a;
-	}
-
-	.done-state p {
-		margin: 18px 0 0;
-		color: #716341;
-		font-weight: 900;
-		text-transform: uppercase;
-	}
-
-	.done-state span {
-		margin-top: 18px;
-		background: #151411;
-		color: #fff8ea;
-		padding: 10px 12px;
-		font-weight: 900;
-	}
-
-	.done-actions {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 12px;
-		margin-top: 30px;
-	}
-
-	.done-actions .secondary {
-		border: 1px solid #151411;
-		background: transparent;
-	}
-
-	.preview {
-		position: sticky;
-		top: 28px;
-		display: grid;
-		gap: 14px;
-	}
-
-	.community-card,
-	.context-card {
-		background: #10100e;
-		color: #fff8ea;
-		padding: 22px;
-	}
-
-	.community-card {
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) 64px;
-		gap: 18px;
-	}
-
-	.community-image {
-		background: rgba(255, 248, 234, 0.1);
-		color: #fff8ea;
-	}
-
-	.community-image.placeholder {
-		display: grid;
-		place-items: center;
-	}
-
-	.community-card p,
-	.context-card p {
-		margin: 0;
-		color: #f2d35f;
-		font-size: 0.82rem;
-		font-weight: 900;
-		text-transform: uppercase;
-	}
-
-	.community-card h2 {
-		margin: 8px 0 0;
-		font-size: clamp(2rem, 3.8vw, 3rem);
-		line-height: 0.95;
-	}
-
-	.community-card small {
-		grid-column: 1 / -1;
-		color: rgba(255, 248, 234, 0.75);
-		font-size: 1rem;
-		line-height: 1.45;
-	}
-
-	.community-card div:last-child {
-		grid-column: 1 / -1;
-		display: flex;
-		flex-wrap: wrap;
-		gap: 8px;
-	}
-
-	.community-card span {
-		border: 1px solid rgba(255, 248, 234, 0.28);
-		padding: 8px 10px;
-		font-size: 0.84rem;
-		font-weight: 900;
-	}
-
-	.context-card {
-		background: #dfe7c4;
-		color: #151411;
-	}
-
-	.context-card p {
-		color: #716341;
-	}
-
-	.context-card ul {
-		display: grid;
-		gap: 10px;
-		margin: 14px 0 0;
-		padding: 0;
-		list-style: none;
-	}
-
-	.context-card li {
-		border-top: 1px solid rgba(21, 20, 17, 0.16);
-		padding-top: 10px;
-		color: rgba(21, 20, 17, 0.45);
-		font-weight: 900;
-	}
-
-	.context-card li.active {
-		color: #151411;
-	}
-
-	.poster-preview {
-		display: grid;
-		gap: 18px;
-		background: #fff8ea;
-		color: #151411;
-		padding: 22px;
-		border: 1px solid rgba(21, 20, 17, 0.24);
-	}
-
-	.poster-head {
-		display: grid;
-		grid-template-columns: 72px minmax(0, 1fr);
-		gap: 14px;
-		align-items: start;
-	}
-
-	.poster-head img,
-	.poster-head > span {
-		width: 72px;
-		height: 72px;
-		object-fit: cover;
-		background: #dfe7c4;
-	}
-
-	.poster-head > span {
-		display: grid;
-		place-items: center;
-		font-size: 2.5rem;
-		font-weight: 900;
-	}
-
-	.poster-head p {
-		margin: 0;
-		color: #716341;
-		font-size: 0.78rem;
-		font-weight: 900;
-		text-transform: uppercase;
-	}
-
-	.poster-head h2 {
-		margin: 6px 0 0;
-		font-size: clamp(1.8rem, 3.4vw, 2.8rem);
-		line-height: 0.95;
-	}
-
-	.poster-preview small {
-		color: #4f493d;
-		font-size: 0.98rem;
-		line-height: 1.4;
-	}
-
-	.poster-qr {
-		display: grid;
-		place-items: center;
-		background: #fff8ea;
-		border: 1px solid rgba(21, 20, 17, 0.16);
-		padding: 12px;
-	}
-
-	.poster-qr img {
-		width: min(100%, 220px);
-		height: auto;
-	}
-
-	.poster-preview strong {
-		overflow-wrap: anywhere;
-		background: #151411;
-		color: #fff8ea;
-		padding: 10px;
-		font-size: 0.78rem;
-		text-align: center;
-	}
-
-	@media (max-width: 1080px) {
-		.layout {
-			grid-template-columns: 180px minmax(0, 1fr);
-		}
-
-		.preview {
-			position: static;
-			grid-column: 1 / -1;
-			grid-template-columns: minmax(0, 1fr) minmax(260px, 0.58fr);
-		}
-	}
-
-	@media (max-width: 760px) {
-		.wizard-shell {
-			padding: 14px;
-		}
-
-		.layout,
-		.preview {
-			grid-template-columns: 1fr;
-		}
-
-		.wizard-steps {
-			position: static;
-			grid-template-columns: repeat(6, minmax(0, 1fr));
-			gap: 4px;
-		}
-
-		.progress-track {
-			grid-column: 1 / -1;
-		}
-
-		.wizard-steps button {
-			grid-template-columns: 1fr;
-			gap: 6px;
-			justify-items: center;
-			overflow: hidden;
-			font-size: 0;
-			line-height: 0;
-		}
-
-		.wizard-steps button span {
-			width: 32px;
-			height: 32px;
-			font-size: 0.82rem;
-			line-height: 1;
-		}
-
-		.field-grid,
-		.membership-box {
-			grid-template-columns: 1fr;
-		}
-
-		.identity-grid {
-			grid-template-areas:
-				'name'
-				'type'
-				'description'
-				'location'
-				'image';
-		}
-
-		h1 {
-			font-size: clamp(2.5rem, 13vw, 3.7rem);
-		}
-
-		.panel {
-			min-height: auto;
-		}
-
-		.controls {
-			flex-direction: column-reverse;
-		}
-
-		.controls button,
-		.controls a,
-		.done-actions button {
-			width: 100%;
-		}
-	}
-</style>
