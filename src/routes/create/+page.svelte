@@ -490,8 +490,8 @@
 	/>
 </svelte:head>
 
-<main class="min-h-screen bg-[#f4f0e8] text-[#171614]">
-	<section class="flex items-start gap-8">
+<main class="min-h-screen bg-[#f7f5ef] text-[#171614]">
+	<section class="flex min-h-screen items-stretch gap-0">
 		<CommunityBenefitsPanel />
 		{#if (state === 'done' && relay) || forceSuccess}
 			<CommunityCreatedScreen
@@ -503,39 +503,49 @@
 				{recoveryNsec}
 			/>
 		{:else}
-			<section class="min-w-0 flex-1 px-6 pb-10 lg:px-12 xl:px-16">
+			<section class="min-w-0 flex-1 px-4 pb-12 pt-4 sm:px-6 lg:px-8 xl:px-10">
 				<a
-					class="mt-2 inline-flex items-center gap-3 text-sm font-black text-[#5f594d] no-underline"
+					class="inline-flex h-10 items-center gap-2 rounded-xl px-3 text-sm font-black text-stone-600 no-underline transition hover:bg-white/75 hover:text-[#171614] focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98]"
 					href={resolve('/')}
 				>
 					<ArrowLeft size={17} />
 					Back
 				</a>
-				<p class="mt-14 text-sm font-black uppercase text-[#317a57]">Create community</p>
-				<h1 class="mt-5 max-w-4xl text-5xl font-black leading-none tracking-normal lg:text-7xl">
-					Launch your community<span class="text-[#47a873]">.</span>
+				<p class="mt-12 text-sm font-black text-emerald-900">Create community</p>
+				<h1 class="mt-4 max-w-4xl text-5xl font-black leading-[0.95] tracking-normal lg:text-7xl">
+					Launch your community.
 				</h1>
 				{#if accountReady}
-					<p class="mt-8 max-w-3xl text-xl font-semibold leading-9 text-[#5f594d]">
+					<p class="mt-7 max-w-2xl text-xl font-medium leading-9 text-stone-600">
 						Create the digital home for your club, association, village, event or organization.
 					</p>
 				{:else}
-					<p class="mt-8 max-w-3xl text-xl font-semibold leading-9 text-[#5f594d]">
+					<p class="mt-7 max-w-2xl text-xl font-medium leading-9 text-stone-600">
 						Already have a Nuts or Nostr account? Sign in first. New here? We’ll create your account
 						with the community.
 					</p>
 				{/if}
 
-				<div class="mt-12">
-					<h2 class="text-lg font-black">1. What are you creating?</h2>
-					<div class="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+				<div class="mt-12 max-w-5xl">
+					<div class="flex items-end justify-between gap-4">
+						<div>
+							<p class="text-sm font-black text-stone-500">Step 1</p>
+							<h2 class="mt-1 text-2xl font-black">Pick the closest shape</h2>
+						</div>
+						<p
+							class="hidden max-w-xs text-right text-sm font-semibold leading-6 text-stone-500 sm:block"
+						>
+							This only tunes the starting profile. You can change details later.
+						</p>
+					</div>
+					<div class="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
 						{#each communityTypes as type (type.label)}
 							<button
 								type="button"
-								class={`grid h-32 place-items-center rounded-lg border bg-white/40 p-3 text-center font-black text-[#5f594d] shadow-sm transition ${
+								class={`grid h-28 place-items-center rounded-xl border p-3 text-center font-black transition focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98] ${
 									communityType === type.label
-										? 'border-[#47a873] text-[#214636] ring-1 ring-[#47a873]'
-										: 'border-black/10 hover:border-black/30'
+										? 'border-emerald-950 bg-emerald-950 text-white shadow-sm shadow-emerald-950/20'
+										: 'border-stone-200 bg-white/80 text-stone-600 shadow-sm shadow-stone-950/5 hover:border-stone-300 hover:bg-white hover:text-[#171614]'
 								}`}
 								on:click={() => (communityType = type.label)}
 							>
@@ -546,39 +556,47 @@
 					</div>
 				</div>
 
-				<div class="mt-8">
-					<h2 class="text-lg font-black">2. Community details</h2>
-					<div class="mt-5 grid max-w-4xl gap-5">
+				<div
+					class="mt-10 max-w-5xl rounded-2xl border border-stone-200 bg-white/85 p-5 shadow-sm shadow-stone-950/5 sm:p-7"
+				>
+					<div class="flex flex-wrap items-end justify-between gap-4">
+						<div>
+							<p class="text-sm font-black text-stone-500">Step 2</p>
+							<h2 class="mt-1 text-2xl font-black">Community details</h2>
+						</div>
+						<p class="text-sm font-semibold text-stone-500">Relay slug: {communitySlug}</p>
+					</div>
+					<div class="mt-6 grid gap-5">
 						<label class="grid gap-2">
-							<span class="text-sm font-black text-[#5f594d]">Community name</span>
+							<span class="text-sm font-black text-stone-600">Community name</span>
 							<input
-								class="w-full rounded-lg border border-black/10 bg-white/40 px-4 py-4 text-lg font-black outline-none transition focus:border-[#47a873] focus:ring-1 focus:ring-[#47a873]"
+								class="w-full rounded-xl border border-stone-200 bg-stone-50/70 px-4 py-4 text-lg font-black outline-none transition placeholder:text-stone-400 focus:border-emerald-900 focus:bg-white focus:ring-2 focus:ring-emerald-800/20"
 								bind:value={communityName}
 								autocomplete="organization"
 								maxlength="50"
 								placeholder="FC Avenir"
 							/>
-							<small class="justify-self-end text-xs font-black text-[#8a8377]"
+							<small class="justify-self-end text-xs font-black text-stone-400"
 								>{communityName.length}/50</small
 							>
 						</label>
 
 						<label class="grid gap-2">
-							<span class="text-sm font-black text-[#5f594d]">Description</span>
+							<span class="text-sm font-black text-stone-600">Description</span>
 							<textarea
-								class="min-h-28 w-full resize-y rounded-lg border border-black/10 bg-white/40 px-4 py-4 text-base font-bold leading-6 outline-none transition focus:border-[#47a873] focus:ring-1 focus:ring-[#47a873]"
+								class="min-h-28 w-full resize-y rounded-xl border border-stone-200 bg-stone-50/70 px-4 py-4 text-base font-semibold leading-7 outline-none transition placeholder:text-stone-400 focus:border-emerald-900 focus:bg-white focus:ring-2 focus:ring-emerald-800/20"
 								rows="3"
 								maxlength="200"
 								bind:value={communityDescription}
 								placeholder="A place for players, parents and supporters."
 							></textarea>
-							<small class="justify-self-end text-xs font-black text-[#8a8377]"
+							<small class="justify-self-end text-xs font-black text-stone-400"
 								>{communityDescription.length}/200</small
 							>
 						</label>
 
 						<label class="grid gap-2">
-							<span class="text-sm font-black text-[#5f594d]"
+							<span class="text-sm font-black text-stone-600"
 								>Community image <em class="font-semibold not-italic">(optional)</em></span
 							>
 							<input
@@ -588,24 +606,24 @@
 								on:change={handleCommunityImageUpload}
 							/>
 							<span
-								class="grid min-h-28 cursor-pointer grid-cols-[72px_1fr] items-center gap-4 rounded-lg border border-dashed border-black/20 bg-white/25 p-4"
+								class="grid min-h-28 cursor-pointer grid-cols-[72px_1fr] items-center gap-4 rounded-xl border border-dashed border-stone-300 bg-stone-50/70 p-4 transition hover:border-emerald-900/50 hover:bg-white"
 							>
 								{#if communityImage}
 									<img
-										class="h-[72px] w-[72px] rounded-md object-cover"
+										class="h-[72px] w-[72px] rounded-lg object-cover"
 										src={communityImage}
 										alt=""
 									/>
 								{:else}
 									<span
-										class="grid h-[72px] w-[72px] place-items-center rounded-md bg-[#245b40] text-white"
+										class="grid h-[72px] w-[72px] place-items-center rounded-lg bg-emerald-950 text-white"
 									>
 										<ImagePlus size={28} />
 									</span>
 								{/if}
 								<span>
 									<strong class="block text-lg font-black">Upload image</strong>
-									<small class="mt-1 block text-sm font-semibold text-[#5f594d]"
+									<small class="mt-1 block text-sm font-semibold text-stone-500"
 										>{communityImageName || 'JPG, PNG or GIF. Max 5MB'}</small
 									>
 								</span>
@@ -614,9 +632,9 @@
 
 						{#if !accountReady}
 							<label class="grid gap-2">
-								<span class="text-sm font-black text-[#5f594d]">Your name</span>
+								<span class="text-sm font-black text-stone-600">Your name</span>
 								<input
-									class="w-full rounded-lg border border-black/10 bg-white/40 px-4 py-4 text-lg font-black outline-none transition focus:border-[#47a873] focus:ring-1 focus:ring-[#47a873]"
+									class="w-full rounded-xl border border-stone-200 bg-stone-50/70 px-4 py-4 text-lg font-black outline-none transition placeholder:text-stone-400 focus:border-emerald-900 focus:bg-white focus:ring-2 focus:ring-emerald-800/20"
 									bind:value={creatorName}
 									autocomplete="name"
 									placeholder="Marie"
@@ -624,7 +642,7 @@
 							</label>
 
 							<label class="grid gap-2">
-								<span class="text-sm font-black text-[#5f594d]"
+								<span class="text-sm font-black text-stone-600"
 									>Your picture <em class="font-semibold not-italic">(optional)</em></span
 								>
 								<input
@@ -634,20 +652,20 @@
 									on:change={handlePictureUpload}
 								/>
 								<span
-									class="grid min-h-24 cursor-pointer grid-cols-[64px_1fr] items-center gap-4 rounded-lg border border-dashed border-black/20 bg-white/25 p-4"
+									class="grid min-h-24 cursor-pointer grid-cols-[64px_1fr] items-center gap-4 rounded-xl border border-dashed border-stone-300 bg-stone-50/70 p-4 transition hover:border-emerald-900/50 hover:bg-white"
 								>
 									{#if picture}
-										<img class="h-16 w-16 rounded-md object-cover" src={picture} alt="" />
+										<img class="h-16 w-16 rounded-lg object-cover" src={picture} alt="" />
 									{:else}
 										<span
-											class="grid h-16 w-16 place-items-center rounded-md bg-[#dfe8c7] text-[#171614]"
+											class="grid h-16 w-16 place-items-center rounded-lg bg-stone-200 text-[#171614]"
 										>
 											<ImagePlus size={28} />
 										</span>
 									{/if}
 									<span>
 										<strong class="block font-black">Upload profile picture</strong>
-										<small class="mt-1 block text-sm font-semibold text-[#5f594d]"
+										<small class="mt-1 block text-sm font-semibold text-stone-500"
 											>{pictureName || 'Optional account picture'}</small
 										>
 									</span>
@@ -658,9 +676,11 @@
 				</div>
 
 				{#if !accountReady}
-					<div class="mt-5 flex flex-wrap items-center gap-3 text-sm font-bold text-[#5f594d]">
+					<div
+						class="mt-5 flex max-w-5xl flex-wrap items-center gap-3 rounded-2xl border border-stone-200 bg-white/60 p-3 text-sm font-bold text-stone-600 shadow-sm shadow-stone-950/5"
+					>
 						<button
-							class="rounded-md border border-black/20 px-4 py-2 font-black"
+							class="rounded-xl border border-stone-300 bg-white px-4 py-2 font-black text-[#171614] transition hover:border-emerald-900/50 focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98]"
 							type="button"
 							on:click={connectWithExtension}>Sign in</button
 						>
@@ -670,16 +690,16 @@
 
 				{#if state === 'error'}
 					<p
-						class="mt-5 max-w-4xl break-words rounded-md bg-[#ffe0d7] p-4 font-bold text-[#8a210b]"
+						class="mt-5 max-w-5xl break-words rounded-xl border border-red-200 bg-red-50 p-4 font-bold text-red-800"
 					>
 						{error}
 					</p>
 				{/if}
 
-				<div class="mt-8 flex flex-wrap items-center gap-5">
+				<div class="mt-8 flex max-w-5xl flex-wrap items-center gap-5">
 					<button
 						type="button"
-						class="inline-flex items-center justify-center gap-4 rounded-lg bg-[#47a873] px-8 py-5 text-lg font-black text-white shadow-lg shadow-[#47a873]/20 transition hover:bg-[#3b9663] disabled:cursor-not-allowed disabled:opacity-50"
+						class="inline-flex h-14 items-center justify-center gap-3 rounded-xl bg-emerald-950 px-7 text-base font-black text-white shadow-lg shadow-emerald-950/20 transition hover:bg-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
 						disabled={!canCreate || state === 'creating-account' || state === 'creating-relay'}
 						on:click={createCommunity}
 					>
@@ -693,7 +713,7 @@
 							<ArrowRight size={20} />
 						{/if}
 					</button>
-					<p class="max-w-sm text-sm font-semibold text-[#6f685d]">
+					<p class="max-w-sm text-sm font-semibold leading-6 text-stone-500">
 						You'll be able to invite members and customize more after creation.
 					</p>
 				</div>
@@ -701,19 +721,25 @@
 		{/if}
 
 		<aside
-			class="mx-auto w-full max-w-[420px] px-6 pb-10 xl:sticky xl:top-6 xl:w-[390px] xl:px-0 2xl:w-[420px] 2xl:self-start"
+			class="mx-auto hidden w-full max-w-[420px] px-6 pb-10 pt-6 xl:sticky xl:top-6 xl:block xl:w-[390px] xl:px-0 2xl:w-[420px] 2xl:self-start"
 			aria-label="Community preview"
 		>
-			<div class="w-full min-w-0 rounded-xl border border-black/10 bg-white/25 p-5 shadow-sm">
-				<p class="inline-flex items-center gap-2 text-sm font-black uppercase text-[#171614]">
-					<span class="h-3 w-3 rounded-full bg-[#47a873]"></span>
+			<div
+				class="w-full min-w-0 rounded-2xl border border-stone-200 bg-white/80 p-4 shadow-sm shadow-stone-950/5"
+			>
+				<p class="inline-flex items-center gap-2 text-sm font-black text-[#171614]">
+					<span class="h-2.5 w-2.5 rounded-full bg-emerald-600"></span>
 					Live preview
 				</p>
-				<div class="mt-5 w-full min-w-0 overflow-hidden rounded-xl bg-[#fbf7ef] shadow-md">
-					<div class="grid justify-items-center bg-[#11161a] px-8 py-12 text-center text-white">
-						<div class="grid h-32 w-32 place-items-center rounded-xl bg-[#dfe8c7] text-[#171614]">
+				<div
+					class="mt-4 w-full min-w-0 overflow-hidden rounded-2xl bg-[#fbf7ef] shadow-lg shadow-stone-950/10"
+				>
+					<div class="grid justify-items-center bg-emerald-950 px-8 py-12 text-center text-white">
+						<div
+							class="grid h-32 w-32 place-items-center rounded-2xl bg-[#e4ead7] text-[#171614] shadow-lg shadow-black/15"
+						>
 							{#if communityImage}
-								<img class="h-32 w-32 rounded-xl object-cover" src={communityImage} alt="" />
+								<img class="h-32 w-32 rounded-2xl object-cover" src={communityImage} alt="" />
 							{:else}
 								<UserRound size={40} />
 							{/if}
@@ -721,7 +747,7 @@
 						<h2 class="mt-6 max-w-full break-words text-3xl font-black">
 							{displayCommunityName || 'New community'}
 						</h2>
-						<p class="mt-2 max-w-full break-words text-base font-semibold text-white/65">
+						<p class="mt-2 max-w-full break-words text-base font-semibold leading-7 text-white/70">
 							{displayCommunityDescription || 'A home for your people.'}
 						</p>
 						<div class="mt-7 grid grid-cols-[1fr_auto_1fr] items-center gap-8 text-white/85">
@@ -743,38 +769,38 @@
 							{displayCommunityDescription ||
 								'A community for people to meet, share, organize and grow together.'}
 						</p>
-						<hr class="my-6 border-black/10" />
-						<h3 class="text-sm font-black uppercase">What members can do</h3>
+						<hr class="my-6 border-stone-200" />
+						<h3 class="text-sm font-black text-stone-500">What members can do</h3>
 						<ul class="mt-5 grid gap-5">
 							<li class="flex gap-3 text-sm">
-								<CheckCircle2 class="mt-1 shrink-0 text-[#47a873]" size={17} />
+								<CheckCircle2 class="mt-1 shrink-0 text-emerald-800" size={17} />
 								<span
 									><strong class="block text-base">Join and connect</strong>Find your people.</span
 								>
 							</li>
 							<li class="flex gap-3 text-sm">
-								<CheckCircle2 class="mt-1 shrink-0 text-[#47a873]" size={17} />
+								<CheckCircle2 class="mt-1 shrink-0 text-emerald-800" size={17} />
 								<span
 									><strong class="block text-base">Share and discuss</strong>Posts, polls, events
 									and more.</span
 								>
 							</li>
 							<li class="flex gap-3 text-sm">
-								<CheckCircle2 class="mt-1 shrink-0 text-[#47a873]" size={17} />
+								<CheckCircle2 class="mt-1 shrink-0 text-emerald-800" size={17} />
 								<span
 									><strong class="block text-base">Organize events</strong>Meetups, trainings,
 									workshops...</span
 								>
 							</li>
 							<li class="flex gap-3 text-sm">
-								<CheckCircle2 class="mt-1 shrink-0 text-[#47a873]" size={17} />
+								<CheckCircle2 class="mt-1 shrink-0 text-emerald-800" size={17} />
 								<span
 									><strong class="block text-base">Grow together</strong>Build something meaningful.</span
 								>
 							</li>
 						</ul>
 						<button
-							class="mt-8 flex w-full items-center justify-between rounded-lg bg-[#e7efd7] px-6 py-4 font-black"
+							class="mt-8 flex w-full items-center justify-between rounded-xl bg-[#e4ead7] px-6 py-4 font-black text-[#171614] transition hover:bg-[#d9e2c6] active:scale-[0.98]"
 							type="button">Join community <UsersRound size={22} /></button
 						>
 					</div>

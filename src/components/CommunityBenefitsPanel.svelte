@@ -45,7 +45,7 @@
 </script>
 
 <aside
-	class="relative hidden w-[340px] shrink-0 overflow-hidden bg-[#101820] px-7 py-12 text-white xl:block 2xl:min-h-[calc(100vh-84px)] 2xl:w-[380px]"
+	class="relative hidden min-h-screen w-[340px] shrink-0 self-stretch overflow-hidden bg-[#101820] px-7 py-12 text-white xl:block 2xl:w-[380px]"
 	aria-label="Community benefits"
 >
 	<div
