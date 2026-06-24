@@ -326,24 +326,30 @@
 	});
 </script>
 
-<main class="px-5 py-8 sm:px-8 lg:px-10">
-	<div class="mx-auto grid max-w-[1880px] gap-6">
+<main class="px-4 py-8 sm:px-6 lg:px-8">
+	<div class="mx-auto grid max-w-[1500px] gap-6">
 		{#if error}
-			<p class="rounded-lg bg-rose-50 p-4 font-bold text-rose-800">{error}</p>
+			<p class="rounded-xl border border-rose-200 bg-rose-50 p-4 font-bold text-rose-800">
+				{error}
+			</p>
 		{/if}
 
-		<section class="overflow-hidden rounded-lg border border-black/10 bg-white/80 shadow-sm">
+		<section
+			class="overflow-hidden rounded-2xl border border-stone-200 bg-white/85 shadow-sm shadow-stone-950/5"
+		>
 			<div class="grid gap-6 p-6 lg:grid-cols-[1fr_auto] lg:items-center lg:p-8">
 				<div>
 					<span
-						class={`inline-flex rounded-md px-2 py-1 text-sm font-black uppercase ${
+						class={`inline-flex rounded-md px-2.5 py-1 text-sm font-black ${
 							isNewCommunity ? 'bg-emerald-50 text-emerald-900' : 'bg-stone-100 text-stone-700'
 						}`}
 					>
 						{isNewCommunity ? 'Community created' : 'Community overview'}
 					</span>
-					<h1 class="mt-5 text-4xl font-black tracking-normal text-[#171614]">{communityName}</h1>
-					<p class="mt-3 max-w-3xl text-lg font-semibold text-stone-600">
+					<h1 class="mt-5 text-4xl font-black leading-tight text-[#171614] md:text-5xl">
+						{communityName}
+					</h1>
+					<p class="mt-3 max-w-3xl text-lg font-medium leading-8 text-stone-600">
 						{isNewCommunity
 							? 'Your community is ready. Invite your first members and set up the basics.'
 							: 'Track members, roles, events, and community activity from one place.'}
@@ -354,7 +360,7 @@
 				<div class="flex flex-wrap gap-3">
 					<button
 						type="button"
-						class="inline-flex h-12 items-center gap-3 rounded-lg bg-emerald-900 px-5 font-black text-white shadow-sm"
+						class="inline-flex h-11 items-center gap-3 rounded-xl bg-emerald-950 px-5 font-black text-white shadow-sm shadow-emerald-950/20 transition hover:bg-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98]"
 						on:click={() => copy(inviteUrl)}
 					>
 						<UserPlus size={19} />
@@ -362,7 +368,7 @@
 					</button>
 					<button
 						type="button"
-						class="inline-flex h-12 items-center gap-3 rounded-lg border border-black/10 bg-white px-5 font-black text-emerald-900 shadow-sm"
+						class="inline-flex h-11 items-center gap-3 rounded-xl border border-stone-200 bg-white px-5 font-black text-emerald-950 shadow-sm shadow-stone-950/5 transition hover:bg-stone-50 focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98]"
 						on:click={openCommunity}
 					>
 						Open
@@ -373,15 +379,15 @@
 		</section>
 
 		<section
-			class="grid overflow-hidden rounded-lg border border-black/10 bg-white/80 shadow-sm md:grid-cols-4"
+			class="grid overflow-hidden rounded-2xl border border-stone-200 bg-white/85 shadow-sm shadow-stone-950/5 md:grid-cols-4"
 		>
 			{#each summaryCards as card, index (card.label)}
-				<div class={`p-6 ${index < summaryCards.length - 1 ? 'border-black/10 md:border-r' : ''}`}>
-					<div class={`grid h-12 w-12 place-items-center rounded-full ${card.tone}`}>
+				<div class={`p-6 ${index < summaryCards.length - 1 ? 'border-stone-200 md:border-r' : ''}`}>
+					<div class={`grid h-11 w-11 place-items-center rounded-xl ${card.tone}`}>
 						<svelte:component this={card.icon} size={23} />
 					</div>
-					<p class="mt-5 text-4xl font-black text-[#171614]">{card.value}</p>
-					<p class="mt-2 text-lg font-black text-[#171614]">{card.label}</p>
+					<p class="mt-5 font-mono text-4xl font-black text-[#171614]">{card.value}</p>
+					<p class="mt-2 text-base font-black text-[#171614]">{card.label}</p>
 					<p class="mt-2 text-base font-medium text-stone-600">
 						{!checkedOverview && card.label === 'Members' ? 'Checking...' : card.detail}
 					</p>
@@ -391,11 +397,13 @@
 
 		<div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
 			<div class="grid gap-6">
-				<section class="rounded-lg border border-black/10 bg-white/80 p-6 shadow-sm lg:p-8">
+				<section
+					class="rounded-2xl border border-stone-200 bg-white/85 p-6 shadow-sm shadow-stone-950/5 lg:p-8"
+				>
 					<div class="flex flex-wrap items-start justify-between gap-4">
 						<div>
 							<h2 class="text-2xl font-black text-[#171614]">Next actions</h2>
-							<p class="mt-2 text-base font-medium text-stone-600">
+							<p class="mt-2 text-base font-medium leading-7 text-stone-600">
 								{isNewCommunity
 									? 'Complete these steps to launch your community.'
 									: 'Common actions for managing this community.'}
@@ -403,7 +411,7 @@
 						</div>
 						<button
 							type="button"
-							class="inline-flex h-10 items-center gap-2 rounded-lg border border-black/10 bg-white px-4 text-sm font-bold text-stone-800 shadow-sm"
+							class="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-4 text-sm font-bold text-stone-800 shadow-sm shadow-stone-950/5 transition hover:bg-stone-50 focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98]"
 							on:click={subscribeOverview}
 						>
 							<RefreshCw size={16} />
@@ -411,11 +419,13 @@
 						</button>
 					</div>
 
-					<div class="mt-8 grid gap-5 md:grid-cols-4">
+					<div class="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
 						{#each nextSteps as step, index (step.label)}
-							<div class="rounded-lg border border-black/10 bg-white p-5">
+							<div
+								class="rounded-xl border border-stone-200 bg-white p-5 transition hover:-translate-y-0.5 hover:shadow-md hover:shadow-stone-950/5"
+							>
 								<div
-									class={`grid h-12 w-12 place-items-center rounded-full ${
+									class={`grid h-11 w-11 place-items-center rounded-xl ${
 										index === 0
 											? 'bg-emerald-50 text-emerald-900'
 											: index === 1
@@ -434,25 +444,30 @@
 					</div>
 				</section>
 
-				<section class="overflow-hidden rounded-lg border border-black/10 bg-white/80 shadow-sm">
+				<section
+					class="overflow-hidden rounded-2xl border border-stone-200 bg-white/85 shadow-sm shadow-stone-950/5"
+				>
 					<div class="flex items-center justify-between gap-4 p-5 lg:p-7">
 						<div>
-							<h2 class="text-2xl font-bold">Recent members</h2>
+							<h2 class="text-2xl font-black">Recent members</h2>
 							<p class="mt-1 text-base text-stone-600">
 								{memberPubkeys.length} members with role assignments.
 							</p>
 						</div>
 					</div>
-					<div class="divide-y divide-black/10">
+					<div class="divide-y divide-stone-200">
 						{#if !recentMembers.length}
-							<div class="px-7 py-8">
-								<p class="text-base font-bold text-stone-500">No members yet.</p>
+							<div class="px-7 py-10">
+								<p class="text-base font-black text-stone-700">No members yet</p>
+								<p class="mt-1 text-sm font-medium text-stone-500">
+									Invite members to start filling this list.
+								</p>
 							</div>
 						{/if}
 						{#each recentMembers as pubkey (pubkey)}
 							<div class="grid grid-cols-[auto_1fr] items-center gap-4 px-7 py-5">
 								<div
-									class="grid h-12 w-12 place-items-center rounded-full bg-gradient-to-br from-emerald-800 to-stone-900 text-sm font-bold text-white"
+									class="grid h-11 w-11 place-items-center rounded-xl bg-emerald-950 text-sm font-bold text-white"
 								>
 									{pubkey.slice(0, 2).toUpperCase()}
 								</div>
@@ -467,17 +482,19 @@
 			</div>
 
 			<aside class="grid content-start gap-6">
-				<section class="rounded-lg border border-black/10 bg-white/80 p-6 shadow-sm">
+				<section
+					class="rounded-2xl border border-stone-200 bg-white/85 p-6 shadow-sm shadow-stone-950/5"
+				>
 					<h2 class="text-2xl font-black text-[#171614]">Invite link</h2>
 					<p class="mt-2 text-base font-medium text-stone-600">Share this with new members.</p>
 
 					<div
-						class="mt-6 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] rounded-lg border border-black/10 bg-white"
+						class="mt-6 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] overflow-hidden rounded-xl border border-stone-200 bg-white"
 					>
 						<span class="min-w-0 truncate px-4 py-4 text-sm font-black">{inviteUrl}</span>
 						<button
 							type="button"
-							class="border-l border-black/10 px-4 font-black text-emerald-900"
+							class="border-l border-stone-200 px-4 font-black text-emerald-950 transition hover:bg-stone-50 focus:outline-none focus:ring-2 focus:ring-emerald-800/30"
 							aria-label="Copy invite link"
 							on:click={() => copy(inviteUrl)}
 						>
@@ -487,7 +504,7 @@
 
 					<div class="mt-6 grid gap-5 sm:grid-cols-[128px_1fr] sm:items-center">
 						<div
-							class="grid h-32 w-32 place-items-center rounded-lg border border-black/10 bg-white p-3"
+							class="grid h-32 w-32 place-items-center rounded-xl border border-stone-200 bg-white p-3"
 						>
 							{#if qrDataUrl}
 								<img class="h-full w-full object-contain" src={qrDataUrl} alt="Invite QR code" />
@@ -505,7 +522,7 @@
 
 					<button
 						type="button"
-						class="mt-6 inline-flex h-12 items-center gap-3 rounded-lg border border-black/10 bg-white px-5 font-black text-emerald-900 shadow-sm"
+						class="mt-6 inline-flex h-11 items-center gap-3 rounded-xl border border-stone-200 bg-white px-5 font-black text-emerald-950 shadow-sm shadow-stone-950/5 transition hover:bg-stone-50 focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98]"
 						on:click={downloadInvitePoster}
 					>
 						<Download size={18} />
@@ -513,12 +530,14 @@
 					</button>
 				</section>
 
-				<section class="rounded-lg border border-black/10 bg-white/80 p-6 shadow-sm">
+				<section
+					class="rounded-2xl border border-stone-200 bg-white/85 p-6 shadow-sm shadow-stone-950/5"
+				>
 					<h2 class="text-lg font-black text-[#171614]">Community preview</h2>
-					<div class="mt-5 rounded-lg bg-slate-950 p-6 text-white">
+					<div class="mt-5 rounded-2xl bg-[#111f19] p-6 text-white shadow-inner">
 						<div class="flex items-center gap-5">
 							<div
-								class="grid h-20 w-20 shrink-0 place-items-center rounded-lg bg-emerald-900 text-2xl font-black"
+								class="grid h-20 w-20 shrink-0 place-items-center rounded-xl bg-emerald-800 text-2xl font-black"
 							>
 								{initials}
 							</div>

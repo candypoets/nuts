@@ -418,11 +418,11 @@
 	<title>Roles - Nuts</title>
 </svelte:head>
 
-<main class="px-5 py-7 sm:px-8 lg:px-10">
-	<div class="mx-auto max-w-[1600px]">
+<main class="px-4 py-8 sm:px-6 lg:px-8">
+	<div class="mx-auto max-w-[1500px]">
 		<a
 			href={resolve('/admin')}
-			class="inline-flex items-center gap-2 text-sm font-bold text-stone-600"
+			class="inline-flex items-center gap-2 rounded-lg text-sm font-bold text-stone-600 transition hover:text-emerald-950 focus:outline-none focus:ring-2 focus:ring-emerald-800/30"
 		>
 			<ArrowLeft size={17} />
 			Dashboard
@@ -430,14 +430,14 @@
 
 		<div class="mt-7 flex flex-wrap items-end justify-between gap-5">
 			<div>
-				<h1 class="text-3xl font-bold tracking-normal text-[#151514]">Roles</h1>
-				<p class="mt-2 text-lg text-stone-600">
+				<h1 class="text-4xl font-black leading-tight text-[#151514]">Roles</h1>
+				<p class="mt-2 text-lg font-medium leading-8 text-stone-600">
 					Choose what each role can publish and manage in the community.
 				</p>
 			</div>
 			<button
 				type="button"
-				class="inline-flex h-12 items-center gap-3 rounded-xl bg-emerald-800 px-5 font-bold text-white shadow-sm disabled:cursor-not-allowed disabled:bg-stone-300 disabled:text-stone-500"
+				class="inline-flex h-11 items-center gap-3 rounded-xl bg-emerald-950 px-5 font-black text-white shadow-sm shadow-emerald-950/20 transition hover:bg-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-stone-300 disabled:text-stone-500 disabled:shadow-none"
 				disabled={roleLimitReached}
 				on:click={openNewRoleModal}
 			>
@@ -454,18 +454,26 @@
 			{/if}
 		</p>
 		{#if publishStatus}
-			<p class="mt-2 text-sm font-bold text-emerald-700">{publishStatus}</p>
+			<p
+				class="mt-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800"
+			>
+				{publishStatus}
+			</p>
 		{/if}
 
-		<section class="mt-7 grid gap-5 lg:grid-cols-4">
+		<section class="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
 			{#each roles as role (role.name)}
-				<article class="rounded-2xl border border-black/10 bg-white/80 p-6 shadow-sm">
+				<article
+					class="rounded-2xl border border-stone-200 bg-white/85 p-6 shadow-sm shadow-stone-950/5 transition hover:-translate-y-0.5 hover:shadow-md hover:shadow-stone-950/5"
+				>
 					<div class="flex items-start justify-between gap-4">
 						<div>
-							<h2 class="text-2xl font-bold">{role.name}</h2>
-							<p class="mt-2 text-base leading-7 text-stone-600">{role.description}</p>
+							<h2 class="text-2xl font-black">{role.name}</h2>
+							<p class="mt-2 text-base font-medium leading-7 text-stone-600">{role.description}</p>
 						</div>
-						<span class="rounded-full bg-stone-100 px-3 py-1 text-sm font-black text-stone-700">
+						<span
+							class="rounded-md bg-stone-100 px-3 py-1 font-mono text-sm font-black text-stone-700"
+						>
 							{role.count}
 						</span>
 					</div>
@@ -473,10 +481,12 @@
 			{/each}
 		</section>
 
-		<section class="mt-7 overflow-hidden rounded-2xl border border-black/10 bg-white/80 shadow-sm">
-			<div class="border-b border-black/10 p-5 lg:p-7">
-				<h2 class="text-2xl font-bold">Access rights</h2>
-				<p class="mt-2 text-base text-stone-600">
+		<section
+			class="mt-7 overflow-hidden rounded-2xl border border-stone-200 bg-white/85 shadow-sm shadow-stone-950/5"
+		>
+			<div class="border-b border-stone-200 p-5 lg:p-7">
+				<h2 class="text-2xl font-black">Access rights</h2>
+				<p class="mt-2 text-base font-medium text-stone-600">
 					These permissions define what a role can publish or change inside this community.
 				</p>
 			</div>
@@ -485,33 +495,37 @@
 				<table class="w-full min-w-[1040px] border-collapse text-left">
 					<thead class="bg-stone-50">
 						<tr>
-							<th class="w-[360px] px-7 py-5 text-base font-bold text-stone-700">Action</th>
+							<th class="w-[360px] px-7 py-5 text-sm font-black text-stone-600">Action</th>
 							{#each roles as role (role.name)}
-								<th class="px-5 py-5 text-center text-base font-bold text-stone-700">
+								<th class="px-5 py-5 text-center text-sm font-black text-stone-600">
 									{role.name}
 								</th>
 							{/each}
 						</tr>
 					</thead>
-					<tbody class="divide-y divide-black/10">
+					<tbody class="divide-y divide-stone-200">
 						{#each actions as action (action.key)}
-							<tr>
+							<tr class="transition hover:bg-stone-50/70">
 								<td class="px-7 py-5">
 									<div class="flex items-start gap-4">
 										<span
-											class="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-emerald-100 text-emerald-800"
+											class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-900"
 										>
 											<svelte:component this={action.icon} size={22} strokeWidth={1.8} />
 										</span>
 										<span>
-											<span class="block text-lg font-bold">{action.label}</span>
-											<span class="mt-1 block text-base text-stone-600">{action.description}</span>
+											<span class="block text-base font-black">{action.label}</span>
+											<span class="mt-1 block text-base font-medium text-stone-600"
+												>{action.description}</span
+											>
 										</span>
 									</div>
 								</td>
 								{#each roles as role (role.name)}
 									<td class="px-5 py-5 text-center">
-										<label class="inline-flex cursor-pointer items-center justify-center">
+										<label
+											class="inline-flex cursor-pointer items-center justify-center rounded-full focus-within:ring-2 focus-within:ring-emerald-800/30"
+										>
 											<input
 												class="sr-only"
 												type="checkbox"
@@ -540,24 +554,26 @@
 			</div>
 		</section>
 
-		<section class="mt-7 rounded-2xl border border-black/10 bg-white/80 p-6 shadow-sm">
-			<h2 class="text-xl font-bold">Suggested defaults</h2>
+		<section
+			class="mt-7 rounded-2xl border border-stone-200 bg-white/85 p-6 shadow-sm shadow-stone-950/5"
+		>
+			<h2 class="text-xl font-black">Suggested defaults</h2>
 			<div class="mt-5 grid gap-4 md:grid-cols-3">
 				<div class="rounded-xl bg-stone-50 p-5">
 					<h3 class="font-black">Coach</h3>
-					<p class="mt-2 text-base leading-7 text-stone-600">
+					<p class="mt-2 text-base font-medium leading-7 text-stone-600">
 						Can publish posts, pictures and training events.
 					</p>
 				</div>
 				<div class="rounded-xl bg-stone-50 p-5">
 					<h3 class="font-black">Member</h3>
-					<p class="mt-2 text-base leading-7 text-stone-600">
+					<p class="mt-2 text-base font-medium leading-7 text-stone-600">
 						Can post updates and pictures, but not create official events.
 					</p>
 				</div>
 				<div class="rounded-xl bg-stone-50 p-5">
 					<h3 class="font-black">Admin</h3>
-					<p class="mt-2 text-base leading-7 text-stone-600">
+					<p class="mt-2 text-base font-medium leading-7 text-stone-600">
 						Can manage roles, invite members, moderate, and change settings.
 					</p>
 				</div>
@@ -567,9 +583,11 @@
 </main>
 
 {#if showNewRoleModal}
-	<div class="fixed inset-0 z-50 grid place-items-center bg-black/35 px-5 py-8">
+	<div
+		class="fixed inset-0 z-50 grid place-items-center bg-stone-950/45 px-5 py-8 backdrop-blur-sm"
+	>
 		<div
-			class="max-h-full w-full max-w-3xl overflow-y-auto rounded-2xl border border-black/10 bg-[#fbfaf7] p-6 shadow-2xl"
+			class="max-h-full w-full max-w-3xl overflow-y-auto rounded-2xl border border-stone-200 bg-[#fbfaf7] p-6 shadow-2xl shadow-stone-950/20"
 			aria-modal="true"
 			role="dialog"
 			aria-labelledby="new-role-title"
@@ -581,7 +599,7 @@
 				</div>
 				<button
 					type="button"
-					class="grid h-10 w-10 place-items-center rounded-full hover:bg-black/5"
+					class="grid h-10 w-10 place-items-center rounded-xl transition hover:bg-stone-100 focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98]"
 					aria-label="Close"
 					on:click={closeNewRoleModal}
 				>
@@ -593,7 +611,7 @@
 				<label class="grid gap-2">
 					<span class="text-sm font-black text-stone-600">Role name</span>
 					<input
-						class="rounded-xl border border-black/10 bg-white px-4 py-3 text-lg font-bold outline-none focus:border-emerald-700"
+						class="rounded-xl border border-stone-200 bg-white px-4 py-3 text-lg font-bold outline-none focus:border-emerald-800 focus:ring-2 focus:ring-emerald-800/20"
 						bind:value={newRoleName}
 						maxlength="32"
 						placeholder="Member"
@@ -603,7 +621,7 @@
 				<label class="grid gap-2">
 					<span class="text-sm font-black text-stone-600">Description</span>
 					<textarea
-						class="min-h-24 rounded-xl border border-black/10 bg-white px-4 py-3 text-base font-semibold leading-6 outline-none focus:border-emerald-700"
+						class="min-h-24 rounded-xl border border-stone-200 bg-white px-4 py-3 text-base font-semibold leading-6 outline-none focus:border-emerald-800 focus:ring-2 focus:ring-emerald-800/20"
 						bind:value={newRoleDescription}
 						maxlength="140"
 						placeholder="Can post notes and media."
@@ -616,7 +634,7 @@
 				<div class="mt-4 grid gap-3 md:grid-cols-2">
 					{#each actions as action (action.key)}
 						<label
-							class="flex cursor-pointer items-start gap-4 rounded-xl border border-black/10 bg-white p-4"
+							class="flex cursor-pointer items-start gap-4 rounded-xl border border-stone-200 bg-white p-4 transition hover:bg-stone-50"
 						>
 							<input
 								class="mt-1 h-5 w-5 accent-emerald-800"
@@ -634,17 +652,17 @@
 				</div>
 			</div>
 
-			<div class="mt-7 flex flex-wrap justify-end gap-3 border-t border-black/10 pt-5">
+			<div class="mt-7 flex flex-wrap justify-end gap-3 border-t border-stone-200 pt-5">
 				<button
 					type="button"
-					class="h-12 rounded-xl border border-black/10 bg-white px-5 font-black"
+					class="h-11 rounded-xl border border-stone-200 bg-white px-5 font-black transition hover:bg-stone-50 focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98]"
 					on:click={closeNewRoleModal}
 				>
 					Cancel
 				</button>
 				<button
 					type="button"
-					class="h-12 rounded-xl bg-emerald-800 px-5 font-black text-white disabled:cursor-not-allowed disabled:bg-stone-300 disabled:text-stone-500"
+					class="h-11 rounded-xl bg-emerald-950 px-5 font-black text-white shadow-sm shadow-emerald-950/20 transition hover:bg-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-stone-300 disabled:text-stone-500 disabled:shadow-none"
 					disabled={!canCreateRole}
 					on:click={createRole}
 				>
