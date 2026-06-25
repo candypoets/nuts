@@ -1,7 +1,6 @@
 import { useRelayStatus } from '@candypoets/nipworker/hooks';
 import { normalizeURL } from 'nostr-tools/utils';
-import { proxyUrl } from 'src/lib/proxy';
-import { writable, get, type Readable, derived, readable } from 'svelte/store';
+import { writable, get, type Readable, readable } from 'svelte/store';
 
 // NIP-11 relay information type
 export type RelayInfo = {
@@ -69,7 +68,7 @@ export function relaySub(sub: string): Readable<string[] | undefined> {
 	return selectMapKey(relaySubs, sub);
 }
 
-async function fetchRelayInfo(relayUrl: string): Promise<RelayInfo | null> {
+export async function fetchRelayInfo(relayUrl: string): Promise<RelayInfo | null> {
 	const key = normalizeURL(relayUrl);
 
 	try {
@@ -81,46 +80,11 @@ async function fetchRelayInfo(relayUrl: string): Promise<RelayInfo | null> {
 		if (fetchAttempts.has(key)) return null;
 		fetchAttempts.add(key);
 
-		// Build candidates:
-		// 1) same path with http(s)
-		// 2) origin root
-		// 3) well-known path
-		const httpBase = key.replace(/^wss?:\/\//, (m) => (m === 'wss://' ? 'https://' : 'http://'));
-		const origin = new URL(httpBase).origin;
-
-		const candidates = Array.from(
-			new Set<string>([
-				httpBase,
-				new URL('/', httpBase).toString(),
-				new URL('/.well-known/nostr/relay.json', origin).toString()
-			])
-		);
-
-		for (const url of candidates) {
-			const proxied = proxyUrl(url, 'resource');
-
-			// Timeout controller
-			const controller = new AbortController();
-			const t = setTimeout(() => controller.abort(), 7000);
-
-			try {
-				const response = await fetch(proxied, {
-					headers: {
-						Accept: 'application/nostr+json, application/json'
-					},
-					signal: controller.signal
-				});
-
-				if (response.ok) {
-					const relayInfo: RelayInfo = await response.json();
-					setRelayInfo(key, relayInfo);
-					return relayInfo;
-				}
-			} catch (_e) {
-				// continue to next candidate
-			} finally {
-				clearTimeout(t);
-			}
+		const response = await fetch(`/api/relay-info?relay=${encodeURIComponent(key)}`);
+		if (response.ok) {
+			const relayInfo: RelayInfo = await response.json();
+			setRelayInfo(key, relayInfo);
+			return relayInfo;
 		}
 	} catch (error) {
 		console.log('Failed to fetch relay info for', relayUrl, error);
@@ -137,9 +101,9 @@ export function initRelayTracking() {
 	useRelayStatus((status, url) => {
 		const key = normalizeURL(url);
 		setRelayStatus(key, status);
-		
-		// Only fetch NIP-11 info when relay is connected/open
-		if (status === 'open' || status === 'connected') {
+
+		// Only fetch NIP-11 info when relay is connected.
+		if (status === 'connected') {
 			// Don't retry if failed recently (within 5 minutes)
 			const lastFailure = fetchFailures.get(key);
 			if (!lastFailure || Date.now() - lastFailure > 5 * 60 * 1000) {

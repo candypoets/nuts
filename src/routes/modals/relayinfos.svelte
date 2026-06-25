@@ -4,15 +4,22 @@
 	import VirtualList from 'src/components/VirtualList.svelte';
 	import SearchInput from 'src/components/SearchInput.svelte';
 	import ModalHandle from 'src/components/ModalHandle.svelte';
-	import { relayInfos, relayStatusMap, relaySubs, setSubRelays } from 'src/controller/relay';
+	import {
+		fetchRelayInfo,
+		relayInfos,
+		relayStatusMap,
+		relaySubs,
+		setSubRelays
+	} from 'src/controller/relay';
 	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
-	import { getContext, onDestroy } from 'svelte';
+	import { getContext, onDestroy, onMount } from 'svelte';
 
 	export let subId: string = '';
 
 	let animator: PagerAnimator = getContext('animator');
 	let search = '';
+	let viewport: HTMLElement;
 
 	let relaysSelected = $relaySubs.get(subId)?.map(normalizeURL) || [];
 
@@ -25,10 +32,15 @@
 	};
 
 	// Derive the relays array from the stores
-	$: relays = Array.from($relayStatusMap.entries()).map(([url, status]) => {
+	$: relays = Array.from(
+		new Set([...Array.from($relayStatusMap.keys()), ...relaysToFilter].map(normalizeURL))
+	).map((url) => {
 		const key = normalizeURL(url);
 		const info = $relayInfos.get(key);
-		return { url: key, status, info } as RelayItem;
+		return { url: key, status: $relayStatusMap.get(key) || '', info } as RelayItem;
+	});
+	onMount(() => {
+		relaysToFilter.forEach((relay) => void fetchRelayInfo(relay));
 	});
 	let sorted = false;
 	// Filter based on search
@@ -97,6 +109,9 @@
 					itemsPerRow={1}
 					height="100%"
 					itemHeight={44}
+					backdrop={false}
+					loading={false}
+					bind:viewport
 					className="w-full !max-h-none"
 					let:item
 					let:items
@@ -110,7 +125,8 @@
 							on:click|stopPropagation={() => toggleSelected(r.url)}
 						>
 							<!-- Checkbox -->
-							<div class="shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors"
+							<div
+								class="shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors"
 								class:border-accent={isSelected}
 								class:bg-accent={isSelected}
 								class:border-base-300={!isSelected}
@@ -122,9 +138,14 @@
 
 							<!-- Icon or Status dot -->
 							{#if r.info?.icon}
-								<img src={proxyAvatarUrl(r.info.icon)} alt="" class="w-5 h-5 rounded shrink-0 object-cover" />
+								<img
+									src={proxyAvatarUrl(r.info.icon)}
+									alt=""
+									class="w-5 h-5 rounded shrink-0 object-cover"
+								/>
 							{:else}
-								<div class="shrink-0 w-2 h-2 rounded-full"
+								<div
+									class="shrink-0 w-2 h-2 rounded-full"
 									class:bg-success={r.status === 'open' || r.status === 'connected'}
 									class:bg-warning={r.status === 'connecting'}
 									class:bg-error={r.status === 'failed'}
@@ -133,7 +154,9 @@
 							{/if}
 
 							<!-- Relay name & info -->
-							<div class="min-w-0 flex-1 flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-3">
+							<div
+								class="min-w-0 flex-1 flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-3"
+							>
 								<div class="font-medium truncate">
 									{relayName(r)}
 								</div>
@@ -149,15 +172,20 @@
 							<div class="flex items-center gap-1.5 shrink-0">
 								<!-- Search support -->
 								{#if nips.includes(50)}
-									<div class="badge badge-xs badge-info" title="Search support (NIP-50)">search</div>
+									<div class="badge badge-xs badge-info" title="Search support (NIP-50)">
+										search
+									</div>
 								{/if}
 								<!-- Auth required -->
 								{#if nips.includes(42)}
-									<div class="badge badge-xs badge-warning" title="Auth required (NIP-42)">auth</div>
+									<div class="badge badge-xs badge-warning" title="Auth required (NIP-42)">
+										auth
+									</div>
 								{/if}
 								<!-- NIP count -->
 								{#if nips.length}
-									<div class="badge badge-xs"
+									<div
+										class="badge badge-xs"
 										class:badge-accent={isSelected}
 										class:badge-ghost={!isSelected}
 									>
@@ -171,7 +199,10 @@
 										.replace(/^nostr-/, '')
 										.replace(/-relay$/, '')
 										.replace(/\.git$/, '')}
-									<div class="badge badge-xs badge-ghost hidden sm:inline-block truncate max-w-16" title={r.info.software}>
+									<div
+										class="badge badge-xs badge-ghost hidden sm:inline-block truncate max-w-16"
+										title={r.info.software}
+									>
 										{software}
 									</div>
 								{/if}
