@@ -31,6 +31,7 @@ export const pathOptions = [
 	'repost',
 	'relays',
 	'relayinfos',
+	'event',
 	'share',
 	'logout',
 	'theme',

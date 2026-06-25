@@ -18,6 +18,7 @@
 	import Tapcash from 'src/routes/modals/tapcash.svelte';
 	import Topup from 'src/routes/modals/topup.svelte';
 	import Post from 'src/routes/modals/post.svelte';
+	import EventModal from 'src/routes/modals/event.svelte';
 
 	import { viewport } from 'src/controller/viewport';
 	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
@@ -103,9 +104,11 @@
 
 				// Check if the scrollable content is at the top
 				// Find the scrollable container (could be VirtualList or regular overflow container)
-				const scrollContainer = element.querySelector('[data-scroll-container], .overflow-scroll, .overflow-auto, [style*="overflow"]');
+				const scrollContainer = element.querySelector(
+					'[data-scroll-container], .overflow-scroll, .overflow-auto, [style*="overflow"]'
+				);
 				const scrollableElement = scrollContainer || element.querySelector('.h-screen, .h-full');
-				
+
 				if (scrollableElement) {
 					const scrollTop = (scrollableElement as HTMLElement).scrollTop;
 					addLog(`Scroll check: scrollTop=${scrollTop}`);
@@ -235,6 +238,8 @@
 			<Post />
 		{:else if modalKey === 'share'}
 			<Share noteId={path.split(':')?.[1]} />
+		{:else if modalKey === 'event'}
+			<EventModal relay={path.split(':')?.[1]} address={path.split(':')?.[2]} />
 		{:else if modalKey === 'wallet'}
 			<Wallet />
 		{:else if modalKey === 'relays'}
