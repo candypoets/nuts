@@ -32,10 +32,8 @@
 	import { onDestroy, onMount } from 'svelte';
 	import { get } from 'svelte/store';
 
-	import { normalizeURL } from 'nostr-tools/utils';
 	import Connect from 'src/components/Connect.svelte';
 	import Pager from 'src/components/Pager.svelte';
-	import RelaysList from 'src/components/RelaysList.svelte';
 	import { key } from 'src/controller/key';
 	import {
 		delayedPromise,
@@ -104,8 +102,6 @@
 		return differenceInSeconds > 86_400;
 	}
 
-	let connectionStatus: { [url: string]: ConnectionStatus } = {};
-
 	$: walletRelays =
 		$kind10019 && fbArray(asKind10019($kind10019) as Kind10019Parsed, 'readRelays').map((r) => r);
 
@@ -118,8 +114,6 @@
 	$: relays = Array.from(
 		new Set([...(defaultRelays || []), ...(walletRelays || []), ...($readRelays || [])])
 	);
-
-	$: normalizedRelays = (relays.filter((r) => typeof r === 'string') as string[]).map(normalizeURL);
 
 	const relayPromise = Promise.race([kind10019Ready.promise, delayedPromise]);
 
@@ -443,16 +437,9 @@
 	function handleWalletEvents(message: WorkerMessage) {
 		const status = isConnectionStatus(message);
 		if (status && connectionTracker) {
-			const relayUrl = status.relayUrl();
-			if (relayUrl) {
-				// Normalize URL to match normalizedRelays keys
-				const normalizedUrl = normalizeURL(relayUrl);
-				// Create new object for reactivity
-				connectionStatus = { ...connectionStatus, [normalizedUrl]: status };
-				connectionTracker.handleMessage(message);
-				if (connectionTracker.resolutionRate > 0.5) {
-					walletLoaded.resolve(true);
-				}
+			connectionTracker.handleMessage(message);
+			if (connectionTracker.resolutionRate > 0.5) {
+				walletLoaded.resolve(true);
 			}
 			return;
 		}
@@ -526,7 +513,6 @@
 							</div>
 						</div>
 					</div>
-					<RelaysList relays={normalizedRelays} {connectionStatus} />
 					{#if loading}
 						loading
 					{:else if $nutsWallet}

@@ -1,13 +1,13 @@
 <script lang="ts">
 	import {
 		MessageType,
+		NpubLimiterKey,
 		NpubLimiterPipeConfigT,
 		ParsePipeConfigT,
 		PipeConfig,
 		PipeT,
 		SaveToDbPipeConfigT,
 		SerializeEventsPipeConfigT,
-		type ConnectionStatus,
 		type Kind3Parsed,
 		type Kind4Parsed,
 		type ParsedEvent,
@@ -19,19 +19,17 @@
 		asKind3,
 		asKind4,
 		asParsedEvent,
-		ConnectionTracker,
 		fbArray,
-		isConnectionStatus,
 		isKind4
 	} from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { formatDistanceToNow } from 'date-fns';
 	import { orderBy } from 'lodash';
+	import { onDestroy } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { tweened } from 'svelte/motion';
 
 	import Pager from 'src/components/Pager.svelte';
-	import RelaysList from 'src/components/RelaysList.svelte';
 	import { key } from 'src/controller';
 	import { kind3, mutePipeConfig, readRelays, writeRelays } from 'src/controller/nostr';
 	import ContentBlocks from 'src/routes/explore/_post/ContentBlocks.svelte';
@@ -40,7 +38,6 @@
 	import User from 'src/routes/explore/user.svelte';
 	import { go } from 'src/routes/modals/modal';
 	import Empty from './empty.svelte';
-	import { normalizeURL } from 'nostr-tools/utils';
 
 	export let visible = true;
 
@@ -56,9 +53,6 @@
 	let messageItems: ParsedEvent[] = [];
 	let requestItems: ParsedEvent[] = [];
 	let contactPubkeys = new Set<string>();
-
-	let connectionStatus: { [url: string]: ConnectionStatus } = {};
-	let connectionTracker: ConnectionTracker | undefined;
 
 	// Viewport state from Feed
 	let start = 0;
@@ -83,15 +77,10 @@
 		easing: cubicOut
 	});
 
-	$: normalizedRelays = (
-		[...$readRelays, ...$writeRelays].filter((r) => typeof r === 'string') as string[]
-	).map(normalizeURL);
-
 	// Update the tweened value when depth changes
 	$: depthTranslation.set(subs.length * 30);
 
-	// Build subscription requests
-	function buildRequests(): RequestObject[] {
+	function buildOutgoingRequests(): RequestObject[] {
 		if (!$key?.pub) return [];
 
 		return [
@@ -105,7 +94,14 @@
 				kinds: [4],
 				authors: [$key.pub],
 				relays: [...$readRelays, ...$writeRelays]
-			},
+			}
+		];
+	}
+
+	function buildIncomingRequests(): RequestObject[] {
+		if (!$key?.pub) return [];
+
+		return [
 			{
 				kinds: [4],
 				tags: { '#p': [$key.pub] },
@@ -209,20 +205,6 @@
 
 	// Handle incoming events from subscription
 	function handleEvents(message: WorkerMessage) {
-		// Handle connection status
-		const status = isConnectionStatus(message);
-		if (status) {
-			const relayUrl = status.relayUrl();
-			if (relayUrl) {
-				// Normalize URL to match relay keys
-				const normalizedUrl = normalizeURL(relayUrl);
-				// Create new object for reactivity
-				connectionStatus = { ...connectionStatus, [normalizedUrl]: status };
-				connectionTracker?.handleMessage?.(message);
-			}
-			return;
-		}
-
 		switch (message.type()) {
 			case MessageType.Eoce:
 				eoce = true;
@@ -244,34 +226,50 @@
 		}
 	}
 
-	$: subscriptionOptions = {
-		pipeline: [
-			new PipeT(PipeConfig.MuteFilterPipeConfig, $mutePipeConfig),
-			new PipeT(PipeConfig.NpubLimiterPipeConfig, new NpubLimiterPipeConfigT(4, 5, 100)),
-			new PipeT(PipeConfig.ParsePipeConfig, new ParsePipeConfigT()),
-			new PipeT(PipeConfig.SaveToDbPipeConfig, new SaveToDbPipeConfigT()),
-			new PipeT(
-				PipeConfig.SerializeEventsPipeConfig,
-				new SerializeEventsPipeConfigT(new TextEncoder().encode('chat'))
-			)
-		]
-	};
+	function buildSubscriptionOptions(keyBy: NpubLimiterKey) {
+		return {
+			pipeline: [
+				new PipeT(PipeConfig.MuteFilterPipeConfig, $mutePipeConfig),
+				new PipeT(
+					PipeConfig.NpubLimiterPipeConfig,
+					new NpubLimiterPipeConfigT(4, 5, 100, keyBy)
+				),
+				new PipeT(PipeConfig.ParsePipeConfig, new ParsePipeConfigT()),
+				new PipeT(PipeConfig.SaveToDbPipeConfig, new SaveToDbPipeConfigT()),
+				new PipeT(
+					PipeConfig.SerializeEventsPipeConfig,
+					new SerializeEventsPipeConfigT(new TextEncoder().encode('chat'))
+				)
+			]
+		};
+	}
+
+	$: outgoingSubscriptionOptions = buildSubscriptionOptions(NpubLimiterKey.PTag);
+	$: incomingSubscriptionOptions = buildSubscriptionOptions(NpubLimiterKey.Author);
 
 	// Initialize subscription
-	let unsubscribe: (() => void) | undefined;
+	let unsubscribeOutgoing: (() => void) | undefined;
+	let unsubscribeIncoming: (() => void) | undefined;
 
 	$: if (visible && $key?.pub && $key?.hasSigner !== false) {
 		if (rawEvents.length === 0 && !loading) {
 			loading = true;
-			const requests = buildRequests();
-			if (requests.length > 0) {
-				unsubscribe?.();
-				connectionTracker = new ConnectionTracker();
-				unsubscribe = useSubscription(
-					'chat_' + $key.pub,
-					requests,
+			const outgoingRequests = buildOutgoingRequests();
+			const incomingRequests = buildIncomingRequests();
+			if (outgoingRequests.length > 0 && incomingRequests.length > 0) {
+				unsubscribeOutgoing?.();
+				unsubscribeIncoming?.();
+				unsubscribeOutgoing = useSubscription(
+					'chat_outgoing_' + $key.pub,
+					outgoingRequests,
 					handleEvents,
-					subscriptionOptions
+					outgoingSubscriptionOptions
+				);
+				unsubscribeIncoming = useSubscription(
+					'chat_incoming_' + $key.pub,
+					incomingRequests,
+					handleEvents,
+					incomingSubscriptionOptions
 				);
 			}
 		}
@@ -282,15 +280,23 @@
 		refreshing = true;
 		eoce = false;
 		rawEvents = [];
-		const requests = buildRequests();
-		if (requests.length > 0) {
-			unsubscribe?.();
-			connectionTracker = new ConnectionTracker();
-			unsubscribe = useSubscription(
-				'chat_' + $key.pub + '_refresh_' + Date.now(),
-				requests,
+		const outgoingRequests = buildOutgoingRequests();
+		const incomingRequests = buildIncomingRequests();
+		if (outgoingRequests.length > 0 && incomingRequests.length > 0) {
+			const refreshId = Date.now();
+			unsubscribeOutgoing?.();
+			unsubscribeIncoming?.();
+			unsubscribeOutgoing = useSubscription(
+				'chat_outgoing_' + $key.pub + '_refresh_' + refreshId,
+				outgoingRequests,
 				handleEvents,
-				subscriptionOptions
+				outgoingSubscriptionOptions
+			);
+			unsubscribeIncoming = useSubscription(
+				'chat_incoming_' + $key.pub + '_refresh_' + refreshId,
+				incomingRequests,
+				handleEvents,
+				incomingSubscriptionOptions
 			);
 		}
 		refreshing = false;
@@ -316,9 +322,9 @@
 	}
 
 	// Cleanup on unmount
-	import { onDestroy } from 'svelte';
 	onDestroy(() => {
-		unsubscribe?.();
+		unsubscribeOutgoing?.();
+		unsubscribeIncoming?.();
 	});
 </script>
 
@@ -405,7 +411,6 @@
 						<!-- <Icon icon="teenyicons:add-outline" class="text-xl"></Icon> -->
 					</button>
 				</div>
-				<RelaysList relays={normalizedRelays} {connectionStatus} />
 				<div class="px-1 mt-2">
 					<div class="tabs tabs-boxed bg-base-200 bg-opacity-70 w-full">
 						<button
