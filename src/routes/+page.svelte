@@ -63,106 +63,183 @@
 	/>
 </svelte:head>
 
-<main class="nuts-page">
-	<section class="hero flex items-center">
-		<div class="hero-copy p-8 flex flex-col justify-between h-[90vh]">
-			<div class="pt-16 ml-12">
-				<h1 class="!leading-[1.02]">Connecting Communities.</h1>
-				<p class="!text-2xl !text-neutral-400">
+<main class="min-h-screen bg-[#f7f5ef] font-sans text-[#151411]">
+	<section
+		class="relative grid min-h-screen overflow-hidden bg-[#10100e] text-[#fff8ea] md:grid-cols-[minmax(0,0.62fr)_minmax(360px,1fr)]"
+	>
+		<div
+			class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_78%_60%,rgba(242,211,95,0.2),transparent_34%),radial-gradient(circle_at_96%_14%,rgba(83,184,106,0.16),transparent_30%),linear-gradient(135deg,#020403_0%,#07110b_38%,#17140d_72%,#050505_100%)]"
+		></div>
+		<div
+			class="relative z-10 flex min-h-screen flex-col justify-between px-5 pb-9 pt-16 sm:px-8 lg:px-12 xl:px-16"
+		>
+			<div>
+				<p class="text-sm font-black text-[#f2bd3c]">Nuts</p>
+				<h1
+					class="mt-5 max-w-3xl text-6xl font-black leading-[0.95] tracking-normal sm:text-7xl lg:text-8xl"
+				>
+					Connecting Communities.
+				</h1>
+				<p class="mt-7 max-w-2xl text-xl font-medium leading-9 text-[#fff8ea]/70 sm:text-2xl">
 					Nuts is a social network built around communities, not individuals.
 				</p>
-				<div class="actions flex" aria-label="Primary actions">
-					<button type="button" on:click={openApp}>Create your community</button>
-					<a href={resolve('/explore')}>Start exploring</a>
+				<div class="mt-9 flex flex-wrap gap-3" aria-label="Primary actions">
+					<button
+						class="inline-flex min-h-[52px] items-center justify-center rounded-xl bg-[#8be3aa] px-6 py-4 font-black text-[#102018] shadow-lg shadow-[#8be3aa]/20 transition hover:bg-[#9eeab8] focus:outline-none focus:ring-2 focus:ring-[#8be3aa]/40 active:scale-[0.98]"
+						type="button"
+						on:click={openApp}
+					>
+						Create your community
+					</button>
+					<a
+						class="inline-flex min-h-[52px] items-center justify-center rounded-xl border border-white/20 bg-white/[0.06] px-6 py-4 font-black text-[#fff8ea] no-underline shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:bg-white/[0.1] focus:outline-none focus:ring-2 focus:ring-white/25 active:scale-[0.98]"
+						href={resolve('/explore')}
+					>
+						Start exploring
+					</a>
 				</div>
 			</div>
-			<div class="hero-manifesto relative pt-4 text-base ml-16">
-				<!-- <div class="flex gap-4 justify-between"> -->
-				<span>
-					<p>To the neighbors.</p>
-					<p>To the newcomers.</p>
-					<p>To the organizers.</p>
-				</span>
-				<span>
-					<p>To the thinkers.</p>
-					<p>To the builders.</p>
-					<p>To the merchants.</p>
-				</span>
-				<span>
-					<p>To the players.</p>
-					<p>To the faithful.</p>
-					<p>To the introverts.</p>
-				</span>
-				<!-- </div> -->
-				<br />
-				<p>To the crazy ones.</p>
-				<br />
-				<p>To your community.</p>
+			<div
+				class="relative mt-14 max-w-md border-l border-[#f2bd3c]/50 pl-5 font-semibold leading-7 text-[#f2bd3c]"
+			>
+				<div class="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-3">
+					<span>
+						<p class="whitespace-nowrap">To the neighbors.</p>
+						<p class="whitespace-nowrap">To the newcomers.</p>
+						<p class="whitespace-nowrap">To the organizers.</p>
+					</span>
+					<span>
+						<p class="whitespace-nowrap">To the thinkers.</p>
+						<p class="whitespace-nowrap">To the builders.</p>
+						<p class="whitespace-nowrap">To the merchants.</p>
+					</span>
+					<span>
+						<p class="whitespace-nowrap">To the players.</p>
+						<p class="whitespace-nowrap">To the faithful.</p>
+						<p class="whitespace-nowrap">To the introverts.</p>
+					</span>
+				</div>
+				<p class="mt-4 whitespace-nowrap">To the crazy ones.</p>
+				<p class="mt-4 whitespace-nowrap">To your community.</p>
 			</div>
 		</div>
-		<!-- <div class="flex items-end pt-16">
-			<img class="w-[70vw]" src={resolve('/hero-communities.png')} alt="" />
-		</div> -->
-		<div class="relative flex-1 self-stretch overflow-visible pt-16">
+		<div class="relative z-0 hidden min-h-screen overflow-visible md:block">
 			<img
-				class="absolute bottom-0 right-0 block h-[75vh] w-[65vw] max-w-none object-fill"
+				class="absolute bottom-0 right-0 block h-[75vh] w-[68vw] max-w-none object-fill drop-shadow-[0_34px_110px_rgba(0,0,0,0.34)]"
 				src={resolve('/hero-communities.png')}
-				alt=""
+				alt="Illustrated collage of different communities gathered around Nuts"
 			/>
 		</div>
 	</section>
 
-	<section class="home-slide" id="home">
+	<section
+		class="grid items-center gap-12 bg-[#e4ead7] px-5 py-20 sm:px-8 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.72fr)] lg:px-16 lg:py-32 xl:px-24"
+		id="home"
+	>
 		<div>
-			<p class="small">The organizer pain</p>
-			<h2>Your Community Deserves a Home.</h2>
-			<div class="prose">
+			<p class="text-sm font-black text-[#716341]">The organizer pain</p>
+			<h2
+				class="mt-4 max-w-5xl text-5xl font-black leading-[0.95] tracking-normal sm:text-6xl lg:text-7xl"
+			>
+				Your Community Deserves a Home.
+			</h2>
+			<div class="mt-8 grid max-w-2xl gap-3 text-lg font-medium leading-8 text-[#4f493d]">
 				<p>Most communities live across six different tools.</p>
 				<p>One for chat. One for events. One for payments. One for announcements.</p>
 				<p>One for members. One for sponsors.</p>
 				<p>Nuts brings everything together. One community. One home.</p>
 			</div>
 		</div>
-		<div class="tool-visual" aria-label="Disconnected tools moving into Nuts">
-			<div class="tool-stack">
+		<div class="grid gap-5" aria-label="Disconnected tools moving into Nuts">
+			<div class="flex flex-wrap gap-3">
 				{#each scatteredTools as tool (tool)}
-					<span>{tool}</span>
+					<span
+						class="rounded-xl border border-[#151411]/15 bg-white/65 px-4 py-3 font-black shadow-sm shadow-stone-950/5"
+						>{tool}</span
+					>
 				{/each}
 			</div>
-			<div class="arrow" aria-hidden="true">↓</div>
-			<div class="nuts-home">Nuts</div>
+			<div class="text-5xl font-black leading-none text-[#151411]" aria-hidden="true">↓</div>
+			<div
+				class="grid min-h-44 place-items-center rounded-2xl bg-[#151411] text-5xl font-black text-[#fff8ea] shadow-xl shadow-stone-950/15 sm:text-6xl"
+			>
+				Nuts
+			</div>
 		</div>
 	</section>
 
-	<section class="algorithm-slide">
+	<section
+		class="grid items-center gap-12 bg-[#f7f5ef] px-5 py-20 sm:px-8 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.72fr)] lg:px-16 lg:py-32 xl:px-24"
+	>
 		<div>
-			<p class="small">The feed</p>
-			<h2>Communities are the algorithm.</h2>
-			<div class="prose">
+			<p class="text-sm font-black text-[#716341]">The feed</p>
+			<h2
+				class="mt-4 max-w-5xl text-5xl font-black leading-[0.95] tracking-normal sm:text-6xl lg:text-7xl"
+			>
+				Communities are the algorithm.
+			</h2>
+			<div class="mt-8 grid max-w-2xl gap-3 text-lg font-medium leading-8 text-[#4f493d]">
 				<p>Your feed isn't built by engagement metrics.</p>
 				<p>It's built by the communities you care about.</p>
 			</div>
-			<div class="community-list">
+			<div class="my-8 flex max-w-3xl flex-wrap gap-3">
 				{#each communityExamples as community (community)}
-					<span>{community}</span>
+					<span
+						class="rounded-xl border border-[#151411]/15 bg-white px-4 py-3 font-black shadow-sm shadow-stone-950/5"
+						>{community}</span
+					>
 				{/each}
 			</div>
-			<p class="closing-line">
+			<p class="max-w-2xl text-lg font-medium leading-8 text-[#4f493d]">
 				No endless scrolling. No rage bait. Just what's happening in your world.
 			</p>
 		</div>
-		<div class="visual-slot">
-			<span>Visual placeholder</span>
-			<strong>Community feed mockup</strong>
-			<p>Phone screenshot with community chips and community-tagged posts.</p>
+		<div
+			class="relative min-h-[520px] overflow-hidden rounded-3xl border border-stone-200 bg-white p-5 shadow-2xl shadow-stone-950/10"
+			aria-label="Community feed mockup"
+		>
+			<div class="flex items-center justify-between">
+				<span class="text-sm font-black text-stone-500">Community feed</span>
+				<span class="h-3 w-3 rounded-full bg-emerald-600"></span>
+			</div>
+			<div class="mt-5 flex gap-2 overflow-hidden">
+				{#each communityExamples.slice(1, 5) as community (community)}
+					<span class="shrink-0 rounded-lg bg-[#e4ead7] px-3 py-2 text-xs font-black"
+						>{community}</span
+					>
+				{/each}
+			</div>
+			<div class="mt-6 grid gap-4">
+				<article class="rounded-2xl bg-[#f7f5ef] p-4">
+					<p class="text-sm font-black">FC Avenir</p>
+					<p class="mt-2 text-lg font-black leading-6">Training moved to court 2 tonight.</p>
+					<p class="mt-3 text-sm font-semibold text-stone-500">Parents, coaches, players</p>
+				</article>
+				<article class="rounded-2xl bg-emerald-950 p-4 text-white">
+					<p class="text-sm font-black text-white/60">Startup House</p>
+					<p class="mt-2 text-lg font-black leading-6">Demo table signups are open.</p>
+					<p class="mt-3 text-sm font-semibold text-white/60">Founders, mentors, guests</p>
+				</article>
+				<article class="rounded-2xl bg-[#f7f5ef] p-4">
+					<p class="text-sm font-black">Village market</p>
+					<p class="mt-2 text-lg font-black leading-6">Saturday stalls close at 18:30.</p>
+					<p class="mt-3 text-sm font-semibold text-stone-500">Neighbors and merchants</p>
+				</article>
+			</div>
 		</div>
 	</section>
 
-	<section class="trust-slide">
+	<section
+		class="grid items-center gap-12 bg-[#4a5541] px-5 py-20 text-[#fff8ea] sm:px-8 lg:grid-cols-[minmax(0,1fr)_minmax(300px,0.58fr)] lg:px-16 lg:py-32 xl:px-24"
+	>
 		<div>
-			<p class="small">Trust</p>
-			<h2>Real People. Real Communities.</h2>
-			<div class="prose">
+			<p class="text-sm font-black text-[#f2d35f]">Trust</p>
+			<h2
+				class="mt-4 max-w-5xl text-5xl font-black leading-[0.95] tracking-normal sm:text-6xl lg:text-7xl"
+			>
+				Real People. Real Communities.
+			</h2>
+			<div class="mt-8 grid max-w-2xl gap-3 text-lg font-medium leading-8 text-[#fff8ea]/75">
 				<p>Most social networks spend billions fighting bots.</p>
 				<p>Nuts starts somewhere else.</p>
 				<p>Communities grow through relationships.</p>
@@ -175,62 +252,170 @@
 				<p>Trust emerges naturally.</p>
 			</div>
 		</div>
-		<div class="visual-slot dark-slot">
-			<span>Visual placeholder</span>
-			<strong>Real-world invites</strong>
-			<p>Stickers, QR codes, notice boards, club entrances, and people joining in person.</p>
+		<div
+			class="relative grid min-h-[480px] content-end overflow-hidden rounded-3xl border border-white/15 bg-white/[0.06] p-6 shadow-2xl shadow-black/10"
+			aria-label="Real-world invites"
+		>
+			<div
+				class="absolute left-7 top-7 rounded-lg bg-[#fff8ea] px-3 py-2 text-xs font-black text-[#151411]"
+			>
+				Invite card
+			</div>
+			<div
+				class="absolute right-8 top-20 grid h-32 w-32 place-items-center rounded-2xl bg-[#fff8ea] p-4 shadow-xl shadow-black/20"
+			>
+				<div class="grid h-full w-full grid-cols-5 gap-1">
+					{#each Array(25) as _, index (index)}
+						<span class={index % 3 === 0 ? 'bg-[#151411]' : 'bg-[#151411]/20'}></span>
+					{/each}
+				</div>
+			</div>
+			<div class="rounded-2xl bg-[#fff8ea] p-5 text-[#151411] shadow-xl shadow-black/15">
+				<p class="text-sm font-black text-stone-500">Join through someone you trust</p>
+				<h3 class="mt-3 text-3xl font-black leading-none">Real-world invites</h3>
+				<p class="mt-4 text-base font-semibold leading-7 text-stone-600">
+					Stickers, QR codes, notice boards, club entrances, and people joining in person.
+				</p>
+			</div>
 		</div>
 	</section>
 
-	<section class="belong-slide" id="belong">
-		<div class="section-head">
-			<p class="small">The social graph</p>
-			<h2>Follow. Join. Belong.</h2>
-			<p>Not every relationship is the same.</p>
-		</div>
-		<div class="level-grid">
-			{#each relationshipLevels as level (level.name)}
-				<article>
-					<span>{level.name}</span>
-					<h3>{level.line}</h3>
-					<p>{level.examples}</p>
-					<strong>{level.actions}</strong>
-				</article>
-			{/each}
-		</div>
-		<div class="callout">
-			<p>Followers don’t define who you are.</p>
-			<p>Communities do.</p>
+	<section
+		class="overflow-hidden bg-[#fff8ea] px-5 py-20 sm:px-8 lg:px-16 lg:py-32 xl:px-24"
+		id="belong"
+	>
+		<div class="grid gap-12 lg:grid-cols-[minmax(280px,0.48fr)_minmax(0,1fr)] lg:items-start">
+			<div class="lg:sticky lg:top-10">
+				<p class="text-sm font-black text-[#716341]">The social graph</p>
+				<h2 class="mt-4 text-5xl font-black leading-[0.95] tracking-normal sm:text-6xl lg:text-7xl">
+					Follow. Join. Belong.
+				</h2>
+				<p class="mt-6 max-w-xl text-lg font-medium leading-8 text-[#4f493d]">
+					Not every relationship is the same.
+				</p>
+			</div>
+
+			<div class="relative">
+				<div
+					class="pointer-events-none absolute left-6 top-8 hidden h-[calc(100%-4rem)] w-px bg-gradient-to-b from-[#151411]/15 via-[#151411]/40 to-[#8be3aa] lg:block"
+				></div>
+				<div class="grid gap-5">
+					{#each relationshipLevels as level, index (level.name)}
+						<article
+							class={`relative grid min-h-64 overflow-hidden rounded-2xl border p-6 shadow-xl ${
+								index === 0 ? 'lg:mr-20' : index === 1 ? 'lg:ml-10 lg:mr-10' : 'lg:ml-20'
+							} ${
+								index === 0
+									? 'border-[#151411]/10 bg-white shadow-stone-950/5'
+									: index === 1
+										? 'border-[#151411]/10 bg-[#e4ead7] shadow-stone-950/10'
+										: 'border-[#151411] bg-[#151411] text-[#fff8ea] shadow-stone-950/20'
+							}`}
+						>
+							<div
+								class={`absolute left-5 top-6 hidden h-4 w-4 rounded-full border-4 lg:block ${
+									index === 2 ? 'border-[#8be3aa] bg-[#151411]' : 'border-[#151411] bg-[#fff8ea]'
+								}`}
+							></div>
+							<div class="grid gap-8 lg:grid-cols-[150px_minmax(0,1fr)] lg:pl-9">
+								<div>
+									<span
+										class={`inline-flex rounded-lg px-3 py-2 text-sm font-black ${
+											index === 2 ? 'bg-[#8be3aa] text-[#102018]' : 'bg-[#151411] text-[#fff8ea]'
+										}`}>{level.name}</span
+									>
+									<p
+										class={`mt-5 text-sm font-black ${index === 2 ? 'text-white/45' : 'text-[#716341]'}`}
+									>
+										0{index + 1}
+									</p>
+								</div>
+								<div>
+									<h3 class="max-w-xl text-4xl font-black leading-none tracking-normal sm:text-5xl">
+										{level.line}
+									</h3>
+									<div
+										class={`mt-6 grid gap-4 border-t pt-5 ${
+											index === 2 ? 'border-white/15' : 'border-[#151411]/10'
+										}`}
+									>
+										<p class="text-lg font-semibold leading-8 opacity-75">{level.examples}</p>
+										<strong class="block text-lg leading-8 opacity-90">{level.actions}</strong>
+									</div>
+								</div>
+							</div>
+						</article>
+					{/each}
+				</div>
+			</div>
 		</div>
 	</section>
 
-	<section class="discovery-slide">
+	<section
+		class="grid items-center gap-12 bg-[#e4ead7] px-5 py-20 sm:px-8 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.72fr)] lg:px-16 lg:py-32 xl:px-24"
+	>
 		<div>
-			<p class="small">Discovery</p>
-			<h2>Discover People Through Communities.</h2>
-			<div class="prose">
+			<p class="text-sm font-black text-[#716341]">Discovery</p>
+			<h2
+				class="mt-4 max-w-5xl text-5xl font-black leading-[0.95] tracking-normal sm:text-6xl lg:text-7xl"
+			>
+				Discover People Through Communities.
+			</h2>
+			<div class="mt-8 grid max-w-2xl gap-3 text-lg font-medium leading-8 text-[#4f493d]">
 				<p>Most social networks reward people who already have an audience.</p>
 				<p>Nuts helps people get discovered through contribution.</p>
 			</div>
-			<div class="contributor-list">
+			<div class="my-8 flex max-w-3xl flex-wrap gap-3">
 				{#each contributors as contributor (contributor)}
-					<span>{contributor}</span>
+					<span
+						class="rounded-xl border border-[#151411]/15 bg-white/65 px-4 py-3 font-black shadow-sm shadow-stone-950/5"
+						>{contributor}</span
+					>
 				{/each}
 			</div>
-			<p class="closing-line">Communities make people discoverable. Not algorithms.</p>
+			<p class="max-w-2xl text-lg font-medium leading-8 text-[#4f493d]">
+				Communities make people discoverable. Not algorithms.
+			</p>
 		</div>
-		<div class="visual-slot">
-			<span>Visual placeholder</span>
-			<strong>Community → Person → Idea</strong>
-			<p>Example card: Formula 1 community, Ferrari mechanic, and a useful post that spreads.</p>
+		<div
+			class="relative min-h-[500px] overflow-hidden rounded-3xl border border-[#151411]/10 bg-[#f7f5ef] p-6 shadow-2xl shadow-stone-950/10"
+			aria-label="Community to person to idea example"
+		>
+			<div class="rounded-2xl bg-[#151411] p-5 text-[#fff8ea]">
+				<p class="text-sm font-black text-[#8be3aa]">Formula 1 community</p>
+				<h3 class="mt-3 text-3xl font-black leading-none">A useful post spreads.</h3>
+			</div>
+			<div class="relative mt-6 grid gap-4">
+				<div class="ml-8 rounded-2xl bg-white p-5 shadow-lg shadow-stone-950/10">
+					<p class="text-sm font-black text-stone-500">Ferrari mechanic</p>
+					<p class="mt-2 text-lg font-black leading-6">Brake cooling notes from testing day.</p>
+				</div>
+				<div class="mr-8 rounded-2xl bg-[#e4ead7] p-5 shadow-lg shadow-stone-950/10">
+					<p class="text-sm font-black text-stone-500">Shared by members</p>
+					<p class="mt-2 text-lg font-black leading-6">Engineers, fans, and local clubs find it.</p>
+				</div>
+				<div class="ml-16 rounded-2xl bg-white p-5 shadow-lg shadow-stone-950/10">
+					<p class="text-sm font-black text-stone-500">Discovered through contribution</p>
+					<p class="mt-2 text-lg font-black leading-6">
+						The person matters because the work matters.
+					</p>
+				</div>
+			</div>
 		</div>
 	</section>
 
-	<section class="final" id="join">
+	<section
+		class="grid gap-20 bg-[#10100e] px-5 py-20 text-[#fff8ea] sm:px-8 lg:px-16 lg:py-32 xl:px-24"
+		id="join"
+	>
 		<div>
-			<p class="small">The movement</p>
-			<h2>A Better Internet Starts Locally.</h2>
-			<div class="final-copy">
+			<p class="text-sm font-black text-[#f2d35f]">The movement</p>
+			<h2
+				class="mt-4 max-w-5xl text-5xl font-black leading-[0.95] tracking-normal sm:text-6xl lg:text-7xl"
+			>
+				A Better Internet Starts Locally.
+			</h2>
+			<div class="mt-8 grid max-w-3xl gap-3 text-lg font-medium leading-8 text-[#fff8ea]/75">
 				<p>We have never been more connected.</p>
 				<p>Yet social networks have never felt more lonely.</p>
 				<p>
@@ -242,520 +427,27 @@
 					Because the future of social networks isn't more followers. It's stronger communities.
 				</p>
 			</div>
-			<div class="actions final-actions" aria-label="Final actions">
-				<button type="button" on:click={openApp}>Create your community</button>
-				<a href={resolve('/explore')}>Start exploring</a>
+			<div class="mt-9 flex flex-wrap gap-3" aria-label="Final actions">
+				<button
+					class="inline-flex min-h-[52px] items-center justify-center rounded-xl bg-[#8be3aa] px-6 py-4 font-black text-[#102018] shadow-lg shadow-[#8be3aa]/20 transition hover:bg-[#9eeab8] focus:outline-none focus:ring-2 focus:ring-[#8be3aa]/40 active:scale-[0.98]"
+					type="button"
+					on:click={openApp}
+				>
+					Create your community
+				</button>
+				<a
+					class="inline-flex min-h-[52px] items-center justify-center rounded-xl border border-white/20 bg-white/[0.06] px-6 py-4 font-black text-[#fff8ea] no-underline shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:bg-white/[0.1] focus:outline-none focus:ring-2 focus:ring-white/25 active:scale-[0.98]"
+					href={resolve('/explore')}
+				>
+					Start exploring
+				</a>
 			</div>
 		</div>
-		<footer>
-			<strong>Nuts</strong>
+		<footer
+			class="flex flex-col justify-between gap-4 border-t border-[#fff8ea]/20 pt-6 text-[#fff8ea]/60 sm:flex-row"
+		>
+			<strong class="text-[#fff8ea]">Nuts</strong>
 			<span>The social network for communities.</span>
 		</footer>
 	</section>
 </main>
-
-<style>
-	:global(body) {
-		margin: 0;
-		background: #f3eadc;
-	}
-
-	.nuts-page {
-		min-height: 100vh;
-		background: #f3eadc;
-		color: #151411;
-		font-family: "Suisse Int'l", Inter, ui-sans-serif, system-ui, sans-serif;
-	}
-
-	.hero,
-	.final {
-		background: #10100e;
-		color: #fff8ea;
-	}
-
-	.hero {
-		position: relative;
-		height: 100vh;
-		height: 100svh;
-		max-height: 100vh;
-		max-height: 100svh;
-		overflow: hidden;
-		background:
-			radial-gradient(circle at 78% 60%, rgba(242, 211, 95, 0.2), transparent 34%),
-			radial-gradient(circle at 96% 14%, rgba(83, 184, 106, 0.16), transparent 30%),
-			linear-gradient(135deg, #020403 0%, #07110b 38%, #17140d 72%, #050505 100%);
-	}
-
-	.actions a {
-		color: inherit;
-		text-decoration: none;
-	}
-
-	.home-slide,
-	.algorithm-slide,
-	.trust-slide,
-	.discovery-slide {
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) minmax(300px, 0.72fr);
-		gap: clamp(34px, 7vw, 92px);
-		align-items: center;
-		padding: clamp(72px, 11vw, 150px) clamp(18px, 7vw, 96px);
-	}
-
-	.hero-grid {
-		position: relative;
-		z-index: 1;
-		display: grid;
-		grid-template-columns: minmax(500px, 0.58fr) minmax(620px, 1fr);
-		grid-template-rows: auto minmax(0, 1fr);
-		column-gap: clamp(72px, 8vw, 150px);
-		box-sizing: border-box;
-		height: 100%;
-		padding: clamp(44px, 6vw, 76px) clamp(16px, 2.6vw, 34px);
-	}
-
-	.hero-copy {
-		position: relative;
-		z-index: 2;
-		text-align: left;
-	}
-
-	.home-slide,
-	.discovery-slide {
-		background: #dfe7c4;
-	}
-
-	.algorithm-slide {
-		background: #f3eadc;
-	}
-
-	.trust-slide {
-		grid-template-columns: minmax(0, 1fr) minmax(280px, 0.58fr);
-		background: #4a5541;
-		color: #fff8ea;
-	}
-
-	.belong-slide,
-	.final {
-		padding: clamp(72px, 11vw, 150px) clamp(18px, 7vw, 96px);
-	}
-
-	.belong-slide {
-		background: #fff8ea;
-	}
-
-	.small {
-		margin: 0;
-		font-weight: 900;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-	}
-
-	.trust-slide .small,
-	.final .small {
-		color: #f2d35f;
-	}
-
-	.small {
-		color: #716341;
-		font-size: 0.82rem;
-	}
-
-	h1,
-	h2,
-	h3,
-	p {
-		letter-spacing: 0;
-	}
-
-	h1 {
-		max-width: 720px;
-		margin: 0 0 24px;
-		font-size: clamp(3.6rem, 7.2vw, 7.4rem);
-		line-height: 0.9;
-	}
-
-	h2 {
-		max-width: 1080px;
-		margin: 16px 0 0;
-		font-size: clamp(2.7rem, 7vw, 7rem);
-		line-height: 0.9;
-	}
-
-	.hero-copy > p,
-	.prose p,
-	.section-head p,
-	.closing-line,
-	.final-copy p {
-		max-width: 760px;
-		color: #4f493d;
-		font-size: clamp(1.08rem, 1.8vw, 1.35rem);
-		line-height: 1.55;
-	}
-
-	.hero-copy > p,
-	.trust-slide .prose p,
-	.final-copy p {
-		color: rgba(255, 248, 234, 0.8);
-	}
-
-	.actions {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 14px;
-		margin-top: 34px;
-	}
-
-	button,
-	.actions a {
-		border: 0;
-		border-radius: 0;
-		font: inherit;
-		font-weight: 900;
-		cursor: pointer;
-	}
-
-	button {
-		background: #53b86a;
-		color: #151411;
-		padding: 15px 20px;
-	}
-
-	.actions a {
-		border: 1px solid currentColor;
-		padding: 14px 20px;
-	}
-
-	.hero-manifesto {
-		z-index: 2;
-		color: #f2bd3c;
-		font-family: 'Bradley Hand', 'Segoe Print', 'Comic Sans MS', cursive;
-		/*font-size: clamp(1rem, 1.35vw, 1.32rem);*/
-		font-weight: 600;
-		line-height: 1.45;
-	}
-
-	.hero-manifesto p {
-		margin: 0;
-		color: inherit;
-		font: inherit;
-		line-height: inherit;
-	}
-
-	.hero-manifesto br {
-		display: block;
-		content: '';
-		margin-top: 12px;
-	}
-
-	.hero-manifesto::before {
-		content: '↘';
-		position: absolute;
-		top: 8px;
-		left: -1.5rem;
-		color: #f2bd3c;
-		font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-		font-size: 1.5rem;
-		font-weight: 400;
-		transform: rotate(18deg);
-	}
-
-	/*.hero-illustration {
-		position: relative;
-		grid-column: 2;
-		grid-row: 1 / 3;
-		align-self: end;
-		justify-self: end;
-		z-index: 1;
-		width: 100%;
-		height: min(68vh, 680px);
-		overflow: hidden;
-		opacity: 1;
-		pointer-events: none;
-	}*/
-
-	/*.hero-illustration img {
-		position: absolute;
-		right: clamp(18px, 2.4vw, 42px);
-		bottom: clamp(12px, 2vw, 28px);
-		display: block;
-		width: auto;
-		max-width: none;
-		height: min(68vh, 680px);
-		object-fit: contain;
-		filter: drop-shadow(0 34px 110px rgba(0, 0, 0, 0.34));
-	}*/
-
-	.visual-slot {
-		position: relative;
-		display: flex;
-		min-height: clamp(320px, 44vw, 640px);
-		flex-direction: column;
-		justify-content: flex-end;
-		overflow: hidden;
-		border: 1px dashed rgba(21, 20, 17, 0.32);
-		background:
-			linear-gradient(135deg, rgba(83, 184, 106, 0.14), transparent 45%),
-			repeating-linear-gradient(
-				-45deg,
-				rgba(21, 20, 17, 0.055) 0,
-				rgba(21, 20, 17, 0.055) 1px,
-				transparent 1px,
-				transparent 16px
-			);
-		padding: clamp(20px, 3vw, 34px);
-		color: #151411;
-	}
-
-	.dark-slot {
-		border-color: rgba(255, 248, 234, 0.34);
-		background:
-			linear-gradient(135deg, rgba(83, 184, 106, 0.2), transparent 50%),
-			repeating-linear-gradient(
-				-45deg,
-				rgba(255, 248, 234, 0.07) 0,
-				rgba(255, 248, 234, 0.07) 1px,
-				transparent 1px,
-				transparent 16px
-			);
-		color: #fff8ea;
-	}
-
-	.visual-slot span {
-		position: absolute;
-		top: 22px;
-		left: 22px;
-		background: #151411;
-		color: #fff8ea;
-		padding: 8px 10px;
-		font-size: 0.72rem;
-		font-weight: 900;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-	}
-
-	.dark-slot span {
-		background: #fff8ea;
-		color: #151411;
-	}
-
-	.visual-slot strong {
-		max-width: 440px;
-		font-size: clamp(1.8rem, 4vw, 4rem);
-		line-height: 0.94;
-	}
-
-	.visual-slot p {
-		max-width: 420px;
-		margin: 16px 0 0;
-		color: currentColor;
-		font-size: 1rem;
-		line-height: 1.45;
-		opacity: 0.72;
-	}
-
-	.tool-visual {
-		display: grid;
-		gap: 18px;
-	}
-
-	.tool-stack,
-	.community-list,
-	.contributor-list {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 10px;
-	}
-
-	.tool-stack span,
-	.community-list span,
-	.contributor-list span {
-		border: 1px solid rgba(21, 20, 17, 0.24);
-		padding: 12px 14px;
-		font-weight: 900;
-	}
-
-	.arrow {
-		font-size: 3rem;
-		font-weight: 900;
-		line-height: 1;
-	}
-
-	.nuts-home {
-		display: grid;
-		min-height: 180px;
-		place-items: center;
-		background: #151411;
-		color: #fff8ea;
-		font-size: clamp(2.4rem, 7vw, 6rem);
-		font-weight: 900;
-	}
-
-	.community-list,
-	.contributor-list {
-		max-width: 820px;
-		margin: 34px 0 28px;
-	}
-
-	.trust-slide .prose {
-		display: grid;
-		gap: 12px;
-		margin-top: 32px;
-	}
-
-	.trust-slide .prose p {
-		margin: 0;
-	}
-
-	.section-head {
-		max-width: 1080px;
-	}
-
-	.level-grid {
-		display: grid;
-		grid-template-columns: repeat(3, minmax(0, 1fr));
-		gap: 1px;
-		margin-top: 46px;
-		background: rgba(21, 20, 17, 0.22);
-	}
-
-	.level-grid article {
-		display: grid;
-		min-height: 320px;
-		align-content: space-between;
-		background: #fff8ea;
-		padding: clamp(22px, 3vw, 34px);
-	}
-
-	.level-grid article:nth-child(2) {
-		background: #dfe7c4;
-	}
-
-	.level-grid article:nth-child(3) {
-		background: #151411;
-		color: #fff8ea;
-	}
-
-	.level-grid span {
-		color: #716341;
-		font-size: 0.82rem;
-		font-weight: 900;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-	}
-
-	.level-grid article:nth-child(3) span {
-		color: #53b86a;
-	}
-
-	.level-grid h3 {
-		margin: 28px 0 12px;
-		font-size: clamp(2rem, 4vw, 4.2rem);
-		line-height: 0.94;
-	}
-
-	.level-grid p,
-	.level-grid strong {
-		color: inherit;
-		line-height: 1.45;
-		opacity: 0.78;
-	}
-
-	.callout {
-		display: grid;
-		gap: 8px;
-		margin-top: 34px;
-		font-size: clamp(1.4rem, 3vw, 3rem);
-		font-weight: 900;
-		line-height: 1;
-	}
-
-	.callout p {
-		margin: 0;
-	}
-
-	.final {
-		display: grid;
-		gap: clamp(72px, 10vw, 130px);
-	}
-
-	.final-copy {
-		display: grid;
-		gap: 10px;
-		margin-top: 32px;
-	}
-
-	.final-copy p {
-		margin: 0;
-	}
-
-	.final-actions a {
-		border-color: rgba(255, 248, 234, 0.34);
-	}
-
-	.final footer {
-		display: flex;
-		justify-content: space-between;
-		gap: 18px;
-		border-top: 1px solid rgba(255, 248, 234, 0.2);
-		padding-top: 22px;
-		color: rgba(255, 248, 234, 0.64);
-	}
-
-	.final footer strong {
-		color: #fff8ea;
-	}
-
-	@media (max-width: 900px) {
-		.hero-grid,
-		.home-slide,
-		.algorithm-slide,
-		.trust-slide,
-		.discovery-slide {
-			grid-template-columns: 1fr;
-		}
-
-		.hero-grid {
-			padding-top: clamp(64px, 14vw, 110px);
-		}
-
-		.hero-copy,
-		.hero-manifesto {
-			grid-column: 1;
-			grid-row: auto;
-		}
-
-		.hero-manifesto {
-			max-width: 520px;
-			margin: 42px 0 0 42px;
-		}
-
-		.hero-illustration {
-			display: none;
-		}
-
-		.level-grid {
-			grid-template-columns: 1fr;
-		}
-	}
-
-	@media (max-width: 560px) {
-		h1 {
-			font-size: clamp(3.6rem, 17vw, 5.7rem);
-		}
-
-		h2 {
-			font-size: clamp(2.45rem, 14vw, 4.6rem);
-		}
-
-		.actions,
-		.final footer {
-			flex-direction: column;
-		}
-
-		.actions a,
-		button {
-			text-align: center;
-		}
-	}
-</style>
