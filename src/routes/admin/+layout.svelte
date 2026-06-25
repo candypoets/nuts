@@ -14,7 +14,7 @@
 		LayoutDashboard,
 		LogOut,
 		Plus,
-		Settings,
+		Ticket,
 		UsersRound
 	} from 'lucide-svelte';
 	import { normalizeURL } from 'nostr-tools/utils';
@@ -35,7 +35,7 @@
 		{ label: 'Members', segment: 'members', icon: UsersRound },
 		{ label: 'Roles', segment: 'roles', icon: BarChart3 },
 		{ label: 'Events', segment: 'events', icon: CalendarDays },
-		{ label: 'Settings', segment: 'settings', icon: Settings }
+		{ label: 'Invites', segment: 'invites', icon: Ticket }
 	] as const;
 
 	type AdminNavSegment = (typeof navItems)[number]['segment'];
@@ -44,12 +44,12 @@
 		| '/admin/members'
 		| '/admin/roles'
 		| '/admin/events'
-		| '/admin/settings'
+		| '/admin/invites'
 		| `/admin/${string}`
 		| `/admin/${string}/members`
 		| `/admin/${string}/roles`
 		| `/admin/${string}/events`
-		| `/admin/${string}/settings`;
+		| `/admin/${string}/invites`;
 
 	const adminRelaysStore = writable<RelayInfo[]>([]);
 	const adminRelaysLoadingStore = writable(false);
@@ -102,7 +102,7 @@
 			candidate !== 'members' &&
 			candidate !== 'roles' &&
 			candidate !== 'events' &&
-			candidate !== 'settings'
+			candidate !== 'invites'
 		) {
 			return `/admin/${candidate}`;
 		}
@@ -131,7 +131,7 @@
 			candidate === 'members' ||
 			candidate === 'roles' ||
 			candidate === 'events' ||
-			candidate === 'settings'
+			candidate === 'invites'
 		) {
 			return candidate;
 		}
@@ -344,12 +344,7 @@
 		<div
 			class="mx-auto grid max-w-[1500px] grid-cols-1 items-center gap-4 px-4 py-4 sm:px-6 lg:grid-cols-[minmax(220px,1fr)_auto_minmax(120px,1fr)] lg:px-8"
 		>
-			<button
-				type="button"
-				class="group flex min-w-0 items-center gap-3 rounded-xl p-1 text-left transition hover:bg-white/70 focus:outline-none focus:ring-2 focus:ring-emerald-800/30"
-				aria-label="Switch community"
-				on:click={openCommunitySwitcher}
-			>
+			<div class="flex min-w-0 items-center gap-3 p-1">
 				<span
 					class="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-emerald-950 text-lg font-black text-white shadow-sm shadow-emerald-950/20"
 				>
@@ -367,7 +362,7 @@
 						{selectedRelayDescription || 'private community'}
 					</span>
 				</span>
-			</button>
+			</div>
 
 			<nav
 				class="flex max-w-full justify-start gap-1 overflow-x-auto rounded-xl border border-stone-200 bg-white/75 p-1 shadow-sm shadow-stone-950/5 lg:justify-center"

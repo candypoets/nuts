@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/stores';
 	import {
 		NpubLimiterKey,
@@ -16,8 +18,6 @@
 	import { isKind8, isParsedEvent } from '@candypoets/nipworker/utils';
 	import {
 		CalendarDays,
-		Copy,
-		Download,
 		ExternalLink,
 		FileText,
 		RefreshCw,
@@ -45,14 +45,30 @@
 	};
 
 	const nextSteps = [
-		{ label: 'Invite members', detail: 'Bring people into your community.', icon: UserPlus },
+		{
+			label: 'Invite members',
+			detail: 'Bring people into your community.',
+			icon: UserPlus,
+			segment: 'invites'
+		},
 		{
 			label: 'Create an event',
 			detail: 'Organize your first event or meetup.',
-			icon: CalendarDays
+			icon: CalendarDays,
+			segment: 'events'
 		},
-		{ label: 'Make a post', detail: 'Share an update with your members.', icon: FileText },
-		{ label: 'Assign roles', detail: 'Give permissions and empower your team.', icon: ShieldCheck }
+		{
+			label: 'Make a post',
+			detail: 'Share an update with your members.',
+			icon: FileText,
+			segment: ''
+		},
+		{
+			label: 'Assign roles',
+			detail: 'Give permissions and empower your team.',
+			icon: ShieldCheck,
+			segment: 'roles'
+		}
 	];
 
 	let relayUrl = '';
@@ -264,8 +280,15 @@
 		return `Member ${pubkey.slice(0, 6).toUpperCase()}`;
 	}
 
-	async function copy(text: string) {
-		await navigator.clipboard?.writeText(text);
+	function adminHref(segment: string) {
+		const base = communityId
+			? `/admin/${encodeURIComponent(decodeURIComponent(communityId))}`
+			: '/admin';
+		return segment ? `${base}/${segment}` : base;
+	}
+
+	function goAdmin(segment: string) {
+		return goto(resolve(adminHref(segment) as '/admin'));
 	}
 
 	function openCommunity() {
@@ -290,34 +313,6 @@
 		});
 		if (requestId !== qrRequest) return;
 		qrDataUrl = nextQrDataUrl;
-	}
-
-	async function downloadInvitePoster() {
-		if (!inviteUrl) return;
-		const canvas = document.createElement('canvas');
-		canvas.width = 1200;
-		canvas.height = 1600;
-		const context2d = canvas.getContext('2d');
-		if (!context2d) return;
-
-		context2d.fillStyle = '#173827';
-		context2d.fillRect(0, 0, canvas.width, canvas.height);
-		context2d.fillStyle = '#ffffff';
-		context2d.fillRect(96, 96, 1008, 1408);
-		context2d.fillStyle = '#286541';
-		context2d.font = '700 34px sans-serif';
-		context2d.fillText('Join the community', 160, 190);
-		context2d.fillStyle = '#171614';
-		context2d.font = '900 84px sans-serif';
-		context2d.fillText(communityName, 160, 330, 880);
-		context2d.fillStyle = '#5f594d';
-		context2d.font = '600 34px sans-serif';
-		context2d.fillText(inviteUrl, 160, 460, 880);
-
-		const link = document.createElement('a');
-		link.href = canvas.toDataURL('image/png');
-		link.download = `${communityId || 'community'}-invite.png`;
-		link.click();
 	}
 
 	onDestroy(() => {
@@ -361,7 +356,7 @@
 					<button
 						type="button"
 						class="inline-flex h-11 items-center gap-3 rounded-xl bg-emerald-950 px-5 font-black text-white shadow-sm shadow-emerald-950/20 transition hover:bg-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98]"
-						on:click={() => copy(inviteUrl)}
+						on:click={() => goAdmin('invites')}
 					>
 						<UserPlus size={19} />
 						Invite
@@ -421,8 +416,10 @@
 
 					<div class="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
 						{#each nextSteps as step, index (step.label)}
-							<div
-								class="rounded-xl border border-stone-200 bg-white p-5 transition hover:-translate-y-0.5 hover:shadow-md hover:shadow-stone-950/5"
+							<button
+								type="button"
+								class="rounded-xl border border-stone-200 bg-white p-5 text-left transition hover:-translate-y-0.5 hover:shadow-md hover:shadow-stone-950/5 focus:outline-none focus:ring-2 focus:ring-emerald-800/30"
+								on:click={() => goAdmin(step.segment)}
 							>
 								<div
 									class={`grid h-11 w-11 place-items-center rounded-xl ${
@@ -439,7 +436,7 @@
 								</div>
 								<h3 class="mt-5 text-base font-black text-[#171614]">{step.label}</h3>
 								<p class="mt-2 text-sm leading-6 text-stone-600">{step.detail}</p>
-							</div>
+							</button>
 						{/each}
 					</div>
 				</section>
@@ -485,22 +482,10 @@
 				<section
 					class="rounded-2xl border border-stone-200 bg-white/85 p-6 shadow-sm shadow-stone-950/5"
 				>
-					<h2 class="text-2xl font-black text-[#171614]">Invite link</h2>
-					<p class="mt-2 text-base font-medium text-stone-600">Share this with new members.</p>
-
-					<div
-						class="mt-6 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] overflow-hidden rounded-xl border border-stone-200 bg-white"
-					>
-						<span class="min-w-0 truncate px-4 py-4 text-sm font-black">{inviteUrl}</span>
-						<button
-							type="button"
-							class="border-l border-stone-200 px-4 font-black text-emerald-950 transition hover:bg-stone-50 focus:outline-none focus:ring-2 focus:ring-emerald-800/30"
-							aria-label="Copy invite link"
-							on:click={() => copy(inviteUrl)}
-						>
-							<Copy size={18} />
-						</button>
-					</div>
+					<h2 class="text-2xl font-black text-[#171614]">Invites</h2>
+					<p class="mt-2 text-base font-medium text-stone-600">
+						Create a QR invite for new members.
+					</p>
 
 					<div class="mt-6 grid gap-5 sm:grid-cols-[128px_1fr] sm:items-center">
 						<div
@@ -523,10 +508,10 @@
 					<button
 						type="button"
 						class="mt-6 inline-flex h-11 items-center gap-3 rounded-xl border border-stone-200 bg-white px-5 font-black text-emerald-950 shadow-sm shadow-stone-950/5 transition hover:bg-stone-50 focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98]"
-						on:click={downloadInvitePoster}
+						on:click={() => goAdmin('invites')}
 					>
-						<Download size={18} />
-						Download poster
+						<UserPlus size={18} />
+						Create invite
 					</button>
 				</section>
 

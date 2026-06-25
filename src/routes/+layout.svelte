@@ -13,7 +13,9 @@
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
 	$: standaloneRoute =
-		$page.url.pathname.startsWith('/create') || $page.url.pathname.startsWith('/admin');
+		$page.url.pathname.startsWith('/create') ||
+		$page.url.pathname.startsWith('/admin') ||
+		$page.url.pathname.startsWith('/redeem');
 
 	function setViewport() {
 		document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
