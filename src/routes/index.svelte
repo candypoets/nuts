@@ -26,7 +26,6 @@
 	import { page } from '$app/stores';
 
 	import Alert from 'src/components/Alert.svelte';
-	import KeyboardShortcutsGuide from 'src/components/KeyboardShortcutsGuide.svelte';
 	import Statuses from 'src/components/Statuses.svelte';
 	import { key } from 'src/controller';
 	import {
@@ -447,6 +446,10 @@
 		carouselAnimator.selectRouteInOverview(index, 400, $isMobile);
 	}
 
+	function handleRailSelect(index: number) {
+		carouselAnimator.navigateTo(index, 400, $isMobile);
+	}
+
 	// Touch handling with RAF
 	let virtualXPosition = 0;
 
@@ -490,8 +493,6 @@
 	<div class="flex space-x-2 w-1/2 m-auto" bind:this={progressContainer}></div>
 </div>
 <!-- {/if} -->
-<KeyboardShortcutsGuide />
-
 {#if !homepage}
 	{#each Object.entries($sendStatuses) as [sendId, connectionStatus]}
 		{#if connectionStatus}
@@ -538,10 +539,31 @@
 			</div>
 		{/each}
 		<!-- {/key} -->
-	</div>
+		</div>
 
-	<!-- Overview Mode Backdrop (behind feeds) -->
-	{#if $overviewModeStore}
+		{#if !$isMobile && !$overviewModeStore}
+			<nav class="space-rail" aria-label="Spaces">
+				<div class="space-rail-hitbox">
+					{#each carouselAnimator.getActiveRoutes() as feed, index (feed.id)}
+						<button
+							type="button"
+							class="space-rail-item"
+							class:active={$currentIndexStore === index}
+							aria-label={feed.label || feed.id}
+							aria-current={$currentIndexStore === index ? 'page' : undefined}
+							title={feed.label || feed.id}
+							on:click={() => handleRailSelect(index)}
+						>
+							<span class="space-rail-mark"></span>
+							<span class="space-rail-label">{feed.label || feed.id}</span>
+						</button>
+					{/each}
+				</div>
+			</nav>
+		{/if}
+
+		<!-- Overview Mode Backdrop (behind feeds) -->
+		{#if $overviewModeStore}
 		<div
 			class="fixed inset-0 z-30 bg-black/30 transition-opacity"
 			on:click={() => carouselAnimator.exitOverviewMode(400, $isMobile)}
@@ -631,5 +653,98 @@
 	/* Ensure delete buttons are clickable in overview mode */
 	.carousel-item button {
 		pointer-events: auto;
+	}
+
+	.space-rail {
+		position: fixed;
+		left: 0;
+		top: 50%;
+		z-index: 25;
+		transform: translateY(-50%);
+		padding: 56px 28px 56px 18px;
+		opacity: 1;
+		transition: opacity 180ms ease;
+	}
+
+	.space-rail:hover,
+	.space-rail:focus-within {
+		opacity: 1;
+	}
+
+	.space-rail-hitbox {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 18px;
+		transition: gap 180ms ease;
+	}
+
+	.space-rail:hover .space-rail-hitbox,
+	.space-rail:focus-within .space-rail-hitbox {
+		gap: 24px;
+	}
+
+	.space-rail-item {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		min-width: 28px;
+		height: 22px;
+		border: 0;
+		padding: 0;
+		background: transparent;
+		color: color-mix(in srgb, var(--primary-content) 72%, white 28%);
+		cursor: pointer;
+		outline: none;
+	}
+
+	.space-rail-item:focus-visible .space-rail-mark {
+		box-shadow:
+			0 0 0 2px color-mix(in srgb, var(--base-100) 70%, transparent),
+			0 0 0 4px color-mix(in srgb, var(--primary) 65%, transparent);
+	}
+
+	.space-rail-mark {
+		width: 8px;
+		height: 8px;
+		border-radius: 999px;
+		border: 1px solid currentColor;
+		background: transparent;
+		opacity: 0.78;
+		transform: translateZ(0);
+		transition:
+			width 220ms cubic-bezier(0.22, 1, 0.36, 1),
+			height 220ms cubic-bezier(0.22, 1, 0.36, 1),
+			opacity 180ms ease,
+			background-color 180ms ease,
+			border-color 180ms ease;
+	}
+
+	.space-rail-item.active .space-rail-mark {
+		width: 18px;
+		height: 8px;
+		border-color: color-mix(in srgb, var(--primary) 55%, white 45%);
+		background: color-mix(in srgb, var(--primary) 72%, white 28%);
+		opacity: 1;
+	}
+
+	.space-rail-label {
+		max-width: 80px;
+		overflow: hidden;
+		white-space: nowrap;
+		font-size: 12px;
+		font-weight: 600;
+		line-height: 1;
+		opacity: 0.86;
+		transform: translateX(0);
+		transition:
+			opacity 160ms ease,
+			transform 180ms ease;
+	}
+
+	.space-rail:hover .space-rail-label,
+	.space-rail:focus-within .space-rail-label {
+		opacity: 0.9;
+		transform: translateX(2px);
 	}
 </style>

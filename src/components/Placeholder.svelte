@@ -5,8 +5,6 @@
 	export let minHeight = 0;
 	export let id: string | number | undefined = undefined;
 
-	let toggleVisible = visible;
-
 	let container: HTMLElement;
 	let resizeObserver: ResizeObserver | null = null;
 
@@ -14,12 +12,6 @@
 		setHeight: (id: string | number, height: number) => void;
 		deleteHeight: (id: string | number) => void;
 	}>('noteHeights');
-
-	function toggle(visible: boolean) {
-		toggleVisible = visible;
-	}
-
-	$: toggle(visible);
 
 	onMount(() => {
 		if (!container || !id) return;
@@ -59,11 +51,7 @@
 </script>
 
 <div bind:this={container} style="min-height: {minHeight}px;">
-	{#if toggleVisible}
-		<div class:invisible={!visible}>
-			<slot />
-		</div>
-	{:else}
-		<div></div>
-	{/if}
+	<div style:display={visible ? undefined : 'none'}>
+		<slot />
+	</div>
 </div>

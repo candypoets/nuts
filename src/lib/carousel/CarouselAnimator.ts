@@ -21,6 +21,7 @@ type PendingAnimation = {
 export class CarouselAnimator {
 	private items: HTMLElement[] = [];
 	private currentAnimations: (Animation | null)[] = [];
+	private hideAnimations: (Animation | null)[] = [];
 	private pendingTouchX = 0;
 	private pendingTouchIsMobile = false;
 	private lastProgressX = Number.NaN;
@@ -291,6 +292,7 @@ export class CarouselAnimator {
 
 		this.cancelAllAnimations();
 		this.currentAnimations = new Array(items.length).fill(null);
+		this.hideAnimations = new Array(items.length).fill(null);
 
 		const baseX = currentIdx * this.scrollerWidth;
 		this.currentStates = new Array(items.length).fill(null).map((_, index) => {
@@ -322,6 +324,8 @@ export class CarouselAnimator {
 			});
 			this.setCurrentIndex(originIndex);
 			this.animateToPosition(targetX, duration, isMobile, targetIndex);
+		} else {
+			this.finalizeVisibilityIdle(currentIdx);
 		}
 	}
 
@@ -572,18 +576,14 @@ export class CarouselAnimator {
 		const complete = () => {
 			if (finished) return;
 			finished = true;
-			if (isMobile) this.finalizeMobileVisibilityIdle(destIndex);
+			this.finalizeVisibilityIdle(destIndex);
 			onComplete?.();
 		};
 
-		// Only apply mobile visibility restrictions when animating
-		if (isMobile && duration > 0) {
+		// Keep only the panels needed for the transition in the render tree.
+		if (duration > 0) {
 			const indicesToInclude = new Set([originIndex, destIndex]);
-			if (originIndex > 0) indicesToInclude.add(originIndex - 1);
-			if (originIndex < this.items.length - 1) indicesToInclude.add(originIndex + 1);
-			if (destIndex > 0) indicesToInclude.add(destIndex - 1);
-			if (destIndex < this.items.length - 1) indicesToInclude.add(destIndex + 1);
-			this.setVisibleIndicesMobile(Array.from(indicesToInclude));
+			this.setVisibleIndices(Array.from(indicesToInclude), isMobile);
 		}
 
 		let pending = 0;
@@ -593,7 +593,7 @@ export class CarouselAnimator {
 			const item = this.items[index];
 			if (!item) continue;
 
-			if (isMobile && duration > 0 && !this.visibleIndices.has(index)) {
+			if (duration > 0 && !this.visibleIndices.has(index)) {
 				item.style.display = 'none';
 				continue;
 			}
@@ -691,9 +691,7 @@ export class CarouselAnimator {
 		if (!this.items.length) return;
 		this.updateProgressBars(virtualXPosition);
 
-		if (isMobile) {
-			this.ensureVisibleForSwipeMobile(virtualXPosition);
-		}
+		this.ensureVisibleForSwipe(virtualXPosition, isMobile);
 
 		const nearestIndex = Math.round(virtualXPosition / this.scrollerWidth);
 
@@ -701,7 +699,7 @@ export class CarouselAnimator {
 			const item = this.items[index];
 			if (!item) continue;
 
-			if (isMobile && !this.visibleIndices.has(index)) {
+			if (!this.visibleIndices.has(index)) {
 				item.style.display = 'none';
 				continue;
 			}
@@ -783,9 +781,14 @@ export class CarouselAnimator {
 			}
 		}
 		this.currentAnimations = new Array(this.items.length).fill(null);
+
+		for (let i = 0; i < this.hideAnimations.length; i++) {
+			this.hideAnimations[i]?.cancel();
+			this.hideAnimations[i] = null;
+		}
 	}
 
-	// === MOBILE VISIBILITY HELPERS ===
+	// === VISIBILITY HELPERS ===
 
 	private sameIndexSet(a: Set<number>, b: Set<number>): boolean {
 		if (a.size !== b.size) return false;
@@ -793,7 +796,7 @@ export class CarouselAnimator {
 		return true;
 	}
 
-	private setVisibleIndicesMobile(visible: number[]) {
+	private setVisibleIndices(visible: number[], isMobile: boolean = false) {
 		const bounded = visible.filter((i) => i >= 0 && i < this.items.length);
 		const nextSet = new Set<number>(bounded);
 		if (this.sameIndexSet(this.visibleIndices, nextSet)) return;
@@ -802,6 +805,8 @@ export class CarouselAnimator {
 			if (this.visibleIndices.has(index)) continue;
 			const item = this.items[index];
 			if (!item) continue;
+			this.hideAnimations[index]?.cancel();
+			this.hideAnimations[index] = null;
 			item.style.display = '';
 			const st = this.currentStates[index];
 			if (this.hasRenderableState(index) && st) {
@@ -812,13 +817,14 @@ export class CarouselAnimator {
 				item.style.transform = this.getTransformForTouchPosition(
 					index,
 					this.virtualXPosition,
-					true
+					isMobile
 				);
-				item.style.opacity = '1';
+				const ratio = this.getTransformRatio(index, this.virtualXPosition);
+				item.style.opacity = isMobile ? '1' : ratio.toString();
 				item.style.zIndex = index === this.currentIndexValue ? '10' : '0';
 				this.currentStates[index] = {
 					transform: item.style.transform,
-					opacity: '1',
+					opacity: item.style.opacity,
 					zIndex: item.style.zIndex
 				};
 			}
@@ -828,13 +834,52 @@ export class CarouselAnimator {
 			if (nextSet.has(index)) continue;
 			const item = this.items[index];
 			if (!item) continue;
-			item.style.display = 'none';
+			this.hideItem(index, item);
 		}
 
 		this.visibleIndices = nextSet;
 	}
 
-	private ensureVisibleForSwipeMobile(virtualXPosition: number) {
+	private hideItem(index: number, item: HTMLElement) {
+		this.hideAnimations[index]?.cancel();
+
+		const currentOpacity = item.style.opacity || this.currentStates[index]?.opacity || '1';
+		const currentTransform = item.style.transform || this.currentStates[index]?.transform || 'none';
+		const targetTransform =
+			currentTransform === 'none' ? 'scale(0.985)' : `${currentTransform} scale(0.985)`;
+
+		const animation = item.animate(
+			[
+				{ opacity: currentOpacity, transform: currentTransform },
+				{ opacity: '0', transform: targetTransform }
+			],
+			{
+				duration: 300,
+				easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
+				fill: 'forwards'
+			}
+		);
+
+		this.hideAnimations[index] = animation;
+		animation.addEventListener(
+			'finish',
+			() => {
+				if (this.visibleIndices.has(index)) return;
+				animation.cancel();
+				item.style.display = 'none';
+				const st = this.currentStates[index];
+				if (st) {
+					item.style.transform = st.transform;
+					item.style.opacity = st.opacity;
+					item.style.zIndex = st.zIndex;
+				}
+				this.hideAnimations[index] = null;
+			},
+			{ once: true }
+		);
+	}
+
+	private ensureVisibleForSwipe(virtualXPosition: number, isMobile: boolean = false) {
 		const currentIdx = this.currentIndexValue;
 		const basePos = currentIdx * this.scrollerWidth;
 		let neighbor = currentIdx;
@@ -846,14 +891,14 @@ export class CarouselAnimator {
 		}
 
 		if (neighbor === currentIdx) {
-			this.setVisibleIndicesMobile([currentIdx]);
+			this.setVisibleIndices([currentIdx], isMobile);
 		} else {
-			this.setVisibleIndicesMobile([currentIdx, neighbor]);
+			this.setVisibleIndices([currentIdx, neighbor], isMobile);
 		}
 	}
 
-	private finalizeMobileVisibilityIdle(index: number = this.currentIndexValue) {
-		this.setVisibleIndicesMobile([index]);
+	private finalizeVisibilityIdle(index: number = this.currentIndexValue) {
+		this.setVisibleIndices([index]);
 	}
 
 	// === STATIC UTILS ===

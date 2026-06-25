@@ -495,9 +495,8 @@ export class PagerAnimator {
 
 		const translateX = -(subTweened - swipeProgressX) * (this.viewport.vw * 20 + subDepth * 30);
 		const translateY = (modalDepth - swipeProgressY) * 30;
-		// Disable scale and rotateY on mobile - keep main content flat and full size
-		const scale = this.isMobileMode ? 1 : (200 - (modalDepth - swipeProgressY) * 30) / 200;
-		const rotateY = this.isMobileMode ? 0 : (subTweened - swipeProgressX) * -20;
+		const scale = 1;
+		const rotateY = 0;
 		if (immediate) {
 			this.setElementState(this.main, translateX, translateY, scale, 1, rotateY);
 			this.main.style.transform = `translate3d(${translateX}px, ${translateY}px, 0) scale(${scale}) rotateY(${rotateY}deg)`;
