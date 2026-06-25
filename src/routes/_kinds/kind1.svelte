@@ -373,7 +373,7 @@
 					subId={baseSubId}
 					relays={currentRelays.map(normalizeURL)}
 					{connectionStatus}
-					mini={$isMobile}
+					mini
 				/>
 				<!-- <span class="w-10" /> -->
 			</div>

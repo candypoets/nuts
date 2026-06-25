@@ -233,7 +233,7 @@
 				<button on:click={goBack} class="p-1 rounded-full bg-base-200 bg-opacity-85 mr-4">
 					<Icon icon="mdi:arrow-left" class="text-xl" />
 				</button>
-				<RelaysList {relays} {connectionStatus} mini={$isMobile} />
+				<RelaysList {relays} {connectionStatus} mini />
 			</div>
 		{/if}
 
