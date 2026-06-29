@@ -27,6 +27,7 @@ module.exports = {
 					'base-100': '#f9fafb',
 					'base-200': '#f2f2f3',
 					'base-300': '#f8fdfd',
+					'base-content': '#161617',
 					'error-content': '#d9c2c2',
 					highlight: '#ffffff',
 					accent: '#6d28d9',
@@ -46,7 +47,9 @@ module.exports = {
 					secondary: '#b41488',
 					'secondary-content': '#fff0fa',
 					'base-100': '#131716',
+					'base-200': '#1a1a1a',
 					'base-300': '#1f2937',
+					'base-content': '#f4f4f5',
 					'text-gray-500': '#9b9ea4',
 					highlight: '#000000',
 					accent: '#c19bfd',
@@ -70,6 +73,7 @@ module.exports = {
 					'base-100': '#333333', // Almost black background (updated)
 					'base-200': '#1a1a1a',
 					'base-300': '#262626',
+					'base-content': '#f2f2f2',
 					'error-content': '#cc0000', // Muted red for errors
 					highlight: '#333333', // Subtle highlight
 					accent: '#a855f7', // Muted accent (updated)
@@ -92,6 +96,7 @@ module.exports = {
 					'base-100': '#e8e8e8',
 					'base-200': '#f8f8f8',
 					'base-300': '#ffffff',
+					'base-content': '#1f1f20',
 					'error-content': '#4d0000',
 					highlight: '#d4d4d4',
 					accent: '#3366ff',
@@ -113,7 +118,8 @@ module.exports = {
 					'secondary-content': '#f2f2f2',
 					'base-100': '#00213f',
 					'base-200': '#161616',
-					'base-300': '#3441597a',
+					'base-300': '#344159',
+					'base-content': '#eff2f7',
 					'error-content': '#b34700', // Warm muted error
 					highlight: '#282828',
 					accent: '#f7931a', // Bitcoin orange accent
@@ -136,6 +142,7 @@ module.exports = {
 					'base-100': '#f4e4bc', // Sandy beige background
 					'base-200': '#e8d5a8', // Lighter sand
 					'base-300': '#f7f2f3d9', // Deeper sand
+					'base-content': '#241a13', // Sandy-dark text
 					'error-content': '#8b0000', // Dark red for errors
 					highlight: '#ffe4b5', // Light peach highlight
 					accent: '#1e90ff', // Ocean blue accent
