@@ -37,7 +37,10 @@
 		'bg-success'
 	];
 
-	const isAdditionalRelay = (relay: string) => !relays.map(normalizeURL).includes(normalizeURL(relay));
+	const isAdditionalRelay = (relay: string) => !normalizedRelays.includes(normalizeURL(relay));
+
+	const uniqueNormalizedRelays = (values: string[]) =>
+		[...new Set(values.filter(Boolean).map((relay) => normalizeURL(relay)))];
 
 	function getStatusValue(status?: ConnectionStatus | 'SUBSCRIBED'): string | undefined {
 		return typeof status === 'string' ? status : status?.status()?.toString();
@@ -86,8 +89,11 @@
 	let relayToShow = $isMobile ? 3 : 6;
 	let relayInfoFetchKey = '';
 
-	$: displayedRelays = showAll ? relays : [...relays, ...additionalRelays].slice(0, relayToShow);
-	$: displayRelays = [...new Set([...relays, ...additionalRelays].filter(Boolean).map(normalizeURL))];
+	$: normalizedRelays = uniqueNormalizedRelays(relays);
+	$: displayedRelays = uniqueNormalizedRelays(
+		showAll ? normalizedRelays : [...normalizedRelays, ...additionalRelays]
+	).slice(0, showAll ? undefined : relayToShow);
+	$: displayRelays = uniqueNormalizedRelays([...normalizedRelays, ...additionalRelays]);
 	$: if (!mini && displayRelays.length) {
 		const key = displayRelays.join('\n');
 		if (relayInfoFetchKey !== key) {
