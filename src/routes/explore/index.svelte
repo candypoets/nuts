@@ -12,7 +12,6 @@
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import {
 		asConnectionStatus,
-		asKind0,
 		asKind1,
 		asKind3,
 		asKind6,
@@ -32,7 +31,7 @@
 	import RelaysList from 'src/components/RelaysList.svelte';
 	import { key } from 'src/controller';
 	import { feedKinds, ALL_FEED_KINDS, type FeedKind } from 'src/controller/feed';
-	import { defaultPipeline, kind0, kind3, kind3Ready, readRelays } from 'src/controller/nostr';
+	import { defaultPipeline, kind3, kind3Ready, readRelays } from 'src/controller/nostr';
 	import { limit } from 'src/controller/pagination';
 	import { relaySub, setSubRelays } from 'src/controller/relay';
 	import { CALENDAR_EVENT_KINDS, RSVP_KIND, parseCalendarEvent } from 'src/lib/calendarEvent';
@@ -41,6 +40,7 @@
 	import { go } from 'src/routes/modals/modal';
 	import { onDestroy } from 'svelte';
 	import Notifications from './notifications.svelte';
+	import Avatar from './avatar.svelte';
 
 	export let visible = true;
 
@@ -608,10 +608,6 @@
 		audienceMode = useContactsFeed ? 'all' : 'contacts';
 	}
 
-	function profilePicture() {
-		return $kind0 ? asKind0($kind0)?.picture() || '/miss-profile.png' : '/miss-profile.png';
-	}
-
 	function selectExploreKindTab(event: CustomEvent<{ kinds: FeedKind[] }>) {
 		$feedKinds = event.detail.kinds;
 		resetFeed();
@@ -658,7 +654,7 @@
 							<Icon icon="mdi:bell-outline" class="text-2xl mr-2" />
 						</span>
 						<a class="cursor-pointer" on:click|stopPropagation={() => go('profile')}>
-							<img src={profilePicture()} class="w-8 h-8 border rounded-full" alt="Profile" />
+							<Avatar pubkey={$key?.pub || ''} size="md" customClass="border rounded-full" />
 						</a>
 					</div>
 				</div>
@@ -715,7 +711,7 @@
 						<!-- <span class="text font-semibold">{$balance} Sats</span> -->
 						<Notifications />
 						<div class="cursor-pointer" on:click|stopPropagation={() => go('profile')}>
-							<img src={profilePicture()} class="w-8 h-8 border rounded-full" alt="Profile" />
+							<Avatar pubkey={$key?.pub || ''} size="md" customClass="border rounded-full" />
 						</div>
 					</div>
 				</div>
