@@ -4,7 +4,6 @@
 	import Icon from '@iconify/svelte';
 	import {
 		BadgeCheck,
-		Building2,
 		CalendarDays,
 		Church,
 		CreditCard,
@@ -42,6 +41,25 @@
 		{ name: 'Your village', icon: House },
 		{ name: 'Your coworking', icon: Laptop },
 		{ name: 'Your school', icon: GraduationCap }
+	];
+
+	const trustPoints = [
+		{
+			icon: '10_left_icon_bot.png',
+			text: 'Most social networks spend billions fighting bots.'
+		},
+		{ icon: '11_left_icon_leaf.png', text: 'Nuts starts somewhere else.' },
+		{ icon: '12_left_icon_people.png', text: 'Communities grow through relationships.' },
+		{
+			icon: '13_left_icon_ticket.png',
+			text: 'Invite someone. Share a QR code. Print a flyer. Meet at an event.'
+		},
+		{ icon: '14_left_icon_handshake.png', text: 'Join through people you trust.' },
+		{
+			icon: '15_left_icon_clubhouse.png',
+			text: 'A sports club knows its members. A church knows its congregation. A village knows its residents.'
+		},
+		{ icon: '16_left_icon_heart.png', text: 'Trust emerges naturally.' }
 	];
 
 	const contributors = [
@@ -306,53 +324,39 @@
 	</section>
 
 	<section
-		class="grid items-center gap-12 bg-[#4a5541] px-5 py-20 text-[#fff8ea] sm:px-8 lg:grid-cols-[minmax(0,1fr)_minmax(300px,0.58fr)] lg:px-16 lg:py-32 xl:px-24"
+		class="grid min-h-screen items-center gap-12 overflow-hidden bg-[#f4efe8] px-5 py-20 sm:px-8 lg:grid-cols-[minmax(520px,0.62fr)_minmax(680px,1fr)] lg:px-16 lg:py-24 xl:px-20"
 	>
-		<div>
-			<p class="text-sm font-black text-[#f2d35f]">Trust</p>
+		<div class="relative z-10 max-w-[620px]">
+			<p class="text-base font-black text-[#5f6f43]">Trust</p>
+			<div class="mt-4 h-px w-16 bg-[#5f6f43]"></div>
 			<h2
-				class="mt-4 max-w-5xl text-5xl font-black leading-[0.95] tracking-normal sm:text-6xl lg:text-7xl"
+				class="mt-9 max-w-[640px] text-6xl font-black leading-[1.02] tracking-normal text-[#171717] sm:text-[3rem] xl:text-[3.45rem]"
 			>
-				Real People. Real Communities.
+				Real People.<br />Real Communities.
 			</h2>
-			<div class="mt-8 grid max-w-2xl gap-3 text-lg font-medium leading-8 text-[#fff8ea]/75">
-				<p>Most social networks spend billions fighting bots.</p>
-				<p>Nuts starts somewhere else.</p>
-				<p>Communities grow through relationships.</p>
-				<p>Invite someone. Share a QR code. Print a flyer. Meet at an event.</p>
-				<p>Join through people you trust.</p>
-				<p>
-					A sports club knows its members. A church knows its congregation. A village knows its
-					residents.
-				</p>
-				<p>Trust emerges naturally.</p>
+			<div class="mt-12 grid max-w-[540px] gap-6 text-xl font-medium leading-8 text-[#242421]">
+				{#each trustPoints as point (point.icon)}
+					<div class="grid grid-cols-[64px_minmax(0,1fr)] items-center gap-6">
+						<span class="grid h-14 w-14 place-items-center rounded-full bg-[#e3e9d0]">
+							<img
+								class="h-8 w-8 object-contain"
+								src={resolve(`/real_people_communities/${point.icon}`)}
+								alt=""
+								aria-hidden="true"
+							/>
+						</span>
+						<p class="leading-7">{point.text}</p>
+					</div>
+				{/each}
 			</div>
 		</div>
-		<div
-			class="relative grid min-h-[480px] content-end overflow-hidden rounded-3xl border border-white/15 bg-white/[0.06] p-6 shadow-2xl shadow-black/10"
-			aria-label="Real-world invites"
-		>
-			<div
-				class="absolute left-7 top-7 rounded-lg bg-[#fff8ea] px-3 py-2 text-xs font-black text-[#151411]"
-			>
-				Invite card
-			</div>
-			<div
-				class="absolute right-8 top-20 grid h-32 w-32 place-items-center rounded-2xl bg-[#fff8ea] p-4 shadow-xl shadow-black/20"
-			>
-				<div class="grid h-full w-full grid-cols-5 gap-1">
-					{#each Array(25) as _, index (index)}
-						<span class={index % 3 === 0 ? 'bg-[#151411]' : 'bg-[#151411]/20'}></span>
-					{/each}
-				</div>
-			</div>
-			<div class="rounded-2xl bg-[#fff8ea] p-5 text-[#151411] shadow-xl shadow-black/15">
-				<p class="text-sm font-black text-stone-500">Join through someone you trust</p>
-				<h3 class="mt-3 text-3xl font-black leading-none">Real-world invites</h3>
-				<p class="mt-4 text-base font-semibold leading-7 text-stone-600">
-					Stickers, QR codes, notice boards, club entrances, and people joining in person.
-				</p>
-			</div>
+
+		<div class="relative min-h-[660px] lg:min-h-[780px]" aria-label="Real-world community invites">
+			<img
+				class="absolute left-1/2 top-1/2 w-[min(860px,112vw)] max-w-none -translate-x-1/2 -translate-y-1/2 object-contain lg:w-[min(850px,56vw)]"
+				src={resolve('/real_people_communities/01_right_visual_complete.png')}
+				alt="Real-world invite scene with QR notice board and invite methods"
+			/>
 		</div>
 	</section>
 
