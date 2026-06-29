@@ -1,45 +1,47 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import Icon from '@iconify/svelte';
+	import {
+		BadgeCheck,
+		Building2,
+		CalendarDays,
+		Church,
+		CreditCard,
+		GraduationCap,
+		House,
+		Laptop,
+		Megaphone,
+		MessageCircle,
+		Trophy,
+		UsersRound
+	} from 'lucide-svelte';
 
 	const scatteredTools = [
-		'WhatsApp',
-		'Instagram',
-		'Email',
-		'Google Sheets',
-		'Stripe',
-		'Eventbrite'
+		{ name: 'WhatsApp', icon: 'logos:whatsapp-icon' },
+		{ name: 'Instagram', icon: 'skill-icons:instagram' },
+		{ name: 'Email', icon: 'logos:google-gmail' },
+		{ name: 'Google Sheets', icon: 'simple-icons:googlesheets', color: '#34a853' },
+		{ name: 'Stripe', icon: 'logos:stripe' },
+		{ name: 'Eventbrite', icon: 'simple-icons:eventbrite', color: '#f05537' }
 	];
 
-	const communityExamples = [
-		'Your family',
-		'Your sports club',
-		'Your church',
-		'Your village',
-		'Your coworking',
-		'Your school',
-		'Your events'
+	const communityTools = [
+		{ name: 'Chat', icon: MessageCircle },
+		{ name: 'Events', icon: CalendarDays },
+		{ name: 'Payments', icon: CreditCard },
+		{ name: 'Announcements', icon: Megaphone },
+		{ name: 'Members', icon: UsersRound },
+		{ name: 'Sponsors', icon: BadgeCheck }
 	];
 
-	const relationshipLevels = [
-		{
-			name: 'Follow',
-			line: 'Stay informed.',
-			examples: 'Formula 1. PSG. Harvard.',
-			actions: 'Read updates. Follow discussions. No membership required.'
-		},
-		{
-			name: 'Join',
-			line: 'Become a participant.',
-			examples: 'FC Avenir. Startup House. Startup Summit.',
-			actions: 'Comment. Post. Attend events. Contribute.'
-		},
-		{
-			name: 'Belong',
-			line: 'Membership means something.',
-			examples: 'Coach. Volunteer. Founder. Resident. Moderator.',
-			actions: 'You are recognized. You have a role.'
-		}
+	const algorithmCommunities = [
+		{ name: 'Your family', icon: UsersRound },
+		{ name: 'Your sports club', icon: Trophy },
+		{ name: 'Your church', icon: Church },
+		{ name: 'Your village', icon: House },
+		{ name: 'Your coworking', icon: Laptop },
+		{ name: 'Your school', icon: GraduationCap }
 	];
 
 	const contributors = [
@@ -133,99 +135,173 @@
 	</section>
 
 	<section
-		class="grid items-center gap-12 bg-[#e4ead7] px-5 py-20 sm:px-8 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.72fr)] lg:px-16 lg:py-32 xl:px-24"
+		class="grid min-h-screen items-center gap-12 overflow-hidden bg-[#dfe6d2] px-5 py-20 sm:px-8 lg:grid-cols-[minmax(380px,0.86fr)_minmax(560px,1fr)] lg:px-16 lg:py-24 xl:px-24"
 		id="home"
 	>
-		<div>
-			<p class="text-sm font-black text-[#716341]">The organizer pain</p>
+		<div class="max-w-[620px]">
+			<p class="text-base font-black text-[#514a32] sm:text-lg">The organizer pain</p>
 			<h2
-				class="mt-4 max-w-5xl text-5xl font-black leading-[0.95] tracking-normal sm:text-6xl lg:text-7xl"
+				class="mt-6 max-w-[600px] text-6xl font-black leading-[0.92] tracking-normal text-black sm:text-7xl lg:text-[6rem] xl:text-[6.55rem]"
 			>
 				Your Community Deserves a Home.
 			</h2>
-			<div class="mt-8 grid max-w-2xl gap-3 text-lg font-medium leading-8 text-[#4f493d]">
-				<p>Most communities live across six different tools.</p>
-				<p>One for chat. One for events. One for payments. One for announcements.</p>
-				<p>One for members. One for sponsors.</p>
-				<p>Nuts brings everything together. One community. One home.</p>
+			<div class="mt-14 grid max-w-2xl gap-4 text-xl font-semibold leading-8 text-[#383526]">
+				<p class="text-2xl font-black">Most communities live across six different tools.</p>
+				<div class="grid gap-2.5">
+					{#each communityTools as item (item.name)}
+						<div class="grid grid-cols-[54px_minmax(0,1fr)] items-center gap-5">
+							<span
+								class="grid h-11 w-11 place-items-center rounded-lg bg-[#fffdf5]/70 shadow-sm shadow-stone-950/5"
+							>
+								<svelte:component this={item.icon} class="h-5 w-5 text-[#334a2e]" strokeWidth={2.4} />
+							</span>
+							<span>One for {item.name.toLowerCase()}.</span>
+						</div>
+					{/each}
+				</div>
+				<p class="mt-4 text-2xl font-black">
+					Nuts brings everything together. One community. One home.
+				</p>
 			</div>
 		</div>
-		<div class="grid gap-5" aria-label="Disconnected tools moving into Nuts">
-			<div class="flex flex-wrap gap-3">
+
+		<div class="relative mx-auto w-full max-w-[740px] py-8" aria-label="Disconnected tools moving into Nuts">
+			<div class="grid grid-cols-3 gap-5 sm:gap-6">
 				{#each scatteredTools as tool (tool)}
-					<span
-						class="rounded-xl border border-[#151411]/15 bg-white/65 px-4 py-3 font-black shadow-sm shadow-stone-950/5"
-						>{tool}</span
+					<div
+						class="grid min-h-[118px] place-items-center rounded-xl bg-[#fffdf5]/88 px-4 py-5 text-center shadow-[0_16px_36px_rgba(45,52,34,0.16)]"
 					>
+						<Icon icon={tool.icon} class="h-12 w-12" style={tool.color ? `color: ${tool.color}` : ''} />
+						<p class="mt-3 text-lg font-black text-black">{tool.name}</p>
+					</div>
 				{/each}
 			</div>
-			<div class="text-5xl font-black leading-none text-[#151411]" aria-hidden="true">↓</div>
+
+			<div class="mx-auto h-28 max-w-[560px]" aria-hidden="true">
+				<svg class="h-full w-full overflow-visible" viewBox="0 0 560 112">
+					<path
+						d="M70 0 C70 45 105 58 166 58 H394 C455 58 490 45 490 0"
+						fill="none"
+						stroke="#405635"
+						stroke-width="4"
+						stroke-linecap="round"
+						stroke-dasharray="1 10"
+					/>
+					<path
+						d="M280 58 V94"
+						fill="none"
+						stroke="#405635"
+						stroke-width="4"
+						stroke-linecap="round"
+						stroke-dasharray="1 10"
+					/>
+					<path
+						d="M258 84 280 106 302 84"
+						fill="none"
+						stroke="#243f17"
+						stroke-width="5"
+						stroke-linecap="square"
+						stroke-linejoin="miter"
+					/>
+				</svg>
+			</div>
+
 			<div
-				class="grid min-h-44 place-items-center rounded-2xl bg-[#151411] text-5xl font-black text-[#fff8ea] shadow-xl shadow-stone-950/15 sm:text-6xl"
+				class="relative mx-auto grid min-h-[184px] max-w-[620px] grid-cols-[0.92fr_1fr] items-center overflow-hidden rounded-2xl bg-[#304c25] px-8 text-[#fff8ea] shadow-[0_22px_45px_rgba(29,43,22,0.28)]"
 			>
-				Nuts
+				<div class="flex h-36 items-center">
+					<svg
+						class="h-36 w-full max-w-[230px]"
+						viewBox="0 0 230 150"
+						role="img"
+						aria-label="Community home illustration"
+					>
+						<path d="M35 76 115 18l80 58" fill="none" stroke="#fff0c4" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" />
+						<path d="M55 71 115 28l60 43v53H55V71Z" fill="#fff0c4" />
+						<path d="M55 124h120v-20c-16 11-36 17-60 17H55v3Z" fill="#eadca8" opacity="0.55" />
+						<circle cx="115" cy="62" r="10" fill="#12350f" />
+						<circle cx="80" cy="96" r="15" fill="#12350f" />
+						<circle cx="115" cy="96" r="15" fill="#6f844e" />
+						<circle cx="150" cy="96" r="15" fill="#12350f" />
+						<path d="M45 132c5-19 19-31 35-31s30 12 35 31H45Z" fill="#12350f" />
+						<path d="M80 132c5-20 19-32 35-32s30 12 35 32H80Z" fill="#6f844e" />
+						<path d="M115 132c5-19 19-31 35-31s30 12 35 31H115Z" fill="#12350f" />
+					</svg>
+				</div>
+				<div>
+					<p class="text-7xl font-black leading-none text-[#fff8ea] drop-shadow-lg">Nuts</p>
+					<p class="mt-5 text-2xl font-black leading-8 text-[#fff8ea]">
+						One community.<br />One home.
+					</p>
+				</div>
+			</div>
+
+			<div class="mx-auto mt-2 grid h-12 w-full max-w-[680px] grid-cols-6" aria-hidden="true">
+				{#each communityTools as item, index (item.name)}
+					<div class="relative">
+						<div
+							class={`absolute top-6 border-t-2 border-[#8b9a75] ${
+								index === 0 ? 'left-1/2 right-0' : index === communityTools.length - 1 ? 'left-0 right-1/2' : 'inset-x-0'
+							}`}
+						></div>
+						<div class="absolute left-1/2 top-6 h-5 -translate-x-1/2 border-l-2 border-[#8b9a75]"></div>
+					</div>
+				{/each}
+			</div>
+
+			<div class="mx-auto grid w-full max-w-[680px] grid-cols-3 gap-x-4 gap-y-5 sm:grid-cols-6">
+				{#each communityTools as item (item.name)}
+					<div class="grid justify-items-center gap-2 text-center">
+						<span
+							class="grid h-14 w-14 place-items-center rounded-full bg-[#fffdf5]/76 shadow-[0_12px_24px_rgba(45,52,34,0.14)]"
+						>
+							<svelte:component this={item.icon} class="h-6 w-6 text-[#334a2e]" strokeWidth={2.5} />
+						</span>
+						<span class="text-sm font-black text-black">{item.name}</span>
+					</div>
+				{/each}
 			</div>
 		</div>
 	</section>
 
 	<section
-		class="grid items-center gap-12 bg-[#f7f5ef] px-5 py-20 sm:px-8 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.72fr)] lg:px-16 lg:py-32 xl:px-24"
+		class="grid min-h-screen items-center gap-12 overflow-hidden bg-[#f3f0e9] px-5 py-20 sm:px-8 lg:grid-cols-[minmax(340px,0.46fr)_minmax(620px,1fr)] lg:px-14 lg:py-24 xl:px-16"
 	>
-		<div>
-			<p class="text-sm font-black text-[#716341]">The feed</p>
+		<div class="relative z-10 max-w-[520px]">
+			<p class="text-base font-black text-[#5f6f43]">The feed</p>
+			<div class="mt-4 h-px w-20 bg-[#5f6f43]"></div>
 			<h2
-				class="mt-4 max-w-5xl text-5xl font-black leading-[0.95] tracking-normal sm:text-6xl lg:text-7xl"
+				class="mt-10 max-w-[500px] text-6xl font-black leading-[1.03] tracking-normal text-[#171717] sm:text-[4.7rem] xl:text-[5.15rem]"
 			>
 				Communities are the algorithm.
 			</h2>
-			<div class="mt-8 grid max-w-2xl gap-3 text-lg font-medium leading-8 text-[#4f493d]">
+			<div class="mt-10 grid gap-3 text-xl font-medium leading-8 text-[#242421]">
 				<p>Your feed isn't built by engagement metrics.</p>
 				<p>It's built by the communities you care about.</p>
 			</div>
-			<div class="my-8 flex max-w-3xl flex-wrap gap-3">
-				{#each communityExamples as community (community)}
-					<span
-						class="rounded-xl border border-[#151411]/15 bg-white px-4 py-3 font-black shadow-sm shadow-stone-950/5"
-						>{community}</span
+			<div class="my-12 grid max-w-[540px] grid-cols-2 gap-4 sm:grid-cols-3">
+				{#each algorithmCommunities as community (community.name)}
+					<div
+						class="flex h-14 items-center gap-3 rounded-2xl bg-white px-4 text-sm font-black text-[#151511] shadow-[0_10px_24px_rgba(64,64,48,0.12)] ring-1 ring-black/5"
 					>
+						<span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#eef1e2]">
+							<svelte:component this={community.icon} class="h-5 w-5 text-[#69784b]" strokeWidth={2.6} />
+						</span>
+						<span>{community.name}</span>
+					</div>
 				{/each}
 			</div>
-			<p class="max-w-2xl text-lg font-medium leading-8 text-[#4f493d]">
+			<p class="max-w-[520px] text-xl font-medium leading-9 text-[#242421]">
 				No endless scrolling. No rage bait. Just what's happening in your world.
 			</p>
 		</div>
-		<div
-			class="relative min-h-[520px] overflow-hidden rounded-3xl border border-stone-200 bg-white p-5 shadow-2xl shadow-stone-950/10"
-			aria-label="Community feed mockup"
-		>
-			<div class="flex items-center justify-between">
-				<span class="text-sm font-black text-stone-500">Community feed</span>
-				<span class="h-3 w-3 rounded-full bg-emerald-600"></span>
-			</div>
-			<div class="mt-5 flex gap-2 overflow-hidden">
-				{#each communityExamples.slice(1, 5) as community (community)}
-					<span class="shrink-0 rounded-lg bg-[#e4ead7] px-3 py-2 text-xs font-black"
-						>{community}</span
-					>
-				{/each}
-			</div>
-			<div class="mt-6 grid gap-4">
-				<article class="rounded-2xl bg-[#f7f5ef] p-4">
-					<p class="text-sm font-black">FC Avenir</p>
-					<p class="mt-2 text-lg font-black leading-6">Training moved to court 2 tonight.</p>
-					<p class="mt-3 text-sm font-semibold text-stone-500">Parents, coaches, players</p>
-				</article>
-				<article class="rounded-2xl bg-emerald-950 p-4 text-white">
-					<p class="text-sm font-black text-white/60">Startup House</p>
-					<p class="mt-2 text-lg font-black leading-6">Demo table signups are open.</p>
-					<p class="mt-3 text-sm font-semibold text-white/60">Founders, mentors, guests</p>
-				</article>
-				<article class="rounded-2xl bg-[#f7f5ef] p-4">
-					<p class="text-sm font-black">Village market</p>
-					<p class="mt-2 text-lg font-black leading-6">Saturday stalls close at 18:30.</p>
-					<p class="mt-3 text-sm font-semibold text-stone-500">Neighbors and merchants</p>
-				</article>
-			</div>
+
+		<div class="relative min-h-[620px] lg:min-h-[760px]" aria-label="Community algorithm illustration">
+			<img
+				class="absolute right-[-1rem] top-1/2 w-[min(920px,108vw)] max-w-none -translate-y-1/2 object-contain lg:w-[min(920px,60vw)] xl:right-0"
+				src={resolve('/community_algorithm_right_illustration.png')}
+				alt="Illustrated map of communities connected by paths with feed cards"
+			/>
 		</div>
 	</section>
 
@@ -281,73 +357,33 @@
 	</section>
 
 	<section
-		class="overflow-hidden bg-[#fff8ea] px-5 py-20 sm:px-8 lg:px-16 lg:py-32 xl:px-24"
+		class="grid min-h-screen items-center overflow-hidden bg-[#f2ede5] px-5 py-20 sm:px-8 lg:grid-cols-[minmax(360px,0.54fr)_minmax(760px,1fr)] lg:gap-10 lg:px-16 lg:py-24 xl:px-20"
 		id="belong"
 	>
-		<div class="grid gap-12 lg:grid-cols-[minmax(280px,0.48fr)_minmax(0,1fr)] lg:items-start">
-			<div class="lg:sticky lg:top-10">
-				<p class="text-sm font-black text-[#716341]">The social graph</p>
-				<h2 class="mt-4 text-5xl font-black leading-[0.95] tracking-normal sm:text-6xl lg:text-7xl">
-					Follow. Join. Belong.
-				</h2>
-				<p class="mt-6 max-w-xl text-lg font-medium leading-8 text-[#4f493d]">
-					Not every relationship is the same.
-				</p>
-			</div>
+		<div class="relative z-10">
+			<p class="text-base font-black text-[#5f6f43]">The social graph</p>
+			<div class="mt-4 h-px w-20 bg-[#5f6f43]"></div>
+			<h2
+				class="mt-9 max-w-[560px] text-6xl font-black leading-[0.96] tracking-normal text-[#171717] sm:text-7xl xl:text-[5.6rem]"
+			>
+				Follow. Join. Belong.
+			</h2>
+			<p class="mt-8 max-w-xl text-xl font-medium leading-8 text-[#30302c]">
+				Not every relationship is the same.
+			</p>
+			<img
+				class="mt-12 w-full max-w-[540px]"
+				src={resolve('/follow_join_belong/01_social_graph_assembled.png')}
+				alt="People and community tools connected in a social graph"
+			/>
+		</div>
 
-			<div class="relative">
-				<div
-					class="pointer-events-none absolute left-6 top-8 hidden h-[calc(100%-4rem)] w-px bg-gradient-to-b from-[#151411]/15 via-[#151411]/40 to-[#8be3aa] lg:block"
-				></div>
-				<div class="grid gap-5">
-					{#each relationshipLevels as level, index (level.name)}
-						<article
-							class={`relative grid min-h-64 overflow-hidden rounded-2xl border p-6 shadow-xl ${
-								index === 0 ? 'lg:mr-20' : index === 1 ? 'lg:ml-10 lg:mr-10' : 'lg:ml-20'
-							} ${
-								index === 0
-									? 'border-[#151411]/10 bg-white shadow-stone-950/5'
-									: index === 1
-										? 'border-[#151411]/10 bg-[#e4ead7] shadow-stone-950/10'
-										: 'border-[#151411] bg-[#151411] text-[#fff8ea] shadow-stone-950/20'
-							}`}
-						>
-							<div
-								class={`absolute left-5 top-6 hidden h-4 w-4 rounded-full border-4 lg:block ${
-									index === 2 ? 'border-[#8be3aa] bg-[#151411]' : 'border-[#151411] bg-[#fff8ea]'
-								}`}
-							></div>
-							<div class="grid gap-8 lg:grid-cols-[150px_minmax(0,1fr)] lg:pl-9">
-								<div>
-									<span
-										class={`inline-flex rounded-lg px-3 py-2 text-sm font-black ${
-											index === 2 ? 'bg-[#8be3aa] text-[#102018]' : 'bg-[#151411] text-[#fff8ea]'
-										}`}>{level.name}</span
-									>
-									<p
-										class={`mt-5 text-sm font-black ${index === 2 ? 'text-white/45' : 'text-[#716341]'}`}
-									>
-										0{index + 1}
-									</p>
-								</div>
-								<div>
-									<h3 class="max-w-xl text-4xl font-black leading-none tracking-normal sm:text-5xl">
-										{level.line}
-									</h3>
-									<div
-										class={`mt-6 grid gap-4 border-t pt-5 ${
-											index === 2 ? 'border-white/15' : 'border-[#151411]/10'
-										}`}
-									>
-										<p class="text-lg font-semibold leading-8 opacity-75">{level.examples}</p>
-										<strong class="block text-lg leading-8 opacity-90">{level.actions}</strong>
-									</div>
-								</div>
-							</div>
-						</article>
-					{/each}
-				</div>
-			</div>
+		<div class="relative mt-12 lg:mt-0">
+			<img
+				class="w-full max-w-[935px]"
+				src={resolve('/follow_join_belong/02_right_process_stack.png')}
+				alt="Follow, join, and belong relationship steps"
+			/>
 		</div>
 	</section>
 

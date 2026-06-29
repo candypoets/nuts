@@ -207,7 +207,6 @@ body {
 	box-shadow: var(--tw-shadow-widget);
 }
 
-main,
 #top,
 .container-height {
 	max-width: var(--page-max-width);

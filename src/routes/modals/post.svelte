@@ -293,7 +293,7 @@
 				<div class="min-h-[120px] rounded-md relative transition-all duration-200" tabindex="-1" on:keydown|stopPropagation>
 					<Editor
 						{initialContent}
-						class="min-h-32 rounded-md border border-primary-content"
+						class="min-h-32 rounded-md border border-primary-content focus:outline-none focus:ring-0 focus:border-primary-content focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary-content"
 						onSubmit={handleSubmit}
 						bind:editor
 						{showPicker}
