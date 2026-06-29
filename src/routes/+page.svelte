@@ -62,14 +62,6 @@
 		{ icon: '16_left_icon_heart.png', text: 'Trust emerges naturally.' }
 	];
 
-	const contributors = [
-		'The coach',
-		'The mechanic',
-		'The volunteer',
-		'The organizer',
-		'The founder'
-	];
-
 	function openApp() {
 		goto(resolve('/create'));
 	}
@@ -392,55 +384,36 @@
 	</section>
 
 	<section
-		class="grid items-center gap-12 bg-[#e4ead7] px-5 py-20 sm:px-8 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.72fr)] lg:px-16 lg:py-32 xl:px-24"
+		class="grid min-h-screen items-center gap-12 overflow-hidden bg-[#e4e6d7] px-5 py-20 sm:px-8 lg:grid-cols-[minmax(520px,0.58fr)_minmax(640px,1fr)] lg:px-16 lg:py-24 xl:px-20"
 	>
-		<div>
-			<p class="text-sm font-black text-[#716341]">Discovery</p>
+		<div class="relative z-10 max-w-[650px]">
+			<p class="text-base font-black text-[#314f28]">Discover</p>
+			<div class="mt-4 h-px w-16 bg-[#314f28]"></div>
 			<h2
-				class="mt-4 max-w-5xl text-5xl font-black leading-[0.95] tracking-normal sm:text-6xl lg:text-7xl"
+				class="mt-12 max-w-[650px] text-6xl font-black leading-[1.05] tracking-normal text-[#111] sm:text-[4rem] xl:text-[4.45rem]"
 			>
 				Discover People Through Communities.
 			</h2>
-			<div class="mt-8 grid max-w-2xl gap-3 text-lg font-medium leading-8 text-[#4f493d]">
+			<div class="mt-12 grid max-w-[640px] gap-5 text-xl font-medium leading-8 text-[#111]">
 				<p>Most social networks reward people who already have an audience.</p>
 				<p>Nuts helps people get discovered through contribution.</p>
 			</div>
-			<div class="my-8 flex max-w-3xl flex-wrap gap-3">
-				{#each contributors as contributor (contributor)}
-					<span
-						class="rounded-xl border border-[#151411]/15 bg-white/65 px-4 py-3 font-black shadow-sm shadow-stone-950/5"
-						>{contributor}</span
-					>
-				{/each}
-			</div>
-			<p class="max-w-2xl text-lg font-medium leading-8 text-[#4f493d]">
-				Communities make people discoverable. Not algorithms.
+			<img
+				class="my-12 w-full max-w-[610px]"
+				src={resolve('/discover_people_communities/03_role_pills_group.png')}
+				alt="The coach, the mechanic, the volunteer, the organizer, and the founder"
+			/>
+			<p class="max-w-[650px] text-xl font-medium leading-9 text-[#111]">
+				Communities make people discoverable. <span class="text-[#314f28]">Not algorithms.</span>
 			</p>
 		</div>
-		<div
-			class="relative min-h-[500px] overflow-hidden rounded-3xl border border-[#151411]/10 bg-[#f7f5ef] p-6 shadow-2xl shadow-stone-950/10"
-			aria-label="Community to person to idea example"
-		>
-			<div class="rounded-2xl bg-[#151411] p-5 text-[#fff8ea]">
-				<p class="text-sm font-black text-[#8be3aa]">Formula 1 community</p>
-				<h3 class="mt-3 text-3xl font-black leading-none">A useful post spreads.</h3>
-			</div>
-			<div class="relative mt-6 grid gap-4">
-				<div class="ml-8 rounded-2xl bg-white p-5 shadow-lg shadow-stone-950/10">
-					<p class="text-sm font-black text-stone-500">Ferrari mechanic</p>
-					<p class="mt-2 text-lg font-black leading-6">Brake cooling notes from testing day.</p>
-				</div>
-				<div class="mr-8 rounded-2xl bg-[#e4ead7] p-5 shadow-lg shadow-stone-950/10">
-					<p class="text-sm font-black text-stone-500">Shared by members</p>
-					<p class="mt-2 text-lg font-black leading-6">Engineers, fans, and local clubs find it.</p>
-				</div>
-				<div class="ml-16 rounded-2xl bg-white p-5 shadow-lg shadow-stone-950/10">
-					<p class="text-sm font-black text-stone-500">Discovered through contribution</p>
-					<p class="mt-2 text-lg font-black leading-6">
-						The person matters because the work matters.
-					</p>
-				</div>
-			</div>
+
+		<div class="relative min-h-[680px] lg:min-h-[820px]" aria-label="Contribution discovery process">
+			<img
+				class="absolute left-1/2 top-1/2 w-[min(780px,112vw)] max-w-none -translate-x-1/2 -translate-y-1/2 object-contain lg:w-[min(760px,50vw)]"
+				src={resolve('/discover_people_communities/02_right_side_full_composite.png')}
+				alt="Useful contribution travels through communities and makes a person known"
+			/>
 		</div>
 	</section>
 

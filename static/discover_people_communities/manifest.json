@@ -1,0 +1,486 @@
+{
+  "source_image": "/mnt/data/a_clean_modern_marketing_landing_page_style_slide.png",
+  "canvas_size": [
+    1536,
+    1024
+  ],
+  "notes": [
+    "Text is intentionally not packaged as fonts. Rebuild text as editable layers in your design tool.",
+    "Card and pill crops include subtle shadows and some original background pixels; place over the included background or rebuild shapes natively using the reference.",
+    "Circle icon crops have transparent outside edges for easier placement.",
+    "Coordinates are in pixels from the top-left of the 1536x1024 mockup."
+  ],
+  "assets": [
+    {
+      "file": "00_canvas_background_1536x1024.png",
+      "bbox": [
+        0,
+        0,
+        1536,
+        1024
+      ],
+      "size": [
+        1536,
+        1024
+      ],
+      "note": "Approximate clean sage/cream background for rebuilding the slide."
+    },
+    {
+      "file": "01_full_slide_reference.png",
+      "bbox": [
+        0,
+        0,
+        1536,
+        1024
+      ],
+      "size": [
+        1536,
+        1024
+      ],
+      "note": "Full mockup reference with all text and assets."
+    },
+    {
+      "file": "02_right_side_full_composite.png",
+      "bbox": [
+        730,
+        92,
+        1490,
+        925
+      ],
+      "size": [
+        760,
+        833
+      ],
+      "note": "Complete right-side composition including title, steps, cards, and bottom banner."
+    },
+    {
+      "file": "03_role_pills_group.png",
+      "bbox": [
+        60,
+        532,
+        670,
+        708
+      ],
+      "size": [
+        610,
+        176
+      ],
+      "note": "All five role pills as one static crop."
+    },
+    {
+      "file": "04_timeline_spine_and_badges.png",
+      "bbox": [
+        752,
+        210,
+        822,
+        722
+      ],
+      "size": [
+        70,
+        512
+      ],
+      "note": "Vertical dotted timeline with 1/2/3 badges."
+    },
+    {
+      "file": "05_step_1_contributor_card.png",
+      "bbox": [
+        1060,
+        164,
+        1490,
+        360
+      ],
+      "size": [
+        430,
+        196
+      ],
+      "note": "Top card: Ferrari mechanic contribution."
+    },
+    {
+      "file": "06_step_2_network_card.png",
+      "bbox": [
+        1060,
+        365,
+        1490,
+        640
+      ],
+      "size": [
+        430,
+        275
+      ],
+      "note": "Middle card: community sharing network."
+    },
+    {
+      "file": "07_step_3_recognition_card.png",
+      "bbox": [
+        1060,
+        640,
+        1490,
+        818
+      ],
+      "size": [
+        430,
+        178
+      ],
+      "note": "Bottom card: recognized contributor."
+    },
+    {
+      "file": "08_bottom_message_banner.png",
+      "bbox": [
+        758,
+        835,
+        1485,
+        922
+      ],
+      "size": [
+        727,
+        87
+      ],
+      "note": "Bottom message banner."
+    },
+    {
+      "file": "09_pill_coach.png",
+      "bbox": [
+        60,
+        535,
+        247,
+        617
+      ],
+      "size": [
+        187,
+        82
+      ],
+      "note": "Role pill: The coach."
+    },
+    {
+      "file": "10_pill_mechanic.png",
+      "bbox": [
+        248,
+        535,
+        460,
+        617
+      ],
+      "size": [
+        212,
+        82
+      ],
+      "note": "Role pill: The mechanic."
+    },
+    {
+      "file": "11_pill_volunteer.png",
+      "bbox": [
+        457,
+        535,
+        667,
+        617
+      ],
+      "size": [
+        210,
+        82
+      ],
+      "note": "Role pill: The volunteer."
+    },
+    {
+      "file": "12_pill_organizer.png",
+      "bbox": [
+        60,
+        625,
+        268,
+        708
+      ],
+      "size": [
+        208,
+        83
+      ],
+      "note": "Role pill: The organizer."
+    },
+    {
+      "file": "13_pill_founder.png",
+      "bbox": [
+        263,
+        625,
+        464,
+        708
+      ],
+      "size": [
+        201,
+        83
+      ],
+      "note": "Role pill: The founder."
+    },
+    {
+      "file": "14_icon_coach_circle.png",
+      "bbox": [
+        82,
+        552,
+        136,
+        606
+      ],
+      "size": [
+        54,
+        54
+      ],
+      "note": "Circular role icon: coach/motorbike."
+    },
+    {
+      "file": "15_icon_mechanic_circle.png",
+      "bbox": [
+        269,
+        552,
+        323,
+        606
+      ],
+      "size": [
+        54,
+        54
+      ],
+      "note": "Circular role icon: mechanic/wrench."
+    },
+    {
+      "file": "16_icon_volunteer_circle.png",
+      "bbox": [
+        483,
+        552,
+        537,
+        606
+      ],
+      "size": [
+        54,
+        54
+      ],
+      "note": "Circular role icon: volunteer/heart."
+    },
+    {
+      "file": "17_icon_organizer_circle.png",
+      "bbox": [
+        86,
+        642,
+        140,
+        696
+      ],
+      "size": [
+        54,
+        54
+      ],
+      "note": "Circular role icon: organizer/calendar."
+    },
+    {
+      "file": "18_icon_founder_circle.png",
+      "bbox": [
+        286,
+        642,
+        340,
+        696
+      ],
+      "size": [
+        54,
+        54
+      ],
+      "note": "Circular role icon: founder/lightbulb."
+    },
+    {
+      "file": "19_ferrari_mechanic_avatar_circle.png",
+      "bbox": [
+        1090,
+        197,
+        1217,
+        324
+      ],
+      "size": [
+        127,
+        127
+      ],
+      "note": "Circular avatar from contributor card."
+    },
+    {
+      "file": "20_document_icon_small.png",
+      "bbox": [
+        1236,
+        242,
+        1291,
+        300
+      ],
+      "size": [
+        55,
+        58
+      ],
+      "note": "Small document icon from contribution card."
+    },
+    {
+      "file": "21_network_document_circle.png",
+      "bbox": [
+        1230,
+        463,
+        1317,
+        550
+      ],
+      "size": [
+        87,
+        87
+      ],
+      "note": "Central document icon/circle from the network card."
+    },
+    {
+      "file": "22_recognition_star_circle.png",
+      "bbox": [
+        1090,
+        681,
+        1190,
+        781
+      ],
+      "size": [
+        100,
+        100
+      ],
+      "note": "Large recognition star icon/circle."
+    },
+    {
+      "file": "23_bottom_people_icon_dark_circle.png",
+      "bbox": [
+        785,
+        852,
+        838,
+        904
+      ],
+      "size": [
+        53,
+        52
+      ],
+      "note": "Dark green people icon from the bottom banner."
+    },
+    {
+      "file": "24_step_badge_1.png",
+      "bbox": [
+        762,
+        211,
+        811,
+        260
+      ],
+      "size": [
+        49,
+        49
+      ],
+      "note": "Timeline badge 1."
+    },
+    {
+      "file": "25_step_badge_2.png",
+      "bbox": [
+        762,
+        430,
+        811,
+        479
+      ],
+      "size": [
+        49,
+        49
+      ],
+      "note": "Timeline badge 2."
+    },
+    {
+      "file": "26_step_badge_3.png",
+      "bbox": [
+        762,
+        679,
+        811,
+        728
+      ],
+      "size": [
+        49,
+        49
+      ],
+      "note": "Timeline badge 3."
+    },
+    {
+      "file": "27_network_pill_engineers.png",
+      "bbox": [
+        1091,
+        397,
+        1235,
+        446
+      ],
+      "size": [
+        144,
+        49
+      ],
+      "note": "Network pill: Engineers."
+    },
+    {
+      "file": "28_network_pill_fans.png",
+      "bbox": [
+        1311,
+        397,
+        1423,
+        446
+      ],
+      "size": [
+        112,
+        49
+      ],
+      "note": "Network pill: Fans."
+    },
+    {
+      "file": "29_network_pill_local_club.png",
+      "bbox": [
+        1075,
+        482,
+        1220,
+        531
+      ],
+      "size": [
+        145,
+        49
+      ],
+      "note": "Network pill: Local club."
+    },
+    {
+      "file": "30_network_pill_event_organizers.png",
+      "bbox": [
+        1330,
+        482,
+        1468,
+        531
+      ],
+      "size": [
+        138,
+        49
+      ],
+      "note": "Network pill: Event organizers."
+    },
+    {
+      "file": "31_network_pill_wider_community.png",
+      "bbox": [
+        1167,
+        567,
+        1360,
+        616
+      ],
+      "size": [
+        193,
+        49
+      ],
+      "note": "Network pill: Wider community."
+    },
+    {
+      "file": "32_right_title_useful_contribution_travels.png",
+      "bbox": [
+        1000,
+        105,
+        1365,
+        145
+      ],
+      "size": [
+        365,
+        40
+      ],
+      "note": "Right-side section title reference."
+    },
+    {
+      "file": "33_color_palette_reference.png",
+      "bbox": null,
+      "size": [
+        480,
+        350
+      ],
+      "note": "Approximate color tokens sampled/estimated from the mockup."
+    }
+  ]
+}
