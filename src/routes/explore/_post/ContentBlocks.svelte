@@ -173,14 +173,15 @@
 		{:else if parsed.dataType() == ContentData.CashuData}
 			<Cashu cashu={parsed.text()} />
 		{:else if parsed.dataType() == ContentData.ImageData && showMedia}
-			<ImageGrid {note} links={[{ src: parsed.text() || '', type: 'image' }]} />
+			<ImageGrid {note} {visible} links={[{ src: parsed.text() || '', type: 'image' }]} />
 		{:else if parsed.dataType() == ContentData.VideoData && showMedia}
-			<ImageGrid {note} links={[{ src: parsed.text() || '', type: 'video' }]} />
+			<ImageGrid {note} {visible} links={[{ src: parsed.text() || '', type: 'video' }]} />
 		{:else if parsed.dataType() == ContentData.MediaGroupData && showMedia}
 			{@const mediaGrid = asMediaGroupData(parsed)}
 			{#if mediaGrid}
 				<ImageGrid
 					{note}
+					{visible}
 					links={fbArray(mediaGrid, 'items').map((md) =>
 						md.image
 							? { src: md.image()?.url() || '', type: 'image' }
