@@ -40,11 +40,6 @@
 	];
 
 	const trustPoints = [
-		{
-			icon: '10_left_icon_bot.png',
-			text: 'Most social networks spend billions fighting bots.'
-		},
-		{ icon: '11_left_icon_leaf.png', text: 'Nuts starts somewhere else.' },
 		{ icon: '12_left_icon_people.png', text: 'Communities grow through relationships.' },
 		{
 			icon: '13_left_icon_ticket.png',
