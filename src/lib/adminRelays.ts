@@ -89,6 +89,40 @@ export function relaySetAddressesFromRelayFeedEvent(event: ParsedEvent | undefin
 	return Array.from(new Set(addresses));
 }
 
+export function buildRelayListTagsWithReadRelay(
+	existingEvent: ParsedEvent | undefined,
+	relayUrl: string,
+	defaultRelays: string[] = []
+): string[][] {
+	const relayModes = new Map<string, { read: boolean; write: boolean }>();
+
+	function addRelay(url: string, read = true, write = true) {
+		const normalized = normalizeURL(url);
+		const existing = relayModes.get(normalized) || { read: false, write: false };
+		relayModes.set(normalized, {
+			read: existing.read || read,
+			write: existing.write || write
+		});
+	}
+
+	for (const tag of existingEvent ? parsedEventTags(existingEvent) : []) {
+		if (tag[0] !== 'r' || !tag[1]) continue;
+		const marker = tag[2];
+		addRelay(tag[1], marker !== 'write', marker !== 'read');
+	}
+
+	defaultRelays.forEach((url) => addRelay(url));
+	addRelay(relayUrl, true, false);
+
+	return Array.from(relayModes.entries())
+		.sort(([left], [right]) => left.localeCompare(right))
+		.map(([url, mode]) => {
+			if (mode.read && mode.write) return ['r', url];
+			if (mode.read) return ['r', url, 'read'];
+			return ['r', url, 'write'];
+		});
+}
+
 export function buildRelayRoleSetTags(
 	role: RelayRole,
 	existingEvent: ParsedEvent | undefined,

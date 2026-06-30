@@ -16,6 +16,7 @@ import { derived } from 'svelte/store';
 import { kind3 } from './nostr';
 
 export type FeedKind = 1 | 6 | 20 | 34235 | 1068 | 30023 | 30311;
+export type ExploreAudienceMode = 'contacts' | 'all';
 
 export const ALL_FEED_KINDS: FeedKind[] = [1, 6, 20, 34235, 1068, 30023, 30311];
 
@@ -61,6 +62,13 @@ export const feedKinds = persistentWritable<FeedKind[]>(
 		return [];
 	},
 	(kinds) => JSON.stringify(kinds)
+);
+
+export const exploreAudienceMode = persistentWritable<ExploreAudienceMode>(
+	'exploreAudienceMode',
+	'contacts',
+	(storage: unknown) => (storage === 'contacts' || storage === 'all' ? storage : 'contacts'),
+	(mode) => JSON.stringify(mode)
 );
 
 // Shape we persist to localStorage for kind 39089

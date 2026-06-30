@@ -26,8 +26,9 @@
 		UserPlus
 	} from 'lucide-svelte';
 	import { getPublicKey, nip19, type EventTemplate } from 'nostr-tools';
-	import { key } from 'src/controller';
+	import { key, kind10002 } from 'src/controller';
 	import {
+		buildRelayListTagsWithReadRelay,
 		buildRelayRoleSetTags,
 		mergeRelayFeedIndexTags,
 		relaySetAddress
@@ -398,9 +399,20 @@
 			content: '',
 			created_at: now()
 		};
+		const relayListEvent: EventTemplate = {
+			kind: 10002,
+			tags: buildRelayListTagsWithReadRelay(
+				$kind10002?.pubkey() === pubkey ? $kind10002 : undefined,
+				communityRelayUrl,
+				INDEXER_RELAYS
+			),
+			content: '',
+			created_at: now()
+		};
 
 		await publishEvent(relayFeedEvent, 'invite_relay_feed_' + pubkey);
 		await publishEvent(memberRelaySetEvent, 'invite_member_relay_set_' + pubkey);
+		await publishEvent(relayListEvent, 'invite_relay_list_' + pubkey);
 	}
 
 	async function redeemInvite() {

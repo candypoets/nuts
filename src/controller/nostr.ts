@@ -9,6 +9,7 @@ import {
 	type ParsedEvent
 } from '@candypoets/nipworker';
 import { asKind10002, asKind3, fbArray } from '@candypoets/nipworker/utils';
+import { ADMIN_RELAY_SET_D, parsedEventTags, relayUrlsFromRelaySet } from 'src/lib/adminRelays';
 import { derived, writable, type Writable } from 'svelte/store';
 
 export const resolvable = <T = any>() => {
@@ -191,6 +192,12 @@ export const kind10002: Writable<ParsedEvent | undefined> = writable();
 
 export const kind10002Ready = resolvable<ParsedEvent>();
 
+export const kind10012: Writable<ParsedEvent | undefined> = writable();
+
+export const kind10012Ready = resolvable<ParsedEvent>();
+
+export const relayRoleSets: Writable<ParsedEvent[]> = writable([]);
+
 export const kind10019: Writable<ParsedEvent | undefined> = writable();
 
 export const kind10019Ready = resolvable<ParsedEvent>();
@@ -263,6 +270,22 @@ export const writeRelays = derived(kind10002, ($kind10002) => {
 	return fbArray(kind, 'relays')
 		.filter((r) => r.write())
 		.map((r) => r.url());
+});
+
+function relaySetD(event: ParsedEvent): string {
+	return parsedEventTags(event).find((tag) => tag[0] === 'd')?.[1] || '';
+}
+
+export const adminRelayUrls = derived(relayRoleSets, ($relayRoleSets) => {
+	const urls = $relayRoleSets
+		.filter((event) => relaySetD(event) === ADMIN_RELAY_SET_D)
+		.flatMap((event) => relayUrlsFromRelaySet(event));
+	return Array.from(new Set(urls));
+});
+
+export const relayDirectoryUrls = derived(relayRoleSets, ($relayRoleSets) => {
+	const urls = $relayRoleSets.flatMap((event) => relayUrlsFromRelaySet(event));
+	return Array.from(new Set(urls));
 });
 
 export const delayedPromise = new Promise<void>((resolve) => {

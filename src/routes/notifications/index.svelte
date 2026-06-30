@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import type { ParsedEvent, RequestObject, WorkerMessage } from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import {
@@ -8,7 +9,13 @@
 		ConnectionTracker
 	} from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
-	import { defaultPipeline, key, lastNotificationView, writeRelays } from 'src/controller';
+	import {
+		defaultPipeline,
+		key,
+		lastNotificationView,
+		readRelays,
+		writeRelays
+	} from 'src/controller';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import { onMount, onDestroy } from 'svelte';
 	import { processNotifications, type ProcessedNotification } from './notifications';
@@ -41,6 +48,12 @@
 	let itemsBeforePagination = 0;
 	let paginationTimeout: ReturnType<typeof setTimeout> | undefined;
 	let prevPaginationSubId: string | undefined = undefined;
+	let lastRelayKey = '';
+
+	$: notificationRelays = Array.from(
+		new Set(($readRelays || []).length ? $readRelays || [] : $writeRelays || [])
+	).filter((relay): relay is string => Boolean(relay));
+	$: notificationRelayKey = notificationRelays.join('|');
 
 	// Build subscription requests
 	function buildRequests(isPagination = false): RequestObject[] {
@@ -53,13 +66,17 @@
 			kinds: [1, 7, 6],
 			tags: { '#p': [$key.pub] },
 			limit: 50,
-			relays: $writeRelays,
+			relays: notificationRelays,
 			noCache: true
 		};
 		if (isPagination && until) {
 			req.until = until;
 		}
 		return [req];
+	}
+
+	function goSettings() {
+		void goto(resolve('/settings' as any));
 	}
 
 	// Handle incoming events from subscription
@@ -106,7 +123,7 @@
 	let hasInitialized = false;
 
 	function initSubscription(isPagination = false) {
-		if (!visible || !$key?.pub) return;
+		if (!visible || !$key?.pub || !notificationRelays.length) return;
 		if (!isPagination && hasInitialized) return;
 
 		if (!isPagination) {
@@ -115,6 +132,7 @@
 			rawEvents = [];
 			seenEventIds.clear();
 			hasInitialized = true;
+			lastRelayKey = notificationRelayKey;
 		}
 		loading = true;
 		const requests = buildRequests(isPagination);
@@ -142,6 +160,17 @@
 	}
 
 	$: if (visible && $key?.pub && !hasInitialized) {
+		initSubscription();
+	}
+
+	$: if (visible && $key?.pub && hasInitialized && notificationRelayKey !== lastRelayKey) {
+		unsubscribe?.();
+		unsubscribe = undefined;
+		connectionTracker = undefined;
+		hasInitialized = false;
+		prevPaginationSubId = undefined;
+		rawEvents = [];
+		seenEventIds.clear();
 		initSubscription();
 	}
 
@@ -256,7 +285,7 @@
 				<Icon icon="mdi:arrow-left" class="text-xl" />
 			</button>
 			<h1 class="text-lg font-semibold">Notifications</h1>
-			<span class="w-10" />
+			<span class="w-10"></span>
 		</div>
 	</svelte:fragment>
 	<svelte:fragment slot="header">
@@ -267,11 +296,11 @@
 				<Icon icon="mdi:arrow-left" class="text-xl" />
 			</button>
 			<h1 class="text-lg font-semibold">Notifications</h1>
-			<span class="w-10" />
+			<span class="w-10"></span>
 		</div>
 	</svelte:fragment>
 
-	<svelte:fragment slot="item-content" let:post let:context let:visible>
+	<svelte:fragment slot="item-content" let:post let:visible>
 		<div class="bg-base-300 bg-opacity-85 backdrop-blur-gpu rounded-lg mb-1">
 			<!-- {#if visible} -->
 			{#if post.type === 'reply'}
@@ -291,10 +320,7 @@
 	<div class="flex flex-col items-center justify-center h-screen">
 		<Icon icon="mdi:bell-off" class="text-6xl text-gray-300 mb-4" />
 		<p class="text-gray-500">Sign in to view your notifications</p>
-		<button
-			class="mt-4 bg-primary text-white px-4 py-2 rounded-lg"
-			on:click={() => goto('/settings')}
-		>
+		<button class="mt-4 bg-primary text-white px-4 py-2 rounded-lg" on:click={goSettings}>
 			Sign In
 		</button>
 	</div>

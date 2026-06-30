@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import Icon from '@iconify/svelte';
 
 	import {
@@ -63,9 +65,13 @@
 
 		adminRelaysLoading = true;
 		Promise.all(urls.map((url) => fetchAdminRelayInfo(url, pubkey))).then((infos) => {
-			adminRelays = infos;
+			adminRelays = infos.filter((info) => info.isAdmin);
 			adminRelaysLoading = false;
 		});
+	}
+
+	function openCommunityDashboard(url: string) {
+		void goto(resolve(`/admin/${encodeURIComponent(url)}`));
 	}
 
 	function subscribeAdminRelaySets(addresses: string[]) {
@@ -267,16 +273,20 @@
 				<Icon icon="carbon:arrow-right" class="w-16 h-6" />
 			</div>
 		</div>
-		<h3 class="font-bold">Admin relays</h3>
+		<h3 class="font-bold">Your communities</h3>
 		<div class="my-4 rounded-lg border">
 			{#if adminRelaysLoading}
 				<div class="flex items-center gap-3 p-4">
 					<span class="loading loading-spinner loading-sm"></span>
-					<span class="text-sm">Checking relays</span>
+					<span class="text-sm">Checking communities</span>
 				</div>
 			{:else if adminRelays.length}
 				{#each adminRelays as relay (relay.url)}
-					<div class="flex items-center justify-around py-3 border-b last:border-none">
+					<button
+						type="button"
+						class="flex w-full items-center justify-around py-3 text-left border-b last:border-none"
+						on:click={() => openCommunityDashboard(relay.url)}
+					>
 						<Icon icon="mingcute:server-line" class="w-16 h-6" />
 						<div class="min-w-0 flex-grow pr-3">
 							<strong class="block truncate">{relay.name || relay.url}</strong>
@@ -285,17 +295,11 @@
 								<p class="text-xs text-warning">{relay.error}</p>
 							{/if}
 						</div>
-						<span
-							class={`badge mr-4 ${
-								relay.isAdmin ? 'badge-success' : relay.error ? 'badge-warning' : 'badge-ghost'
-							}`}
-						>
-							{relay.isAdmin ? 'admin' : relay.error ? 'unknown' : 'not admin'}
-						</span>
-					</div>
+						<Icon icon="carbon:arrow-right" class="w-16 h-6" />
+					</button>
 				{/each}
 			{:else}
-				<div class="p-4 text-sm opacity-70">No admin relay set found.</div>
+				<div class="p-4 text-sm opacity-70">No communities found.</div>
 			{/if}
 		</div>
 	</div>

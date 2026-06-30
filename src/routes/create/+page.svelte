@@ -30,12 +30,13 @@
 	import { nip19, type EventTemplate } from 'nostr-tools';
 	import { QRCode } from 'svelte-qrcode-image/util';
 
-	import { key } from 'src/controller';
+	import { key, kind10002 } from 'src/controller';
 	import CommunityBenefitsPanel from 'src/components/CommunityBenefitsPanel.svelte';
 	import CommunityCreatedScreen from 'src/components/CommunityCreatedScreen.svelte';
 	import {
 		ADMIN_RELAY_SET_D,
 		buildAdminRelaySetTags,
+		buildRelayListTagsWithReadRelay,
 		mergeRelayFeedIndexTags
 	} from 'src/lib/adminRelays';
 	import { DEFAULT_RELAYS, INDEXER_RELAYS } from 'src/lib/env';
@@ -202,10 +203,13 @@
 	}
 
 	function publishRelayList(pubkey: string, communityRelay: string) {
-		const relays = Array.from(new Set([communityRelay, ...INDEXER_RELAYS]));
 		const relayList: EventTemplate = {
 			kind: 10002,
-			tags: relays.map((relayUrl) => ['r', relayUrl]),
+			tags: buildRelayListTagsWithReadRelay(
+				$kind10002?.pubkey() === pubkey ? $kind10002 : undefined,
+				communityRelay,
+				INDEXER_RELAYS
+			),
 			content: '',
 			created_at: now()
 		};

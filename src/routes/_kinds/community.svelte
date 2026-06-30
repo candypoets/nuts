@@ -7,7 +7,7 @@
 		type ParsedEvent,
 		type WorkerMessage
 	} from '@candypoets/nipworker';
-	import { useSubscription } from '@candypoets/nipworker/hooks';
+	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
 	import {
 		asConnectionStatus,
 		asKind1,
@@ -18,12 +18,25 @@
 		fbArray
 	} from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
+	import type { EventTemplate } from 'nostr-tools';
 	import { normalizeURL } from 'nostr-tools/utils';
 	import EventCard, { type CalendarEventCard } from 'src/components/EventCard.svelte';
 	import KindSwitcher from 'src/components/KindSwitcher.svelte';
+	import { key } from 'src/controller';
 	import { ALL_FEED_KINDS, type FeedKind } from 'src/controller/feed';
+	import { kind10012, relayRoleSets } from 'src/controller/nostr';
 	import { fetchRelayInfo, relayInfos, setSubRelays } from 'src/controller/relay';
+	import {
+		RELAY_ROLE_SETS,
+		buildRelayRoleSetTags,
+		mergeRelayFeedIndexTags,
+		parsedEventTags,
+		relayUrlsFromRelaySet,
+		type RelayRole
+	} from 'src/lib/adminRelays';
 	import { CALENDAR_EVENT_KINDS, RSVP_KIND, parseCalendarEvent } from 'src/lib/calendarEvent';
+	import { INDEXER_RELAYS } from 'src/lib/env';
+	import { now } from 'src/lib/period';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import { onDestroy, onMount } from 'svelte';
@@ -53,6 +66,9 @@
 	let until: number | undefined;
 	let hasMore = true;
 	let itemsBeforePagination = 0;
+	let followIntent: boolean | undefined;
+	let publishUnsubscribers: Array<() => void> = [];
+	let publishStatus = '';
 
 	$: normalizedRelay = normalizeURL(relay);
 	$: relayInfo = $relayInfos.get(normalizedRelay);
@@ -62,6 +78,21 @@
 	$: requestKinds = selectedKinds.length ? selectedKinds : (ALL_FEED_KINDS as FeedKind[]);
 	$: subId = `community_${relayHash(normalizedRelay)}_${requestKinds.join('-')}`;
 	$: eventAddressKey = upcomingEvents.map((event) => event.address).join('|');
+	$: followingRelaySet = relaySetForRole($relayRoleSets, 'following');
+	$: isFollowingRelay =
+		followIntent ??
+		Boolean(
+			followingRelaySet && relayUrlsFromRelaySet(followingRelaySet).includes(normalizedRelay)
+		);
+	$: communityRole = userCommunityRole($relayRoleSets, normalizedRelay, isFollowingRelay);
+	$: communityRoleLabel =
+		communityRole === 'following'
+			? 'Follower'
+			: communityRole === 'visitor'
+				? 'Visitor'
+				: titleCase(communityRole);
+	$: canToggleFollow = communityRole === 'following' || communityRole === 'visitor';
+	$: communityActionLabel = isFollowingRelay ? 'Unfollow' : 'Follow';
 
 	function relayLabel(url: string) {
 		return url
@@ -91,6 +122,97 @@
 			hash = (hash * 31 + url.charCodeAt(index)) % 360;
 		}
 		return `hsl(${hash}, 74%, 42%)`;
+	}
+
+	function titleCase(value: string) {
+		return value.charAt(0).toUpperCase() + value.slice(1);
+	}
+
+	function relaySetForRole(roleSets: ParsedEvent[], role: RelayRole) {
+		const d = RELAY_ROLE_SETS[role].d;
+		return roleSets.find((event) =>
+			parsedEventTags(event).some((tag) => tag[0] === 'd' && tag[1] === d)
+		);
+	}
+
+	function roleHasRelay(roleSets: ParsedEvent[], relayUrl: string, role: RelayRole) {
+		return relayUrlsFromRelaySet(relaySetForRole(roleSets, role)).includes(relayUrl);
+	}
+
+	function userCommunityRole(
+		roleSets: ParsedEvent[],
+		relayUrl: string,
+		following: boolean
+	): RelayRole | 'visitor' {
+		if (roleHasRelay(roleSets, relayUrl, 'admin')) return 'admin';
+		if (roleHasRelay(roleSets, relayUrl, 'member')) return 'member';
+		if (following) return 'following';
+		return 'visitor';
+	}
+
+	function relayRoleTagsWithoutRelay(existingEvent: ParsedEvent | undefined, relayUrl: string) {
+		const tags = existingEvent
+			? parsedEventTags(existingEvent)
+			: buildRelayRoleSetTags('following', undefined, relayUrl);
+		return tags.filter(
+			(tag) => !(tag[0] === 'relay' && normalizeURL(tag[1] || '') === normalizeURL(relayUrl))
+		);
+	}
+
+	function publishEvent(event: EventTemplate, id: string) {
+		let finished = false;
+		let unsubscribe: (() => void) | undefined;
+		const finish = () => {
+			if (finished) return;
+			finished = true;
+			unsubscribe?.();
+			publishUnsubscribers = publishUnsubscribers.filter((item) => item !== unsubscribe);
+		};
+
+		unsubscribe = usePublish(
+			id,
+			event,
+			(message: WorkerMessage) => {
+				const status = asConnectionStatus(message);
+				if (status?.status()?.toString() === 'OK' || status?.status()?.toString() === 'EOSE') {
+					finish();
+				}
+			},
+			{ trackStatus: true, defaultRelays: INDEXER_RELAYS }
+		);
+		publishUnsubscribers = [...publishUnsubscribers, unsubscribe];
+		setTimeout(finish, 1800);
+	}
+
+	function toggleFollowRelay() {
+		const pubkey = $key?.pub;
+		if (!pubkey || !normalizedRelay) return;
+
+		const nextFollowing = !isFollowingRelay;
+		followIntent = nextFollowing;
+		publishStatus = nextFollowing ? 'Following...' : 'Unfollowing...';
+
+		const relayFeedEvent: EventTemplate = {
+			kind: 10012,
+			tags: mergeRelayFeedIndexTags($kind10012, pubkey, ['admin', 'member', 'following']),
+			content: '',
+			created_at: now()
+		};
+		const relaySetEvent: EventTemplate = {
+			kind: 30002,
+			tags: nextFollowing
+				? buildRelayRoleSetTags('following', followingRelaySet, normalizedRelay)
+				: relayRoleTagsWithoutRelay(followingRelaySet, normalizedRelay),
+			content: '',
+			created_at: now()
+		};
+
+		publishEvent(relayFeedEvent, 'community_follow_index_' + pubkey);
+		publishEvent(
+			relaySetEvent,
+			'community_follow_set_' + pubkey + '_' + relayHash(normalizedRelay)
+		);
+		publishStatus = nextFollowing ? 'Following' : 'Not following';
 	}
 
 	function shouldShowCommunityPost(event: ParsedEvent) {
@@ -375,6 +497,7 @@
 		paginationSub?.();
 		eventSub?.();
 		rsvpSubs.forEach((unsubscribe) => unsubscribe());
+		publishUnsubscribers.forEach((unsubscribe) => unsubscribe());
 		if (emptyTimeout) clearTimeout(emptyTimeout);
 		if (paginationTimeout) clearTimeout(paginationTimeout);
 		if (paginationCheckTimeout) clearTimeout(paginationCheckTimeout);
@@ -433,16 +556,33 @@
 				</p>
 				<p class="mt-5 text-base leading-6 text-primary-content">{description}</p>
 
-				<div class="mt-6 grid grid-cols-2 gap-3">
-					<button type="button" class="btn h-14 rounded-lg bg-base-200">
-						<Icon icon="mdi:share-outline" class="text-xl text-primary" />
-						Share
-					</button>
-					<button type="button" class="btn h-14 rounded-lg bg-base-200">
-						<Icon icon="mdi:account-plus-outline" class="text-xl text-primary" />
-						Invite
-					</button>
+				<div class="mt-6 flex items-center justify-between gap-3">
+					<div class="min-w-0">
+						<p class="text-xs font-bold uppercase text-primary-content opacity-70">Your role</p>
+						<div
+							class="mt-1 inline-flex items-center rounded-full bg-base-200 px-3 py-1.5 text-sm font-bold text-primary"
+						>
+							{communityRoleLabel}
+						</div>
+					</div>
+					{#if canToggleFollow}
+						<button
+							type="button"
+							class="btn h-12 rounded-lg bg-base-200 px-5"
+							on:click={toggleFollowRelay}
+							disabled={!$key?.pub}
+						>
+							<Icon
+								icon={isFollowingRelay ? 'mdi:account-minus-outline' : 'mdi:account-plus-outline'}
+								class="text-xl text-primary"
+							/>
+							{communityActionLabel}
+						</button>
+					{/if}
 				</div>
+				{#if publishStatus}
+					<p class="mt-2 text-sm font-semibold text-primary-content">{publishStatus}</p>
+				{/if}
 
 				<div class="mt-6 border-t border-base-200 pt-4">
 					<div class="mb-3 flex items-center justify-between">
@@ -454,7 +594,11 @@
 					{#if upcomingEvents.length}
 						<div class="flex items-start gap-3 overflow-x-auto pb-1 scrollbar-hide">
 							{#each upcomingEvents.slice(0, 3) as event (event.id)}
-								<EventCard {event} rsvpCount={rsvpCountsByAddress[event.address] || 0} />
+								<EventCard
+									{event}
+									feedRelays={[normalizedRelay]}
+									rsvpCount={rsvpCountsByAddress[event.address] || 0}
+								/>
 							{/each}
 						</div>
 					{:else}

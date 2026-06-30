@@ -5,6 +5,7 @@
 		Kind10002Parsed,
 		Kind3Parsed,
 		getManager,
+		type ParsedEvent,
 		ParsedData,
 		WorkerMessage,
 		type RequestObject
@@ -35,6 +36,8 @@
 		kind10000Ready,
 		kind10002,
 		kind10002Ready,
+		kind10012,
+		kind10012Ready,
 		kind10019,
 		kind10019Ready,
 		kind10063,
@@ -42,7 +45,8 @@
 		kind10096,
 		kind10096Ready,
 		kind3,
-		kind3Ready
+		kind3Ready,
+		relayRoleSets
 	} from 'src/controller/nostr';
 	import { pagerAnimator, setupPagerAnimators } from 'src/controller/pager';
 	import { isMobile, viewport } from 'src/controller/viewport';
@@ -51,6 +55,12 @@
 	import { carouselAnimator } from 'src/controller/carrousel';
 	import { sendStatuses } from 'src/controller/sendStatus';
 	import { CarouselAnimator } from 'src/lib/carousel/CarouselAnimator';
+	import {
+		parsedEventTags,
+		relaySetAddressesFromRelayFeedEvent,
+		relayUrlsFromRelaySet
+	} from 'src/lib/adminRelays';
+	import { DEFAULT_RELAYS, INDEXER_RELAYS } from 'src/lib/env';
 	import Landing from 'src/routes/+page.svelte';
 	import Chat from 'src/routes/chat/index.svelte';
 	import Explore from 'src/routes/explore/index.svelte';
@@ -82,6 +92,21 @@
 	setupPagerAnimators($viewport, goBackRouter, goToRootRouter);
 
 	const connectionTracker = new ConnectionTracker();
+	const relayDirectoryRelays = Array.from(
+		new Set([...INDEXER_RELAYS, ...DEFAULT_RELAYS, 'wss://relay.nuts.cash'])
+	);
+	let relayDirectoryFeedSub: (() => void) | undefined;
+	let relayDirectorySetsSub: (() => void) | undefined;
+	let relayDirectoryPubkey = '';
+	let relayDirectoryAddressKey = '';
+	let expectedRelayDirectoryAddresses = new Set<string>();
+
+	function resetRelayDirectoryState() {
+		relayDirectoryAddressKey = '';
+		expectedRelayDirectoryAddresses = new Set();
+		$kind10012 = undefined;
+		$relayRoleSets = [];
+	}
 
 	$: $key &&
 		$key.pub &&
@@ -119,6 +144,100 @@
 			],
 			handleRelayEvents
 		);
+
+	$: if ($key?.pub && $key.pub !== relayDirectoryPubkey) {
+		relayDirectoryFeedSub?.();
+		relayDirectorySetsSub?.();
+		relayDirectoryPubkey = $key.pub;
+		resetRelayDirectoryState();
+		relayDirectoryFeedSub = useSubscription(
+			'relay_directory_feed_' + $key.pub,
+			[
+				{
+					kinds: [10012],
+					authors: [$key.pub],
+					limit: 1,
+					relays: relayDirectoryRelays,
+					cacheFirst: true
+				}
+			],
+			handleRelayDirectoryFeed,
+			{ bytesPerEvent: 10 * 1024 }
+		);
+	}
+
+	$: relayDirectoryAddresses = $kind10012 ? relaySetAddressesFromRelayFeedEvent($kind10012) : [];
+	$: nextRelayDirectoryAddressKey = relayDirectoryAddresses.join('|');
+	$: if ($key?.pub && nextRelayDirectoryAddressKey !== relayDirectoryAddressKey) {
+		relayDirectorySetsSub?.();
+		relayDirectoryAddressKey = nextRelayDirectoryAddressKey;
+		expectedRelayDirectoryAddresses = new Set(relayDirectoryAddresses);
+		$relayRoleSets = [];
+
+		if (relayDirectoryAddresses.length) {
+			relayDirectorySetsSub = useSubscription(
+				'relay_directory_sets_' + $key.pub,
+				relayDirectoryAddresses.map((address) => {
+					const [, author, d] = address.split(':');
+					return {
+						kinds: [30002],
+						authors: [author || $key.pub],
+						tags: { '#d': [d] },
+						limit: 1,
+						relays: relayDirectoryRelays,
+						cacheFirst: true
+					};
+				}),
+				handleRelayDirectorySet,
+				{ bytesPerEvent: 10 * 1024 }
+			);
+		}
+	}
+
+	function relayDirectoryEventAddress(event: ParsedEvent): string | undefined {
+		const eventD = parsedEventTags(event).find((tag) => tag[0] === 'd')?.[1];
+		return relayDirectoryAddresses.find((candidate) => {
+			const [, author, d] = candidate.split(':');
+			return event.pubkey() === author && eventD === d;
+		});
+	}
+
+	function handleRelayDirectoryFeed(message: WorkerMessage) {
+		const parsedEvent = isParsedEvent(message);
+		if (!parsedEvent || parsedEvent.kind() !== 10012) return;
+		if (parsedEvent.createdAt() > ($kind10012?.createdAt() || 0)) {
+			$kind10012 = parsedEvent;
+			kind10012Ready.resolve(parsedEvent);
+			console.log('[app] kind:10012 arrived', {
+				id: parsedEvent.id(),
+				pubkey: parsedEvent.pubkey(),
+				createdAt: parsedEvent.createdAt(),
+				addresses: relaySetAddressesFromRelayFeedEvent(parsedEvent)
+			});
+		}
+	}
+
+	function handleRelayDirectorySet(message: WorkerMessage) {
+		const parsedEvent = isParsedEvent(message);
+		if (!parsedEvent || parsedEvent.kind() !== 30002) return;
+
+		const address = relayDirectoryEventAddress(parsedEvent);
+		if (!address || !expectedRelayDirectoryAddresses.has(address)) return;
+
+		const existing = $relayRoleSets.find((event) => relayDirectoryEventAddress(event) === address);
+		if (existing && parsedEvent.createdAt() <= existing.createdAt()) return;
+
+		$relayRoleSets = [
+			...$relayRoleSets.filter((event) => relayDirectoryEventAddress(event) !== address),
+			parsedEvent
+		];
+		console.log('[app] kind:30002 relay set arrived', {
+			address,
+			id: parsedEvent.id(),
+			createdAt: parsedEvent.createdAt(),
+			relays: relayUrlsFromRelaySet(parsedEvent)
+		});
+	}
 
 	function handleRelayEvents(message: WorkerMessage) {
 		const status = isConnectionStatus(message);
@@ -304,6 +423,8 @@
 			window.removeEventListener('keydown', handleKeydown, escapeKeyListenerOptions);
 			// relaySub && relaySub();
 			profileSub && profileSub();
+			relayDirectoryFeedSub?.();
+			relayDirectorySetsSub?.();
 
 			// Clean up carousel animations
 			if (carouselAnimator) {
@@ -539,31 +660,31 @@
 			</div>
 		{/each}
 		<!-- {/key} -->
-		</div>
+	</div>
 
-		{#if !$isMobile && !$overviewModeStore}
-			<nav class="space-rail" aria-label="Spaces">
-				<div class="space-rail-hitbox">
-					{#each carouselAnimator.getActiveRoutes() as feed, index (feed.id)}
-						<button
-							type="button"
-							class="space-rail-item"
-							class:active={$currentIndexStore === index}
-							aria-label={feed.label || feed.id}
-							aria-current={$currentIndexStore === index ? 'page' : undefined}
-							title={feed.label || feed.id}
-							on:click={() => handleRailSelect(index)}
-						>
-							<span class="space-rail-mark"></span>
-							<span class="space-rail-label">{feed.label || feed.id}</span>
-						</button>
-					{/each}
-				</div>
-			</nav>
-		{/if}
+	{#if !$isMobile && !$overviewModeStore}
+		<nav class="space-rail" aria-label="Spaces">
+			<div class="space-rail-hitbox">
+				{#each carouselAnimator.getActiveRoutes() as feed, index (feed.id)}
+					<button
+						type="button"
+						class="space-rail-item"
+						class:active={$currentIndexStore === index}
+						aria-label={feed.label || feed.id}
+						aria-current={$currentIndexStore === index ? 'page' : undefined}
+						title={feed.label || feed.id}
+						on:click={() => handleRailSelect(index)}
+					>
+						<span class="space-rail-mark"></span>
+						<span class="space-rail-label">{feed.label || feed.id}</span>
+					</button>
+				{/each}
+			</div>
+		</nav>
+	{/if}
 
-		<!-- Overview Mode Backdrop (behind feeds) -->
-		{#if $overviewModeStore}
+	<!-- Overview Mode Backdrop (behind feeds) -->
+	{#if $overviewModeStore}
 		<div
 			class="fixed inset-0 z-30 bg-black/30 transition-opacity"
 			on:click={() => carouselAnimator.exitOverviewMode(400, $isMobile)}

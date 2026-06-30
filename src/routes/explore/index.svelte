@@ -30,8 +30,19 @@
 	import Pager from 'src/components/Pager.svelte';
 	import RelaysList from 'src/components/RelaysList.svelte';
 	import { key } from 'src/controller';
-	import { feedKinds, ALL_FEED_KINDS, type FeedKind } from 'src/controller/feed';
-	import { defaultPipeline, kind3, kind3Ready, readRelays } from 'src/controller/nostr';
+	import {
+		exploreAudienceMode,
+		feedKinds,
+		ALL_FEED_KINDS,
+		type FeedKind
+	} from 'src/controller/feed';
+	import {
+		defaultPipeline,
+		kind3,
+		kind3Ready,
+		relayDirectoryUrls,
+		readRelays
+	} from 'src/controller/nostr';
 	import { limit } from 'src/controller/pagination';
 	import { relaySub, setSubRelays } from 'src/controller/relay';
 	import { CALENDAR_EVENT_KINDS, RSVP_KIND, parseCalendarEvent } from 'src/lib/calendarEvent';
@@ -81,7 +92,6 @@
 	$: feedKindsValue = $feedKinds;
 	$: effectiveKinds = feedKindsValue.length > 0 ? feedKindsValue : (ALL_FEED_KINDS as FeedKind[]);
 	let tags: string[] = [];
-	let audienceMode: 'contacts' | 'all' = 'contacts';
 	let kind3Resolved = false;
 
 	kind3Ready.promise.then(() => {
@@ -95,13 +105,13 @@
 		: [];
 
 	$: following = uniq(follows);
-	$: useContactsFeed = audienceMode === 'contacts';
+	$: useContactsFeed = $exploreAudienceMode === 'contacts';
 	$: activeAudienceLabel = useContactsFeed ? 'Contacts' : 'All';
 	$: followingKey = hashString(following.join(','));
 
 	$: subId =
 		'feed' +
-		audienceMode +
+		$exploreAudienceMode +
 		(kind3Resolved ? 'kind3-ready' : 'kind3-pending') +
 		followingKey +
 		tags.join(',') +
@@ -119,7 +129,8 @@
 	let hadFeedRequest = false;
 
 	let relayOverride: string[] | undefined = undefined;
-	$: relays = relayOverride ?? $readRelays;
+	$: accountRelays = $relayDirectoryUrls.length ? $relayDirectoryUrls : $readRelays;
+	$: relays = relayOverride ?? accountRelays;
 
 	// Filter out undefined values from relays
 	$: normalizedRelays = (relays.filter((r) => typeof r === 'string') as string[]).map(normalizeURL);
@@ -155,6 +166,12 @@
 	const DEFAULT_FEED_RELAYS = ['wss://nostr.wine'];
 	$: feedRelays = $key?.pub && normalizedRelays.length ? normalizedRelays : DEFAULT_FEED_RELAYS;
 	$: feedRelayKey = feedRelays.join('|');
+	let lastConnectionRelayKey = '';
+	$: if (feedRelayKey !== lastConnectionRelayKey) {
+		lastConnectionRelayKey = feedRelayKey;
+		connectionStatus = {};
+		connectionTracker = new ConnectionTracker();
+	}
 
 	let eventSub: (() => void) | undefined;
 	let rsvpSubs: (() => void)[] = [];
@@ -278,7 +295,7 @@
 			limit: $limit,
 			since: forPagination ? undefined : ago(31 * 24 * 60 * 60),
 			until: forPagination ? until : undefined,
-			noCache: !!relayCounter,
+			noCache: true,
 			tags: tags.length ? { '#t': tags } : undefined,
 			relays: feedRelays
 		};
@@ -605,7 +622,12 @@
 	}
 
 	function toggleAudienceMode() {
-		audienceMode = useContactsFeed ? 'all' : 'contacts';
+		$exploreAudienceMode = useContactsFeed ? 'all' : 'contacts';
+		resetFeed();
+		lastSubId = undefined;
+		hadFeedRequest = false;
+		connectionStatus = {};
+		connectionTracker = new ConnectionTracker();
 	}
 
 	function selectExploreKindTab(event: CustomEvent<{ kinds: FeedKind[] }>) {
@@ -725,7 +747,11 @@
 						</div>
 						<div class="flex items-start gap-3 overflow-x-auto pb-1 scrollbar-hide">
 							{#each upcomingEvents.slice(0, 3) as event (event.id)}
-								<EventCard {event} rsvpCount={rsvpCountsByAddress[event.address] || 0} />
+								<EventCard
+									{event}
+									{feedRelays}
+									rsvpCount={rsvpCountsByAddress[event.address] || 0}
+								/>
 							{/each}
 						</div>
 					</div>

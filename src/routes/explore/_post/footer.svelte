@@ -155,60 +155,64 @@
 	function subscribe() {
 		timeout = setTimeout(async () => {
 			if (visible && !relaysub) {
-				relaysub = getUserRelays(decoded.pubkey, (result) => {
-					relays = result.slice(0, $isMobile ? 3 : 5);
+				relaysub = getUserRelays(
+					decoded.pubkey,
+					(result) => {
+						relays = result.slice(0, $isMobile ? 3 : 5);
 
-					// Main subscription: replies (kind 1 #e), comments (kind 1111 #E), reposts, reactions
-					sub = useSubscription(
-						'f_' + decoded.id,
-						[
-							{
-								kinds: [1, 6, 7],
-								tags: { '#e': [decoded.id] },
-								noContext: true,
-								relays
-							},
-							{
-								kinds: [1111],
-								tags: { '#E': [decoded.id] },
-								noContext: true,
-								relays
-							}
-						],
-						handleEvents,
-						createSubscriptionOptions([1, 6, 7, 1111], $mutePipeConfig, $key?.pub || '')
-					);
+						// Main subscription: replies (kind 1 #e), comments (kind 1111 #E), reposts, reactions
+						sub = useSubscription(
+							'f_' + decoded.id,
+							[
+								{
+									kinds: [1, 6, 7],
+									tags: { '#e': [decoded.id] },
+									noContext: true,
+									relays
+								},
+								{
+									kinds: [1111],
+									tags: { '#E': [decoded.id] },
+									noContext: true,
+									relays
+								}
+							],
+							handleEvents,
+							createSubscriptionOptions([1, 6, 7, 1111], $mutePipeConfig, $key?.pub || '')
+						);
 
-					// Separate subscription for kind1111 comments (NIP-22, uses #E tag for root)
-					commentSub = useSubscription(
-						'comment_' + decoded.id,
-						[
-							{
-								kinds: [1111],
-								tags: { '#E': [decoded.id] },
-								noContext: true,
-								relays
-							}
-						],
-						handleEvents,
-						createSubscriptionOptions([1111], $mutePipeConfig, $key?.pub || '')
-					);
+						// Separate subscription for kind1111 comments (NIP-22, uses #E tag for root)
+						commentSub = useSubscription(
+							'comment_' + decoded.id,
+							[
+								{
+									kinds: [1111],
+									tags: { '#E': [decoded.id] },
+									noContext: true,
+									relays
+								}
+							],
+							handleEvents,
+							createSubscriptionOptions([1111], $mutePipeConfig, $key?.pub || '')
+						);
 
-					// Separate subscription for quotes (kind 1 with #q tag)
-					quoteSub = useSubscription(
-						'fq_' + decoded.id,
-						[
-							{
-								kinds: [1],
-								tags: { '#q': [decoded.id] },
-								noContext: true,
-								relays
-							}
-						],
-						handleQuoteEvents,
-						createSubscriptionOptions([1], $mutePipeConfig, $key?.pub || '')
-					);
-				});
+						// Separate subscription for quotes (kind 1 with #q tag)
+						quoteSub = useSubscription(
+							'fq_' + decoded.id,
+							[
+								{
+									kinds: [1],
+									tags: { '#q': [decoded.id] },
+									noContext: true,
+									relays
+								}
+							],
+							handleQuoteEvents,
+							createSubscriptionOptions([1], $mutePipeConfig, $key?.pub || '')
+						);
+					},
+					'read'
+				);
 			}
 		}, 700);
 	}
@@ -285,7 +289,7 @@
 					if (relays.length > 0) {
 						goReply(relays);
 					} else {
-						getUserRelays(note.pubkey(), goReply);
+						getUserRelays(note.pubkey(), goReply, 'read');
 					}
 				}}
 				role="button"
@@ -315,7 +319,7 @@
 					if (relays.length > 0) {
 						goComments(relays);
 					} else {
-						getUserRelays(note.pubkey(), goComments);
+						getUserRelays(note.pubkey(), goComments, 'read');
 					}
 				}}
 				role="button"
@@ -344,7 +348,7 @@
 				if (relays.length > 0) {
 					goRepost(relays);
 				} else {
-					getUserRelays(note.pubkey(), goRepost);
+					getUserRelays(note.pubkey(), goRepost, 'read');
 				}
 			}}
 		>
@@ -385,7 +389,7 @@
 				if (relays.length > 0) {
 					goShare(relays);
 				} else {
-					getUserRelays(note.pubkey(), goShare);
+					getUserRelays(note.pubkey(), goShare, 'read');
 				}
 			}}
 		>
@@ -410,7 +414,7 @@
 				if (relays.length > 0) {
 					goZap(relays);
 				} else {
-					getUserRelays(note.pubkey(), goZap);
+					getUserRelays(note.pubkey(), goZap, 'read');
 				}
 			}}
 		>

@@ -39,8 +39,9 @@
 
 	const isAdditionalRelay = (relay: string) => !normalizedRelays.includes(normalizeURL(relay));
 
-	const uniqueNormalizedRelays = (values: string[]) =>
-		[...new Set(values.filter(Boolean).map((relay) => normalizeURL(relay)))];
+	const uniqueNormalizedRelays = (values: string[]) => [
+		...new Set(values.filter(Boolean).map((relay) => normalizeURL(relay)))
+	];
 
 	function getStatusValue(status?: ConnectionStatus | 'SUBSCRIBED'): string | undefined {
 		return typeof status === 'string' ? status : status?.status()?.toString();
@@ -75,7 +76,16 @@
 		go(`relayinfos:${subId}`);
 	}
 
+	function openCommunityRelay(relay: string) {
+		go(`community:${encodeURIComponent(normalizeURL(relay))}`);
+	}
+
+	function handleListClick() {
+		if (mini) openRelayInfos();
+	}
+
 	function handleOpenKeydown(event: KeyboardEvent) {
+		if (!mini) return;
 		if (event.key !== 'Enter' && event.key !== ' ') return;
 		event.preventDefault();
 		openRelayInfos();
@@ -139,12 +149,13 @@
 
 <div>
 	<div
-		on:click|stopPropagation={openRelayInfos}
+		on:click|stopPropagation={handleListClick}
 		on:keydown={handleOpenKeydown}
 		role="button"
 		tabindex="0"
-		class="cursor-pointer flex gap-2 items-center justify-end flex-wrap overflow-visible pt-1 {$$props.class ||
+		class="flex gap-2 items-center justify-end flex-wrap overflow-visible pt-1 {$$props.class ||
 			''}"
+		class:cursor-pointer={mini}
 		class:!gap-0={mini}
 		class:!flex-nowrap={!mini}
 		class:!overflow-x-auto={!mini}
@@ -191,7 +202,7 @@
 					class="group flex w-16 shrink-0 flex-col items-center gap-1 bg-transparent p-0"
 					title={name}
 					aria-label={name}
-					on:click|stopPropagation={openRelayInfos}
+					on:click|stopPropagation={() => openCommunityRelay(relay)}
 				>
 					<span
 						class={`relative flex h-9 w-9 items-center justify-center rounded-full border bg-transparent p-0 transition-transform duration-200 group-hover:-translate-y-0.5 group-active:translate-y-0 ${getWideStatusClasses(
@@ -235,14 +246,12 @@
 					Manage
 				</span>
 			</button>
+		{:else if !$isMobile}
+			<span class="text-xs opacity-60 {$$props.class || ''}"
+				><Icon icon="streamline-ultimate:server-add" /></span
+			>
 		{:else}
-			{#if !$isMobile}
-				<span class="text-xs opacity-60 {$$props.class || ''}"
-					><Icon icon="streamline-ultimate:server-add" /></span
-				>
-			{:else}
-				<span class="text-xs opacity-60 {$$props.class || ''}">No relays found</span>
-			{/if}
+			<span class="text-xs opacity-60 {$$props.class || ''}">No relays found</span>
 		{/if}
 		{#if mini}
 			{#if hasMore && !showAll}

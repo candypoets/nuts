@@ -10,9 +10,13 @@
 
 	export let event: CalendarEventCard;
 	export let rsvpCount = 0;
+	export let feedRelays: string[] = [];
 
+	$: modalRelays = feedRelays.length ? feedRelays : event.relays;
 	$: goingCount = rsvpCount || event.attendeeCount;
 	$: spotsLeft = event.capacity ? Math.max(0, event.capacity - goingCount) : null;
+	$: relayLabel = modalRelays[0] ? formatRelayLabel(modalRelays[0]) : 'No relay';
+	$: extraRelayCount = Math.max(0, modalRelays.length - 1);
 
 	function formatEventMonth(timestamp: number) {
 		return new Intl.DateTimeFormat(undefined, { month: 'short' })
@@ -34,9 +38,16 @@
 		}).format(new Date(timestamp * 1000));
 	}
 
+	function formatRelayLabel(relay: string) {
+		return relay
+			.replace(/^wss?:\/\//, '')
+			.replace(/^relay\./, '')
+			.replace(/\/$/, '');
+	}
+
 	function openEvent() {
-		const relay = event.relays[0] || '';
-		go(`event:${encodeURIComponent(relay)}:${encodeURIComponent(event.address)}`);
+		const relayParam = modalRelays.map(encodeURIComponent).join(',');
+		go(`event:${relayParam}:${encodeURIComponent(event.address)}`);
 	}
 </script>
 
@@ -74,6 +85,15 @@
 		{#if event.location}
 			<p class="mt-1 truncate text-sm font-medium text-primary-content">{event.location}</p>
 		{/if}
+		<p
+			class="mt-2 flex min-w-0 items-center gap-1 truncate text-xs font-semibold text-primary-content/70"
+		>
+			<Icon icon="mdi:server-network" class="h-3.5 w-3.5 shrink-0" />
+			<span class="truncate">{relayLabel}</span>
+			{#if extraRelayCount}
+				<span class="shrink-0">+{extraRelayCount}</span>
+			{/if}
+		</p>
 
 		<div class="mt-auto flex items-center pt-4">
 			<div class="mr-2 flex h-6 w-6 items-center justify-center rounded-full bg-primary/20">

@@ -276,7 +276,7 @@
 					limit: $limit,
 					until,
 					noContext: true,
-					relays: data.relays || []
+					relays: currentRelays.length ? currentRelays : data.relays || []
 				}
 			],
 			handleEvents,
