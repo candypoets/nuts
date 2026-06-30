@@ -6,14 +6,9 @@
 	import {
 		BadgeCheck,
 		CalendarDays,
-		Church,
 		CreditCard,
-		GraduationCap,
-		House,
-		Laptop,
 		Megaphone,
 		MessageCircle,
-		Trophy,
 		UsersRound
 	} from 'lucide-svelte';
 
@@ -36,12 +31,12 @@
 	];
 
 	const algorithmCommunities = [
-		{ name: 'Your family', icon: UsersRound },
-		{ name: 'Your sports club', icon: Trophy },
-		{ name: 'Your church', icon: Church },
-		{ name: 'Your village', icon: House },
-		{ name: 'Your coworking', icon: Laptop },
-		{ name: 'Your school', icon: GraduationCap }
+		{ name: 'Your family', asset: 'community-pill-family.png' },
+		{ name: 'Your sports club', asset: 'community-pill-sports-club.png' },
+		{ name: 'Your church', asset: 'community-pill-church.png' },
+		{ name: 'Your village', asset: 'community-pill-village.png' },
+		{ name: 'Your coworking', asset: 'community-pill-coworking.png' },
+		{ name: 'Your school', asset: 'community-pill-school.png' }
 	];
 
 	const trustPoints = [
@@ -348,49 +343,49 @@
 	</section>
 
 	<section
-		class="min-h-[92dvh] items-center overflow-hidden bg-[#f3f0e9] px-5 py-20 sm:px-8 lg:flex lg:justify-between lg:px-14 lg:py-24 xl:px-16"
+		class="min-h-[92dvh] overflow-hidden bg-[#f4f0e8] px-5 py-16 sm:px-8 lg:flex lg:items-center lg:justify-between lg:px-14 lg:py-20 xl:px-20"
 	>
-		<div class="relative z-10 max-w-[520px] lg:basis-[42%] lg:shrink-0">
-			<p class="text-base font-black text-[#5f6f43]">The feed</p>
-			<div class="mt-4 h-px w-20 bg-[#5f6f43]"></div>
+		<div class="relative z-10 max-w-[600px] lg:basis-[43%] lg:shrink-0">
+			<p class="text-base font-black text-[#56643b]">The feed</p>
+			<div class="mt-5 h-px w-24 bg-[#56643b]"></div>
 			<h2
-				class="mt-10 max-w-[500px] text-5xl font-black leading-[1.03] tracking-normal text-[#171717] sm:text-[4rem] xl:text-[4.55rem]"
+				class="mt-10 max-w-[560px] text-5xl font-black leading-[1.04] tracking-normal text-black sm:text-[4rem] lg:text-[4.5rem] xl:text-[5rem]"
 			>
 				Communities are the algorithm.
 			</h2>
-			<div class="mt-10 grid gap-3 text-xl font-medium leading-8 text-[#242421]">
+			<div class="mt-10 grid gap-3 text-xl font-medium leading-8 text-[#151511] sm:text-2xl">
 				<p>Your feed isn't built by engagement metrics.</p>
 				<p>It's built by the communities you care about.</p>
 			</div>
-			<div class="my-12 grid max-w-[540px] grid-cols-2 gap-4 sm:grid-cols-3">
+			<div class="my-12 grid max-w-[640px] grid-cols-2 gap-4 sm:grid-cols-3">
 				{#each algorithmCommunities as community (community.name)}
-					<div
-						class="flex h-14 items-center gap-3 rounded-2xl bg-white px-4 text-sm font-black text-[#151511] shadow-[0_10px_24px_rgba(64,64,48,0.12)] ring-1 ring-black/5"
-					>
-						<span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#eef1e2]">
-							<svelte:component
-								this={community.icon}
-								class="h-5 w-5 text-[#69784b]"
-								strokeWidth={2.6}
-							/>
-						</span>
-						<span>{community.name}</span>
-					</div>
+					<img
+						class="h-16 w-full rounded-2xl object-contain drop-shadow-[0_10px_20px_rgba(46,45,36,0.11)]"
+						src={resolve(`/community_feed_static_assets/components/png/${community.asset}`)}
+						alt={community.name}
+					/>
 				{/each}
 			</div>
-			<p class="max-w-[520px] text-xl font-medium leading-9 text-[#242421]">
-				No endless scrolling. No rage bait. Just what's happening in your world.
-			</p>
+			<div class="grid gap-3 text-xl font-medium leading-8 text-[#151511] sm:text-2xl">
+				<p>No endless scrolling. No rage bait.</p>
+				<p>Just what's happening in your world.</p>
+			</div>
 		</div>
 
 		<div
-			class="relative min-h-[440px] lg:min-h-[620px] lg:basis-[50%] lg:shrink-0"
+			class="relative mt-14 min-h-[430px] sm:min-h-[560px] lg:mt-0 lg:min-h-[660px] lg:basis-[53%] lg:shrink-0"
 			aria-label="Community algorithm illustration"
 		>
 			<img
-				class="absolute right-0 top-1/2 w-[min(720px,94vw)] max-w-none -translate-y-1/2 object-contain lg:w-[min(760px,48vw)] xl:right-4"
-				src={resolve('/community_algorithm_right_illustration.png')}
-				alt="Illustrated map of communities connected by paths with feed cards"
+				class="absolute left-[-11%] top-1/2 hidden h-[min(680px,70dvh)] w-auto max-w-none -translate-y-1/2 object-contain lg:block xl:left-[-16%]"
+				src={resolve('/community_feed_static_assets/components/png/signal-lines.png')}
+				alt=""
+				aria-hidden="true"
+			/>
+			<img
+				class="absolute right-1/2 top-1/2 w-[min(690px,96vw)] max-w-none -translate-y-1/2 translate-x-1/2 rounded-[28px] object-contain shadow-[0_24px_55px_rgba(42,39,32,0.15)] lg:right-0 lg:h-[min(820px,84dvh)] lg:w-auto lg:translate-x-0 xl:h-[min(840px,86dvh)]"
+				src={resolve('/community_feed_static_assets/components/png/feed-panel.png')}
+				alt="Your feed panel with updates from FC Avenir, Village market, Your school, Your church, and Your coworking"
 			/>
 		</div>
 	</section>

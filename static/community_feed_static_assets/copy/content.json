@@ -1,0 +1,91 @@
+{
+  "sectionLabel": "The feed",
+  "headline": "Communities are the algorithm.",
+  "body": [
+    "Your feed isn\u2019t built by engagement metrics.",
+    "It\u2019s built by the communities you care about."
+  ],
+  "communities": [
+    {
+      "slug": "family",
+      "label": "Your family",
+      "icon": "family"
+    },
+    {
+      "slug": "sports-club",
+      "label": "Your sports club",
+      "icon": "sports-club"
+    },
+    {
+      "slug": "church",
+      "label": "Your church",
+      "icon": "church"
+    },
+    {
+      "slug": "village",
+      "label": "Your village",
+      "icon": "village"
+    },
+    {
+      "slug": "coworking",
+      "label": "Your coworking",
+      "icon": "coworking"
+    },
+    {
+      "slug": "school",
+      "label": "Your school",
+      "icon": "school"
+    }
+  ],
+  "closing": [
+    "No endless scrolling. No rage bait.",
+    "Just what\u2019s happening in your world."
+  ],
+  "feedPanel": {
+    "title": "Your feed",
+    "subtitle": "Updates from the communities you care about.",
+    "footer": "Only what matters to you.",
+    "items": [
+      {
+        "slug": "fc-avenir",
+        "source": "FC Avenir",
+        "title": "Training moved to court 2 tonight.",
+        "subtitle": "Parents, coaches, players",
+        "time": "2h",
+        "icon": "sports-club"
+      },
+      {
+        "slug": "village-market",
+        "source": "Village market",
+        "title": "Saturday stalls close at 18:30.",
+        "subtitle": "Neighbors and merchants",
+        "time": "5h",
+        "icon": "market"
+      },
+      {
+        "slug": "your-school",
+        "source": "Your school",
+        "title": "Reminder: class trip forms due Friday.",
+        "subtitle": "Parents and teachers",
+        "time": "1d",
+        "icon": "school"
+      },
+      {
+        "slug": "your-church",
+        "source": "Your church",
+        "title": "Community dinner this Sunday.",
+        "subtitle": "Congregation",
+        "time": "1d",
+        "icon": "church"
+      },
+      {
+        "slug": "your-coworking",
+        "source": "Your coworking",
+        "title": "Member highlight: Local Ledger.",
+        "subtitle": "Members and team",
+        "time": "2d",
+        "icon": "coworking"
+      }
+    ]
+  }
+}

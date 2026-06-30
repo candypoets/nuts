@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="260" height="560" viewBox="0 0 260 560" role="img" aria-label="Community signals linking to feed cards">
+<circle cx="18" cy="272" r="6.5" fill="#52683C"/>
+<path d="M24 272 C78 140 78 74 160 74 H255" fill="none" stroke="#61744B" stroke-width="2" stroke-dasharray="6 7" stroke-linecap="round"/>
+<path d="M24 272 C82 220 86 190 160 190 H255" fill="none" stroke="#61744B" stroke-width="2" stroke-dasharray="6 7" stroke-linecap="round"/>
+<path d="M24 272 C92 272 92 272 160 272 H255" fill="none" stroke="#61744B" stroke-width="2" stroke-dasharray="6 7" stroke-linecap="round"/>
+<path d="M24 272 C82 330 86 390 160 390 H255" fill="none" stroke="#61744B" stroke-width="2" stroke-dasharray="6 7" stroke-linecap="round"/>
+<path d="M24 272 C76 440 76 506 160 506 H255" fill="none" stroke="#61744B" stroke-width="2" stroke-dasharray="6 7" stroke-linecap="round"/>
+</svg>
