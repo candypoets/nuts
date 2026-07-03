@@ -35,8 +35,8 @@
 		// Load stored theme from localStorage or use default
 		const storedTheme = loadStoredTheme();
 		if (!storedTheme) {
-			// Apply default matteblack theme if no stored theme
-			document.getElementsByTagName('html')[0].setAttribute('data-theme', 'matteblack');
+			// Apply default snowwhite theme if no stored theme
+			document.getElementsByTagName('html')[0].setAttribute('data-theme', 'snowwhite');
 		}
 
 		document
