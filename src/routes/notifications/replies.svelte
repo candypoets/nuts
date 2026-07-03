@@ -99,18 +99,18 @@
 </script>
 
 <!-- {post.parsed.referencedPostId} -->
-<div class="p-4 transition-colors relative">
+<div class="notification-row transition-colors relative">
 	<div class="flex items-start gap-3">
 		<!-- Icon -->
-		<div class="bg-blue-100 p-2 rounded-full flex-shrink-0">
-			<Icon icon="mdi:message-reply" class="text-blue-600 text-lg" />
+		<div class="notification-type-icon notification-type-icon--reply">
+			<Icon icon="mdi:message-reply" class="text-xl" />
 		</div>
 
 		<!-- Content -->
 		<div class="flex-grow">
 			<!-- Header with reply count -->
-			<div class="md:flex justify-between items-center mb-2">
-				<div class="font-medium">
+			<div class="mb-3 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+				<div class="notification-heading">
 					{post.parsed.events.length}
 					{#if originalPost && originalPost.pubkey() !== $key?.pub}
 						{post.parsed.events.length === 1 ? 'person' : 'people'} replied to a post you were mentioned
@@ -119,14 +119,14 @@
 						{post.parsed.events.length === 1 ? 'person' : 'people'} replied to your post
 					{/if}
 				</div>
-				<div class="text-xs text-gray-500 right-4 top-1">
+				<div class="notification-time">
 					{formatTime(post.parsed.events[0].createdAt())}
 				</div>
 			</div>
 			<!-- Original post summary -->
 			{#if originalPost}
 				<a
-					class="cursor-pointer bg-primary-content bg-opacity-85 p-3 rounded-md mb-3 text-sm line-clamp-2 w-post-1"
+					class="notification-post-preview cursor-pointer p-3 mb-3 text-sm line-clamp-2 w-post-1"
 					on:click={() =>
 						go(`nevent:${nip19.neventEncode({ id: originalPost?.id(), relays: $writeRelays })}`)}
 				>
@@ -163,7 +163,7 @@
 
 			<!-- Latest reply preview -->
 			{#if post.parsed.events.length > 0}
-				<div class="text-sm mb-2">
+				<div class="notification-secondary-text text-sm mb-2">
 					<span class="font-medium">
 						<User pubkey={post.parsed.events[0].pubkey()} link={false} {context} />
 					</span>:
@@ -179,7 +179,7 @@
 
 			<!-- Expandable replies section -->
 			{#if expanded && post.parsed.events.length > 1}
-				<div class="mt-3 border-t pt-3">
+				<div class="mt-3 border-t border-base-content/10 pt-3">
 					{#each post.parsed.events.slice(1, 6) as event}
 						<div class="flex items-start gap-2 mb-3">
 							<Avatar pubkey={event.pubkey()} query={false} {context} />
@@ -188,7 +188,7 @@
 									<span class="font-medium text-sm">
 										<User pubkey={event.pubkey()} link={false} {context} />
 									</span>
-									<span class="text-xs">{formatTime(event.createdAt())}</span>
+									<span class="notification-time">{formatTime(event.createdAt())}</span>
 								</div>
 								<ContentBlocks
 									content={fbArray(asKind1(post.parsed.events[0]), 'parsedContent') || []}
@@ -202,7 +202,7 @@
 					{/each}
 
 					{#if post.parsed.events.length > 6}
-						<button class="text-xs hover:underline">
+						<button class="notification-toggle text-xs hover:underline">
 							View all {post.parsed.events.length} replies
 						</button>
 					{/if}
@@ -212,7 +212,7 @@
 			<!-- Toggle button -->
 			{#if post.parsed.events.length > 1}
 				<button
-					class="mt-2 text-xs hover:underline flex items-center gap-1"
+					class="notification-toggle mt-2 text-xs hover:underline flex items-center gap-1"
 					on:click={toggleExpanded}
 				>
 					{expanded ? 'Show less' : 'Show more'}

@@ -301,7 +301,7 @@
 	</svelte:fragment>
 
 	<svelte:fragment slot="item-content" let:post let:visible>
-		<div class="bg-base-300 bg-opacity-85 backdrop-blur-gpu rounded-lg mb-1">
+		<div class="notification-card mb-2 overflow-hidden rounded-xl backdrop-blur-gpu">
 			<!-- {#if visible} -->
 			{#if post.type === 'reply'}
 				<Replies {post} {visible} />

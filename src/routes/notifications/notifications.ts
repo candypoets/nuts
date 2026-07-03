@@ -54,7 +54,7 @@ export function processNotifications(feed: ParsedEvent[]): ProcessedNotification
 			// Don't reprocess it to avoid nesting
 
 			// Extract the referencedPostId for grouping
-			const processedNotification = event as ProcessedNotification;
+			const processedNotification = event as unknown as ProcessedNotification;
 			const key = `${processedNotification.type}-${processedNotification.parsed.referencedPostId}`;
 
 			// If this group already exists, merge the events and context
@@ -91,33 +91,36 @@ export function processNotifications(feed: ParsedEvent[]): ProcessedNotification
 				case ParsedData.Kind1Parsed:
 					const kind1 = asKind1(event) as Kind1Parsed;
 					// Check for mention first (highest priority - it's about the user's own content)
-					const isMention = fbArray(kind1, 'mentions')?.some((m) => m.author() == get(key)?.pub);
+					const isMention = fbArray(kind1, 'profileMentions')?.some(
+						(m) => m.publicKey() == get(key)?.pub
+					);
 					if (isMention) {
 						notificationType = 'mention';
 						referencedPostId = 'mention-' + event.id?.();
 						break; // Break early - mention is the primary type
 					}
 					// Check for reply (with quote detection)
-					if (kind1.reply()?.id()) {
-						if (kind1?.quotesLength()) {
+					const replyId = kind1.reply()?.id();
+					if (replyId) {
+						if (kind1?.eventRefsLength()) {
 							notificationType = 'mention';
 							referencedPostId = 'mention-' + event.id?.();
 						} else {
 							// This is a reply - use the replied-to post as reference
 							notificationType = 'reply';
-							referencedPostId = kind1.reply()?.id();
+							referencedPostId = replyId;
 						}
 					}
 					break;
 				case ParsedData.Kind7Parsed:
 					const kind7 = asKind7(event);
 					notificationType = 'reaction';
-					referencedPostId = kind7?.eventId();
+					referencedPostId = kind7?.eventId() || undefined;
 					break;
 				case ParsedData.Kind6Parsed:
 					const kind6 = asKind6(event) as Kind6Parsed;
 					notificationType = 'repost';
-					referencedPostId = kind6.repostedEvent()?.id();
+					referencedPostId = kind6.repostedEvent()?.id() || undefined;
 					break;
 			}
 		}

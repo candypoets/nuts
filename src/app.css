@@ -218,6 +218,82 @@ body {
 	color: var(--text-muted);
 }
 
+.notification-card {
+	background:
+		linear-gradient(
+			135deg,
+			color-mix(in srgb, var(--base-300) 94%, white 6%),
+			color-mix(in srgb, var(--base-300) 88%, var(--base-100) 12%)
+		);
+	border: 1px solid color-mix(in srgb, var(--text-strong) 10%, transparent);
+	box-shadow:
+		0 18px 38px color-mix(in srgb, var(--text-strong) 9%, transparent),
+		inset 0 1px 0 color-mix(in srgb, white 36%, transparent);
+	color: var(--text-strong);
+}
+
+.notification-row {
+	padding: 1rem;
+}
+
+.notification-type-icon {
+	display: grid;
+	width: 2.75rem;
+	height: 2.75rem;
+	flex-shrink: 0;
+	place-items: center;
+	border-radius: 0.875rem;
+	background: color-mix(in srgb, var(--primary) 13%, var(--base-100));
+	color: var(--primary);
+	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 18%, transparent);
+}
+
+.notification-type-icon--reply,
+.notification-type-icon--mention,
+.notification-type-icon--reaction,
+.notification-type-icon--repost {
+	background: color-mix(in srgb, var(--primary) 13%, var(--base-100));
+	color: var(--primary);
+}
+
+.notification-heading {
+	font-size: 1rem;
+	font-weight: 700;
+	line-height: 1.25;
+	text-wrap: pretty;
+}
+
+.notification-time {
+	flex-shrink: 0;
+	color: var(--text-muted);
+	font-size: 0.8125rem;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.notification-post-preview {
+	display: block;
+	background: color-mix(in srgb, var(--base-100) 84%, var(--text-strong) 16%);
+	border: 1px solid color-mix(in srgb, var(--text-strong) 14%, transparent);
+	border-radius: 0.625rem;
+	color: var(--text-strong);
+	box-shadow: inset 0 1px 0 color-mix(in srgb, white 26%, transparent);
+}
+
+.notification-post-preview:hover,
+.notification-post-preview:focus-visible {
+	background: color-mix(in srgb, var(--base-100) 78%, var(--text-strong) 22%);
+}
+
+.notification-secondary-text {
+	color: color-mix(in srgb, var(--text-strong) 82%, var(--text-muted));
+}
+
+.notification-toggle {
+	color: var(--primary);
+	font-weight: 700;
+}
+
 button,
 a,
 input,
