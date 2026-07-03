@@ -117,23 +117,6 @@
 				<p class="mt-7 max-w-2xl text-xl font-medium leading-9 text-[#fff8ea]/70 sm:text-2xl">
 					Nuts is a social network built around communities, not individuals.
 				</p>
-				<div
-					class="mt-8 flex max-w-xl flex-wrap gap-3 text-sm font-black text-[#fff8ea]"
-					aria-label="App availability"
-				>
-					<div
-						class="inline-flex min-h-[44px] items-center gap-3 rounded-xl border border-[#f2bd3c]/25 bg-[#f2bd3c]/10 px-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
-					>
-						<Icon icon="simple-icons:apple" class="h-5 w-5 text-[#f2bd3c]" />
-						<span>iOS</span>
-					</div>
-					<div
-						class="inline-flex min-h-[44px] items-center gap-3 rounded-xl border border-[#f2bd3c]/25 bg-[#f2bd3c]/10 px-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
-					>
-						<Icon icon="simple-icons:android" class="h-5 w-5 text-[#f2bd3c]" />
-						<span>Android</span>
-					</div>
-				</div>
 				<div class="mt-9 flex flex-wrap gap-3" aria-label="Primary actions">
 					<button
 						class="inline-flex min-h-[52px] items-center justify-center rounded-xl bg-[#8be3aa] px-6 py-4 font-black text-[#102018] shadow-lg shadow-[#8be3aa]/20 transition hover:bg-[#9eeab8] focus:outline-none focus:ring-2 focus:ring-[#8be3aa]/40 active:scale-[0.98]"
