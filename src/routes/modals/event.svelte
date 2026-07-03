@@ -1,7 +1,6 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
 	import type {
-		ConnectionStatus,
 		ParsedEvent,
 		RequestObject,
 		WorkerMessage
@@ -34,7 +33,6 @@
 	let eventRaw: ParsedEvent | undefined;
 	let attendees: string[] = [];
 	let attendeeEvents: Record<string, ParsedEvent> = {};
-	let connectionStatus: Record<string, ConnectionStatus> = {};
 	let loading = true;
 	let rsvpStatus = '';
 	let hasRsvped = false;
@@ -48,7 +46,6 @@
 	$: decodedAddress = decodeURIComponent(address || '');
 	$: relays = Array.from(new Set([...decodedRelays, ...DEFAULT_RELAYS].filter(Boolean)));
 	$: selectedRelay = decodedRelay || relays[0] || '';
-	$: fetchRelayLabels = relays.map(relayLabel);
 	$: attendeeCount = attendees.length || event?.attendeeCount || 0;
 	$: spotsLeft = event?.capacity ? Math.max(0, event.capacity - attendeeCount) : null;
 	$: capacityLabel = event?.capacity ? `${attendeeCount}/${event.capacity}` : `${attendeeCount}`;
@@ -86,13 +83,6 @@
 		}).format(new Date(timestamp * 1000));
 	}
 
-	function relayLabel(url: string) {
-		return url
-			.replace(/^wss?:\/\//, '')
-			.replace(/^relay\./, '')
-			.replace(/\/$/, '');
-	}
-
 	function decodeRelayParam(value: string) {
 		return Array.from(
 			new Set(
@@ -113,8 +103,6 @@
 	function handleConnectionStatus(message: WorkerMessage) {
 		const status = asConnectionStatus(message);
 		if (!status) return false;
-		const relayUrl = status.relayUrl();
-		if (relayUrl) connectionStatus = { ...connectionStatus, [normalizeURL(relayUrl)]: status };
 		return true;
 	}
 
@@ -257,23 +245,6 @@
 	<div class="flex-1 overflow-auto bg-base-100 pb-28">
 		{#if loading}
 			<div class="space-y-5 p-5">
-				<div class="rounded-xl bg-base-200/70 p-3">
-					<p
-						class="mb-2 flex items-center gap-2 text-[11px] font-black uppercase tracking-wide text-base-content/45"
-					>
-						<Icon icon="mdi:server-network" class="text-sm" />
-						Fetch relays
-					</p>
-					<div class="flex flex-wrap gap-1.5">
-						{#each fetchRelayLabels as relayName, index (`loading-${relayName}-${index}`)}
-							<span
-								class="max-w-full truncate rounded-full bg-base-100 px-2.5 py-1 text-xs font-semibold text-base-content/70"
-							>
-								{relayName}
-							</span>
-						{/each}
-					</div>
-				</div>
 				<div class="h-64 animate-pulse rounded-b-[2rem] rounded-t-xl bg-base-200"></div>
 				<div class="space-y-3">
 					<div class="h-4 w-40 animate-pulse rounded bg-base-200"></div>
@@ -317,14 +288,6 @@
 								<p class="text-3xl font-black leading-none text-base-content">
 									{formatCalendarDay(event.start).split(' ')[1]}
 								</p>
-							</div>
-							<div
-								class="rounded-full bg-base-100/90 px-3 py-1.5 text-xs font-semibold text-base-content/70 backdrop-blur"
-							>
-								{fetchRelayLabels[0]}
-								{#if fetchRelayLabels.length > 1}
-									+{fetchRelayLabels.length - 1}
-								{/if}
 							</div>
 						</div>
 
@@ -372,23 +335,6 @@
 							</div>
 						{/if}
 
-						<div class="mt-4 rounded-xl bg-base-200/70 p-3">
-							<p
-								class="mb-2 flex items-center gap-2 text-[11px] font-black uppercase tracking-wide text-base-content/45"
-							>
-								<Icon icon="mdi:server-network" class="text-sm" />
-								Fetch relays
-							</p>
-							<div class="flex flex-wrap gap-1.5">
-								{#each fetchRelayLabels as relayName, index (`${relayName}-${index}`)}
-									<span
-										class="max-w-full truncate rounded-full bg-base-100 px-2.5 py-1 text-xs font-semibold text-base-content/70"
-									>
-										{relayName}
-									</span>
-								{/each}
-							</div>
-						</div>
 					</section>
 
 					{#if event.description}

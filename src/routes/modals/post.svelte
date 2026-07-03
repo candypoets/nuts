@@ -225,6 +225,7 @@
 			}
 
 			post = prepareEvent(post);
+			post.tags = addThreadRelayTag(post.tags);
 
 			// Add poll-specific tags after prepareEvent
 			post.tags = [...post.tags, ...pollTags];
@@ -265,6 +266,7 @@
 			}
 
 			post = prepareEvent(post);
+			post.tags = addThreadRelayTag(post.tags);
 
 			if (selectedKind === 'media') {
 				post.tags = [...post.tags, ...imageTagsFromEditor()];
@@ -329,6 +331,13 @@
 			return;
 		}
 		selectKind(mode);
+	}
+
+	function selectEventCategory(category: string) {
+		if (category !== 'training' && category !== 'match' && category !== 'meeting' && category !== 'social') {
+			return;
+		}
+		eventCategory = category;
 	}
 
 	function selectDestination(relay: string) {
@@ -404,6 +413,28 @@
 		return images;
 	}
 
+	function parentRelayTag() {
+		if (!note) return '';
+		return (
+			parsedEventTags(note)
+				.find((tag) => tag[0] === 'r' && tag[1]?.startsWith('wss://'))?.[1] || ''
+		);
+	}
+
+	function threadRelayTag() {
+		return selectedRelay || parentRelayTag();
+	}
+
+	function addThreadRelayTag(tags: string[][]) {
+		const relay = threadRelayTag();
+		if (!relay) return tags;
+		const normalized = normalizeURL(relay);
+		if (tags.some((tag) => tag[0] === 'r' && tag[1] && normalizeURL(tag[1]) === normalized)) {
+			return tags;
+		}
+		return [...tags, ['r', normalized]];
+	}
+
 	function mediaItemsFromEditor() {
 		const json = ($editor as any)?.getJSON?.();
 		const items: MediaItem[] = [];
@@ -430,7 +461,7 @@
 		const endsAtTimestamp = eventEndsAt ? timestampFromLocal(eventEndsAt) : undefined;
 		const capacity = eventCapacity ? Math.max(1, Math.floor(Number(eventCapacity))) : undefined;
 		const title = eventTitle.trim();
-		const summary = eventSummary.trim() || $editor?.getText()?.trim() || '';
+		const summary = eventSummary.trim();
 		const d = slugFromTitle(title);
 		const tags: string[][] = [
 			['d', d],
@@ -442,15 +473,13 @@
 		if (endsAtTimestamp) tags.push(['end', String(endsAtTimestamp)]);
 		if (eventLocation.trim()) tags.push(['location', eventLocation.trim()]);
 		if (capacity) tags.push(['capacity', String(capacity)]);
-
-		const imageTag = imageTagsFromEditor()[0]?.find((item) => item.startsWith('url '));
-		if (imageTag) tags.push(['image', imageTag.slice(4)]);
+		const eventTags = addThreadRelayTag(tags);
 
 		const post: EventTemplate = {
 			kind: 31923,
 			content: summary,
 			created_at: now(),
-			tags: [...tags, ['client', 'nutscash']]
+			tags: [...eventTags, ['client', 'nutscash']]
 		};
 
 		onSubmit(post as NostrEvent);
@@ -564,133 +593,156 @@
 						<div class="h-32"></div>
 					{/if}
 
-					{#if !reply && !repost}
-						<div
-							class="mb-3 grid gap-3 rounded-lg border border-primary-content/30 bg-base-200/60 p-2 text-sm"
-						>
-							<div class="flex items-center justify-between gap-3 px-1">
-								<div class="min-w-0">
-									<p class="text-xs font-semibold text-base-content/50">Publishing to</p>
-									<p class="truncate font-bold text-base-content">{destinationLabel}</p>
-								</div>
-								<button
-									type="button"
-									class="rounded-md px-2 py-1 text-xs font-semibold text-blue-500 transition hover:bg-blue-500/10"
-									on:click={() => (step = 'setup')}
-								>
-									Change
-								</button>
-							</div>
-							<div class="grid grid-cols-4 gap-1">
-								{#each [{ id: 'note', label: 'Note', icon: 'mdi:text-box-outline' }, { id: 'media', label: 'Media', icon: 'mdi:image-multiple' }, { id: 'event', label: 'Event', icon: 'mdi:calendar-outline' }, { id: 'poll', label: 'Poll', icon: 'mdi:poll' }] as mode (mode.id)}
-									<button
-										type="button"
-										class="flex min-w-0 items-center justify-center gap-1 rounded-md px-2 py-2 text-xs font-bold transition {composeMode ===
-										mode.id
-											? 'bg-blue-500 text-highlight shadow-sm'
-											: 'bg-base-300 text-base-content/65 hover:bg-base-100'}"
-										on:click={() => selectComposeMode(mode.id)}
-									>
-										<Icon icon={mode.icon} class="h-4 w-4 shrink-0" />
-										<span class="truncate">{mode.label}</span>
-									</button>
-								{/each}
-							</div>
-						</div>
-						{#if selectedKind === 'event' && !selectedRelay}
-							<div
-								class="mb-3 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-base-content"
-							>
-								Events need a community. Choose a community destination to publish an event.
-							</div>
-						{/if}
-					{/if}
-
 					{#if selectedKind === 'event'}
-						<div class="mb-3 grid gap-2">
+						<div
+							class="mb-3 grid gap-3 rounded-lg border border-primary-content/30 bg-base-200/70 p-3"
+						>
+							<div class="grid grid-cols-[auto_1fr] items-start gap-3">
+								<div class="grid h-11 w-11 place-items-center rounded-md bg-blue-500/10 text-blue-500">
+									<Icon icon="mdi:calendar-plus-outline" class="h-6 w-6" />
+								</div>
+								<div class="min-w-0">
+									<p class="font-bold text-base-content">Community event</p>
+									<p class="mt-0.5 text-sm leading-5 text-base-content/55">
+										Publish a dated event to {destinationLabel}.
+									</p>
+								</div>
+							</div>
+
 							<input
-								class="rounded-md border border-primary-content bg-base-300 px-3 py-2 text-base-content outline-none"
+								class="rounded-md border border-primary-content/40 bg-base-300 px-3 py-2.5 font-semibold text-base-content outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
 								placeholder="Event title"
 								bind:value={eventTitle}
 							/>
 							<textarea
-								class="min-h-20 rounded-md border border-primary-content bg-base-300 px-3 py-2 text-base-content outline-none"
-								placeholder="Summary"
+								class="min-h-24 resize-none rounded-md border border-primary-content/40 bg-base-300 px-3 py-2 text-base-content outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+								placeholder="Short summary"
 								bind:value={eventSummary}
 							></textarea>
 							<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-								<input
-									type="datetime-local"
-									class="rounded-md border border-primary-content bg-base-300 px-3 py-2 text-base-content outline-none"
-									bind:value={eventStartsAt}
-								/>
-								<input
-									type="datetime-local"
-									class="rounded-md border border-primary-content bg-base-300 px-3 py-2 text-base-content outline-none"
-									bind:value={eventEndsAt}
-								/>
+								<label class="grid gap-1 text-xs font-semibold text-base-content/55">
+									<span>Starts</span>
+									<input
+										type="datetime-local"
+										class="rounded-md border border-primary-content/40 bg-base-300 px-3 py-2 text-sm text-base-content outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+										bind:value={eventStartsAt}
+									/>
+								</label>
+								<label class="grid gap-1 text-xs font-semibold text-base-content/55">
+									<span>Ends</span>
+									<input
+										type="datetime-local"
+										class="rounded-md border border-primary-content/40 bg-base-300 px-3 py-2 text-sm text-base-content outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+										bind:value={eventEndsAt}
+									/>
+								</label>
 							</div>
 							<div class="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_130px]">
 								<input
-									class="rounded-md border border-primary-content bg-base-300 px-3 py-2 text-base-content outline-none"
+									class="rounded-md border border-primary-content/40 bg-base-300 px-3 py-2 text-base-content outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
 									placeholder="Location"
 									bind:value={eventLocation}
 								/>
 								<input
 									type="number"
 									min="1"
-									class="rounded-md border border-primary-content bg-base-300 px-3 py-2 text-base-content outline-none"
+									class="rounded-md border border-primary-content/40 bg-base-300 px-3 py-2 text-base-content outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
 									placeholder="Capacity"
 									bind:value={eventCapacity}
 								/>
 							</div>
-							<select
-								class="rounded-md border border-primary-content bg-base-300 px-3 py-2 text-base-content outline-none"
-								bind:value={eventCategory}
-							>
-								<option value="training">Training</option>
-								<option value="match">Match</option>
-								<option value="meeting">Meeting</option>
-								<option value="social">Social</option>
-							</select>
+							<div class="grid grid-cols-4 gap-1 rounded-md bg-base-300 p-1">
+								{#each ['training', 'match', 'meeting', 'social'] as category (category)}
+									<button
+										type="button"
+										class="rounded px-2 py-2 text-xs font-bold capitalize transition {eventCategory ===
+										category
+											? 'bg-blue-500 text-highlight shadow-sm'
+											: 'text-base-content/60 hover:bg-base-100'}"
+										on:click={() => selectEventCategory(category)}
+									>
+										{category}
+									</button>
+								{/each}
+							</div>
 						</div>
 					{/if}
 
-					<!-- Editor container -->
-					<div
-						class:selected-media-compose={selectedKind === 'media' && !isPollMode}
-						class="min-h-[120px] rounded-md relative transition-all duration-200"
-						tabindex="-1"
-						role="presentation"
-						on:keydown|stopPropagation
-					>
-						<EditorComponent
-							{initialContent}
-							class={selectedKind === 'media' && !isPollMode
-								? 'media-post-editor min-h-[420px] rounded-lg border border-primary-content/40 bg-base-200/80 focus:outline-none focus:ring-0 focus:border-primary-content focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary-content'
-								: 'min-h-32 rounded-md border border-primary-content focus:outline-none focus:ring-0 focus:border-primary-content focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary-content'}
-							onSubmit={handleSubmit}
-							bind:editor
-							{showPicker}
-							autoFocus
+					{#if selectedKind === 'media' && !isPollMode}
+						<div
+							class="mb-3 grid gap-3 rounded-lg border border-primary-content/30 bg-base-200/70 p-3"
 						>
-							{#if selectedKind === 'media' && !isPollMode}
-								<div class="flex flex-col items-center gap-2 text-center">
-									<Icon icon="mdi:image-plus-outline" class="h-10 w-10 text-base-content/45" />
-									<span class="text-sm font-semibold text-base-content/60">Add media</span>
+							<div class="grid grid-cols-[1fr_auto] items-start gap-3">
+								<div class="min-w-0">
+									<p class="font-bold text-base-content">Media post</p>
+									<p class="mt-0.5 text-sm leading-5 text-base-content/55">
+										Add images first, then write a short caption.
+									</p>
 								</div>
-							{:else if reply}
-								Reply to
-								{#if note}
-									<User pubkey={note.pubkey() || ''} />
+								<button
+									type="button"
+									class="inline-flex items-center gap-2 rounded-md bg-blue-500 px-3 py-2 text-sm font-bold text-highlight transition hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400/60 active:translate-y-px"
+									on:click={selectMediaFiles}
+								>
+									<Icon icon="mdi:image-plus-outline" class="h-5 w-5" />
+									<span>Add</span>
+								</button>
+							</div>
+
+							<button
+								type="button"
+								class="group grid min-h-44 place-items-center rounded-md border border-dashed border-primary-content/40 bg-base-300/70 px-4 py-6 text-center transition hover:-translate-y-0.5 hover:border-blue-500/80 hover:bg-blue-500/10 focus:outline-none focus:ring-2 focus:ring-blue-400/60 active:translate-y-0"
+								on:click={selectMediaFiles}
+							>
+								<span class="grid justify-items-center gap-2">
+									<span
+										class="grid h-12 w-12 place-items-center rounded-md bg-base-100 text-base-content/70 transition group-hover:text-blue-500"
+									>
+										<Icon icon="mdi:image-multiple-outline" class="h-7 w-7" />
+									</span>
+									<span class="font-bold text-base-content">Choose photos or GIFs</span>
+									<span class="max-w-56 text-sm leading-5 text-base-content/50">
+										Uploaded media will appear below for review.
+									</span>
+								</span>
+							</button>
+						</div>
+					{/if}
+
+					{#if selectedKind !== 'event'}
+						<!-- Editor container -->
+						<div
+							class:selected-media-compose={selectedKind === 'media' && !isPollMode}
+							class="min-h-[120px] rounded-md relative transition-all duration-200"
+							tabindex="-1"
+							role="presentation"
+							on:keydown|stopPropagation
+						>
+							<EditorComponent
+								{initialContent}
+								class={selectedKind === 'media' && !isPollMode
+									? 'media-post-editor min-h-14 rounded-lg border border-primary-content/30 bg-base-300/80 focus:outline-none focus:ring-0 focus:border-primary-content focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary-content'
+									: 'min-h-32 rounded-md border border-primary-content focus:outline-none focus:ring-0 focus:border-primary-content focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary-content'}
+								onSubmit={handleSubmit}
+								bind:editor
+								{showPicker}
+								autoFocus
+							>
+								{#if selectedKind === 'media' && !isPollMode}
+									Add a caption
+								{:else if reply}
+									Reply to
+									{#if note}
+										<User pubkey={note.pubkey() || ''} />
+									{/if}
+								{:else if repost}
+									Add a quote?
+								{:else}
+									{placeholder}
 								{/if}
-							{:else if repost}
-								Add a quote?
-							{:else}
-								{placeholder}
-							{/if}
-						</EditorComponent>
-					</div>
+							</EditorComponent>
+						</div>
+					{/if}
 
 					<!-- Poll Creator (shown when poll mode is enabled) -->
 					{#if isPollMode}
@@ -777,6 +829,49 @@
 							</button>
 						</div>
 					</div>
+
+					{#if !reply && !repost}
+						<div class="compose-kind-switcher-wrap">
+							<div class="grid gap-3 border-t border-primary-content/20 bg-base-200/80 px-4 py-3 text-sm backdrop-blur-sm">
+								<div class="flex items-center justify-between gap-3">
+									<div class="min-w-0">
+										<p class="text-xs font-semibold text-base-content/50">Publishing to</p>
+										<p class="truncate font-bold text-base-content">{destinationLabel}</p>
+									</div>
+									<button
+										type="button"
+										class="rounded-md px-2 py-1 text-xs font-semibold text-blue-500 transition hover:bg-blue-500/10"
+										on:click={() => (step = 'setup')}
+									>
+										Change
+									</button>
+								</div>
+								<div class="grid grid-cols-4 gap-1">
+									{#each [{ id: 'note', label: 'Note', icon: 'mdi:text-box-outline' }, { id: 'media', label: 'Media', icon: 'mdi:image-multiple' }, { id: 'event', label: 'Event', icon: 'mdi:calendar-outline' }, { id: 'poll', label: 'Poll', icon: 'mdi:poll' }] as mode (mode.id)}
+										<button
+											type="button"
+											class="flex min-w-0 items-center justify-center gap-1 rounded-md px-2 py-2 text-xs font-bold transition {composeMode ===
+											mode.id
+												? 'bg-blue-500 text-highlight shadow-sm'
+												: 'bg-base-300 text-base-content/65 hover:bg-base-100'}"
+											on:click={() => selectComposeMode(mode.id)}
+										>
+											<Icon icon={mode.icon} class="h-4 w-4 shrink-0" />
+											<span class="truncate">{mode.label}</span>
+										</button>
+									{/each}
+								</div>
+							</div>
+						</div>
+
+						{#if selectedKind === 'event' && !selectedRelay}
+							<div
+								class="mt-3 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-base-content"
+							>
+								Events need a community. Choose a community destination to publish an event.
+							</div>
+						{/if}
+					{/if}
 				{/if}
 			</div>
 		</slot>
@@ -785,52 +880,59 @@
 
 <style>
 	:global(.media-post-editor) {
-		align-items: center;
-		justify-content: center;
-		aspect-ratio: 1 / 1;
-		max-height: min(68vh, 560px);
+		align-items: stretch;
+		justify-content: flex-start;
 	}
 
 	:global(.media-post-editor .ProseMirror) {
-		display: flex;
-		min-height: 100%;
+		display: grid;
+		min-height: 2.75rem;
 		width: 100%;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		gap: 0.75rem;
-		text-align: center;
+		grid-template-columns: 1fr;
+		align-content: start;
+		text-align: left;
 	}
 
 	:global(.media-post-editor [data-node-view-wrapper]) {
 		display: flex;
 		width: 100%;
-		justify-content: center;
+		min-height: 120px;
+		justify-content: stretch;
+	}
+
+	.compose-kind-switcher-wrap {
+		position: relative;
+		left: 50%;
+		width: 100vw;
+		margin-left: -50vw;
+		margin-top: 0.75rem;
 	}
 
 	:global(.media-post-editor img) {
-		height: auto !important;
-		max-height: min(62vh, 520px);
+		height: 100% !important;
+		min-height: 120px;
+		max-height: 280px;
 		width: 100%;
 		max-width: 100%;
-		border-radius: 0.75rem;
-		object-fit: contain;
+		border-radius: 0.5rem;
+		object-fit: cover;
 	}
 
 	:global(.media-post-editor p) {
 		margin: 0;
 		max-width: 100%;
 		text-align: left;
+		color: hsl(var(--bc) / 0.7);
 	}
 
 	:global(.media-post-editor p:not(:has(img))) {
-		align-self: stretch;
+		grid-column: 1 / -1;
+		min-height: 1.5rem;
 	}
 
 	@media (max-width: 640px) {
 		:global(.media-post-editor) {
-			min-height: min(86vw, 520px);
-			max-height: 62vh;
+			min-height: 3.5rem;
 		}
 	}
 </style>

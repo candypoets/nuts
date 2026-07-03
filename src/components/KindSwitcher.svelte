@@ -17,10 +17,10 @@
 	export let tabs: KindSwitcherTab[] = [
 		{ id: 'all', label: 'All' },
 		{ id: 'notes', label: 'Notes', kinds: [1, 6] },
-		{ id: 'articles', label: 'Articles', kinds: [30023] },
-		{ id: 'polls', label: 'Polls', kinds: [1068] },
 		{ id: 'media', label: 'Media', kinds: [20, 34235] },
-		{ id: 'events', label: 'Events', kinds: [30311] }
+		{ id: 'events', label: 'Events', kinds: [30311] },
+		{ id: 'polls', label: 'Polls', kinds: [1068] },
+		{ id: 'articles', label: 'Articles', kinds: [30023] }
 	];
 
 	const dispatch = createEventDispatcher<{ select: { kinds: FeedKind[]; tab: KindSwitcherTab } }>();

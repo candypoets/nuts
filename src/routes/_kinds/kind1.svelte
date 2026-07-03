@@ -125,7 +125,7 @@
 					)
 						return;
 					// if replies are quote return the feed
-					if (fbArray(kind1, 'mentions').some((q) => q.id() == data.id)) return;
+					if (fbArray(kind1, 'eventRefs').some((q) => q.id() == data.id)) return;
 
 					const eventId = parsedEvent.id();
 					const existingIndex = feedItems.findIndex((item) => item.id() === eventId);
