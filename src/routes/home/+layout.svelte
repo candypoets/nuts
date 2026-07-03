@@ -60,7 +60,7 @@
 
 	let isViewing = false;
 
-	let scrollY: number;
+	let scrollY = 0;
 	let privateKey: string;
 	let loading = false;
 	let extensionError = false;
@@ -76,7 +76,7 @@
 	let end = 0;
 
 	// Track seen event IDs for deduplication during refresh
-	let seenEventIds = new Set<number>();
+	let seenEventIds = new Set<string>();
 
 	// Track if EOSE has been received for proof verification
 	let eoseReceived = false;
@@ -94,7 +94,12 @@
 	let hasMore = true;
 	let paginationCounter = 0;
 	let itemsBeforePagination = 0;
+	let paginationStartedAt = 0;
 	let paginationTimeout: ReturnType<typeof setTimeout> | undefined;
+	let paginationMinTimeout: ReturnType<typeof setTimeout> | undefined;
+	const paginationMinDurationMs = 1000;
+	const paginationMaxDurationMs = 3000;
+	const walletEventRequestLimit = 50;
 
 	function oneDayDiff(firstTimestampInSeconds: number, secondTimestampInSeconds: number): boolean {
 		const differenceInSeconds = Math.abs(firstTimestampInSeconds - secondTimestampInSeconds);
@@ -103,17 +108,26 @@
 	}
 
 	$: walletRelays =
-		$kind10019 && fbArray(asKind10019($kind10019) as Kind10019Parsed, 'readRelays').map((r) => r);
+		$kind10019 &&
+		fbArray(asKind10019($kind10019) as Kind10019Parsed, 'readRelays')
+			.map((r) => fbString(r))
+			.filter((r): r is string => !!r);
 
 	let defaultRelays: string[];
+	const homeWalletRelays = ['wss://relay.nuts.cash'];
 
 	const connectionTracker = new ConnectionTracker();
 
 	setTimeout(() => (defaultRelays = DEFAULT_RELAYS), 3000);
 
 	$: relays = Array.from(
-		new Set([...(defaultRelays || []), ...(walletRelays || []), ...($readRelays || [])])
-	);
+		new Set([
+			...homeWalletRelays,
+			...(defaultRelays || []),
+			...(walletRelays || []),
+			...($readRelays || [])
+		])
+	).filter((relay): relay is string => !!relay);
 
 	const relayPromise = Promise.race([kind10019Ready.promise, delayedPromise]);
 
@@ -123,6 +137,32 @@
 	let prevPaginationSubId: string | undefined = undefined;
 
 	let proofs: () => void;
+
+	type HomeRelayRequest = {
+		kinds: number[];
+		authors?: string[];
+		tags?: Record<string, string[]>;
+		limit?: number;
+		relays?: string[];
+		noCache?: boolean;
+		until?: number;
+	};
+
+	function fbString(value: string | Uint8Array | null | undefined) {
+		return typeof value === 'string' ? value : undefined;
+	}
+
+	function finishPaginationLoading(reason: string) {
+		if (!itemsBeforePagination) return;
+		const elapsed = Date.now() - paginationStartedAt;
+		const remainingMinWait = Math.max(0, paginationMinDurationMs - elapsed);
+		if (paginationMinTimeout) clearTimeout(paginationMinTimeout);
+		paginationMinTimeout = setTimeout(() => {
+			console.log('[Home] Pagination finished:', reason);
+			loading = false;
+			paginationMinTimeout = undefined;
+		}, remainingMinWait);
+	}
 
 	async function handleProofsMessage(message: WorkerMessage) {
 		switch (message.type()) {
@@ -195,23 +235,26 @@
 	function initProofsSubscription() {
 		if (!$key?.pub) return;
 		unsubscribeProofs?.();
-		unsubscribeProofs = useSubscription(
-			'nutszap_' + $key?.pub + '_' + refreshCounter,
-			[
-				{ kinds: [7375], authors: [$key?.pub], relays },
-				{ kinds: [9321], tags: { '#p': [$key?.pub] }, noCache: refreshing, limit: 50, relays }
-			],
-			handleProofsMessage,
+		const subId = 'nutszap_' + $key?.pub + '_' + refreshCounter;
+		const requests: HomeRelayRequest[] = [
+			{ kinds: [7375], authors: [$key?.pub], relays },
 			{
-				pipeline: [
-					new PipeT(PipeConfig.MuteFilterPipeConfig, $mutePipeConfig),
-					new PipeT(PipeConfig.ParsePipeConfig, new ParsePipeConfigT()),
-					new PipeT(PipeConfig.SaveToDbPipeConfig, new SaveToDbPipeConfigT()),
-					new PipeT(PipeConfig.ProofVerificationPipeConfig, new ProofVerificationPipeConfigT(500))
-				],
-				isSlow: true
+				kinds: [9321],
+				tags: { '#p': [$key?.pub] },
+				noCache: refreshing,
+				limit: walletEventRequestLimit,
+				relays
 			}
-		);
+		];
+		unsubscribeProofs = useSubscription(subId, requests, handleProofsMessage, {
+			pipeline: [
+				new PipeT(PipeConfig.MuteFilterPipeConfig, $mutePipeConfig),
+				new PipeT(PipeConfig.ParsePipeConfig, new ParsePipeConfigT()),
+				new PipeT(PipeConfig.SaveToDbPipeConfig, new SaveToDbPipeConfigT()),
+				new PipeT(PipeConfig.ProofVerificationPipeConfig, new ProofVerificationPipeConfigT(500))
+			],
+			isSlow: true
+		});
 	}
 
 	$: if ($key?.pub && $key?.hasSigner !== false && !loading) {
@@ -220,17 +263,9 @@
 	}
 
 	// Build requests for wallet feed subscription
-	function buildWalletRequests(isPagination = false): {
-		kinds: number[];
-		authors?: string[];
-		tags?: Record<string, string[]>;
-		limit: number;
-		relays: string[];
-		noCache?: boolean;
-		until?: number;
-	}[] {
+	function buildWalletRequests(isPagination = false): HomeRelayRequest[] {
 		const baseReq = {
-			limit: 50,
+			limit: walletEventRequestLimit,
 			relays: relays,
 			noCache: refreshing
 		};
@@ -284,6 +319,18 @@
 	}
 
 	function handleWalletFeedEvents(message: WorkerMessage) {
+		const status = isConnectionStatus(message);
+		if (status) {
+			if (status.status() === 'EOSE') {
+				if (itemsBeforePagination) {
+					finishPaginationLoading('EOSE');
+				} else {
+					loading = false;
+				}
+				refreshing = false;
+			}
+			return;
+		}
 		const event = isParsedEvent(message);
 		const kind9321 = isKind9321(message);
 		const kind9735 = isKind9735(message);
@@ -291,17 +338,18 @@
 		if ((!kind9321 && !kind9735) || !event) return;
 
 		// Deduplicate by event ID hash (fnv1a)
-		const eventIdHash = event.id();
-		if (!eventIdHash) return;
-		if (seenEventIds.has(eventIdHash)) return;
-		seenEventIds.add(eventIdHash);
-		if (rawWalletEvents.some((e) => e.id() === eventIdHash)) return;
+		const eventId = event.id();
+		if (!eventId) return;
+		if (seenEventIds.has(eventId)) return;
+		seenEventIds.add(eventId);
+		if (rawWalletEvents.some((e) => e.id() === eventId)) return;
 
 		rawWalletEvents = [...rawWalletEvents, event];
 	}
 
 	// Process and sort wallet items in parent (slice to avoid mutating original)
 	$: walletItems = rawWalletEvents.slice().sort((a, b) => b.createdAt() - a.createdAt());
+	$: isPaginating = loading && itemsBeforePagination > 0;
 
 	// Cleanup subscription on unmount
 	onDestroy(() => {
@@ -310,6 +358,7 @@
 		unsubscribeActiveWallet?.();
 		if (refreshTimeout) clearTimeout(refreshTimeout);
 		if (paginationTimeout) clearTimeout(paginationTimeout);
+		if (paginationMinTimeout) clearTimeout(paginationMinTimeout);
 		prevPaginationSubId = undefined;
 	});
 
@@ -331,6 +380,7 @@
 
 		loading = true;
 		itemsBeforePagination = walletItems.length;
+		paginationStartedAt = Date.now();
 		paginationCounter++;
 
 		// Use the createdAt of an item ~5 positions back as until (with overlap buffer)
@@ -351,11 +401,10 @@
 
 		initWalletFeedSubscription(true);
 
-		// Fallback: clear loading after timeout if EOSE isn't received
+		// Fallback: clear loading after timeout if EOSE isn't received.
 		paginationTimeout = setTimeout(() => {
-			console.log('[Home] Pagination timeout, clearing loading state');
-			loading = false;
-		}, 10000);
+			finishPaginationLoading('timeout');
+		}, paginationMaxDurationMs);
 	}
 
 	// Track when pagination completes and check if new items were added
@@ -413,21 +462,19 @@
 	function initActiveWalletSubscription() {
 		if (!$key?.pub || !relays?.length) return;
 		unsubscribeActiveWallet?.();
-		unsubscribeActiveWallet = useSubscription(
-			'active_wallet_' + $key?.pub + '_' + refreshCounter,
-			[
-				// { kinds: [7375], authors: [$key?.pub], limit: 10, relays: relays },
-				{
-					kinds: [17375],
-					authors: [$key?.pub],
-					limit: 10,
-					relays: [...DEFAULT_RELAYS, ...relays],
-					noCache: refreshing
-				}
-			],
-			handleWalletEvents,
-			{ bytesPerEvent: 6144 }
-		);
+		const subId = 'active_wallet_' + $key?.pub + '_' + refreshCounter;
+		const requests: HomeRelayRequest[] = [
+			{
+				kinds: [17375],
+				authors: [$key?.pub],
+				limit: 10,
+				relays: [...DEFAULT_RELAYS, ...relays],
+				noCache: refreshing
+			}
+		];
+		unsubscribeActiveWallet = useSubscription(subId, requests, handleWalletEvents, {
+			bytesPerEvent: 6144
+		});
 	}
 
 	$: if ($key?.pub && $key?.hasSigner !== false && relays?.length) {
@@ -455,7 +502,10 @@
 				setNutsWallet(
 					wallet.p2pkPrivKey()!,
 					wallet.p2pkPrivKey()!,
-					fbArray(wallet, 'mints').map((m) => normalizeMintURL(m)),
+					fbArray(wallet, 'mints')
+						.map((m) => fbString(m))
+						.filter((m): m is string => !!m)
+						.map((m) => normalizeMintURL(m)),
 					Number(parsedEvent.createdAt())
 				);
 			}
@@ -470,8 +520,9 @@
 <Pager rootPath="/home">
 	<Feed
 		items={walletItems}
-		getItemId={(item) => item?.id?.()}
+		getItemId={(item) => item?.id?.() || ''}
 		backdrop={!walletItems.length}
+		loading={isPaginating}
 		pullToRefresh
 		onRefresh={handleRefresh}
 		onNearBottom={handleNearBottom}
@@ -507,13 +558,15 @@
 							</button>
 							<div on:click|stopPropagation={() => go('profile')} class="cursor-pointer">
 								<img
-									src={proxyAvatarUrl(asKind0($kind0)?.picture() || '/miss-profile.png')}
+									src={proxyAvatarUrl(
+										($kind0 ? asKind0($kind0)?.picture() : undefined) || '/miss-profile.png'
+									)}
 									class="w-8 h-8 border rounded-full"
 								/>
 							</div>
 						</div>
 					</div>
-					{#if loading}
+					{#if loading && !isPaginating}
 						loading
 					{:else if $nutsWallet}
 						<div

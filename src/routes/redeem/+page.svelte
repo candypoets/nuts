@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/stores';
+	import imageCompression from 'browser-image-compression';
 	import {
 		getManager,
 		type ParsedEvent,
@@ -36,6 +37,7 @@
 	import { INDEXER_RELAYS } from 'src/lib/env';
 	import { makeInviteAuthorization } from 'src/lib/invites';
 	import { now } from 'src/lib/period';
+	import { uploadFile } from 'src/lib/upload';
 	import { decodePrivKey } from 'src/lib/wallet';
 
 	type RedeemState = 'idle' | 'loading-community' | 'redeeming' | 'done' | 'error';
@@ -52,6 +54,7 @@
 	let displayName = '';
 	let picture = '';
 	let pictureName = '';
+	let pictureFile: File | undefined;
 	let privateKey = '';
 	let relayFeed: ParsedEvent | undefined;
 	let memberRelaySet: ParsedEvent | undefined;
@@ -139,12 +142,47 @@
 		const file = input.files?.[0];
 		if (!file) return;
 
+		pictureFile = file;
 		const reader = new FileReader();
 		reader.onload = () => {
 			picture = typeof reader.result === 'string' ? reader.result : '';
 			pictureName = file.name;
 		};
 		reader.readAsDataURL(file);
+	}
+
+	async function compressProfilePicture(file: File) {
+		if (!file.type.startsWith('image/')) return file;
+		return await imageCompression(file, {
+			maxSizeMB: 0.35,
+			maxWidthOrHeight: 512,
+			useWebWorker: true,
+			fileType: file.type === 'image/png' ? 'image/png' : 'image/jpeg',
+			initialQuality: 0.82
+		});
+	}
+
+	async function uploadProfilePicture() {
+		if (!pictureFile) return '';
+		const compressed = await compressProfilePicture(pictureFile);
+		console.log('[redeem-profile] uploading picture', {
+			name: pictureFile.name,
+			originalBytes: pictureFile.size,
+			uploadBytes: compressed.size,
+			type: compressed.type
+		});
+		const result = await uploadFile(compressed, {
+			serverType: 'blossom',
+			preferUserServers: false,
+			alt: displayName.trim() || compressed.name || pictureFile.name,
+			includeMimeTag: true,
+			includeDimensions: true
+		});
+		console.log('[redeem-profile] picture uploaded', {
+			url: result.url,
+			sha256: result.sha256
+		});
+		return result.url;
 	}
 
 	async function fetchRelayInfo() {
@@ -208,28 +246,48 @@
 			nsec: nip19.nsecEncode(secret),
 			hasSigner: true
 		};
-		publishProfile(pubkey);
 		error = '';
 		state = 'idle';
-		void redeemInviteWithPubkey(pubkey);
+		void redeemInviteWithPubkey(pubkey, true);
 	}
 
-	function publishProfile(pubkey: string) {
+	async function publishProfile(pubkey: string) {
+		const pictureUrl = await uploadProfilePicture();
 		const metadata: EventTemplate = {
 			kind: 0,
 			tags: [],
 			content: JSON.stringify({
 				name: displayName.trim(),
 				display_name: displayName.trim(),
-				picture,
+				picture: pictureUrl || undefined,
 				about: `Member of ${communityName}`
 			}),
 			created_at: now()
 		};
 
-		usePublish('invite_signup_' + pubkey, metadata, () => undefined, {
+		const profileRelays = Array.from(
+			new Set([...INVITE_INDEX_RELAYS, ...(communityRelayUrl ? [communityRelayUrl] : [])])
+		);
+
+		console.log('[redeem-profile] publish kind0', {
+			pubkey,
+			communityRelayUrl,
+			profileRelays,
+			hasPicture: !!pictureUrl
+		});
+		usePublish('invite_signup_' + pubkey, metadata, (message: WorkerMessage) => {
+			const status = isConnectionStatus(message);
+			const relayUrl = status?.relayUrl();
+			if (!status || !relayUrl) return;
+			console.log('[redeem-profile] kind0 relay status', {
+				pubkey,
+				relay: relayUrl,
+				status: status.status()?.toString(),
+				message: status.message?.()
+			});
+		}, {
 			trackStatus: true,
-			defaultRelays: INVITE_INDEX_RELAYS
+			defaultRelays: profileRelays
 		});
 	}
 
@@ -359,7 +417,7 @@
 		checkingMembership = false;
 	}
 
-	function publishEvent(event: EventTemplate, id: string) {
+	function publishEvent(event: EventTemplate, id: string, relays = INVITE_INDEX_RELAYS) {
 		return new Promise<void>((resolvePublish) => {
 			let done = false;
 			let unsubscribe: (() => void) | undefined;
@@ -371,14 +429,29 @@
 				resolvePublish();
 			};
 			const timeout = window.setTimeout(finish, 1800);
+			console.log('[redeem-flow] publish membership event', {
+				id,
+				kind: event.kind,
+				relays
+			});
 			unsubscribe = usePublish(
 				id,
 				event,
 				(message: WorkerMessage) => {
 					const status = isConnectionStatus(message);
+					const relayUrl = status?.relayUrl();
+					if (status && relayUrl) {
+						console.log('[redeem-flow] membership relay status', {
+							id,
+							kind: event.kind,
+							relay: relayUrl,
+							status: status.status()?.toString(),
+							message: status.message?.()
+						});
+					}
 					if (status?.status() === 'OK' || status?.status() === 'EOSE') finish();
 				},
-				{ trackStatus: true, defaultRelays: INVITE_INDEX_RELAYS }
+				{ trackStatus: true, defaultRelays: relays }
 			);
 		});
 	}
@@ -386,6 +459,13 @@
 	async function publishMembershipIndexes(pubkey: string) {
 		if (!communityRelayUrl) return;
 		await Promise.all([fetchRelayFeed(pubkey), fetchMemberRelaySet(pubkey)]);
+		const publishRelays = Array.from(new Set([...INVITE_INDEX_RELAYS, communityRelayUrl]));
+		console.log('[redeem-flow] prepare membership indexes', {
+			pubkey,
+			communityRelayUrl,
+			indexRelays: INVITE_INDEX_RELAYS,
+			publishRelays
+		});
 
 		const relayFeedEvent: EventTemplate = {
 			kind: 10012,
@@ -403,16 +483,15 @@
 			kind: 10002,
 			tags: buildRelayListTagsWithReadRelay(
 				$kind10002?.pubkey() === pubkey ? $kind10002 : undefined,
-				communityRelayUrl,
-				INDEXER_RELAYS
+				communityRelayUrl
 			),
 			content: '',
 			created_at: now()
 		};
 
-		await publishEvent(relayFeedEvent, 'invite_relay_feed_' + pubkey);
-		await publishEvent(memberRelaySetEvent, 'invite_member_relay_set_' + pubkey);
-		await publishEvent(relayListEvent, 'invite_relay_list_' + pubkey);
+		await publishEvent(relayFeedEvent, 'invite_relay_feed_' + pubkey, publishRelays);
+		await publishEvent(memberRelaySetEvent, 'invite_member_relay_set_' + pubkey, publishRelays);
+		await publishEvent(relayListEvent, 'invite_relay_list_' + pubkey, publishRelays);
 	}
 
 	async function redeemInvite() {
@@ -420,9 +499,15 @@
 		await redeemInviteWithPubkey($key.pub);
 	}
 
-	async function redeemInviteWithPubkey(pubkey: string) {
+	async function redeemInviteWithPubkey(pubkey: string, publishLocalProfile = false) {
 		state = 'redeeming';
 		error = '';
+		console.log('[redeem-flow] redeem start', {
+			pubkey,
+			redeemEndpoint,
+			communityRelayUrl,
+			publishLocalProfile
+		});
 
 		const body = JSON.stringify({
 			token,
@@ -430,7 +515,15 @@
 		});
 
 		try {
+			console.log('[redeem-flow] signing redeem request', {
+				pubkey,
+				redeemEndpoint
+			});
 			const authorization = await makeInviteAuthorization(redeemEndpoint, body);
+			console.log('[redeem-flow] redeem request signed', {
+				pubkey,
+				redeemEndpoint
+			});
 			const response = await fetch(redeemEndpoint, {
 				method: 'POST',
 				headers: {
@@ -440,15 +533,31 @@
 				body
 			});
 			const data = await response.json().catch(() => undefined);
+			console.log('[redeem-flow] redeem response', {
+				pubkey,
+				status: response.status,
+				ok: response.ok,
+				error: data?.error,
+				message: data?.message
+			});
 			if (!response.ok) {
 				throw new Error(data?.error || data?.message || 'Could not redeem invite.');
 			}
+			if (publishLocalProfile) await publishProfile(pubkey);
 			await publishMembershipIndexes(pubkey);
 			state = 'done';
 			alreadyMember = true;
+			console.log('[redeem-flow] redeem done', {
+				pubkey,
+				communityRelayUrl
+			});
 		} catch (err) {
 			state = 'error';
 			error = err instanceof Error ? err.message : 'Could not redeem invite.';
+			console.warn('[redeem-flow] redeem failed', {
+				pubkey,
+				error
+			});
 		}
 	}
 </script>
