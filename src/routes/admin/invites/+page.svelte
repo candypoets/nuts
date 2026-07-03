@@ -3,8 +3,10 @@
 	import { page } from '$app/stores';
 	import {
 		ArrowLeft,
+		BadgeCheck,
 		Check,
 		Download,
+		Infinity,
 		Loader2,
 		Printer,
 		QrCode,
@@ -14,7 +16,7 @@
 		UsersRound
 	} from 'lucide-svelte';
 	import { normalizeURL } from 'nostr-tools/utils';
-	import { key } from 'src/controller';
+	import { key, selectedAdminRelayUrl } from 'src/controller';
 	import { makeInviteAuthorization } from 'src/lib/invites';
 	import { QRCode } from 'svelte-qrcode-image/util';
 
@@ -30,12 +32,19 @@
 		{ label: '7 days', seconds: 604800 },
 		{ label: '30 days', seconds: 2592000 }
 	];
+	const badgeExpiryOptions = [
+		{ label: 'Permanent', seconds: undefined },
+		{ label: '30 days', seconds: 2592000 },
+		{ label: '90 days', seconds: 7776000 },
+		{ label: '1 year', seconds: 31536000 }
+	];
 
-	let loadedCommunityId = '';
+	let loadedRelayUrl = '';
 	let relayUrl = '';
 	let relayName = '';
 	let relayImage = '';
 	let expiresInSeconds = 86400;
+	let badgeExpiresInSeconds: number | undefined;
 	let maxRedemptions = 1;
 	let customPubkey = '';
 	let invite: InviteResponse | undefined;
@@ -45,9 +54,8 @@
 	let qrDataUrl = '';
 	let qrRequest = 0;
 
-	$: communityId = $page.params.community_id;
-	$: if (communityId !== loadedCommunityId) {
-		loadedCommunityId = communityId || '';
+	$: if ($selectedAdminRelayUrl !== loadedRelayUrl) {
+		loadedRelayUrl = $selectedAdminRelayUrl;
 		loadCommunityRelay();
 	}
 	$: serviceBaseUrl = relayUrl ? relayInfoUrl(relayUrl).replace(/\/$/, '') : '';
@@ -59,14 +67,14 @@
 			: '';
 	$: canCreateInvite = Boolean(inviteEndpoint && $key?.pub && !creating);
 	$: expiryLabel = invite ? formatDate(invite.expires_at) : '';
+	$: badgeExpiryLabel = formatBadgeExpiry(badgeExpiresInSeconds);
 	$: communityName = relayName || (relayUrl ? communityNameFromRelay(relayUrl) : 'this community');
 	$: inviteTitle = `${communityName} invite`;
 	$: inviteMessage = `${communityName} is inviting you.`;
 	$: generateQr(inviteClaimUrl);
 
 	function loadCommunityRelay() {
-		const rawRelayUrl = communityId ? decodeURIComponent(communityId) : '';
-		relayUrl = rawRelayUrl ? normalizeURL(rawRelayUrl) : '';
+		relayUrl = $selectedAdminRelayUrl ? normalizeURL($selectedAdminRelayUrl) : '';
 		relayName = '';
 		relayImage = '';
 		invite = undefined;
@@ -87,6 +95,12 @@
 			dateStyle: 'medium',
 			timeStyle: 'short'
 		}).format(new Date(timestamp * 1000));
+	}
+
+	function formatBadgeExpiry(seconds: number | undefined) {
+		if (!seconds) return 'Permanent membership';
+		const option = badgeExpiryOptions.find((candidate) => candidate.seconds === seconds);
+		return option ? option.label : `${Math.floor(seconds / 86400)} days`;
 	}
 
 	function communityNameFromRelay(url: string) {
@@ -133,10 +147,17 @@
 		copied = '';
 		invite = undefined;
 
-		const body = JSON.stringify({
+		const inviteRequest: {
+			expires_in_seconds: number;
+			max_redemptions: number;
+			badge_expires_in_seconds?: number;
+		} = {
 			expires_in_seconds: expiresInSeconds,
 			max_redemptions: Math.max(1, Math.floor(maxRedemptions || 1))
-		});
+		};
+		if (badgeExpiresInSeconds) inviteRequest.badge_expires_in_seconds = badgeExpiresInSeconds;
+
+		const body = JSON.stringify(inviteRequest);
 
 		try {
 			const authorization = await makeInviteAuthorization(inviteEndpoint, body);
@@ -432,6 +453,31 @@
 						</div>
 					</div>
 
+					<div>
+						<label class="text-sm font-black text-stone-700" for="badge-expires">
+							Membership lasts
+						</label>
+						<div id="badge-expires" class="mt-3 grid gap-2 sm:grid-cols-4">
+							{#each badgeExpiryOptions as option (option.label)}
+								<button
+									type="button"
+									class={`h-11 rounded-xl border px-3 text-sm font-black transition focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98] ${
+										badgeExpiresInSeconds === option.seconds
+											? 'border-emerald-950 bg-emerald-950 text-white'
+											: 'border-stone-200 bg-white text-stone-700 hover:bg-stone-50'
+									}`}
+									on:click={() => (badgeExpiresInSeconds = option.seconds)}
+								>
+									{option.label}
+								</button>
+							{/each}
+						</div>
+						<p class="mt-2 text-sm font-semibold leading-6 text-stone-500">
+							Controls when the redeemed member badge expires. Permanent badges remain valid until
+							removed.
+						</p>
+					</div>
+
 					<div class="grid gap-5 md:grid-cols-2">
 						<label class="grid gap-2">
 							<span class="text-sm font-black text-stone-700">Maximum uses</span>
@@ -497,6 +543,19 @@
 								<span class="block text-sm font-black text-stone-700">Expiry</span>
 								<span class="block truncate text-sm font-semibold text-stone-500">
 									{invite ? expiryLabel : 'Choose a duration'}
+								</span>
+							</span>
+						</div>
+						<div class="flex items-center gap-3 rounded-xl bg-stone-50 p-4">
+							{#if badgeExpiresInSeconds}
+								<BadgeCheck size={20} class="text-emerald-900" />
+							{:else}
+								<Infinity size={20} class="text-emerald-900" />
+							{/if}
+							<span class="min-w-0">
+								<span class="block text-sm font-black text-stone-700">Membership</span>
+								<span class="block truncate text-sm font-semibold text-stone-500">
+									{badgeExpiryLabel}
 								</span>
 							</span>
 						</div>

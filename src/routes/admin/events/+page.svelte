@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { page } from '$app/stores';
 	import { type ParsedEvent, type RequestObject, type WorkerMessage } from '@candypoets/nipworker';
 	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
 	import { isParsedEvent } from '@candypoets/nipworker/utils';
@@ -8,6 +7,7 @@
 	import { ArrowLeft, CalendarDays, Clock, MapPin, Plus, Tag, UsersRound } from 'lucide-svelte';
 	import { normalizeURL } from 'nostr-tools/utils';
 	import type { EventTemplate } from 'nostr-tools';
+	import { selectedAdminRelayUrl } from 'src/controller';
 	import { parsedEventTags } from 'src/lib/adminRelays';
 	import { uploadFile } from 'src/lib/upload';
 	import { now } from 'src/lib/period';
@@ -35,7 +35,7 @@
 		{ label: 'Social', value: 'social' }
 	];
 
-	let loadedCommunityId = '';
+	let loadedRelayUrl = '';
 	let relayUrl = '';
 	let title = '';
 	let summary = '';
@@ -52,9 +52,8 @@
 	let publishUnsubscribe: (() => void) | undefined;
 	let unsubscribeEvents: (() => void) | undefined;
 
-	$: communityId = $page.params.community_id;
-	$: if (communityId !== loadedCommunityId) {
-		loadedCommunityId = communityId || '';
+	$: if ($selectedAdminRelayUrl !== loadedRelayUrl) {
+		loadedRelayUrl = $selectedAdminRelayUrl;
 		loadCommunityRelay();
 		subscribeEvents();
 	}
@@ -71,8 +70,7 @@
 	);
 
 	function loadCommunityRelay() {
-		const rawRelayUrl = communityId ? decodeURIComponent(communityId) : '';
-		relayUrl = rawRelayUrl ? normalizeURL(rawRelayUrl) : '';
+		relayUrl = $selectedAdminRelayUrl ? normalizeURL($selectedAdminRelayUrl) : '';
 		publishStatus = '';
 	}
 

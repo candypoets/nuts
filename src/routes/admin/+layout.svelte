@@ -18,7 +18,7 @@
 		UsersRound
 	} from 'lucide-svelte';
 	import { normalizeURL } from 'nostr-tools/utils';
-	import { key } from 'src/controller';
+	import { key, selectAdminRelayUrl, selectedAdminRelayUrl } from 'src/controller';
 	import {
 		fetchRelayInfo,
 		relaySetAddressesFromRelayFeedEvent,
@@ -27,6 +27,7 @@
 		type RelayInfo
 	} from 'src/lib/adminRelays';
 	import { DEFAULT_RELAYS, INDEXER_RELAYS } from 'src/lib/env';
+	import User from 'src/routes/explore/user.svelte';
 	import { onDestroy, onMount, setContext } from 'svelte';
 	import { writable } from 'svelte/store';
 
@@ -44,12 +45,7 @@
 		| '/admin/members'
 		| '/admin/roles'
 		| '/admin/events'
-		| '/admin/invites'
-		| `/admin/${string}`
-		| `/admin/${string}/members`
-		| `/admin/${string}/roles`
-		| `/admin/${string}/events`
-		| `/admin/${string}/invites`;
+		| '/admin/invites';
 
 	const adminRelaysStore = writable<RelayInfo[]>([]);
 	const adminRelaysLoadingStore = writable(false);
@@ -62,7 +58,6 @@
 	let selectedRelayUrl = '';
 	let selectedRelayName = '';
 	let selectedRelayDescription = '';
-	let selectedCommunityId = '';
 	let adminRelaySets: ParsedEvent[] = [];
 	let adminRelays: RelayInfo[] = [];
 	let adminRelaysLoading = false;
@@ -72,17 +67,19 @@
 	let unsubscribeRelaySets: (() => void) | undefined;
 	let communityMenuOpen = false;
 	let communityMenuRoot: HTMLDivElement | undefined;
+	let redirectedCommunityId = '';
 
 	$: activeAdminSegment = adminSegmentFromPath($page.url.pathname);
 	$: communityId = $page.params.community_id;
-	$: if (communityId !== selectedCommunityId) {
-		selectedCommunityId = communityId || '';
-		loadSelectedRelay();
+	$: redirectCommunityUrl(communityId, activeAdminSegment);
+	$: if ($selectedAdminRelayUrl !== selectedRelayUrl) {
+		selectedRelayUrl = $selectedAdminRelayUrl;
+		selectedRelayName = '';
+		selectedRelayDescription = '';
 		fetchSelectedRelayInfo();
 	}
 	$: displayName = selectedRelayName || selectedRelayUrl;
 	$: displayDescription = selectedRelayDescription || 'Community admin';
-	$: accountName = $key?.npub ? $key.npub.slice(0, 12) : 'Account';
 	$: accountHandle = $key?.pub ? `${$key.pub.slice(0, 8)}...${$key.pub.slice(-4)}` : '';
 	$: profileHref = $key?.npub ? `/home/${$key.npub}` : '/home';
 	$: initials =
@@ -95,34 +92,8 @@
 	$: adminRelaysStore.set(adminRelays);
 	$: adminRelaysLoadingStore.set(adminRelaysLoading);
 
-	function communityPathFromCurrentUrl() {
-		const segments = $page.url.pathname.replace(/\/$/, '').split('/').filter(Boolean);
-		const candidate = segments[1] || '';
-		if (
-			candidate &&
-			candidate !== 'members' &&
-			candidate !== 'roles' &&
-			candidate !== 'events' &&
-			candidate !== 'invites'
-		) {
-			return `/admin/${candidate}`;
-		}
-		return '';
-	}
-
-	function currentCommunityPath() {
-		const pathCommunity = communityPathFromCurrentUrl();
-		if (pathCommunity) return pathCommunity;
-		const rawCommunityId = communityId || selectedRelayUrl;
-		return rawCommunityId
-			? `/admin/${encodeURIComponent(decodeURIComponent(rawCommunityId))}`
-			: '/admin';
-	}
-
 	function navHref(segment: AdminNavSegment): AdminNavHref {
-		const base = currentCommunityPath();
-		if (!segment) return base as AdminNavHref;
-		return (base === '/admin' ? `/admin/${segment}` : `${base}/${segment}`) as AdminNavHref;
+		return (segment ? `/admin/${segment}` : '/admin') as AdminNavHref;
 	}
 
 	function adminSegmentFromPath(pathname: string): AdminNavSegment {
@@ -139,11 +110,12 @@
 		return '';
 	}
 
-	function loadSelectedRelay() {
-		const rawRelayUrl = communityId ? decodeURIComponent(communityId) : '';
-		selectedRelayUrl = rawRelayUrl ? normalizeURL(rawRelayUrl) : '';
-		selectedRelayName = '';
-		selectedRelayDescription = '';
+	function redirectCommunityUrl(currentCommunityId: string | undefined, segment: AdminNavSegment) {
+		if (!currentCommunityId) return;
+		if (currentCommunityId === redirectedCommunityId) return;
+		redirectedCommunityId = currentCommunityId;
+		selectAdminRelayUrl(decodeURIComponent(currentCommunityId));
+		goto(resolve(navHref(segment)));
 	}
 
 	function relayInfoUrl(url: string) {
@@ -299,7 +271,8 @@
 
 	function switchCommunity(url: string) {
 		communityMenuOpen = false;
-		goto(resolve(`/admin/${encodeURIComponent(url)}`));
+		selectAdminRelayUrl(url);
+		goto(resolve(navHref(activeAdminSegment)));
 	}
 
 	function openCommunitySwitcher() {
@@ -347,43 +320,43 @@
 	});
 </script>
 
-<div class="min-h-screen bg-[#f7f5ef] text-[#191815]">
+<div class="min-h-screen bg-[#fbfbfa] text-[#080b12]" style="background: #fbfbfa;">
 	{#if selectedRelayUrl}
-		<header class="sticky top-0 z-30 border-b border-stone-200/80 bg-[#f7f5ef]/90 backdrop-blur-xl">
+		<header class="sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
 			<div
-				class="mx-auto grid max-w-[1500px] grid-cols-1 items-center gap-4 px-4 py-4 sm:px-6 lg:grid-cols-[minmax(220px,1fr)_auto_minmax(120px,1fr)] lg:px-8"
+				class="mx-auto grid max-w-[1560px] grid-cols-1 items-center gap-4 px-5 py-7 sm:px-6 lg:grid-cols-[minmax(300px,1fr)_auto_minmax(260px,1fr)]"
 			>
 				<div class="flex min-w-0 items-center gap-3 p-1">
 					<span
-						class="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-emerald-950 text-lg font-black text-white shadow-sm shadow-emerald-950/20"
+						class="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-[#003d31] text-lg font-black text-white shadow-sm shadow-emerald-950/20"
 					>
 						{initials}
 					</span>
 					<span
-						class="rounded-md border border-stone-200 bg-white px-2.5 py-1 text-xs font-black text-stone-500"
+						class="grid h-9 min-w-11 place-items-center rounded-lg bg-slate-100 px-3 text-sm font-black text-slate-700"
 					>
 						{adminRelays.length}
 					</span>
 					<span class="min-w-0">
-						<span class="block truncate text-lg font-black text-[#171614]">{displayName}</span>
-						<span class="mt-1 flex items-center gap-2 text-sm font-semibold text-stone-500">
-							<span class="h-2 w-2 rounded-full bg-emerald-600"></span>
+						<span class="block truncate text-xl font-black text-[#080b12]">{displayName}</span>
+						<span class="mt-1 flex items-center gap-2 text-sm font-semibold text-slate-500">
+							<span class="h-2 w-2 rounded-full bg-[#24b99a]"></span>
 							{selectedRelayDescription || 'private community'}
 						</span>
 					</span>
 				</div>
 
 				<nav
-					class="flex max-w-full justify-start gap-1 overflow-x-auto rounded-xl border border-stone-200 bg-white/75 p-1 shadow-sm shadow-stone-950/5 lg:justify-center"
+					class="flex max-w-full justify-start gap-3 overflow-x-auto lg:justify-center"
 					aria-label="Admin navigation"
 				>
 					{#each navItems as item (item.segment)}
 						<a
 							href={resolve(navHref(item.segment))}
-							class={`inline-flex h-10 shrink-0 items-center gap-2 rounded-lg px-4 text-sm font-black no-underline transition focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98] ${
+							class={`inline-flex h-[52px] shrink-0 items-center gap-3 rounded-lg px-5 text-base font-black no-underline transition focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98] ${
 								activeAdminSegment === item.segment
-									? 'bg-emerald-950 text-white shadow-sm shadow-emerald-950/20'
-									: 'text-stone-600 hover:bg-stone-100 hover:text-[#171614]'
+									? 'bg-[#eef5f3] text-[#003d31]'
+									: 'text-slate-600 hover:bg-slate-100 hover:text-[#080b12]'
 							}`}
 							aria-current={activeAdminSegment === item.segment ? 'page' : undefined}
 						>
@@ -395,29 +368,39 @@
 
 				<div class="relative flex min-w-0 justify-end" bind:this={communityMenuRoot}>
 					{#if adminRelaysLoading}
-						<span class="text-sm font-bold text-stone-500">Loading...</span>
+						<span class="text-sm font-bold text-slate-500">Loading...</span>
 					{:else}
 						<button
 							type="button"
-							class="inline-flex h-12 items-center gap-3 rounded-xl border border-stone-200 bg-white/80 px-3 text-left shadow-sm shadow-stone-950/5 transition hover:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98]"
+							class="inline-flex h-12 items-center gap-4 rounded-lg px-2 text-left transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98]"
 							aria-label="Community menu"
 							aria-expanded={communityMenuOpen}
 							on:click={openCommunitySwitcher}
 						>
 							<span class="relative">
 								<span
-									class="grid h-9 w-9 place-items-center rounded-lg bg-stone-900 text-xs font-black text-white"
+									class="grid h-9 w-9 place-items-center rounded-lg bg-[#111827] text-sm font-black text-white shadow-sm"
 								>
 									{($key?.pub || 'np').slice(0, 2).toUpperCase()}
 								</span>
 								<span
-									class="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-500"
+									class="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-white bg-[#24b99a]"
 								></span>
 							</span>
-							<span class="hidden max-w-32 truncate text-sm font-black text-[#171614] sm:block"
-								>{accountName}</span
-							>
-							<ChevronDown size={18} class="text-stone-900" />
+							{#if $key?.pub}
+								<span class="hidden max-w-32 truncate text-base font-black text-[#080b12] sm:block">
+									<User
+										pubkey={$key.pub}
+										relays={selectedRelayUrl ? [selectedRelayUrl] : []}
+										link={false}
+									/>
+								</span>
+							{:else}
+								<span class="hidden max-w-32 truncate text-base font-black text-[#080b12] sm:block">
+									Account
+								</span>
+							{/if}
+							<ChevronDown size={18} class="text-slate-700" />
 						</button>
 					{/if}
 
@@ -437,7 +420,17 @@
 									></span>
 								</span>
 								<div class="min-w-0 pt-1">
-									<p class="truncate text-xl font-black">{accountName}</p>
+									<p class="truncate text-xl font-black">
+										{#if $key?.pub}
+											<User
+												pubkey={$key.pub}
+												relays={selectedRelayUrl ? [selectedRelayUrl] : []}
+												link={false}
+											/>
+										{:else}
+											Account
+										{/if}
+									</p>
 									<p class="mt-1 truncate text-base font-semibold text-stone-500">
 										{accountHandle}
 									</p>

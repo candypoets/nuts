@@ -9,6 +9,7 @@ export type RoleDefinition = {
 	name: string;
 	description: string;
 	image?: string;
+	permissions?: string[];
 	createdAt: number;
 };
 
@@ -42,6 +43,10 @@ export function parseRoleDefinition(event: ParsedEvent): RoleDefinition | undefi
 	const name = tags.find((tag) => tag[0] === 'name')?.[1] || d;
 	const description = tags.find((tag) => tag[0] === 'description')?.[1] || '';
 	const image = tags.find((tag) => tag[0] === 'image')?.[1];
+	const permissions = tags
+		.filter((tag) => tag[0] === 'permission')
+		.map((tag) => tag[1])
+		.filter((permission): permission is string => Boolean(permission));
 	const pubkey = event.pubkey();
 	if (!pubkey) return undefined;
 
@@ -52,6 +57,7 @@ export function parseRoleDefinition(event: ParsedEvent): RoleDefinition | undefi
 		name,
 		description,
 		image,
+		permissions: permissions.length ? permissions : undefined,
 		createdAt: Number(event.createdAt())
 	};
 }
@@ -104,6 +110,7 @@ export function buildRoleDefinitionTags(role: {
 	name: string;
 	description: string;
 	image?: string;
+	permissions?: string[];
 }) {
 	const tags = [
 		['d', role.d],
@@ -111,6 +118,11 @@ export function buildRoleDefinitionTags(role: {
 		['description', role.description]
 	];
 	if (role.image) tags.push(['image', role.image]);
+	if (role.permissions) {
+		for (const permission of role.permissions.length ? role.permissions : ['none']) {
+			tags.push(['permission', permission]);
+		}
+	}
 	return tags;
 }
 

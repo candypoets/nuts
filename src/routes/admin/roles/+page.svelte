@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { page } from '$app/stores';
 	import { type ParsedEvent, type RequestObject, type WorkerMessage } from '@candypoets/nipworker';
 	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
 	import { isParsedEvent } from '@candypoets/nipworker/utils';
@@ -12,13 +11,14 @@
 		FileText,
 		MessageSquare,
 		Plus,
+		Save,
 		ShieldCheck,
 		SlidersHorizontal,
 		UsersRound
 	} from 'lucide-svelte';
 	import { normalizeURL } from 'nostr-tools/utils';
 	import type { EventTemplate } from 'nostr-tools';
-	import { key } from 'src/controller';
+	import { key, selectedAdminRelayUrl } from 'src/controller';
 	import {
 		buildRoleDefinitionTags,
 		parseRoleAward,
@@ -90,9 +90,10 @@
 	let roles: Role[] = [];
 	let relayUrl = '';
 	let relayAdminPubkeys: string[] = [];
-	let loadedCommunityId = '';
+	let loadedRelayUrl = '';
 	let loadingRoles = true;
 	let publishStatus = '';
+	let editedPermissions: Record<string, Record<PermissionKey, boolean>> = {};
 	let unsubscribeRoleDefinitions: (() => void) | undefined;
 	let unsubscribeRoleAwards: (() => void) | undefined;
 	let publishUnsubscribe: (() => void) | undefined;
@@ -109,23 +110,23 @@
 		settings: false
 	};
 
-	$: communityId = $page.params.community_id;
-	$: if (communityId !== loadedCommunityId) {
-		loadedCommunityId = communityId || '';
+	$: if ($selectedAdminRelayUrl !== loadedRelayUrl) {
+		loadedRelayUrl = $selectedAdminRelayUrl;
 		loadCommunityRelay();
 		subscribeRoles();
 		fetchRelayAdmin();
 	}
-	$: roles = rolesFromDefinitions(roleDefinitions);
+	$: roles = rolesFromDefinitions(roleDefinitions, editedPermissions);
 	$: roleLimitReached = roles.length >= 4;
+	$: dirtyRoles = roles.filter((role) => roleIsDirty(role));
+	$: canSaveRoleChanges = Boolean(relayUrl && $key?.pub && dirtyRoles.length);
 	$: canCreateRole =
 		newRoleName.trim().length > 1 &&
 		!roleLimitReached &&
 		!roles.some((role) => role.name.toLowerCase() === newRoleName.trim().toLowerCase());
 
 	function loadCommunityRelay() {
-		const rawRelayUrl = communityId ? decodeURIComponent(communityId) : '';
-		relayUrl = rawRelayUrl ? normalizeURL(rawRelayUrl) : '';
+		relayUrl = $selectedAdminRelayUrl ? normalizeURL($selectedAdminRelayUrl) : '';
 		relayAdminPubkeys = [];
 	}
 
@@ -167,7 +168,10 @@
 		}
 	}
 
-	function rolesFromDefinitions(definitions: RoleDefinition[]): Role[] {
+	function rolesFromDefinitions(
+		definitions: RoleDefinition[],
+		edits: Record<string, Record<PermissionKey, boolean>>
+	): Role[] {
 		const adminDefinition = definitions.find(
 			(definition) => definition.name.toLowerCase() === 'admin'
 		);
@@ -177,7 +181,7 @@
 			description: definition.description,
 			address: definition.address,
 			d: definition.d,
-			permissions: permissionsForRole(definition.name)
+			permissions: permissionsForDefinition(definition, edits)
 		}));
 
 		if (adminDefinition) {
@@ -202,6 +206,17 @@
 		];
 	}
 
+	function permissionsForDefinition(
+		definition: RoleDefinition,
+		edits: Record<string, Record<PermissionKey, boolean>>
+	): Record<PermissionKey, boolean> {
+		const key = roleEditKey(definition);
+		const edited = edits[key];
+		if (edited) return edited;
+		if (definition.permissions?.length) return permissionsFromList(definition.permissions);
+		return permissionsForRole(definition.name);
+	}
+
 	function permissionsForRole(roleName: string): Record<PermissionKey, boolean> {
 		const normalized = roleName.toLowerCase();
 		if (normalized === 'admin') {
@@ -222,6 +237,40 @@
 			moderation: false,
 			settings: false
 		};
+	}
+
+	function permissionsFromList(permissions: string[]): Record<PermissionKey, boolean> {
+		const allowed = new Set(permissions);
+		return Object.fromEntries(
+			actions.map((action) => [action.key, allowed.has(action.key)])
+		) as Record<PermissionKey, boolean>;
+	}
+
+	function permissionsToList(permissions: Record<PermissionKey, boolean>) {
+		return actions.filter((action) => permissions[action.key]).map((action) => action.key);
+	}
+
+	function samePermissions(
+		left: Record<PermissionKey, boolean>,
+		right: Record<PermissionKey, boolean>
+	) {
+		return actions.every((action) => left[action.key] === right[action.key]);
+	}
+
+	function roleEditKey(role: Pick<Role, 'address' | 'name'>) {
+		return role.address || `local:${role.name.toLowerCase()}`;
+	}
+
+	function savedPermissionsForRole(role: Role): Record<PermissionKey, boolean> {
+		const definition = role.address
+			? roleDefinitions.find((item) => item.address === role.address)
+			: undefined;
+		if (definition?.permissions?.length) return permissionsFromList(definition.permissions);
+		return permissionsForRole(role.name);
+	}
+
+	function roleIsDirty(role: Role) {
+		return !samePermissions(role.permissions, savedPermissionsForRole(role));
 	}
 
 	function activeAwardCount(roleAddress: string) {
@@ -270,6 +319,7 @@
 		unsubscribeRoleAwards?.();
 		roleDefinitions = [];
 		roleAwards = [];
+		editedPermissions = {};
 		loadingRoles = Boolean(relayUrl);
 		if (!relayUrl) {
 			loadingRoles = false;
@@ -321,17 +371,16 @@
 	}
 
 	function togglePermission(roleName: string, key: PermissionKey) {
-		roles = roles.map((role) =>
-			role.name === roleName
-				? {
-						...role,
-						permissions: {
-							...role.permissions,
-							[key]: !role.permissions[key]
-						}
-					}
-				: role
-		);
+		const role = roles.find((item) => item.name === roleName);
+		if (!role) return;
+		const editKey = roleEditKey(role);
+		editedPermissions = {
+			...editedPermissions,
+			[editKey]: {
+				...role.permissions,
+				[key]: !role.permissions[key]
+			}
+		};
 	}
 
 	function toggleNewRolePermission(key: PermissionKey) {
@@ -365,7 +414,8 @@
 			tags: buildRoleDefinitionTags({
 				d,
 				name: roleName,
-				description: roleDescription
+				description: roleDescription,
+				permissions: permissionsToList(newRolePermissions)
 			})
 		};
 
@@ -391,6 +441,7 @@
 				d,
 				name: roleName,
 				description: roleDescription,
+				permissions: permissionsToList(newRolePermissions),
 				createdAt: now()
 			}
 		].sort((a, b) => a.name.localeCompare(b.name));
@@ -405,6 +456,59 @@
 			settings: false
 		};
 		closeNewRoleModal();
+	}
+
+	function saveRoleChanges() {
+		const pubkey = $key?.pub;
+		if (!relayUrl || !pubkey || !dirtyRoles.length) return;
+
+		publishUnsubscribe?.();
+		publishStatus = 'Saving role changes...';
+
+		for (const role of dirtyRoles) {
+			const d = role.d || roleDFromName(role.name);
+			if (!d) continue;
+			const description = role.description || 'Custom community role.';
+			const event: EventTemplate = {
+				kind: 30009,
+				content: description,
+				created_at: now(),
+				tags: buildRoleDefinitionTags({
+					d,
+					name: role.name,
+					description,
+					permissions: permissionsToList(role.permissions)
+				})
+			};
+
+			publishUnsubscribe = usePublish(
+				'admin_role_definition_' + relayUrl + '_' + d + '_' + now(),
+				event,
+				() => {
+					publishStatus = 'Role changes saved';
+				},
+				{
+					trackStatus: true,
+					defaultRelays: [relayUrl]
+				}
+			);
+
+			const address = role.address || `30009:${pubkey}:${d}`;
+			roleDefinitions = [
+				...roleDefinitions.filter((definition) => definition.address !== address),
+				{
+					address,
+					pubkey,
+					d,
+					name: role.name,
+					description,
+					permissions: permissionsToList(role.permissions),
+					createdAt: now()
+				}
+			].sort((a, b) => a.name.localeCompare(b.name));
+		}
+
+		editedPermissions = {};
 	}
 
 	onDestroy(() => {
@@ -435,15 +539,26 @@
 					Choose what each role can publish and manage in the community.
 				</p>
 			</div>
-			<button
-				type="button"
-				class="inline-flex h-11 items-center gap-3 rounded-xl bg-emerald-950 px-5 font-black text-white shadow-sm shadow-emerald-950/20 transition hover:bg-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-stone-300 disabled:text-stone-500 disabled:shadow-none"
-				disabled={roleLimitReached}
-				on:click={openNewRoleModal}
-			>
-				<Plus size={20} />
-				New role
-			</button>
+			<div class="flex flex-wrap gap-3">
+				<button
+					type="button"
+					class="inline-flex h-11 items-center gap-3 rounded-xl border border-stone-200 bg-white px-5 font-black text-emerald-950 shadow-sm shadow-stone-950/5 transition hover:bg-stone-50 focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-400 disabled:shadow-none"
+					disabled={!canSaveRoleChanges}
+					on:click={saveRoleChanges}
+				>
+					<Save size={19} />
+					Save changes
+				</button>
+				<button
+					type="button"
+					class="inline-flex h-11 items-center gap-3 rounded-xl bg-emerald-950 px-5 font-black text-white shadow-sm shadow-emerald-950/20 transition hover:bg-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-stone-300 disabled:text-stone-500 disabled:shadow-none"
+					disabled={roleLimitReached}
+					on:click={openNewRoleModal}
+				>
+					<Plus size={20} />
+					New role
+				</button>
+			</div>
 		</div>
 
 		<p class="mt-4 text-sm font-bold text-stone-500">

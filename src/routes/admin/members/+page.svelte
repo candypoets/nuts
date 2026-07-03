@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { page } from '$app/stores';
 	import {
 		NpubLimiterKey,
 		NpubLimiterPipeConfigT,
@@ -18,7 +17,7 @@
 	import { ArrowLeft, CalendarClock, MoreHorizontal, Search, UserPlus } from 'lucide-svelte';
 	import { normalizeURL } from 'nostr-tools/utils';
 	import { nip19, type EventTemplate } from 'nostr-tools';
-	import { key } from 'src/controller';
+	import { key, selectedAdminRelayUrl } from 'src/controller';
 	import {
 		buildRoleAwardTags,
 		parseRoleAward,
@@ -28,6 +27,7 @@
 		type RoleDefinition
 	} from 'src/lib/nip58Roles';
 	import { now } from 'src/lib/period';
+	import User from 'src/routes/explore/user.svelte';
 	import { onDestroy } from 'svelte';
 
 	type Tone = 'green' | 'orange' | 'red' | 'blue' | 'purple' | 'gray';
@@ -60,7 +60,7 @@
 
 	let relayUrl = '';
 	let relayAdminPubkeys: string[] = [];
-	let loadedCommunityId = '';
+	let loadedRelayUrl = '';
 	let roleDefinitions: RoleDefinition[] = [];
 	let roleAwards: RoleAward[] = [];
 	let loadingMembers = true;
@@ -74,9 +74,8 @@
 	let unsubscribeRoleAwards: (() => void) | undefined;
 	let publishUnsubscribe: (() => void) | undefined;
 
-	$: communityId = $page.params.community_id;
-	$: if (communityId !== loadedCommunityId) {
-		loadedCommunityId = communityId || '';
+	$: if ($selectedAdminRelayUrl !== loadedRelayUrl) {
+		loadedRelayUrl = $selectedAdminRelayUrl;
 		loadCommunityRelay();
 		subscribeMembers();
 		fetchRelayAdmin();
@@ -92,8 +91,7 @@
 		relayUrl && Boolean(normalizePubkey(newMemberPubkey)) && selectedRoleAddress && $key?.pub;
 
 	function loadCommunityRelay() {
-		const rawRelayUrl = communityId ? decodeURIComponent(communityId) : '';
-		relayUrl = rawRelayUrl ? normalizeURL(rawRelayUrl) : '';
+		relayUrl = $selectedAdminRelayUrl ? normalizeURL($selectedAdminRelayUrl) : '';
 		relayAdminPubkeys = [];
 	}
 
@@ -341,10 +339,6 @@
 		});
 	}
 
-	function memberInitials(pubkey: string) {
-		return pubkey.slice(0, 2).toUpperCase();
-	}
-
 	function memberLabel(pubkey: string) {
 		return `Member ${pubkey.slice(0, 6).toUpperCase()}`;
 	}
@@ -520,10 +514,16 @@
 										<div
 											class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-950 text-sm font-bold text-white"
 										>
-											{memberInitials(member.pubkey)}
+											{member.pubkey.slice(0, 2).toUpperCase()}
 										</div>
-										<div>
-											<p class="text-base font-black">{memberLabel(member.pubkey)}</p>
+										<div class="min-w-0">
+											<p class="truncate text-base font-black">
+												<User
+													pubkey={member.pubkey}
+													relays={relayUrl ? [relayUrl] : []}
+													link={false}
+												/>
+											</p>
 										</div>
 									</div>
 								</td>

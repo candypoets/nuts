@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { page } from '$app/stores';
 	import {
 		NpubLimiterKey,
 		NpubLimiterPipeConfigT,
@@ -18,6 +17,7 @@
 	import { isKind8, isParsedEvent } from '@candypoets/nipworker/utils';
 	import {
 		CalendarDays,
+		ChevronRight,
 		ExternalLink,
 		FileText,
 		RefreshCw,
@@ -26,6 +26,7 @@
 		UsersRound
 	} from 'lucide-svelte';
 	import { normalizeURL } from 'nostr-tools/utils';
+	import { selectedAdminRelayUrl } from 'src/controller';
 	import {
 		parseRoleAwardsFromKind8,
 		parseRoleDefinition,
@@ -77,15 +78,14 @@
 	let qrRequest = 0;
 	let checkedOverview = false;
 	let error = '';
-	let loadedCommunityId = '';
+	let loadedRelayUrl = '';
 	let roleDefinitions: RoleDefinition[] = [];
 	let roleAwards: RoleAward[] = [];
 	let unsubscribeRoleDefinitions: (() => void) | undefined;
 	let unsubscribeRoleAwards: (() => void) | undefined;
 
-	$: communityId = $page.params.community_id;
-	$: if (communityId && communityId !== loadedCommunityId) {
-		loadedCommunityId = communityId;
+	$: if ($selectedAdminRelayUrl !== loadedRelayUrl) {
+		loadedRelayUrl = $selectedAdminRelayUrl;
 		loadSelectedRelay();
 		subscribeOverview();
 	}
@@ -97,20 +97,11 @@
 	).length;
 	$: isNewCommunity = checkedOverview && memberPubkeys.length === 0;
 	$: communityName = relayUrl ? communityNameFromRelay(relayUrl) : 'Community';
-	$: initials =
-		communityName
-			.split(/\s+/)
-			.filter(Boolean)
-			.slice(0, 2)
-			.map((part) => part[0]?.toUpperCase())
-			.join('') || 'N';
 	$: summaryCards = buildSummaryCards(memberPubkeys.length, expiringSoonCount, roleCount);
-	$: recentMembers = memberPubkeys.slice(0, 5);
 	$: generateQr(inviteUrl);
 
 	function loadSelectedRelay() {
-		const rawRelayUrl = communityId ? decodeURIComponent(communityId) : '';
-		relayUrl = rawRelayUrl ? normalizeURL(rawRelayUrl) : '';
+		relayUrl = $selectedAdminRelayUrl ? normalizeURL($selectedAdminRelayUrl) : '';
 		inviteUrl = relayUrl ? `${relayInfoUrl(relayUrl).replace(/\/$/, '')}/redeem` : '';
 	}
 
@@ -276,15 +267,8 @@
 		];
 	}
 
-	function memberLabel(pubkey: string) {
-		return `Member ${pubkey.slice(0, 6).toUpperCase()}`;
-	}
-
 	function adminHref(segment: string) {
-		const base = communityId
-			? `/admin/${encodeURIComponent(decodeURIComponent(communityId))}`
-			: '/admin';
-		return segment ? `${base}/${segment}` : base;
+		return segment ? `/admin/${segment}` : '/admin';
 	}
 
 	function goAdmin(segment: string) {
@@ -321,41 +305,40 @@
 	});
 </script>
 
-<main class="px-4 py-8 sm:px-6 lg:px-8">
-	<div class="mx-auto grid max-w-[1500px] gap-6">
+<main class="px-5 py-9 sm:px-6">
+	<div class="mx-auto grid max-w-[1560px] gap-5">
 		{#if error}
-			<p class="rounded-xl border border-rose-200 bg-rose-50 p-4 font-bold text-rose-800">
+			<p class="rounded-lg border border-rose-200 bg-rose-50 p-4 font-bold text-rose-800">
 				{error}
 			</p>
 		{/if}
 
 		<section
-			class="overflow-hidden rounded-2xl border border-stone-200 bg-white/85 shadow-sm shadow-stone-950/5"
+			class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm shadow-slate-950/5"
 		>
-			<div class="grid gap-6 p-6 lg:grid-cols-[1fr_auto] lg:items-center lg:p-8">
+			<div class="grid min-h-[236px] gap-6 p-7 sm:p-8 lg:grid-cols-[1fr_auto] lg:items-center">
 				<div>
 					<span
-						class={`inline-flex rounded-md px-2.5 py-1 text-sm font-black ${
-							isNewCommunity ? 'bg-emerald-50 text-emerald-900' : 'bg-stone-100 text-stone-700'
+						class={`inline-flex text-base font-semibold ${
+							isNewCommunity ? 'text-[#003d31]' : 'text-slate-700'
 						}`}
 					>
 						{isNewCommunity ? 'Community created' : 'Community overview'}
 					</span>
-					<h1 class="mt-5 text-4xl font-black leading-tight text-[#171614] md:text-5xl">
+					<h1 class="mt-5 text-5xl font-medium leading-none text-[#080b12] md:text-[50px]">
 						{communityName}
 					</h1>
-					<p class="mt-3 max-w-3xl text-lg font-medium leading-8 text-stone-600">
+					<p class="mt-5 max-w-3xl text-lg font-medium leading-7 text-slate-600">
 						{isNewCommunity
 							? 'Your community is ready. Invite your first members and set up the basics.'
 							: 'Track members, roles, events, and community activity from one place.'}
 					</p>
-					<p class="mt-3 truncate text-sm font-bold text-stone-500">{relayUrl}</p>
 				</div>
 
-				<div class="flex flex-wrap gap-3">
+				<div class="flex flex-wrap gap-3 lg:justify-end">
 					<button
 						type="button"
-						class="inline-flex h-11 items-center gap-3 rounded-xl bg-emerald-950 px-5 font-black text-white shadow-sm shadow-emerald-950/20 transition hover:bg-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98]"
+						class="inline-flex h-12 items-center gap-3 rounded-lg bg-[#003d31] px-6 font-black text-white shadow-sm shadow-emerald-950/20 transition hover:bg-[#004d3e] focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98]"
 						on:click={() => goAdmin('invites')}
 					>
 						<UserPlus size={19} />
@@ -363,7 +346,7 @@
 					</button>
 					<button
 						type="button"
-						class="inline-flex h-11 items-center gap-3 rounded-xl border border-stone-200 bg-white px-5 font-black text-emerald-950 shadow-sm shadow-stone-950/5 transition hover:bg-stone-50 focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98]"
+						class="inline-flex h-12 items-center gap-3 rounded-lg border border-slate-200 bg-white px-6 font-black text-[#080b12] shadow-sm shadow-slate-950/5 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98]"
 						on:click={openCommunity}
 					>
 						Open
@@ -374,176 +357,106 @@
 		</section>
 
 		<section
-			class="grid overflow-hidden rounded-2xl border border-stone-200 bg-white/85 shadow-sm shadow-stone-950/5 md:grid-cols-4"
+			class="grid overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm shadow-slate-950/5 md:grid-cols-4"
 		>
 			{#each summaryCards as card, index (card.label)}
-				<div class={`p-6 ${index < summaryCards.length - 1 ? 'border-stone-200 md:border-r' : ''}`}>
-					<div class={`grid h-11 w-11 place-items-center rounded-xl ${card.tone}`}>
-						<svelte:component this={card.icon} size={23} />
+				<div class={`p-8 ${index < summaryCards.length - 1 ? 'border-slate-200 md:border-r' : ''}`}>
+					<div class="flex items-center gap-5">
+						<div class={`grid h-12 w-12 shrink-0 place-items-center rounded-lg ${card.tone}`}>
+							<svelte:component this={card.icon} size={23} />
+						</div>
+						<p class="text-[42px] font-medium leading-none text-[#080b12]">{card.value}</p>
 					</div>
-					<p class="mt-5 font-mono text-4xl font-black text-[#171614]">{card.value}</p>
-					<p class="mt-2 text-base font-black text-[#171614]">{card.label}</p>
-					<p class="mt-2 text-base font-medium text-stone-600">
+					<p class="mt-5 text-base font-black text-[#080b12]">{card.label}</p>
+					<p class="mt-1 text-base font-medium text-slate-600">
 						{!checkedOverview && card.label === 'Members' ? 'Checking...' : card.detail}
 					</p>
 				</div>
 			{/each}
 		</section>
 
-		<div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-			<div class="grid gap-6">
-				<section
-					class="rounded-2xl border border-stone-200 bg-white/85 p-6 shadow-sm shadow-stone-950/5 lg:p-8"
-				>
-					<div class="flex flex-wrap items-start justify-between gap-4">
-						<div>
-							<h2 class="text-2xl font-black text-[#171614]">Next actions</h2>
-							<p class="mt-2 text-base font-medium leading-7 text-stone-600">
-								{isNewCommunity
-									? 'Complete these steps to launch your community.'
-									: 'Common actions for managing this community.'}
-							</p>
-						</div>
-						<button
-							type="button"
-							class="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-4 text-sm font-bold text-stone-800 shadow-sm shadow-stone-950/5 transition hover:bg-stone-50 focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98]"
-							on:click={subscribeOverview}
-						>
-							<RefreshCw size={16} />
-							Refresh
-						</button>
+		<div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
+			<section class="rounded-xl border border-slate-200 bg-white p-8 shadow-sm shadow-slate-950/5">
+				<div class="flex flex-wrap items-start justify-between gap-4">
+					<div>
+						<h2 class="text-2xl font-medium text-[#080b12]">Next actions</h2>
+						<p class="mt-2 text-base font-medium leading-7 text-slate-600">
+							{isNewCommunity
+								? 'Complete these steps to launch your community.'
+								: 'Common actions for managing this community.'}
+						</p>
 					</div>
-
-					<div class="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-						{#each nextSteps as step, index (step.label)}
-							<button
-								type="button"
-								class="rounded-xl border border-stone-200 bg-white p-5 text-left transition hover:-translate-y-0.5 hover:shadow-md hover:shadow-stone-950/5 focus:outline-none focus:ring-2 focus:ring-emerald-800/30"
-								on:click={() => goAdmin(step.segment)}
-							>
-								<div
-									class={`grid h-11 w-11 place-items-center rounded-xl ${
-										index === 0
-											? 'bg-emerald-50 text-emerald-900'
-											: index === 1
-												? 'bg-blue-50 text-blue-700'
-												: index === 2
-													? 'bg-violet-50 text-violet-700'
-													: 'bg-amber-50 text-amber-700'
-									}`}
-								>
-									<svelte:component this={step.icon} size={24} />
-								</div>
-								<h3 class="mt-5 text-base font-black text-[#171614]">{step.label}</h3>
-								<p class="mt-2 text-sm leading-6 text-stone-600">{step.detail}</p>
-							</button>
-						{/each}
-					</div>
-				</section>
-
-				<section
-					class="overflow-hidden rounded-2xl border border-stone-200 bg-white/85 shadow-sm shadow-stone-950/5"
-				>
-					<div class="flex items-center justify-between gap-4 p-5 lg:p-7">
-						<div>
-							<h2 class="text-2xl font-black">Recent members</h2>
-							<p class="mt-1 text-base text-stone-600">
-								{memberPubkeys.length} members with role assignments.
-							</p>
-						</div>
-					</div>
-					<div class="divide-y divide-stone-200">
-						{#if !recentMembers.length}
-							<div class="px-7 py-10">
-								<p class="text-base font-black text-stone-700">No members yet</p>
-								<p class="mt-1 text-sm font-medium text-stone-500">
-									Invite members to start filling this list.
-								</p>
-							</div>
-						{/if}
-						{#each recentMembers as pubkey (pubkey)}
-							<div class="grid grid-cols-[auto_1fr] items-center gap-4 px-7 py-5">
-								<div
-									class="grid h-11 w-11 place-items-center rounded-xl bg-emerald-950 text-sm font-bold text-white"
-								>
-									{pubkey.slice(0, 2).toUpperCase()}
-								</div>
-								<div class="min-w-0">
-									<p class="truncate text-lg font-bold text-[#171614]">{memberLabel(pubkey)}</p>
-									<p class="mt-1 text-base text-stone-500">Member</p>
-								</div>
-							</div>
-						{/each}
-					</div>
-				</section>
-			</div>
-
-			<aside class="grid content-start gap-6">
-				<section
-					class="rounded-2xl border border-stone-200 bg-white/85 p-6 shadow-sm shadow-stone-950/5"
-				>
-					<h2 class="text-2xl font-black text-[#171614]">Invites</h2>
-					<p class="mt-2 text-base font-medium text-stone-600">
-						Create a QR invite for new members.
-					</p>
-
-					<div class="mt-6 grid gap-5 sm:grid-cols-[128px_1fr] sm:items-center">
-						<div
-							class="grid h-32 w-32 place-items-center rounded-xl border border-stone-200 bg-white p-3"
-						>
-							{#if qrDataUrl}
-								<img class="h-full w-full object-contain" src={qrDataUrl} alt="Invite QR code" />
-							{:else}
-								<span class="text-xs font-bold text-stone-500">Generating QR</span>
-							{/if}
-						</div>
-						<div>
-							<p class="text-lg font-black text-[#171614]">Scan to join</p>
-							<p class="mt-2 text-base leading-6 text-stone-600">
-								New members can scan this QR code.
-							</p>
-						</div>
-					</div>
-
 					<button
 						type="button"
-						class="mt-6 inline-flex h-11 items-center gap-3 rounded-xl border border-stone-200 bg-white px-5 font-black text-emerald-950 shadow-sm shadow-stone-950/5 transition hover:bg-stone-50 focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98]"
-						on:click={() => goAdmin('invites')}
+						class="inline-flex h-10 items-center gap-2 rounded-lg px-3 text-base font-bold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98]"
+						on:click={subscribeOverview}
 					>
-						<UserPlus size={18} />
-						Create invite
+						<RefreshCw size={17} />
+						Refresh
 					</button>
-				</section>
+				</div>
 
-				<section
-					class="rounded-2xl border border-stone-200 bg-white/85 p-6 shadow-sm shadow-stone-950/5"
-				>
-					<h2 class="text-lg font-black text-[#171614]">Community preview</h2>
-					<div class="mt-5 rounded-2xl bg-[#111f19] p-6 text-white shadow-inner">
-						<div class="flex items-center gap-5">
+				<div class="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+					{#each nextSteps as step, index (step.label)}
+						<button
+							type="button"
+							class="grid min-h-[176px] rounded-lg border border-slate-200 bg-white p-5 text-left transition hover:-translate-y-0.5 hover:shadow-md hover:shadow-slate-950/5 focus:outline-none focus:ring-2 focus:ring-emerald-800/30"
+							on:click={() => goAdmin(step.segment)}
+						>
 							<div
-								class="grid h-20 w-20 shrink-0 place-items-center rounded-xl bg-emerald-800 text-2xl font-black"
+								class={`grid h-11 w-11 place-items-center rounded-lg ${
+									index === 0
+										? 'bg-emerald-50 text-emerald-900'
+										: index === 1
+											? 'bg-blue-50 text-blue-700'
+											: index === 2
+												? 'bg-violet-50 text-violet-700'
+												: 'bg-orange-50 text-orange-700'
+								}`}
 							>
-								{initials}
+								<svelte:component this={step.icon} size={24} />
 							</div>
-							<div class="min-w-0">
-								<p class="truncate text-2xl font-black">{communityName}</p>
-								<p class="mt-1 text-base text-white/70">private community</p>
-								<div class="mt-4 flex flex-wrap gap-5 text-sm text-white/80">
-									<span class="inline-flex items-center gap-2">
-										<UsersRound size={15} />
-										{memberPubkeys.length} Members
-									</span>
-									<span class="inline-flex items-center gap-2">
-										<CalendarDays size={15} />
-										0 Events
-									</span>
+							<div class="mt-7 grid grid-cols-[1fr_auto] items-center gap-3">
+								<div>
+									<h3 class="text-base font-black text-[#080b12]">{step.label}</h3>
+									<p class="mt-2 text-base leading-6 text-slate-600">{step.detail}</p>
 								</div>
+								<ChevronRight size={20} class="text-slate-500" />
 							</div>
-						</div>
+						</button>
+					{/each}
+				</div>
+			</section>
+
+			<section class="rounded-xl border border-slate-200 bg-white p-8 shadow-sm shadow-slate-950/5">
+				<h2 class="text-2xl font-medium text-[#080b12]">Invites</h2>
+				<p class="mt-2 text-base font-medium text-slate-600">Create a QR invite for new members.</p>
+
+				<div class="mt-8 grid gap-6 sm:grid-cols-[116px_1fr] sm:items-center">
+					<div
+						class="grid h-[116px] w-[116px] place-items-center rounded-lg border border-slate-200 bg-white p-3"
+					>
+						{#if qrDataUrl}
+							<img class="h-full w-full object-contain" src={qrDataUrl} alt="Invite QR code" />
+						{:else}
+							<span class="text-center text-xs font-bold text-slate-500">Generating QR</span>
+						{/if}
 					</div>
-				</section>
-			</aside>
+					<div>
+						<p class="text-lg font-black text-[#080b12]">Scan to join</p>
+						<p class="mt-3 text-lg leading-7 text-slate-600">New members can scan this QR code.</p>
+					</div>
+				</div>
+
+				<button
+					type="button"
+					class="mt-6 inline-flex h-12 items-center gap-3 rounded-lg border border-slate-200 bg-white px-5 font-black text-[#080b12] shadow-sm shadow-slate-950/5 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98]"
+					on:click={() => goAdmin('invites')}
+				>
+					<UserPlus size={18} />
+					Create invite
+				</button>
+			</section>
 		</div>
 	</div>
 </main>
