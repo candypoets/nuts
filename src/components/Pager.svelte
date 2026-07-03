@@ -19,7 +19,7 @@
 	let stack: StackItem[] = [];
 
 	// Matchers copied from the original Kind index
-	const subPaths = ['nprofile', 'nevent', 'naddr', 'kind4', 'notifications', 'tags'];
+	const subPaths = ['nprofile', 'nevent', 'naddr', 'kind4', 'community', 'notifications', 'tags'];
 
 	let mainElement: HTMLElement;
 
@@ -39,8 +39,9 @@
 
 	// Recompute the interleaved stack from the URL
 	$: {
-		if ($page.url.pathname.startsWith(rootPath)) {
-			const segments = $page.url.pathname.split('/').slice(2).filter(Boolean);
+		const rawPath = $page.url.href.replace($page.url.origin, '').split(/[?#]/)[0];
+		if (rawPath.startsWith(rootPath)) {
+			const segments = rawPath.split('/').slice(2).filter(Boolean);
 
 			stack = segments
 				.filter((seg) => {
@@ -70,7 +71,7 @@
 	<slot />
 </div>
 
-{#each stack as item, index}
+{#each stack as item, index (`${index}:${item.type}:${item.value}`)}
 	{#if item.type === 'sub'}
 		<Sub path={item.value} visible={index === stack.length - 1} depth={stack.length - 1 - index} />
 	{:else}

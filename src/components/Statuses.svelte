@@ -18,7 +18,7 @@
 </script>
 
 <div
-	class="fixed h-[100vh] left-5 top-5 flex flex-col justify-center gap-3 z-50 pointer-events-none"
+	class="fixed h-[100vh] right-5 top-5 flex flex-col justify-center gap-3 z-50 pointer-events-none"
 >
 	<!-- {JSON.stringify(connectionStatus)} -->
 	{#each relays as relay}

@@ -1,0 +1,363 @@
+{
+  "source_image": "/mnt/data/a_clean_flat_illustrated_infographic_scene_with_a.png",
+  "source_size": [
+    1536,
+    1024
+  ],
+  "background_color_estimate": "#f6f2ea",
+  "assets": [
+    {
+      "file": "00_full_slide_reference.png",
+      "box": [
+        0,
+        0,
+        1536,
+        1024
+      ],
+      "size": [
+        1536,
+        1024
+      ],
+      "description": "Full mockup reference"
+    },
+    {
+      "file": "01_right_visual_complete.png",
+      "box": [
+        635,
+        60,
+        1485,
+        940
+      ],
+      "size": [
+        850,
+        880
+      ]
+    },
+    {
+      "file": "02_top_invite_scene_for_card_overlay.png",
+      "box": [
+        642,
+        68,
+        1473,
+        493
+      ],
+      "size": [
+        831,
+        425
+      ]
+    },
+    {
+      "file": "03_top_invite_scene_visible.png",
+      "box": [
+        642,
+        68,
+        1473,
+        482
+      ],
+      "size": [
+        831,
+        414
+      ]
+    },
+    {
+      "file": "04_real_world_invites_card_crop.png",
+      "box": [
+        670,
+        462,
+        1453,
+        950
+      ],
+      "size": [
+        783,
+        488
+      ]
+    },
+    {
+      "file": "05_real_world_invites_card_rounded.png",
+      "box": [
+        686,
+        482,
+        1438,
+        930
+      ],
+      "size": [
+        752,
+        448
+      ]
+    },
+    {
+      "file": "06_invite_in_real_life_pill.png",
+      "box": [
+        670,
+        98,
+        914,
+        160
+      ],
+      "size": [
+        244,
+        62
+      ]
+    },
+    {
+      "file": "07_noticeboard_qr_detail.png",
+      "box": [
+        705,
+        160,
+        991,
+        485
+      ],
+      "size": [
+        286,
+        325
+      ]
+    },
+    {
+      "file": "08_people_invite_detail.png",
+      "box": [
+        1010,
+        170,
+        1435,
+        483
+      ],
+      "size": [
+        425,
+        313
+      ]
+    },
+    {
+      "file": "09_phone_qr_detail.png",
+      "box": [
+        1194,
+        330,
+        1267,
+        441
+      ],
+      "size": [
+        73,
+        111
+      ]
+    },
+    {
+      "file": "10_left_icon_bot.png",
+      "box": [
+        77,
+        377,
+        132,
+        433
+      ],
+      "size": [
+        55,
+        56
+      ]
+    },
+    {
+      "file": "11_left_icon_leaf.png",
+      "box": [
+        77,
+        458,
+        132,
+        514
+      ],
+      "size": [
+        55,
+        56
+      ]
+    },
+    {
+      "file": "12_left_icon_people.png",
+      "box": [
+        77,
+        538,
+        132,
+        594
+      ],
+      "size": [
+        55,
+        56
+      ]
+    },
+    {
+      "file": "13_left_icon_ticket.png",
+      "box": [
+        77,
+        619,
+        132,
+        675
+      ],
+      "size": [
+        55,
+        56
+      ]
+    },
+    {
+      "file": "14_left_icon_handshake.png",
+      "box": [
+        77,
+        699,
+        132,
+        755
+      ],
+      "size": [
+        55,
+        56
+      ]
+    },
+    {
+      "file": "15_left_icon_clubhouse.png",
+      "box": [
+        77,
+        779,
+        132,
+        835
+      ],
+      "size": [
+        55,
+        56
+      ]
+    },
+    {
+      "file": "16_left_icon_heart.png",
+      "box": [
+        77,
+        878,
+        132,
+        934
+      ],
+      "size": [
+        55,
+        56
+      ]
+    },
+    {
+      "file": "17_card_icon_stickers_transparent.png",
+      "box": [
+        746,
+        655,
+        824,
+        733
+      ],
+      "size": [
+        73,
+        72
+      ]
+    },
+    {
+      "file": "18_card_icon_qr_codes_transparent.png",
+      "box": [
+        918,
+        655,
+        1002,
+        736
+      ],
+      "size": [
+        67,
+        69
+      ]
+    },
+    {
+      "file": "19_card_icon_notice_boards_transparent.png",
+      "box": [
+        1102,
+        656,
+        1180,
+        735
+      ],
+      "size": [
+        74,
+        73
+      ]
+    },
+    {
+      "file": "20_card_icon_in_person_transparent.png",
+      "box": [
+        1278,
+        654,
+        1361,
+        735
+      ],
+      "size": [
+        73,
+        72
+      ]
+    },
+    {
+      "file": "21_card_icon_stickers_crop.png",
+      "box": [
+        734,
+        646,
+        836,
+        744
+      ],
+      "size": [
+        102,
+        98
+      ]
+    },
+    {
+      "file": "22_card_icon_qr_codes_crop.png",
+      "box": [
+        907,
+        646,
+        1014,
+        744
+      ],
+      "size": [
+        107,
+        98
+      ]
+    },
+    {
+      "file": "23_card_icon_notice_boards_crop.png",
+      "box": [
+        1090,
+        646,
+        1192,
+        744
+      ],
+      "size": [
+        102,
+        98
+      ]
+    },
+    {
+      "file": "24_card_icon_in_person_crop.png",
+      "box": [
+        1267,
+        646,
+        1374,
+        744
+      ],
+      "size": [
+        107,
+        98
+      ]
+    },
+    {
+      "file": "25_real_world_invites_icon_row.png",
+      "box": [
+        726,
+        645,
+        1380,
+        769
+      ],
+      "size": [
+        654,
+        124
+      ]
+    },
+    {
+      "file": "26_card_background_texture_patch.png",
+      "box": [
+        701,
+        510,
+        1417,
+        914
+      ],
+      "size": [
+        716,
+        404
+      ]
+    }
+  ],
+  "notes": "Coordinates are from the generated 1536x1024 mockup. Text should be recreated as editable type where possible. Icon crops are provided both with transparent line art and with original background fallbacks."
+}

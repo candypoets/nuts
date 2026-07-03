@@ -2,6 +2,7 @@
 	import Note from '../note.svelte';
 	import User from '../user.svelte';
 	import Cashu from './cashu.svelte';
+	import LinkPreviewCard from './LinkPreviewCard.svelte';
 	import YouTube from './YouTube.svelte';
 
 	import { ContentBlock, ContentData, type ParsedEvent } from '@candypoets/nipworker';
@@ -94,28 +95,8 @@
 			{@const preview = asLinkPreview(parsed)}
 			{#if preview && isYouTubeUrl(preview?.url())}
 				<YouTube url={preview?.url() || ''} />
-			{:else if preview && preview?.image() && false}
-				<a
-					href={preview?.url()}
-					target="_blank"
-					on:click|stopPropagation
-					rel="noopener noreferrer"
-					class="w-full rounded-xl border mt-1 block cursor-pointer"
-				>
-					{#if preview?.image()}
-						<img src={preview?.image()} alt={preview?.title()} />
-					{/if}
-					<div class="p-2">
-						{#if preview?.title()}
-							<h2 class="text-sm break-all font-semibold">{preview?.title()}</h2>
-						{/if}
-						{#if preview?.description}
-							<p class="text-xs break-all">
-								{preview?.description()?.slice(0, 150)}...
-							</p>
-						{/if}
-					</div>
-				</a>
+			{:else if preview?.url() || parsed.text()}
+				<LinkPreviewCard url={preview?.url() || parsed.text() || ''} text={parsed.text() || ''} />
 			{:else}
 				<a
 					class="text-accent hover:underline break-words break-all max-w-full w-full"
@@ -173,14 +154,15 @@
 		{:else if parsed.dataType() == ContentData.CashuData}
 			<Cashu cashu={parsed.text()} />
 		{:else if parsed.dataType() == ContentData.ImageData && showMedia}
-			<ImageGrid {note} links={[{ src: parsed.text() || '', type: 'image' }]} />
+			<ImageGrid {note} {visible} links={[{ src: parsed.text() || '', type: 'image' }]} />
 		{:else if parsed.dataType() == ContentData.VideoData && showMedia}
-			<ImageGrid {note} links={[{ src: parsed.text() || '', type: 'video' }]} />
+			<ImageGrid {note} {visible} links={[{ src: parsed.text() || '', type: 'video' }]} />
 		{:else if parsed.dataType() == ContentData.MediaGroupData && showMedia}
 			{@const mediaGrid = asMediaGroupData(parsed)}
 			{#if mediaGrid}
 				<ImageGrid
 					{note}
+					{visible}
 					links={fbArray(mediaGrid, 'items').map((md) =>
 						md.image
 							? { src: md.image()?.url() || '', type: 'image' }

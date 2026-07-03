@@ -12,6 +12,10 @@
 	import { resumePendingTransactions, clearOldTransactions } from 'src/model/cashu/tx-recovery';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
+	$: standaloneRoute =
+		$page.url.pathname.startsWith('/create') ||
+		$page.url.pathname.startsWith('/admin') ||
+		$page.url.pathname.startsWith('/redeem');
 
 	function setViewport() {
 		document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
@@ -27,17 +31,20 @@
 	onMount(() => {
 		setViewport();
 		initRelayTracking();
-		
+
 		// Load stored theme from localStorage or use default
 		const storedTheme = loadStoredTheme();
 		if (!storedTheme) {
-			// Apply default matteblack theme if no stored theme
-			document.getElementsByTagName('html')[0].setAttribute('data-theme', 'matteblack');
+			// Apply default snowwhite theme if no stored theme
+			document.getElementsByTagName('html')[0].setAttribute('data-theme', 'snowwhite');
 		}
-		
+
 		document
 			.querySelector('meta[name="theme-color"]')
-			?.setAttribute('content', document.documentElement.getAttribute('data-theme') === 'snowwhite' ? '#f9fafb' : '#131716');
+			?.setAttribute(
+				'content',
+				document.documentElement.getAttribute('data-theme') === 'snowwhite' ? '#f9fafb' : '#131716'
+			);
 
 		window.addEventListener('resize', setViewport);
 		// Visual Viewport API for better keyboard detection
@@ -62,9 +69,13 @@
 	{@html webManifestLink}
 </svelte:head>
 
-{#key $key?.pub}
-	<App />
-{/key}
+{#if standaloneRoute}
+	<slot />
+{:else}
+	{#key $key?.pub}
+		<App />
+	{/key}
+{/if}
 
 {#if $zoomed !== undefined}
 	<ImageZoom />

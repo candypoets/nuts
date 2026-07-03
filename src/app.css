@@ -7,6 +7,12 @@
 	--vc: 1vh;
 	--vw: 1vw;
 	--container-top: 2rem;
+	--page-max-width: 1180px;
+	--surface-radius: 14px;
+	--surface-radius-sm: 10px;
+	--focus-ring: #7dd3fc;
+	--font-body: "Suisse Int'l";
+	--font-mono: "SFMono-Regular", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
 	--miss-profile: url('/miss-profile.png');
 	--tw-ring-offset-width: 0px;
@@ -17,9 +23,9 @@
 
 	/* Theme CSS custom properties - will be overridden by dynamic themes */
 	--primary: #158777;
-	--primary-content: #9b9ea4;
+	--primary-content: #010806;
 	--secondary: #D926AA;
-	--secondary-content: #c1cad6;
+	--secondary-content: #160010;
 	--base-100: #f9fafb;
 	--base-200: #f2f2f3;
 	--base-300: #f8fdfd;
@@ -35,6 +41,9 @@
 	--shadow-outer-color: rgba(0, 0, 0, 0.15);
 	--shadow-inset-highlight: rgba(255, 255, 255, 0.3);
 	--shadow-inset-subtle: rgba(255, 255, 255, 0.08);
+	--text-muted: rgba(0, 0, 0, 0.6);
+	--text-strong: rgba(0, 0, 0, 0.92);
+	--surface-glass: rgba(255, 255, 255, 0.66);
 	
 	/* Background image variable */
 	--bg-basic: url('/touchgrass.jpg');
@@ -44,55 +53,94 @@
 /* DaisyUI themes still work via data-theme attribute for backwards compatibility */
 html[data-theme='nightsky'] {
 	--bg-basic: url('/nightsky.jpg');
-	--primary: #1fb092;
-	--primary-content: #48505a;
+	--primary: #0b5f52;
+	--primary-content: #f4fffc;
+	--secondary: #b41488;
+	--secondary-content: #fff0fa;
 	--base-100: #131716;
 	--base-200: #1a1a1a;
 	--base-300: #1f2937;
 	--accent: #c19bfd;
 	--shadow-outer-color: rgba(0, 0, 0, 0.5);
 	--shadow-inset-highlight: rgba(255, 255, 255, 0.1);
+	--text-muted: rgba(255, 255, 255, 0.72);
+	--text-strong: rgba(255, 255, 255, 0.94);
+	--surface-glass: rgba(20, 29, 35, 0.72);
 }
 html[data-theme='touchgrass'] {
 	--bg-basic: url('/touchgrass.jpg');
+	--primary: #158777;
+	--primary-content: #010806;
+	--secondary: #D926AA;
+	--secondary-content: #160010;
+	--base-100: #f9fafb;
+	--base-200: #f2f2f3;
+	--base-300: #f8fdfd;
+	--accent: #6d28d9;
+	--text-muted: rgba(0, 0, 0, 0.56);
+	--text-strong: rgba(0, 0, 0, 0.92);
+	--surface-glass: rgba(249, 250, 251, 0.82);
 }
 html[data-theme='matteblack'] {
 	--bg-basic: url('/');
-	--primary: #1fb092;
-	--primary-content: #a0a0a0;
+	--primary: #0b5f52;
+	--primary-content: #f4fffc;
+	--secondary: #333333;
+	--secondary-content: #eeeeee;
 	--base-100: #333333;
 	--base-200: #1a1a1a;
 	--base-300: #262626;
 	--accent: #a855f7;
 	--shadow-outer-color: rgba(0, 0, 0, 0.6);
 	--shadow-inset-highlight: rgba(255, 255, 255, 0.05);
+	--text-muted: rgba(255, 255, 255, 0.75);
+	--text-strong: rgba(255, 255, 255, 0.98);
+	--surface-glass: rgba(24, 24, 24, 0.78);
 }
 html[data-theme='snowwhite'] {
 	--bg-basic: url('/');
 	--primary: #158777;
+	--primary-content: #010806;
+	--secondary: #d4d4d4;
+	--secondary-content: #343434;
 	--base-100: #e8e8e8;
 	--base-200: #f8f8f8;
 	--base-300: #ffffff;
 	--accent: #3366ff;
 	--shadow-outer-color: rgba(0, 0, 0, 0.1);
 	--shadow-inset-highlight: rgba(255, 255, 255, 0.4);
+	--text-muted: rgba(0, 0, 0, 0.62);
+	--text-strong: rgba(0, 0, 0, 0.96);
+	--surface-glass: rgba(248, 248, 248, 0.88);
 }
 html[data-theme='downfox'] {
 	--bg-basic: url('/downfox.jpg');
-	--primary: #ADD8E6;
-	--primary-content: #999999;
+	--primary: #236f8f;
+	--primary-content: #f5fbff;
+	--secondary: #282828;
+	--secondary-content: #f2f2f2;
 	--base-100: #00213f;
 	--base-200: #161616;
+	--base-300: #3441597a;
 	--accent: #f7931a;
 	--shadow-outer-color: rgba(0, 0, 0, 0.65);
+	--text-muted: rgba(255, 255, 255, 0.75);
+	--text-strong: rgba(255, 255, 255, 0.97);
+	--surface-glass: rgba(24, 30, 44, 0.72);
 }
 html[data-theme='sunset'] {
 	--bg-basic: url('/beach.jpg');
-	--primary: #ff6347;
+	--primary: #e2553d;
+	--primary-content: #1c0803;
 	--secondary: #ffb347;
+	--secondary-content: #3a2200;
 	--base-100: #f4e4bc;
 	--base-200: #e8d5a8;
+	--base-300: #f7f2f3d9;
 	--accent: #1e90ff;
+	--text-muted: rgba(0, 0, 0, 0.63);
+	--text-strong: rgba(0, 0, 0, 0.94);
+	--surface-glass: rgba(246, 235, 200, 0.8);
 }
 
 @font-face {
@@ -120,6 +168,160 @@ html[data-theme='sunset'] {
 .no-scrollbar {
 	-ms-overflow-style: none; /* IE 10+ */
 	scrollbar-width: none; /* Firefox */
+}
+
+body,
+html {
+	min-height: 100%;
+}
+
+body {
+	margin: 0;
+	background-color: var(--base-100);
+	color: var(--text-strong);
+	font-family: var(--font-body), 'Segoe UI', sans-serif;
+	line-height: 1.45;
+	text-wrap: balance;
+	font-variant-numeric: tabular-nums;
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+.grain-overlay {
+	background-image:
+		radial-gradient(circle at 16% 26%, rgba(255, 255, 255, 0.11), transparent 32%),
+		radial-gradient(circle at 76% 74%, rgba(0, 0, 0, 0.06), transparent 40%);
+	background-repeat: no-repeat;
+	background-size: 140% 140%, 140% 140%;
+}
+
+.surface-glass {
+	background: var(--surface-glass);
+	border: 1px solid color-mix(in srgb, var(--text-muted) 28%, transparent);
+	backdrop-filter: blur(12px);
+	-webkit-backdrop-filter: blur(12px);
+	box-shadow: var(--tw-shadow-widget);
+}
+
+#top,
+.container-height {
+	max-width: var(--page-max-width);
+	width: min(100%, var(--page-max-width));
+	margin-inline: auto;
+}
+
+.text-muted {
+	color: var(--text-muted);
+}
+
+.notification-card {
+	background:
+		linear-gradient(
+			135deg,
+			color-mix(in srgb, var(--base-300) 94%, white 6%),
+			color-mix(in srgb, var(--base-300) 88%, var(--base-100) 12%)
+		);
+	border: 1px solid color-mix(in srgb, var(--text-strong) 10%, transparent);
+	box-shadow:
+		0 18px 38px color-mix(in srgb, var(--text-strong) 9%, transparent),
+		inset 0 1px 0 color-mix(in srgb, white 36%, transparent);
+	color: var(--text-strong);
+}
+
+.notification-row {
+	padding: 1rem;
+}
+
+.notification-type-icon {
+	display: grid;
+	width: 2.75rem;
+	height: 2.75rem;
+	flex-shrink: 0;
+	place-items: center;
+	border-radius: 0.875rem;
+	background: color-mix(in srgb, var(--primary) 13%, var(--base-100));
+	color: var(--primary);
+	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 18%, transparent);
+}
+
+.notification-type-icon--reply,
+.notification-type-icon--mention,
+.notification-type-icon--reaction,
+.notification-type-icon--repost {
+	background: color-mix(in srgb, var(--primary) 13%, var(--base-100));
+	color: var(--primary);
+}
+
+.notification-heading {
+	font-size: 1rem;
+	font-weight: 700;
+	line-height: 1.25;
+	text-wrap: pretty;
+}
+
+.notification-time {
+	flex-shrink: 0;
+	color: var(--text-muted);
+	font-size: 0.8125rem;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.notification-post-preview {
+	display: block;
+	background: color-mix(in srgb, var(--base-100) 84%, var(--text-strong) 16%);
+	border: 1px solid color-mix(in srgb, var(--text-strong) 14%, transparent);
+	border-radius: 0.625rem;
+	color: var(--text-strong);
+	box-shadow: inset 0 1px 0 color-mix(in srgb, white 26%, transparent);
+}
+
+.notification-post-preview:hover,
+.notification-post-preview:focus-visible {
+	background: color-mix(in srgb, var(--base-100) 78%, var(--text-strong) 22%);
+}
+
+.notification-secondary-text {
+	color: color-mix(in srgb, var(--text-strong) 82%, var(--text-muted));
+}
+
+.notification-toggle {
+	color: var(--primary);
+	font-weight: 700;
+}
+
+button,
+a,
+input,
+textarea,
+select,
+.btn {
+	transition:
+		transform 180ms ease,
+		filter 180ms ease,
+		box-shadow 180ms ease,
+		background-color 180ms ease,
+		border-color 180ms ease;
+}
+
+button:hover,
+.btn:hover {
+	transform: translateY(-1px);
+}
+
+button:active,
+.btn:active {
+	transform: translateY(1px);
+}
+
+:focus-visible {
+	outline: 2px solid var(--focus-ring);
+	outline-offset: 2px;
+	box-shadow: 0 0 0 4px color-mix(in srgb, var(--focus-ring) 24%, transparent);
 }
 
 .fine-border {

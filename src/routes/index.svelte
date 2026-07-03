@@ -5,6 +5,7 @@
 		Kind10002Parsed,
 		Kind3Parsed,
 		getManager,
+		type ParsedEvent,
 		ParsedData,
 		WorkerMessage,
 		type RequestObject
@@ -26,7 +27,6 @@
 	import { page } from '$app/stores';
 
 	import Alert from 'src/components/Alert.svelte';
-	import KeyboardShortcutsGuide from 'src/components/KeyboardShortcutsGuide.svelte';
 	import Statuses from 'src/components/Statuses.svelte';
 	import { key } from 'src/controller';
 	import {
@@ -36,6 +36,8 @@
 		kind10000Ready,
 		kind10002,
 		kind10002Ready,
+		kind10012,
+		kind10012Ready,
 		kind10019,
 		kind10019Ready,
 		kind10063,
@@ -43,7 +45,8 @@
 		kind10096,
 		kind10096Ready,
 		kind3,
-		kind3Ready
+		kind3Ready,
+		relayRoleSets
 	} from 'src/controller/nostr';
 	import { pagerAnimator, setupPagerAnimators } from 'src/controller/pager';
 	import { isMobile, viewport } from 'src/controller/viewport';
@@ -52,6 +55,12 @@
 	import { carouselAnimator } from 'src/controller/carrousel';
 	import { sendStatuses } from 'src/controller/sendStatus';
 	import { CarouselAnimator } from 'src/lib/carousel/CarouselAnimator';
+	import {
+		parsedEventTags,
+		relaySetAddressesFromRelayFeedEvent,
+		relayUrlsFromRelaySet
+	} from 'src/lib/adminRelays';
+	import { DEFAULT_RELAYS, INDEXER_RELAYS } from 'src/lib/env';
 	import Landing from 'src/routes/+page.svelte';
 	import Chat from 'src/routes/chat/index.svelte';
 	import Explore from 'src/routes/explore/index.svelte';
@@ -83,6 +92,21 @@
 	setupPagerAnimators($viewport, goBackRouter, goToRootRouter);
 
 	const connectionTracker = new ConnectionTracker();
+	const relayDirectoryRelays = Array.from(
+		new Set([...INDEXER_RELAYS, ...DEFAULT_RELAYS, 'wss://relay.nuts.cash'])
+	);
+	let relayDirectoryFeedSub: (() => void) | undefined;
+	let relayDirectorySetsSub: (() => void) | undefined;
+	let relayDirectoryPubkey = '';
+	let relayDirectoryAddressKey = '';
+	let expectedRelayDirectoryAddresses = new Set<string>();
+
+	function resetRelayDirectoryState() {
+		relayDirectoryAddressKey = '';
+		expectedRelayDirectoryAddresses = new Set();
+		$kind10012 = undefined;
+		$relayRoleSets = [];
+	}
 
 	$: $key &&
 		$key.pub &&
@@ -120,6 +144,100 @@
 			],
 			handleRelayEvents
 		);
+
+	$: if ($key?.pub && $key.pub !== relayDirectoryPubkey) {
+		relayDirectoryFeedSub?.();
+		relayDirectorySetsSub?.();
+		relayDirectoryPubkey = $key.pub;
+		resetRelayDirectoryState();
+		relayDirectoryFeedSub = useSubscription(
+			'relay_directory_feed_' + $key.pub,
+			[
+				{
+					kinds: [10012],
+					authors: [$key.pub],
+					limit: 1,
+					relays: relayDirectoryRelays,
+					cacheFirst: true
+				}
+			],
+			handleRelayDirectoryFeed,
+			{ bytesPerEvent: 10 * 1024 }
+		);
+	}
+
+	$: relayDirectoryAddresses = $kind10012 ? relaySetAddressesFromRelayFeedEvent($kind10012) : [];
+	$: nextRelayDirectoryAddressKey = relayDirectoryAddresses.join('|');
+	$: if ($key?.pub && nextRelayDirectoryAddressKey !== relayDirectoryAddressKey) {
+		relayDirectorySetsSub?.();
+		relayDirectoryAddressKey = nextRelayDirectoryAddressKey;
+		expectedRelayDirectoryAddresses = new Set(relayDirectoryAddresses);
+		$relayRoleSets = [];
+
+		if (relayDirectoryAddresses.length) {
+			relayDirectorySetsSub = useSubscription(
+				'relay_directory_sets_' + $key.pub,
+				relayDirectoryAddresses.map((address) => {
+					const [, author, d] = address.split(':');
+					return {
+						kinds: [30002],
+						authors: [author || $key.pub],
+						tags: { '#d': [d] },
+						limit: 1,
+						relays: relayDirectoryRelays,
+						cacheFirst: true
+					};
+				}),
+				handleRelayDirectorySet,
+				{ bytesPerEvent: 10 * 1024 }
+			);
+		}
+	}
+
+	function relayDirectoryEventAddress(event: ParsedEvent): string | undefined {
+		const eventD = parsedEventTags(event).find((tag) => tag[0] === 'd')?.[1];
+		return relayDirectoryAddresses.find((candidate) => {
+			const [, author, d] = candidate.split(':');
+			return event.pubkey() === author && eventD === d;
+		});
+	}
+
+	function handleRelayDirectoryFeed(message: WorkerMessage) {
+		const parsedEvent = isParsedEvent(message);
+		if (!parsedEvent || parsedEvent.kind() !== 10012) return;
+		if (parsedEvent.createdAt() > ($kind10012?.createdAt() || 0)) {
+			$kind10012 = parsedEvent;
+			kind10012Ready.resolve(parsedEvent);
+			console.log('[app] kind:10012 arrived', {
+				id: parsedEvent.id(),
+				pubkey: parsedEvent.pubkey(),
+				createdAt: parsedEvent.createdAt(),
+				addresses: relaySetAddressesFromRelayFeedEvent(parsedEvent)
+			});
+		}
+	}
+
+	function handleRelayDirectorySet(message: WorkerMessage) {
+		const parsedEvent = isParsedEvent(message);
+		if (!parsedEvent || parsedEvent.kind() !== 30002) return;
+
+		const address = relayDirectoryEventAddress(parsedEvent);
+		if (!address || !expectedRelayDirectoryAddresses.has(address)) return;
+
+		const existing = $relayRoleSets.find((event) => relayDirectoryEventAddress(event) === address);
+		if (existing && parsedEvent.createdAt() <= existing.createdAt()) return;
+
+		$relayRoleSets = [
+			...$relayRoleSets.filter((event) => relayDirectoryEventAddress(event) !== address),
+			parsedEvent
+		];
+		console.log('[app] kind:30002 relay set arrived', {
+			address,
+			id: parsedEvent.id(),
+			createdAt: parsedEvent.createdAt(),
+			relays: relayUrlsFromRelaySet(parsedEvent)
+		});
+	}
 
 	function handleRelayEvents(message: WorkerMessage) {
 		const status = isConnectionStatus(message);
@@ -305,6 +423,8 @@
 			window.removeEventListener('keydown', handleKeydown, escapeKeyListenerOptions);
 			// relaySub && relaySub();
 			profileSub && profileSub();
+			relayDirectoryFeedSub?.();
+			relayDirectorySetsSub?.();
 
 			// Clean up carousel animations
 			if (carouselAnimator) {
@@ -447,6 +567,10 @@
 		carouselAnimator.selectRouteInOverview(index, 400, $isMobile);
 	}
 
+	function handleRailSelect(index: number) {
+		carouselAnimator.navigateTo(index, 400, $isMobile);
+	}
+
 	// Touch handling with RAF
 	let virtualXPosition = 0;
 
@@ -490,8 +614,6 @@
 	<div class="flex space-x-2 w-1/2 m-auto" bind:this={progressContainer}></div>
 </div>
 <!-- {/if} -->
-<KeyboardShortcutsGuide />
-
 {#if !homepage}
 	{#each Object.entries($sendStatuses) as [sendId, connectionStatus]}
 		{#if connectionStatus}
@@ -539,6 +661,27 @@
 		{/each}
 		<!-- {/key} -->
 	</div>
+
+	{#if !$isMobile && !$overviewModeStore}
+		<nav class="space-rail" aria-label="Spaces">
+			<div class="space-rail-hitbox">
+				{#each carouselAnimator.getActiveRoutes() as feed, index (feed.id)}
+					<button
+						type="button"
+						class="space-rail-item"
+						class:active={$currentIndexStore === index}
+						aria-label={feed.label || feed.id}
+						aria-current={$currentIndexStore === index ? 'page' : undefined}
+						title={feed.label || feed.id}
+						on:click={() => handleRailSelect(index)}
+					>
+						<span class="space-rail-mark"></span>
+						<span class="space-rail-label">{feed.label || feed.id}</span>
+					</button>
+				{/each}
+			</div>
+		</nav>
+	{/if}
 
 	<!-- Overview Mode Backdrop (behind feeds) -->
 	{#if $overviewModeStore}
@@ -631,5 +774,98 @@
 	/* Ensure delete buttons are clickable in overview mode */
 	.carousel-item button {
 		pointer-events: auto;
+	}
+
+	.space-rail {
+		position: fixed;
+		left: 0;
+		top: 50%;
+		z-index: 25;
+		transform: translateY(-50%);
+		padding: 56px 28px 56px 18px;
+		opacity: 1;
+		transition: opacity 180ms ease;
+	}
+
+	.space-rail:hover,
+	.space-rail:focus-within {
+		opacity: 1;
+	}
+
+	.space-rail-hitbox {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 18px;
+		transition: gap 180ms ease;
+	}
+
+	.space-rail:hover .space-rail-hitbox,
+	.space-rail:focus-within .space-rail-hitbox {
+		gap: 24px;
+	}
+
+	.space-rail-item {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		min-width: 28px;
+		height: 22px;
+		border: 0;
+		padding: 0;
+		background: transparent;
+		color: color-mix(in srgb, var(--primary-content) 72%, white 28%);
+		cursor: pointer;
+		outline: none;
+	}
+
+	.space-rail-item:focus-visible .space-rail-mark {
+		box-shadow:
+			0 0 0 2px color-mix(in srgb, var(--base-100) 70%, transparent),
+			0 0 0 4px color-mix(in srgb, var(--primary) 65%, transparent);
+	}
+
+	.space-rail-mark {
+		width: 8px;
+		height: 8px;
+		border-radius: 999px;
+		border: 1px solid currentColor;
+		background: transparent;
+		opacity: 0.78;
+		transform: translateZ(0);
+		transition:
+			width 220ms cubic-bezier(0.22, 1, 0.36, 1),
+			height 220ms cubic-bezier(0.22, 1, 0.36, 1),
+			opacity 180ms ease,
+			background-color 180ms ease,
+			border-color 180ms ease;
+	}
+
+	.space-rail-item.active .space-rail-mark {
+		width: 18px;
+		height: 8px;
+		border-color: color-mix(in srgb, var(--primary) 55%, white 45%);
+		background: color-mix(in srgb, var(--primary) 72%, white 28%);
+		opacity: 1;
+	}
+
+	.space-rail-label {
+		max-width: 80px;
+		overflow: hidden;
+		white-space: nowrap;
+		font-size: 12px;
+		font-weight: 600;
+		line-height: 1;
+		opacity: 0.86;
+		transform: translateX(0);
+		transition:
+			opacity 160ms ease,
+			transform 180ms ease;
+	}
+
+	.space-rail:hover .space-rail-label,
+	.space-rail:focus-within .space-rail-label {
+		opacity: 0.9;
+		transform: translateX(2px);
 	}
 </style>

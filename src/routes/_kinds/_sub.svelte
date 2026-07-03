@@ -3,6 +3,7 @@
 	import Kind1 from 'src/routes/_kinds/kind1.svelte';
 	import Kind30023 from 'src/routes/_kinds/kind30023.svelte';
 	import Kind4 from 'src/routes/_kinds/kind4.svelte';
+	import Community from 'src/routes/_kinds/community.svelte';
 	import Tags from 'src/routes/_kinds/tags.svelte';
 	import Notifications from 'src/routes/notifications/index.svelte';
 
@@ -27,6 +28,10 @@
 
 	function addLog(logs: string) {
 		debugLogs.push(logs);
+	}
+
+	function goBack() {
+		pagerAnimator?.goBack?.();
 	}
 
 	// Add keyboard listener for desktop
@@ -149,19 +154,21 @@
 		on:touchend|stopPropagation={handleTouchEnd}
 	>
 		{#if path.includes('nprofile')}
-			<Kind0 pubkey={path.split(':')?.[1]} {visible} goBack={pagerAnimator?.goBack} />
+			<Kind0 pubkey={path.split(':')?.[1]} {visible} {goBack} />
 		{:else if path.includes('nevent')}
-			<Kind1 nevent={path.split(':')?.[1]} {visible} goBack={pagerAnimator?.goBack} />
+			<Kind1 nevent={path.split(':')?.[1]} {visible} {goBack} />
 		{:else if path.includes('naddr')}
 			{@const naddrValue = path.slice(path.indexOf(':') + 1)}
-			<Kind30023 naddr={naddrValue} {visible} goBack={pagerAnimator?.goBack} />
+			<Kind30023 naddr={naddrValue} {visible} {goBack} />
 		{:else if path.includes('kind4')}
-			<Kind4 pubkey={path.split(':')?.[1]} {visible} goBack={pagerAnimator?.goBack} />
+			<Kind4 pubkey={path.split(':')?.[1]} {visible} {goBack} />
+		{:else if path.includes('community')}
+			{@const communityRelay = decodeURIComponent(path.slice(path.indexOf(':') + 1))}
+			<Community relay={communityRelay} {visible} {goBack} />
 		{:else if path.includes('notifications')}
-			<Notifications goBack={pagerAnimator?.goBack} />
+			<Notifications {goBack} />
 		{:else if path.includes('tags')}
-			<Tags tags={[path.split(':')?.[1]]} {visible} goBack={pagerAnimator?.goBack} />
+			<Tags tags={[path.split(':')?.[1]]} {visible} {goBack} />
 		{/if}
-
 	</div>
 </div>

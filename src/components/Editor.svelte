@@ -37,7 +37,8 @@
 			extensions,
 			editorProps: {
 				attributes: {
-					class: 'outline-none w-full',
+					class:
+						'outline-none w-full focus:outline-none focus:ring-0 focus:shadow-none focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none',
 					spellcheck: 'false',
 					autocorrect: 'off',
 					autocapitalize: 'off',

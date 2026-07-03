@@ -132,7 +132,7 @@
 	$: decoded = {
 		noteId: nid,
 		replyID: kind1?.reply()?.id()!,
-		mentions: fbArray(kind1 as Kind1Parsed, 'mentions')
+		eventRefs: fbArray(kind1 as Kind1Parsed, 'eventRefs')
 	};
 
 	// is the note leading in a thread
@@ -158,6 +158,17 @@
 	export let relays: string[] = [];
 
 	let subscribing = false;
+
+	function mergeRelays(primary: string[] = [], fallback: string[] = []) {
+		return [...new Set([...primary, ...fallback].filter(Boolean))];
+	}
+
+	function withKnownRelays(request: ReturnType<typeof toRequestObject>) {
+		return {
+			...request,
+			relays: mergeRelays(request.relays || [], relays)
+		};
+	}
 
 	// Find note from context if not provided directly
 	// Note: This runs when noteId/context changes, not when displayNote changes (avoids cycle)
@@ -274,7 +285,7 @@
 							// For naddr, replies work differently (no #e tag to query)
 							...(naddrDecoded ? [] : [{ limit: 10, tags: { '#e': [nid] }, relays: relays || [] }]),
 							...(displayNote
-								? fbArray(displayNote, 'requests').map((r) => toRequestObject(r))
+								? fbArray(displayNote, 'requests').map((r) => withKnownRelays(toRequestObject(r)))
 								: [])
 						];
 
@@ -298,42 +309,6 @@
 							}
 						}
 
-						if (showQuote && kind1?.mentionsLength()) {
-							const mentions = [];
-							for (let i = 0; i < kind1.mentionsLength(); i++) {
-								const mention = kind1.mentions(i);
-								const pubkey = mention?.author()!;
-								const id = mention?.id()!;
-								if (pubkey && id) {
-									mentions.push({ pubkey, id });
-								}
-							}
-							const uniquePubkeys = [...new Set(mentions.map((m) => m.pubkey))];
-							const allIds = mentions.map((m) => m.id);
-							let allRelays = new Set<string>();
-							let fetched = 0;
-							const total = uniquePubkeys.length;
-							if (total === 0) return;
-							uniquePubkeys.forEach((pubkey) => {
-								getUserRelays(pubkey, (relays) => {
-									relays.slice(0, 3).forEach((r) => allRelays.add(r));
-									fetched++;
-									if (fetched === total) {
-										useSubscription(
-											'quote_' + (subId || nid || 'unknown'),
-											[
-												{
-													ids: allIds,
-													limit: 5 * allIds.length,
-													relays: Array.from(allRelays)
-												}
-											],
-											handleEvents
-										);
-									}
-								});
-							});
-						}
 					}
 					if (!relays.length && !relaysub) {
 						relaysub = getUserRelays(
@@ -370,7 +345,7 @@
 
 	$: hasRoot =
 		decoded.replyID &&
-		!(decoded.mentions || []).some((mId) => mId == decoded.replyID) &&
+		!(decoded.eventRefs || []).some((eventRef) => eventRef?.id() == decoded.replyID) &&
 		!depth &&
 		effectiveShowRoot;
 

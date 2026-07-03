@@ -20,6 +20,7 @@
 	export let links: { src: string; type?: 'image' | 'video'; blurhash?: string; dim?: string }[];
 	export let note: ParsedEvent<Kind1Parsed> | undefined = undefined;
 	export let context: ParsedEvent<AnyKind>[] = [];
+	export let visible = false;
 
 	let isImageContext = getContext('imageContext');
 
@@ -150,7 +151,7 @@
 			>
 				<VideoTile
 					src={link.src.toString()}
-					autoplay={processedLinks.length == 1 || i == 0}
+					autoplay={visible && (processedLinks.length == 1 || i == 0)}
 					loop={true}
 					muted={true}
 					className={cx(

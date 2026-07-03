@@ -26,7 +26,7 @@
 			queried = true;
 			sub = useSubscription(
 				'u_' + pubkey,
-				userQuery(pubkey),
+				userQuery(pubkey, relays),
 				(message: WorkerMessage) => {
 					const kind0 = isKind0(message);
 					if (kind0 && kind0.pubkey()! === pubkey) {

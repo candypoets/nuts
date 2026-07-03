@@ -65,7 +65,7 @@
 	"type": "module",
 	"dependencies": {
 		"@candypoets/lnuts": "^0.1.6",
-		"@candypoets/nipworker": "^0.95.0",
+		"@candypoets/nipworker": "^0.96.3",
 		"@cashu/cashu-ts": "3.1.1",
 		"@gandlaf21/bc-ur": "^1.1.12",
 		"@gandlaf21/bolt11-decode": "^3.1.1",
@@ -77,6 +77,7 @@
 		"@tiptap/starter-kit": "^2.11.5",
 		"@tiptap/suggestion": "^2.11.5",
 		"blurhash": "^2.0.5",
+		"browser-image-compression": "^2.0.2",
 		"classnames": "^2.5.1",
 		"date-fns": "^4.1.0",
 		"emoji-picker-element": "^1.26.1",

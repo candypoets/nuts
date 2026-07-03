@@ -11,7 +11,7 @@
 	import Icon from '@iconify/svelte';
 	import { uniqBy } from 'lodash';
 	import Loader from 'src/components/Loader.svelte';
-	import { ALL_FEED_KINDS } from 'src/controller/feed';
+	import { ALL_FEED_KINDS, type FeedKind } from 'src/controller/feed';
 	import {
 		defaultPipeline,
 		follows,
@@ -36,14 +36,15 @@
 		asKind20,
 		asParsedEvent,
 		fbArray,
-		isConnectionStatus
+		isConnectionStatus,
+		isKind0
 	} from '@candypoets/nipworker/utils';
 
 	import { isEqual } from 'lodash';
 	import { normalizeURL } from 'nostr-tools/utils';
 	import About from 'src/components/About.svelte';
-	import RelaysList from 'src/components/RelaysList.svelte';
-	import { relaySub, setSubRelays } from 'src/controller/relay';
+	import KindSwitcher from 'src/components/KindSwitcher.svelte';
+	import { fetchRelayInfo, relayInfos, relaySub, setSubRelays } from 'src/controller/relay';
 	import { type ContentBlock, parseContent } from 'src/lib';
 	import { onDestroy, onMount } from 'svelte';
 	import Avatar from '../explore/avatar.svelte';
@@ -91,6 +92,12 @@
 	let profileFeedItems: ParsedEvent[] = [];
 	let followsFeedItems: ParsedEvent[] = [];
 	let loading = false;
+	let communityMode: ProfileCommunity['relationship'] = 'belong';
+	let selectedKinds: FeedKind[] = [];
+	let communityInfoFetchKey = '';
+	let communityPreviewKey = '';
+	let communityPreviewUnsubs: (() => void)[] = [];
+	let communityPreviews: Record<string, CommunityPreviewProfile[]> = {};
 
 	// Track seen event IDs for O(1) duplicate detection
 	let profileSeenIds = new Set<string>();
@@ -102,9 +109,172 @@
 	let itemsBeforePagination = 0;
 	let paginationTimeout: ReturnType<typeof setTimeout> | undefined;
 	let paginationCheckTimeout: ReturnType<typeof setTimeout> | undefined;
+	let feedLoadingTimeout: ReturnType<typeof setTimeout> | undefined;
 
 	$: feedItems = mode === 'profile' ? profileFeedItems : followsFeedItems;
-	$: seenIds = mode === 'profile' ? profileSeenIds : followsSeenIds;
+	$: requestKinds = selectedKinds.length ? selectedKinds : (ALL_FEED_KINDS as FeedKind[]);
+	$: selectedKindKey = requestKinds.join('-');
+
+	type ProfileCommunity = {
+		key: string;
+		name: string;
+		relationship: 'belong' | 'follow';
+		url: string;
+	};
+
+	type CommunityPreviewProfile = {
+		pubkey: string;
+		name: string;
+		picture: string | null;
+	};
+
+	const communityNames: Record<string, string> = {
+		'wss://relay.nuts.cash': 'Nuts',
+		'wss://relay.damus.io': 'Damus',
+		'wss://nos.lol': 'Nos',
+		'wss://relay.thibautduchene.fr': 'Thibaut',
+		'wss://purplepag.es': 'Purple Pages',
+		'wss://user.kindpag.es': 'Kind Pages'
+	};
+
+	const communityColorClasses = [
+		'bg-primary',
+		'bg-secondary',
+		'bg-accent',
+		'bg-info',
+		'bg-warning',
+		'bg-success'
+	];
+
+	function relayHash(relays: string[]) {
+		return relays
+			.map((r) => r.replace(/[^a-zA-Z0-9]/g, ''))
+			.join('')
+			.slice(0, 20);
+	}
+
+	function relayLabel(relay: string) {
+		try {
+			return new URL(relay.replace(/^wss?:\/\//, 'https://')).host.replace(/^relay\./, '');
+		} catch {
+			return relay.replace(/^wss?:\/\//, '').replace(/\/$/, '') || 'Community';
+		}
+	}
+
+	function initials(name: string): string {
+		const words = name
+			.replace(/[^a-zA-Z0-9\s]/g, ' ')
+			.trim()
+			.split(/\s+/)
+			.filter(Boolean);
+		if (!words.length) return '?';
+		if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+		return `${words[0][0]}${words[1][0]}`.toUpperCase();
+	}
+
+	function communityColorClass(key: string): string {
+		let hash = 0;
+		for (let index = 0; index < key.length; index += 1) {
+			hash = (hash * 31 + key.charCodeAt(index)) % communityColorClasses.length;
+		}
+		return communityColorClasses[hash];
+	}
+
+	function communityList(read: string[], write: string[]): ProfileCommunity[] {
+		const writeSet = new Set(write.map(normalizeURL));
+		const belongCommunities = write.map((relay) => {
+			const key = normalizeURL(relay);
+			return {
+				key,
+				name: communityNames[key] || relayLabel(key),
+				relationship: 'belong' as const,
+				url: key
+			};
+		});
+		const followCommunities = read
+			.map(normalizeURL)
+			.filter((relay) => !writeSet.has(relay))
+			.map((relay) => ({
+				key: relay,
+				name: communityNames[relay] || relayLabel(relay),
+				relationship: 'follow' as const,
+				url: relay
+			}));
+
+		return [...belongCommunities, ...followCommunities];
+	}
+
+	function selectProfileKindTab(event: CustomEvent<{ kinds: FeedKind[] }>) {
+		selectedKinds = event.detail.kinds;
+		profileFeedItems = [];
+		followsFeedItems = [];
+		profileSeenIds.clear();
+		followsSeenIds.clear();
+		hasMore = true;
+		until = undefined;
+		lastSubId = undefined;
+		hadFeedRequest = false;
+	}
+
+	function contributionsLast24h(events: ParsedEvent[]) {
+		const since = Math.floor(Date.now() / 1000) - 24 * 60 * 60;
+		return events.filter((event) => event.createdAt() >= since).length;
+	}
+
+	function eventRelayUrls(event: ParsedEvent) {
+		if (typeof event.relaysLength !== 'function') return [];
+		return Array.from({ length: event.relaysLength() }, (_, index) => event.relays(index))
+			.filter((relay): relay is string => Boolean(relay))
+			.map(normalizeURL);
+	}
+
+	function cleanupCommunityPreviews() {
+		communityPreviewUnsubs.forEach((unsubscribe) => unsubscribe());
+		communityPreviewUnsubs = [];
+	}
+
+	function subscribeCommunityPreviews(communitiesToPreview: ProfileCommunity[]) {
+		cleanupCommunityPreviews();
+		communityPreviews = {};
+
+		communityPreviewUnsubs = communitiesToPreview.map((community) => {
+			const seen = new Set<string>();
+			const profiles: CommunityPreviewProfile[] = [];
+
+			return useSubscription(
+				'community_kind0_' + relayHash([community.key]),
+				[{ kinds: [0], limit: 5, relays: [community.url] }],
+				(message) => {
+					const kind0 = isKind0(message);
+					const parsedEvent = asParsedEvent(message);
+					const profilePubkey = kind0?.pubkey();
+					if (!kind0 || !profilePubkey || seen.has(profilePubkey)) return;
+					const eventRelays = parsedEvent ? eventRelayUrls(parsedEvent) : [];
+					if (eventRelays.length && !eventRelays.includes(community.key)) return;
+
+					seen.add(profilePubkey);
+					profiles.push({
+						pubkey: profilePubkey,
+						name: kind0.name()?.trim() || kind0.displayName()?.trim() || profilePubkey.slice(0, 8),
+						picture: kind0.picture() || null
+					});
+					communityPreviews = { ...communityPreviews, [community.key]: [...profiles] };
+				},
+				{ closeOnEose: true }
+			);
+		});
+	}
+
+	function openCommunitySwitcher() {
+		const relays = communities.map((community) => community.url);
+		if (!relays.length) return;
+		setSubRelays(baseSubId, relays);
+		go(`relayinfos:${baseSubId}`);
+	}
+
+	function openCommunity(community: ProfileCommunity) {
+		go(`community:${encodeURIComponent(community.url)}`);
+	}
 
 	function handleProfileEvents(message: WorkerMessage) {
 		// Handle connection status
@@ -184,13 +354,17 @@
 				(a, b) => b.createdAt() - a.createdAt()
 			);
 		}
+		if (feedLoadingTimeout) {
+			clearTimeout(feedLoadingTimeout);
+			feedLoadingTimeout = undefined;
+		}
 		loading = false;
 	}
 
 	function shouldIncludeFeedEvent(parsedEvent: ParsedEvent): boolean {
 		const kind = parsedEvent.kind();
 
-		if (!ALL_FEED_KINDS.includes(kind as (typeof ALL_FEED_KINDS)[number])) return false;
+		if (!requestKinds.includes(kind as FeedKind)) return false;
 
 		if (kind === 1 || kind === 6) {
 			const kind1 = asKind1(parsedEvent);
@@ -237,10 +411,12 @@
 		unsubscribe();
 		if (paginationTimeout) clearTimeout(paginationTimeout);
 		if (paginationCheckTimeout) clearTimeout(paginationCheckTimeout);
+		if (feedLoadingTimeout) clearTimeout(feedLoadingTimeout);
 		followPublishUnsub?.();
 		relaySubUnsubscribe?.();
 		mutePublishUnsub?.();
 		mutePublishUnsub?.();
+		cleanupCommunityPreviews();
 	});
 
 	function updateFollowList() {
@@ -265,7 +441,11 @@
 					['p', pubkey, writeRelays?.[0] || '']
 				],
 				(c) => c[1]
-			).filter((c) => (isFollowing ? c[1] !== pubkey : true)),
+			).filter(
+				(c): c is string[] =>
+					c.every((value): value is string => Boolean(value)) &&
+					(isFollowing ? c[1] !== pubkey : true)
+			),
 			content: ''
 		};
 
@@ -332,6 +512,40 @@
 	$: isMuted = muteIntent ?? $mutedPubkeys.includes(pubkey);
 	$: isMutePending = muteIntent !== null && !hasMuteOkFromRelay;
 	$: hasMuteOkFromRelay = Object.values(mutePublishStatus).some((s) => s.status() === 'true');
+	$: communities = communityList(readRelays, writeRelays);
+	$: belongCommunities = communities.filter((community) => community.relationship === 'belong');
+	$: followCommunities = communities.filter((community) => community.relationship === 'follow');
+	$: visibleCommunities = communities.filter(
+		(community) => community.relationship === communityMode
+	);
+	$: contributionCount = contributionsLast24h(profileFeedItems);
+
+	$: if (communityMode === 'belong' && !belongCommunities.length && followCommunities.length) {
+		communityMode = 'follow';
+	}
+	$: if (communityMode === 'follow' && !followCommunities.length && belongCommunities.length) {
+		communityMode = 'belong';
+	}
+	$: if (communities.length) {
+		const key = communities.map((community) => community.key).join('\n');
+		if (communityInfoFetchKey !== key) {
+			communityInfoFetchKey = key;
+			communities.forEach((community) => void fetchRelayInfo(community.url));
+		}
+	}
+	$: if (communities.length) {
+		const key = communities
+			.map((community) => `${community.relationship}:${community.key}`)
+			.join('\n');
+		if (communityPreviewKey !== key) {
+			communityPreviewKey = key;
+			subscribeCommunityPreviews(communities);
+		}
+	} else if (communityPreviewKey) {
+		communityPreviewKey = '';
+		cleanupCommunityPreviews();
+		communityPreviews = {};
+	}
 
 	// Reset intent when store confirms the change
 	$: if (followIntent !== null && $follows.some((f) => f.pubkey === pubkey) === followIntent) {
@@ -390,7 +604,7 @@
 		if (mode === 'profile' && writeRelays.length > 0) {
 			return [
 				{
-					kinds: ALL_FEED_KINDS,
+					kinds: requestKinds,
 					authors: [pubkey],
 					limit: $limit,
 					until,
@@ -403,7 +617,7 @@
 		if (mode === 'follows' && readRelays.length > 0 && contacts.length > 0) {
 			return [
 				{
-					kinds: ALL_FEED_KINDS,
+					kinds: requestKinds,
 					authors: contacts.map((c) => c.pubkey()).filter(Boolean) as string[],
 					limit: $limit,
 					until,
@@ -487,10 +701,10 @@
 				.join('')
 				.slice(0, 20);
 			return {
-				subId: 'kind0P_' + pubkey + '_' + relayHash,
+				subId: 'kind0P_' + pubkey + '_' + relayHash + '_' + selectedKindKey,
 				requests: [
 					{
-						kinds: ALL_FEED_KINDS,
+						kinds: requestKinds,
 						authors: [pubkey],
 						limit: $limit,
 						noContext: true,
@@ -506,10 +720,10 @@
 				.join('')
 				.slice(0, 20);
 			return {
-				subId: 'kind0F_' + pubkey + '_' + relayHash,
+				subId: 'kind0F_' + pubkey + '_' + relayHash + '_' + selectedKindKey,
 				requests: [
 					{
-						kinds: ALL_FEED_KINDS,
+						kinds: requestKinds,
 						authors: contacts.map((c) => c.pubkey()).filter(Boolean) as string[],
 						limit: $limit,
 						noContext: true,
@@ -542,6 +756,10 @@
 		// Cleanup previous subscription
 		feedSub?.();
 		feedSub = undefined;
+		if (feedLoadingTimeout) {
+			clearTimeout(feedLoadingTimeout);
+			feedLoadingTimeout = undefined;
+		}
 		lastSubId = feedRequest.subId;
 		// Only clear feed items if we have no items yet (initial load)
 		// Don't clear on every mode switch to avoid flickering
@@ -559,6 +777,12 @@
 		feedSub = useSubscription(feedRequest.subId, feedRequest.requests, handleFeedEvents, {
 			pipeline: $defaultPipeline.for(feedRequest.subId)
 		});
+		feedLoadingTimeout = setTimeout(() => {
+			if (loading && feedItems.length === 0) {
+				loading = false;
+			}
+			feedLoadingTimeout = undefined;
+		}, 3000);
 		// Set relays for this subId so relay swapping modal can access them
 		const currentRelays = mode === 'profile' ? writeRelays : readRelays;
 		if (currentRelays.length > 0) {
@@ -581,12 +805,12 @@
 			</button>
 			<!-- <h1 class="text-lg font-semibold">Profile</h1> -->
 			<Avatar {pubkey} size="lg" />
-			<span class="w-8" />
+			<span class="w-8"></span>
 		</div>
 	</svelte:fragment>
 	<svelte:fragment slot="header">
 		<!-- {#if item.id != headerItem.id} -->
-		{@const p = asKind0(headerItem)}
+		{@const p = headerItem ? asKind0(headerItem) : undefined}
 		{@const banner = p?.banner()}
 		{@const name = p?.name()}
 		{@const nip05 = p?.nip05()}
@@ -632,7 +856,7 @@
 						<Icon icon="mdi:arrow-left" class="text-xl" />
 					</button>
 					<!-- <h1 class="text-lg font-semibold">Profile</h1> -->
-					<span class="w-10" />
+					<span class="w-10"></span>
 				</div>
 			{/if}
 			<!-- Content adjusts size/layout based on visible state -->
@@ -710,27 +934,158 @@
 				{#if about}
 					<p class="mb-4 opacity-1"><About content={parsedAbout || []} /></p>
 				{/if}
-				<RelaysList
-					subId={baseSubId}
-					relays={(mode == 'profile' ? writeRelays : readRelays).map(normalizeURL)}
-					{connectionStatus}
-				/>
+
+				{#if communities.length}
+					<section class="mt-5">
+						<div class="flex items-center justify-between gap-3">
+							<div class="min-w-0">
+								<h3 class="text-xl font-bold">Communities</h3>
+								<p class="mt-1 text-sm text-primary-content">Your spaces. Your people.</p>
+							</div>
+							<button
+								type="button"
+								class="btn btn-ghost btn-sm shrink-0 gap-1 text-primary"
+								on:click|stopPropagation={openCommunitySwitcher}
+							>
+								<span>See all ({communities.length})</span>
+								<Icon icon="mingcute:right-line" class="text-lg" />
+							</button>
+						</div>
+
+						<div
+							class="mt-3 grid grid-cols-3 overflow-hidden rounded-lg border border-base-200 bg-base-300"
+						>
+							<div class="border-r border-base-200 px-3 py-3">
+								<Icon icon="mdi:account-group" class="text-lg text-primary-content" />
+								<p class="text-lg font-bold">{communities.length}</p>
+								<p class="text-[11px] font-semibold uppercase text-primary-content">Communities</p>
+							</div>
+							<div class="border-r border-base-200 px-3 py-3">
+								<Icon icon="mdi:shield-check" class="text-lg text-primary-content" />
+								<p class="text-lg font-bold">{belongCommunities.length}</p>
+								<p class="text-[11px] font-semibold uppercase text-primary-content">Roles</p>
+							</div>
+							<div class="px-3 py-3">
+								<Icon icon="mdi:message-text" class="text-lg text-primary-content" />
+								<p class="text-lg font-bold">{contributionCount}</p>
+								<p class="text-[11px] font-semibold uppercase text-primary-content">24h posts</p>
+							</div>
+						</div>
+
+						<div class="tabs tabs-boxed mt-4 bg-base-200">
+							<button
+								type="button"
+								class="tab flex-1"
+								class:tab-active={communityMode === 'belong'}
+								class:tab-disabled={!belongCommunities.length}
+								on:click={() => (communityMode = 'belong')}
+							>
+								Belongs to ({belongCommunities.length})
+							</button>
+							<button
+								type="button"
+								class="tab flex-1"
+								class:tab-active={communityMode === 'follow'}
+								class:tab-disabled={!followCommunities.length}
+								on:click={() => (communityMode = 'follow')}
+							>
+								Following ({followCommunities.length})
+							</button>
+						</div>
+
+						<div class="mt-3 flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
+							{#each visibleCommunities as community (`${community.relationship}-${community.key}`)}
+								{@const info = $relayInfos.get(community.key)}
+								{@const communityName = info?.name?.trim() || community.name}
+								{@const profiles = communityPreviews[community.key] || []}
+								{@const belongs = community.relationship === 'belong'}
+								<button
+									type="button"
+									class="w-56 shrink-0 rounded-lg border bg-base-300 p-3 text-left transition-colors hover:bg-base-200"
+									class:border-primary={belongs}
+									class:border-base-200={!belongs}
+									on:click|stopPropagation={() => openCommunity(community)}
+									aria-label={`${communityName} community`}
+								>
+									<div class="flex items-start gap-3">
+										<span
+											class={`flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg ${communityColorClass(
+												community.key
+											)}`}
+										>
+											{#if info?.icon}
+												<img
+													src={proxyAvatarUrl(info.icon)}
+													alt=""
+													class="h-full w-full object-cover"
+												/>
+											{:else}
+												<span class="text-sm font-bold text-base-100"
+													>{initials(communityName)}</span
+												>
+											{/if}
+										</span>
+										<span class="min-w-0 flex-1">
+											<span class="flex items-center gap-1">
+												<span class="min-w-0 flex-1 truncate text-[15px] font-bold">
+													{communityName}
+												</span>
+												{#if belongs}
+													<Icon icon="mdi:shield-check" class="shrink-0 text-primary" />
+												{/if}
+											</span>
+											<span class="mt-1 block text-xs font-semibold uppercase text-primary">
+												{belongs ? 'Member' : 'Following'}
+											</span>
+										</span>
+									</div>
+									<p class="mt-3 line-clamp-2 min-h-10 text-sm leading-5 text-primary-content">
+										{info?.description || 'Public community'}
+									</p>
+									<div class="mt-3 flex h-6 items-center">
+										{#each profiles.slice(0, 5) as profile, index (profile.pubkey)}
+											<span
+												class="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full border border-base-300 bg-base-200"
+												style={`margin-left: ${index ? -7 : 0}px`}
+											>
+												{#if profile.picture}
+													<img
+														src={proxyAvatarUrl(profile.picture)}
+														alt=""
+														class="h-full w-full object-cover"
+													/>
+												{:else}
+													<span class="text-[9px] font-bold text-primary-content">
+														{initials(profile.name)}
+													</span>
+												{/if}
+											</span>
+										{/each}
+										{#if profiles.length > 5}
+											<span class="ml-2 text-xs font-semibold text-primary-content">
+												+{profiles.length - 5}
+											</span>
+										{/if}
+									</div>
+									<div
+										class="mt-3 flex items-center gap-1 text-xs font-medium text-primary-content"
+									>
+										<Icon icon="mdi:account-group" class="text-sm" />
+										<span>Public</span>
+									</div>
+								</button>
+							{/each}
+						</div>
+					</section>
+				{/if}
 			</div>
 
-			<div class="tabs">
-				<a
-					class="tab"
-					class:border-t={mode == 'profile'}
-					class:border-primary-content={mode == 'profile'}
-					on:click={(_) => (mode = 'profile')}>Posts</a
-				>
-				<a
-					class="tab"
-					class:tab-disabled={!contacts.length}
-					class:border-t={mode == 'follows'}
-					class:border-primary-content={mode == 'follows'}
-					on:click={(_) => (mode = 'follows')}>Feed</a
-				>
+			<div class="border-t border-base-200/70 px-4 pt-2 pb-3">
+				<KindSwitcher
+					{selectedKinds}
+					ariaLabel="Profile content filters"
+					on:select={selectProfileKindTab}
+				/>
 			</div>
 			<!-- <h3 class="text-lg font-medium mb-4 px-4">Posts</h3> -->
 		</div>

@@ -125,7 +125,7 @@
 					)
 						return;
 					// if replies are quote return the feed
-					if (fbArray(kind1, 'mentions').some((q) => q.id() == data.id)) return;
+					if (fbArray(kind1, 'eventRefs').some((q) => q.id() == data.id)) return;
 
 					const eventId = parsedEvent.id();
 					const existingIndex = feedItems.findIndex((item) => item.id() === eventId);
@@ -276,7 +276,7 @@
 					limit: $limit,
 					until,
 					noContext: true,
-					relays: data.relays || []
+					relays: currentRelays.length ? currentRelays : data.relays || []
 				}
 			],
 			handleEvents,
@@ -373,7 +373,7 @@
 					subId={baseSubId}
 					relays={currentRelays.map(normalizeURL)}
 					{connectionStatus}
-					mini={$isMobile}
+					mini
 				/>
 				<!-- <span class="w-10" /> -->
 			</div>

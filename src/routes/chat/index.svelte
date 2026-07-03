@@ -1,13 +1,12 @@
 <script lang="ts">
 	import {
+		ChatLimiterPipeConfigT,
 		MessageType,
-		NpubLimiterPipeConfigT,
 		ParsePipeConfigT,
 		PipeConfig,
 		PipeT,
 		SaveToDbPipeConfigT,
 		SerializeEventsPipeConfigT,
-		type ConnectionStatus,
 		type Kind3Parsed,
 		type Kind4Parsed,
 		type ParsedEvent,
@@ -27,20 +26,20 @@
 	import Icon from '@iconify/svelte';
 	import { formatDistanceToNow } from 'date-fns';
 	import { orderBy } from 'lodash';
+	import { onDestroy } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { tweened } from 'svelte/motion';
 
 	import Pager from 'src/components/Pager.svelte';
-	import RelaysList from 'src/components/RelaysList.svelte';
 	import { key } from 'src/controller';
 	import { kind3, mutePipeConfig, readRelays, writeRelays } from 'src/controller/nostr';
+	import { DEFAULT_RELAYS } from 'src/lib/env';
 	import ContentBlocks from 'src/routes/explore/_post/ContentBlocks.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import User from 'src/routes/explore/user.svelte';
 	import { go } from 'src/routes/modals/modal';
 	import Empty from './empty.svelte';
-	import { normalizeURL } from 'nostr-tools/utils';
 
 	export let visible = true;
 
@@ -56,9 +55,6 @@
 	let messageItems: ParsedEvent[] = [];
 	let requestItems: ParsedEvent[] = [];
 	let contactPubkeys = new Set<string>();
-
-	let connectionStatus: { [url: string]: ConnectionStatus } = {};
-	let connectionTracker: ConnectionTracker | undefined;
 
 	// Viewport state from Feed
 	let start = 0;
@@ -83,14 +79,19 @@
 		easing: cubicOut
 	});
 
-	$: normalizedRelays = (
-		[...$readRelays, ...$writeRelays].filter((r) => typeof r === 'string') as string[]
-	).map(normalizeURL);
-
 	// Update the tweened value when depth changes
 	$: depthTranslation.set(subs.length * 30);
 
-	// Build subscription requests
+	let chatRelays: string[] = [];
+	$: chatRelays = Array.from(
+		new Set(
+			($readRelays?.length || $writeRelays?.length
+				? [...($readRelays || []), ...($writeRelays || [])]
+				: DEFAULT_RELAYS
+			).filter((relay): relay is string => !!relay)
+		)
+	);
+
 	function buildRequests(): RequestObject[] {
 		if (!$key?.pub) return [];
 
@@ -98,24 +99,24 @@
 			{
 				kinds: [4],
 				authors: [$key.pub],
-				relays: [...$readRelays, ...$writeRelays],
+				relays: chatRelays,
 				noCache: true
 			},
 			{
 				kinds: [4],
 				authors: [$key.pub],
-				relays: [...$readRelays, ...$writeRelays]
+				relays: chatRelays
 			},
 			{
 				kinds: [4],
 				tags: { '#p': [$key.pub] },
-				relays: [...$readRelays, ...$writeRelays],
+				relays: chatRelays,
 				noCache: true
 			},
 			{
 				kinds: [4],
 				tags: { '#p': [$key.pub] },
-				relays: [...$readRelays, ...$writeRelays]
+				relays: chatRelays
 			}
 		];
 	}
@@ -206,19 +207,21 @@
 
 	let subs: string[] = [];
 	let eoce = false;
+	let chatConnectionTracker = new ConnectionTracker();
+	let chatLoadingTimeout: ReturnType<typeof setTimeout> | undefined;
 
 	// Handle incoming events from subscription
 	function handleEvents(message: WorkerMessage) {
-		// Handle connection status
 		const status = isConnectionStatus(message);
 		if (status) {
-			const relayUrl = status.relayUrl();
-			if (relayUrl) {
-				// Normalize URL to match relay keys
-				const normalizedUrl = normalizeURL(relayUrl);
-				// Create new object for reactivity
-				connectionStatus = { ...connectionStatus, [normalizedUrl]: status };
-				connectionTracker?.handleMessage?.(message);
+			chatConnectionTracker.handleMessage(message);
+			if (chatConnectionTracker.resolutionRate > 0.5) {
+				loading = false;
+				refreshing = false;
+				if (chatLoadingTimeout) {
+					clearTimeout(chatLoadingTimeout);
+					chatLoadingTimeout = undefined;
+				}
 			}
 			return;
 		}
@@ -226,6 +229,7 @@
 		switch (message.type()) {
 			case MessageType.Eoce:
 				eoce = true;
+				loading = false;
 				break;
 			case MessageType.ParsedNostrEvent:
 				const parsedEvent = asParsedEvent(message) as ParsedEvent;
@@ -244,35 +248,47 @@
 		}
 	}
 
-	$: subscriptionOptions = {
-		pipeline: [
-			new PipeT(PipeConfig.MuteFilterPipeConfig, $mutePipeConfig),
-			new PipeT(PipeConfig.NpubLimiterPipeConfig, new NpubLimiterPipeConfigT(4, 5, 100)),
-			new PipeT(PipeConfig.ParsePipeConfig, new ParsePipeConfigT()),
-			new PipeT(PipeConfig.SaveToDbPipeConfig, new SaveToDbPipeConfigT()),
-			new PipeT(
-				PipeConfig.SerializeEventsPipeConfig,
-				new SerializeEventsPipeConfigT(new TextEncoder().encode('chat'))
-			)
-		]
-	};
+	function buildSubscriptionOptions(subId: string) {
+		return {
+			pipeline: [
+				new PipeT(PipeConfig.MuteFilterPipeConfig, $mutePipeConfig),
+				new PipeT(
+					PipeConfig.ChatLimiterPipeConfig,
+					new ChatLimiterPipeConfigT($key?.pub || '', 5, 5000, [4])
+				),
+				new PipeT(PipeConfig.ParsePipeConfig, new ParsePipeConfigT()),
+				new PipeT(PipeConfig.SaveToDbPipeConfig, new SaveToDbPipeConfigT()),
+				new PipeT(
+					PipeConfig.SerializeEventsPipeConfig,
+					new SerializeEventsPipeConfigT(new TextEncoder().encode(subId))
+				)
+			]
+		};
+	}
 
 	// Initialize subscription
-	let unsubscribe: (() => void) | undefined;
+	let unsubscribeChat: (() => void) | undefined;
 
 	$: if (visible && $key?.pub && $key?.hasSigner !== false) {
 		if (rawEvents.length === 0 && !loading) {
 			loading = true;
 			const requests = buildRequests();
 			if (requests.length > 0) {
-				unsubscribe?.();
-				connectionTracker = new ConnectionTracker();
-				unsubscribe = useSubscription(
-					'chat_' + $key.pub,
+				const subId = 'chat_' + $key.pub + '_' + chatRelays.join(',');
+				unsubscribeChat?.();
+				chatConnectionTracker.reset();
+				unsubscribeChat = useSubscription(
+					subId,
 					requests,
 					handleEvents,
-					subscriptionOptions
+					buildSubscriptionOptions(subId)
 				);
+				if (chatLoadingTimeout) clearTimeout(chatLoadingTimeout);
+				chatLoadingTimeout = setTimeout(() => {
+					loading = false;
+					refreshing = false;
+					chatLoadingTimeout = undefined;
+				}, 5000);
 			}
 		}
 	}
@@ -284,22 +300,34 @@
 		rawEvents = [];
 		const requests = buildRequests();
 		if (requests.length > 0) {
-			unsubscribe?.();
-			connectionTracker = new ConnectionTracker();
-			unsubscribe = useSubscription(
-				'chat_' + $key.pub + '_refresh_' + Date.now(),
+			const refreshId = Date.now();
+			const subId = 'chat_' + $key.pub + '_refresh_' + refreshId;
+			unsubscribeChat?.();
+			chatConnectionTracker.reset();
+			unsubscribeChat = useSubscription(
+				subId,
 				requests,
 				handleEvents,
-				subscriptionOptions
+				buildSubscriptionOptions(subId)
 			);
+			if (chatLoadingTimeout) clearTimeout(chatLoadingTimeout);
+			chatLoadingTimeout = setTimeout(() => {
+				loading = false;
+				refreshing = false;
+				chatLoadingTimeout = undefined;
+			}, 5000);
 		}
-		refreshing = false;
 	}
 
 	function correspondant(post: ParsedEvent) {
 		const kind4 = asKind4(post) as Kind4Parsed;
 		const recipient = kind4.recipient() || '';
 		return recipient == $key?.pub ? post.pubkey()! : (recipient as string);
+	}
+
+	function parsedChatContent(post: ParsedEvent) {
+		const kind4 = asKind4(post) as Kind4Parsed;
+		return kind4 ? fbArray(kind4, 'parsedContent') : [];
 	}
 
 	function selectChatTab(tab: ChatListTab) {
@@ -316,9 +344,9 @@
 	}
 
 	// Cleanup on unmount
-	import { onDestroy } from 'svelte';
 	onDestroy(() => {
-		unsubscribe?.();
+		unsubscribeChat?.();
+		if (chatLoadingTimeout) clearTimeout(chatLoadingTimeout);
 	});
 </script>
 
@@ -377,26 +405,26 @@
 						BM<button class="btn btn-circle btn-ghost btn-xs ml-2" on:click={showChatInfoModal}>
 							<Icon icon="material-symbols:info-outline" class="text-lg"></Icon>
 						</button>
-						<dialog id="blurred_chat_info" class="modal">
-							<div class="modal-box bg-base-300 bg-opacity-85">
-								<h3 class="font-bold text-xl">What is Blurred Chat?</h3>
-								<p class="py-4 text-base">
-									Blurred Chat is like speaking a secret language with your conversation partner.
-									While others can see who you're talking to and how long your conversations are,
-									they can't understand a single word of what you're saying. Your messages are
-									end-to-end encrypted on the Nostr protocol.
-								</p>
-								<div class="modal-action">
-									<form method="dialog">
-										<button class="btn">Close</button>
-									</form>
-								</div>
-							</div>
-							<form method="dialog" class="modal-backdrop">
-								<button>close</button>
-							</form>
-						</dialog>
 					</h1>
+					<dialog id="blurred_chat_info" class="modal">
+						<div class="modal-box bg-base-300 bg-opacity-85">
+							<h3 class="font-bold text-xl">What is Blurred Chat?</h3>
+							<p class="py-4 text-base">
+								Blurred Chat is like speaking a secret language with your conversation partner.
+								While others can see who you're talking to and how long your conversations are, they
+								can't understand a single word of what you're saying. Your messages are end-to-end
+								encrypted on the Nostr protocol.
+							</p>
+							<div class="modal-action">
+								<form method="dialog">
+									<button class="btn">Close</button>
+								</form>
+							</div>
+						</div>
+						<form method="dialog" class="modal-backdrop">
+							<button>close</button>
+						</form>
+					</dialog>
 					<button
 						class="btn btn-circle btn-sm btn-primary btn-outline"
 						on:click|stopPropagation={() => go('newchat')}
@@ -405,7 +433,6 @@
 						<!-- <Icon icon="teenyicons:add-outline" class="text-xl"></Icon> -->
 					</button>
 				</div>
-				<RelaysList relays={normalizedRelays} {connectionStatus} />
 				<div class="px-1 mt-2">
 					<div class="tabs tabs-boxed bg-base-200 bg-opacity-70 w-full">
 						<button
@@ -455,7 +482,7 @@
 							{#if post.pubkey == $key?.pub}<span class="text-primary">you:</span>
 							{/if}
 							<ContentBlocks
-								content={fbArray(k4, 'parsedContent') || []}
+								content={parsedChatContent(post)}
 								showQuote={false}
 								class="!w-auto flex-grow"
 							/>

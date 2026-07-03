@@ -1,0 +1,30 @@
+{
+  "packageName": "community-feed-static-assets",
+  "description": "Static assets for the \u201cCommunities are the algorithm\u201d slide / landing-page mockup.",
+  "primaryFiles": {
+    "generatedRasterMockup": "mockups/community-feed-slide-mockup.png",
+    "editableHeroSvg": "layouts/community-feed-hero-composition.svg",
+    "renderedHeroPng": "layouts/community-feed-hero-composition.png",
+    "feedPanelSvg": "components/svg/feed-panel.svg",
+    "feedPanelPng": "components/png/feed-panel.png",
+    "designTokensCss": "tokens/design-tokens.css",
+    "copyJson": "copy/content.json",
+    "previewHtml": "preview/index.html"
+  },
+  "directories": {
+    "icons/svg": "Standalone SVG icons.",
+    "icons/png": "PNG renders of the icons.",
+    "components/svg": "Reusable SVG UI components: pills, feed cards, feed panel, signal lines.",
+    "components/png": "PNG renders of SVG UI components.",
+    "mockups": "Full generated mockup and cropped raster sections.",
+    "backgrounds": "Warm beige background as SVG and PNG.",
+    "tokens": "Color and style tokens.",
+    "copy": "Slide copy and feed-card copy as structured JSON.",
+    "preview": "Static HTML preview using packaged assets.",
+    "reference": "Original slide reference screenshot."
+  },
+  "notes": [
+    "No font files are included. Assets use a system sans-serif font stack.",
+    "SVG files are editable and can be recolored via the design tokens."
+  ]
+}

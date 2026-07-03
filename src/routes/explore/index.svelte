@@ -1,22 +1,24 @@
 <script lang="ts">
 	import {
+		CounterPipeConfigT,
+		PipeConfig,
+		PipeT,
 		type ConnectionStatus,
 		type Kind3Parsed,
-		type ListParsed,
 		type ParsedEvent,
 		type RequestObject,
-		type WorkerMessage
+		type WorkerMessage,
+		getManager
 	} from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import {
 		asConnectionStatus,
-		asKind0,
 		asKind1,
 		asKind3,
 		asKind6,
 		asKind20,
-		asNip51,
 		asParsedEvent,
+		asCountResponse,
 		ConnectionTracker,
 		fbArray
 	} from '@candypoets/nipworker/utils';
@@ -24,25 +26,33 @@
 	import { isEqual, uniq } from 'lodash';
 
 	import { normalizeURL } from 'nostr-tools/utils';
+	import KindSwitcher from 'src/components/KindSwitcher.svelte';
+	import EventCard, { type CalendarEventCard } from 'src/components/EventCard.svelte';
 	import Pager from 'src/components/Pager.svelte';
 	import RelaysList from 'src/components/RelaysList.svelte';
 	import { key } from 'src/controller';
 	import {
-		followPacks,
+		exploreAudienceMode,
 		feedKinds,
 		ALL_FEED_KINDS,
-		KIND_LABELS,
-		KIND_ICONS,
 		type FeedKind
 	} from 'src/controller/feed';
-	import { defaultPipeline, kind0, kind3, readRelays } from 'src/controller/nostr';
+	import {
+		defaultPipeline,
+		kind3,
+		kind3Ready,
+		relayDirectoryUrls,
+		readRelays
+	} from 'src/controller/nostr';
 	import { limit } from 'src/controller/pagination';
-	import { relaySub, setSubRelays } from 'src/controller/relay';
+	import { relaySub, relaySubs, setSubRelays } from 'src/controller/relay';
+	import { CALENDAR_EVENT_KINDS, RSVP_KIND, parseCalendarEvent } from 'src/lib/calendarEvent';
 	import { ago } from 'src/lib/period';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import { go } from 'src/routes/modals/modal';
 	import { onDestroy } from 'svelte';
 	import Notifications from './notifications.svelte';
+	import Avatar from './avatar.svelte';
 
 	export let visible = true;
 
@@ -55,12 +65,13 @@
 	let refreshing = false;
 
 	// Track seen event IDs to prevent duplicates
-	let seenEventIds = new Set<number>();
+	let seenEventIds = new Set<string>();
 
 	// Pagination state
 	let until: number | undefined = undefined;
 	let hasMore = true;
 	let paginationCounter = 0;
+	let refreshCounter = 0;
 	let itemsBeforePagination = 0;
 	let paginationTimeout: ReturnType<typeof setTimeout> | undefined;
 	let refreshTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -83,6 +94,12 @@
 	$: feedKindsValue = $feedKinds;
 	$: effectiveKinds = feedKindsValue.length > 0 ? feedKindsValue : (ALL_FEED_KINDS as FeedKind[]);
 	let tags: string[] = [];
+	let kind3Resolved = false;
+	let feedMessageCount = 0;
+
+	kind3Ready.promise.then(() => {
+		kind3Resolved = true;
+	});
 
 	$: follows = $kind3
 		? fbArray(asKind3($kind3) as Kind3Parsed, 'contacts')
@@ -90,52 +107,50 @@
 				.filter((p): p is string => typeof p === 'string')
 		: [];
 
-	$: following = uniq(
-		[
-			...$followPacks.flatMap((pack) => fbArray(asNip51(pack) as ListParsed, 'people') || []),
-			...(($followPacks.some((fp) => asNip51(fp)?.title() == 'followlist') && follows) || [])
-		].filter((p): p is string => typeof p === 'string')
-	);
+	$: following = uniq(follows);
+	$: useContactsFeed = $exploreAudienceMode === 'contacts';
+	$: activeAudienceLabel = useContactsFeed ? 'Contacts' : 'All';
+	$: relaySelectionSubId = 'feed' + $exploreAudienceMode;
+	$: followingKey = hashString(following.join(','));
+	$: contactFeedKey = useContactsFeed
+		? (kind3Resolved ? 'kind3-ready' : 'kind3-pending') + followingKey
+		: '';
 
-	$: subId =
-		$followPacks.reduce((acc, cur) => acc + cur.id(), 'feed') +
-		tags.join(',') +
-		$feedKinds.join(',');
+	$: subId = 'feed' + $exploreAudienceMode + contactFeedKey + tags.join(',') + $feedKinds.join(',');
 
-	// Track last subId to detect followlist changes and reset feed
-	let lastSubId: string | undefined;
-	$: if (subId !== lastSubId) {
-		const prevSubId = lastSubId;
-		lastSubId = subId;
-		// Followlist changed, reset feed to trigger new subscription
-		// Also reset when transitioning from initial load (prevSubId was undefined) to populated state
-		if (hasInitialized || (prevSubId === undefined && $followPacks.length > 1)) {
-			resetFeed();
-			seenEventIds.clear();
-			hasInitialized = false;
-			relayCounter++;
+	function hashString(value: string): string {
+		let hash = 0;
+		for (let index = 0; index < value.length; index += 1) {
+			hash = (hash * 31 + value.charCodeAt(index)) | 0;
 		}
+		return Math.abs(hash).toString(36);
 	}
 
-	$: relays = $readRelays;
+	let lastSubId: string | undefined;
+	let hadFeedRequest = false;
+
+	let relayOverride: string[] | undefined = undefined;
+	$: accountRelays = $relayDirectoryUrls.length ? $relayDirectoryUrls : $readRelays;
+	$: selectedSubRelays = $relaySubs.get(relaySelectionSubId);
+	$: relays = relayOverride ?? selectedSubRelays ?? accountRelays;
 
 	// Filter out undefined values from relays
 	$: normalizedRelays = (relays.filter((r) => typeof r === 'string') as string[]).map(normalizeURL);
 
-	let relayCounter = 0;
-
 	function handleSubRelays(subRelays: string[] | undefined) {
-		if (subRelays && !isEqual(relays, subRelays)) {
-			relays = subRelays;
-			// Don't reset if we're in the middle of initial setup (isInitializing is true)
-			// or if the feed hasn't been initialized yet
-			if (!isInitializing && hasInitialized) {
-				resetFeed();
-				hasInitialized = false;
-				relayCounter += 1;
-				connectionStatus = {};
-				connectionTracker = new ConnectionTracker();
-			}
+		const nextRelays = subRelays
+			?.filter((r): r is string => typeof r === 'string')
+			.map(normalizeURL);
+		const currentRelays = relays
+			.filter((r): r is string => typeof r === 'string')
+			.map(normalizeURL);
+
+		if (nextRelays && !isEqual(currentRelays, nextRelays)) {
+			relayOverride = nextRelays;
+			resetFeed();
+			hadFeedRequest = false;
+			connectionStatus = {};
+			connectionTracker = new ConnectionTracker();
 		}
 	}
 
@@ -143,21 +158,132 @@
 	let currentRelaySubId: string | undefined = undefined;
 	let relaySubUnsubscribe: (() => void) | undefined;
 
-	$: if (subId && subId !== currentRelaySubId) {
+	$: if (relaySelectionSubId && relaySelectionSubId !== currentRelaySubId) {
 		// Clean up previous subscription before creating new one
 		relaySubUnsubscribe?.();
-		currentRelaySubId = subId;
-		relaySubUnsubscribe = relaySub(subId).subscribe((subRelays) => {
+		currentRelaySubId = relaySelectionSubId;
+		relaySubUnsubscribe = relaySub(relaySelectionSubId).subscribe((subRelays) => {
 			handleSubRelays(subRelays);
 		});
 	}
 
 	// Default relay for anonymous users
 	const DEFAULT_FEED_RELAYS = ['wss://nostr.wine'];
+	$: feedRelays = $key?.pub ? normalizedRelays : DEFAULT_FEED_RELAYS;
+	$: feedRelayKey = feedRelays.join('|');
+	let lastConnectionRelayKey = '';
+	$: if (feedRelayKey !== lastConnectionRelayKey) {
+		lastConnectionRelayKey = feedRelayKey;
+		connectionStatus = {};
+		connectionTracker = new ConnectionTracker();
+	}
 
-	// Track what type of feed we should be showing
-	// Use global feed only if no followlist is selected (works for both logged in and anonymous users)
-	$: useGlobalFeed = following.length === 0;
+	let eventSub: (() => void) | undefined;
+	let rsvpSubs: (() => void)[] = [];
+	let lastEventRelayKey = '';
+	let lastRsvpKey = '';
+	let upcomingEvents: CalendarEventCard[] = [];
+	let rsvpCountsByAddress: Record<string, number> = {};
+	$: eventAddressKey = upcomingEvents.map((event) => event.address).join('|');
+
+	function subscribeExploreEvents() {
+		if (!visible || !feedRelays.length || feedRelayKey === lastEventRelayKey) return;
+
+		eventSub?.();
+		rsvpSubs.forEach((unsubscribe) => unsubscribe());
+		rsvpSubs = [];
+		upcomingEvents = [];
+		rsvpCountsByAddress = {};
+		lastRsvpKey = '';
+		lastEventRelayKey = feedRelayKey;
+
+		const events = new Map<string, CalendarEventCard>();
+		const eventSubId = `explore_events_${hashString(feedRelayKey)}`;
+		setSubRelays(eventSubId, feedRelays);
+		eventSub = useSubscription(
+			eventSubId,
+			[
+				{
+					kinds: CALENDAR_EVENT_KINDS,
+					limit: 20,
+					noCache: true,
+					relays: feedRelays
+				}
+			],
+			(message) => {
+				const status = asConnectionStatus(message);
+				if (status) {
+					const relayUrl = status.relayUrl();
+					if (relayUrl) {
+						connectionStatus = { ...connectionStatus, [normalizeURL(relayUrl)]: status };
+					}
+					return;
+				}
+
+				const parsed = asParsedEvent(message);
+				if (!parsed) return;
+				const event = parseCalendarEvent(parsed, feedRelays);
+				if (!event) return;
+				events.set(event.id, event);
+				upcomingEvents = Array.from(events.values()).sort(
+					(left, right) => left.start - right.start
+				);
+			},
+			{ bytesPerEvent: 8 * 1024, closeOnEose: true }
+		);
+	}
+
+	function subscribeExploreRsvps() {
+		if (!visible || !feedRelays.length || !eventAddressKey || eventAddressKey === lastRsvpKey)
+			return;
+
+		lastRsvpKey = eventAddressKey;
+		rsvpSubs.forEach((unsubscribe) => unsubscribe());
+		rsvpSubs = upcomingEvents.map((event) => {
+			const rsvpSubId = `explore_rsvps_${hashString(feedRelayKey)}_${hashString(event.address)}`;
+			setSubRelays(rsvpSubId, feedRelays);
+
+			return useSubscription(
+				rsvpSubId,
+				[
+					{
+						kinds: [RSVP_KIND],
+						noCache: true,
+						relays: feedRelays,
+						tags: { '#a': [event.address] }
+					}
+				],
+				(message) => {
+					const status = asConnectionStatus(message);
+					if (status) {
+						const relayUrl = status.relayUrl();
+						if (relayUrl) {
+							connectionStatus = { ...connectionStatus, [normalizeURL(relayUrl)]: status };
+						}
+						return;
+					}
+
+					const count = asCountResponse(message);
+					if (!count || count.kind() !== RSVP_KIND) return;
+
+					rsvpCountsByAddress = {
+						...rsvpCountsByAddress,
+						[event.address]: count.count()
+					};
+				},
+				{
+					bytesPerEvent: 256,
+					closeOnEose: true,
+					pipeline: [
+						new PipeT(
+							PipeConfig.CounterPipeConfig,
+							new CounterPipeConfigT([RSVP_KIND], $key?.pub || '')
+						)
+					]
+				}
+			);
+		});
+	}
 
 	// Build subscription requests based on current state
 	function buildRequests(forPagination = false): RequestObject[] {
@@ -165,33 +291,19 @@
 		// If feedKinds is empty, request all supported kinds
 		const kindsToRequest = $feedKinds.length > 0 ? $feedKinds : (ALL_FEED_KINDS as FeedKind[]);
 
-		if (useGlobalFeed) {
-			return [
-				{
-					kinds: kindsToRequest,
-					limit: $limit,
-					since: forPagination ? undefined : ago(31 * 24 * 60 * 60),
-					until: forPagination ? until : undefined,
-					noCache: !!relayCounter,
-					tags: tags.length ? { '#t': tags } : undefined,
-					relays: DEFAULT_FEED_RELAYS
-				}
-			];
+		if (useContactsFeed && (!kind3Resolved || following.length === 0)) {
+			return [];
 		}
 
-		// User has followlist selected - use personalized feed
-		const authors = following;
-
-		// Use user's relays if logged in, otherwise use default relays
-		const feedRelays = $key?.pub ? relays : DEFAULT_FEED_RELAYS;
+		const authors = useContactsFeed ? following : undefined;
 
 		const baseRequest: RequestObject = {
 			kinds: kindsToRequest,
-			authors,
+			...(authors?.length ? { authors } : {}),
 			limit: $limit,
 			since: forPagination ? undefined : ago(31 * 24 * 60 * 60),
 			until: forPagination ? until : undefined,
-			noCache: !!relayCounter,
+			noCache: true,
 			tags: tags.length ? { '#t': tags } : undefined,
 			relays: feedRelays
 		};
@@ -209,6 +321,8 @@
 
 	// Handle incoming events from subscription
 	function handleEvents(message: WorkerMessage) {
+		feedMessageCount += 1;
+
 		// Handle connection status (including EOSE detection via resolutionRate)
 		const status = asConnectionStatus(message);
 		if (status && connectionTracker) {
@@ -234,11 +348,15 @@
 
 		// Handle parsed events
 		const parsedEvent = asParsedEvent(message);
-		if (!parsedEvent) return;
+		if (!parsedEvent) {
+			return;
+		}
 		const kind = parsedEvent.kind();
 
 		// Filter by kind based on feedKinds selection
-		if (!shouldIncludeKind(kind)) return;
+		if (!shouldIncludeKind(kind)) {
+			return;
+		}
 
 		// if (kind !== 1 && kind !== 6) return;
 		// Filter: only show root posts or direct replies to root posts
@@ -266,7 +384,9 @@
 
 			if (kind == 6) {
 				const kind6 = asKind6(parsedEvent);
-				if (!kind6.repostedEvent()) return;
+				if (!kind6?.repostedEvent()) {
+					return;
+				}
 			}
 		} else if (kind === 20) {
 			// kind20 is always a root post (image posts), always allow them
@@ -282,10 +402,14 @@
 		}
 
 		const eventId = parsedEvent.id();
-		if (!eventId) return;
+		if (!eventId) {
+			return;
+		}
 
 		// Check Set first (O(1)) for duplicate detection
-		if (seenEventIds.has(eventId)) return;
+		if (seenEventIds.has(eventId)) {
+			return;
+		}
 		seenEventIds.add(eventId);
 
 		const existingIndex = feedItems.findIndex((item) => item.id() === eventId);
@@ -342,92 +466,84 @@
 	// Initialize or update subscription when dependencies change
 	let unsubscribe: (() => void) | undefined;
 	let unsubscribePagination: (() => void) | undefined;
-	let hasInitialized = false;
 	let rootSubId: string | undefined = undefined;
 	let initTimeout: ReturnType<typeof setTimeout> | undefined;
 
-	// Track if we're currently initializing to prevent reactive loops
-	let isInitializing = false;
-
-	function initFeed() {
-		if (!visible) return;
-		if (hasInitialized) return;
-		if (loading) return;
-		if (isInitializing) return; // Prevent re-entry during initialization
-
-		loading = true;
-		isInitializing = true;
-
+	$: relayKey = `${feedRelays.length}_${hashString(feedRelayKey)}`;
+	$: feedRequest = (() => {
 		const requests = buildRequests();
-		if (requests.length > 0) {
-			unsubscribe?.();
-			connectionTracker = new ConnectionTracker();
-			rootSubId = subId + relayCounter;
-			unsubscribe = useSubscription(rootSubId, requests, handleEvents, {
-				bytesPerEvent: 10 * 1024,
-				pipeline: $defaultPipeline.for(rootSubId)
-			});
-			// Use default relays for anonymous users, otherwise use user's relays
-			setSubRelays(rootSubId, $key?.pub ? relays : DEFAULT_FEED_RELAYS);
-			// Mark as initialized AFTER setting up subscription and relays
-			// This prevents handleSubRelays from resetting during initial setup
-			hasInitialized = true;
-			isInitializing = false;
-			// Safety timeout: clear loading after 15s even if EOSE never arrives
-			if (initTimeout) clearTimeout(initTimeout);
-			initTimeout = setTimeout(() => {
-				if (loading) {
-					loading = false;
-					// If no items loaded, allow retry by resetting hasInitialized
-					if (feedItems.length === 0) {
-						hasInitialized = false;
-					}
-				}
-			}, 1500);
-		} else {
-			// Requests empty, reset loading so we can retry when deps change
+		if (!visible || requests.length === 0 || feedRelays.length === 0) {
+			return null;
+		}
+
+		return {
+			subId: `${subId}_${relayKey}_${refreshCounter}`,
+			requests
+		};
+	})();
+
+	$: if (!feedRequest) {
+		if (unsubscribe) {
+			unsubscribe();
+			getManager().cleanup();
+			unsubscribe = undefined;
+		}
+		rootSubId = undefined;
+		lastSubId = undefined;
+		hadFeedRequest = false;
+		loading = false;
+	}
+
+	$: if (feedRequest && feedRequest.subId !== lastSubId) {
+		if (!hadFeedRequest) {
+			lastSubId = undefined;
+			hadFeedRequest = true;
+		}
+
+		if (unsubscribe) {
+			unsubscribe();
+			getManager().cleanup();
+		}
+		unsubscribe = undefined;
+		rootSubId = feedRequest.subId;
+		lastSubId = feedRequest.subId;
+		connectionTracker = new ConnectionTracker();
+		loading = feedItems.length === 0;
+		feedMessageCount = 0;
+		unsubscribe = useSubscription(feedRequest.subId, feedRequest.requests, handleEvents, {
+			bytesPerEvent: 10 * 1024,
+			pipeline: $defaultPipeline.for(feedRequest.subId)
+		});
+		setSubRelays(relaySelectionSubId, feedRelays);
+
+		if (initTimeout) clearTimeout(initTimeout);
+		initTimeout = setTimeout(() => {
 			loading = false;
-			isInitializing = false;
-		}
+		}, 1500);
 	}
 
-	// Track previous feed type to detect switches
-	let wasGlobalFeed: boolean | undefined = undefined;
-	let isSwitchingFeedType = false;
-	$: {
-		// Guard: prevent re-entry during feed type switch (infinite loop protection)
-		if (isSwitchingFeedType) {
-		} else if (wasGlobalFeed !== undefined && hasInitialized && wasGlobalFeed !== useGlobalFeed) {
-			// Switching feed type - reinitialize and clear feed
-			// Set lock FIRST before any reactive state changes
-			isSwitchingFeedType = true;
-			// Update wasGlobalFeed to match useGlobalFeed so condition becomes false
-			wasGlobalFeed = useGlobalFeed;
-			// Now perform the state changes that might trigger other reactions
-			hasInitialized = false;
-			resetFeed();
-			seenEventIds.clear();
-			relayCounter++;
-			// Release lock after a tick to allow reactive updates to settle
-			setTimeout(() => {
-				isSwitchingFeedType = false;
-			}, 0);
-		} else {
-			wasGlobalFeed = useGlobalFeed;
-		}
+	$: if (visible && feedRelays.length && feedRelayKey !== lastEventRelayKey) {
+		subscribeExploreEvents();
 	}
 
-	$: if (visible && !hasInitialized) {
-		initFeed();
+	$: if (visible && feedRelays.length && eventAddressKey && eventAddressKey !== lastRsvpKey) {
+		subscribeExploreRsvps();
 	}
 
-	// Reset hasInitialized when becoming invisible
+	// Stop active subscriptions when becoming invisible
 	$: if (!visible) {
-		hasInitialized = false;
 		unsubscribe?.();
 		unsubscribe = undefined;
 		unsubscribePagination?.();
 		unsubscribePagination = undefined;
+		eventSub?.();
+		eventSub = undefined;
+		rsvpSubs.forEach((unsubscribe) => unsubscribe());
+		rsvpSubs = [];
+		lastSubId = undefined;
+		lastEventRelayKey = '';
+		lastRsvpKey = '';
+		hadFeedRequest = false;
 	}
 
 	// Cleanup on component destroy
@@ -435,6 +551,8 @@
 		relaySubUnsubscribe?.();
 		unsubscribe?.();
 		unsubscribePagination?.();
+		eventSub?.();
+		rsvpSubs.forEach((unsubscribe) => unsubscribe());
 		if (paginationTimeout) clearTimeout(paginationTimeout);
 		if (paginationCheckTimeout) clearTimeout(paginationCheckTimeout);
 		if (refreshTimeout) clearTimeout(refreshTimeout);
@@ -445,15 +563,13 @@
 	function handleRefresh() {
 		if (refreshing) return;
 		refreshing = true;
-		// Reset initialization to allow re-subscription
-		hasInitialized = false;
 		// Reset connection tracker for fresh EOSE detection
 		connectionTracker = new ConnectionTracker();
 		// Don't clear feedItems or seenEventIds - keep existing content visible
 		// Reset until to fetch latest posts
 		until = undefined;
-		// Force noCache by incrementing relayCounter
-		relayCounter++;
+		// Force a fresh subscription while keeping automatic relay switches stable.
+		refreshCounter++;
 		// Clear any existing refresh timeout
 		if (refreshTimeout) {
 			clearTimeout(refreshTimeout);
@@ -464,8 +580,6 @@
 			loading = false;
 			refreshTimeout = undefined;
 		}, 10000);
-		// initFeed will set loading = true
-		initFeed();
 	}
 
 	// Handle near-bottom pagination with quantile-based window calculation
@@ -487,7 +601,7 @@
 		if (requests.length > 0) {
 			// Clean up previous pagination subscription if any
 			unsubscribePagination?.();
-			const pageSubId = subId + '_page_' + paginationCounter + '_' + until;
+			const pageSubId = subId + '_' + relayKey + '_page_' + paginationCounter + '_' + until;
 			unsubscribePagination = useSubscription(pageSubId, requests, handleEvents, {
 				bytesPerEvent: 10 * 1024,
 				pipeline: $defaultPipeline.for(pageSubId),
@@ -534,7 +648,27 @@
 	// Merge pending new items when user clicks the new posts indicator
 	function mergePendingItems() {
 		newPostsCount = 0;
-		lastSeenTopItem = feedItems[0]?.id();
+		lastSeenTopItem = feedItems[0]?.createdAt();
+	}
+
+	function toggleAudienceMode() {
+		$exploreAudienceMode = useContactsFeed ? 'all' : 'contacts';
+		resetFeed();
+		hadFeedRequest = false;
+		connectionStatus = {};
+		connectionTracker = new ConnectionTracker();
+	}
+
+	function selectExploreKindTab(event: CustomEvent<{ kinds: FeedKind[] }>) {
+		$feedKinds = event.detail.kinds;
+		resetFeed();
+		connectionStatus = {};
+		connectionTracker = new ConnectionTracker();
+		hadFeedRequest = false;
+	}
+
+	function audienceButtonClass() {
+		return 'flex items-center gap-1 text-2xl font-semibold tracking-tight transition-colors duration-200 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-md active:translate-y-px';
 	}
 </script>
 
@@ -552,42 +686,15 @@
 			<div class="relative bg-base-300 bg-opacity-80 md:border-b border-base-200 pt-safe">
 				<div class="flex justify-between w-feed lg:m-auto h-16 items-center">
 					<div class="flex gap-1 items-center min-w-0 flex-1">
-						{#if following.length > 0}
-							{#each $followPacks as pack}
-								{@const kind39039 = asNip51(pack)}
-								<div class="cursor-pointer" on:click|stopPropagation={() => go('followlists')}>
-									<img
-										src={kind39039?.image() || '/followlist.png'}
-										class="w-8 h-8 border rounded-full"
-										alt={kind39039?.title() || 'Follow pack'}
-										title={kind39039?.title() || 'Follow pack'}
-									/>
-								</div>
-							{/each}
-						{:else}
-							<!-- Global feed (no followlist) - show infinity icon -->
-							<div
-								class="cursor-pointer"
-								on:click|stopPropagation={() => go('followlists')}
-								title="Global feed - select a followlist for personalized feed"
-							>
-								<div class="w-8 h-8 border rounded-full flex items-center justify-center">
-									<Icon icon="mdi:infinity" class="text-2xl" />
-								</div>
-							</div>
-						{/if}
-						<!-- Show selected content kinds (visible regardless of followlist) -->
-						{#if $feedKinds.length > 0 && $feedKinds.length < ALL_FEED_KINDS.length}
-							{#each $feedKinds as kind}
-								<div
-									class="cursor-pointer w-8 h-8 border rounded-full flex items-center justify-center bg-base-200"
-									on:click|stopPropagation={() => go('followlists')}
-									title={KIND_LABELS[kind]}
-								>
-									<Icon icon={KIND_ICONS[kind]} class="text-sm" />
-								</div>
-							{/each}
-						{/if}
+						<button
+							type="button"
+							class={audienceButtonClass()}
+							on:click|stopPropagation={toggleAudienceMode}
+							title="Toggle Explore feed audience"
+						>
+							{activeAudienceLabel}
+							<Icon icon="mdi:chevron-down" class="text-2xl" />
+						</button>
 					</div>
 
 					<div class="flex gap-2 items-center w-1/3 justify-end">
@@ -596,16 +703,15 @@
 							<Icon icon="mdi:bell-outline" class="text-2xl mr-2" />
 						</span>
 						<a class="cursor-pointer" on:click|stopPropagation={() => go('profile')}>
-							<img
-								src={asKind0($kind0)?.picture() || '/miss-profile.png'}
-								class="w-8 h-8 border rounded-full"
-								alt="Profile"
-							/>
+							<Avatar pubkey={$key?.pub || ''} size="md" customClass="border rounded-full" />
 						</a>
 					</div>
 				</div>
 				<div
-					class="absolute left-1/2 top-full z-20 mt-2 -translate-x-1/2 cursor-pointer rounded-full bg-info px-4 py-1.5 text-sm font-medium text-info-content shadow-lg backdrop-blur-sm transition-all duration-300 ease-out {newPostsCount > 0 ? 'translate-y-0 opacity-100' : '-translate-y-2 opacity-0 pointer-events-none'}"
+					class="absolute left-1/2 top-full z-20 mt-2 -translate-x-1/2 cursor-pointer rounded-full bg-info px-4 py-1.5 text-sm font-medium text-info-content shadow-lg backdrop-blur-sm transition-all duration-300 ease-out {newPostsCount >
+					0
+						? 'translate-y-0 opacity-100'
+						: '-translate-y-2 opacity-0 pointer-events-none'}"
 					on:click={mergePendingItems}
 				>
 					{newPostsCount} new posts
@@ -624,45 +730,19 @@
 		</svelte.fragment>
 		<svelte.fragment slot="header">
 			<div
-				class="w-feed relative pt-safe bg-base-300 bg-opacity-85 backdrop-blur-gpu rounded-lg pb-1 px-1 shadow-widget-down"
+				class="w-feed relative pt-safe rounded-lg border border-base-200/70 bg-base-300/85 px-3 pb-3 shadow-widget-down backdrop-blur-gpu md:px-4"
 			>
 				<div class="lg:m-auto flex justify-between items-center h-16">
-					<div class="flex gap-1 items-center">
-						{#if following.length > 0}
-							{#each $followPacks as pack}
-								{@const kind39039 = asNip51(pack)}
-								<div class="cursor-pointer" on:click|stopPropagation={() => go('followlists')}>
-									<img
-										src={kind39039?.image() || '/followlist.png'}
-										class="w-8 h-8 border rounded-full"
-										alt={kind39039?.title() || 'Follow pack'}
-									/>
-								</div>
-							{/each}
-						{:else}
-							<!-- Global feed (no followlist) - show infinity icon -->
-							<div
-								class="cursor-pointer"
-								on:click|stopPropagation={() => go('followlists')}
-								title="Global feed - select a followlist for personalized feed"
-							>
-								<div class="w-8 h-8 border rounded-full flex items-center justify-center">
-									<Icon icon="mdi:infinity" class="text-2xl" />
-								</div>
-							</div>
-						{/if}
-						<!-- Show selected content kinds -->
-						{#if $feedKinds.length > 0 && $feedKinds.length < ALL_FEED_KINDS.length}
-							{#each $feedKinds as kind}
-								<div
-									class="cursor-pointer w-8 h-8 border rounded-full flex items-center justify-center bg-base-200"
-									on:click|stopPropagation={() => go('followlists')}
-									title={KIND_LABELS[kind]}
-								>
-									<Icon icon={KIND_ICONS[kind]} class="text-sm" />
-								</div>
-							{/each}
-						{/if}
+					<div class="flex min-w-0 items-center">
+						<button
+							type="button"
+							class={audienceButtonClass()}
+							on:click|stopPropagation={toggleAudienceMode}
+							title="Toggle Explore feed audience"
+						>
+							{activeAudienceLabel}
+							<Icon icon="mdi:chevron-down" class="text-2xl" />
+						</button>
 					</div>
 					<div class="flex gap-2 items-center">
 						<!-- Desktop refresh button (mobile has pull-to-refresh) -->
@@ -680,20 +760,46 @@
 						<!-- <span class="text font-semibold">{$balance} Sats</span> -->
 						<Notifications />
 						<div class="cursor-pointer" on:click|stopPropagation={() => go('profile')}>
-							<img
-								src={asKind0($kind0)?.picture() || '/miss-profile.png'}
-								class="w-8 h-8 border rounded-full"
-								alt="Profile"
-							/>
+							<Avatar pubkey={$key?.pub || ''} size="md" customClass="border rounded-full" />
 						</div>
 					</div>
 				</div>
-				<RelaysList {subId} relays={normalizedRelays} {connectionStatus} />
+				<div class="min-h-10">
+					<RelaysList
+						class="!justify-start"
+						subId={relaySelectionSubId}
+						relays={feedRelays}
+						{connectionStatus}
+					/>
+				</div>
+				{#if upcomingEvents.length}
+					<div class="mt-3 border-t border-base-200/70 pt-3">
+						<div class="mb-3 flex items-center justify-between">
+							<h2 class="text-base font-bold">Upcoming events</h2>
+						</div>
+						<div class="flex items-start gap-3 overflow-x-auto pb-1 scrollbar-hide">
+							{#each upcomingEvents.slice(0, 3) as event (event.id)}
+								<EventCard
+									{event}
+									{feedRelays}
+									rsvpCount={rsvpCountsByAddress[event.address] || 0}
+								/>
+							{/each}
+						</div>
+					</div>
+				{/if}
+				<div class="mt-2 hidden border-t border-base-200/70 pt-2 md:block">
+					<KindSwitcher
+						selectedKinds={$feedKinds}
+						ariaLabel="Explore content filters"
+						on:select={selectExploreKindTab}
+					/>
+				</div>
 			</div>
 			{#if tags.length}
 				<div class="bg-base-300 bg-opacity-85 backdrop-blur-gpu rounded-lg pb-1 px-1 mt-1">
 					<div class="flex gap-1 items-center">
-						{#each tags as tag}
+						{#each tags as tag (tag)}
 							<span
 								class=" px-2 py-1 bg-base-200 rounded-full relative overflow-hidden text-primary"
 							>

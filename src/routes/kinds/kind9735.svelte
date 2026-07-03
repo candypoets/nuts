@@ -78,10 +78,10 @@
 <!-- <div class="break-words">{JSON.stringify(decoded)}</div> -->
 <!-- Added role, tabindex and keydown for accessibility -->
 <div
-	class="p-4 cursor-pointer border-x border-b border-primary-content bg-base-300 bg-opacity-85 relative"
+	class="p-4 cursor-pointer border-base-100 bg-base-300 bg-opacity-85 relative"
 	class:rounded-t-lg={isFirst}
 	class:rounded-b-lg={isLast}
-	class:border-t={isFirst}
+	class:border-b={!isLast}
 	class:mt-1={isFirst}
 	on:click|stopPropagation={go}
 	on:keydown={(e) => e.key === 'Enter' && go()}
