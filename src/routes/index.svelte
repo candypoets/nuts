@@ -68,6 +68,7 @@
 	import {
 		goBack as goBackRouter,
 		goToRoot as goToRootRouter,
+		navigateStackPath,
 		stackPath
 	} from 'src/routes/modals/modal';
 
@@ -575,6 +576,17 @@
 		carouselAnimator.navigateTo(index, 400, $isMobile);
 	}
 
+	function handleCarouselItemClick(event: MouseEvent, index: number, route: string) {
+		if ($overviewModeStore) {
+			handleSelectFeedInOverview(index);
+			return;
+		}
+
+		if (index !== $currentIndexStore) return;
+		if (event.target !== event.currentTarget) return;
+		$pagerAnimator?.unregisterAll(() => navigateStackPath(route));
+	}
+
 	// Touch handling with RAF
 	let virtualXPosition = 0;
 
@@ -641,7 +653,7 @@
 				class="carousel-item w-[100vw] h-full will-change-transform carousel-item-{index}"
 				class:pointer-events-none={$overviewModeStore}
 				data-carousel-route={feed.route}
-				on:click={() => $overviewModeStore && handleSelectFeedInOverview(index)}
+				on:click={(event) => handleCarouselItemClick(event, index, feed.route)}
 			>
 				{#if $overviewModeStore}
 					<button
@@ -653,7 +665,13 @@
 						×
 					</button>
 				{/if}
-				<div class="w-full h-full relative overflow-hidden">
+				<div
+					class="w-full h-full relative overflow-hidden"
+					on:click={(event) => {
+						if (event.target !== event.currentTarget) return;
+						handleCarouselItemClick(event, index, feed.route);
+					}}
+				>
 					{#if feed.id === 'home'}
 						<Home visible={!$isMobile || $currentIndexStore == index} />
 					{:else if feed.id === 'explore'}

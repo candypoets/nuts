@@ -1,6 +1,7 @@
 import { goto, pushState } from '$app/navigation';
 import { page } from '$app/stores';
 import { get, writable } from 'svelte/store';
+import { rememberRootPath, rememberedRootPath, stackPath } from 'src/routes/modals/modal';
 
 export interface FeedConfig {
 	route: string;
@@ -253,6 +254,7 @@ export class CarouselAnimator {
 		const currentPathname = typeof window === 'undefined' ? pathname : window.location.pathname;
 		const index = this.activeRoutes.findIndex((r) => currentPathname.startsWith(r.route));
 		if (index < 0) return;
+		rememberRootPath(currentPathname);
 
 		const current = this.currentIndexValue;
 		if (index !== current) {
@@ -471,12 +473,15 @@ export class CarouselAnimator {
 
 	private commitCarouselRoute(route: string) {
 		if (typeof window === 'undefined') return;
-		if (window.location.pathname === route) return;
+		const targetRoute = rememberedRootPath(route);
+		if (window.location.pathname === targetRoute) return;
+		rememberRootPath(targetRoute);
+		stackPath.set(targetRoute);
 
 		try {
-			pushState(route, {});
+			pushState(targetRoute, {});
 		} catch {
-			goto(route);
+			goto(targetRoute);
 		}
 	}
 

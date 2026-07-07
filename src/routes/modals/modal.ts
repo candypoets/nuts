@@ -72,6 +72,7 @@ export const PAGER_NAVIGATION_CONTEXT = 'pagerNavigation';
 export const stackPath = writable(
 	typeof window !== 'undefined' ? window.location.pathname : get(page).url.pathname
 );
+const rootPaths = new Map<string, string>();
 let cleanupTimer: ReturnType<typeof setTimeout> | undefined;
 let lastNavigationRoot: string | undefined;
 let navigationRootCleanup: ReturnType<typeof setTimeout> | undefined;
@@ -96,7 +97,9 @@ function rememberNavigationRoot(route: string | undefined) {
 
 if (typeof document !== 'undefined') {
 	window.addEventListener('popstate', () => {
-		stackPath.set(window.location.pathname);
+		const path = window.location.pathname;
+		rememberRootPath(path);
+		stackPath.set(path);
 	});
 
 	document.addEventListener(
@@ -118,6 +121,21 @@ if (typeof document !== 'undefined') {
 
 function currentPathname() {
 	return get(stackPath);
+}
+
+function rootPathFromPath(path: string) {
+	const root = path.split('/')[1];
+	return root ? `/${root}` : undefined;
+}
+
+export function rememberRootPath(path: string) {
+	const rootPath = rootPathFromPath(path);
+	if (!rootPath || !path.startsWith(rootPath)) return;
+	rootPaths.set(rootPath, path);
+}
+
+export function rememberedRootPath(rootPath: string) {
+	return rootPaths.get(rootPath) || rootPath;
 }
 
 export function currentNavigationPathname() {
@@ -150,6 +168,7 @@ function scheduleCleanup(delay = 1000) {
 }
 
 export function navigateStackPath(path: string) {
+	rememberRootPath(path);
 	stackPath.set(path);
 	try {
 		pushState(path, {});

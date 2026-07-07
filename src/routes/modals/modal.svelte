@@ -22,7 +22,7 @@
 
 	import { viewport } from 'src/controller/viewport';
 	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
-	import { getContext, onMount, setContext } from 'svelte';
+	import { getContext, onDestroy, onMount, setContext } from 'svelte';
 	import Share from './share.svelte';
 	import ImageZoom from 'src/components/ImageZoom.svelte';
 	import Login from './_profile/login.svelte';
@@ -55,6 +55,12 @@
 	onMount(() => {
 		if (pager && element) {
 			pager.registerElement(element);
+		}
+	});
+
+	onDestroy(() => {
+		if (pager && element) {
+			pager.removeElement(element);
 		}
 	});
 

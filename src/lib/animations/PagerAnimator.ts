@@ -358,6 +358,8 @@ export class PagerAnimator {
 	 * Register a sub element
 	 */
 	registerElement(element: HTMLElement) {
+		if (this.stack.includes(element)) return;
+
 		// GPU acceleration hints
 		element.style.willChange = 'transform, opacity';
 		element.style.backfaceVisibility = 'hidden';
@@ -373,6 +375,19 @@ export class PagerAnimator {
 
 		const depths = this.updateAllSubElements(0, 0, 'in');
 		this.updateMainContent(0, 0, false, depths);
+	}
+
+	/**
+	 * Remove an element that Svelte destroyed without treating it as user navigation.
+	 */
+	removeElement(element: HTMLElement) {
+		const index = this.stack.indexOf(element);
+		if (index < 0) return;
+
+		this.stack.splice(index, 1);
+		this.applyCombinedVisibility();
+		const depths = this.updateAllSubElements(0, 0, undefined, true);
+		this.updateMainContent(0, 0, true, depths);
 	}
 
 	/**
@@ -651,7 +666,7 @@ export class PagerAnimator {
 		this.updateMainContent(this.pendingDeltaX, this.pendingDeltaY, true, depths);
 
 		this.rafId = null;
-	}
+	};
 
 	/**
 	 * Real-time touch tracking for swipe-to-dismiss using direct style updates

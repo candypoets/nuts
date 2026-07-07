@@ -8,7 +8,7 @@
 	import Notifications from 'src/routes/notifications/index.svelte';
 
 	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
-	import { getContext, onMount } from 'svelte';
+	import { getContext, onDestroy, onMount } from 'svelte';
 
 	export let path: string;
 	export let visible: boolean;
@@ -38,6 +38,12 @@
 	onMount(() => {
 		if (pagerAnimator && element) {
 			pagerAnimator.registerElement(element);
+		}
+	});
+
+	onDestroy(() => {
+		if (pagerAnimator && element) {
+			pagerAnimator.removeElement(element);
 		}
 	});
 
