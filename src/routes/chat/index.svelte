@@ -364,7 +364,7 @@
 		<svelte:fragment slot="sticky-header">
 			<div class="relative pt-safe bg-base-300 bg-opacity-50">
 				<div class="flex justify-between w-feed lg:m-auto h-16 items-center px-1">
-					<h1 class="text-2xl font-semibold">BM</h1>
+					<h1 class="text-2xl font-semibold">Messages</h1>
 					<button
 						class="btn btn-circle btn-sm btn-primary"
 						on:click|stopPropagation={() => go('newchat')}
@@ -402,15 +402,15 @@
 			>
 				<div class="flex justify-between m-auto h-16 items-center px-1">
 					<h1 class="text-2xl font-semibold">
-						BM<button class="btn btn-circle btn-ghost btn-xs ml-2" on:click={showChatInfoModal}>
+						Messages<button class="btn btn-circle btn-ghost btn-xs ml-2" on:click={showChatInfoModal}>
 							<Icon icon="material-symbols:info-outline" class="text-lg"></Icon>
 						</button>
 					</h1>
 					<dialog id="blurred_chat_info" class="modal">
 						<div class="modal-box bg-base-300 bg-opacity-85">
-							<h3 class="font-bold text-xl">What is Blurred Chat?</h3>
+							<h3 class="font-bold text-xl">What is Chat?</h3>
 							<p class="py-4 text-base">
-								Blurred Chat is like speaking a secret language with your conversation partner.
+								Chat is like speaking a secret language with your conversation partner.
 								While others can see who you're talking to and how long your conversations are, they
 								can't understand a single word of what you're saying. Your messages are end-to-end
 								encrypted on the Nostr protocol.

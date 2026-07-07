@@ -281,7 +281,7 @@
 				<div class="flex items-center space-x-2">
 					<input
 						type="text"
-						placeholder="Send as BM to {kind0?.name()}"
+						placeholder="Send as chat to {kind0?.name()}"
 						class="input input-bordered flex-grow"
 						bind:value={message}
 						autocomplete="off"

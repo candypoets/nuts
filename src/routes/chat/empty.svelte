@@ -67,7 +67,7 @@
 			</span>
 		</div>
 
-		<h2 class="text-2xl font-semibold mb-2">Start a Blurred Chat</h2>
+		<h2 class="text-2xl font-semibold mb-2">Start a Chat</h2>
 		<p class="text-base-content/70 max-w-prose mb-4">
 			End‑to‑end encrypted DMs on Nostr. Others may see who you're talking to, but never what you
 			say.

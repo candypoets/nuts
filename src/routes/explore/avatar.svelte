@@ -27,8 +27,11 @@
 	let profile: Kind0Parsed | undefined;
 	let imageUrl: string | undefined;
 	let proxiedImageUrl: string | undefined;
+	let loadingProfile = false;
 
 	let sub: (() => void) | undefined;
+	let timeout: ReturnType<typeof setTimeout> | undefined;
+	const FALLBACK_IMAGE = '/miss-profile.png';
 
 	// Size mapping to Tailwind classes
 	const sizeClasses = {
@@ -41,9 +44,20 @@
 
 	onMount(() => {
 		try {
-			profile = context.find((c) => asKind0(c)) as Kind0Parsed | undefined;
+			profile = context.find((c) => asKind0(c)?.pubkey() === pubkey) as Kind0Parsed | undefined;
 			imageUrl = profile?.picture && profile?.picture();
 			proxiedImageUrl = imageUrl ? proxyAvatarUrl(imageUrl) : undefined;
+
+			if (!pubkey || !query || profile) {
+				return () => sub?.();
+			}
+
+			loadingProfile = true;
+			timeout = setTimeout(() => {
+				loadingProfile = false;
+				timeout = undefined;
+			}, 1500);
+
 			if (!profile && query) {
 				sub = useSubscription(
 					'u_' + pubkey,
@@ -56,7 +70,13 @@
 									profile = kind0;
 									imageUrl = kind0?.picture && kind0.picture();
 									proxiedImageUrl = imageUrl ? proxyAvatarUrl(imageUrl) : undefined;
+									loadingProfile = false;
+									if (timeout) {
+										clearTimeout(timeout);
+										timeout = undefined;
+									}
 									sub?.();
+									sub = undefined;
 								}
 						}
 					},
@@ -67,24 +87,66 @@
 			console.error(error);
 		}
 
-		return () => sub?.();
+		return () => {
+			sub?.();
+			if (timeout) clearTimeout(timeout);
+		};
 	});
+
+	function handleImageError() {
+		proxiedImageUrl = undefined;
+		loadingProfile = false;
+	}
+
 	function goto() {
 		if (!link) return;
 		const profilePath = `nprofile:${pubkey}`;
 		go(profilePath);
 	}
+
+	function handleKeydown(event: KeyboardEvent) {
+		if (event.key !== 'Enter' && event.key !== ' ') return;
+		event.preventDefault();
+		goto();
+	}
 </script>
 
 <!-- Profile picture with fallback and sizing -->
-<div
-	class={`${sizeClasses[size]} rounded-full border overflow-hidden bg-gray-200 flex-shrink-0 ${customClass}`}
-	on:click={goto}
->
-	{#if proxiedImageUrl}
-		<img src={proxiedImageUrl} alt="Profile" class="w-full h-full object-cover" />
-	{:else}
-		<!-- Placeholder while loading -->
-		<div class="w-full h-full bg-gray-300 shimmer"></div>
-	{/if}
-</div>
+{#if link}
+	<button
+		type="button"
+		class={`${sizeClasses[size]} rounded-full border overflow-hidden bg-gray-200 flex-shrink-0 ${customClass}`}
+		on:click={goto}
+		on:keydown={handleKeydown}
+	>
+		{#if proxiedImageUrl}
+			<img
+				src={proxiedImageUrl}
+				alt="Profile"
+				class="w-full h-full object-cover"
+				on:error={handleImageError}
+			/>
+		{:else if loadingProfile}
+			<div class="w-full h-full bg-gray-300 shimmer"></div>
+		{:else}
+			<img src={FALLBACK_IMAGE} alt="Profile" class="w-full h-full object-cover" />
+		{/if}
+	</button>
+{:else}
+	<div
+		class={`${sizeClasses[size]} rounded-full border overflow-hidden bg-gray-200 flex-shrink-0 ${customClass}`}
+	>
+		{#if proxiedImageUrl}
+			<img
+				src={proxiedImageUrl}
+				alt="Profile"
+				class="w-full h-full object-cover"
+				on:error={handleImageError}
+			/>
+		{:else if loadingProfile}
+			<div class="w-full h-full bg-gray-300 shimmer"></div>
+		{:else}
+			<img src={FALLBACK_IMAGE} alt="Profile" class="w-full h-full object-cover" />
+		{/if}
+	</div>
+{/if}
