@@ -274,28 +274,34 @@
 
 	// Initialize subscription
 	let unsubscribeChat: (() => void) | undefined;
+	let currentChatSubId: string | undefined;
 
-	$: if (visible && $key?.pub && $key?.hasSigner !== false) {
-		if (rawEvents.length === 0 && !loading) {
-			loading = true;
-			const requests = buildRequests();
-			if (requests.length > 0) {
-				const subId = 'chat_' + $key.pub + '_' + chatRelays.join(',');
-				unsubscribeChat?.();
-				chatConnectionTracker.reset();
-				unsubscribeChat = useSubscription(
-					subId,
-					requests,
-					handleEvents,
-					buildSubscriptionOptions(subId)
-				);
-				if (chatLoadingTimeout) clearTimeout(chatLoadingTimeout);
-				chatLoadingTimeout = setTimeout(() => {
-					loading = false;
-					refreshing = false;
-					chatLoadingTimeout = undefined;
-				}, 5000);
-			}
+	function startChatSubscription(subId: string, requests: RequestObject[]) {
+		unsubscribeChat?.();
+		currentChatSubId = subId;
+		chatConnectionTracker.reset();
+		unsubscribeChat = useSubscription(subId, requests, handleEvents, buildSubscriptionOptions(subId));
+		if (chatLoadingTimeout) clearTimeout(chatLoadingTimeout);
+		chatLoadingTimeout = setTimeout(() => {
+			loading = false;
+			refreshing = false;
+			chatLoadingTimeout = undefined;
+		}, 5000);
+	}
+
+	$: if (!visible || !$key?.pub || $key?.hasSigner === false) {
+		unsubscribeChat?.();
+		unsubscribeChat = undefined;
+		currentChatSubId = undefined;
+		loading = false;
+		refreshing = false;
+	} else {
+		const requests = buildRequests();
+		const subId = 'chat_' + $key.pub + '_' + chatRelays.join(',');
+		if (!refreshing && requests.length > 0 && subId !== currentChatSubId) {
+			loading = rawEvents.length === 0;
+			eoce = false;
+			startChatSubscription(subId, requests);
 		}
 	}
 
@@ -308,20 +314,7 @@
 		if (requests.length > 0) {
 			const refreshId = Date.now();
 			const subId = 'chat_' + $key.pub + '_refresh_' + refreshId;
-			unsubscribeChat?.();
-			chatConnectionTracker.reset();
-			unsubscribeChat = useSubscription(
-				subId,
-				requests,
-				handleEvents,
-				buildSubscriptionOptions(subId)
-			);
-			if (chatLoadingTimeout) clearTimeout(chatLoadingTimeout);
-			chatLoadingTimeout = setTimeout(() => {
-				loading = false;
-				refreshing = false;
-				chatLoadingTimeout = undefined;
-			}, 5000);
+			startChatSubscription(subId, requests);
 		}
 	}
 
@@ -373,6 +366,7 @@
 	// Cleanup on unmount
 	onDestroy(() => {
 		unsubscribeChat?.();
+		currentChatSubId = undefined;
 		if (chatLoadingTimeout) clearTimeout(chatLoadingTimeout);
 	});
 </script>
