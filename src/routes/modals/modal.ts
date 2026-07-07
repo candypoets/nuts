@@ -16,6 +16,7 @@ export const pathOptions = [
 	'kind1111',
 	'lightning',
 	'login',
+	'signup',
 	'minting',
 	'minted',
 	'melt',

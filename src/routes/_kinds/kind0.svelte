@@ -9,16 +9,16 @@
 		WorkerMessage
 	} from '@candypoets/nipworker';
 	import Icon from '@iconify/svelte';
-	import { uniqBy } from 'lodash';
 	import Loader from 'src/components/Loader.svelte';
 	import { ALL_FEED_KINDS, type FeedKind } from 'src/controller/feed';
 	import {
 		defaultPipeline,
 		follows,
+		kind3,
 		kind0,
 		kind10000,
 		mutedPubkeys,
-		toggleMutePubkey
+		writeRelays as userWriteRelays
 	} from 'src/controller/nostr';
 	import { limit } from 'src/controller/pagination';
 	import { now } from 'src/lib/period';
@@ -44,6 +44,8 @@
 	import { normalizeURL } from 'nostr-tools/utils';
 	import About from 'src/components/About.svelte';
 	import KindSwitcher from 'src/components/KindSwitcher.svelte';
+	import { parsedEventTags } from 'src/lib/adminRelays';
+	import { INDEXER_RELAYS } from 'src/lib/env';
 	import { fetchRelayInfo, relayInfos, relaySub, setSubRelays } from 'src/controller/relay';
 	import { type ContentBlock, parseContent } from 'src/lib';
 	import { onDestroy, onMount } from 'svelte';
@@ -412,6 +414,44 @@
 		feedSub = undefined;
 	}
 
+	function contactTagForProfile() {
+		const relayHint = writeRelays?.[0];
+		return relayHint ? ['p', pubkey, relayHint] : ['p', pubkey];
+	}
+
+	function buildFollowTemplate(shouldFollow: boolean) {
+		const existingTags = $kind3 ? parsedEventTags($kind3) : [];
+		const withoutTarget = existingTags.filter((tag) => tag[0] !== 'p' || tag[1] !== pubkey);
+		const tags = shouldFollow ? [...withoutTarget, contactTagForProfile()] : withoutTarget;
+
+		return {
+			kind: 3,
+			created_at: now(),
+			tags,
+			content: ''
+		};
+	}
+
+	function buildMuteTemplate(shouldMute: boolean) {
+		const existingTags = $kind10000 ? parsedEventTags($kind10000) : [];
+		const withoutTarget = existingTags.filter((tag) => tag[0] !== 'p' || tag[1] !== pubkey);
+		const tags = shouldMute ? [...withoutTarget, ['p', pubkey]] : withoutTarget;
+		const muted = new Set($mutedPubkeys.filter((mutedPubkey) => mutedPubkey !== pubkey));
+		if (shouldMute) muted.add(pubkey);
+
+		return {
+			kind: 10000,
+			created_at: now(),
+			tags,
+			content: JSON.stringify(Array.from(muted))
+		};
+	}
+
+	function publishTargets() {
+		const relays = $userWriteRelays.length ? $userWriteRelays : DEFAULT_RELAYS;
+		return Array.from(new Set([...relays, ...INDEXER_RELAYS]));
+	}
+
 	onDestroy(() => {
 		unsubscribe();
 		if (paginationTimeout) clearTimeout(paginationTimeout);
@@ -426,6 +466,7 @@
 
 	function updateFollowList() {
 		if (!$kind0) return;
+		if (!$kind3 && !$follows.length) return;
 
 		const currentState = followIntent ?? $follows.some((f) => f.pubkey === pubkey);
 		const newFollowingState = !currentState;
@@ -437,34 +478,24 @@
 		followPublishUnsub?.();
 		followPublishStatus = {};
 
-		const template = {
-			kind: 3,
-			created_at: now(),
-			tags: uniqBy(
-				[
-					...$follows.map((c) => ['p', c.pubkey, c.relay || '']),
-					['p', pubkey, writeRelays?.[0] || '']
-				],
-				(c) => c[1]
-			).filter(
-				(c): c is string[] =>
-					c.every((value): value is string => Boolean(value)) &&
-					(isFollowing ? c[1] !== pubkey : true)
-			),
-			content: ''
-		};
+		const template = buildFollowTemplate(newFollowingState);
 
-		followPublishUnsub = usePublish('follow_' + pubkey, template, (message: WorkerMessage) => {
-			const status = isConnectionStatus(message);
-			console.log('status', status?.relayUrl(), status?.status());
-			if (status) {
-				const relayUrl = status.relayUrl();
-				if (relayUrl) {
-					// Trigger reactivity by creating new object
-					followPublishStatus = { ...followPublishStatus, [relayUrl]: status };
+		followPublishUnsub = usePublish(
+			'follow_' + pubkey,
+			template,
+			(message: WorkerMessage) => {
+				const status = isConnectionStatus(message);
+				console.log('status', status?.relayUrl(), status?.status());
+				if (status) {
+					const relayUrl = status.relayUrl();
+					if (relayUrl) {
+						// Trigger reactivity by creating new object
+						followPublishStatus = { ...followPublishStatus, [relayUrl]: status };
+					}
 				}
-			}
-		});
+			},
+			{ defaultRelays: publishTargets(), trackStatus: true }
+		);
 	}
 
 	function toggleMute() {
@@ -480,16 +511,21 @@
 		mutePublishUnsub?.();
 		mutePublishStatus = {};
 
-		const template = toggleMutePubkey($kind10000, pubkey);
-		mutePublishUnsub = usePublish('mute_' + pubkey, template, (message: WorkerMessage) => {
-			const status = isConnectionStatus(message);
-			if (status) {
-				const relayUrl = status.relayUrl();
-				if (relayUrl) {
-					mutePublishStatus = { ...mutePublishStatus, [relayUrl]: status };
+		const template = buildMuteTemplate(newMuteState);
+		mutePublishUnsub = usePublish(
+			'mute_' + pubkey,
+			template,
+			(message: WorkerMessage) => {
+				const status = isConnectionStatus(message);
+				if (status) {
+					const relayUrl = status.relayUrl();
+					if (relayUrl) {
+						mutePublishStatus = { ...mutePublishStatus, [relayUrl]: status };
+					}
 				}
-			}
-		});
+			},
+			{ defaultRelays: publishTargets(), trackStatus: true }
+		);
 	}
 
 	onMount(() => {

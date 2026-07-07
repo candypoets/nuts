@@ -37,6 +37,23 @@
 
 	$: displayContent = shortContent?.length && !showFull ? shortContent : content;
 
+	function handleContentClick(event: MouseEvent) {
+		if (!shortContent?.length || showFull) return;
+
+		event.stopPropagation();
+		showFull = true;
+	}
+
+	function showLess(event: MouseEvent) {
+		event.stopPropagation();
+		showFull = false;
+	}
+
+	function showMore(event: MouseEvent) {
+		event.stopPropagation();
+		showFull = true;
+	}
+
 	// Helper function to check if current block is the last text block
 	function isLastTextBlock(index: number, blocks: ContentBlock[]) {
 		if (blocks.slice(index + 1).some((b) => b.type() == 'text')) return false;
@@ -50,11 +67,13 @@
 	}
 </script>
 
+<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 <div
 	class:pr-2={imageContext}
 	class:text-sm={!!depth}
 	class={'w-full text-wrap whitespace-normal break-words relative select-text' +
 		($$props.class || '')}
+	on:click={handleContentClick}
 >
 	{#each displayContent as parsed, index}
 		{#if parsed.type() == 'text'}
@@ -81,7 +100,7 @@
 			{#if shortContent?.length && isLastTextBlock(index, displayContent)}
 				<button
 					class="text-primary text-sm font-medium ml-1 hover:underline"
-					on:click|stopPropagation={() => (showFull = !showFull)}
+					on:click={showFull ? showLess : showMore}
 				>
 					{showFull ? 'See less' : 'See more'}
 				</button>

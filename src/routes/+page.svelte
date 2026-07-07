@@ -92,9 +92,9 @@
 			<div class="hidden items-center gap-5 md:flex">
 				<a
 					class="inline-flex min-h-[46px] items-center justify-center rounded-xl border border-white/20 bg-white/[0.03] px-5 py-2 text-base font-semibold text-[#fff8ea] no-underline transition hover:bg-white/[0.08] focus:outline-none focus:ring-2 focus:ring-white/25 active:scale-[0.98]"
-					href={resolve('/login')}
+					href={resolve('/explore/signup')}
 				>
-					Log in
+					Join Nuts
 				</a>
 				<button
 					class="inline-flex min-h-[46px] items-center justify-center rounded-xl bg-[#8be3aa] px-5 py-2 text-base font-black text-[#102018] shadow-lg shadow-[#8be3aa]/20 transition hover:bg-[#9eeab8] focus:outline-none focus:ring-2 focus:ring-[#8be3aa]/40 active:scale-[0.98]"

@@ -217,6 +217,8 @@
 			<Lightning invoice={path.split(':')?.[1]} />
 		{:else if modalKey === 'login'}
 			<Login />
+		{:else if modalKey === 'signup'}
+			<Login initialKind="signup" />
 		{:else if modalKey === 'minting'}
 			<Minting />
 		{:else if modalKey === 'minted'}

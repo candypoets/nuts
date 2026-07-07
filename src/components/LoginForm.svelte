@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { ConnectionStatus, getManager, type WorkerMessage } from '@candypoets/nipworker';
 	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
 	import { isConnectionStatus, isKind0, connectWithQRCode } from '@candypoets/nipworker/utils';
@@ -8,6 +9,7 @@
 	import { bytesToHex } from '@noble/hashes/utils';
 	import { generateMnemonic, validateMnemonic } from '@scure/bip39';
 	import { wordlist } from '@scure/bip39/wordlists/english';
+	import imageCompression from 'browser-image-compression';
 	import { getPublicKey, kinds, nip19, type EventTemplate } from 'nostr-tools';
 
 	import { key, walletMnemonic, walletMnemonicIndex, walletPassphrase } from 'src/controller';
@@ -15,7 +17,7 @@
 	import { updateSendStatus } from 'src/controller/sendStatus';
 	import { DEFAULT_RELAYS } from 'src/lib/env';
 	import { now } from 'src/lib/period';
-	import { pronounceable } from 'src/lib/randomName';
+	import { uploadFile } from 'src/lib/upload';
 	import { decodePrivKey, DEFAULT_MINTS, deriveFromMnemonic } from 'src/lib/wallet';
 	import { go } from 'src/routes/modals/modal';
 	import { getContext, onMount } from 'svelte';
@@ -23,22 +25,29 @@
 
 	export let inline = false;
 	export let redirect = false;
+	export let initialKind: 'login' | 'signup' = 'login';
 
 	const animator = getContext('animator');
 
 	let privateKey = '';
 	let pubkeyInput = '';
-	let name = pronounceable({ min: 6, max: 8 });
+	let name = '';
 	let picture = '';
+	let pictureName = '';
+	let pictureFile: File | undefined;
 	let about = '';
 
 	let loading = false;
 	let hasExtension = false;
+	let uploadError = '';
+	let isPictureUploading = false;
 
-	let kind: 'login' | 'signup' = 'login';
+	let kind: 'login' | 'signup' = initialKind;
 	let showPassword = false;
 	let showQR = false;
 	let qrText = '';
+
+	const blossomProfileServer = 'https://blossom.nuts.cash';
 
 	const manager = getManager();
 
@@ -88,7 +97,7 @@
 					if (animator) {
 						animator.goBack();
 					} else if (redirect) {
-						goto('/explore');
+						goto(resolve('/explore'));
 					}
 				}
 			}
@@ -110,7 +119,7 @@
 				if (animator) {
 					animator.goBack();
 				} else {
-					goto('/explore');
+					goto(resolve('/explore'));
 				}
 			}
 		} catch (e) {
@@ -180,7 +189,66 @@
 		});
 	}
 
+	function readPictureFile(event: Event) {
+		const target = event.currentTarget as HTMLInputElement;
+		const file = target.files?.[0];
+		if (!file) return;
+		if (!file.type.startsWith('image/')) {
+			uploadError = 'Choose an image file.';
+			return;
+		}
+		uploadError = '';
+		pictureFile = file;
+		pictureName = file.name;
+		const reader = new FileReader();
+		reader.onload = () => {
+			picture = typeof reader.result === 'string' ? reader.result : '';
+		};
+		reader.readAsDataURL(file);
+	}
+
+	async function compressProfilePicture(file: File) {
+		if (!file.type.startsWith('image/')) return file;
+		return await imageCompression(file, {
+			maxSizeMB: 0.35,
+			maxWidthOrHeight: 512,
+			useWebWorker: true,
+			fileType: file.type === 'image/png' ? 'image/png' : 'image/jpeg',
+			initialQuality: 0.82
+		});
+	}
+
+	async function uploadProfilePicture() {
+		if (!pictureFile) return '';
+		isPictureUploading = true;
+		uploadError = '';
+		try {
+			const compressed = await compressProfilePicture(pictureFile);
+			const result = await uploadFile(compressed, {
+				server: blossomProfileServer,
+				serverType: 'blossom',
+				preferUserServers: false,
+				alt: name.trim() || compressed.name || pictureFile.name,
+				includeMimeTag: true,
+				includeDimensions: true
+			});
+			picture = result.url;
+			return result.url;
+		} catch (error) {
+			uploadError =
+				error instanceof Error ? error.message : 'Profile picture upload failed. Please try again.';
+			return '';
+		} finally {
+			isPictureUploading = false;
+		}
+	}
+
 	async function handleSignup() {
+		const trimmedName = name.trim();
+		if (!trimmedName) return;
+
+		loading = true;
+		uploadError = '';
 		const priv = schnorr.utils.randomSecretKey();
 		const privkey = bytesToHex(priv);
 		const pubkey = bytesToHex(schnorr.getPublicKey(priv));
@@ -196,13 +264,19 @@
 		// 	nsec: nip19.nsecEncode(priv)
 		// };
 
+		const uploadedPicture = await uploadProfilePicture();
+		if (pictureFile && !uploadedPicture) {
+			loading = false;
+			return;
+		}
+
 		let event: EventTemplate = {
 			kind: 0,
 			tags: [],
 			content: JSON.stringify({
-				name,
-				about,
-				picture
+				name: trimmedName,
+				about: about.trim(),
+				picture: uploadedPicture || undefined
 			}),
 			created_at: now()
 		};
@@ -216,6 +290,7 @@
 					console.log('relayUrl', connectionStatus.relayUrl, connectionStatus.status.toString());
 				}
 				saveWallet();
+				loading = false;
 			},
 			{ trackStatus: true, defaultRelays: DEFAULT_RELAYS }
 		);
@@ -239,7 +314,7 @@
 					if (animator) {
 						animator.goBack();
 					} else if (redirect) {
-						goto('/explore');
+						goto(resolve('/explore'));
 					}
 				}
 			} catch (e) {
@@ -255,7 +330,7 @@
 			if (animator) {
 				animator.goBack();
 			} else if (redirect) {
-				goto('/explore');
+				goto(resolve('/explore'));
 			}
 			return;
 		}
@@ -286,14 +361,8 @@
 	}
 </script>
 
-<main
-	class="w-full h-screen flex justify-center items-center"
-	class:mt-8={inline}
-	class:px-2={inline}
-	class:!block={inline}
-	class:!h-auto={inline}
->
-	<div class="w-full md:px-4">
+<main class={inline ? 'w-full' : 'flex h-screen w-full items-center justify-center bg-base-200/20 px-2'}>
+	<div class={inline ? 'w-full' : 'w-full max-w-xl md:px-4'}>
 		{#if !inline}
 			<div class="text-center mb-8">
 				<h1
@@ -339,6 +408,14 @@
 		{#if kind == 'login'}
 			<div class="w-full" class:mt-32={!inline}>
 				<div class="px-4 space-y-4" class:!px-0={inline}>
+					<div class="mb-6">
+						<p class="text-sm font-semibold text-accent">Welcome back</p>
+						<h2 class="mt-1 text-3xl font-black leading-tight text-base-content">Connect your keys</h2>
+						<p class="mt-2 max-w-prose text-sm leading-6 text-base-content/60">
+							Use a signer, extension, private key, or read-only public key.
+						</p>
+					</div>
+
 					<!-- QR Scan Button - Prominent -->
 					<button
 						type="button"
@@ -516,95 +593,101 @@
 					<!-- Sign up link -->
 					<div class="text-center pt-4">
 						<p class="text-sm text-base-content/40">
-							Not on Nostr yet?
+							New to Nuts?
 							<button
 								class="text-accent hover:text-accent/80 font-medium ml-1 transition-colors"
 								on:click={() => (kind = 'signup')}
 							>
-								Create account
+								Create a profile
 							</button>
 						</p>
 					</div>
 				</div>
 			</div>
 		{:else}
-			<!-- Sign up form -->
 			<div class="px-4" class:!px-0={inline}>
-				<form on:submit|preventDefault={handleSignup} class="space-y-4">
-					<!-- Handle input -->
-					<div class="form-control">
-						<label class="label">
-							<span class="label-text text-base-content/70 flex items-center gap-2">
-								<Icon icon="ri:user-smile-line" />
-								Handle
-							</span>
-						</label>
-						<div class="join w-full">
-							<div
-								class="btn join-item btn-outline border-base-content/10 text-base-content/50 bg-base-content/5"
-							>
-								<Icon icon="ri:at-line" />
-							</div>
-							<input
-								type="text"
-								class="join-item flex-grow px-4 bg-base-content/5 border-y border-base-content/10 text-base-content placeholder:text-base-content/30 focus:outline-none focus:bg-base-content/10 transition-colors"
-								bind:value={name}
-								placeholder="yourname"
-							/>
-						</div>
-					</div>
+				<div class="mb-6">
+					<p class="text-sm font-semibold text-accent">Join Nuts</p>
+					<h2 class="mt-1 text-3xl font-black leading-tight text-base-content">Create your profile</h2>
+					<p class="mt-2 max-w-prose text-sm leading-6 text-base-content/60">
+						Pick a name people will recognize. Your keys stay on this device.
+					</p>
+				</div>
 
-					<!-- About textarea -->
-					<div class="form-control">
-						<label class="label">
-							<span class="label-text text-base-content/70 flex items-center gap-2">
-								<Icon icon="ri:file-text-line" />
-								About You <span class="text-base-content/30">(optional)</span>
-							</span>
-						</label>
+				<form on:submit|preventDefault={handleSignup} class="space-y-5">
+					<label class="block">
+						<span class="mb-2 flex items-center gap-2 text-sm font-semibold text-base-content/70">
+							<Icon icon="ri:user-smile-line" />
+							Display name
+						</span>
+						<input
+							type="text"
+							class="w-full rounded-xl border border-base-content/10 bg-base-content/[0.04] px-4 py-4 text-base-content placeholder:text-base-content/30 transition-all focus:border-accent/50 focus:bg-base-content/[0.07] focus:outline-none focus:ring-2 focus:ring-accent/10"
+							bind:value={name}
+							placeholder="Marie from the cycling club"
+							autocomplete="name"
+						/>
+					</label>
+
+					<label class="block">
+						<span class="mb-2 flex items-center gap-2 text-sm font-semibold text-base-content/70">
+							<Icon icon="ri:file-text-line" />
+							About <span class="font-normal text-base-content/35">optional</span>
+						</span>
 						<textarea
-							class="w-full p-4 bg-base-content/5 border border-base-content/10 rounded-lg text-base-content placeholder:text-base-content/30 focus:outline-none focus:bg-base-content/10 focus:border-accent/50 transition-all resize-none"
+							class="min-h-24 w-full resize-none rounded-xl border border-base-content/10 bg-base-content/[0.04] px-4 py-3 text-base-content placeholder:text-base-content/30 transition-all focus:border-accent/50 focus:bg-base-content/[0.07] focus:outline-none focus:ring-2 focus:ring-accent/10"
 							rows="3"
 							bind:value={about}
-							placeholder="Tell us a bit about yourself..."
+							placeholder="Organizer, coach, neighbor, parent..."
 						></textarea>
-					</div>
+					</label>
 
-					<!-- Picture input -->
-					<div class="form-control">
-						<label class="label">
-							<span class="label-text text-base-content/70 flex items-center gap-2">
-								<Icon icon="ri:image-line" />
-								Profile Picture <span class="text-base-content/30">(optional)</span>
-							</span>
-						</label>
-						<div class="join w-full">
+					<label class="block">
+						<span class="mb-2 flex items-center gap-2 text-sm font-semibold text-base-content/70">
+							<Icon icon="ri:image-line" />
+							Profile picture <span class="font-normal text-base-content/35">optional</span>
+						</span>
+						<input class="sr-only" type="file" accept="image/*" on:change={readPictureFile} />
+						<div
+							class="flex cursor-pointer items-center gap-4 rounded-xl border border-dashed border-base-content/20 bg-base-content/[0.035] p-4 transition hover:border-accent/40 hover:bg-base-content/[0.055]"
+						>
 							<div
-								class="btn join-item btn-outline border-base-content/10 text-base-content/50 bg-base-content/5"
+								class="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-base-content/10 text-base-content/45"
 							>
-								<Icon icon="ri:link" />
+								{#if picture}
+									<img class="h-full w-full object-cover" src={picture} alt="Selected profile preview" />
+								{:else}
+									<Icon icon="ri:image-add-line" class="text-3xl" />
+								{/if}
 							</div>
-							<input
-								type="text"
-								class="join-item flex-grow px-4 bg-base-content/5 border-y border-base-content/10 text-base-content placeholder:text-base-content/30 focus:outline-none focus:bg-base-content/10 transition-colors"
-								placeholder="https://..."
-								bind:value={picture}
-							/>
+							<div class="min-w-0 flex-1">
+								<p class="font-semibold text-base-content">
+									{pictureName || 'Upload from your computer'}
+								</p>
+								<p class="mt-1 text-sm text-base-content/50">
+									Stored on blossom.nuts.cash when you create the profile.
+								</p>
+							</div>
+							<Icon icon="ri:upload-cloud-2-line" class="text-2xl text-base-content/35" />
 						</div>
-					</div>
+					</label>
 
-					<!-- Submit button -->
+					{#if uploadError}
+						<div class="rounded-xl border border-error/20 bg-error/10 px-4 py-3 text-sm text-error">
+							{uploadError}
+						</div>
+					{/if}
+
 					<button
-						class="btn btn-accent w-full mt-6 gap-2"
+						class="w-full rounded-xl bg-accent px-5 py-4 font-bold text-accent-content shadow-lg shadow-accent/20 transition hover:bg-accent/90 hover:shadow-accent/30 focus:outline-none focus:ring-2 focus:ring-accent/40 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
 						type="submit"
-						disabled={loading || !name}
+						disabled={loading || isPictureUploading || !name.trim()}
 					>
-						{#if loading}
+						{#if loading || isPictureUploading}
 							<span class="loading loading-spinner loading-sm"></span>
-							<span>Creating...</span>
+							<span>{isPictureUploading ? 'Uploading picture...' : 'Creating profile...'}</span>
 						{:else}
-							<Icon icon="ri:rocket-line" class="text-lg" />
-							<span>Create Account</span>
+							<span>Create profile</span>
 						{/if}
 					</button>
 				</form>
@@ -612,13 +695,13 @@
 				<!-- Back to login -->
 				<div class="mt-6 text-center">
 					<p class="text-sm text-base-content/40">
-						Already have an account?
+						Already have keys?
 						<button
 							class="btn btn-link btn-sm text-accent hover:text-accent/80 no-underline gap-1"
 							on:click={() => (kind = 'login')}
 						>
 							<Icon icon="ri:login-circle-line" />
-							Sign in
+							Connect instead
 						</button>
 					</p>
 				</div>
