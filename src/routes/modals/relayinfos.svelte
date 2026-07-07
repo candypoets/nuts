@@ -108,6 +108,7 @@
 		} else {
 			relaysSelected = [...relaysSelected, url];
 		}
+		setSubRelays(subId, relaysSelected);
 	}
 
 	function handleRelayKeydown(event: KeyboardEvent, url: string) {

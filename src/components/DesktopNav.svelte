@@ -1,9 +1,13 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/stores';
 	import Icon from '@iconify/svelte';
+	import { carouselAnimator } from 'src/controller/carrousel';
 	import '../app.css';
+
+	function navigateFeed(index: number) {
+		carouselAnimator.navigateTo(index, 400, false);
+	}
 </script>
 
 <div
@@ -14,7 +18,7 @@
 		class:text-primary={$page.route?.id?.startsWith('/home')}
 		href={resolve('/home')}
 		class="desktop-nav-item flex flex-col items-center justify-center gap-2"
-		on:click|preventDefault={() => goto(resolve('/home'))}
+		on:click|preventDefault={() => navigateFeed(0)}
 	>
 		<Icon icon="mdi:home" class="text-3xl" />
 		<span class="btm-nav-label text-xs">Home</span>
@@ -23,7 +27,7 @@
 		class:text-primary={$page.route?.id?.startsWith('/explore')}
 		href={resolve('/explore')}
 		class="desktop-nav-item flex flex-col items-center justify-center gap-2"
-		on:click|preventDefault={() => goto(resolve('/explore'))}
+		on:click|preventDefault={() => navigateFeed(1)}
 	>
 		<Icon icon="mdi:map-outline" class="text-3xl" />
 		<span class="btm-nav-label text-xs">Explore</span>
@@ -40,7 +44,7 @@
 		class:text-primary={$page.route?.id?.startsWith('/chat')}
 		href={resolve('/chat')}
 		class="desktop-nav-item flex flex-col items-center justify-center gap-2"
-		on:click|preventDefault={() => goto(resolve('/chat'))}
+		on:click|preventDefault={() => navigateFeed(2)}
 	>
 		<Icon icon="material-symbols:chat-outline" class="text-3xl" />
 		<span class="btm-nav-label text-xs">Chat</span>

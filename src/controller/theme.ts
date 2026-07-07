@@ -981,7 +981,7 @@ function avoidRedInHex(hex: string): string {
 }
 
 export function resetToDefault() {
-	const defaultTheme = builtInThemes.find((t) => t.dTag === 'touchgrass');
+	const defaultTheme = builtInThemes.find((t) => t.dTag === 'downfox');
 	if (defaultTheme) {
 		applyTheme(defaultTheme);
 	}

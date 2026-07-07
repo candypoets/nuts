@@ -1,4 +1,4 @@
-import { goto } from '$app/navigation';
+import { goto, pushState } from '$app/navigation';
 import { page } from '$app/stores';
 import { get, writable } from 'svelte/store';
 
@@ -180,7 +180,7 @@ export class CarouselAnimator {
 		} else {
 			const targetX = currentIdx * this.scrollerWidth;
 			this.animateToPosition(targetX, 300, isMobile, currentIdx);
-			goto(this.activeRoutes[currentIdx]?.route || '/home');
+			this.commitCarouselRoute(this.activeRoutes[currentIdx]?.route || '/home');
 		}
 
 		return true;
@@ -212,7 +212,7 @@ export class CarouselAnimator {
 
 		const targetX = index * this.scrollerWidth;
 		this.animateToPosition(targetX, duration, isMobile, index);
-		goto(this.activeRoutes[index].route);
+		this.commitCarouselRoute(this.activeRoutes[index].route);
 		this.setCurrentIndex(index);
 	}
 
@@ -246,7 +246,8 @@ export class CarouselAnimator {
 			return;
 		}
 
-		const index = this.activeRoutes.findIndex((r) => pathname.startsWith(r.route));
+		const currentPathname = typeof window === 'undefined' ? pathname : window.location.pathname;
+		const index = this.activeRoutes.findIndex((r) => currentPathname.startsWith(r.route));
 		if (index < 0) return;
 
 		const current = this.currentIndexValue;
@@ -417,15 +418,16 @@ export class CarouselAnimator {
 			}
 
 			// Always animate to target position, even if it's the same as current.
-			// Delay the route change until the transition settles so the page swap
-			// does not interrupt the card animation on mobile.
+			// Commit the route immediately; initial app setup can replace animations,
+			// so deferring goto() until animation finish can leave the URL stale.
 			const targetX = targetIndex * this.scrollerWidth;
-			this.animateToPosition(targetX, 250, isMobile, targetIndex, () => {
-				if (targetIndex !== currentIdx) {
-					this.setCurrentIndex(targetIndex);
-					goto(this.activeRoutes[targetIndex].route);
-				}
-			});
+			if (targetIndex !== currentIdx) {
+				this.commitCarouselRoute(this.activeRoutes[targetIndex].route);
+			}
+			this.animateToPosition(targetX, 250, isMobile, targetIndex);
+			if (targetIndex !== currentIdx) {
+				this.setCurrentIndex(targetIndex);
+			}
 		}
 
 		this.isSwiping = false;
@@ -453,7 +455,7 @@ export class CarouselAnimator {
 	private readCurrentIndexFromUrl(): number {
 		if (typeof window === 'undefined') return 0;
 		const currentPage = get(page) as { url?: URL } | undefined;
-		const pathname = currentPage?.url?.pathname;
+		const pathname = window.location.pathname || currentPage?.url?.pathname;
 		if (!pathname) return this.currentIndexValue;
 		const index = this.activeRoutes.findIndex((r) => pathname.startsWith(r.route));
 		return this.clampIndex(index < 0 ? 0 : index);
@@ -461,6 +463,17 @@ export class CarouselAnimator {
 
 	private getCurrentIndex(): number {
 		return this.currentIndexValue;
+	}
+
+	private commitCarouselRoute(route: string) {
+		if (typeof window === 'undefined') return;
+		if (window.location.pathname === route) return;
+
+		try {
+			pushState(route, {});
+		} catch {
+			goto(route);
+		}
 	}
 
 	private rebuildProgressBars() {

@@ -11,7 +11,6 @@ export const pathOptions = [
 	'qr',
 	'ecash',
 	'cmdk',
-	'followlists',
 	'kind0',
 	'kind1111',
 	'lightning',
@@ -44,7 +43,6 @@ export const pathNeedsLogin = [
 	// 'scan',
 	// 'qr',
 	'ecash',
-	// 'followlists',
 	'lightning',
 	'kind0',
 	// 'login',
@@ -71,6 +69,11 @@ export const pathNeedsLogin = [
 const manager = getManager();
 let cleanupTimer: ReturnType<typeof setTimeout> | undefined;
 
+function currentPathname() {
+	if (typeof window !== 'undefined') return window.location.pathname;
+	return get(page).url.pathname;
+}
+
 function scheduleCleanup(delay = 1000) {
 	if (cleanupTimer) clearTimeout(cleanupTimer);
 
@@ -86,7 +89,7 @@ function scheduleCleanup(delay = 1000) {
 
 export function goBack() {
 	// Get current path
-	const currentPath = get(page).url.pathname;
+	const currentPath = currentPathname();
 
 	const rootPath = currentPath.split('/')[1];
 
@@ -105,7 +108,7 @@ export function goBack() {
 
 export function goToRoot() {
 	// Get current path
-	const currentPath = get(page).url.pathname;
+	const currentPath = currentPathname();
 
 	// Get the root segment (e.g., /home, /explore, /chat from /home/some/modal)
 	const rootPath = currentPath.split('/')[1];
@@ -121,7 +124,7 @@ export function go(eventPath: string) {
 		eventPath = 'login';
 	}
 
-	const currentPath = get(page).url.pathname;
+	const currentPath = currentPathname();
 
 	// Check if the current URL already ends with the profile we're trying to navigate to
 	if (!currentPath.endsWith(eventPath)) {

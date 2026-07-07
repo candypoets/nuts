@@ -23,7 +23,6 @@
 	import { viewport } from 'src/controller/viewport';
 	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
 	import { getContext, onMount, setContext } from 'svelte';
-	import Followlists from './followlists.svelte';
 	import Share from './share.svelte';
 	import ImageZoom from 'src/components/ImageZoom.svelte';
 	import Login from './_profile/login.svelte';
@@ -206,8 +205,6 @@
 			<QR qrText={decodeURIComponent(path.slice(3))} />
 		{:else if modalKey === 'ecash'}
 			<Ecash pubkey={path.split(':')?.[1]} noteId={path.split(':')?.[2]} />
-		{:else if modalKey === 'followlists' || modalKey === 'followlist'}
-			<Followlists />
 		{:else if modalKey === 'kind0'}
 			<Kind0 />
 		{:else if modalKey === 'lightning'}

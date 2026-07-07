@@ -3,7 +3,7 @@
 	import Icon from '@iconify/svelte';
 	import { normalizeURL } from 'nostr-tools/utils';
 	import { isMobile } from 'src/controller';
-	import { fetchRelayInfo, relayInfos, relaySubs } from 'src/controller/relay';
+	import { fetchRelayInfo, relayInfos, relaySubs, setSubRelays } from 'src/controller/relay';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import { go } from 'src/routes/modals/modal';
 
@@ -72,7 +72,7 @@
 	}
 
 	function openRelayInfos() {
-		$relaySubs.set(subId, displayRelays.map(normalizeURL));
+		setSubRelays(subId, displayRelays.map(normalizeURL));
 		go(`relayinfos:${subId}`);
 	}
 

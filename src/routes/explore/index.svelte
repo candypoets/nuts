@@ -108,7 +108,10 @@
 		: [];
 
 	$: following = uniq(follows);
-	$: useContactsFeed = $exploreAudienceMode === 'contacts';
+	$: if (!$key?.pub && $exploreAudienceMode !== 'all') {
+		$exploreAudienceMode = 'all';
+	}
+	$: useContactsFeed = Boolean($key?.pub) && $exploreAudienceMode === 'contacts';
 	$: activeAudienceLabel = useContactsFeed ? 'Contacts' : 'All';
 	$: relaySelectionSubId = 'feed' + $exploreAudienceMode;
 	$: followingKey = hashString(following.join(','));
@@ -169,7 +172,7 @@
 
 	// Default relay for anonymous users
 	const DEFAULT_FEED_RELAYS = ['wss://nostr.wine'];
-	$: feedRelays = $key?.pub ? normalizedRelays : DEFAULT_FEED_RELAYS;
+	$: feedRelays = $key?.pub || selectedSubRelays?.length ? normalizedRelays : DEFAULT_FEED_RELAYS;
 	$: feedRelayKey = feedRelays.join('|');
 	let lastConnectionRelayKey = '';
 	$: if (feedRelayKey !== lastConnectionRelayKey) {
@@ -652,6 +655,10 @@
 	}
 
 	function toggleAudienceMode() {
+		if (!$key?.pub) {
+			$exploreAudienceMode = 'all';
+			return;
+		}
 		$exploreAudienceMode = useContactsFeed ? 'all' : 'contacts';
 		resetFeed();
 		hadFeedRequest = false;
@@ -684,7 +691,7 @@
 	>
 		<svelte:fragment slot="sticky-header">
 			<div class="relative bg-base-300 bg-opacity-80 md:border-b border-base-200 pt-safe">
-				<div class="flex justify-between w-feed lg:m-auto h-16 items-center">
+				<div class="flex justify-between w-feed lg:m-auto h-16 items-center px-3 md:px-4">
 					<div class="flex gap-1 items-center min-w-0 flex-1">
 						<button
 							type="button"

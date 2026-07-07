@@ -10,7 +10,7 @@
 	let theme =
 		browser && themes.includes(localStorage.getItem('theme') || '')
 			? localStorage.getItem('theme')
-			: 'snowwhite';
+			: 'downfox';
 
 	onMount(() => {});
 
