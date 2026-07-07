@@ -69,7 +69,9 @@
 	const getItemId = (r: RelayItem) => r.url;
 
 	function relayLabel(url: string) {
-		return normalizeURL(url).replace(/^wss?:\/\//, '').replace(/\/$/, '');
+		return normalizeURL(url)
+			.replace(/^wss?:\/\//, '')
+			.replace(/\/$/, '');
 	}
 
 	function relayInitials(name: string) {
@@ -85,7 +87,8 @@
 
 	function statusLabel(status?: string) {
 		if (!status) return '';
-		if (status === 'open' || status === 'connected' || status === 'EOSE' || status === 'OK') return 'live';
+		if (status === 'open' || status === 'connected' || status === 'EOSE' || status === 'OK')
+			return 'live';
 		if (status === 'SUBSCRIBED') return 'sub';
 		if (status === 'connecting') return 'sync';
 		if (status === 'failed' || status === 'FAILED') return 'fail';
@@ -147,12 +150,16 @@
 		<div class="shrink-0 px-4 pb-3 pt-2 md:px-5">
 			<div class="mb-4 flex items-end justify-between gap-4">
 				<div class="min-w-0">
-					<h2 class="text-2xl font-semibold leading-tight tracking-normal text-base-content">Relays</h2>
+					<h2 class="text-2xl font-semibold leading-tight tracking-normal text-base-content">
+						Communities
+					</h2>
 					<p class="mt-1 text-sm font-medium text-primary-content">
 						{selectedCount} selected · {filteredRelays.length} visible
 					</p>
 				</div>
-				<div class="flex shrink-0 items-center gap-2 rounded-full bg-base-200 px-3 py-1.5 text-xs font-bold text-primary-content">
+				<div
+					class="flex shrink-0 items-center gap-2 rounded-full bg-base-200 px-3 py-1.5 text-xs font-bold text-primary-content"
+				>
 					<span class="h-2 w-2 rounded-full bg-success"></span>
 					<span>{relays.length}</span>
 				</div>
@@ -242,7 +249,9 @@
 										{name}
 									</div>
 									{#if statusLabel(r.status)}
-										<span class="hidden shrink-0 text-[11px] font-bold text-primary-content sm:inline">
+										<span
+											class="hidden shrink-0 text-[11px] font-bold text-primary-content sm:inline"
+										>
 											{statusLabel(r.status)}
 										</span>
 									{/if}
@@ -254,16 +263,24 @@
 							</div>
 
 							<!-- Badges -->
-							<div class="flex max-w-[45vw] shrink-0 items-center justify-end gap-1.5 overflow-hidden md:max-w-xs">
+							<div
+								class="flex max-w-[45vw] shrink-0 items-center justify-end gap-1.5 overflow-hidden md:max-w-xs"
+							>
 								<!-- Search support -->
 								{#if nips.includes(50)}
-									<div class="rounded-md bg-info px-2 py-1 text-[10px] font-black leading-none text-info-content" title="Search support (NIP-50)">
+									<div
+										class="rounded-md bg-info px-2 py-1 text-[10px] font-black leading-none text-info-content"
+										title="Search support (NIP-50)"
+									>
 										search
 									</div>
 								{/if}
 								<!-- Auth required -->
 								{#if nips.includes(42)}
-									<div class="rounded-md bg-warning px-2 py-1 text-[10px] font-black leading-none text-warning-content" title="Auth required (NIP-42)">
+									<div
+										class="rounded-md bg-warning px-2 py-1 text-[10px] font-black leading-none text-warning-content"
+										title="Auth required (NIP-42)"
+									>
 										auth
 									</div>
 								{/if}
@@ -293,7 +310,9 @@
 					{/each}
 				</VirtualList>
 			{:else}
-				<div class="rounded-2xl border border-dashed border-primary-content/20 bg-base-300/60 p-8 text-center text-sm font-semibold text-primary-content">
+				<div
+					class="rounded-2xl border border-dashed border-primary-content/20 bg-base-300/60 p-8 text-center text-sm font-semibold text-primary-content"
+				>
 					No relays to show yet.
 				</div>
 			{/if}
