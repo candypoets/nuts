@@ -15,7 +15,7 @@
 		fbArray
 	} from '@candypoets/nipworker/utils';
 	import ImageGrid from 'src/components/ImageGrid.svelte';
-	import { go } from 'src/routes/modals/modal';
+	import { go, usePagerNavigation } from 'src/routes/modals/modal';
 	import { getContext } from 'svelte';
 
 	export let content: ContentBlock[];
@@ -29,6 +29,11 @@
 	export let showQuote = true;
 
 	let imageContext = getContext('imageContext');
+	const nav = usePagerNavigation();
+
+	function pushPath(eventPath: string) {
+		nav ? nav.push(eventPath) : go(eventPath);
+	}
 
 	$: displayContent = shortContent?.length && !showFull ? shortContent : content;
 
@@ -112,7 +117,7 @@
 			{@const hashtag = asHashtagData(parsed)}
 			<a
 				on:click|stopPropagation|preventDefault={() =>
-					go(`tags:${encodeURIComponent(hashtag?.tag() ?? '')}`)}
+					pushPath(`tags:${encodeURIComponent(hashtag?.tag() ?? '')}`)}
 				class="font-semibold text-primary"
 				>{parsed.text()}
 			</a>

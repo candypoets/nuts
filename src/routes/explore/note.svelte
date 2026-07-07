@@ -41,7 +41,7 @@
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import { getUserRelays } from 'src/routes/queries/user';
 	import { get } from 'svelte/store';
-	import { go } from '../modals/modal';
+	import { go, usePagerNavigation } from '../modals/modal';
 
 	export let main: boolean = false;
 	export let noteId: string | undefined = undefined;
@@ -308,7 +308,6 @@
 								});
 							}
 						}
-
 					}
 					if (!relays.length && !relaysub) {
 						relaysub = getUserRelays(
@@ -348,6 +347,11 @@
 		!(decoded.eventRefs || []).some((eventRef) => eventRef?.id() == decoded.replyID) &&
 		!depth &&
 		effectiveShowRoot;
+	const nav = usePagerNavigation();
+
+	function pushPath(eventPath: string) {
+		nav ? nav.push(eventPath) : go(eventPath);
+	}
 
 	function goto() {
 		// Prevent navigation if user has selected text
@@ -357,10 +361,10 @@
 		}
 		// if (isImageContext) return;
 		if (naddr) {
-			go(`naddr:${naddr}`);
+			pushPath(`naddr:${naddr}`);
 		} else {
 			const nip19Event = nip19.neventEncode({ id: decoded.noteId || nid || '', relays });
-			go(`nevent:${nip19Event}`);
+			pushPath(`nevent:${nip19Event}`);
 		}
 	}
 

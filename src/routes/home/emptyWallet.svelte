@@ -1,7 +1,13 @@
 <script lang="ts">
 	import Icon from '@iconify/svelte';
 	import { carouselAnimator } from 'src/controller/carrousel';
-	import { go } from 'src/routes/modals/modal';
+	import { go, usePagerNavigation } from 'src/routes/modals/modal';
+
+	const nav = usePagerNavigation();
+
+	function openRoot(eventPath: string) {
+		nav ? nav.root(eventPath) : go(eventPath);
+	}
 
 	// If the user already has a wallet configured (e.g., $nutsWallet), set to true
 	export let hasWallet = false;
@@ -13,16 +19,16 @@
 	export let showExploreLink = true;
 
 	function setupWallet() {
-		go('wallet');
+		openRoot('wallet');
 	}
 	function receive() {
-		go('receive');
+		openRoot('receive');
 	}
 	function scan() {
-		go('scan');
+		openRoot('scan');
 	}
 	function send() {
-		go('send');
+		openRoot('send');
 	}
 </script>
 

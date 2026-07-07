@@ -6,11 +6,12 @@
 	import Icon from '@iconify/svelte';
 	import type { CalendarEventCard } from 'src/lib/calendarEvent';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
-	import { go } from 'src/routes/modals/modal';
+	import { go, usePagerNavigation } from 'src/routes/modals/modal';
 
 	export let event: CalendarEventCard;
 	export let rsvpCount = 0;
 	export let feedRelays: string[] = [];
+	const nav = usePagerNavigation();
 
 	$: modalRelays = feedRelays.length ? feedRelays : event.relays;
 	$: goingCount = rsvpCount || event.attendeeCount;
@@ -38,7 +39,8 @@
 
 	function openEvent() {
 		const relayParam = modalRelays.map(encodeURIComponent).join(',');
-		go(`event:${relayParam}:${encodeURIComponent(event.address)}`);
+		const eventPath = `event:${relayParam}:${encodeURIComponent(event.address)}`;
+		nav ? nav.push(eventPath) : go(eventPath);
 	}
 </script>
 

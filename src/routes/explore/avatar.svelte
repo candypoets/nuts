@@ -12,7 +12,7 @@
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import { onMount } from 'svelte';
 	import { userQuery } from '../queries/user';
-	import { go } from '../modals/modal';
+	import { go, usePagerNavigation } from '../modals/modal';
 
 	// The pubkey/npub of the user
 	export let pubkey: string = '';
@@ -23,6 +23,7 @@
 	export let context: ParsedEvent[] = [];
 	export let query = true;
 	export let link = false;
+	const nav = usePagerNavigation();
 
 	let profile: Kind0Parsed | undefined;
 	let imageUrl: string | undefined;
@@ -101,7 +102,7 @@
 	function goto() {
 		if (!link) return;
 		const profilePath = `nprofile:${pubkey}`;
-		go(profilePath);
+		nav ? nav.push(profilePath) : go(profilePath);
 	}
 
 	function handleKeydown(event: KeyboardEvent) {

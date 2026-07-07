@@ -39,10 +39,15 @@
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import User from 'src/routes/explore/user.svelte';
-	import { go, navigateStackPath } from 'src/routes/modals/modal';
+	import { go, navigateStackPath, usePagerNavigation } from 'src/routes/modals/modal';
 	import Empty from './empty.svelte';
 
 	export let visible = true;
+	const nav = usePagerNavigation();
+
+	function openRoot(eventPath: string) {
+		nav ? nav.root(eventPath) : go(eventPath);
+	}
 
 	type ChatListTab = 'messages' | 'request';
 
@@ -336,7 +341,14 @@
 	}
 
 	function openChat(post: ParsedEvent, event: MouseEvent) {
-		if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+		if (
+			event.defaultPrevented ||
+			event.button !== 0 ||
+			event.metaKey ||
+			event.ctrlKey ||
+			event.shiftKey ||
+			event.altKey
+		) {
 			return;
 		}
 
@@ -382,7 +394,7 @@
 					<h1 class="text-2xl font-semibold">Messages</h1>
 					<button
 						class="btn btn-circle btn-sm btn-primary"
-						on:click|stopPropagation={() => go('newchat')}
+						on:click|stopPropagation={() => openRoot('newchat')}
 					>
 						<Icon icon="teenyicons:add-outline" class="text-xl"></Icon>
 					</button>
@@ -417,7 +429,10 @@
 			>
 				<div class="flex justify-between m-auto h-16 items-center px-1">
 					<h1 class="text-2xl font-semibold">
-						Messages<button class="btn btn-circle btn-ghost btn-xs ml-2" on:click={showChatInfoModal}>
+						Messages<button
+							class="btn btn-circle btn-ghost btn-xs ml-2"
+							on:click={showChatInfoModal}
+						>
 							<Icon icon="material-symbols:info-outline" class="text-lg"></Icon>
 						</button>
 					</h1>
@@ -425,9 +440,9 @@
 						<div class="modal-box bg-base-300 bg-opacity-85">
 							<h3 class="font-bold text-xl">What is Chat?</h3>
 							<p class="py-4 text-base">
-								Chat is like speaking a secret language with your conversation partner.
-								While others can see who you're talking to and how long your conversations are, they
-								can't understand a single word of what you're saying. Your messages are end-to-end
+								Chat is like speaking a secret language with your conversation partner. While others
+								can see who you're talking to and how long your conversations are, they can't
+								understand a single word of what you're saying. Your messages are end-to-end
 								encrypted on the Nostr protocol.
 							</p>
 							<div class="modal-action">
@@ -442,7 +457,7 @@
 					</dialog>
 					<button
 						class="btn btn-circle btn-sm btn-primary btn-outline"
-						on:click|stopPropagation={() => go('newchat')}
+						on:click|stopPropagation={() => openRoot('newchat')}
 					>
 						<Icon icon="material-symbols:chat-add-on-outline-rounded" class="text-xl" />
 						<!-- <Icon icon="teenyicons:add-outline" class="text-xl"></Icon> -->

@@ -25,12 +25,17 @@
 	import { mutePipeConfig } from 'src/controller/nostr';
 	import { updateSendStatus } from 'src/controller/sendStatus';
 	import { now } from 'src/lib/period';
-	import { go } from 'src/routes/modals/modal';
+	import { go, usePagerNavigation } from 'src/routes/modals/modal';
 	import { getUserRelays } from 'src/routes/queries/user';
 
 	export let note: ParsedEvent;
 	export let visible: boolean;
 	export let main = false;
+	const nav = usePagerNavigation();
+
+	function pushPath(eventPath: string) {
+		nav ? nav.push(eventPath) : go(eventPath);
+	}
 
 	let sub: (() => void) | undefined;
 	let quoteSub: (() => void) | undefined;
@@ -284,7 +289,7 @@
 				on:click|stopPropagation={() => {
 					const goReply = (/** @type {string[]} */ r) => {
 						const nevent = nip19.neventEncode({ id: note.id(), relays: r });
-						go('reply:' + nevent);
+						pushPath('reply:' + nevent);
 					};
 					if (relays.length > 0) {
 						goReply(relays);
@@ -314,7 +319,7 @@
 							author: note.pubkey(),
 							kind: note.kind()
 						});
-						go('kind1111:' + nevent);
+						pushPath('kind1111:' + nevent);
 					};
 					if (relays.length > 0) {
 						goComments(relays);
@@ -343,7 +348,7 @@
 			on:click|stopPropagation={() => {
 				const goRepost = (/** @type {string[]} */ r) => {
 					const nevent = nip19.neventEncode({ id: note.id(), relays: r });
-					go('repost:' + nevent);
+					pushPath('repost:' + nevent);
 				};
 				if (relays.length > 0) {
 					goRepost(relays);
@@ -384,7 +389,7 @@
 			on:click|stopPropagation={() => {
 				const goShare = (/** @type {string[]} */ r) => {
 					const nevent = nip19.neventEncode({ id: note.id(), relays: r });
-					go('share:' + nevent);
+					pushPath('share:' + nevent);
 				};
 				if (relays.length > 0) {
 					goShare(relays);
@@ -409,7 +414,7 @@
 			on:click|stopPropagation={() => {
 				const goZap = (/** @type {string[]} */ r) => {
 					const nevent = nip19.neventEncode({ id: note.id(), relays: r });
-					go('ecash:' + note.pubkey() + ':' + nevent);
+					pushPath('ecash:' + note.pubkey() + ':' + nevent);
 				};
 				if (relays.length > 0) {
 					goZap(relays);

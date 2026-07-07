@@ -21,7 +21,8 @@
 	import {
 		clearNavigationRoot,
 		currentNavigationPathname,
-		navigateStackPath
+		navigateStackPath,
+		usePagerNavigation
 	} from 'src/routes/modals/modal';
 	import { userQuery } from 'src/routes/queries/user';
 
@@ -45,6 +46,7 @@
 
 	let redeemed: ParsedEvent | undefined;
 	let sub: (() => void) | undefined;
+	const nav = usePagerNavigation();
 
 	let relays: string[] = [];
 
@@ -64,14 +66,19 @@
 	);
 
 	function go() {
-		const currentPath = currentNavigationPathname();
-		clearNavigationRoot();
 		let eventPath = '';
 		if (kind9321?.eventId()) {
 			eventPath = `nevent:${nip19.neventEncode({ id: decoded?.eventId, relays })}`;
 		} else {
 			eventPath = `nprofile:${decoded.recipient == $key?.pub ? decoded.sender : decoded.recipient}`;
 		}
+		if (nav) {
+			nav.push(eventPath);
+			return;
+		}
+
+		const currentPath = currentNavigationPathname();
+		clearNavigationRoot();
 
 		// Check if the current URL already ends with the profile we're trying to navigate to
 		if (!currentPath.endsWith(eventPath)) {

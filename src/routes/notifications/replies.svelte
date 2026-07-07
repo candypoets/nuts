@@ -10,11 +10,12 @@
 	import ContentBlocks from 'src/routes/explore/_post/ContentBlocks.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import User from 'src/routes/explore/user.svelte';
-	import { go } from 'src/routes/modals/modal';
+	import { go, usePagerNavigation } from 'src/routes/modals/modal';
 	import { formatTime, type ProcessedNotification } from './notifications';
 
 	export let post: ProcessedNotification;
 	export let visible: boolean;
+	const nav = usePagerNavigation();
 
 	let context: ParsedEvent[] = [];
 	let originalPost: ParsedEvent | null = null;
@@ -23,6 +24,10 @@
 	let activePostKey = '';
 
 	let sub: () => void;
+
+	function openPath(eventPath: string) {
+		nav ? nav.push(eventPath) : go(eventPath);
+	}
 
 	function getNotificationKey() {
 		const idValue = post?.id?.();
@@ -128,7 +133,9 @@
 				<a
 					class="notification-post-preview cursor-pointer p-3 mb-3 text-sm line-clamp-2 w-post-1"
 					on:click={() =>
-						go(`nevent:${nip19.neventEncode({ id: originalPost?.id(), relays: $writeRelays })}`)}
+						openPath(
+							`nevent:${nip19.neventEncode({ id: originalPost?.id(), relays: $writeRelays })}`
+						)}
 				>
 					<!-- {originalPost.content.slice(0, 100)}... -->
 					<ContentBlocks
@@ -147,7 +154,7 @@
 					<a
 						href="/"
 						class="relative z-0 hover:z-10"
-						on:click|preventDefault={() => go(`nprofile:${event.pubkey()}`)}
+						on:click|preventDefault={() => openPath(`nprofile:${event.pubkey()}`)}
 					>
 						<Avatar pubkey={event.pubkey()} {context} />
 					</a>

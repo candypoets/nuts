@@ -5,8 +5,13 @@
 	import Icon from '@iconify/svelte';
 
 	import { key, kind10002Ready, lastNotificationView } from 'src/controller';
-	import { go } from 'src/routes/modals/modal';
+	import { go, usePagerNavigation } from 'src/routes/modals/modal';
 	let missed = 0;
+	const nav = usePagerNavigation();
+
+	function openNotifications() {
+		nav ? nav.root('notifications') : go('notifications');
+	}
 
 	kind10002Ready.promise.then((result) => {
 		const kind10002 = asKind10002(result) as Kind10002Parsed;
@@ -38,7 +43,7 @@
 	}
 </script>
 
-<div class="indicator cursor-pointer" on:click|stopPropagation={() => go('notifications')}>
+<div class="indicator cursor-pointer" on:click|stopPropagation={openNotifications}>
 	<div
 		class="w-2 h-2 bg-accent rounded-full indicator-item indicator-center"
 		class:hidden={!missed}

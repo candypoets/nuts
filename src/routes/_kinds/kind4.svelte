@@ -14,13 +14,18 @@
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import User from 'src/routes/explore/user.svelte';
-	import { go } from '../modals/modal';
+	import { go, usePagerNavigation } from '../modals/modal';
 	import { onDestroy } from 'svelte';
 
 	// in a chat, pubkey is the other person's pubkey
 	export let pubkey: string;
 	export let visible: boolean;
 	export let goBack: () => void;
+	const nav = usePagerNavigation();
+
+	function openPath(eventPath: string) {
+		nav ? nav.push(eventPath) : go(eventPath);
+	}
 
 	let showPicker = false;
 	let message: string = '';
@@ -327,7 +332,7 @@
 			{#key pubkey}
 				<div
 					class="flex items-center gap-2 bg-base-300 pr-2 rounded-full border"
-					on:click={() => go('nprofile:' + pubkey)}
+					on:click={() => openPath('nprofile:' + pubkey)}
 				>
 					<Avatar pubkey={pubkey || ''} size="lg" context={[]} />
 					<User pubkey={pubkey || ''} link={false} context={[]} />

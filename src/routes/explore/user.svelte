@@ -10,7 +10,8 @@
 	import {
 		clearNavigationRoot,
 		currentNavigationPathname,
-		navigateStackPath
+		navigateStackPath,
+		usePagerNavigation
 	} from 'src/routes/modals/modal';
 
 	export let pubkey: string;
@@ -21,6 +22,7 @@
 
 	let user: Kind0Parsed | undefined;
 	let sub: (() => void) | undefined;
+	const nav = usePagerNavigation();
 
 	let queried = false;
 
@@ -45,9 +47,14 @@
 	});
 
 	function go() {
+		const profilePath = `nprofile:${pubkey}`;
+		if (nav) {
+			nav.push(profilePath);
+			return;
+		}
+
 		const currentPath = currentNavigationPathname();
 		clearNavigationRoot();
-		const profilePath = `nprofile:${pubkey}`;
 
 		// Check if the current URL already ends with the profile we're trying to navigate to
 		if (!currentPath.endsWith(profilePath)) {
@@ -60,14 +67,10 @@
 	<a
 		class="text-accent whitespace-nowrap hover:underline"
 		on:click|stopPropagation|preventDefault={go}
-		>@{user?.name?.()?.trim() ||
-			user?.displayName?.()?.trim() ||
-			pubkey?.slice(0, 15) + '...'}</a
+		>@{user?.name?.()?.trim() || user?.displayName?.()?.trim() || pubkey?.slice(0, 15) + '...'}</a
 	>
 {:else}
 	<span
-		>{user?.name?.()?.trim() ||
-			user?.displayName?.()?.trim() ||
-			pubkey?.slice(0, 15) + '...'}</span
+		>{user?.name?.()?.trim() || user?.displayName?.()?.trim() || pubkey?.slice(0, 15) + '...'}</span
 	>
 {/if}

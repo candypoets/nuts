@@ -49,12 +49,17 @@
 	import { CALENDAR_EVENT_KINDS, RSVP_KIND, parseCalendarEvent } from 'src/lib/calendarEvent';
 	import { ago } from 'src/lib/period';
 	import Feed from 'src/routes/explore/feed.svelte';
-	import { go } from 'src/routes/modals/modal';
+	import { go, usePagerNavigation } from 'src/routes/modals/modal';
 	import { onDestroy } from 'svelte';
 	import Notifications from './notifications.svelte';
 	import Avatar from './avatar.svelte';
 
 	export let visible = true;
+	const nav = usePagerNavigation();
+
+	function openRoot(eventPath: string) {
+		nav ? nav.root(eventPath) : go(eventPath);
+	}
 
 	let connectionStatus: { [url: string]: ConnectionStatus } = {};
 	let connectionTracker = new ConnectionTracker();
@@ -706,10 +711,10 @@
 
 					<div class="flex gap-2 items-center w-1/3 justify-end">
 						<!-- <span class="text font-semibold">{$balance} Sats</span> -->
-						<span class="cursor-pointer" on:click|stopPropagation={() => go('notifications')}>
+						<span class="cursor-pointer" on:click|stopPropagation={() => openRoot('notifications')}>
 							<Icon icon="mdi:bell-outline" class="text-2xl mr-2" />
 						</span>
-						<a class="cursor-pointer" on:click|stopPropagation={() => go('profile')}>
+						<a class="cursor-pointer" on:click|stopPropagation={() => openRoot('profile')}>
 							<Avatar pubkey={$key?.pub || ''} size="md" customClass="border rounded-full" />
 						</a>
 					</div>
@@ -728,7 +733,7 @@
 		<svelte.fragment slot="sticky-footer">
 			<div class="md:pb-4 pb-safe md:px-6 px-2">
 				<div
-					on:click|stopPropagation={(_) => go('post')}
+					on:click|stopPropagation={() => openRoot('post')}
 					class="px-4 py-2 rounded-full border border-accent backdrop-blur-md"
 				>
 					What's up?
@@ -766,7 +771,7 @@
 						</span>
 						<!-- <span class="text font-semibold">{$balance} Sats</span> -->
 						<Notifications />
-						<div class="cursor-pointer" on:click|stopPropagation={() => go('profile')}>
+						<div class="cursor-pointer" on:click|stopPropagation={() => openRoot('profile')}>
 							<Avatar pubkey={$key?.pub || ''} size="md" customClass="border rounded-full" />
 						</div>
 					</div>
@@ -777,6 +782,7 @@
 						subId={relaySelectionSubId}
 						relays={feedRelays}
 						{connectionStatus}
+						rootNavigation
 					/>
 				</div>
 				{#if upcomingEvents.length}

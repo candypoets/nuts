@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { Kind30023Parsed, type ParsedEvent } from '@candypoets/nipworker';
 	import { proxyPreviewUrl } from 'src/lib/proxy';
-	import { go } from 'src/routes/modals/modal';
+	import { go, usePagerNavigation } from 'src/routes/modals/modal';
 	import { nip19 } from 'nostr-tools';
 	import Icon from '@iconify/svelte';
 
 	export let note: ParsedEvent;
+	const nav = usePagerNavigation();
 
 	// Extract Kind30023Parsed from the note
 	function getKind30023(note: ParsedEvent): Kind30023Parsed | null {
@@ -93,7 +94,8 @@
 				pubkey: note.pubkey()! || '',
 				identifier: slug
 			});
-			go(`naddr:${naddrBech32}`);
+			const eventPath = `naddr:${naddrBech32}`;
+			nav ? nav.push(eventPath) : go(eventPath);
 		}
 	}
 </script>

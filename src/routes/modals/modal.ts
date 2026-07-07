@@ -1,6 +1,7 @@
 import { goto, pushState } from '$app/navigation';
 import { page } from '$app/stores';
 import { getManager } from '@candypoets/nipworker';
+import { getContext } from 'svelte';
 import { get, writable } from 'svelte/store';
 import { key } from 'src/controller';
 
@@ -67,6 +68,7 @@ export const pathNeedsLogin = [
 	// 'zoom'
 ];
 const manager = getManager();
+export const PAGER_NAVIGATION_CONTEXT = 'pagerNavigation';
 export const stackPath = writable(
 	typeof window !== 'undefined' ? window.location.pathname : get(page).url.pathname
 );
@@ -154,6 +156,49 @@ export function navigateStackPath(path: string) {
 	} catch {
 		void goto(path);
 	}
+}
+
+export type PagerNavigation = {
+	rootPath: string;
+	push: (eventPath: string) => void;
+	root: (eventPath?: string) => void;
+	back: () => void;
+};
+
+function currentPathForRoot(rootPath: string) {
+	const currentPath = currentPathname();
+	return currentPath.startsWith(rootPath) ? currentPath : rootPath;
+}
+
+export function createPagerNavigation(rootPath: string): PagerNavigation {
+	return {
+		rootPath,
+		push(eventPath: string) {
+			if (!eventPath) return;
+			const currentPath = currentPathForRoot(rootPath);
+			if (!currentPath.endsWith(eventPath)) {
+				navigateStackPath(`${currentPath}/${eventPath}`);
+				scheduleCleanup();
+			}
+		},
+		root(eventPath?: string) {
+			const nextPath = eventPath ? `${rootPath}/${eventPath}` : rootPath;
+			navigateStackPath(nextPath);
+			scheduleCleanup();
+		},
+		back() {
+			const currentPath = currentPathForRoot(rootPath);
+			const lastSlashIndex = currentPath.lastIndexOf('/');
+			navigateStackPath(
+				lastSlashIndex > rootPath.length ? currentPath.substring(0, lastSlashIndex) : rootPath
+			);
+			scheduleCleanup();
+		}
+	};
+}
+
+export function usePagerNavigation(): PagerNavigation | undefined {
+	return getContext<PagerNavigation | undefined>(PAGER_NAVIGATION_CONTEXT);
 }
 
 export function goBack() {

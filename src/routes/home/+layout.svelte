@@ -53,10 +53,15 @@
 	import MintCard from 'src/routes/home/components/mintcard.svelte';
 	import Kind9321 from 'src/routes/kinds/kind9321.svelte';
 	import Kind9735 from 'src/routes/kinds/kind9735.svelte';
-	import { go } from 'src/routes/modals/modal';
+	import { go, usePagerNavigation } from 'src/routes/modals/modal';
 	import EmptyWallet from './emptyWallet.svelte';
 
 	export let visible = false;
+	const nav = usePagerNavigation();
+
+	function openRoot(eventPath: string) {
+		nav ? nav.root(eventPath) : go(eventPath);
+	}
 
 	let isViewing = false;
 
@@ -541,7 +546,7 @@
 							<div on:click={() => (isViewing = !isViewing)}>
 								<Icon icon={isViewing ? 'ph:eye-closed' : 'ph:eye'} class="text-2xl" />
 							</div>
-							<button on:click|stopPropagation={() => go('qr')}>
+							<button on:click|stopPropagation={() => openRoot('qr')}>
 								<Icon icon="ph:qr-code" class="text-2xl" />
 							</button>
 							<!-- Refresh button -->
@@ -556,7 +561,7 @@
 									style="transform-origin: center;"
 								/>
 							</button>
-							<div on:click|stopPropagation={() => go('profile')} class="cursor-pointer">
+							<div on:click|stopPropagation={() => openRoot('profile')} class="cursor-pointer">
 								<img
 									src={proxyAvatarUrl(
 										($kind0 ? asKind0($kind0)?.picture() : undefined) || '/miss-profile.png'
@@ -584,7 +589,7 @@
 									<h3 class="font-semibold text-lg">Setup Your Wallet</h3>
 									<p class="text-sm text-secondary-content">Configure your wallet to get started</p>
 								</div>
-								<button class="btn btn-accent" on:click|stopPropagation={() => go('wallet')}>
+								<button class="btn btn-accent" on:click|stopPropagation={() => openRoot('wallet')}>
 									<Icon icon="ph:wallet-bold" class="mr-2" />
 									Setup Wallet
 								</button>
@@ -597,7 +602,7 @@
 						<div class="text-center">
 							<button
 								class="btn w-14 h-14 btn-primary btn-circle text-base-100"
-								on:click|stopPropagation={() => go('receive')}
+								on:click|stopPropagation={() => openRoot('receive')}
 							>
 								<Icon icon="teenyicons:add-outline" class="text-2xl" />
 							</button>
@@ -606,7 +611,7 @@
 						<div class="text-center">
 							<button
 								class="btn w-14 h-14 btn-primary btn-circle text-base-100"
-								on:click|stopPropagation={() => go('send')}
+								on:click|stopPropagation={() => openRoot('send')}
 							>
 								<Icon icon="ph:arrow-right" class="w-8 h-8" />
 							</button>
@@ -615,7 +620,7 @@
 						<div class="text-center">
 							<a
 								class="btn w-14 h-14 btn-outline btn-circle"
-								on:click|stopPropagation={() => go('scan')}
+								on:click|stopPropagation={() => openRoot('scan')}
 							>
 								<Icon icon="teenyicons:scan-solid" class="text-2xl" />
 							</a>

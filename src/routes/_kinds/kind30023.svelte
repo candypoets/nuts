@@ -26,7 +26,7 @@
 	import Feed from 'src/routes/explore/feed.svelte';
 	import Footer from 'src/routes/explore/_post/footer.svelte';
 	import User from 'src/routes/explore/user.svelte';
-	import { go } from '../modals/modal';
+	import { go, usePagerNavigation } from '../modals/modal';
 	import { getUserRelays } from '../queries/user';
 	import { normalizeURL } from 'nostr-tools/utils';
 	import { isMobile } from 'src/controller';
@@ -34,6 +34,11 @@
 	export let naddr: string;
 	export let visible: boolean;
 	export let goBack: () => void;
+	const nav = usePagerNavigation();
+
+	function openPath(eventPath: string) {
+		nav ? nav.push(eventPath) : go(eventPath);
+	}
 
 	// Decode naddr (supports both bech32 and custom kind:pubkey:identifier format)
 	$: decoded = (() => {
@@ -269,7 +274,7 @@
 							{#each topics as topic}
 								<button
 									class="text-sm bg-base-200 hover:bg-base-100 px-3 py-1 rounded-full transition-colors"
-									on:click={() => go(`tags:${encodeURIComponent(topic)}`)}
+									on:click={() => openPath(`tags:${encodeURIComponent(topic)}`)}
 								>
 									#{topic}
 								</button>
@@ -339,7 +344,7 @@
 								{:else if block.type === 'hashtag'}
 									<button
 										class="text-primary font-semibold hover:underline"
-										on:click={() => go(`tags:${encodeURIComponent(block.data?.tag || '')}`)}
+										on:click={() => openPath(`tags:${encodeURIComponent(block.data?.tag || '')}`)}
 									>
 										{block.text}
 									</button>
@@ -355,7 +360,7 @@
 										<a
 											href={`/note/${entity}`}
 											class="text-accent hover:underline break-words"
-											on:click|preventDefault={() => go(`note:${entity}`)}
+											on:click|preventDefault={() => openPath(`note:${entity}`)}
 										>
 											{block.text}
 										</a>
@@ -366,7 +371,7 @@
 										<a
 											href={`/article/${entity}`}
 											class="text-accent hover:underline break-words"
-											on:click|preventDefault={() => go(`naddr:${entity}`)}
+											on:click|preventDefault={() => openPath(`naddr:${entity}`)}
 										>
 											{block.text}
 										</a>

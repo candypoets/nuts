@@ -5,10 +5,12 @@
 	import { isMobile } from 'src/controller';
 	import { fetchRelayInfo, relayInfos, relaySubs, setSubRelays } from 'src/controller/relay';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
-	import { go } from 'src/routes/modals/modal';
+	import { go, usePagerNavigation } from 'src/routes/modals/modal';
 
 	export let subId = '';
 	export let relays: string[] = [];
+	export let rootNavigation = false;
+	const nav = usePagerNavigation();
 
 	export let connectionStatus: { [relay_url: string]: ConnectionStatus | 'SUBSCRIBED' | undefined };
 
@@ -73,11 +75,16 @@
 
 	function openRelayInfos() {
 		setSubRelays(subId, displayRelays.map(normalizeURL));
-		go(`relayinfos:${subId}`);
+		if (rootNavigation) {
+			nav ? nav.root(`relayinfos:${subId}`) : go(`relayinfos:${subId}`);
+		} else {
+			nav ? nav.push(`relayinfos:${subId}`) : go(`relayinfos:${subId}`);
+		}
 	}
 
 	function openCommunityRelay(relay: string) {
-		go(`community:${encodeURIComponent(normalizeURL(relay))}`);
+		const eventPath = `community:${encodeURIComponent(normalizeURL(relay))}`;
+		nav ? nav.push(eventPath) : go(eventPath);
 	}
 
 	function handleListClick() {

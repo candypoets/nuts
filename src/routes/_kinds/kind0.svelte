@@ -48,7 +48,7 @@
 	import { type ContentBlock, parseContent } from 'src/lib';
 	import { onDestroy, onMount } from 'svelte';
 	import Avatar from '../explore/avatar.svelte';
-	import { go } from '../modals/modal';
+	import { go, usePagerNavigation } from '../modals/modal';
 	import { userQuery } from '../queries/user';
 
 	// Default relays as fallback
@@ -58,6 +58,11 @@
 	export let pubkey: string;
 	export let visible: boolean;
 	export let goBack: () => void;
+	const nav = usePagerNavigation();
+
+	function openPath(eventPath: string) {
+		nav ? nav.push(eventPath) : go(eventPath);
+	}
 
 	let headerItem: ParsedEvent | undefined;
 	let parsedAbout: ContentBlock[] | undefined;
@@ -269,11 +274,11 @@
 		const relays = communities.map((community) => community.url);
 		if (!relays.length) return;
 		setSubRelays(baseSubId, relays);
-		go(`relayinfos:${baseSubId}`);
+		openPath(`relayinfos:${baseSubId}`);
 	}
 
 	function openCommunity(community: ProfileCommunity) {
-		go(`community:${encodeURIComponent(community.url)}`);
+		openPath(`community:${encodeURIComponent(community.url)}`);
 	}
 
 	function handleProfileEvents(message: WorkerMessage) {
@@ -885,7 +890,7 @@
 
 						<button
 							class="z-10 btn btn-sm btn-circle border border-white bg-opacity-80"
-							on:click={() => go('ecash:' + pubkey)}
+							on:click={() => openPath('ecash:' + pubkey)}
 							title="Zap"
 						>
 							<Icon icon="ion:flash" class="text-lg" />

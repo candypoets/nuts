@@ -9,7 +9,13 @@
 	import { viewport } from 'src/controller/viewport';
 	import { PagerAnimator } from 'src/lib/animations/PagerAnimator';
 	import { pagerAnimators } from 'src/controller/pager';
-	import { navigateStackPath, pathOptions, stackPath } from 'src/routes/modals/modal';
+	import {
+		createPagerNavigation,
+		navigateStackPath,
+		PAGER_NAVIGATION_CONTEXT,
+		pathOptions,
+		stackPath
+	} from 'src/routes/modals/modal';
 
 	export let rootPath: string;
 
@@ -23,9 +29,11 @@
 	let mainElement: HTMLElement;
 
 	const animator = $pagerAnimators[rootPath.replace('/', '')];
+	const navigation = createPagerNavigation(rootPath);
 
 	// Provide animator to children (Sub/Modal use getContext('animator'))
 	setContext('animator', animator);
+	setContext(PAGER_NAVIGATION_CONTEXT, navigation);
 
 	onMount(() => {
 		if (mainElement && animator) {
@@ -67,7 +75,7 @@
 
 	function handleMainClick(event: MouseEvent) {
 		if (event.target !== mainElement) return;
-		animator.unregisterAll(() => navigateStackPath(rootPath));
+		animator.unregisterAll(() => navigation.root());
 	}
 </script>
 

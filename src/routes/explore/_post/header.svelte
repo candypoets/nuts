@@ -12,7 +12,8 @@
 	import {
 		clearNavigationRoot,
 		currentNavigationPathname,
-		navigateStackPath
+		navigateStackPath,
+		usePagerNavigation
 	} from 'src/routes/modals/modal';
 	import { userQuery } from 'src/routes/queries/user';
 
@@ -26,24 +27,21 @@
 	let author: Kind0Parsed | undefined;
 	let isImageContext = getContext('imageContext');
 	let sub: (() => void) | undefined;
+	const nav = usePagerNavigation();
 
 	$: notePubkey = note.pubkey()!;
 
 	$: decoded = {
 		name:
 			(typeof author?.name === 'function' ? author.name() : author?.name) ||
-			(typeof author?.displayName === 'function'
-				? author.displayName()
-				: author?.displayName),
+			(typeof author?.displayName === 'function' ? author.displayName() : author?.displayName),
 		picture: author?.picture?.(),
 		nip05: author?.nip05?.()
 	};
 
 	onMount(() => {
 		if (!author) {
-			const authorEvent = context.find(
-				(c) => c.pubkey()! === notePubkey && c.kind() == 0
-			);
+			const authorEvent = context.find((c) => c.pubkey()! === notePubkey && c.kind() == 0);
 
 			if (!authorEvent) {
 				sub = useSubscription(
@@ -82,9 +80,14 @@
 
 	function go() {
 		if (isImageContext) return;
+		const profilePath = `nprofile:${note.pubkey()!}`;
+		if (nav) {
+			nav.push(profilePath);
+			return;
+		}
+
 		const currentPath = currentNavigationPathname();
 		clearNavigationRoot();
-		const profilePath = `nprofile:${note.pubkey()!}`;
 
 		// Check if the current URL already ends with the profile we're trying to navigate to
 		if (!currentPath.endsWith(profilePath)) {
