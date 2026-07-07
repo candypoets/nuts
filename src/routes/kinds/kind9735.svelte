@@ -1,6 +1,5 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
-	import { page } from '$app/stores';
+	import { resolve } from '$app/paths';
 	import { WorkerMessage, type ParsedEvent } from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import { asKind9735, fbArray, isKind10002 } from '@candypoets/nipworker/utils';
@@ -13,6 +12,11 @@
 	import { DAY } from 'src/lib/period';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import User from 'src/routes/explore/user.svelte';
+	import {
+		clearNavigationRoot,
+		currentNavigationPathname,
+		navigateStackPath
+	} from 'src/routes/modals/modal';
 	import { userQuery } from 'src/routes/queries/user';
 
 	export let zap: ParsedEvent;
@@ -54,7 +58,8 @@
 	);
 
 	function go() {
-		const currentPath = $page.url.pathname;
+		const currentPath = currentNavigationPathname();
+		clearNavigationRoot();
 		let eventPath = '';
 		if (decoded.eventId) {
 			eventPath = `nevent:${nip19.neventEncode({ id: decoded?.eventId, relays })}`;
@@ -64,7 +69,7 @@
 
 		// Check if the current URL already ends with the profile we're trying to navigate to
 		if (!currentPath.endsWith(eventPath)) {
-			goto(`${currentPath}/${eventPath}`);
+			navigateStackPath(resolve(`${currentPath}/${eventPath}` as '/home'));
 		}
 	}
 

@@ -208,11 +208,15 @@ export class CarouselAnimator {
 
 	navigateTo(index: number, duration: number = 400, isMobile: boolean = false) {
 		if (index < 0 || index >= this.activeRoutes.length) return;
-		if (index === this.currentIndexValue) return;
+		const route = this.activeRoutes[index].route;
+		if (index === this.currentIndexValue) {
+			this.commitCarouselRoute(route);
+			return;
+		}
 
 		const targetX = index * this.scrollerWidth;
 		this.animateToPosition(targetX, duration, isMobile, index);
-		this.commitCarouselRoute(this.activeRoutes[index].route);
+		this.commitCarouselRoute(route);
 		this.setCurrentIndex(index);
 	}
 

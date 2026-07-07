@@ -65,7 +65,11 @@
 	import Chat from 'src/routes/chat/index.svelte';
 	import Explore from 'src/routes/explore/index.svelte';
 	import Home from 'src/routes/home/+layout.svelte';
-	import { goBack as goBackRouter, goToRoot as goToRootRouter } from 'src/routes/modals/modal';
+	import {
+		goBack as goBackRouter,
+		goToRoot as goToRootRouter,
+		stackPath
+	} from 'src/routes/modals/modal';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
 
@@ -509,7 +513,7 @@
 				return;
 			}
 
-			const pathname = $page.url.pathname;
+			const pathname = $stackPath;
 			// Split path and filter out empty strings (leading/trailing slashes)
 			const pathParts = pathname.split('/').filter(Boolean);
 
@@ -636,6 +640,7 @@
 			<div
 				class="carousel-item w-[100vw] h-full will-change-transform carousel-item-{index}"
 				class:pointer-events-none={$overviewModeStore}
+				data-carousel-route={feed.route}
 				on:click={() => $overviewModeStore && handleSelectFeedInOverview(index)}
 			>
 				{#if $overviewModeStore}

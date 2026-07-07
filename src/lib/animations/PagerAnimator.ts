@@ -397,7 +397,7 @@ export class PagerAnimator {
 	/**
 	 * Unregister all elements from the stack
 	 */
-	unregisterAll() {
+	unregisterAll(onRoot?: () => void) {
 		// Snapshot all elements to animate out
 		const elementsToRemove = [...this.stack];
 		// Clear the stack immediately
@@ -429,7 +429,9 @@ export class PagerAnimator {
 		}
 
 		// Navigate to root once after starting all animations
-		if (this.goToRootRouter) {
+		if (onRoot) {
+			onRoot();
+		} else if (this.goToRootRouter) {
 			this.goToRootRouter();
 		} else {
 			// Fallback: call goBackRouter for each element (old behavior)

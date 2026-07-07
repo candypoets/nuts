@@ -1,6 +1,5 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
-	import { onMount, onDestroy, setContext } from 'svelte';
+	import { onMount, setContext } from 'svelte';
 	import { page } from '$app/stores';
 
 	// Use the item-level components instead of their index aggregators
@@ -10,7 +9,7 @@
 	import { viewport } from 'src/controller/viewport';
 	import { PagerAnimator } from 'src/lib/animations/PagerAnimator';
 	import { pagerAnimators } from 'src/controller/pager';
-	import { pathOptions } from 'src/routes/modals/modal';
+	import { navigateStackPath, pathOptions, stackPath } from 'src/routes/modals/modal';
 
 	export let rootPath: string;
 
@@ -37,9 +36,17 @@
 	// Update animator viewport on resize
 	$: animator?.updateViewport($viewport);
 
+	$: if (
+		typeof window !== 'undefined' &&
+		window.location.pathname === $page.url.pathname &&
+		$stackPath !== $page.url.pathname
+	) {
+		stackPath.set($page.url.pathname);
+	}
+
 	// Recompute the interleaved stack from the URL
 	$: {
-		const rawPath = $page.url.href.replace($page.url.origin, '').split(/[?#]/)[0];
+		const rawPath = $stackPath.split(/[?#]/)[0];
 		if (rawPath.startsWith(rootPath)) {
 			const segments = rawPath.split('/').slice(2).filter(Boolean);
 
@@ -57,6 +64,11 @@
 			stack = [];
 		}
 	}
+
+	function handleMainClick(event: MouseEvent) {
+		if (event.target !== mainElement) return;
+		animator.unregisterAll(() => navigateStackPath(rootPath));
+	}
 </script>
 
 <div
@@ -65,7 +77,7 @@
 		perspective: 1000px;
 		backface-visibility: hidden;
 		-webkit-backface-visibility: hidden;"
-	on:click={() => animator.unregisterAll()}
+	on:click={handleMainClick}
 	class="will-change-transform transition-gpu"
 >
 	<slot />

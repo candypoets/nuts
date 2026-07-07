@@ -1,6 +1,6 @@
 import { derived, writable, type Readable } from 'svelte/store';
-import { page } from '$app/stores';
 import { PagerAnimator } from 'src/lib/animations/PagerAnimator.js';
+import { stackPath } from 'src/routes/modals/modal';
 
 // Store for the pager animators keyset
 export const pagerAnimators = writable<Record<string, PagerAnimator>>({});
@@ -38,10 +38,10 @@ const DEFAULT_ANIMATION_CONFIG = {
  * Derived store that selects the correct PagerAnimator instance based on the current URL path
  */
 export const pagerAnimator: Readable<PagerAnimator | null> = derived(
-	[page, pagerAnimators],
-	([$page, $pagerAnimators]) => {
+	[stackPath, pagerAnimators],
+	([$stackPath, $pagerAnimators]) => {
 		// Extract the base path from the current URL
-		const basePath = getBasePath($page.url.pathname);
+		const basePath = getBasePath($stackPath);
 
 		// Return the corresponding PagerAnimator instance or null if not found
 		return $pagerAnimators[basePath] || null;

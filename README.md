@@ -78,4 +78,6 @@ This app handles real Bitcoin (sats). While Cashu provides privacy and convenien
 
 ## License
 
-[MIT](LICENSE.md)
+This project is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE.md).
+
+You may use, copy, modify, and distribute this software for non-commercial purposes. Commercial use, including commercial forks, hosted services, paid products, or use inside a for-profit business, requires a separate commercial license from the copyright holder.

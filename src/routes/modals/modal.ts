@@ -1,7 +1,7 @@
-import { goto } from '$app/navigation';
+import { goto, pushState } from '$app/navigation';
 import { page } from '$app/stores';
 import { getManager } from '@candypoets/nipworker';
-import { get } from 'svelte/store';
+import { get, writable } from 'svelte/store';
 import { key } from 'src/controller';
 
 export const pathOptions = [
@@ -67,11 +67,71 @@ export const pathNeedsLogin = [
 	// 'zoom'
 ];
 const manager = getManager();
+export const stackPath = writable(
+	typeof window !== 'undefined' ? window.location.pathname : get(page).url.pathname
+);
 let cleanupTimer: ReturnType<typeof setTimeout> | undefined;
+let lastNavigationRoot: string | undefined;
+let navigationRootCleanup: ReturnType<typeof setTimeout> | undefined;
+
+function routeFromEventTarget(target: EventTarget | null) {
+	if (typeof Element === 'undefined' || !(target instanceof Element)) return;
+	if (target.closest('[data-kind]')) return;
+	const routeElement = target.closest<HTMLElement>('[data-carousel-route]');
+	const route = routeElement?.dataset.carouselRoute;
+	return route && route.startsWith('/') ? route : undefined;
+}
+
+function rememberNavigationRoot(route: string | undefined) {
+	if (!route) return;
+	lastNavigationRoot = route;
+	if (navigationRootCleanup) clearTimeout(navigationRootCleanup);
+	navigationRootCleanup = setTimeout(() => {
+		lastNavigationRoot = undefined;
+		navigationRootCleanup = undefined;
+	}, 2000);
+}
+
+if (typeof document !== 'undefined') {
+	window.addEventListener('popstate', () => {
+		stackPath.set(window.location.pathname);
+	});
+
+	document.addEventListener(
+		'pointerdown',
+		(event) => {
+			rememberNavigationRoot(routeFromEventTarget(event.target));
+		},
+		{ capture: true }
+	);
+
+	document.addEventListener(
+		'click',
+		(event) => {
+			rememberNavigationRoot(routeFromEventTarget(event.target));
+		},
+		{ capture: true }
+	);
+}
 
 function currentPathname() {
-	if (typeof window !== 'undefined') return window.location.pathname;
-	return get(page).url.pathname;
+	return get(stackPath);
+}
+
+export function currentNavigationPathname() {
+	if (lastNavigationRoot) {
+		return lastNavigationRoot;
+	}
+
+	return currentPathname();
+}
+
+export function clearNavigationRoot() {
+	lastNavigationRoot = undefined;
+	if (navigationRootCleanup) {
+		clearTimeout(navigationRootCleanup);
+		navigationRootCleanup = undefined;
+	}
 }
 
 function scheduleCleanup(delay = 1000) {
@@ -87,6 +147,15 @@ function scheduleCleanup(delay = 1000) {
 	}, delay);
 }
 
+export function navigateStackPath(path: string) {
+	stackPath.set(path);
+	try {
+		pushState(path, {});
+	} catch {
+		void goto(path);
+	}
+}
+
 export function goBack() {
 	// Get current path
 	const currentPath = currentPathname();
@@ -98,10 +167,10 @@ export function goBack() {
 	if (lastSlashIndex > 0) {
 		// Navigate to the parent path (everything before last slash)
 		const parentPath = currentPath.substring(0, lastSlashIndex);
-		goto(parentPath);
+		navigateStackPath(parentPath);
 	} else {
 		// If no slash or at root, go to root
-		goto(rootPath);
+		navigateStackPath('/' + rootPath);
 	}
 	scheduleCleanup();
 }
@@ -112,7 +181,7 @@ export function goToRoot() {
 
 	// Get the root segment (e.g., /home, /explore, /chat from /home/some/modal)
 	const rootPath = currentPath.split('/')[1];
-	goto('/' + rootPath);
+	navigateStackPath('/' + rootPath);
 	scheduleCleanup();
 }
 
@@ -124,11 +193,12 @@ export function go(eventPath: string) {
 		eventPath = 'login';
 	}
 
-	const currentPath = currentPathname();
+	const currentPath = currentNavigationPathname();
+	clearNavigationRoot();
 
 	// Check if the current URL already ends with the profile we're trying to navigate to
 	if (!currentPath.endsWith(eventPath)) {
-		goto(`${currentPath}/${eventPath}`);
+		navigateStackPath(`${currentPath}/${eventPath}`);
 		scheduleCleanup();
 	}
 }

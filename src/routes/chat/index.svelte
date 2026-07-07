@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import {
 		ChatLimiterPipeConfigT,
 		MessageType,
@@ -38,7 +39,7 @@
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import User from 'src/routes/explore/user.svelte';
-	import { go } from 'src/routes/modals/modal';
+	import { go, navigateStackPath } from 'src/routes/modals/modal';
 	import Empty from './empty.svelte';
 
 	export let visible = true;
@@ -330,6 +331,20 @@
 		return kind4 ? fbArray(kind4, 'parsedContent') : [];
 	}
 
+	function chatHref(post: ParsedEvent) {
+		return resolve(`/chat/kind4:${correspondant(post)}` as '/chat');
+	}
+
+	function openChat(post: ParsedEvent, event: MouseEvent) {
+		if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+			return;
+		}
+
+		event.preventDefault();
+		event.stopPropagation();
+		navigateStackPath(chatHref(post));
+	}
+
 	function selectChatTab(tab: ChatListTab) {
 		activeChatTab = tab;
 		if (start !== 0 || end !== 0) {
@@ -464,8 +479,12 @@
 		<svelte:fragment slot="item-content" let:post let:visible>
 			{@const k4 = asKind4(post)}
 			<a
-				href={'/chat/' + 'kind4:' + correspondant(post)}
+				href={chatHref(post)}
 				class="flex gap-2 h-24 overflow-hidden pt-4 pr-4 pl-1 cursor-pointer bg-base-300 bg-opacity-85 rounded-lg mt-1 shadow-widget"
+				on:click={(event) => openChat(post, event)}
+				on:touchstart|stopPropagation
+				on:touchmove|stopPropagation
+				on:touchend|stopPropagation
 			>
 				<div class="flex-shrink-0">
 					<Avatar pubkey={correspondant(post)} size="xl" />

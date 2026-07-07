@@ -1,6 +1,5 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
-	import { page } from '$app/stores';
+	import { resolve } from '$app/paths';
 	import type { Kind0Parsed, ParsedEvent, WorkerMessage } from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import { asKind0, isKind0 } from '@candypoets/nipworker/utils';
@@ -10,6 +9,11 @@
 
 	import { isMobile } from 'src/controller';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
+	import {
+		clearNavigationRoot,
+		currentNavigationPathname,
+		navigateStackPath
+	} from 'src/routes/modals/modal';
 	import { userQuery } from 'src/routes/queries/user';
 
 	export let note: ParsedEvent;
@@ -78,12 +82,13 @@
 
 	function go() {
 		if (isImageContext) return;
-		const currentPath = $page.url.pathname;
+		const currentPath = currentNavigationPathname();
+		clearNavigationRoot();
 		const profilePath = `nprofile:${note.pubkey()!}`;
 
 		// Check if the current URL already ends with the profile we're trying to navigate to
 		if (!currentPath.endsWith(profilePath)) {
-			goto(`${currentPath}/${profilePath}`);
+			navigateStackPath(resolve(`${currentPath}/${profilePath}` as '/home'));
 		}
 	}
 </script>

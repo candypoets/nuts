@@ -1,6 +1,5 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
-	import { page } from '$app/stores';
+	import { resolve } from '$app/paths';
 	import _ from 'lodash';
 	import { onMount } from 'svelte';
 
@@ -8,6 +7,11 @@
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import type { ParsedEvent, Kind0Parsed, WorkerMessage } from '@candypoets/nipworker';
 	import { asKind0, isKind0 } from '@candypoets/nipworker/utils';
+	import {
+		clearNavigationRoot,
+		currentNavigationPathname,
+		navigateStackPath
+	} from 'src/routes/modals/modal';
 
 	export let pubkey: string;
 	export let link: boolean = true;
@@ -41,12 +45,13 @@
 	});
 
 	function go() {
-		const currentPath = $page.url.pathname;
+		const currentPath = currentNavigationPathname();
+		clearNavigationRoot();
 		const profilePath = `nprofile:${pubkey}`;
 
 		// Check if the current URL already ends with the profile we're trying to navigate to
 		if (!currentPath.endsWith(profilePath)) {
-			goto(`${currentPath}/${profilePath}`);
+			navigateStackPath(resolve(`${currentPath}/${profilePath}` as '/home'));
 		}
 	}
 </script>
