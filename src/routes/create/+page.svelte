@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { resolve } from '$app/paths';
+	import { resolve } from 'src/lib/paths';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import {

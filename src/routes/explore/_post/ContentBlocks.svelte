@@ -26,6 +26,7 @@
 	export let visible: boolean = false;
 	export let depth = 0;
 	export let showMedia = true;
+	export let showMediaUrls = false;
 	export let showQuote = true;
 
 	let imageContext = getContext('imageContext');
@@ -64,6 +65,38 @@
 	function isYouTubeUrl(url: string | null | undefined): boolean {
 		if (!url) return false;
 		return url.includes('youtube.com') || url.includes('youtu.be');
+	}
+
+	function mediaUrls(parsed: ContentBlock): string[] {
+		if (parsed.dataType() == ContentData.MediaGroupData) {
+			const mediaGrid = asMediaGroupData(parsed);
+			if (!mediaGrid) return [];
+			return fbArray(mediaGrid, 'items')
+				.map((md) => md.image()?.url() || md.video()?.url() || '')
+				.filter((url): url is string => !!url);
+		}
+
+		const url = parsed.text();
+		return url ? [url] : [];
+	}
+
+	function mediaGroupLinks(parsed: ContentBlock) {
+		const mediaGrid = asMediaGroupData(parsed);
+		if (!mediaGrid) return [];
+
+		return fbArray(mediaGrid, 'items').map((item) => {
+			const image = item.image();
+			const video = item.video();
+
+			return image
+				? { src: image.url() || '', type: 'image' as const, dim: image.dim() || undefined }
+				: {
+						src: video?.url() || '',
+						type: 'video' as const,
+						dim: video?.dim() || undefined,
+						poster: video?.thumbnail() || undefined
+					};
+		});
 	}
 </script>
 
@@ -177,22 +210,27 @@
 			{/if}
 		{:else if parsed.dataType() == ContentData.CashuData}
 			<Cashu cashu={parsed.text()} />
-		{:else if parsed.dataType() == ContentData.ImageData && showMedia}
-			<ImageGrid {note} {visible} links={[{ src: parsed.text() || '', type: 'image' }]} />
-		{:else if parsed.dataType() == ContentData.VideoData && showMedia}
-			<ImageGrid {note} {visible} links={[{ src: parsed.text() || '', type: 'video' }]} />
-		{:else if parsed.dataType() == ContentData.MediaGroupData && showMedia}
-			{@const mediaGrid = asMediaGroupData(parsed)}
-			{#if mediaGrid}
-				<ImageGrid
-					{note}
-					{visible}
-					links={fbArray(mediaGrid, 'items').map((md) =>
-						md.image
-							? { src: md.image()?.url() || '', type: 'image' }
-							: { src: md.video()?.url() || '', type: 'image' }
-					) || []}
-				/>
+		{:else if parsed.dataType() == ContentData.ImageData || parsed.dataType() == ContentData.VideoData || parsed.dataType() == ContentData.MediaGroupData}
+			{#if showMedia}
+				{#if parsed.dataType() == ContentData.ImageData}
+					<ImageGrid {note} {visible} links={[{ src: parsed.text() || '', type: 'image' }]} />
+				{:else if parsed.dataType() == ContentData.VideoData}
+					<ImageGrid {note} {visible} links={[{ src: parsed.text() || '', type: 'video' }]} />
+				{:else}
+					<ImageGrid {note} {visible} links={mediaGroupLinks(parsed)} />
+				{/if}
+			{:else if showMediaUrls}
+				{#each mediaUrls(parsed) as url (url)}
+					<a
+						class="text-accent hover:underline break-words break-all max-w-full w-full"
+						on:click|stopPropagation
+						href={url}
+						target="_blank"
+						rel="noopener noreferrer"
+					>
+						{url}
+					</a>
+				{/each}
 			{/if}
 		{/if}
 	{/each}

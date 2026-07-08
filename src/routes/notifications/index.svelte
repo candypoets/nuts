@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { resolve } from '$app/paths';
+	import { resolve } from 'src/lib/paths';
 	import type { ParsedEvent, RequestObject, WorkerMessage } from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import {

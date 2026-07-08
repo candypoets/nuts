@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { afterUpdate, onDestroy, onMount } from 'svelte';
 	import {
 		sharedVideoElement,
 		sharedVideoIndex,
@@ -10,6 +10,8 @@
 	export let poster: string | undefined = undefined;
 	export let autoplay = true;
 	export let loop = true;
+	export let muted = true;
+	export let fullWidth = false;
 	export let className = '';
 	export let onClick: (e: MouseEvent) => void = () => {};
 	export let videoElement: HTMLVideoElement | undefined = undefined;
@@ -18,6 +20,10 @@
 
 	// Container reference to re-attach video when returned
 	let containerEl: HTMLElement;
+	let sharedElement: HTMLVideoElement | null = null;
+	const unsubscribeSharedVideo = sharedVideoElement.subscribe((element) => {
+		sharedElement = element;
+	});
 
 	// Time tracking for display
 	let currentTime = 0;
@@ -28,21 +34,26 @@
 		await import('media-chrome'); // npm i media-chrome
 	});
 
-	// Determine if this video is currently being shared (shown in zoom)
-	$: isShared = $sharedVideoElement === videoElement && $sharedVideoElement !== null;
+	function isSharedVideo() {
+		return !!sharedElement && sharedElement === videoElement;
+	}
 
 	// Re-attach video element when it's returned from zoom
-	$: if (!isShared && videoElement && containerEl) {
+	afterUpdate(() => {
+		if (!videoElement || !containerEl || isSharedVideo()) return;
 		// If the video element is not attached to this media-controller, move it back
 		if (videoElement.parentElement !== containerEl) {
 			// The video needs slot="media" to be recognized by media-controller
 			videoElement.setAttribute('slot', 'media');
 			containerEl.appendChild(videoElement);
 			// Restore original grid classes
-			videoElement.classList.remove('m-auto', 'object-contain');
-			videoElement.classList.add('max-h-96', 'w-auto', 'object-contain');
+			videoElement.className = fullWidth
+				? 'h-full max-h-96 w-full object-contain'
+				: 'max-h-96 w-auto object-contain';
 		}
-	}
+	});
+
+	onDestroy(unsubscribeSharedVideo);
 
 	// Update time display
 	function updateTime() {
@@ -97,7 +108,7 @@
 
 <media-controller class={`group relative block bg-transparent overflow-hidden ${className}`} bind:this={containerEl}>
 	<!-- Video element directly slotted for media-chrome to work properly -->
-	{#if !isShared}
+	{#if !isSharedVideo()}
 		<video
 			bind:this={videoElement}
 			slot="media"
@@ -105,11 +116,14 @@
 			{poster}
 			{autoplay}
 			{loop}
-			muted
+			{muted}
 			playsinline
 			preload="metadata"
 			crossorigin="anonymous"
-			class="max-h-96 w-auto object-contain"
+			class="max-h-96 object-contain"
+			class:h-full={fullWidth}
+			class:w-full={fullWidth}
+			class:w-auto={!fullWidth}
 			disablePictureInPicture
 			on:timeupdate={updateTime}
 			on:loadedmetadata={updateTime}
@@ -148,7 +162,7 @@
 	/>
 
 	<!-- Minimal controls: Unmute button + time remaining (only when video is attached) -->
-	{#if !isShared}
+	{#if !isSharedVideo()}
 		<!-- Unmute button (top right) -->
 		<media-mute-button
 			class="absolute !top-3 !right-3 z-10 !rounded-full !bg-black/60 !text-white !p-2

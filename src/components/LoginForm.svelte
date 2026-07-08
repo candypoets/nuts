@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { resolve } from '$app/paths';
+	import { resolve } from 'src/lib/paths';
 	import { ConnectionStatus, getManager, type WorkerMessage } from '@candypoets/nipworker';
 	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
 	import { isConnectionStatus, isKind0, connectWithQRCode } from '@candypoets/nipworker/utils';

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { resolve } from '$app/paths';
+	import { resolve } from 'src/lib/paths';
 	import { type ParsedEvent, type RequestObject, type WorkerMessage } from '@candypoets/nipworker';
 	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
 	import { isParsedEvent } from '@candypoets/nipworker/utils';

@@ -1,5 +1,4 @@
-import type { Kind8Parsed, ParsedEvent } from '@candypoets/nipworker';
-import { fbArray } from '@candypoets/nipworker/utils';
+import type { ParsedEvent } from '@candypoets/nipworker';
 import { parsedEventTags } from 'src/lib/adminRelays';
 
 export type RoleDefinition = {
@@ -83,17 +82,19 @@ export function parseRoleAward(event: ParsedEvent): RoleAward | undefined {
 	};
 }
 
-export function parseRoleAwardsFromKind8(event: ParsedEvent, kind8: Kind8Parsed): RoleAward[] {
+export function parseRoleAwardsFromKind8(event: ParsedEvent): RoleAward[] {
 	if (event.kind() !== 8) return [];
-	const roleAddress = kind8.badgeAddress();
+	const tags = parsedEventTags(event);
+	const roleAddress = tags.find((tag) => tag[0] === 'a' && tag[1]?.startsWith('30009:'))?.[1];
 	const pubkey = event.pubkey();
 	if (!roleAddress || !pubkey) return [];
 
-	const expiresAtTag = parsedEventTags(event).find((tag) => tag[0] === 'expiration')?.[1];
+	const expiresAtTag = tags.find((tag) => tag[0] === 'expiration')?.[1];
 	const expiresAt = expiresAtTag ? Number(expiresAtTag) : undefined;
 
-	return fbArray(kind8, 'recipients')
-		.map((recipient) => recipient.pubkey())
+	return tags
+		.filter((tag) => tag[0] === 'p')
+		.map((tag) => tag[1])
 		.filter((recipient): recipient is string => Boolean(recipient))
 		.map((recipient) => ({
 			id: event.id() || `${roleAddress}:${recipient}:${event.createdAt()}`,

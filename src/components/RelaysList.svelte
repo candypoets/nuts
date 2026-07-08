@@ -141,15 +141,21 @@
 	function getWideStatusClasses(status?: ConnectionStatus | 'SUBSCRIBED') {
 		switch (getStatusValue(status)) {
 			case 'EOSE':
+				return 'border-lime-400';
 			case 'OK':
-				return 'border-success';
+				return 'border-green-400';
 			case 'FAILED':
+				return 'border-red-400';
 			case 'CLOSED':
-				return 'border-error';
+				return 'border-slate-400';
 			case 'SUBSCRIBED':
-				return 'border-info animate-pulse';
+				return 'border-sky-400 animate-pulse';
+			case 'connecting':
+			case 'open':
+			case 'connected':
+				return 'border-cyan-400 animate-pulse';
 			default:
-				return 'border-transparent';
+				return 'border-zinc-400 animate-pulse';
 		}
 	}
 </script>

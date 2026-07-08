@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { resolve } from '$app/paths';
+	import { resolve } from 'src/lib/paths';
 	import { page } from '$app/stores';
 	import Icon from '@iconify/svelte';
 	import { carouselAnimator } from 'src/controller/carrousel';

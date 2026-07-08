@@ -12,15 +12,22 @@
 		sharedVideoIndex,
 		sharedVideoGridId
 	} from 'src/controller/image';
-	import type { AnyKind, Kind1Parsed, ParsedEvent } from 'src/types';
+	import type { AnyKind, ParsedEvent } from 'src/types';
 	import { proxyImageUrl, ImagePresets } from 'src/lib/proxy';
 	import { getContext } from 'svelte';
 	import VideoTile from './VideoTile.svelte';
 
-	export let links: { src: string; type?: 'image' | 'video'; blurhash?: string; dim?: string }[];
-	export let note: ParsedEvent<Kind1Parsed> | undefined = undefined;
+	export let links: {
+		src: string;
+		type?: 'image' | 'video';
+		blurhash?: string;
+		dim?: string;
+		poster?: string;
+	}[];
+	export let note: ParsedEvent<AnyKind> | undefined = undefined;
 	export let context: ParsedEvent<AnyKind>[] = [];
 	export let visible = false;
+	export let fullWidthVideos = false;
 
 	let isImageContext = getContext('imageContext');
 
@@ -45,6 +52,12 @@
 		const { width: imgWidth, height: imgHeight } = parsed;
 		const scaledHeight = (imgHeight * containerWidth) / imgWidth;
 		return Math.min(scaledHeight, MAX_IMAGE_HEIGHT);
+	}
+
+	function getAspectRatio(dim: string | undefined): number | undefined {
+		const parsed = parseDim(dim);
+		if (!parsed) return undefined;
+		return Math.max(0.5, Math.min(2.0, parsed.width / parsed.height));
 	}
 
 	let containerWidth = 0;
@@ -143,20 +156,25 @@
 >
 	{#each displayLinks as link, i}
 		{#if link.type === 'video'}
+			{@const aspectRatio = fullWidthVideos ? getAspectRatio(link.dim) : undefined}
 			<span
-				class="inline-block"
+				class={fullWidthVideos ? 'block w-full max-h-96 overflow-hidden bg-base-200' : 'inline-block'}
 				style={$zoomedStore === undefined && i === 0
-					? `view-transition-name: image-zoom-${gridId}-0`
+					? `${aspectRatio ? `aspect-ratio: ${aspectRatio}; ` : ''}view-transition-name: image-zoom-${gridId}-0`
+					: aspectRatio
+						? `aspect-ratio: ${aspectRatio};`
 					: ''}
 			>
 				<VideoTile
 					src={link.src.toString()}
+					poster={link.poster}
 					autoplay={visible && (processedLinks.length == 1 || i == 0)}
 					loop={true}
 					muted={true}
+					fullWidth={fullWidthVideos}
 					className={cx(
 						i == 0 ? 'col-span-' + getSpan(i == 0 ? displayLinks.length - 1 : i) : '',
-						'w-fit max-h-96',
+						fullWidthVideos ? 'h-full w-full max-h-96' : 'w-fit max-h-96',
 						getRoundedCorners(i, displayLinks.length)
 					)}
 					bind:videoElement={videoElements[i]}

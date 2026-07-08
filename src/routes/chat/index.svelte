@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { resolve } from '$app/paths';
+	import { resolve } from 'src/lib/paths';
 	import {
-		ChatLimiterPipeConfigT,
 		MessageType,
+		NpubLimiterPipeConfigT,
 		ParsePipeConfigT,
 		PipeConfig,
 		PipeT,
@@ -259,8 +259,8 @@
 			pipeline: [
 				new PipeT(PipeConfig.MuteFilterPipeConfig, $mutePipeConfig),
 				new PipeT(
-					PipeConfig.ChatLimiterPipeConfig,
-					new ChatLimiterPipeConfigT($key?.pub || '', 5, 5000, [4])
+					PipeConfig.NpubLimiterPipeConfig,
+					new NpubLimiterPipeConfigT(4, 5, 5000)
 				),
 				new PipeT(PipeConfig.ParsePipeConfig, new ParsePipeConfigT()),
 				new PipeT(PipeConfig.SaveToDbPipeConfig, new SaveToDbPipeConfigT()),

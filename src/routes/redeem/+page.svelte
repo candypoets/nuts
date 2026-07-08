@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { resolve } from '$app/paths';
+	import { resolve } from 'src/lib/paths';
 	import { page } from '$app/stores';
 	import imageCompression from 'browser-image-compression';
 	import {

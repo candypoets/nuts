@@ -1,22 +1,46 @@
 <script lang="ts">
-	import type { ParsedEvent, Kind20Parsed } from '@candypoets/nipworker';
-	import { asKind20, fbArray } from '@candypoets/nipworker/utils';
+	import type { ParsedEvent } from '@candypoets/nipworker';
+	import { asKind20, asKind22, fbArray } from '@candypoets/nipworker/utils';
 	import Carousel from 'src/components/Carousel.svelte';
+	import ImageGrid from 'src/components/ImageGrid.svelte';
 
 	export let note: ParsedEvent;
+	export let visible = false;
 
-	$: kind20 = asKind20(note) as Kind20Parsed | null;
-	$: kind20Images = kind20
+	type MediaItem = {
+		src: string;
+		type: 'image' | 'video';
+		blurhash?: string;
+		dim?: string;
+		dimensions?: string;
+		poster?: string;
+	};
+
+	$: kind20 = asKind20(note);
+	$: kind22 = asKind22(note);
+	$: mediaItems = kind20
 		? fbArray(kind20, 'images').map((img) => ({
 				src: img.url() || '',
 				type: 'image' as const,
 				blurhash: img.blurhash() || undefined,
+				dim: img.dim() || undefined,
 				dimensions: img.dim() || undefined
 			}))
+		: kind22
+			? fbArray(kind22, 'videos').map((video) => ({
+					src: video.url() || '',
+					type: 'video' as const,
+					blurhash: video.image() || undefined,
+					dim: video.dim() || undefined,
+					dimensions: video.dim() || undefined,
+					poster: video.image() || undefined
+				}))
 		: [];
-	$: title = kind20?.title?.() || '';
-	$: description = kind20?.description?.() || '';
-	$: hashtags = kind20 ? fbArray(kind20, 'hashtags') : [];
+	$: visibleMediaItems = mediaItems.filter((item: MediaItem) => item.src);
+	$: hasVideo = visibleMediaItems.some((item: MediaItem) => item.type === 'video');
+	$: title = kind20?.title?.() || kind22?.title?.() || '';
+	$: description = kind20?.description?.() || kind22?.description?.() || '';
+	$: hashtags = kind20 ? fbArray(kind20, 'hashtags') : kind22 ? fbArray(kind22, 'hashtags') : [];
 
 	// Parse dimensions string like "800x600" into aspect ratio
 	// Bounded between 1:2 (0.5) and 2:1 (2.0) to prevent extreme portrait/landscape jumps
@@ -41,16 +65,18 @@
 </script>
 
 <br />
-{#if kind20Images.length > 0}
-	{#if kind20Images.length === 1}
-		{@const aspectRatio = parseAspectRatio(kind20Images[0].dimensions)}
+{#if visibleMediaItems.length > 0}
+	{#if hasVideo}
+		<ImageGrid {note} {visible} links={visibleMediaItems} fullWidthVideos />
+	{:else if visibleMediaItems.length === 1}
+		{@const aspectRatio = parseAspectRatio(visibleMediaItems[0].dimensions)}
 		<!-- Single image - full width with reserved space (fallback to 4:3 if no dimensions) -->
 		<div
 			class="w-full relative bg-base-200 overflow-hidden"
 			style:aspect-ratio={aspectRatio || '4 / 3'}
 		>
 			<img
-				src={kind20Images[0].src}
+				src={visibleMediaItems[0].src}
 				alt={title || 'Image'}
 				class="absolute inset-0 w-full h-full object-contain"
 				loading="lazy"
@@ -58,7 +84,7 @@
 		</div>
 	{:else}
 		<!-- Multiple images - carousel with unified aspect ratio (prevents height jumps between slides) -->
-		{@const firstImageAspect = parseAspectRatio(kind20Images[0]?.dimensions)}
+		{@const firstImageAspect = parseAspectRatio(visibleMediaItems[0]?.dimensions)}
 		<div
 			class="w-full"
 			style:aspect-ratio={firstImageAspect || '4 / 3'}
@@ -67,7 +93,7 @@
 			on:touchend={stopTouchPropagation}
 		>
 			<Carousel
-				items={kind20Images}
+				items={visibleMediaItems}
 				keyboardShortcut={false}
 				verticalPan={false}
 				forceAspectRatio={firstImageAspect || 4/3}

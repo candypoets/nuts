@@ -65,7 +65,7 @@
 	let reposterPubkey: string | undefined;
 	let effectiveShowRoot = showRoot;
 	let kind1: ReturnType<typeof asKind1> | undefined;
-	let isKind20 = false;
+	let isMediaEvent = false;
 
 	// Check if this is a repost (kind 6) and extract the reposted event
 	// Grouped in a single reactive statement to avoid false positive cycle detection
@@ -76,7 +76,7 @@
 		reposterPubkey = isRepost ? note?.pubkey()! : undefined;
 		effectiveShowRoot = isRepost ? false : showRoot;
 		kind1 = displayNote && asKind1(displayNote as ParsedEvent);
-		isKind20 = displayNote?.kind?.() === 20;
+		isMediaEvent = displayNote?.kind?.() === 20 || displayNote?.kind?.() === 22;
 	}
 	// Extract content blocks for ContentBlocks component - single reactive statement
 	$: {
@@ -578,13 +578,13 @@
 		{#if leading || visibleReplies.length}
 			<div
 				class="absolute border-primary-content left-4 h-full border-r-2"
-				class:hidden={isKind20}
+				class:hidden={isMediaEvent}
 			/>
 		{/if}
 		{#if hasRoot || tailing}
 			<div
 				class="absolute border-primary-content left-4 h-8 border-r-2 -mt-8"
-				class:hidden={isKind20}
+				class:hidden={isMediaEvent}
 			/>
 		{/if}
 		{#if isRepost}
@@ -604,16 +604,16 @@
 			<div class="main">main</div>
 		{/if} -->
 		<div class="flex gap-2 w-full" class:!gap-0={!!depth}>
-			<div class:!min-w-0={!!main || !!depth} class="min-w-8" class:hidden={isKind20} />
+			<div class:!min-w-0={!!main || !!depth} class="min-w-8" class:hidden={isMediaEvent} />
 			<div
 				class="-mt-3 pr-2 flex-grow"
 				class:!mt-0={!!depth || isImageContext}
 				class:!mt-2={!!main}
-				class:!pr-0={isKind20}
+				class:!pr-0={isMediaEvent}
 			>
-				{#if displayNote?.kind?.() === 20}
+				{#if displayNote?.kind?.() === 20 || displayNote?.kind?.() === 22}
 					{#key displayNote.id()}
-						<Kind20Content note={displayNote} />
+						<Kind20Content note={displayNote} {visible} />
 					{/key}
 				{:else if displayNote?.kind?.() === 1068}
 					{#key displayNote.id()}

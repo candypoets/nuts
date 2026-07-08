@@ -142,6 +142,7 @@
 						content={fbArray(asKind1(originalPost), 'parsedContent') || []}
 						{context}
 						showMedia={false}
+						showMediaUrls
 						showQuote={false}
 						depth={1}
 					/>
@@ -178,6 +179,7 @@
 						content={fbArray(asKind1(post.parsed.events[0]), 'parsedContent') || []}
 						{context}
 						showMedia={false}
+						showMediaUrls
 						showQuote={false}
 						depth={1}
 					/>
@@ -201,6 +203,7 @@
 									content={fbArray(asKind1(post.parsed.events[0]), 'parsedContent') || []}
 									{context}
 									showMedia={false}
+									showMediaUrls
 									showQuote={false}
 									depth={1}
 								/>

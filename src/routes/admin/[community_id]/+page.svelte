@@ -1,8 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { resolve } from '$app/paths';
+	import { resolve } from 'src/lib/paths';
 	import {
-		NpubLimiterKey,
 		NpubLimiterPipeConfigT,
 		ParsePipeConfigT,
 		PipeConfig,
@@ -14,7 +13,7 @@
 		type WorkerMessage
 	} from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
-	import { isKind8, isParsedEvent } from '@candypoets/nipworker/utils';
+	import { isParsedEvent } from '@candypoets/nipworker/utils';
 	import {
 		CalendarDays,
 		ChevronRight,
@@ -201,10 +200,9 @@
 			roleAwardRequests,
 			(message: WorkerMessage) => {
 				const parsedEvent = isParsedEvent(message);
-				const kind8 = isKind8(message);
-				if (!parsedEvent || !kind8) return;
+				if (!parsedEvent || parsedEvent.kind() !== 8) return;
 				checkedOverview = true;
-				for (const award of parseRoleAwardsFromKind8(parsedEvent, kind8)) {
+				for (const award of parseRoleAwardsFromKind8(parsedEvent)) {
 					upsertRoleAward(award);
 				}
 			},
@@ -213,7 +211,7 @@
 				pipeline: [
 					new PipeT(
 						PipeConfig.NpubLimiterPipeConfig,
-						new NpubLimiterPipeConfigT(8, 1, 5000, NpubLimiterKey.PTag)
+						new NpubLimiterPipeConfigT(8, 1, 5000)
 					),
 					new PipeT(PipeConfig.ParsePipeConfig, new ParsePipeConfigT()),
 					new PipeT(PipeConfig.SaveToDbPipeConfig, new SaveToDbPipeConfigT()),

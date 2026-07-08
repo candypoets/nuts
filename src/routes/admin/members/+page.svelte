@@ -1,7 +1,6 @@
 <script lang="ts">
-	import { resolve } from '$app/paths';
+	import { resolve } from 'src/lib/paths';
 	import {
-		NpubLimiterKey,
 		NpubLimiterPipeConfigT,
 		ParsePipeConfigT,
 		PipeConfig,
@@ -13,7 +12,7 @@
 		type WorkerMessage
 	} from '@candypoets/nipworker';
 	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
-	import { isKind8, isParsedEvent } from '@candypoets/nipworker/utils';
+	import { isParsedEvent } from '@candypoets/nipworker/utils';
 	import { ArrowLeft, CalendarClock, MoreHorizontal, Search, UserPlus } from 'lucide-svelte';
 	import { normalizeURL } from 'nostr-tools/utils';
 	import { nip19, type EventTemplate } from 'nostr-tools';
@@ -212,10 +211,9 @@
 			roleAwardRequests,
 			(message: WorkerMessage) => {
 				const parsedEvent = isParsedEvent(message);
-				const kind8 = isKind8(message);
-				if (!parsedEvent || !kind8) return;
+				if (!parsedEvent || parsedEvent.kind() !== 8) return;
 				loadingMembers = false;
-				for (const award of parseRoleAwardsFromKind8(parsedEvent, kind8)) {
+				for (const award of parseRoleAwardsFromKind8(parsedEvent)) {
 					upsertRoleAwardValue(award);
 				}
 			},
@@ -224,7 +222,7 @@
 				pipeline: [
 					new PipeT(
 						PipeConfig.NpubLimiterPipeConfig,
-						new NpubLimiterPipeConfigT(8, 1, 5000, NpubLimiterKey.PTag)
+						new NpubLimiterPipeConfigT(8, 1, 5000)
 					),
 					new PipeT(PipeConfig.ParsePipeConfig, new ParsePipeConfigT()),
 					new PipeT(PipeConfig.SaveToDbPipeConfig, new SaveToDbPipeConfigT()),
