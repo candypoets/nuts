@@ -132,7 +132,7 @@
 	$: decoded = {
 		noteId: nid,
 		replyID: kind1?.reply()?.id()!,
-		eventRefs: fbArray(kind1 as Kind1Parsed, 'eventRefs')
+		eventRefs: fbArray(kind1 as Kind1Parsed, 'mentions')
 	};
 
 	// is the note leading in a thread
