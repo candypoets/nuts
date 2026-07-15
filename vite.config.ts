@@ -49,7 +49,13 @@ export default defineConfig(({ mode }) => {
 					enabled: true,
 					navigateFallbackAllowlist: [/^index.html$/]
 				},
-				includeAssets: ['favicon.ico', 'touch-icon-180.png', 'ns-naked.svg'],
+				includeAssets: [
+					'favicon.ico',
+					'apple-touch-icon.png',
+					'nuts-icon.svg',
+					'nuts-icon-black.svg',
+					'nuts-icon-white.svg'
+				],
 				manifest: {
 					name: 'Nuts.cash',
 					short_name: 'Nuts',
@@ -63,14 +69,27 @@ export default defineConfig(({ mode }) => {
 					categories: ['finance', 'utility'],
 					icons: [
 						{
-							src: '/nutscash.svg',
+							src: '/nuts-icon.svg',
 							sizes: 'any',
 							type: 'image/svg+xml'
 						},
 						{
-							src: '/touch-icon-180.png',
-							sizes: '180x180',
-							type: 'image/png'
+							src: '/app-icon-192.png',
+							sizes: '192x192',
+							type: 'image/png',
+							purpose: 'any'
+						},
+						{
+							src: '/app-icon-512.png',
+							sizes: '512x512',
+							type: 'image/png',
+							purpose: 'any'
+						},
+						{
+							src: '/maskable-icon-512.png',
+							sizes: '512x512',
+							type: 'image/png',
+							purpose: 'maskable'
 						}
 					]
 					// permissions: ['camera']
