@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { animate, motionValue } from 'motion';
 	import { resolve } from 'src/lib/paths';
 
 	export let onCreate: () => void;
@@ -247,70 +248,102 @@
 			storyElement.querySelectorAll<HTMLElement>('[data-motion-object]')
 		);
 		const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-		let frame = 0;
+
+		// Spring-smoothed continuous progress across chapters (0 … chapters.length - 1)
+		const progress = motionValue(0);
+		let currentAnimation: { stop: () => void } | undefined;
 		let previousProgress = 0;
 
-		const updateMotion = () => {
-			frame = 0;
+		const computeRawProgress = () => {
 			const viewportCenter = window.scrollY + window.innerHeight * 0.5;
 			const centers = elements.map(
 				(element) =>
 					element.getBoundingClientRect().top + window.scrollY + element.offsetHeight * 0.5
 			);
-			let progress = 0;
+			let raw = 0;
 			for (let index = 0; index < centers.length - 1; index += 1) {
 				if (viewportCenter >= centers[index]) {
-					progress =
+					raw =
 						index +
 						Math.min(1, (viewportCenter - centers[index]) / (centers[index + 1] - centers[index]));
 				}
 			}
-			progress = Math.max(0, Math.min(chapters.length - 1, progress));
-			const nextChapter = Math.round(progress);
-			if (nextChapter !== activeChapter) activeChapter = nextChapter;
-			storyElement.style.setProperty('--story-progress', progress.toFixed(3));
-			const movingForward = progress >= previousProgress;
-			storyElement.dataset.scrollDirection = movingForward ? 'forward' : 'backward';
-			previousProgress = progress;
+			return Math.max(0, Math.min(chapters.length - 1, raw));
+		};
 
-			if (!reducedMotion.matches) {
-				motionObjects.forEach((element) => {
-					const objectChapters = (element.dataset.chapters || '').split(',').map(Number);
-					const distance = objectChapters.reduce(
-						(closest, chapter) =>
-							Math.abs(progress - chapter) < Math.abs(closest) ? progress - chapter : closest,
-						99
-					);
-					const isEntering = movingForward ? distance <= 0 : distance >= 0;
-					const revealRange = isEntering ? 0.72 : 0.5;
-					const rawReveal = Math.max(0, Math.min(1, 1 - Math.abs(distance) / revealRange));
-					const stagger = Math.min(0.46, Number(element.dataset.delay || 0) / 900);
-					const reveal = Math.max(0, Math.min(1, (rawReveal - stagger) / (1 - stagger)));
-					const exitDirection = distance > 0 ? -0.72 : 1;
-					element.style.setProperty('--motion-opacity', reveal.toFixed(3));
-					element.style.setProperty(
-						'--motion-x',
-						`${(Number(element.dataset.fromX) * (1 - reveal) * exitDirection).toFixed(2)}px`
-					);
-					element.style.setProperty(
-						'--motion-y',
-						`${(Number(element.dataset.fromY) * (1 - reveal) * exitDirection).toFixed(2)}px`
-					);
-					element.style.setProperty('--motion-scale', (0.72 + reveal * 0.28).toFixed(3));
-					element.style.setProperty(
-						'--motion-rotate',
-						`${(Number(element.dataset.rotate) * (1 - reveal) * exitDirection).toFixed(2)}deg`
-					);
-				});
-			}
+		const updateScene = (value: number) => {
+			const nextChapter = Math.round(value);
+			if (nextChapter !== activeChapter) activeChapter = nextChapter;
+			storyElement.style.setProperty('--story-progress', value.toFixed(3));
+			const movingForward = value >= previousProgress;
+			storyElement.dataset.scrollDirection = movingForward ? 'forward' : 'backward';
+			previousProgress = value;
+
+			if (reducedMotion.matches) return;
+
+			motionObjects.forEach((element) => {
+				const objectChapters = (element.dataset.chapters || '').split(',').map(Number);
+				const distance = objectChapters.reduce(
+					(closest, chapter) =>
+						Math.abs(value - chapter) < Math.abs(closest) ? value - chapter : closest,
+					99
+				);
+
+				// Symmetric reveal window — same curve whether entering or exiting
+				const revealRange = 0.65;
+				const stagger = Math.min(0.35, Number(element.dataset.delay || 0) / 1100);
+				const raw = Math.max(0, 1 - Math.abs(distance) / revealRange);
+				const reveal = Math.max(0, Math.min(1, (raw - stagger) / (1 - stagger || 1)));
+				// Cubic ease-out for a soft settle
+				const eased = 1 - Math.pow(1 - reveal, 3);
+
+				// Objects ahead of the scroll sit at their "from" offset;
+				// objects behind it exit mirrored to the opposite side
+				const sign = distance >= 0 ? 1 : -1;
+				element.style.setProperty('--motion-opacity', eased.toFixed(3));
+				element.style.setProperty(
+					'--motion-x',
+					`${(Number(element.dataset.fromX) * (1 - eased) * sign).toFixed(2)}px`
+				);
+				element.style.setProperty(
+					'--motion-y',
+					`${(Number(element.dataset.fromY) * (1 - eased) * sign).toFixed(2)}px`
+				);
+				element.style.setProperty('--motion-scale', (0.85 + eased * 0.15).toFixed(3));
+				element.style.setProperty(
+					'--motion-rotate',
+					`${(Number(element.dataset.rotate) * (1 - eased) * sign).toFixed(2)}deg`
+				);
+			});
 		};
+
+		const unsubscribe = progress.on('change', updateScene);
+
+		// Snap to the correct position on load without animating from zero.
+		// set() is a no-op when the value is unchanged (0 at page top), which would
+		// skip the change event and leave objects unpainted — so paint once directly.
+		progress.set(computeRawProgress());
+		updateScene(progress.get());
+
+		let frame = 0;
 		const requestUpdate = () => {
-			if (!frame) frame = requestAnimationFrame(updateMotion);
+			if (frame) return;
+			frame = requestAnimationFrame(() => {
+				frame = 0;
+				currentAnimation?.stop();
+				currentAnimation = animate(progress, computeRawProgress(), {
+					type: 'spring',
+					stiffness: 120,
+					damping: 26
+				});
+			});
 		};
-		updateMotion();
+
 		window.addEventListener('scroll', requestUpdate, { passive: true });
 		window.addEventListener('resize', requestUpdate);
 		return () => {
+			unsubscribe();
+			currentAnimation?.stop();
 			window.removeEventListener('scroll', requestUpdate);
 			window.removeEventListener('resize', requestUpdate);
 			if (frame) cancelAnimationFrame(frame);
@@ -529,7 +562,6 @@
 		transform-origin: 50% 82%;
 		animation: character-breathe 3.2s ease-in-out infinite alternate;
 		animation-delay: calc(var(--delay) * -1);
-		animation-play-state: paused;
 		will-change: transform;
 	}
 	.motion-tool-1,
@@ -574,14 +606,6 @@
 	.motion-workshop {
 		animation-name: node-breathe;
 		animation-duration: 2.6s;
-	}
-	.scene-state-0 .object-chapter-0 .motion-art,
-	.scene-state-1 .object-chapter-1 .motion-art,
-	.scene-state-2 .object-chapter-2 .motion-art,
-	.scene-state-3 .object-chapter-3 .motion-art,
-	.scene-state-4 .object-chapter-4 .motion-art,
-	.scene-state-5 .object-chapter-5 .motion-art {
-		animation-play-state: running;
 	}
 	.scene-layer {
 		pointer-events: none;

@@ -1,5 +1,7 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { animate, motionValue, transform } from 'motion';
 	import { resolve } from 'src/lib/paths';
 	import NeighborhoodStory from 'src/components/NeighborhoodStory.svelte';
 	import Nutscash from 'src/components/Nutscash.svelte';
@@ -7,6 +9,59 @@
 	function openApp() {
 		goto(resolve('/create'));
 	}
+
+	let heroWorld: HTMLElement;
+	let bgLayer: HTMLElement;
+	let midLayer: HTMLElement;
+	let fgLayer: HTMLElement;
+
+	onMount(() => {
+		const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+		if (reducedMotion || !heroWorld) return;
+
+		// ── Pointer parallax ──────────────────────────────────────────────
+		const px = motionValue(0.5);
+		const py = motionValue(0.5);
+
+		const layers = [
+			{ el: bgLayer, depth: 1 },
+			{ el: midLayer, depth: 2.2 },
+			{ el: fgLayer, depth: 3.8 }
+		];
+
+		const unsubscribers: (() => void)[] = [];
+
+		layers.forEach(({ el, depth }) => {
+			if (!el) return;
+			unsubscribers.push(
+				px.on('change', (v) => {
+					el.style.setProperty('--px', `${transform(v, [0, 1], [10 * depth, -10 * depth]).toFixed(2)}px`);
+				}),
+				py.on('change', (v) => {
+					el.style.setProperty('--py', `${transform(v, [0, 1], [5 * depth, -5 * depth]).toFixed(2)}px`);
+				})
+			);
+		});
+
+		function onPointerMove(e: PointerEvent) {
+			const rect = heroWorld.getBoundingClientRect();
+			const nx = (e.clientX - rect.left) / rect.width;
+			const ny = (e.clientY - rect.top) / rect.height;
+			animate(px, nx, { type: 'spring', stiffness: 45, damping: 18 });
+			animate(py, ny, { type: 'spring', stiffness: 45, damping: 18 });
+		}
+
+		heroWorld.addEventListener('pointermove', onPointerMove);
+		heroWorld.addEventListener('pointerleave', () => {
+			animate(px, 0.5, { type: 'spring', stiffness: 45, damping: 18 });
+			animate(py, 0.5, { type: 'spring', stiffness: 45, damping: 18 });
+		});
+
+		return () => {
+			heroWorld?.removeEventListener('pointermove', onPointerMove);
+			unsubscribers.forEach((u) => u());
+		};
+	});
 </script>
 
 <svelte:head>
@@ -24,11 +79,7 @@
 			class="absolute inset-x-0 top-0 z-30 mx-auto flex max-w-[1500px] items-center justify-between px-5 py-6 sm:px-8 lg:px-12 xl:px-16"
 			aria-label="Primary navigation"
 		>
-			<a
-				class="inline-flex items-center no-underline"
-				href={resolve('/')}
-				aria-label="Nuts home"
-			>
+			<a class="inline-flex items-center no-underline" href={resolve('/')} aria-label="Nuts home">
 				<span class="inline-flex h-12 w-12 items-center justify-center">
 					<Nutscash class="h-12 w-12" title="Nuts" />
 				</span>
@@ -53,6 +104,7 @@
 				</button>
 			</div>
 		</nav>
+
 		<div
 			class="relative z-10 mx-auto grid min-h-[100dvh] max-w-[1500px] items-center px-5 pb-16 pt-32 sm:px-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-12 lg:px-12 lg:pb-10 lg:pt-28 xl:gap-16 xl:px-16"
 		>
@@ -91,17 +143,41 @@
 					</a>
 				</div>
 			</div>
-			<div class="hero-world relative min-h-[390px] self-end sm:min-h-[520px] lg:min-h-[78dvh]">
+
+			<!-- 2.5D parallax hero -->
+			<div
+				class="hero-world relative min-h-[390px] self-end sm:min-h-[520px] lg:min-h-[78dvh]"
+				bind:this={heroWorld}
+			>
 				<div
-					class="absolute -inset-x-10 bottom-0 top-0 overflow-hidden rounded-t-[12rem] lg:left-0 lg:right-[-6rem]"
+					class="hero-arch absolute -inset-x-10 bottom-0 top-0 overflow-hidden rounded-t-[12rem] lg:left-0 lg:right-[-6rem]"
 				>
-					<img
-						class="hero-illustration absolute inset-0 h-full w-full object-cover object-center"
-						src={resolve('/hero-communities.svg')}
-						alt="Neighbors meeting, playing and working together around a local community hall"
-						fetchpriority="high"
-					/>
+					<div class="hero-layer hero-bg" bind:this={bgLayer}>
+						<img
+							class="hero-img"
+							src={resolve('/landing-2.5d/hero-background.webp')}
+							alt=""
+							fetchpriority="high"
+						/>
+					</div>
+					<div class="hero-layer hero-mid" bind:this={midLayer}>
+						<img
+							class="hero-img"
+							src={resolve('/landing-2.5d/hero-midground.webp')}
+							alt="Community hall surrounded by trees and houses"
+							fetchpriority="high"
+						/>
+					</div>
+					<div class="hero-layer hero-fg" bind:this={fgLayer}>
+						<img
+							class="hero-img"
+							src={resolve('/landing-2.5d/hero-foreground.webp')}
+							alt="Neighbors walking and talking together"
+							fetchpriority="high"
+						/>
+					</div>
 				</div>
+
 				<div
 					class="float-note absolute right-[4%] top-[8%] rotate-3 bg-[#e7b638] px-5 py-3 text-base font-black text-[#15372c] shadow-[6px_7px_0_#15372c]"
 				>
@@ -145,16 +221,85 @@
 		animation: copy-in 800ms cubic-bezier(0.22, 1, 0.36, 1) both;
 	}
 
-	.hero-world {
-		animation: world-in 1000ms 120ms cubic-bezier(0.22, 1, 0.36, 1) both;
-	}
-
 	.float-note {
 		animation: note-float 5s ease-in-out infinite;
 	}
 
 	.float-note-delayed {
 		animation-delay: -2.4s;
+	}
+
+	/* ── 2.5D layers ─────────────────────────────────────────── */
+	.hero-arch {
+		isolation: isolate;
+	}
+
+	.hero-layer {
+		position: absolute;
+		inset: 0;
+		opacity: 0;
+		transform: translate(var(--px, 0px), var(--py, 0px));
+		will-change: transform, opacity;
+		animation: layer-in 900ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+	}
+
+	.hero-bg {
+		animation-delay: 100ms;
+	}
+
+	.hero-mid {
+		animation-delay: 250ms;
+	}
+
+	.hero-fg {
+		animation-delay: 400ms;
+	}
+
+	@keyframes layer-in {
+		from {
+			opacity: 0;
+		}
+		to {
+			opacity: 1;
+		}
+	}
+
+	.hero-img {
+		display: block;
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		object-position: center;
+	}
+
+	.hero-bg .hero-img {
+		animation: layer-drift 20s ease-in-out infinite alternate;
+	}
+
+	.hero-mid .hero-img {
+		animation: layer-breathe 8s ease-in-out infinite alternate;
+	}
+
+	.hero-fg .hero-img {
+		animation: layer-breathe 6s ease-in-out infinite alternate;
+	}
+
+	@keyframes layer-drift {
+		from {
+			transform: translateX(-6px) scale(1.01);
+		}
+		to {
+			transform: translateX(6px) scale(1.02);
+		}
+	}
+
+	@keyframes layer-breathe {
+		from {
+			transform: translateY(0);
+		}
+		to {
+			transform: translateY(-8px);
+		}
 	}
 
 	@keyframes copy-in {
@@ -165,17 +310,6 @@
 		to {
 			opacity: 1;
 			transform: translateY(0);
-		}
-	}
-
-	@keyframes world-in {
-		from {
-			opacity: 0;
-			transform: translateY(45px) scale(0.97);
-		}
-		to {
-			opacity: 1;
-			transform: translateY(0) scale(1);
 		}
 	}
 
@@ -190,7 +324,7 @@
 	}
 
 	@media (max-width: 767px) {
-		.hero-illustration {
+		.hero-img {
 			object-position: 62% center;
 		}
 		.float-note {
@@ -201,9 +335,15 @@
 
 	@media (prefers-reduced-motion: reduce) {
 		.hero-copy,
-		.hero-world,
-		.float-note {
+		.float-note,
+		.hero-bg .hero-img,
+		.hero-mid .hero-img,
+		.hero-fg .hero-img {
 			animation: none !important;
+		}
+		.hero-layer {
+			opacity: 1 !important;
+			transform: none !important;
 		}
 	}
 </style>
