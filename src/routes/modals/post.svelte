@@ -80,6 +80,7 @@
 	let editorUpdateUnsubscribe: (() => void) | undefined;
 	let observedEditor: TiptapEditor | undefined;
 	let editorRevision = 0;
+	let referencedRelayHints: string[] = [];
 
 	$: communityOptions = communityRelays($relayRoleSets);
 	$: destinationLabel = selectedRelay ? relayLabel(selectedRelay) : 'Public';
@@ -123,6 +124,7 @@
 				if (decoded && decoded.type === 'nevent') {
 					hexId = decoded.data.id;
 					relayHints = decoded.data.relays || [];
+					referencedRelayHints = relayHints;
 				}
 			} catch {
 				// Not an nevent, use noteId as-is (it's already a hex id)
@@ -131,7 +133,9 @@
 			// Add user's read and write relays as fallback
 			const userReadRelays = get(readRelays);
 			const userWriteRelays = get(writeRelays);
-			const allRelays = [...new Set([...relayHints, ...userReadRelays, ...userWriteRelays])];
+			const allRelays = [...new Set([...relayHints, ...userReadRelays, ...userWriteRelays])].filter(
+				(relay): relay is string => Boolean(relay)
+			);
 
 			replySub = useSubscription(
 				'post_' + hexId,
@@ -175,6 +179,7 @@
 		if (selectedKind === 'media' && !hasMedia) return;
 		if (!content && !repost && !hasValidPoll && selectedKind !== 'media') return;
 		isSubmitting = true;
+		const referencedReadRelays = await resolveReferencedReadRelays();
 
 		// Get tags from the editor (nprofile -> p tags, nevent -> q tags, etc.)
 		const editorTags = $editor.storage.nostr?.getEditorTags() || [];
@@ -210,16 +215,7 @@
 				const repostPubkey = note.pubkey() || '';
 				post.content += '\n\nnostr:' + nip19.neventEncode({ id: repostId });
 
-				const timeoutPromise = new Promise<null>((resolve) => {
-					setTimeout(() => resolve(null), 2000);
-				});
-
-				const relaysPromise = new Promise<string[]>((resolve) => {
-					getUserRelays(repostPubkey, resolve);
-				});
-
-				const result = await Promise.race([timeoutPromise, relaysPromise]);
-				const relayHint = result === null ? '' : result[0];
+				const relayHint = referencedReadRelays[0] || '';
 
 				post.tags = [...post.tags, ['q', repostId, relayHint, repostPubkey], ['p', repostPubkey]];
 			}
@@ -251,16 +247,7 @@
 				const repostPubkey = note.pubkey() || '';
 				post.content += '\n\nnostr:' + nip19.neventEncode({ id: repostId });
 
-				const timeoutPromise = new Promise<null>((resolve) => {
-					setTimeout(() => resolve(null), 2000);
-				});
-
-				const relaysPromise = new Promise<string[]>((resolve) => {
-					getUserRelays(repostPubkey, resolve);
-				});
-
-				const result = await Promise.race([timeoutPromise, relaysPromise]);
-				const relayHint = result === null ? '' : result[0];
+				const relayHint = referencedReadRelays[0] || '';
 
 				post.tags = [...editorTags, ['q', repostId, relayHint, repostPubkey], ['p', repostPubkey]];
 			}
@@ -277,7 +264,14 @@
 
 		let sendStatus: { [url: string]: ConnectionStatus } = {};
 		const id = Math.random().toString(36).substring(2, 9);
-		const defaultRelays = publishTargets();
+		const defaultRelays = publishTargets(referencedReadRelays);
+		console.info('[post-publish] relay destinations', {
+			mode: reply ? 'reply' : repost ? 'repost-or-quote' : 'post',
+			selectedRelay: selectedRelay || undefined,
+			publisherWriteRelays: get(writeRelays).filter(Boolean),
+			referencedReadRelays,
+			destinations: defaultRelays
+		});
 
 		// Determine which subscriptions to optimistically update
 		const optimisticSubIds: string[] = [];
@@ -345,9 +339,25 @@
 		step = 'compose';
 	}
 
-	function publishTargets() {
+	async function resolveReferencedReadRelays() {
+		const referencedPubkey = note?.pubkey();
+		if ((!reply && !repost) || !referencedPubkey) return [];
+
+		const discoveredRelays = await new Promise<string[]>((resolve) => {
+			getUserRelays(referencedPubkey, resolve, 'read');
+		});
+
+		return [...new Set([...referencedRelayHints, ...discoveredRelays])].filter(Boolean);
+	}
+
+	function publishTargets(referencedReadRelays: string[] = []) {
 		if (selectedRelay) return [selectedRelay];
-		return get(writeRelays).filter((relay): relay is string => Boolean(relay));
+		return [
+			...new Set([
+				...get(writeRelays).filter((relay): relay is string => Boolean(relay)),
+				...referencedReadRelays
+			])
+		];
 	}
 
 	function getVirtualItemId(item: { id: string }) {

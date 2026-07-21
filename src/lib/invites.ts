@@ -1,3 +1,4 @@
+import { getManager } from '@candypoets/nipworker';
 import { useSignEvent } from '@candypoets/nipworker/hooks';
 
 type SignedEvent = {
@@ -37,7 +38,36 @@ export function normalizeSignedEvent(value: string | SignedEvent): SignedEvent {
 	};
 }
 
-export async function makeInviteAuthorization(url: string, body: string) {
+async function selectExpectedSigner(expectedPubkey: string) {
+	const manager = getManager();
+	if (manager.getActivePubkey() === expectedPubkey) return;
+	if (!manager.getAccounts()[expectedPubkey]) {
+		throw new Error('The selected account is not available to the active signer');
+	}
+
+	await new Promise<void>((resolve, reject) => {
+		const timeout = window.setTimeout(() => {
+			manager.removeEventListener('auth', handleAuth);
+			reject(new Error('Timed out while selecting the community administrator signer'));
+		}, 5000);
+		function handleAuth(event: Event) {
+			const detail = (event as CustomEvent<{ pubkey?: string; hasSigner?: boolean }>).detail;
+			if (detail.pubkey !== expectedPubkey) return;
+			window.clearTimeout(timeout);
+			manager.removeEventListener('auth', handleAuth);
+			if (!detail.hasSigner) {
+				reject(new Error('The selected community administrator account is read-only'));
+				return;
+			}
+			resolve();
+		}
+		manager.addEventListener('auth', handleAuth);
+		manager.switchAccount(expectedPubkey);
+	});
+}
+
+export async function makeInviteAuthorization(url: string, body: string, expectedPubkey?: string) {
+	if (expectedPubkey) await selectExpectedSigner(expectedPubkey);
 	const payloadHash = await sha256Hex(body);
 	const unsigned = {
 		kind: 27235,
@@ -54,7 +84,14 @@ export async function makeInviteAuthorization(url: string, body: string) {
 		try {
 			useSignEvent(unsigned, (signedEvent) => {
 				try {
-					resolve(`Nostr ${base64Url(JSON.stringify(normalizeSignedEvent(signedEvent)))}`);
+					const normalized = normalizeSignedEvent(signedEvent);
+					if (expectedPubkey && normalized.pubkey !== expectedPubkey) {
+						reject(
+							new Error('The active signer does not match the community administrator account')
+						);
+						return;
+					}
+					resolve(`Nostr ${base64Url(JSON.stringify(normalized))}`);
 				} catch (error) {
 					reject(error);
 				}

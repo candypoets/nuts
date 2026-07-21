@@ -300,6 +300,15 @@
 		</div>
 	</svelte:fragment>
 
+	<svelte:fragment slot="empty-content">
+		{#if !loading && $key}
+			<div class="w-feed mx-auto py-16 text-center text-base-content/60">
+				<Icon icon="mdi:bell-outline" class="mx-auto mb-3 text-4xl" />
+				<p>No notifications yet.</p>
+			</div>
+		{/if}
+	</svelte:fragment>
+
 	<svelte:fragment slot="item-content" let:post let:visible>
 		<div class="notification-card mb-2 overflow-hidden rounded-xl backdrop-blur-gpu">
 			<!-- {#if visible} -->

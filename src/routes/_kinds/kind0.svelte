@@ -44,7 +44,12 @@
 	import { normalizeURL } from 'nostr-tools/utils';
 	import About from 'src/components/About.svelte';
 	import KindSwitcher from 'src/components/KindSwitcher.svelte';
-	import { parsedEventTags } from 'src/lib/adminRelays';
+	import {
+		parsedEventTags,
+		relayRoleFromSet,
+		relaySetAddressesFromRelayFeedEvent,
+		relayUrlsFromRelaySet
+	} from 'src/lib/adminRelays';
 	import { INDEXER_RELAYS } from 'src/lib/env';
 	import { fetchRelayInfo, relayInfos, relaySub, setSubRelays } from 'src/controller/relay';
 	import { type ContentBlock, parseContent } from 'src/lib';
@@ -52,6 +57,7 @@
 	import Avatar from '../explore/avatar.svelte';
 	import { go, usePagerNavigation } from '../modals/modal';
 	import { userQuery } from '../queries/user';
+	import { communityDirectoryQuery, communityRoleSetsQuery } from '../queries/communities';
 
 	// Default relays as fallback
 	const DEFAULT_RELAYS = ['wss://relay.damus.io', 'wss://relay.snort.social', 'wss://nos.lol'];
@@ -105,6 +111,11 @@
 	let communityPreviewKey = '';
 	let communityPreviewUnsubs: (() => void)[] = [];
 	let communityPreviews: Record<string, CommunityPreviewProfile[]> = {};
+	let communityDirectory: ParsedEvent | undefined;
+	let communityRoleSets: ParsedEvent[] = [];
+	let communityDirectorySub: (() => void) | undefined;
+	let communityRoleSetsSub: (() => void) | undefined;
+	let expectedCommunityRoleSetAddresses = new Set<string>();
 
 	// Track seen event IDs for O(1) duplicate detection
 	let profileSeenIds = new Set<string>();
@@ -187,28 +198,73 @@
 		return communityColorClasses[hash];
 	}
 
-	function communityList(read: string[], write: string[]): ProfileCommunity[] {
-		const writeSet = new Set(write.map(normalizeURL));
-		const belongCommunities = write.map((relay) => {
-			const key = normalizeURL(relay);
-			return {
-				key,
-				name: communityNames[key] || relayLabel(key),
-				relationship: 'belong' as const,
-				url: key
-			};
-		});
-		const followCommunities = read
-			.map(normalizeURL)
-			.filter((relay) => !writeSet.has(relay))
-			.map((relay) => ({
-				key: relay,
-				name: communityNames[relay] || relayLabel(relay),
-				relationship: 'follow' as const,
-				url: relay
-			}));
+	function communityList(roleSets: ParsedEvent[]): ProfileCommunity[] {
+		const communities = new Map<string, ProfileCommunity>();
 
-		return [...belongCommunities, ...followCommunities];
+		for (const roleSet of roleSets) {
+			const role = relayRoleFromSet(roleSet);
+			if (!role) continue;
+			const relationship = role === 'following' ? 'follow' : 'belong';
+
+			for (const relay of relayUrlsFromRelaySet(roleSet)) {
+				const key = normalizeURL(relay);
+				const existing = communities.get(key);
+				if (existing?.relationship === 'belong' && relationship === 'follow') continue;
+				communities.set(key, {
+					key,
+					name: communityNames[key] || relayLabel(key),
+					relationship,
+					url: key
+				});
+			}
+		}
+
+		return Array.from(communities.values());
+	}
+
+	function communityRoleSetAddress(event: ParsedEvent): string | undefined {
+		const d = parsedEventTags(event).find((tag) => tag[0] === 'd')?.[1];
+		return d ? `30002:${event.pubkey()}:${d}` : undefined;
+	}
+
+	function subscribeCommunityRoleSets(addresses: string[]) {
+		communityRoleSetsSub?.();
+		communityRoleSetsSub = undefined;
+		communityRoleSets = [];
+		expectedCommunityRoleSetAddresses = new Set(addresses);
+		if (!addresses.length) return;
+
+		communityRoleSetsSub = useSubscription(
+			'community_role_sets_' + pubkey,
+			communityRoleSetsQuery(addresses, INDEXER_RELAYS),
+			handleCommunityRoleSet,
+			{ bytesPerEvent: 10 * 1024 }
+		);
+	}
+
+	function handleCommunityDirectory(message: WorkerMessage) {
+		const parsedEvent = asParsedEvent(message);
+		if (!parsedEvent || parsedEvent.kind() !== 10012 || parsedEvent.pubkey() !== pubkey) return;
+		if (communityDirectory && parsedEvent.createdAt() <= communityDirectory.createdAt()) return;
+
+		communityDirectory = parsedEvent;
+		subscribeCommunityRoleSets(relaySetAddressesFromRelayFeedEvent(parsedEvent));
+	}
+
+	function handleCommunityRoleSet(message: WorkerMessage) {
+		const parsedEvent = asParsedEvent(message);
+		if (!parsedEvent || parsedEvent.kind() !== 30002) return;
+		const address = communityRoleSetAddress(parsedEvent);
+		if (!address || !expectedCommunityRoleSetAddresses.has(address)) return;
+
+		const existing = communityRoleSets.find(
+			(candidate) => communityRoleSetAddress(candidate) === address
+		);
+		if (existing && parsedEvent.createdAt() <= existing.createdAt()) return;
+		communityRoleSets = [
+			...communityRoleSets.filter((candidate) => communityRoleSetAddress(candidate) !== address),
+			parsedEvent
+		];
 	}
 
 	function selectProfileKindTab(event: CustomEvent<{ kinds: FeedKind[] }>) {
@@ -398,6 +454,12 @@
 	function subscribe() {
 		if (visible && !sub) {
 			sub = useSubscription('u_' + pubkey, userQuery(pubkey), handleProfileEvents, {});
+			communityDirectorySub = useSubscription(
+				'community_directory_' + pubkey,
+				communityDirectoryQuery(pubkey, INDEXER_RELAYS),
+				handleCommunityDirectory,
+				{ bytesPerEvent: 10 * 1024 }
+			);
 		}
 	}
 
@@ -412,6 +474,13 @@
 		contactSub = undefined;
 		feedSub?.();
 		feedSub = undefined;
+		communityDirectorySub?.();
+		communityDirectorySub = undefined;
+		communityRoleSetsSub?.();
+		communityRoleSetsSub = undefined;
+		communityDirectory = undefined;
+		communityRoleSets = [];
+		expectedCommunityRoleSetAddresses = new Set();
 	}
 
 	function contactTagForProfile() {
@@ -553,7 +622,7 @@
 	$: isMuted = muteIntent ?? $mutedPubkeys.includes(pubkey);
 	$: isMutePending = muteIntent !== null && !hasMuteOkFromRelay;
 	$: hasMuteOkFromRelay = Object.values(mutePublishStatus).some((s) => s.status() === 'true');
-	$: communities = communityList(readRelays, writeRelays);
+	$: communities = communityList(communityRoleSets);
 	$: belongCommunities = communities.filter((community) => community.relationship === 'belong');
 	$: followCommunities = communities.filter((community) => community.relationship === 'follow');
 	$: visibleCommunities = communities.filter(

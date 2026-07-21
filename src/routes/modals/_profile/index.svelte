@@ -3,26 +3,23 @@
 	import { resolve } from 'src/lib/paths';
 	import Icon from '@iconify/svelte';
 
-	import {
-		getManager,
-		type ParsedEvent,
-		type RequestObject,
-		type WorkerMessage
-	} from '@candypoets/nipworker';
+	import { getManager, type ParsedEvent, type WorkerMessage } from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import { asKind0 } from '@candypoets/nipworker/utils';
-	import { asNip51, isParsedEvent } from '@candypoets/nipworker/utils';
+	import { isParsedEvent } from '@candypoets/nipworker/utils';
 	import { key } from 'src/controller';
 	import { kind0 } from 'src/controller/nostr';
 	import {
 		fetchAdminRelayInfo,
-		relaySetAddressesFromRelayFeed,
-		relayUrlsFromNip51List,
+		relayRoleFromSet,
+		relaySetAddressesFromRelayFeedEvent,
+		relayUrlsFromRelaySet,
 		type RelayInfo
 	} from 'src/lib/adminRelays';
 	import { DEFAULT_RELAYS, INDEXER_RELAYS } from 'src/lib/env';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import { go } from 'src/routes/modals/modal';
+	import { communityDirectoryQuery, communityRoleSetsQuery } from 'src/routes/queries/communities';
 	import { getContext, onDestroy, onMount } from 'svelte';
 
 	let animator: { goBack: () => void } = getContext('animator');
@@ -51,10 +48,9 @@
 
 		const urls = Array.from(
 			new Set(
-				adminRelaySets.flatMap((event) => {
-					const list = asNip51(event);
-					return relayUrlsFromNip51List(list);
-				})
+				adminRelaySets
+					.filter((event) => relayRoleFromSet(event) === 'admin')
+					.flatMap((event) => relayUrlsFromRelaySet(event))
 			)
 		);
 		adminRelays = urls.map((url) => ({ url, isAdmin: false }));
@@ -84,17 +80,7 @@
 		const relays = Array.from(
 			new Set([...INDEXER_RELAYS, ...DEFAULT_RELAYS, 'wss://relay.nuts.cash'])
 		);
-		const requests: RequestObject[] = addresses.map((address) => {
-			const [, author, d] = address.split(':');
-			return {
-				kinds: [30002],
-				authors: [author || pubkey],
-				tags: { '#d': [d] },
-				limit: 1,
-				relays,
-				cacheFirst: true
-			};
-		});
+		const requests = communityRoleSetsQuery(addresses, relays);
 
 		if (!requests.length) {
 			adminRelaysLoading = false;
@@ -102,7 +88,7 @@
 		}
 
 		unsubscribeRelaySets = useSubscription(
-			'profile_relay_sets_' + pubkey,
+			'community_role_sets_' + pubkey,
 			requests,
 			handleAdminRelaySet,
 			{ bytesPerEvent: 10 * 1024 }
@@ -115,17 +101,17 @@
 	function handleRelayFeed(message: WorkerMessage) {
 		const parsedEvent = isParsedEvent(message);
 		if (!parsedEvent || parsedEvent.kind() !== 10012) return;
-		const list = asNip51(parsedEvent);
 		relayFeedReady = true;
-		subscribeAdminRelaySets(relaySetAddressesFromRelayFeed(list));
+		subscribeAdminRelaySets(relaySetAddressesFromRelayFeedEvent(parsedEvent));
 	}
 
 	function handleAdminRelaySet(message: WorkerMessage) {
 		const parsedEvent = isParsedEvent(message);
 		if (!parsedEvent || parsedEvent.kind() !== 30002) return;
-		const address = `30002:${parsedEvent.pubkey()}:${asNip51(parsedEvent)?.d()}`;
+		if (relayRoleFromSet(parsedEvent) !== 'admin') return;
+		const address = `30002:${parsedEvent.pubkey()}:nuts-relays-admin`;
 		const existingIndex = adminRelaySets.findIndex(
-			(event) => `30002:${event.pubkey()}:${asNip51(event)?.d()}` === address
+			(event) => `30002:${event.pubkey()}:nuts-relays-admin` === address
 		);
 		if (existingIndex !== -1) {
 			if (parsedEvent.createdAt() <= adminRelaySets[existingIndex].createdAt()) return;
@@ -144,17 +130,9 @@
 		const relays = Array.from(
 			new Set([...INDEXER_RELAYS, ...DEFAULT_RELAYS, 'wss://relay.nuts.cash'])
 		);
-		const requests: RequestObject[] = [
-			{
-				kinds: [10012],
-				authors: [$key.pub],
-				limit: 1,
-				relays,
-				cacheFirst: true
-			}
-		];
+		const requests = communityDirectoryQuery($key.pub, relays);
 		unsubscribeRelayFeed = useSubscription(
-			'profile_relay_feed_' + $key.pub,
+			'community_directory_' + $key.pub,
 			requests,
 			handleRelayFeed,
 			{ bytesPerEvent: 10 * 1024 }

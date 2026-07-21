@@ -9,6 +9,7 @@
 	import { key, kind17375, kind10019 as walletKind10019, readRelays } from 'src/controller';
 	import { activeMintUrl } from 'src/controller/wallet';
 	import { now } from 'src/lib/period';
+	import { makeInviteAuthorization } from 'src/lib/invites';
 	import { DEFAULT_RELAYS } from 'src/lib/env';
 	import {
 		buildZapRequestTemplate,
@@ -70,6 +71,28 @@
 	export let pubkey: string;
 	export let noteId: string;
 	export let amount = 21;
+	export let checkout = '';
+
+	type CheckoutContext = {
+		community: string;
+		eventAddress: string;
+		badgeAddress: string;
+		amount: number;
+	};
+
+	function parseCheckout(value: string): CheckoutContext | undefined {
+		if (!value) return undefined;
+		try {
+			const parsed = JSON.parse(decodeURIComponent(value));
+			if (!parsed.community || !parsed.eventAddress || !parsed.badgeAddress || Number(parsed.amount) <= 0) return undefined;
+			return { ...parsed, amount: Math.floor(Number(parsed.amount)) };
+		} catch {
+			return undefined;
+		}
+	}
+
+	const checkoutContext = parseCheckout(checkout);
+	if (checkoutContext) amount = checkoutContext.amount;
 
 	let animator = getContext('animator');
 	let memo: string = '';
@@ -253,7 +276,7 @@
 		(!kind10019 && !lnurl) ||
 		!!processing;
 
-	$: if (!lnurl) {
+	$: if (!kind10019 && !lnurl) {
 		status = 'This user has not set up their profile for zaps.';
 	} else {
 		status = '';
@@ -350,6 +373,38 @@
 			setTimeout(() => (status = ''), 4000);
 		}
 	};
+
+	async function signNutzap(event: EventTemplate): Promise<NostrEvent> {
+		return await new Promise((resolve, reject) => {
+			try {
+				useSignEvent(event, (signed) => {
+					try {
+						resolve((typeof signed === 'string' ? JSON.parse(signed) : signed) as NostrEvent);
+					} catch (error) {
+						reject(error);
+					}
+				});
+			} catch (error) {
+				reject(error);
+			}
+		});
+	}
+
+	async function redeemEventNutzap(event: NostrEvent) {
+		if (!checkoutContext) return;
+		status = 'Confirming entrance…';
+		const body = JSON.stringify({ ...checkoutContext, nutzap: event });
+		const url = new URL('/api/ecash/redeem', window.location.origin).toString();
+		const authorization = await makeInviteAuthorization(url, body);
+		const response = await fetch(url, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization },
+			body
+		});
+		const result = await response.json().catch(() => ({}));
+		if (!response.ok) throw new Error(result.message || result.error || 'Entrance redemption failed');
+		status = 'Entrance unlocked!';
+	}
 
 	// Execute the transaction based on type
 	const executeTransaction = async (
@@ -487,20 +542,27 @@
 				kind: 9321,
 				content: memo,
 				created_at: Math.floor(Date.now() / 1000),
-				tags: [
+					tags: [
 					...lockedProofs.map((p: Proof) => ['proof', JSON.stringify(p)]),
 					['u', toMint],
-					['e', noteId || ''],
+					['unit', 'sat'],
+					['e', hexNoteId || ''],
+					['a', checkoutContext?.badgeAddress || ''],
 					['p', pubkey]
 				].filter((t: string[]) => !!t[1])
 			};
 
-			await updateTransaction(txId, { nutzapEvent });
+			const eventToPublish = checkoutContext ? await signNutzap(nutzapEvent) : nutzapEvent;
+			await updateTransaction(txId, { nutzapEvent: eventToPublish });
+			// Validate the signed payment and issue the entrance badge before publishing it.
+			// This prevents a temporary redemption failure from leaving a public payment
+			// event behind without the badge it purchased.
+			if (checkoutContext) await redeemEventNutzap(eventToPublish as NostrEvent);
 			// Try to publish - if it fails, transaction will be pending_publish
-			const published = await publishWithRetry(nutzapEvent);
+			const published = await publishWithRetry(eventToPublish);
 			if (published) {
 				await markPublished(txId);
-				status = 'Zap sent! ⚡️';
+				status = checkoutContext ? 'Entrance unlocked!' : 'Zap sent! ⚡️';
 				// Clear status after 1.5 seconds to show idle state
 				setTimeout(() => {
 					status = '';
@@ -524,20 +586,24 @@
 			const fromWallet = await $nutsWallet!.getWallet(fromMint);
 
 			// Lock proofs to recipient
+			const recipientPubkey = kind10019?.p2pkPubkey();
+			if (!recipientPubkey) throw new Error('Recipient has no Cashu receiving key');
 			const lockedProofs = await fromWallet.receive(
 				{ mint: fromMint, proofs, unit: 'sat' },
 				{},
-				{ type: 'p2pk', options: { pubkey } }
+				{ type: 'p2pk', options: { pubkey: recipientPubkey } }
 			);
 
 			const nutzapEvent: EventTemplate = {
 				kind: 9321,
 				content: memo,
 				created_at: Math.floor(Date.now() / 1000),
-				tags: [
+					tags: [
 					...lockedProofs.map((p: Proof) => ['proof', JSON.stringify(p)]),
 					['u', fromMint],
-					['e', noteId || ''],
+					['unit', 'sat'],
+					['e', hexNoteId || ''],
+					['a', checkoutContext?.badgeAddress || ''],
 					['p', pubkey]
 				].filter((t: string[]) => !!t[1])
 			};
@@ -553,12 +619,16 @@
 				.verifyAndCleanProofs()
 				.catch((e) => console.warn('[ecash] Post-send verification failed:', e));
 
-			await updateTransaction(txId, { nutzapEvent });
+			const eventToPublish = checkoutContext ? await signNutzap(nutzapEvent) : nutzapEvent;
+			await updateTransaction(txId, { nutzapEvent: eventToPublish });
+			// The server validates the signed nutzap itself, so redemption does not depend
+			// on relay propagation and can safely happen before publication.
+			if (checkoutContext) await redeemEventNutzap(eventToPublish as NostrEvent);
 			// Try to publish - if it fails, transaction will be pending_publish
-			const published = await publishWithRetry(nutzapEvent);
+			const published = await publishWithRetry(eventToPublish);
 			if (published) {
 				await markPublished(txId);
-				status = 'Sent! 🎉';
+				status = checkoutContext ? 'Entrance unlocked!' : 'Sent! 🎉';
 				// Clear status after 1.5 seconds to show idle state
 				setTimeout(() => {
 					status = '';
@@ -656,13 +726,14 @@
 										<div class="join-item w-0">
 											<Icon icon="bitcoin-icons:satoshi-v2-filled" class="text-4xl" />
 										</div>
-										<input
+						<input
 											id="send-amt"
 											placeholder="0"
 											type="text"
 											inputmode="decimal"
 											autocomplete="off"
-											bind:value={amount}
+							bind:value={amount}
+							readonly={Boolean(checkoutContext)}
 											class="join-item text-7xl bg-transparent caret-transparent focus:outline-none text-center max-w-xs rounded-xl"
 											on:focus={() => (amountInputFocused = true)}
 											on:blur={() => (amountInputFocused = false)}
@@ -780,6 +851,7 @@
 					</div>
 				</div>
 			</div>
-		</VirtualList>
+		</div>
+	</VirtualList>
 	</div>
 </div>

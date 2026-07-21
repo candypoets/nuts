@@ -24,6 +24,7 @@
 	import { pwaInfo } from 'virtual:pwa-info';
 
 	import { goto } from '$app/navigation';
+	import { base } from '$app/paths';
 	import { page } from '$app/stores';
 
 	import Alert from 'src/components/Alert.svelte';
@@ -439,6 +440,10 @@
 	});
 
 	$: homepage = $page.route.id == '/';
+	$: pathnameWithoutBase =
+		base && $stackPath.startsWith(base) ? $stackPath.slice(base.length) || '/' : $stackPath;
+	$: normalizedPathname = pathnameWithoutBase.replace(/\/+$/, '') || '/';
+	$: isRootFeedPath = ['/home', '/explore', '/chat'].includes(normalizedPathname);
 
 	// Re-initialize carousel when it becomes visible (navigating from homepage)
 	$: if (!homepage && scroller && !carouselInitialized) {
@@ -685,7 +690,7 @@
 		<!-- {/key} -->
 	</div>
 
-	{#if !$isMobile && !$overviewModeStore}
+	{#if !$isMobile && !$overviewModeStore && $zoomed === undefined && isRootFeedPath}
 		<nav class="space-rail" aria-label="Spaces">
 			<div class="space-rail-hitbox">
 				{#each carouselAnimator.getActiveRoutes() as feed, index (feed.id)}
@@ -801,11 +806,19 @@
 
 	.space-rail {
 		position: fixed;
-		left: 0;
+		left: 18px;
 		top: 50%;
 		z-index: 25;
 		transform: translateY(-50%);
-		padding: 56px 28px 56px 18px;
+		padding: 22px 18px;
+		border: 1px solid color-mix(in srgb, var(--text-strong) 11%, transparent);
+		border-radius: 22px;
+		background: color-mix(in srgb, var(--base-200) 88%, transparent);
+		box-shadow:
+			3px 4px 0 color-mix(in srgb, var(--accent) 24%, transparent),
+			0 18px 42px var(--shadow-outer-color),
+			inset 0 1px 0 color-mix(in srgb, var(--text-strong) 6%, transparent);
+		backdrop-filter: blur(16px);
 		opacity: 1;
 		transition: opacity 180ms ease;
 	}
@@ -837,7 +850,7 @@
 		border: 0;
 		padding: 0;
 		background: transparent;
-		color: color-mix(in srgb, var(--primary-content) 72%, white 28%);
+		color: var(--text-muted);
 		cursor: pointer;
 		outline: none;
 	}
@@ -867,9 +880,15 @@
 	.space-rail-item.active .space-rail-mark {
 		width: 18px;
 		height: 8px;
-		border-color: color-mix(in srgb, var(--primary) 55%, white 45%);
-		background: color-mix(in srgb, var(--primary) 72%, white 28%);
+		border-color: var(--accent);
+		background: var(--accent);
+		box-shadow: 3px 3px 0 color-mix(in srgb, var(--primary) 45%, transparent);
 		opacity: 1;
+	}
+
+	.space-rail-item.active .space-rail-label {
+		color: var(--text-strong);
+		font-weight: 700;
 	}
 
 	.space-rail-label {

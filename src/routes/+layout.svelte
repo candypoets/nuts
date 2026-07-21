@@ -15,7 +15,9 @@
 	$: standaloneRoute =
 		$page.url.pathname.startsWith('/create') ||
 		$page.url.pathname.startsWith('/admin') ||
-		$page.url.pathname.startsWith('/redeem');
+		$page.url.pathname.startsWith('/memberships') ||
+		$page.url.pathname.startsWith('/redeem') ||
+		$page.url.pathname.startsWith('/stripe/connect/return');
 
 	function setViewport() {
 		document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
@@ -36,14 +38,14 @@
 		const storedTheme = loadStoredTheme();
 		if (!storedTheme) {
 			// Apply default theme if no stored theme
-			document.getElementsByTagName('html')[0].setAttribute('data-theme', 'downfox');
+			document.getElementsByTagName('html')[0].setAttribute('data-theme', 'nuts');
 		}
 
 		document
 			.querySelector('meta[name="theme-color"]')
 			?.setAttribute(
 				'content',
-				document.documentElement.getAttribute('data-theme') === 'snowwhite' ? '#f9fafb' : '#131716'
+				document.documentElement.getAttribute('data-theme') === 'snowwhite' ? '#f9fafb' : '#101d19'
 			);
 
 		window.addEventListener('resize', setViewport);

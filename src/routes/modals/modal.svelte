@@ -20,7 +20,6 @@
 	import Post from 'src/routes/modals/post.svelte';
 	import EventModal from 'src/routes/modals/event.svelte';
 
-	import { viewport } from 'src/controller/viewport';
 	import type { PagerAnimator } from 'src/lib/animations/PagerAnimator';
 	import { getContext, onDestroy, onMount, setContext } from 'svelte';
 	import Share from './share.svelte';
@@ -30,6 +29,7 @@
 	import Kind1111 from './kind1111.svelte';
 	import Kind0 from './_profile/kind0.svelte';
 	import Theme from './theme.svelte';
+	import { usePagerNavigation } from './modal';
 
 	export let path = '';
 	export let visible: boolean;
@@ -38,7 +38,38 @@
 	$: modalKey = path.split(':')[0];
 
 	let pager: PagerAnimator | undefined = getContext('animator');
+	const navigation = usePagerNavigation();
 	let element: HTMLElement;
+	function dismiss() {
+		if (pager) pager.goBack();
+		else navigation?.back();
+	}
+
+	function swipeGestures(node: HTMLElement) {
+		if (!pager) return;
+		const touchStart = (event: TouchEvent) => {
+			event.stopPropagation();
+			handleTouchStart(event);
+		};
+		const touchMove = (event: TouchEvent) => {
+			event.stopPropagation();
+			handleTouchMove(event);
+		};
+		const touchEnd = (event: TouchEvent) => {
+			event.stopPropagation();
+			handleTouchEnd(event);
+		};
+		node.addEventListener('touchstart', touchStart, { passive: true });
+		node.addEventListener('touchmove', touchMove, { passive: false });
+		node.addEventListener('touchend', touchEnd, { passive: true });
+		return {
+			destroy() {
+				node.removeEventListener('touchstart', touchStart);
+				node.removeEventListener('touchmove', touchMove);
+				node.removeEventListener('touchend', touchEnd);
+			}
+		};
+	}
 
 	// Touch gesture variables
 	let touchStartX = 0;
@@ -182,18 +213,15 @@
 </script>
 
 <div
-	class="fixed right-0 top-0 h-screen z-20 backdrop-blur-md"
+	class="fixed inset-0 z-[60] h-screen w-full backdrop-blur-md"
 	bind:this={element}
-	on:click|stopPropagation={pager?.goBack}
-	style="width: {$viewport.vw * 100}px;"
+	on:click|stopPropagation={dismiss}
 	data-kind={modalKey === 'zoom' ? 'zoom' : 'modal'}
 >
 	<div
 		class="m-auto relative overflow-hidden h-full w-feed"
 		on:click|stopPropagation
-		on:touchstart|stopPropagation={handleTouchStart}
-		on:touchmove|stopPropagation={handleTouchMove}
-		on:touchend|stopPropagation={handleTouchEnd}
+		use:swipeGestures
 	>
 		{#if modalKey === 'cmdk'}
 			<Cmdk goBack={pager?.goBack} />
@@ -202,7 +230,7 @@
 		{:else if modalKey === 'send'}
 			<Send />
 		{:else if modalKey === 'scan'}
-			<Scan />
+			<Scan context={path.split(':')?.[1] || ''} />
 		{:else if modalKey === 'melt'}
 			<Melt invoice={decodeURIComponent(path.slice(5))} />
 		{:else if modalKey === 'melted'}
@@ -210,7 +238,7 @@
 		{:else if modalKey === 'qr'}
 			<QR qrText={decodeURIComponent(path.slice(3))} />
 		{:else if modalKey === 'ecash'}
-			<Ecash pubkey={path.split(':')?.[1]} noteId={path.split(':')?.[2]} />
+			<Ecash pubkey={path.split(':')?.[1]} noteId={path.split(':')?.[2]} checkout={path.split(':')?.[3] || ''} />
 		{:else if modalKey === 'kind0'}
 			<Kind0 />
 		{:else if modalKey === 'lightning'}

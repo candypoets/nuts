@@ -36,6 +36,7 @@ export function roleAddress(pubkey: string, d: string) {
 export function parseRoleDefinition(event: ParsedEvent): RoleDefinition | undefined {
 	if (event.kind() !== 30009) return undefined;
 	const tags = parsedEventTags(event);
+	if (tags.find((tag) => tag[0] === 'type')?.[1] === 'membership') return undefined;
 	const d = tags.find((tag) => tag[0] === 'd')?.[1];
 	if (!d) return undefined;
 

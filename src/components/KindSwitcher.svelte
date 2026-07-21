@@ -49,7 +49,7 @@
 	}
 </script>
 
-<div class="flex w-full overflow-x-auto scrollbar-hide" aria-label={ariaLabel}>
+<div class="kind-switcher flex w-full overflow-x-auto scrollbar-hide" aria-label={ariaLabel}>
 	{#each tabs as tab (tab.id)}
 		{@const selected = tab.kinds
 			? sameKinds(localSelectedKinds, tab.kinds)
@@ -64,3 +64,22 @@
 		</button>
 	{/each}
 </div>
+
+<style>
+	:global(html[data-theme='nuts']) .kind-switcher {
+		gap: 0.25rem;
+	}
+
+	:global(html[data-theme='nuts']) .kind-switcher button {
+		border-radius: 0.5rem 0.5rem 0 0;
+	}
+
+	:global(html[data-theme='nuts']) .kind-switcher button:hover {
+		background: rgba(242, 235, 221, 0.045);
+	}
+
+	:global(html[data-theme='nuts']) .kind-switcher button[aria-pressed='true'] {
+		background: linear-gradient(to top, rgba(223, 114, 92, 0.12), transparent 80%);
+		color: #f2ebdd;
+	}
+</style>

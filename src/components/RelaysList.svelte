@@ -166,7 +166,7 @@
 		on:keydown={handleOpenKeydown}
 		role="button"
 		tabindex="0"
-		class="flex gap-2 items-center justify-end flex-wrap overflow-visible pt-1 {$$props.class ||
+		class="community-list flex gap-2 items-center justify-end flex-wrap overflow-visible pt-1 {$$props.class ||
 			''}"
 		class:cursor-pointer={mini}
 		class:!gap-0={mini}
@@ -212,7 +212,7 @@
 				{@const name = communityName(relay)}
 				<button
 					type="button"
-					class="group flex w-16 shrink-0 flex-col items-center gap-1 bg-transparent p-0"
+					class="community-tile group flex w-16 shrink-0 flex-col items-center gap-1 bg-transparent p-0"
 					title={name}
 					aria-label={name}
 					on:click|stopPropagation={() => openCommunityRelay(relay)}
@@ -235,7 +235,7 @@
 						</span>
 					</span>
 					<span
-						class="hidden max-w-full truncate text-[10px] font-medium leading-none text-primary-content md:block"
+						class="community-name hidden max-w-full truncate text-[10px] font-medium leading-none text-base-content/65 md:block"
 					>
 						{name}
 					</span>
@@ -243,7 +243,7 @@
 			{/each}
 			<button
 				type="button"
-				class="flex w-16 shrink-0 flex-col items-center gap-1 bg-transparent p-0"
+				class="community-tile manage-community flex w-16 shrink-0 flex-col items-center gap-1 bg-transparent p-0"
 				title="Manage relays"
 				aria-label="Manage relays"
 				on:click|stopPropagation={openRelayInfos}
@@ -251,10 +251,10 @@
 				<span
 					class="flex h-9 w-9 items-center justify-center rounded-full border border-dashed border-base-200 bg-base-300"
 				>
-					<Icon icon="mingcute:add-line" class="text-lg text-primary-content" />
+					<Icon icon="mingcute:add-line" class="text-lg text-base-content/75" />
 				</span>
 				<span
-					class="hidden max-w-full truncate text-[10px] font-medium leading-none text-primary-content md:block"
+					class="community-name hidden max-w-full truncate text-[10px] font-medium leading-none text-base-content/65 md:block"
 				>
 					Manage
 				</span>
@@ -287,3 +287,27 @@
 		{/if}
 	</div>
 </div>
+
+<style>
+	:global(html[data-theme='nuts']) .community-list {
+		gap: 0.65rem;
+	}
+
+	:global(html[data-theme='nuts']) .community-tile > span:first-of-type {
+		border-radius: 0.75rem;
+	}
+
+	:global(html[data-theme='nuts']) .community-tile > span:first-of-type > span {
+		border-radius: 0.6rem;
+	}
+
+	:global(html[data-theme='nuts']) .community-name {
+		color: rgba(242, 235, 221, 0.7);
+		font-size: 0.6875rem;
+	}
+
+	:global(html[data-theme='nuts']) .manage-community > span:first-of-type {
+		border-color: rgba(231, 182, 56, 0.58);
+		background: rgba(231, 182, 56, 0.08);
+	}
+</style>

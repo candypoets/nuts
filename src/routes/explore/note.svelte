@@ -547,7 +547,7 @@
 <!-- {JSON.stringify(fbArray(displayNote, 'requests').map((r) => toRequestObject(r)))}
 {subed} -->
 <div
-	class="py-2 rounded-tl-md backdrop-saturate-150 border-primary-content relative cursor-pointer bg-base-300 bg-opacity-85 mt-1 rounded-lg w-full shadow-widget"
+	class="feed-post py-2 rounded-tl-md backdrop-saturate-150 border-primary-content relative cursor-pointer bg-base-300 bg-opacity-85 mt-1 rounded-lg w-full shadow-widget"
 	class:!mt-0={hasRoot || tailing}
 	class:px-2={!!depth}
 	on:click|stopPropagation={goto}
@@ -728,3 +728,17 @@
 {#each visibleReplies as reply}
 	<svelte:self note={reply} {context} {visible} {showReplies} zaps tailing showRoot={false} />
 {/each}
+
+<style>
+	.feed-post {
+		border: 1px solid color-mix(in srgb, var(--text-strong) 11%, transparent);
+		border-radius: 0.75rem;
+		box-shadow:
+			0 12px 28px color-mix(in srgb, var(--shadow-outer-color) 72%, transparent),
+			inset 0 1px 0 color-mix(in srgb, var(--text-strong) 4%, transparent);
+	}
+
+	.feed-post:hover {
+		border-color: color-mix(in srgb, var(--text-strong) 18%, transparent);
+	}
+</style>

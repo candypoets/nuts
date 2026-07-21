@@ -38,6 +38,13 @@ export function relaySetAddress(pubkey: string, role: RelayRole) {
 	return `30002:${pubkey}:${RELAY_ROLE_SETS[role].d}`;
 }
 
+export function relayRoleFromSet(event: ParsedEvent): RelayRole | undefined {
+	const d = parsedEventTags(event).find((tag) => tag[0] === 'd')?.[1];
+	return (
+		Object.entries(RELAY_ROLE_SETS) as [RelayRole, (typeof RELAY_ROLE_SETS)[RelayRole]][]
+	).find(([, config]) => config.d === d)?.[0];
+}
+
 export function parsedEventTags(event: ParsedEvent): string[][] {
 	const tags: string[][] = [];
 	const tagsLength = event.tagsLength();

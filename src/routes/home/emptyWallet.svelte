@@ -45,12 +45,12 @@
 		{#if hasWallet}
 			<h2 class="text-2xl font-semibold mb-2">No activity yet</h2>
 			<p class="text-base-content/70 max-w-prose mb-4">
-				Your wallet is set up. Receive your first eCash token or scan a QR to get started.
+				Your wallet is ready. Receive money or scan a QR code to get started.
 			</p>
 		{:else}
-			<h2 class="text-2xl font-semibold mb-2">Set up your NutsCash wallet</h2>
+			<h2 class="text-2xl font-semibold mb-2">A simple wallet, built in</h2>
 			<p class="text-base-content/70 max-w-prose mb-4">
-				Choose a mint and initialize your wallet to start receiving and sending eCash on Nostr.
+				Send and receive money with people on Nuts. It only takes a moment to get started.
 			</p>
 		{/if}
 
@@ -73,7 +73,7 @@
 			<div class="w-full max-w-xl">
 				<button class="btn btn-accent w-full" on:click|stopPropagation={setupWallet}>
 					<Icon icon="ph:wallet-bold" class="text-lg mr-2" />
-					Setup Wallet
+					Set up wallet
 				</button>
 				{#if showExploreLink}
 					<button
@@ -87,9 +87,9 @@
 		{/if}
 
 		{#if recommendedMints?.length}
-			<div class="divider my-6">Mints</div>
+			<div class="divider my-6">Wallet providers</div>
 			<div class="w-full max-w-xl flex flex-wrap gap-2 justify-center">
-				{#each recommendedMints.slice(0, 6) as mint}
+				{#each recommendedMints.slice(0, 6) as mint (mint)}
 					<div class="badge badge-outline gap-2 py-3 px-4 bg-base-200 bg-opacity-70">
 						<Icon icon="ph:coin-duotone" class="text-base" />
 						<span class="truncate max-w-[16rem]">{mint}</span>
@@ -100,7 +100,7 @@
 				<div class="mt-3">
 					<button class="btn btn-sm btn-outline" on:click|stopPropagation={setupWallet}>
 						<Icon icon="ph:gear-six" class="text-base mr-1" />
-						Manage mints
+						Wallet settings
 					</button>
 				</div>
 			{/if}

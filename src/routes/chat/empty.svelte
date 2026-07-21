@@ -6,6 +6,7 @@
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import User from 'src/routes/explore/user.svelte';
 	import { carouselAnimator } from 'src/controller/carrousel';
+	import { resolve } from 'src/lib/paths';
 
 	// Optional: provide a list of suggested contacts as hex pubkeys
 	export let contacts: string[] = [];
@@ -42,19 +43,23 @@
 				valid = true;
 				return;
 			}
-			error = 'Unsupported bech32 type. Paste an npub or nprofile.';
+			error = "That doesn't look like a profile address.";
 		} catch (e) {
-			error = 'Invalid npub or hex pubkey.';
+			error = "That doesn't look like a profile address.";
 		}
 	}
 
 	function submit() {
 		validate();
 		if (!valid || !hex) return;
-		goto(`/chat/kind4:${hex}`);
+		goto(resolve(`/chat/kind4:${hex}`));
 	}
 
-	$: validate(); // re-validate as user types
+	function openChat(pubkey: string) {
+		goto(resolve(`/chat/kind4:${pubkey}`));
+	}
+
+	$: value, validate(); // re-validate as user types
 </script>
 
 <div class="mx-1 bg-base-300 bg-opacity-85 rounded-xl p-6 shadow-widget">
@@ -67,24 +72,33 @@
 			</span>
 		</div>
 
-		<h2 class="text-2xl font-semibold mb-2">Start a Chat</h2>
-		<p class="text-base-content/70 max-w-prose mb-4">
-			End‑to‑end encrypted DMs on Nostr. Others may see who you're talking to, but never what you
-			say.
+		<h2 class="text-2xl font-semibold mb-2">Who would you like to message?</h2>
+		<p class="text-base-content/70 max-w-prose mb-5">
+			Find someone you know and start a private conversation.
 		</p>
 
 		<div class="w-full max-w-xl">
-			<label class="label">
-				<span class="label-text">Paste an npub, nprofile, or hex pubkey</span>
+			<button
+				class="btn btn-primary w-full"
+				on:click|stopPropagation={() => carouselAnimator.moveLeft()}
+			>
+				Find someone
+			</button>
+
+			<div class="divider my-5 text-base-content/60">Already have their address?</div>
+
+			<label class="label" for="chat-profile-address">
+				<span class="label-text">Paste their profile address</span>
 			</label>
 			<input
+				id="chat-profile-address"
 				class="input input-bordered w-full"
-				placeholder="npub1..."
+				placeholder="Profile address"
 				bind:value
 				on:keydown={(e) => e.key === 'Enter' && submit()}
 				autocomplete="off"
 				spellcheck="false"
-				inputmode="latin"
+				inputmode="text"
 			/>
 
 			{#if error}
@@ -93,21 +107,17 @@
 
 			<button class="btn btn-primary w-full mt-3" disabled={!valid} on:click={submit}>
 				<Icon icon="teenyicons:add-outline" class="text-lg mr-2" />
-				Start a new chat
+				Message them
 			</button>
 
-			<button
-				class="btn btn-ghost w-full mt-2"
-				on:click|stopPropagation={() => carouselAnimator.moveLeft()}
-				>Find people to chat with</button
-			>
+			<p class="mt-5 text-sm text-base-content/60">Your messages are private and encrypted.</p>
 		</div>
 
 		{#if contacts?.length}
 			<div class="divider my-6">Message a contact</div>
 
 			<ul class="w-full max-w-xl space-y-2">
-				{#each contacts.slice(0, 5) as pub}
+				{#each contacts.slice(0, 5) as pub (pub)}
 					<li
 						class="flex items-center justify-between gap-3 p-3 rounded-lg bg-base-200 bg-opacity-70"
 					>
@@ -118,7 +128,7 @@
 								<div class="text-xs text-base-content/60 truncate">{pub}</div>
 							</div>
 						</div>
-						<button class="btn btn-sm btn-accent" on:click={() => goto(`/chat/kind4:${pub}`)}>
+						<button class="btn btn-sm btn-accent" on:click={() => openChat(pub)}>
 							Message
 						</button>
 					</li>

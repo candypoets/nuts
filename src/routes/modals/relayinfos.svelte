@@ -138,7 +138,7 @@
 	on:keydown={handleBackdropKeydown}
 >
 	<div
-		class="flex w-full !h-[78vh] !min-h-fit flex-col overflow-hidden rounded-t-[1.75rem] border border-primary-content/10 bg-base-100/95 shadow-widget backdrop-blur-xl md:mx-auto md:mb-6 md:h-[72vh] md:max-w-3xl md:rounded-2xl"
+		class="communities-modal flex w-full !h-[78vh] !min-h-fit flex-col overflow-hidden rounded-t-[1.75rem] border border-base-content/10 bg-base-100/95 shadow-widget backdrop-blur-xl md:mx-auto md:mb-6 md:h-[72vh] md:max-w-3xl md:rounded-2xl"
 		role="dialog"
 		aria-modal="true"
 		tabindex="-1"
@@ -153,12 +153,12 @@
 					<h2 class="text-2xl font-semibold leading-tight tracking-normal text-base-content">
 						Communities
 					</h2>
-					<p class="mt-1 text-sm font-medium text-primary-content">
+					<p class="mt-1 text-sm font-medium text-base-content/65">
 						{selectedCount} selected · {filteredRelays.length} visible
 					</p>
 				</div>
 				<div
-					class="flex shrink-0 items-center gap-2 rounded-full bg-base-200 px-3 py-1.5 text-xs font-bold text-primary-content"
+					class="flex shrink-0 items-center gap-2 rounded-full bg-base-200 px-3 py-1.5 text-xs font-bold text-base-content/75"
 				>
 					<span class="h-2 w-2 rounded-full bg-success"></span>
 					<span>{relays.length}</span>
@@ -171,6 +171,7 @@
 					bind:value={search}
 					showSearchIcon={true}
 					showClearButton={true}
+					inputClassName="text-base-content placeholder:text-base-content/60"
 				/>
 			</div>
 		</div>
@@ -199,7 +200,7 @@
 						<div
 							class="group mb-2 grid min-h-16 cursor-pointer grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border px-3 py-2.5 shadow-widget transition duration-200 hover:-translate-y-0.5 hover:bg-base-300 {isSelected
 								? 'border-primary bg-base-200'
-								: 'border-primary-content/10 bg-base-300/75'}"
+								: 'border-base-content/10 bg-base-300/75'}"
 							role="button"
 							tabindex="0"
 							aria-pressed={isSelected}
@@ -210,7 +211,7 @@
 							<div
 								class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition-colors {isSelected
 									? 'border-primary bg-primary'
-									: 'border-primary-content/20 bg-base-100'}"
+									: 'border-base-content/20 bg-base-100'}"
 							>
 								{#if isSelected}
 									<Icon icon="mingcute:check-line" class="text-base text-primary-content" />
@@ -223,11 +224,11 @@
 									<img
 										src={proxyAvatarUrl(r.info.icon)}
 										alt=""
-										class="h-9 w-9 rounded-lg bg-base-200 object-cover ring-1 ring-primary-content/10"
+										class="h-9 w-9 rounded-lg bg-base-200 object-cover ring-1 ring-base-content/10"
 									/>
 								{:else}
 									<div
-										class="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-xs font-black text-primary-content ring-1 ring-primary-content/10"
+										class="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-xs font-black text-primary-content ring-1 ring-base-content/10"
 									>
 										{relayInitials(name)}
 									</div>
@@ -238,7 +239,8 @@
 									class:bg-info={r.status === 'SUBSCRIBED'}
 									class:bg-warning={r.status === 'connecting'}
 									class:bg-error={r.status === 'failed'}
-									class:bg-primary-content={!r.status || r.status === 'close'}
+									class:bg-base-content={!r.status || r.status === 'close'}
+									class:opacity-30={!r.status || r.status === 'close'}
 								></span>
 							</div>
 
@@ -250,13 +252,20 @@
 									</div>
 									{#if statusLabel(r.status)}
 										<span
-											class="hidden shrink-0 text-[11px] font-bold text-primary-content sm:inline"
+											class="hidden shrink-0 text-[11px] font-bold text-base-content/60 sm:inline"
+											class:text-success={r.status === 'open' ||
+												r.status === 'connected' ||
+												r.status === 'EOSE' ||
+												r.status === 'OK'}
+											class:text-warning={r.status === 'connecting'}
+											class:text-info={r.status === 'SUBSCRIBED'}
+											class:text-error={r.status === 'failed' || r.status === 'FAILED'}
 										>
 											{statusLabel(r.status)}
 										</span>
 									{/if}
 								</div>
-								<div class="mt-0.5 truncate text-xs font-medium text-primary-content">
+								<div class="mt-0.5 truncate text-xs font-medium text-base-content/60">
 									{r.info?.description || relayLabel(r.url)}
 								</div>
 								<!-- Description (if available) -->
@@ -299,7 +308,7 @@
 								<!-- Software -->
 								{#if software}
 									<div
-										class="hidden max-w-24 truncate rounded-md bg-base-100 px-2 py-1 text-[10px] font-black leading-none text-primary-content sm:inline-block"
+										class="hidden max-w-24 truncate rounded-md bg-base-100 px-2 py-1 text-[10px] font-black leading-none text-base-content/65 sm:inline-block"
 										title={r.info.software}
 									>
 										{software}
@@ -311,7 +320,7 @@
 				</VirtualList>
 			{:else}
 				<div
-					class="rounded-2xl border border-dashed border-primary-content/20 bg-base-300/60 p-8 text-center text-sm font-semibold text-primary-content"
+					class="rounded-2xl border border-dashed border-base-content/20 bg-base-300/60 p-8 text-center text-sm font-semibold text-base-content/70"
 				>
 					No relays to show yet.
 				</div>
@@ -319,3 +328,13 @@
 		</div>
 	</div>
 </div>
+
+<style>
+	:global(html[data-theme='nuts']) .communities-modal {
+		border-color: rgba(242, 235, 221, 0.12);
+		background: rgba(11, 23, 18, 0.98);
+		box-shadow:
+			0 24px 70px rgba(2, 9, 6, 0.58),
+			inset 0 1px 0 rgba(242, 235, 221, 0.05);
+	}
+</style>

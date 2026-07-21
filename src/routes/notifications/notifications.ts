@@ -90,10 +90,9 @@ export function processNotifications(feed: ParsedEvent[]): ProcessedNotification
 			switch (event.parsedType()) {
 				case ParsedData.Kind1Parsed:
 					const kind1 = asKind1(event) as Kind1Parsed;
+					const profileMentions = fbArray(kind1, 'profileMentions');
 					// Check for mention first (highest priority - it's about the user's own content)
-					const isMention = fbArray(kind1, 'quotes')?.some(
-						(m) => m.publicKey() == get(key)?.pub
-					);
+					const isMention = profileMentions.some((m) => m.publicKey() == get(key)?.pub);
 					if (isMention) {
 						notificationType = 'mention';
 						referencedPostId = 'mention-' + event.id?.();
@@ -102,7 +101,7 @@ export function processNotifications(feed: ParsedEvent[]): ProcessedNotification
 					// Check for reply (with quote detection)
 					const replyId = kind1.reply()?.id();
 					if (replyId) {
-						if (kind1.mentionsLength()) {
+						if (profileMentions.length > 0) {
 							notificationType = 'mention';
 							referencedPostId = 'mention-' + event.id?.();
 						} else {

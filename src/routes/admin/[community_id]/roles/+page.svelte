@@ -1,5 +1,5 @@
 <script lang="ts">
-	import RolesPage from '../../roles/+page.svelte';
+	import MembersPage from '../../members/+page.svelte';
 </script>
 
-<RolesPage />
+<MembersPage initialView="roles" />

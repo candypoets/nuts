@@ -7,9 +7,12 @@ node_modules
 /package
 /android
 /ios
+.agents
 .codex
+.claude
 !.env.example
 .env
+.data/
 lnuts.db
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*

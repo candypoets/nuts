@@ -74,7 +74,7 @@
 	}
 
 	function handleMainClick(event: MouseEvent) {
-		if (!stack.length) return;
+		if (!animator || !stack.length) return;
 		if (event.target instanceof Element && event.target.closest('[data-kind]')) return;
 		animator.unregisterAll(() => navigation.root());
 	}
@@ -82,12 +82,12 @@
 
 <div
 	bind:this={mainElement}
-	style="transform-style: preserve-3d;
-		perspective: 1000px;
-		backface-visibility: hidden;
-		-webkit-backface-visibility: hidden;"
+	style={animator
+		? 'transform-style: preserve-3d; perspective: 1000px; backface-visibility: hidden; -webkit-backface-visibility: hidden;'
+		: undefined}
 	on:click={handleMainClick}
-	class="will-change-transform transition-gpu"
+	class:will-change-transform={Boolean(animator)}
+	class:transition-gpu={Boolean(animator)}
 >
 	<slot />
 </div>

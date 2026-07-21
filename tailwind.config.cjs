@@ -19,6 +19,27 @@ module.exports = {
 	daisyui: {
 		themes: [
 			{
+				nuts: {
+					primary: '#df725c',
+					'primary-content': '#1b241f',
+					secondary: '#e7b638',
+					'secondary-content': '#17221d',
+					'base-100': '#0b1712',
+					'base-200': '#13251e',
+					'base-300': '#1b3027',
+					'base-content': '#f2ebdd',
+					'error-content': '#fff4ed',
+					highlight: '#263b32',
+					accent: '#e7b638',
+					neutral: '#22352d',
+					info: '#79a9a0',
+					success: '#79a66f',
+					warning: '#e7b638',
+					error: '#c95f50',
+					'--shadow-outer-color': 'rgba(3, 12, 8, 0.48)',
+					'--shadow-inset-highlight': 'rgba(242, 235, 221, 0.08)',
+					'--shadow-inset-subtle': 'rgba(242, 235, 221, 0.025)'
+				},
 				touchgrass: {
 					primary: '#158777',
 					'primary-content': '#010806',
@@ -64,27 +85,25 @@ module.exports = {
 					'--shadow-inset-subtle': 'rgba(255, 255, 255, 0.02)'
 				},
 				matteblack: {
-					// Base matte black theme: dark, muted, low-contrast colors for a sleek, non-glossy look
+					// Deep neutral blacks with just enough separation between canvas, chrome and cards
 					primary: '#0b5f52',
-					// primary: '#262626',
-					'primary-content': '#f4fffc', // High-contrast text on primary
-					secondary: '#333333', // Dark gray secondary
+					'primary-content': '#f4fffc',
+					secondary: '#1c1c1c',
 					'secondary-content': '#eeeeee',
-					'base-100': '#333333', // Almost black background (updated)
-					'base-200': '#1a1a1a',
-					'base-300': '#262626',
+					'base-100': '#080908',
+					'base-200': '#101110',
+					'base-300': '#181918',
 					'base-content': '#f2f2f2',
-					'error-content': '#cc0000', // Muted red for errors
-					highlight: '#333333', // Subtle highlight
-					accent: '#a855f7', // Muted accent (updated)
-					neutral: '#1a1a1a',
+					'error-content': '#ffd6d6',
+					highlight: '#242524',
+					accent: '#a855f7',
+					neutral: '#111211',
 					info: '#4d4d4d',
 					success: '#006600', // Dark green
 					warning: '#cc6600', // Dark orange
 					error: '#990000', // Dark red
-					// Custom shadow variables for matteblack (very subtle, low-contrast shadows)
-					'--shadow-outer-color': 'rgba(0, 0, 0, 0.6)', // Deep matte shadow
-					'--shadow-inset-highlight': 'rgba(255, 255, 255, 0.05)', // Minimal inset
+					'--shadow-outer-color': 'rgba(0, 0, 0, 0.78)',
+					'--shadow-inset-highlight': 'rgba(255, 255, 255, 0.045)',
 					'--shadow-inset-subtle': 'rgba(255, 255, 255, 0.01)'
 				},
 				snowwhite: {

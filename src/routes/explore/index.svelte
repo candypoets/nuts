@@ -476,6 +476,7 @@
 	let unsubscribePagination: (() => void) | undefined;
 	let rootSubId: string | undefined = undefined;
 	let initTimeout: ReturnType<typeof setTimeout> | undefined;
+	let subscribedRelayKey: string | undefined;
 
 	$: relayKey = `${feedRelays.length}_${hashString(feedRelayKey)}`;
 	$: feedRequest = (() => {
@@ -493,7 +494,9 @@
 	$: if (!feedRequest) {
 		if (unsubscribe) {
 			unsubscribe();
-			getManager().cleanup();
+			if (subscribedRelayKey !== relayKey) {
+				getManager().cleanup();
+			}
 			unsubscribe = undefined;
 		}
 		rootSubId = undefined;
@@ -508,9 +511,12 @@
 			hadFeedRequest = true;
 		}
 
+		const relaySetChanged = subscribedRelayKey !== undefined && subscribedRelayKey !== relayKey;
 		if (unsubscribe) {
 			unsubscribe();
-			getManager().cleanup();
+			if (relaySetChanged) {
+				getManager().cleanup();
+			}
 		}
 		unsubscribe = undefined;
 		rootSubId = feedRequest.subId;
@@ -522,6 +528,7 @@
 			bytesPerEvent: 10 * 1024,
 			pipeline: $defaultPipeline.for(feedRequest.subId)
 		});
+		subscribedRelayKey = relayKey;
 		setSubRelays(relaySelectionSubId, feedRelays);
 
 		if (initTimeout) clearTimeout(initTimeout);
@@ -695,7 +702,9 @@
 		bind:end
 	>
 		<svelte:fragment slot="sticky-header">
-			<div class="relative bg-base-300 bg-opacity-80 md:border-b border-base-200 pt-safe">
+			<div
+				class="explore-sticky-header relative bg-base-300 bg-opacity-80 md:border-b border-base-200 pt-safe"
+			>
 				<div class="flex justify-between w-feed lg:m-auto h-16 items-center px-3 md:px-4">
 					<div class="flex gap-1 items-center min-w-0 flex-1">
 						<button
@@ -732,17 +741,19 @@
 		</svelte:fragment>
 		<svelte.fragment slot="sticky-footer">
 			<div class="md:pb-4 pb-safe md:px-6 px-2">
-				<div
+				<button
+					type="button"
 					on:click|stopPropagation={() => openRoot('post')}
-					class="px-4 py-2 rounded-full border border-accent backdrop-blur-md"
+					class="nuts-composer w-full px-4 py-2 text-left rounded-full border border-accent backdrop-blur-md"
 				>
-					What's up?
-				</div>
+					<span>What's happening in your community?</span>
+					<span class="composer-action" aria-hidden="true">Post</span>
+				</button>
 			</div>
 		</svelte.fragment>
 		<svelte.fragment slot="header">
 			<div
-				class="w-feed relative pt-safe rounded-lg border border-base-200/70 bg-base-300/85 px-3 pb-3 shadow-widget-down backdrop-blur-gpu md:px-4"
+				class="explore-header w-feed relative pt-safe rounded-lg border border-base-200/70 bg-base-300/85 px-3 pb-3 shadow-widget-down backdrop-blur-gpu md:px-4"
 			>
 				<div class="lg:m-auto flex justify-between items-center h-16">
 					<div class="flex min-w-0 items-center">
@@ -786,9 +797,9 @@
 					/>
 				</div>
 				{#if upcomingEvents.length}
-					<div class="mt-3 border-t border-base-200/70 pt-3">
+					<div class="events-section mt-3 border-t border-base-200/70 pt-3">
 						<div class="mb-3 flex items-center justify-between">
-							<h2 class="text-base font-bold">Upcoming events</h2>
+							<h2 class="section-heading text-base font-bold">Upcoming events</h2>
 						</div>
 						<div class="flex items-start gap-3 overflow-x-auto pb-1 scrollbar-hide">
 							{#each upcomingEvents.slice(0, 3) as event (event.id)}
@@ -825,3 +836,59 @@
 		</svelte.fragment>
 	</Feed>
 </Pager>
+
+<style>
+	:global(html[data-theme='nuts']) .explore-header,
+	:global(html[data-theme='nuts']) .explore-sticky-header {
+		border-color: rgba(242, 235, 221, 0.11);
+		background: rgba(27, 48, 39, 0.96);
+		box-shadow:
+			0 18px 38px rgba(3, 12, 8, 0.22),
+			inset 0 1px 0 rgba(242, 235, 221, 0.055);
+		backdrop-filter: blur(18px);
+	}
+
+	:global(html[data-theme='nuts']) .explore-header {
+		border-radius: 0 0 1rem 1rem;
+	}
+
+	:global(html[data-theme='nuts']) .events-section {
+		border-color: rgba(242, 235, 221, 0.1);
+	}
+
+	:global(html[data-theme='nuts']) .section-heading {
+		color: #f2ebdd;
+		letter-spacing: -0.015em;
+	}
+
+	.nuts-composer {
+		display: flex;
+		min-height: 3.25rem;
+		align-items: center;
+		justify-content: space-between;
+		border-color: color-mix(in srgb, var(--primary) 75%, transparent);
+		background: color-mix(in srgb, var(--base-300) 94%, transparent);
+		color: var(--text-muted);
+		box-shadow:
+			0 12px 30px color-mix(in srgb, var(--shadow-outer-color) 72%, transparent),
+			inset 0 1px 0 color-mix(in srgb, var(--text-strong) 8%, transparent);
+	}
+
+	.nuts-composer:hover,
+	.nuts-composer:focus-visible {
+		border-color: var(--primary);
+		background: color-mix(in srgb, var(--base-300) 88%, var(--text-strong) 12%);
+		box-shadow:
+			4px 5px 0 color-mix(in srgb, var(--accent) 42%, transparent),
+			0 14px 30px color-mix(in srgb, var(--shadow-outer-color) 68%, transparent);
+	}
+
+	.composer-action {
+		border-radius: 999px;
+		background: oklch(var(--a));
+		padding: 0.35rem 0.8rem;
+		color: oklch(var(--ac));
+		font-size: 0.75rem;
+		font-weight: 800;
+	}
+</style>

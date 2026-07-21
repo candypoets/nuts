@@ -1,4 +1,5 @@
 <script lang="ts">
+	export let embedded = false;
 	import { resolve } from 'src/lib/paths';
 	import { type ParsedEvent, type RequestObject, type WorkerMessage } from '@candypoets/nipworker';
 	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
@@ -19,6 +20,7 @@
 	import { normalizeURL } from 'nostr-tools/utils';
 	import type { EventTemplate } from 'nostr-tools';
 	import { key, selectedAdminRelayUrl } from 'src/controller';
+	import { parsedEventTags } from 'src/lib/adminRelays';
 	import {
 		buildRoleDefinitionTags,
 		parseRoleAward,
@@ -175,14 +177,16 @@
 		const adminDefinition = definitions.find(
 			(definition) => definition.name.toLowerCase() === 'admin'
 		);
-		const mappedRoles = definitions.map((definition) => ({
-			name: definition.name,
-			count: activeAwardCount(definition.address),
-			description: definition.description,
-			address: definition.address,
-			d: definition.d,
-			permissions: permissionsForDefinition(definition, edits)
-		}));
+		const mappedRoles = definitions
+			.filter((definition) => definition.name.toLowerCase() !== 'member')
+			.map((definition) => ({
+				name: definition.name,
+				count: activeAwardCount(definition.address),
+				description: definition.description,
+				address: definition.address,
+				d: definition.d,
+				permissions: permissionsForDefinition(definition, edits)
+			}));
 
 		if (adminDefinition) {
 			return mappedRoles.map((role) =>
@@ -314,6 +318,21 @@
 		}
 	}
 
+	function applyRoleDefinitionDeletion(parsedEvent: ParsedEvent) {
+		const author = parsedEvent.pubkey();
+		if (!author) return;
+		const deletedAddresses = new Set(
+			parsedEventTags(parsedEvent)
+				.filter((tag) => tag[0] === 'a' && tag[1]?.startsWith('30009:'))
+				.map((tag) => tag[1])
+				.filter((address): address is string => Boolean(address) && address.split(':')[1] === author)
+		);
+		if (!deletedAddresses.size) return;
+		roleDefinitions = roleDefinitions.filter(
+			(definition) => definition.pubkey !== author || !deletedAddresses.has(definition.address)
+		);
+	}
+
 	function subscribeRoles() {
 		unsubscribeRoleDefinitions?.();
 		unsubscribeRoleAwards?.();
@@ -328,18 +347,16 @@
 
 		const roleDefinitionRequests: RequestObject[] = [
 			{
-				kinds: [30009],
+				kinds: [30009, 5],
 				limit: 100,
-				relays: [relayUrl],
-				cacheFirst: true
+				relays: [relayUrl]
 			}
 		];
 		const roleAwardRequests: RequestObject[] = [
 			{
 				kinds: [8],
 				limit: 500,
-				relays: [relayUrl],
-				cacheFirst: true
+				relays: [relayUrl]
 			}
 		];
 
@@ -349,6 +366,10 @@
 			(message: WorkerMessage) => {
 				const parsedEvent = isParsedEvent(message);
 				if (!parsedEvent) return;
+				if (parsedEvent.kind() === 5) {
+					applyRoleDefinitionDeletion(parsedEvent);
+					return;
+				}
 				upsertRoleDefinition(parsedEvent);
 			},
 			{ bytesPerEvent: 10 * 1024 }
@@ -518,56 +539,60 @@
 	});
 </script>
 
-<svelte:head>
-	<title>Roles - Nuts</title>
-</svelte:head>
+<svelte:head><title>People - Nuts</title></svelte:head>
 
-<main class="px-4 py-8 sm:px-6 lg:px-8">
+<main class={embedded ? '' : 'px-4 py-8 sm:px-6 lg:px-8'}>
 	<div class="mx-auto max-w-[1500px]">
-		<a
-			href={resolve('/admin')}
-			class="inline-flex items-center gap-2 rounded-lg text-sm font-bold text-stone-600 transition hover:text-emerald-950 focus:outline-none focus:ring-2 focus:ring-emerald-800/30"
-		>
-			<ArrowLeft size={17} />
-			Dashboard
-		</a>
+		{#if !embedded}<a
+				href={resolve('/admin')}
+				class="inline-flex items-center gap-2 rounded-lg text-sm font-bold text-stone-600 transition hover:text-emerald-950 focus:outline-none focus:ring-2 focus:ring-emerald-800/30"
+			>
+				<ArrowLeft size={17} />
+				Dashboard
+			</a>{/if}
 
-		<div class="mt-7 flex flex-wrap items-end justify-between gap-5">
-			<div>
-				<h1 class="text-4xl font-black leading-tight text-[#151514]">Roles</h1>
-				<p class="mt-2 text-lg font-medium leading-8 text-stone-600">
-					Choose what each role can publish and manage in the community.
-				</p>
+		{#if !embedded}<div class="mt-7 flex flex-wrap items-end justify-between gap-5">
+				<div>
+					<h1
+						class={`${embedded ? 'text-2xl' : 'text-4xl'} font-black leading-tight text-[#151514]`}
+					>
+						Roles
+					</h1>
+					<p
+						class={`${embedded ? 'mt-1 text-base' : 'mt-2 text-lg leading-8'} font-medium text-stone-600`}
+					>
+						Choose what each role can publish and manage in the community.
+					</p>
+				</div>
+				<div class="flex flex-wrap gap-3">
+					<button
+						type="button"
+						class="inline-flex h-11 items-center gap-3 rounded-xl border border-stone-200 bg-white px-5 font-black text-emerald-950 shadow-sm shadow-stone-950/5 transition hover:bg-stone-50 focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-400 disabled:shadow-none"
+						disabled={!canSaveRoleChanges}
+						on:click={saveRoleChanges}
+					>
+						<Save size={19} />
+						Save changes
+					</button>
+					<button
+						type="button"
+						class="inline-flex h-11 items-center gap-3 rounded-xl bg-emerald-950 px-5 font-black text-white shadow-sm shadow-emerald-950/20 transition hover:bg-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-stone-300 disabled:text-stone-500 disabled:shadow-none"
+						disabled={roleLimitReached}
+						on:click={openNewRoleModal}
+					>
+						<Plus size={20} />
+						New role
+					</button>
+				</div>
 			</div>
-			<div class="flex flex-wrap gap-3">
-				<button
-					type="button"
-					class="inline-flex h-11 items-center gap-3 rounded-xl border border-stone-200 bg-white px-5 font-black text-emerald-950 shadow-sm shadow-stone-950/5 transition hover:bg-stone-50 focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-400 disabled:shadow-none"
-					disabled={!canSaveRoleChanges}
-					on:click={saveRoleChanges}
-				>
-					<Save size={19} />
-					Save changes
-				</button>
-				<button
-					type="button"
-					class="inline-flex h-11 items-center gap-3 rounded-xl bg-emerald-950 px-5 font-black text-white shadow-sm shadow-emerald-950/20 transition hover:bg-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-stone-300 disabled:text-stone-500 disabled:shadow-none"
-					disabled={roleLimitReached}
-					on:click={openNewRoleModal}
-				>
-					<Plus size={20} />
-					New role
-				</button>
-			</div>
-		</div>
 
-		<p class="mt-4 text-sm font-bold text-stone-500">
-			{#if loadingRoles}
-				Loading community roles...
-			{:else}
-				{roles.length} of 4 roles used. Guests are handled automatically outside role permissions.
-			{/if}
-		</p>
+			<p class="mt-4 text-sm font-bold text-stone-500">
+				{#if loadingRoles}
+					Loading community roles...
+				{:else}
+					{roles.length} of 4 roles used. Guests are handled automatically outside role permissions.
+				{/if}
+			</p>{/if}
 		{#if publishStatus}
 			<p
 				class="mt-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800"
@@ -576,43 +601,50 @@
 			</p>
 		{/if}
 
-		<section class="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-			{#each roles as role (role.name)}
-				<article
-					class="rounded-2xl border border-stone-200 bg-white/85 p-6 shadow-sm shadow-stone-950/5 transition hover:-translate-y-0.5 hover:shadow-md hover:shadow-stone-950/5"
-				>
-					<div class="flex items-start justify-between gap-4">
-						<div>
-							<h2 class="text-2xl font-black">{role.name}</h2>
-							<p class="mt-2 text-base font-medium leading-7 text-stone-600">{role.description}</p>
-						</div>
-						<span
-							class="rounded-md bg-stone-100 px-3 py-1 font-mono text-sm font-black text-stone-700"
-						>
-							{role.count}
-						</span>
-					</div>
-				</article>
-			{/each}
-		</section>
-
 		<section
 			class="mt-7 overflow-hidden rounded-2xl border border-stone-200 bg-white/85 shadow-sm shadow-stone-950/5"
 		>
-			<div class="border-b border-stone-200 p-5 lg:p-7">
-				<h2 class="text-2xl font-black">Access rights</h2>
-				<p class="mt-2 text-base font-medium text-stone-600">
-					These permissions define what a role can publish or change inside this community.
-				</p>
+			<div
+				class="flex flex-wrap items-center justify-between gap-4 border-b border-stone-200 p-5 lg:p-7"
+			>
+				<div>
+					<h2 class="text-2xl font-black">{embedded ? 'Roles' : 'Access rights'}</h2>
+					<p class="mt-1 text-base font-medium text-stone-600">
+						{#if loadingRoles}Loading roles...{:else if embedded}{roles.length} roles with configurable
+							access.{:else}These permissions define what a role can publish or change inside this
+							community.{/if}
+					</p>
+				</div>
+				{#if embedded}<div class="flex flex-wrap items-center gap-3">
+						<button
+							type="button"
+							class="inline-flex h-11 items-center gap-3 rounded-xl border border-stone-200 bg-white px-5 font-black text-emerald-950 shadow-sm transition hover:bg-stone-50 disabled:text-stone-400"
+							disabled={!canSaveRoleChanges}
+							on:click={saveRoleChanges}><Save size={19} /> Save changes</button
+						>
+						<button
+							type="button"
+							class="inline-flex h-11 items-center gap-3 rounded-xl bg-emerald-950 px-5 font-black text-white shadow-sm transition hover:bg-emerald-900 disabled:bg-stone-300 disabled:text-stone-500"
+							disabled={roleLimitReached}
+							on:click={openNewRoleModal}><Plus size={20} /> New role</button
+						>
+					</div>{/if}
 			</div>
 
 			<div class="overflow-x-auto">
-				<table class="w-full min-w-[1040px] border-collapse text-left">
+				<table
+					class={`w-full ${embedded ? 'min-w-[760px]' : 'min-w-[1040px]'} border-collapse text-left`}
+				>
 					<thead class="bg-stone-50">
 						<tr>
-							<th class="w-[360px] px-7 py-5 text-sm font-black text-stone-600">Action</th>
+							<th
+								class={`${embedded ? 'w-[260px] px-5 py-4' : 'w-[360px] px-7 py-5'} text-sm font-black text-stone-600`}
+								>Action</th
+							>
 							{#each roles as role (role.name)}
-								<th class="px-5 py-5 text-center text-sm font-black text-stone-600">
+								<th
+									class={`${embedded ? 'px-3 py-4' : 'px-5 py-5'} text-center text-sm font-black text-stone-600`}
+								>
 									{role.name}
 								</th>
 							{/each}
@@ -621,23 +653,29 @@
 					<tbody class="divide-y divide-stone-200">
 						{#each actions as action (action.key)}
 							<tr class="transition hover:bg-stone-50/70">
-								<td class="px-7 py-5">
+								<td class={embedded ? 'px-5 py-3.5' : 'px-7 py-5'}>
 									<div class="flex items-start gap-4">
 										<span
-											class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-900"
+											class={`${embedded ? 'h-9 w-9' : 'h-11 w-11'} grid shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-900`}
 										>
-											<svelte:component this={action.icon} size={22} strokeWidth={1.8} />
+											<svelte:component
+												this={action.icon}
+												size={embedded ? 18 : 22}
+												strokeWidth={1.8}
+											/>
 										</span>
 										<span>
-											<span class="block text-base font-black">{action.label}</span>
-											<span class="mt-1 block text-base font-medium text-stone-600"
-												>{action.description}</span
+											<span class={`${embedded ? 'text-sm' : 'text-base'} block font-black`}
+												>{action.label}</span
 											>
+											{#if !embedded}<span class="mt-1 block text-base font-medium text-stone-600"
+													>{action.description}</span
+												>{/if}
 										</span>
 									</div>
 								</td>
 								{#each roles as role (role.name)}
-									<td class="px-5 py-5 text-center">
+									<td class={embedded ? 'px-3 py-3.5 text-center' : 'px-5 py-5 text-center'}>
 										<label
 											class="inline-flex cursor-pointer items-center justify-center rounded-full focus-within:ring-2 focus-within:ring-emerald-800/30"
 										>
@@ -649,13 +687,17 @@
 												aria-label={`${role.name}: ${action.label}`}
 											/>
 											<span
-												class={`relative h-8 w-14 rounded-full transition ${
+												class={`relative ${embedded ? 'h-6 w-11' : 'h-8 w-14'} rounded-full transition ${
 													role.permissions[action.key] ? 'bg-emerald-700' : 'bg-stone-200'
 												}`}
 											>
 												<span
-													class={`absolute left-1 top-1 h-6 w-6 rounded-full bg-white shadow-sm transition ${
-														role.permissions[action.key] ? 'translate-x-6' : ''
+													class={`absolute left-1 top-1 ${embedded ? 'h-4 w-4' : 'h-6 w-6'} rounded-full bg-white shadow-sm transition ${
+														role.permissions[action.key]
+															? embedded
+																? 'translate-x-5'
+																: 'translate-x-6'
+															: ''
 													}`}
 												></span>
 											</span>
@@ -666,32 +708,6 @@
 						{/each}
 					</tbody>
 				</table>
-			</div>
-		</section>
-
-		<section
-			class="mt-7 rounded-2xl border border-stone-200 bg-white/85 p-6 shadow-sm shadow-stone-950/5"
-		>
-			<h2 class="text-xl font-black">Suggested defaults</h2>
-			<div class="mt-5 grid gap-4 md:grid-cols-3">
-				<div class="rounded-xl bg-stone-50 p-5">
-					<h3 class="font-black">Coach</h3>
-					<p class="mt-2 text-base font-medium leading-7 text-stone-600">
-						Can publish posts, pictures and training events.
-					</p>
-				</div>
-				<div class="rounded-xl bg-stone-50 p-5">
-					<h3 class="font-black">Member</h3>
-					<p class="mt-2 text-base font-medium leading-7 text-stone-600">
-						Can post updates and pictures, but not create official events.
-					</p>
-				</div>
-				<div class="rounded-xl bg-stone-50 p-5">
-					<h3 class="font-black">Admin</h3>
-					<p class="mt-2 text-base font-medium leading-7 text-stone-600">
-						Can manage roles, invite members, moderate, and change settings.
-					</p>
-				</div>
 			</div>
 		</section>
 	</div>

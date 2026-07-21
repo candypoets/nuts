@@ -6,7 +6,6 @@
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import { asNip51, isParsedEvent } from '@candypoets/nipworker/utils';
 	import {
-		BarChart3,
 		CalendarDays,
 		Check,
 		ChevronDown,
@@ -14,6 +13,7 @@
 		LayoutDashboard,
 		LogOut,
 		Plus,
+		Settings,
 		Ticket,
 		UsersRound
 	} from 'lucide-svelte';
@@ -27,24 +27,27 @@
 		type RelayInfo
 	} from 'src/lib/adminRelays';
 	import { DEFAULT_RELAYS, INDEXER_RELAYS } from 'src/lib/env';
+	import { fetchCommunityAccess, type AdminPermission, type CommunityAccess } from 'src/lib/adminAccess';
+	import Avatar from 'src/routes/explore/avatar.svelte';
 	import User from 'src/routes/explore/user.svelte';
+	import PaymentSetupNotice from 'src/components/admin/PaymentSetupNotice.svelte';
+	import Pager from 'src/components/Pager.svelte';
 	import { onDestroy, onMount, setContext } from 'svelte';
 	import { writable } from 'svelte/store';
 
 	const navItems = [
-		{ label: 'Dashboard', segment: '', icon: LayoutDashboard },
-		{ label: 'Members', segment: 'members', icon: UsersRound },
-		{ label: 'Roles', segment: 'roles', icon: BarChart3 },
-		{ label: 'Events', segment: 'events', icon: CalendarDays },
-		{ label: 'Invites', segment: 'invites', icon: Ticket }
+		{ label: 'Dashboard', segment: '', icon: LayoutDashboard, permissions: [] },
+		{ label: 'People', segment: 'members', icon: UsersRound, permissions: ['moderation', 'settings'] },
+		{ label: 'Events', segment: 'events', icon: CalendarDays, permissions: ['events'] },
+		{ label: 'Invites', segment: 'invites', icon: Ticket, permissions: ['invites'] }
 	] as const;
 
-	type AdminNavSegment = (typeof navItems)[number]['segment'];
+	type AdminNavSegment = (typeof navItems)[number]['segment'] | 'settings';
 	type AdminNavHref =
 		| '/admin'
 		| '/admin/members'
-		| '/admin/roles'
 		| '/admin/events'
+		| '/admin/settings'
 		| '/admin/invites';
 
 	const adminRelaysStore = writable<RelayInfo[]>([]);
@@ -68,6 +71,8 @@
 	let communityMenuOpen = false;
 	let communityMenuRoot: HTMLDivElement | undefined;
 	let redirectedCommunityId = '';
+	let communityAccess: CommunityAccess = { isOwner: false, permissions: new Set(), roles: [] };
+	let accessLoading = false;
 
 	$: activeAdminSegment = adminSegmentFromPath($page.url.pathname);
 	$: communityId = $page.params.community_id;
@@ -76,10 +81,18 @@
 		selectedRelayUrl = $selectedAdminRelayUrl;
 		selectedRelayName = '';
 		selectedRelayDescription = '';
+		communityAccess = { isOwner: false, permissions: new Set(), roles: [] };
+		accessLoading = Boolean(selectedRelayUrl);
 		fetchSelectedRelayInfo();
 	}
 	$: displayName = selectedRelayName || selectedRelayUrl;
 	$: displayDescription = selectedRelayDescription || 'Community admin';
+	$: visibleNavItems = navItems.filter((item) =>
+		!item.permissions.length || item.permissions.some((permission) => communityAccess.permissions.has(permission as AdminPermission))
+	);
+	$: if (selectedRelayUrl && !accessLoading && !canOpenSegment(activeAdminSegment)) {
+		goto(resolve('/admin'));
+	}
 	$: accountHandle = $key?.pub ? `${$key.pub.slice(0, 8)}...${$key.pub.slice(-4)}` : '';
 	$: profileHref = $key?.npub ? `/home/${$key.npub}` : '/home';
 	$: initials =
@@ -96,15 +109,20 @@
 		return (segment ? `/admin/${segment}` : '/admin') as AdminNavHref;
 	}
 
+	function canOpenSegment(segment: AdminNavSegment) {
+		if (!segment) return true;
+		if (segment === 'events') return communityAccess.permissions.has('events');
+		if (segment === 'invites') return communityAccess.permissions.has('invites');
+		if (segment === 'settings') return communityAccess.permissions.has('settings');
+		return communityAccess.permissions.has('moderation') || communityAccess.permissions.has('settings');
+	}
+
 	function adminSegmentFromPath(pathname: string): AdminNavSegment {
 		const segments = pathname.replace(/\/$/, '').split('/').filter(Boolean);
 		const candidate = segments[2] || segments[1] || '';
-		if (
-			candidate === 'members' ||
-			candidate === 'roles' ||
-			candidate === 'events' ||
-			candidate === 'invites'
-		) {
+		if (candidate === 'roles') return 'members';
+		if (candidate === 'settings') return 'settings';
+		if (candidate === 'members' || candidate === 'events' || candidate === 'invites') {
 			return candidate;
 		}
 		return '';
@@ -125,17 +143,38 @@
 	}
 
 	async function fetchSelectedRelayInfo() {
-		if (!selectedRelayUrl) return;
+		if (!selectedRelayUrl) {
+			accessLoading = false;
+			return;
+		}
 		try {
 			const response = await fetch(relayInfoUrl(selectedRelayUrl), {
 				headers: { accept: 'application/nostr+json' }
 			});
-			if (!response.ok) return;
+			if (!response.ok) {
+				communityAccess = await fetchCommunityAccess(selectedRelayUrl, $key?.pub || '', false);
+				accessLoading = false;
+				return;
+			}
 			const info = await response.json();
 			selectedRelayName = typeof info.name === 'string' ? info.name : '';
 			selectedRelayDescription = typeof info.description === 'string' ? info.description : '';
+			accessLoading = true;
+			communityAccess = await fetchCommunityAccess(
+				selectedRelayUrl,
+				$key?.pub || '',
+				(typeof info.pubkey === 'string' && info.pubkey === $key?.pub) ||
+					JSON.stringify(info.admin_pubkeys || info.admins || info.admin_pubkey || '').includes(
+						$key?.pub || '__missing__'
+					)
+			);
+			accessLoading = false;
 		} catch {
 			// The route still works without community display metadata.
+			communityAccess = await fetchCommunityAccess(selectedRelayUrl, $key?.pub || '', false).catch(
+				() => ({ isOwner: false, permissions: new Set<AdminPermission>(), roles: [] })
+			);
+			accessLoading = false;
 		}
 	}
 
@@ -156,8 +195,14 @@
 		}
 
 		adminRelaysLoading = true;
-		Promise.all(urls.map((url) => fetchRelayInfo(url, pubkey))).then((infos) => {
-			adminRelays = infos.filter((info) => info.isAdmin);
+		Promise.all(urls.map((url) => fetchRelayInfo(url, pubkey))).then(async (infos) => {
+			const accessible = await Promise.all(infos.map(async (info) => ({
+				info,
+				access: await fetchCommunityAccess(info.url, pubkey, info.isAdmin)
+			})));
+			adminRelays = accessible
+				.filter(({ access }) => access.isOwner || access.permissions.size > 0)
+				.map(({ info }) => info);
 			adminRelaysLoading = false;
 		});
 	}
@@ -166,7 +211,10 @@
 		const pubkey = $key?.pub;
 		if (!pubkey) return;
 		const nextRelaySetAddressKey = addresses
-			.filter((address) => address === `30002:${pubkey}:nuts-relays-admin`)
+			.filter((address) =>
+				address === `30002:${pubkey}:nuts-relays-admin` ||
+				address === `30002:${pubkey}:nuts-relays-member`
+			)
 			.sort()
 			.join('|');
 		if (nextRelaySetAddressKey === relaySetAddressKey) return;
@@ -300,6 +348,11 @@
 		goto(resolve(profileHref as '/home' | `/home/${string}`));
 	}
 
+	function openSettings() {
+		communityMenuOpen = false;
+		goto(resolve('/admin/settings'));
+	}
+
 	function handleDocumentClick(event: MouseEvent) {
 		if (!communityMenuOpen) return;
 		const target = event.target;
@@ -350,7 +403,7 @@
 					class="flex max-w-full justify-start gap-3 overflow-x-auto lg:justify-center"
 					aria-label="Admin navigation"
 				>
-					{#each navItems as item (item.segment)}
+					{#each visibleNavItems as item (item.segment)}
 						<a
 							href={resolve(navHref(item.segment))}
 							class={`inline-flex h-[52px] shrink-0 items-center gap-3 rounded-lg px-5 text-base font-black no-underline transition focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98] ${
@@ -378,11 +431,11 @@
 							on:click={openCommunitySwitcher}
 						>
 							<span class="relative">
-								<span
-									class="grid h-9 w-9 place-items-center rounded-lg bg-[#111827] text-sm font-black text-white shadow-sm"
-								>
-									{($key?.pub || 'np').slice(0, 2).toUpperCase()}
-								</span>
+								{#if $key?.pub}
+									<Avatar pubkey={$key.pub} size="lg" />
+								{:else}
+									<img src="/miss-profile.png" alt="" class="h-10 w-10 rounded-full object-cover" />
+								{/if}
 								<span
 									class="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-white bg-[#24b99a]"
 								></span>
@@ -410,11 +463,15 @@
 						>
 							<div class="flex items-start gap-5">
 								<span class="relative shrink-0">
-									<span
-										class="grid h-20 w-20 place-items-center rounded-full bg-stone-900 text-lg font-black text-white"
-									>
-										{($key?.pub || 'np').slice(0, 2).toUpperCase()}
-									</span>
+									{#if $key?.pub}
+										<Avatar pubkey={$key.pub} size="xl" customClass="!h-20 !w-20" />
+									{:else}
+										<img
+											src="/miss-profile.png"
+											alt=""
+											class="h-20 w-20 rounded-full object-cover"
+										/>
+									{/if}
 									<span
 										class="absolute bottom-1 right-1 h-4 w-4 rounded-full border-2 border-white bg-emerald-500"
 									></span>
@@ -482,7 +539,7 @@
 								</div>
 							{/if}
 
-							<button
+							{#if communityAccess.permissions.has('settings')}<button
 								type="button"
 								class="mt-4 flex w-full items-center gap-4 rounded-xl px-3 py-2.5 text-left text-emerald-900 transition hover:bg-stone-50 focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.99]"
 								on:click={createCommunity}
@@ -492,6 +549,15 @@
 							</button>
 
 							<div class="my-6 h-px bg-stone-200"></div>
+
+							<button
+								type="button"
+								class="flex w-full items-center gap-4 rounded-xl px-3 py-3 text-left text-lg font-black text-stone-800 transition hover:bg-stone-50 focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.99]"
+								on:click={openSettings}
+							>
+								<Settings size={23} strokeWidth={1.8} />
+								Community settings
+							</button>{/if}
 
 							<button
 								type="button"
@@ -507,5 +573,10 @@
 		</header>
 	{/if}
 
-	<slot />
+	<Pager rootPath="/admin">
+		<slot />
+	</Pager>
+	{#if selectedRelayUrl && communityAccess.permissions.has('settings')}
+		<PaymentSetupNotice community={selectedRelayUrl} />
+	{/if}
 </div>

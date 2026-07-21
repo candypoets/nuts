@@ -46,7 +46,7 @@
 
 <button
 	type="button"
-	class="flex h-[286px] w-60 shrink-0 self-start flex-col overflow-hidden rounded-lg border border-base-200 bg-base-300 p-0 text-left align-top transition-colors hover:border-primary/50"
+	class="event-card flex h-[286px] w-60 shrink-0 self-start flex-col overflow-hidden rounded-lg border border-base-200 bg-base-300 p-0 text-left align-top transition-colors hover:border-primary/50"
 	on:click|stopPropagation={openEvent}
 >
 	<div class="relative h-28 shrink-0 bg-base-200">
@@ -58,7 +58,7 @@
 			</div>
 		{/if}
 		<div class="absolute inset-0 bg-black/25"></div>
-		<div class="absolute left-3 top-3 overflow-hidden rounded-md bg-white">
+		<div class="event-date absolute left-3 top-3 overflow-hidden rounded-md bg-[#f2ebdd]">
 			<div
 				class="bg-base-300 px-2 py-1 text-center text-[10px] font-black uppercase text-base-content"
 			>
@@ -72,11 +72,11 @@
 
 	<div class="flex min-h-0 flex-1 flex-col p-3">
 		<h3 class="truncate text-base font-bold">{event.title}</h3>
-		<p class="mt-2 truncate text-sm font-medium text-primary-content">
+		<p class="mt-2 truncate text-sm font-medium text-base-content/70">
 			{formatEventTime(event.start)}
 		</p>
 		{#if event.location}
-			<p class="mt-1 truncate text-sm font-medium text-primary-content">{event.location}</p>
+			<p class="mt-1 truncate text-sm font-medium text-base-content/60">{event.location}</p>
 		{/if}
 
 		<div class="mt-auto flex items-center pt-4">
@@ -90,10 +90,27 @@
 			<p
 				class="mt-2 truncate text-xs font-semibold"
 				class:text-error={spotsLeft === 0}
-				class:text-primary-content={spotsLeft > 0}
+				class:text-base-content={spotsLeft > 0}
 			>
 				{spotsLeft ? `${spotsLeft} spots left` : 'Full'}
 			</p>
 		{/if}
 	</div>
 </button>
+
+<style>
+	:global(html[data-theme='nuts']) .event-card {
+		border-color: rgba(242, 235, 221, 0.1);
+		background: #20382e;
+		box-shadow: 0 10px 24px rgba(3, 12, 8, 0.18);
+	}
+
+	:global(html[data-theme='nuts']) .event-card:hover {
+		border-color: rgba(223, 114, 92, 0.7);
+		background: #254036;
+	}
+
+	:global(html[data-theme='nuts']) .event-date {
+		box-shadow: 3px 3px 0 rgba(231, 182, 56, 0.85);
+	}
+</style>

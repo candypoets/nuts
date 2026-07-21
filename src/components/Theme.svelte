@@ -5,12 +5,12 @@
 
 	import Icon from '@iconify/svelte';
 
-	const themes = ['touchgrass', 'nightsky', 'matteblack', 'snowwhite', 'downfox', 'sunset'];
+	const themes = ['nuts', 'touchgrass', 'nightsky', 'matteblack', 'snowwhite', 'downfox', 'sunset'];
 
 	let theme =
 		browser && themes.includes(localStorage.getItem('theme') || '')
 			? localStorage.getItem('theme')
-			: 'downfox';
+			: 'nuts';
 
 	onMount(() => {});
 

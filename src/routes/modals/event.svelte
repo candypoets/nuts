@@ -5,10 +5,11 @@
 		RequestObject,
 		WorkerMessage
 	} from '@candypoets/nipworker';
-	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
+	import { useSignEvent, useSubscription } from '@candypoets/nipworker/hooks';
 	import { asConnectionStatus, asParsedEvent, asPreGeneric } from '@candypoets/nipworker/utils';
+	import { nip19 } from 'nostr-tools';
 	import { normalizeURL } from 'nostr-tools/utils';
-	import type { EventTemplate } from 'nostr-tools';
+	import type { EventTemplate, NostrEvent } from 'nostr-tools';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import User from 'src/routes/explore/user.svelte';
 	import ModalHandle from 'src/components/ModalHandle.svelte';
@@ -19,10 +20,10 @@
 		type CalendarEventCard
 	} from 'src/lib/calendarEvent';
 	import { DEFAULT_RELAYS } from 'src/lib/env';
+	import { makeInviteAuthorization } from 'src/lib/invites';
 	import { now } from 'src/lib/period';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import { key } from 'src/controller';
-	import { writeRelays } from 'src/controller/nostr';
 	import { go } from 'src/routes/modals/modal';
 	import { onDestroy } from 'svelte';
 
@@ -33,23 +34,35 @@
 	let eventRaw: ParsedEvent | undefined;
 	let attendees: string[] = [];
 	let attendeeEvents: Record<string, ParsedEvent> = {};
+	type BookingDecision = {
+		pubkey: string;
+		status: 'confirmed' | 'waitlisted' | 'cancelled';
+		createdAt: number;
+		issuer: string;
+	};
+	let bookingDecisions: Record<string, BookingDecision> = {};
+	let communityIssuer = '';
 	let loading = true;
 	let rsvpStatus = '';
 	let hasRsvped = false;
+	let locallySubmittedRsvp = false;
 	let lastKey = '';
 	let eventSub: (() => void) | undefined;
 	let rsvpSub: (() => void) | undefined;
-	let publishSub: (() => void) | undefined;
+	let bookingSub: (() => void) | undefined;
+	let checkoutLoading = false;
+	let checkoutError = '';
 
 	$: decodedRelays = decodeRelayParam(relay);
 	$: decodedRelay = decodedRelays[0] || '';
 	$: decodedAddress = decodeURIComponent(address || '');
 	$: relays = Array.from(new Set([...decodedRelays, ...DEFAULT_RELAYS].filter(Boolean)));
 	$: selectedRelay = decodedRelay || relays[0] || '';
-	$: attendeeCount = attendees.length || event?.attendeeCount || 0;
+	$: attendeeCount = attendees.length;
 	$: spotsLeft = event?.capacity ? Math.max(0, event.capacity - attendeeCount) : null;
 	$: capacityLabel = event?.capacity ? `${attendeeCount}/${event.capacity}` : `${attendeeCount}`;
 	$: subscriptionKey = `${selectedRelay}|${decodedAddress}`;
+	$: myBookingStatus = $key?.pub ? bookingDecisions[$key.pub]?.status : undefined;
 	$: if (subscriptionKey && subscriptionKey !== lastKey) {
 		lastKey = subscriptionKey;
 		subscribe();
@@ -83,6 +96,18 @@
 		}).format(new Date(timestamp * 1000));
 	}
 
+	function formatPrice(value: string | undefined, currency: string | undefined) {
+		if (!value || !currency) return '';
+		try {
+			return new Intl.NumberFormat(undefined, {
+				style: 'currency',
+				currency: currency.toUpperCase()
+			}).format(Number(value));
+		} catch {
+			return `${value} ${currency.toUpperCase()}`;
+		}
+	}
+
 	function decodeRelayParam(value: string) {
 		return Array.from(
 			new Set(
@@ -109,13 +134,18 @@
 	function subscribe() {
 		eventSub?.();
 		rsvpSub?.();
+		bookingSub?.();
 		event = undefined;
 		eventRaw = undefined;
 		attendees = [];
 		attendeeEvents = {};
+		bookingDecisions = {};
+		communityIssuer = '';
 		hasRsvped = false;
+		locallySubmittedRsvp = false;
 		rsvpStatus = '';
 		loading = Boolean(decodedAddress);
+		loadCommunityIssuer();
 
 		const parsedAddress = splitAddress(decodedAddress);
 		if (!parsedAddress.kind || !parsedAddress.author || !parsedAddress.d) {
@@ -168,14 +198,49 @@
 				if (!pubkey) return;
 				const content = asPreGeneric(parsed)?.content?.() || '';
 				const tags = eventTags(parsed);
-				const status = content || tags.find((tag) => tag[0] === 'status')?.[1] || 'accepted';
-				if (status && status !== 'accepted') return;
-
-				attendeeEvents = { ...attendeeEvents, [pubkey]: parsed };
-				attendees = Object.keys(attendeeEvents);
-				hasRsvped = Boolean($key?.pub && attendees.includes($key.pub));
+				const status = tags.find((tag) => tag[0] === 'status')?.[1] || content || 'accepted';
+				const previous = attendeeEvents[pubkey];
+				if (previous && Number(previous.createdAt()) >= Number(parsed.createdAt())) return;
+				if (status === 'declined') {
+					const next = { ...attendeeEvents };
+					delete next[pubkey];
+					attendeeEvents = next;
+				} else if (status === 'accepted') {
+					attendeeEvents = { ...attendeeEvents, [pubkey]: parsed };
+				}
+				recomputeBookings();
 			},
-			{ bytesPerEvent: 4 * 1024, closeOnEose: true }
+			{ bytesPerEvent: 4 * 1024 }
+		);
+
+		bookingSub = useSubscription(
+			`event_booking_labels_${decodedAddress}_${selectedRelay}`,
+			[{
+				kinds: [1985],
+				noCache: true,
+				relays,
+				tags: { '#a': [decodedAddress] }
+			}],
+			(message) => {
+				if (handleConnectionStatus(message)) return;
+				const parsed = asParsedEvent(message);
+				if (!parsed) return;
+				const tags = eventTags(parsed);
+				if (!tags.some((tag) => tag[0] === 'L' && tag[1] === 'cash.nuts.booking')) return;
+				const status = tags.find((tag) => tag[0] === 'l' && tag[2] === 'cash.nuts.booking')?.[1];
+				const pubkey = tags.find((tag) => tag[0] === 'p')?.[1];
+				const issuer = parsed.pubkey();
+				if (!pubkey || !issuer || !isBookingStatus(status)) return;
+				const previous = bookingDecisions[pubkey];
+				const createdAt = Number(parsed.createdAt());
+				if (previous && previous.createdAt >= createdAt) return;
+				bookingDecisions = {
+					...bookingDecisions,
+					[pubkey]: { pubkey, status, createdAt, issuer }
+				};
+				recomputeBookings();
+			},
+			{ bytesPerEvent: 4 * 1024 }
 		);
 
 		window.setTimeout(() => {
@@ -183,59 +248,170 @@
 		}, 1800);
 	}
 
-	function publishRsvp() {
+	function isBookingStatus(value: string | undefined): value is BookingDecision['status'] {
+		return value === 'confirmed' || value === 'waitlisted' || value === 'cancelled';
+	}
+
+	function recomputeBookings() {
+		attendees = Object.values(bookingDecisions)
+			.filter((decision) =>
+				decision.issuer === communityIssuer &&
+				decision.status === 'confirmed' &&
+				Boolean(attendeeEvents[decision.pubkey])
+			)
+			.map((decision) => decision.pubkey);
+		hasRsvped = Boolean(
+			$key?.pub &&
+			(attendeeEvents[$key.pub] || locallySubmittedRsvp) &&
+			bookingDecisions[$key.pub]?.issuer === communityIssuer &&
+			['confirmed', 'waitlisted'].includes(bookingDecisions[$key.pub]?.status || '')
+		);
+	}
+
+	async function loadCommunityIssuer() {
+		if (!selectedRelay) return;
+		try {
+			const baseUrl = selectedRelay.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:');
+			const response = await fetch(new URL('/community/info', baseUrl));
+			if (!response.ok) return;
+			const info = await response.json();
+			communityIssuer = typeof info.booking_issuer === 'string' ? info.booking_issuer : '';
+			recomputeBookings();
+		} catch {
+			// Booking labels remain hidden until the community issuer can be verified.
+		}
+	}
+
+	async function signEvent(template: EventTemplate): Promise<NostrEvent> {
+		return await new Promise((resolve, reject) => {
+			try {
+				useSignEvent(template, (signed) => {
+					try {
+						resolve((typeof signed === 'string' ? JSON.parse(signed) : signed) as NostrEvent);
+					} catch (error) {
+						reject(error);
+					}
+				});
+			} catch (error) {
+				reject(error);
+			}
+		});
+	}
+
+	async function submitRsvp(status: 'accepted' | 'declined') {
 		if (!$key?.pub) {
 			go('login');
 			return;
 		}
-		if (!eventRaw || hasRsvped) return;
+		if (!eventRaw || !selectedRelay) return;
 
-		const rsvpEvent = eventRaw;
-		const tags = eventTags(eventRaw);
-		const pTags = tags.filter((tag): tag is string[] => tag[0] === 'p' && tag.every(Boolean));
 		const pubkey = $key.pub;
-		if (!pubkey) return;
+		const eventAuthor = eventRaw.pubkey();
+		if (!pubkey || !eventAuthor) return;
 		const template: EventTemplate = {
 			kind: RSVP_KIND,
-			content: 'accepted',
+			content: status,
 			created_at: now(),
 			tags: [
 				['a', decodedAddress],
 				['d', `${decodedAddress}:${pubkey}`],
-				['status', 'accepted'],
-				...pTags
+				['status', status],
+				['p', eventAuthor]
 			]
 		};
-
-		const publishRelays: string[] = Array.from(
-			new Set(
-				[selectedRelay, ...$writeRelays, ...relays].filter(
-					(relay): relay is string => typeof relay === 'string' && Boolean(relay)
-				)
-			)
-		);
-		rsvpStatus = 'Publishing RSVP...';
-		publishSub?.();
-		publishSub = usePublish(
-			`event_rsvp_${decodedAddress}_${pubkey}`,
-			template,
-			(message: WorkerMessage) => {
-				const status = asConnectionStatus(message);
-				if (status?.status()?.toString() === 'true') {
-					rsvpStatus = 'You are going';
-					hasRsvped = true;
-					attendeeEvents = { ...attendeeEvents, [pubkey]: rsvpEvent };
-					attendees = Object.keys(attendeeEvents);
+		rsvpStatus = status === 'declined' ? 'Cancelling…' : 'Requesting a place…';
+		checkoutError = '';
+		try {
+			const rsvp = await signEvent(template);
+			const body = JSON.stringify({ rsvp });
+			const url = new URL('/rsvp', selectedRelay.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:')).toString();
+			const authorization = await makeInviteAuthorization(url, body);
+			const response = await fetch(url, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json', authorization },
+				body
+			});
+			const result = await response.json().catch(() => ({}));
+			if (!response.ok) throw new Error(result.error || 'Booking could not be confirmed');
+			if (!isBookingStatus(result.status) || typeof result.booking_issuer !== 'string') {
+				throw new Error('Community returned an invalid booking decision');
+			}
+			communityIssuer = result.booking_issuer;
+			bookingDecisions = {
+				...bookingDecisions,
+				[pubkey]: {
+					pubkey,
+					status: result.status,
+					createdAt: rsvp.created_at,
+					issuer: result.booking_issuer
 				}
-			},
-			{ defaultRelays: publishRelays, trackStatus: true }
-		);
+			};
+			if (status === 'declined') {
+				locallySubmittedRsvp = false;
+				const next = { ...attendeeEvents };
+				delete next[pubkey];
+				attendeeEvents = next;
+				rsvpStatus = 'Booking cancelled';
+			} else {
+				locallySubmittedRsvp = true;
+				rsvpStatus = result.status === 'confirmed' ? 'You’re booked' : 'You’re on the waiting list';
+			}
+			recomputeBookings();
+		} catch (error) {
+			checkoutError = error instanceof Error ? error.message : 'Booking could not be confirmed';
+			rsvpStatus = '';
+		}
+	}
+
+	async function startCheckout() {
+		if (!$key?.pub) {
+			go('login');
+			return;
+		}
+		if (!event?.entrancePrice || !selectedRelay) return;
+		checkoutLoading = true;
+		checkoutError = '';
+		try {
+			const body = JSON.stringify({ community: selectedRelay, eventAddress: decodedAddress });
+			const url = new URL('/api/stripe/checkout', window.location.origin).toString();
+			const authorization = await makeInviteAuthorization(url, body);
+			const response = await fetch(url, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json', authorization },
+				body
+			});
+			const result = await response.json();
+			if (!response.ok) throw new Error(result.message || result.error || 'Checkout unavailable');
+			window.location.assign(result.url);
+		} catch (error) {
+			checkoutError = error instanceof Error ? error.message : 'Checkout unavailable';
+			checkoutLoading = false;
+		}
+	}
+
+	function startEcashCheckout() {
+		if (!$key?.pub) {
+			go('login');
+			return;
+		}
+		if (!eventRaw || !event?.entranceSats || !event.entranceBadgeAddress || !selectedRelay) return;
+		const context = encodeURIComponent(JSON.stringify({
+			community: selectedRelay,
+			eventAddress: decodedAddress,
+			badgeAddress: event.entranceBadgeAddress,
+			amount: event.entranceSats
+		}));
+		const eventId = eventRaw.id();
+		const organizer = eventRaw.pubkey();
+		if (!eventId || !organizer) return;
+		const nevent = nip19.neventEncode({ id: eventId, relays: [selectedRelay] });
+		go(`ecash:${organizer}:${nevent}:${context}`);
 	}
 
 	onDestroy(() => {
 		eventSub?.();
 		rsvpSub?.();
-		publishSub?.();
+		bookingSub?.();
 	});
 </script>
 
@@ -366,7 +542,7 @@
 											<p class="truncate text-sm font-semibold text-base-content">
 												<User {pubkey} link={false} />
 											</p>
-											<p class="text-xs font-medium text-base-content/45">RSVP accepted</p>
+											<p class="text-xs font-medium text-base-content/45">Booking confirmed</p>
 										</div>
 										<Icon
 											icon="mdi:chevron-right"
@@ -412,6 +588,7 @@
 		<footer
 			class="absolute bottom-0 left-0 right-0 border-t border-base-200 bg-base-100/90 px-5 pb-safe pt-3 shadow-[0_-18px_40px_hsl(var(--b1)/0.92)] backdrop-blur"
 		>
+			{#if checkoutError}<p class="mb-2 text-xs font-bold text-error">{checkoutError}</p>{/if}
 			<div class="mb-2 flex items-center justify-between gap-3">
 				<div class="min-w-0">
 					<p class="truncate text-sm font-bold">{event.title}</p>
@@ -419,19 +596,26 @@
 						{rsvpStatus || (hasRsvped ? 'You are on the list' : `${attendeeCount} going`)}
 					</p>
 				</div>
+				{#if event.entrancePrice}
+					{#if event.entranceSats}
+						<button type="button" class="btn min-w-28 rounded-xl border-amber-400 bg-amber-50 text-amber-950 hover:bg-amber-100" disabled={checkoutLoading || spotsLeft === 0} on:click={startEcashCheckout}>₿ {event.entranceSats} sats</button>
+					{/if}
+					<button
+						type="button"
+						class="btn btn-primary min-w-32 rounded-xl shadow-lg shadow-primary/20 transition active:scale-[0.98]"
+						disabled={checkoutLoading || spotsLeft === 0}
+						on:click={startCheckout}
+					>
+						{checkoutLoading ? 'Opening…' : `Buy · ${formatPrice(event.entrancePrice, event.entranceCurrency)}`}
+					</button>
+				{/if}
 				<button
 					type="button"
-					class="btn btn-primary min-w-28 rounded-xl shadow-lg shadow-primary/20 transition active:scale-[0.98]"
-					disabled={hasRsvped || spotsLeft === 0}
-					on:click={publishRsvp}
+					class={`btn min-w-28 rounded-xl shadow-lg transition active:scale-[0.98] ${hasRsvped ? 'btn-outline' : 'btn-primary shadow-primary/20'}`}
+					disabled={Boolean(rsvpStatus?.endsWith('…'))}
+					on:click={() => submitRsvp(hasRsvped ? 'declined' : 'accepted')}
 				>
-					{#if hasRsvped}
-						Going
-					{:else if spotsLeft === 0}
-						Full
-					{:else}
-						RSVP
-					{/if}
+					{#if myBookingStatus === 'confirmed'}Cancel booking{:else if myBookingStatus === 'waitlisted'}Leave waitlist{:else if spotsLeft === 0}Join waitlist{:else}RSVP{/if}
 				</button>
 			</div>
 		</footer>

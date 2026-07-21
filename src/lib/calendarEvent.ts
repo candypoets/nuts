@@ -15,6 +15,10 @@ export type CalendarEventCard = {
 	start: number;
 	title: string;
 	description: string;
+	entrancePrice?: string;
+	entranceCurrency?: string;
+	entranceBadgeAddress?: string;
+	entranceSats?: number;
 };
 
 export function stringValue(value: string | Uint8Array | null | undefined) {
@@ -79,6 +83,10 @@ export function parseCalendarEvent(
 		attendeeCount: currentParticipants || participants.length,
 		capacity: Number.isFinite(capacity) && capacity > 0 ? capacity : 0,
 		description,
+		entrancePrice: tagValue(tags, 'entrance_price') || undefined,
+		entranceCurrency: tags.find((tag) => tag[0] === 'entrance_price')?.[2] || undefined,
+		entranceBadgeAddress: tagValue(tags, 'entrance_badge') || undefined,
+		entranceSats: Number(tagValue(tags, 'entrance_sats')) || undefined,
 		image: stringValue(pre?.image()) || tagValue(tags, 'image') || undefined,
 		location: stringValue(pre?.location()) || tagValue(tags, 'location'),
 		relays,

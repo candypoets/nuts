@@ -185,15 +185,13 @@
 			</div>
 			<h2 class="text-xl font-bold px-4 pt-2">Select Theme</h2>
 			<p class="px-4 py-2 text-sm text-gray-500">Choose your preferred theme.</p>
-				<div class="px-4 pb-2">
-					<span class="text-sm font-semibold text-gray-500 uppercase">
-						{#if customThemesList.length > 0}
-							Custom Themes ({customThemesList.length})
-						{:else}
-							No Themes Available
-						{/if}
-					</span>
-				</div>
+			<div class="flex items-center gap-3 px-4 pb-2 text-sm font-semibold text-gray-500">
+				<span>Built-in themes ({builtInThemes.length})</span>
+				{#if customThemesList.length > 0}
+					<span aria-hidden="true">·</span>
+					<span>Community themes ({customThemesList.length})</span>
+				{/if}
+			</div>
 		</div>
 	</svelte:fragment>
 
@@ -215,6 +213,9 @@
 				style="background-color: {theme.properties['--primary'] || '#ccc'}"
 			></span>
 			<span class="flex-1 text-left">{theme.name}</span>
+			{#if theme.dTag === 'nuts'}
+				<span class="text-xs font-semibold text-secondary">default</span>
+			{/if}
 			{#if active}
 				<span class="text-xs opacity-70">active</span>
 			{/if}
