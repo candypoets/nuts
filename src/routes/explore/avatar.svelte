@@ -11,7 +11,7 @@
 
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import { onMount } from 'svelte';
-	import { userQuery } from '../queries/user';
+	import { userQuery, userSubId } from '../queries/user';
 	import { go, usePagerNavigation } from '../modals/modal';
 
 	// The pubkey/npub of the user
@@ -23,6 +23,7 @@
 	export let context: ParsedEvent[] = [];
 	export let query = true;
 	export let link = false;
+	export let relays: string[] = [];
 	const nav = usePagerNavigation();
 
 	let profile: Kind0Parsed | undefined;
@@ -61,8 +62,8 @@
 
 			if (!profile && query) {
 				sub = useSubscription(
-					'u_' + pubkey,
-					userQuery(pubkey),
+					userSubId(pubkey, relays),
+					userQuery(pubkey, relays),
 					(message: WorkerMessage) => {
 						switch (message.type()) {
 							case MessageType.ParsedNostrEvent:

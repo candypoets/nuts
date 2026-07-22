@@ -2,7 +2,6 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from 'src/lib/paths';
 	import {
-		NpubLimiterPipeConfigT,
 		ParsePipeConfigT,
 		PipeConfig,
 		PipeT,
@@ -27,7 +26,8 @@
 		UsersRound
 	} from 'lucide-svelte';
 	import { normalizeURL } from 'nostr-tools/utils';
-	import { selectedAdminRelayUrl } from 'src/controller';
+	import ArchetypeToolkit from 'src/components/admin/ArchetypeToolkit.svelte';
+	import { adminServiceBaseUrl, selectedAdminRelayUrl } from 'src/controller';
 	import { parsedEventTags } from 'src/lib/adminRelays';
 	import {
 		CALENDAR_EVENT_KINDS,
@@ -70,7 +70,8 @@
 			label: 'Make a post',
 			detail: 'Share an update with your members.',
 			icon: FileText,
-			segment: ''
+			segment: '',
+			action: 'post'
 		},
 		{
 			label: 'Assign roles',
@@ -123,7 +124,7 @@
 
 	function loadSelectedRelay() {
 		relayUrl = $selectedAdminRelayUrl ? normalizeURL($selectedAdminRelayUrl) : '';
-		inviteUrl = relayUrl ? `${relayInfoUrl(relayUrl).replace(/\/$/, '')}/redeem` : '';
+		inviteUrl = relayUrl ? `${adminServiceBaseUrl(relayUrl)}/redeem` : '';
 		communityMetadataName = '';
 		communityBanner = '';
 		loadCommunityMetadata(relayUrl);
@@ -188,7 +189,9 @@
 	}
 
 	function upsertRoleAward(award: RoleAward) {
-		const existingIndex = roleAwards.findIndex((item) => item.recipient === award.recipient);
+		const existingIndex = roleAwards.findIndex(
+			(item) => item.recipient === award.recipient && item.roleAddress === award.roleAddress
+		);
 		if (existingIndex !== -1) {
 			if (award.createdAt <= roleAwards[existingIndex].createdAt) return;
 			roleAwards = roleAwards.map((item, index) => (index === existingIndex ? award : item));
@@ -283,7 +286,6 @@
 			{
 				bytesPerEvent: 10 * 1024,
 				pipeline: [
-					new PipeT(PipeConfig.NpubLimiterPipeConfig, new NpubLimiterPipeConfigT(8, 1, 5000)),
 					new PipeT(PipeConfig.ParsePipeConfig, new ParsePipeConfigT()),
 					new PipeT(PipeConfig.SaveToDbPipeConfig, new SaveToDbPipeConfigT()),
 					new PipeT(
@@ -404,6 +406,14 @@
 	function goAdmin(segment: string, action?: 'create') {
 		const href = resolve(adminHref(segment) as '/admin');
 		return goto(action === 'create' ? `${href}?create=1` : href);
+	}
+
+	function handleNextStep(step: (typeof nextSteps)[number]) {
+		if ('action' in step && step.action === 'post') {
+			go('post');
+			return;
+		}
+		goAdmin(step.segment, step.segment === 'events' ? 'create' : undefined);
 	}
 
 	function openCommunity() {
@@ -537,6 +547,8 @@
 			{/each}
 		</section>
 
+		<ArchetypeToolkit {relayUrl} {roleDefinitions} />
+
 		<section
 			class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm shadow-slate-950/5"
 		>
@@ -640,7 +652,7 @@
 						<button
 							type="button"
 							class="grid min-h-[176px] rounded-lg border border-slate-200 bg-white p-5 text-left transition hover:-translate-y-0.5 hover:shadow-md hover:shadow-slate-950/5 focus:outline-none focus:ring-2 focus:ring-emerald-800/30"
-							on:click={() => goAdmin(step.segment, step.segment === 'events' ? 'create' : undefined)}
+							on:click={() => handleNextStep(step)}
 						>
 							<div
 								class={`grid h-11 w-11 place-items-center rounded-lg ${

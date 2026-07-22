@@ -17,20 +17,15 @@
 		ArrowRight,
 		CalendarDays,
 		CheckCircle2,
-		Ellipsis,
 		ImagePlus,
 		Loader2,
-		Rocket,
-		Ticket,
-		TreePine,
 		UserRound,
-		UsersRound,
-		Users
+		UsersRound
 	} from 'lucide-svelte';
 	import { nip19, type EventTemplate } from 'nostr-tools';
 	import { QRCode } from 'svelte-qrcode-image/util';
 
-	import { key, kind10002 } from 'src/controller';
+	import { key, kind10002, rememberAdminServiceBaseUrl } from 'src/controller';
 	import CommunityBenefitsPanel from 'src/components/CommunityBenefitsPanel.svelte';
 	import CommunityCreatedScreen from 'src/components/CommunityCreatedScreen.svelte';
 	import {
@@ -39,18 +34,15 @@
 		buildRelayListTagsWithReadRelay,
 		mergeRelayFeedIndexTags
 	} from 'src/lib/adminRelays';
+	import { buildCommunityProfileTags, COMMUNITY_PROFILE_KIND } from 'src/lib/communityProfile';
+	import { archetypeFor, COMMUNITY_ARCHETYPES, type CommunityType } from 'src/lib/communityTypes';
 	import { DEFAULT_RELAYS, INDEXER_RELAYS } from 'src/lib/env';
+	import { makeInviteAuthorization } from 'src/lib/invites';
 	import { now } from 'src/lib/period';
+	import { uploadFile } from 'src/lib/upload';
 	import { onDestroy, onMount } from 'svelte';
 
 	type CreateState = 'idle' | 'creating-account' | 'creating-relay' | 'done' | 'error';
-	type CommunityType =
-		| 'Sports Club'
-		| 'Startup Community'
-		| 'Village'
-		| 'Event'
-		| 'Organization'
-		| 'Other';
 
 	type RelayRecord = {
 		id: string;
@@ -67,20 +59,13 @@
 	const manager = getManager();
 	const coordinatorUrl = import.meta.env.VITE_COORDINATOR_URL || 'https://coordinator.nuts.cash';
 	const RELAY_LIST_PUBLISH_RELAYS = ['wss://relay.nuts.cash', 'wss://relay.damus.io'];
-	const communityTypes: Array<{ label: CommunityType; icon: typeof Users }> = [
-		{ label: 'Sports Club', icon: UsersRound },
-		{ label: 'Startup Community', icon: Rocket },
-		{ label: 'Village', icon: TreePine },
-		{ label: 'Event', icon: Ticket },
-		{ label: 'Organization', icon: Users },
-		{ label: 'Other', icon: Ellipsis }
-	];
 
 	let communityName = '';
 	let communityDescription = '';
 	let communityImage = '';
 	let communityImageName = '';
-	let communityType: CommunityType = 'Sports Club';
+	let communityImageFile: File | undefined;
+	let communityType: CommunityType = 'sports';
 	let creatorName = '';
 	let picture = '';
 	let pictureName = '';
@@ -99,6 +84,7 @@
 	let publishUnsubscribers: Array<() => void> = [];
 
 	$: communitySlug = slugFromName(communityName);
+	$: selectedArchetype = archetypeFor(communityType);
 	$: inviteUrl = relay ? `${relay.base_url}/redeem` : `https://nuts.cash/join/${communitySlug}`;
 	$: forceSuccess = $page.url.searchParams.has('success');
 	$: successInviteUrl = forceSuccess ? `https://nuts.cash/join/${communitySlug}` : inviteUrl;
@@ -134,6 +120,8 @@
 	}
 
 	function handleCommunityImageUpload(event: Event) {
+		const input = event.currentTarget as HTMLInputElement;
+		communityImageFile = input.files?.[0];
 		readImageFile(event, (value, name) => {
 			communityImage = value;
 			communityImageName = name;
@@ -400,23 +388,66 @@
 	}
 
 	async function createRelay(adminPubkey: string) {
-		const response = await fetch(`${coordinatorUrl.replace(/\/$/, '')}/relays`, {
-			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({
-				name: communityName.trim(),
-				domain_label: communitySlug,
-				admin_pubkeys: [adminPubkey],
-				badge_d: 'members'
-			})
+		const url = `${coordinatorUrl.replace(/\/$/, '')}/relays`;
+		const body = JSON.stringify({
+			name: communityName.trim(),
+			domain_label: communitySlug,
+			admin_pubkeys: [adminPubkey],
+			badge_d: 'members'
 		});
 
+		let response = await fetch(url, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body
+		});
+		if (response.status === 401) {
+			// Newer coordinators require NIP-98 admin auth — retry signed.
+			const authorization = await makeInviteAuthorization(url, body, adminPubkey);
+			response = await fetch(url, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json', authorization },
+				body
+			});
+		}
+
 		if (!response.ok) {
-			const body = await response.text();
-			throw new Error(body || `Coordinator returned ${response.status}`);
+			const errorText = await response.text();
+			throw new Error(errorText || `Coordinator returned ${response.status}`);
 		}
 
 		return (await response.json()) as RelayRecord;
+	}
+
+	async function uploadCommunityImage() {
+		if (!communityImageFile) return '';
+		try {
+			const uploaded = await uploadFile(communityImageFile, {
+				alt: communityName.trim() || communityImageFile.name
+			});
+			return uploaded.url;
+		} catch {
+			// The community profile is still published, just without an image.
+			return '';
+		}
+	}
+
+	function publishCommunityProfile(communityRelay: string, imageUrl: string) {
+		const profileEvent: EventTemplate = {
+			kind: COMMUNITY_PROFILE_KIND,
+			tags: buildCommunityProfileTags({
+				type: communityType,
+				description: communityDescription,
+				image: imageUrl
+			}),
+			content: '',
+			created_at: now()
+		};
+
+		usePublish('community_profile_' + communityRelay, profileEvent, () => undefined, {
+			trackStatus: true,
+			defaultRelays: [communityRelay]
+		});
 	}
 
 	async function createCommunity() {
@@ -437,6 +468,8 @@
 
 			state = 'creating-relay';
 			relay = await createRelay(adminPubkey);
+			rememberAdminServiceBaseUrl(relay.relay_url, relay.base_url);
+			const profileImageUrl = await uploadCommunityImage();
 			adminRelaySet = await (adminRelaySetFetch || fetchAdminRelaySet(adminPubkey));
 			publishRelayList(adminPubkey, relay.relay_url);
 			publishCommunityRelaySet(
@@ -444,6 +477,7 @@
 				relay.relay_url,
 				() => {
 					if (!relay) return;
+					publishCommunityProfile(relay.relay_url, profileImageUrl);
 					void goto(resolve(`/admin/${encodeURIComponent(relay.relay_url)}`));
 				},
 				(err) => {
@@ -521,7 +555,8 @@
 				</h1>
 				{#if accountReady}
 					<p class="mt-7 max-w-2xl text-xl font-medium leading-9 text-stone-600">
-						Create the digital home for your club, association, village, event or organization.
+						Create the digital home for your sports club, restaurant, members' club, village or
+						network.
 					</p>
 				{:else}
 					<p class="mt-7 max-w-2xl text-xl font-medium leading-9 text-stone-600">
@@ -539,24 +574,35 @@
 						<p
 							class="hidden max-w-xs text-right text-sm font-semibold leading-6 text-stone-500 sm:block"
 						>
-							This only tunes the starting profile. You can change details later.
+							Sets your starting profile and tools. You can change everything later in Settings.
 						</p>
 					</div>
 					<div class="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-						{#each communityTypes as type (type.label)}
+						{#each COMMUNITY_ARCHETYPES as archetype (archetype.id)}
 							<button
 								type="button"
-								class={`grid h-28 place-items-center rounded-xl border p-3 text-center font-black transition focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98] ${
-									communityType === type.label
+								class={`grid h-28 content-center justify-items-center gap-1.5 rounded-xl border p-3 text-center font-black transition focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98] ${
+									communityType === archetype.id
 										? 'border-emerald-950 bg-emerald-950 text-white shadow-sm shadow-emerald-950/20'
 										: 'border-stone-200 bg-white/80 text-stone-600 shadow-sm shadow-stone-950/5 hover:border-stone-300 hover:bg-white hover:text-[#171614]'
 								}`}
-								on:click={() => (communityType = type.label)}
+								on:click={() => (communityType = archetype.id)}
 							>
-								<svelte:component this={type.icon} size={30} />
-								<span class="text-sm">{type.label}</span>
+								<svelte:component this={archetype.icon} size={28} />
+								<span class="text-xs leading-tight">{archetype.label}</span>
 							</button>
 						{/each}
+					</div>
+					<div class="mt-4 rounded-xl border border-emerald-900/15 bg-emerald-50/60 p-4">
+						<p class="text-sm font-black text-emerald-950">{selectedArchetype.tagline}</p>
+						<ul class="mt-3 grid gap-2 sm:grid-cols-2">
+							{#each selectedArchetype.highlights as highlight (highlight)}
+								<li class="flex items-start gap-2 text-sm font-semibold text-stone-600">
+									<CheckCircle2 class="mt-0.5 shrink-0 text-emerald-800" size={15} />
+									{highlight}
+								</li>
+							{/each}
+						</ul>
 					</div>
 				</div>
 

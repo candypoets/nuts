@@ -8,7 +8,7 @@
 	import About from 'src/components/About.svelte';
 	import { parseContent, type ContentBlock } from 'src/lib';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
-	import { userQuery } from 'src/routes/queries/user';
+	import { userQuery, userSubId } from 'src/routes/queries/user';
 
 	export let pubkey: string;
 	export let relays: string[] = [];
@@ -33,7 +33,7 @@
 	onMount(() => {
 		loadingTimer = setTimeout(() => (loading = false), 2000);
 		unsubscribe = useSubscription(
-			'u_' + pubkey,
+			userSubId(pubkey, relays),
 			userQuery(pubkey, relays),
 			(message: WorkerMessage) => {
 				const kind0 = isKind0(message);

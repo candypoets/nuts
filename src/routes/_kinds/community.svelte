@@ -35,6 +35,13 @@
 		type RelayRole
 	} from 'src/lib/adminRelays';
 	import { CALENDAR_EVENT_KINDS, RSVP_KIND, parseCalendarEvent } from 'src/lib/calendarEvent';
+	import {
+		COMMUNITY_PROFILE_D,
+		COMMUNITY_PROFILE_KIND,
+		parseCommunityProfile,
+		type CommunityProfile
+	} from 'src/lib/communityProfile';
+	import { archetypeFor } from 'src/lib/communityTypes';
 	import { INDEXER_RELAYS } from 'src/lib/env';
 	import { now } from 'src/lib/period';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
@@ -69,12 +76,17 @@
 	let followIntent: boolean | undefined;
 	let publishUnsubscribers: Array<() => void> = [];
 	let publishStatus = '';
+	let communityProfile: CommunityProfile | undefined;
+	let profileSub: (() => void) | undefined;
+	let lastProfileRelay = '';
 
 	$: normalizedRelay = normalizeURL(relay);
 	$: relayInfo = $relayInfos.get(normalizedRelay);
 	$: name = relayInfo?.name?.trim() || relayLabel(normalizedRelay);
-	$: description = relayInfo?.description?.trim() || 'Public relay community.';
-	$: icon = relayInfo?.icon;
+	$: description =
+		communityProfile?.description || relayInfo?.description?.trim() || 'Public relay community.';
+	$: icon = relayInfo?.icon || communityProfile?.image || undefined;
+	$: communityArchetype = archetypeFor(communityProfile?.type);
 	$: requestKinds = selectedKinds.length ? selectedKinds : (ALL_FEED_KINDS as FeedKind[]);
 	$: subId = `community_${relayHash(normalizedRelay)}_${requestKinds.join('-')}`;
 	$: eventAddressKey = upcomingEvents.map((event) => event.address).join('|');
@@ -308,12 +320,42 @@
 		upcomingEvents = Array.from(events.values()).sort((left, right) => left.start - right.start);
 	}
 
+	function subscribeProfile() {
+		if (!visible || !normalizedRelay || normalizedRelay === lastProfileRelay) return;
+		lastProfileRelay = normalizedRelay;
+		profileSub?.();
+		communityProfile = undefined;
+
+		const profileSubId = `community_profile_${relayHash(normalizedRelay)}`;
+		setSubRelays(profileSubId, [normalizedRelay]);
+		profileSub = useSubscription(
+			profileSubId,
+			[
+				{
+					kinds: [COMMUNITY_PROFILE_KIND],
+					limit: 5,
+					noCache: true,
+					relays: [normalizedRelay],
+					tags: { '#d': [COMMUNITY_PROFILE_D] }
+				}
+			],
+			(message) => {
+				const parsed = asParsedEvent(message);
+				if (!parsed) return;
+				const profile = parseCommunityProfile(parsed);
+				if (!profile) return;
+				if (communityProfile && profile.createdAt <= communityProfile.createdAt) return;
+				communityProfile = profile;
+			},
+			{ bytesPerEvent: 4 * 1024, closeOnEose: true }
+		);
+	}
+
 	function subscribeEvents() {
 		if (!visible || !normalizedRelay) return;
 
 		const eventSubId = `community_events_${relayHash(normalizedRelay)}`;
 		if (eventSubId === lastEventSubId) return;
-
 		eventSub?.();
 		rsvpSubs.forEach((unsubscribe) => unsubscribe());
 		rsvpSubs = [];
@@ -476,10 +518,14 @@
 	onMount(() => {
 		subscribe();
 		subscribeEvents();
+		subscribeProfile();
 	});
 
 	$: if (visible && normalizedRelay && subId !== lastSubId) {
 		subscribe();
+	}
+	$: if (visible && normalizedRelay) {
+		subscribeProfile();
 	}
 	$: if (
 		visible &&
@@ -496,6 +542,7 @@
 		sub?.();
 		paginationSub?.();
 		eventSub?.();
+		profileSub?.();
 		rsvpSubs.forEach((unsubscribe) => unsubscribe());
 		publishUnsubscribers.forEach((unsubscribe) => unsubscribe());
 		if (emptyTimeout) clearTimeout(emptyTimeout);
@@ -552,9 +599,36 @@
 
 				<h1 class="mt-4 text-3xl font-bold leading-tight">{name}</h1>
 				<p class="mt-1 truncate text-base font-medium text-primary-content">
-					Public community · {relayLabel(normalizedRelay)}
+					Public community{#if communityProfile && communityProfile.type !== 'other'}
+						· {communityArchetype.shortLabel}{/if} · {relayLabel(normalizedRelay)}
 				</p>
 				<p class="mt-5 text-base leading-6 text-primary-content">{description}</p>
+				{#if communityProfile && (communityProfile.menuUrl || communityProfile.bookingUrl)}
+					<div class="mt-4 flex flex-wrap gap-2">
+						{#if communityProfile.menuUrl}
+							<a
+								href={communityProfile.menuUrl}
+								target="_blank"
+								rel="noreferrer"
+								class="btn h-11 rounded-lg bg-base-200 px-4 text-sm"
+							>
+								<Icon icon="mdi:silverware-fork-knife" class="text-lg text-primary" />
+								View menu
+							</a>
+						{/if}
+						{#if communityProfile.bookingUrl}
+							<a
+								href={communityProfile.bookingUrl}
+								target="_blank"
+								rel="noreferrer"
+								class="btn h-11 rounded-lg bg-primary px-4 text-sm text-primary-content"
+							>
+								<Icon icon="mdi:calendar-check-outline" class="text-lg" />
+								Book a table
+							</a>
+						{/if}
+					</div>
+				{/if}
 
 				<div class="mt-6 flex items-center justify-between gap-3">
 					<div class="min-w-0">

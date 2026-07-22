@@ -51,7 +51,7 @@
 
 {#if visible}
 	<aside
-		class="fixed bottom-5 right-5 z-40 w-[min(420px,calc(100vw-2.5rem))] rounded-2xl border border-stone-200 bg-white p-5 text-stone-950 shadow-2xl shadow-stone-950/15"
+		class="fixed bottom-5 left-5 z-40 w-[min(420px,calc(100vw-2.5rem))] rounded-2xl border border-stone-200 bg-white p-5 text-stone-950 shadow-2xl shadow-stone-950/15"
 		aria-label="Payment setup required"
 	>
 		<button

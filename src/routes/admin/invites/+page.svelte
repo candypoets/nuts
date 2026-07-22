@@ -16,7 +16,7 @@
 		UsersRound
 	} from 'lucide-svelte';
 	import { normalizeURL } from 'nostr-tools/utils';
-	import { key, selectedAdminRelayUrl } from 'src/controller';
+	import { adminServiceBaseUrl, key, selectedAdminRelayUrl } from 'src/controller';
 	import { makeInviteAuthorization } from 'src/lib/invites';
 	import { QRCode } from 'svelte-qrcode-image/util';
 
@@ -58,7 +58,7 @@
 		loadedRelayUrl = $selectedAdminRelayUrl;
 		loadCommunityRelay();
 	}
-	$: serviceBaseUrl = relayUrl ? relayInfoUrl(relayUrl).replace(/\/$/, '') : '';
+	$: serviceBaseUrl = relayUrl ? adminServiceBaseUrl(relayUrl) : '';
 	$: inviteEndpoint = serviceBaseUrl ? `${serviceBaseUrl}/invites` : '';
 	$: redeemEndpoint = serviceBaseUrl ? `${serviceBaseUrl}/redeem` : '';
 	$: inviteClaimUrl =
@@ -370,16 +370,23 @@
 	) {
 		const words = text.split(/\s+/);
 		let line = '';
-		let lineCount = 0;
+		let lineIndex = 0;
 
 		for (const word of words) {
 			const nextLine = line ? `${line} ${word}` : word;
 			if (context.measureText(nextLine).width > maxWidth && line) {
+				if (lineIndex >= maxLines - 1) {
+					// Last allowed line is full: trim until the ellipsis fits, then stop.
+					while (line && context.measureText(`${line}…`).width > maxWidth) {
+						line = line.split(/\s+/).slice(0, -1).join(' ');
+					}
+					context.fillText(`${line}…`, x, y);
+					return;
+				}
 				context.fillText(line, x, y);
 				line = word;
 				y += lineHeight;
-				lineCount += 1;
-				if (lineCount >= maxLines - 1) break;
+				lineIndex += 1;
 			} else {
 				line = nextLine;
 			}

@@ -3,7 +3,7 @@
 	import _ from 'lodash';
 	import { onMount } from 'svelte';
 
-	import { userQuery } from 'src/routes/queries/user';
+	import { userQuery, userSubId } from 'src/routes/queries/user';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import type { ParsedEvent, Kind0Parsed, WorkerMessage } from '@candypoets/nipworker';
 	import { asKind0, isKind0 } from '@candypoets/nipworker/utils';
@@ -31,7 +31,7 @@
 		if (!user && query) {
 			queried = true;
 			sub = useSubscription(
-				'u_' + pubkey,
+				userSubId(pubkey, relays),
 				userQuery(pubkey, relays),
 				(message: WorkerMessage) => {
 					const kind0 = isKind0(message);

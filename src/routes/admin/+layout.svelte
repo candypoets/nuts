@@ -2,7 +2,12 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from 'src/lib/paths';
 	import { page } from '$app/stores';
-	import { type ParsedEvent, type RequestObject, type WorkerMessage } from '@candypoets/nipworker';
+	import {
+		getManager,
+		type ParsedEvent,
+		type RequestObject,
+		type WorkerMessage
+	} from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import { asNip51, isParsedEvent } from '@candypoets/nipworker/utils';
 	import {
@@ -18,7 +23,13 @@
 		UsersRound
 	} from 'lucide-svelte';
 	import { normalizeURL } from 'nostr-tools/utils';
-	import { key, selectAdminRelayUrl, selectedAdminRelayUrl } from 'src/controller';
+	import {
+		key,
+		selectAdminRelayUrl,
+		selectedAdminRelayUrl,
+		walletMnemonic,
+		walletPassphrase
+	} from 'src/controller';
 	import {
 		fetchRelayInfo,
 		relaySetAddressesFromRelayFeedEvent,
@@ -353,6 +364,17 @@
 		goto(resolve('/admin/settings'));
 	}
 
+	function signOut() {
+		communityMenuOpen = false;
+		// Clear persistent stores to prevent stale data on reload
+		key.set({});
+		walletMnemonic.set('');
+		walletPassphrase.set('');
+		selectAdminRelayUrl('');
+		getManager().removeAccount();
+		window.location.href = '/explore';
+	}
+
 	function handleDocumentClick(event: MouseEvent) {
 		if (!communityMenuOpen) return;
 		const target = event.target;
@@ -432,7 +454,11 @@
 						>
 							<span class="relative">
 								{#if $key?.pub}
-									<Avatar pubkey={$key.pub} size="lg" />
+									<Avatar
+										pubkey={$key.pub}
+										size="lg"
+										relays={selectedRelayUrl ? [selectedRelayUrl] : []}
+									/>
 								{:else}
 									<img src="/miss-profile.png" alt="" class="h-10 w-10 rounded-full object-cover" />
 								{/if}
@@ -464,7 +490,12 @@
 							<div class="flex items-start gap-5">
 								<span class="relative shrink-0">
 									{#if $key?.pub}
-										<Avatar pubkey={$key.pub} size="xl" customClass="!h-20 !w-20" />
+										<Avatar
+											pubkey={$key.pub}
+											size="xl"
+											customClass="!h-20 !w-20"
+											relays={selectedRelayUrl ? [selectedRelayUrl] : []}
+										/>
 									{:else}
 										<img
 											src="/miss-profile.png"
@@ -562,6 +593,7 @@
 							<button
 								type="button"
 								class="flex w-full items-center gap-4 rounded-xl px-3 py-3 text-left text-lg font-black text-red-600 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600/25 active:scale-[0.99]"
+								on:click={signOut}
 							>
 								<LogOut size={24} strokeWidth={1.8} />
 								Sign out

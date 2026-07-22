@@ -631,6 +631,7 @@
 					<ContentBlocks
 						content={parsedContent}
 						{shortContent}
+						showFull={main}
 						note={displayNote}
 						{context}
 						{visible}

@@ -1,10 +1,7 @@
 <script lang="ts">
 	import { afterUpdate, onDestroy, onMount } from 'svelte';
-	import {
-		sharedVideoElement,
-		sharedVideoIndex,
-		sharedVideoGridId
-	} from 'src/controller/image';
+	import { sharedVideoElement, sharedVideoIndex, sharedVideoGridId } from 'src/controller/image';
+	import { registerVideo } from 'src/controller/videoPlayback';
 
 	export let src: string;
 	export let poster: string | undefined = undefined;
@@ -21,6 +18,7 @@
 	// Container reference to re-attach video when returned
 	let containerEl: HTMLElement;
 	let sharedElement: HTMLVideoElement | null = null;
+	let playbackRegistration: ReturnType<typeof registerVideo> | undefined;
 	const unsubscribeSharedVideo = sharedVideoElement.subscribe((element) => {
 		sharedElement = element;
 	});
@@ -31,6 +29,7 @@
 
 	// Media Chrome are web components; load on client to avoid SSR issues.
 	onMount(async () => {
+		if (videoElement) playbackRegistration = registerVideo(videoElement, () => autoplay);
 		await import('media-chrome'); // npm i media-chrome
 	});
 
@@ -40,6 +39,7 @@
 
 	// Re-attach video element when it's returned from zoom
 	afterUpdate(() => {
+		playbackRegistration?.refresh();
 		if (!videoElement || !containerEl || isSharedVideo()) return;
 		// If the video element is not attached to this media-controller, move it back
 		if (videoElement.parentElement !== containerEl) {
@@ -53,7 +53,10 @@
 		}
 	});
 
-	onDestroy(unsubscribeSharedVideo);
+	onDestroy(() => {
+		unsubscribeSharedVideo();
+		playbackRegistration?.unregister();
+	});
 
 	// Update time display
 	function updateTime() {
@@ -106,7 +109,10 @@
 	}
 </script>
 
-<media-controller class={`group relative block bg-transparent overflow-hidden ${className}`} bind:this={containerEl}>
+<media-controller
+	class={`group relative block bg-transparent overflow-hidden ${className}`}
+	bind:this={containerEl}
+>
 	<!-- Video element directly slotted for media-chrome to work properly -->
 	{#if !isSharedVideo()}
 		<video

@@ -5,6 +5,12 @@ import { normalizeURL } from 'nostr-tools/utils';
 import { relayStatusMap } from 'src/controller/relay';
 import { get } from 'svelte/store';
 
+// Subscription id for profile queries. nipworker dedupes subscriptions by id only,
+// so the relay set must be part of the id — otherwise a component that subscribes
+// with relays=[] first (e.g. Avatar) hijacks later relay-scoped subscriptions.
+export const userSubId = (pubkey: string, relays: string[] = []) =>
+	'u_' + pubkey + (relays.length ? '_' + [...relays].sort().join(',') : '');
+
 export const userQuery = (pubkey: string, relays: string[] = []) => [
 	{
 		kinds: [0],

@@ -33,6 +33,7 @@
 	import { key } from 'src/controller';
 	import {
 		exploreAudienceMode,
+		exploreRelaySelections,
 		feedKinds,
 		ALL_FEED_KINDS,
 		type FeedKind
@@ -138,23 +139,33 @@
 	let hadFeedRequest = false;
 
 	let relayOverride: string[] | undefined = undefined;
+	let relays: string[] = [];
 	$: accountRelays = $relayDirectoryUrls.length ? $relayDirectoryUrls : $readRelays;
 	$: selectedSubRelays = $relaySubs.get(relaySelectionSubId);
-	$: relays = relayOverride ?? selectedSubRelays ?? accountRelays;
+	$: persistedRelays = $exploreRelaySelections[$exploreAudienceMode];
+	$: relays =
+		relayOverride ??
+		selectedSubRelays ??
+		(persistedRelays.length ? persistedRelays : accountRelays) ??
+		[];
 
 	// Filter out undefined values from relays
-	$: normalizedRelays = (relays.filter((r) => typeof r === 'string') as string[]).map(normalizeURL);
+	$: normalizedRelays = relays.filter((r): r is string => typeof r === 'string').map(normalizeURL);
 
 	function handleSubRelays(subRelays: string[] | undefined) {
 		const nextRelays = subRelays
 			?.filter((r): r is string => typeof r === 'string')
 			.map(normalizeURL);
-		const currentRelays = relays
+		const currentRelays = (relays ?? [])
 			.filter((r): r is string => typeof r === 'string')
 			.map(normalizeURL);
 
 		if (nextRelays && !isEqual(currentRelays, nextRelays)) {
 			relayOverride = nextRelays;
+			$exploreRelaySelections = {
+				...$exploreRelaySelections,
+				[$exploreAudienceMode]: nextRelays
+			};
 			resetFeed();
 			hadFeedRequest = false;
 			connectionStatus = {};
@@ -169,6 +180,7 @@
 	$: if (relaySelectionSubId && relaySelectionSubId !== currentRelaySubId) {
 		// Clean up previous subscription before creating new one
 		relaySubUnsubscribe?.();
+		relayOverride = undefined;
 		currentRelaySubId = relaySelectionSubId;
 		relaySubUnsubscribe = relaySub(relaySelectionSubId).subscribe((subRelays) => {
 			handleSubRelays(subRelays);
@@ -177,7 +189,10 @@
 
 	// Default relay for anonymous users
 	const DEFAULT_FEED_RELAYS = ['wss://nostr.wine'];
-	$: feedRelays = $key?.pub || selectedSubRelays?.length ? normalizedRelays : DEFAULT_FEED_RELAYS;
+	$: hasSelectedRelays = Boolean(
+		relayOverride?.length || selectedSubRelays?.length || persistedRelays.length
+	);
+	$: feedRelays = $key?.pub || hasSelectedRelays ? normalizedRelays : DEFAULT_FEED_RELAYS;
 	$: feedRelayKey = feedRelays.join('|');
 	let lastConnectionRelayKey = '';
 	$: if (feedRelayKey !== lastConnectionRelayKey) {

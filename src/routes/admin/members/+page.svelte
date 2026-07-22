@@ -2,7 +2,6 @@
 	export let initialView: 'members' | 'roles' = 'members';
 	import { resolve } from 'src/lib/paths';
 	import {
-		NpubLimiterPipeConfigT,
 		ParsePipeConfigT,
 		PipeConfig,
 		PipeT,
@@ -201,7 +200,9 @@
 	}
 
 	function upsertRoleAwardValue(award: RoleAward) {
-		const existingIndex = roleAwards.findIndex((item) => item.recipient === award.recipient);
+		const existingIndex = roleAwards.findIndex(
+			(item) => item.recipient === award.recipient && item.roleAddress === award.roleAddress
+		);
 		if (existingIndex !== -1) {
 			if (award.createdAt <= roleAwards[existingIndex].createdAt) return;
 			roleAwards = roleAwards.map((item, index) => (index === existingIndex ? award : item));
@@ -301,7 +302,6 @@
 			{
 				bytesPerEvent: 10 * 1024,
 				pipeline: [
-					new PipeT(PipeConfig.NpubLimiterPipeConfig, new NpubLimiterPipeConfigT(8, 1, 5000)),
 					new PipeT(PipeConfig.ParsePipeConfig, new ParsePipeConfigT()),
 					new PipeT(PipeConfig.SaveToDbPipeConfig, new SaveToDbPipeConfigT()),
 					new PipeT(
@@ -711,7 +711,7 @@
 								>
 									<td class="px-7 py-5">
 										<div class="flex items-center gap-4">
-											<Avatar pubkey={member.pubkey} size="xl" />
+											<Avatar pubkey={member.pubkey} size="xl" relays={relayUrl ? [relayUrl] : []} />
 											<div class="min-w-0">
 												<p class="truncate text-base font-black">
 													<User
@@ -840,7 +840,7 @@
 			</div>
 
 			<div class="mt-5 flex items-center gap-3 rounded-xl border border-stone-200 bg-white p-3">
-				<Avatar pubkey={memberToBan.pubkey} size="lg" />
+				<Avatar pubkey={memberToBan.pubkey} size="lg" relays={relayUrl ? [relayUrl] : []} />
 				<span class="min-w-0 truncate font-black">
 					<User pubkey={memberToBan.pubkey} relays={relayUrl ? [relayUrl] : []} link={false} />
 				</span>
@@ -908,7 +908,7 @@
 						<div
 							class="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/70 p-3"
 						>
-							<Avatar pubkey={newMemberPubkey} size="lg" />
+							<Avatar pubkey={newMemberPubkey} size="lg" relays={relayUrl ? [relayUrl] : []} />
 							<span class="min-w-0 flex-1 truncate text-base font-black text-stone-900">
 								<User pubkey={newMemberPubkey} relays={relayUrl ? [relayUrl] : []} link={false} />
 							</span>

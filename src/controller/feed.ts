@@ -61,6 +61,25 @@ export const exploreAudienceMode = persistentWritable<ExploreAudienceMode>(
 	(mode) => JSON.stringify(mode)
 );
 
+export const exploreRelaySelections = persistentWritable<Record<ExploreAudienceMode, string[]>>(
+	'exploreRelaySelections',
+	{ contacts: [], all: [] },
+	(storage: unknown) => {
+		if (!storage || typeof storage !== 'object') return { contacts: [], all: [] };
+
+		const selections = storage as Partial<Record<ExploreAudienceMode, unknown>>;
+		return {
+			contacts: Array.isArray(selections.contacts)
+				? selections.contacts.filter((relay): relay is string => typeof relay === 'string')
+				: [],
+			all: Array.isArray(selections.all)
+				? selections.all.filter((relay): relay is string => typeof relay === 'string')
+				: []
+		};
+	},
+	(selections) => JSON.stringify(selections)
+);
+
 export function toParsedEvent(t: ParsedEventT): ParsedEvent {
 	const builder = new Builder(3096);
 	const offset = t.pack(builder);

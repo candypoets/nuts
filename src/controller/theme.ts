@@ -75,7 +75,7 @@ export const builtInThemes: DittoTheme[] = [
 			'--shadow-inset-highlight': 'rgba(242, 235, 221, 0.08)',
 			'--shadow-inset-subtle': 'rgba(242, 235, 221, 0.025)',
 			'--bg-image':
-				'radial-gradient(circle at 16% 16%, rgba(223, 114, 92, 0.1), transparent 26%), radial-gradient(circle at 84% 78%, rgba(231, 182, 56, 0.08), transparent 28%), linear-gradient(145deg, #08130f 0%, #102019 52%, #0a1712 100%)'
+				'radial-gradient(ellipse at 50% 46%, rgba(42, 82, 64, 0.48) 0%, rgba(30, 61, 47, 0.28) 48%, rgba(16, 32, 25, 0.1) 78%, transparent 100%), radial-gradient(circle at 14% 12%, rgba(223, 114, 92, 0.07), transparent 28%), radial-gradient(circle at 86% 84%, rgba(231, 182, 56, 0.055), transparent 30%), linear-gradient(145deg, #07110d 0%, #0d1c16 52%, #08130f 100%)'
 		}
 	},
 	{
