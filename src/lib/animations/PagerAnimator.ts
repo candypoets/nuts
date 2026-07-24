@@ -1,5 +1,7 @@
 import { animate } from 'motion';
 
+const STACK_Z_INDEX_BASE = 60;
+
 interface AnimationOptions {
 	duration: number;
 	in?: {
@@ -124,6 +126,9 @@ export class PagerAnimator {
 
 		// Stack
 		this.stack.forEach((el, idx) => {
+			// Navigation order, rather than surface kind, determines which item is on top.
+			// This overrides the components' fallback z-indexes while they are pager-managed.
+			el.style.zIndex = `${STACK_Z_INDEX_BASE + idx}`;
 			if (this.visibleStackIndices.has(idx)) {
 				if (el.style.display === 'none') el.style.display = '';
 			} else {
@@ -765,6 +770,7 @@ export class PagerAnimator {
 		this.pendingDeltaY = 0;
 		// Show everything again in case caller reuses elements
 		this.showAll();
+		this.stack.forEach((element) => element.style.removeProperty('z-index'));
 		// Motion One automatically handles cleanup, but we can clear our arrays
 		this.stack = [];
 		this.elementKinds = new WeakMap<HTMLElement, string>();
