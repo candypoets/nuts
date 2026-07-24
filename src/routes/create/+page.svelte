@@ -2,14 +2,16 @@
 	import { resolve } from 'src/lib/paths';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import {
-		getManager,
-		type ParsedEvent,
-		type RequestObject,
-		type WorkerMessage
-	} from '@candypoets/nipworker';
+	import { type ParsedEvent, type RequestObject, type WorkerMessage } from '@candypoets/nipworker';
 	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
-	import { asNip51, isConnectionStatus, isParsedEvent } from '@candypoets/nipworker/utils';
+	import {
+		asKind0,
+		asKind10002,
+		asNip51,
+		fbArray,
+		isConnectionStatus,
+		isParsedEvent
+	} from '@candypoets/nipworker/utils';
 	import { schnorr } from '@noble/curves/secp256k1';
 	import { bytesToHex } from '@noble/hashes/utils';
 	import {
@@ -23,9 +25,10 @@
 		UsersRound
 	} from 'lucide-svelte';
 	import { nip19, type EventTemplate } from 'nostr-tools';
+	import { normalizeURL } from 'nostr-tools/utils';
 	import { QRCode } from 'svelte-qrcode-image/util';
 
-	import { key, kind10002, rememberAdminServiceBaseUrl } from 'src/controller';
+	import { key, kind0, kind10002, rememberAdminServiceBaseUrl } from 'src/controller';
 	import CommunityBenefitsPanel from 'src/components/CommunityBenefitsPanel.svelte';
 	import CommunityCreatedScreen from 'src/components/CommunityCreatedScreen.svelte';
 	import {
@@ -38,11 +41,20 @@
 	import { archetypeFor, COMMUNITY_ARCHETYPES, type CommunityType } from 'src/lib/communityTypes';
 	import { DEFAULT_RELAYS, INDEXER_RELAYS } from 'src/lib/env';
 	import { makeInviteAuthorization } from 'src/lib/invites';
+	import { setSignerAndWait } from 'src/lib/managerAuth';
 	import { now } from 'src/lib/period';
-	import { uploadFile } from 'src/lib/upload';
+	import { buildProfileReplicationEvent } from 'src/lib/profileReplication';
+	import { waitForRelayReady } from 'src/lib/relayReadiness';
+	import { DEFAULT_SERVER, uploadFile } from 'src/lib/upload';
 	import { onDestroy, onMount } from 'svelte';
 
-	type CreateState = 'idle' | 'creating-account' | 'creating-relay' | 'done' | 'error';
+	type CreateState =
+		| 'idle'
+		| 'finding-profile'
+		| 'creating-account'
+		| 'creating-relay'
+		| 'done'
+		| 'error';
 
 	type RelayRecord = {
 		id: string;
@@ -56,7 +68,6 @@
 		admin_pubkeys: string[];
 	};
 
-	const manager = getManager();
 	const coordinatorUrl = import.meta.env.VITE_COORDINATOR_URL || 'https://coordinator.nuts.cash';
 	const RELAY_LIST_PUBLISH_RELAYS = ['wss://relay.nuts.cash', 'wss://relay.damus.io'];
 
@@ -69,6 +80,7 @@
 	let creatorName = '';
 	let picture = '';
 	let pictureName = '';
+	let pictureFile: File | undefined;
 	let state: CreateState = 'idle';
 	let error = '';
 	let relay: RelayRecord | undefined;
@@ -81,7 +93,11 @@
 	let relayFeedFetch: Promise<ParsedEvent | undefined> | undefined;
 	let unsubscribeAdminRelaySet: (() => void) | undefined;
 	let unsubscribeRelayFeed: (() => void) | undefined;
+	let unsubscribeCreatorProfile: (() => void) | undefined;
 	let publishUnsubscribers: Array<() => void> = [];
+	let fetchedCreatorProfile: ParsedEvent | undefined;
+	let creatorProfileLookupDone = false;
+	let creatorProfileLookupPubkey = '';
 
 	$: communitySlug = slugFromName(communityName);
 	$: selectedArchetype = archetypeFor(communityType);
@@ -92,7 +108,18 @@
 	$: displayCommunityDescription =
 		forceSuccess && !communityDescription ? 'Coolest coworking in town' : communityDescription;
 	$: accountReady = Boolean($key?.pub);
-	$: canCreate = communityName.trim().length > 1 && (accountReady || creatorName.trim().length > 1);
+	$: creatorProfile =
+		$key?.pub && $kind0?.pubkey() === $key.pub && $kind0.kind() === 0
+			? $kind0
+			: $key?.pub &&
+				  fetchedCreatorProfile?.pubkey() === $key.pub &&
+				  fetchedCreatorProfile.kind() === 0
+				? fetchedCreatorProfile
+				: undefined;
+	$: needsCreatorProfile = !accountReady;
+	$: canCreate =
+		communityName.trim().length > 1 &&
+		Boolean(accountReady ? creatorProfile : creatorName.trim().length > 1);
 	$: generateQr(successInviteUrl);
 
 	function slugFromName(value: string) {
@@ -106,11 +133,7 @@
 		);
 	}
 
-	function readImageFile(event: Event, onLoad: (value: string, name: string) => void) {
-		const input = event.currentTarget as HTMLInputElement;
-		const file = input.files?.[0];
-		if (!file) return;
-
+	function previewImageFile(file: File, onLoad: (value: string, name: string) => void) {
 		const reader = new FileReader();
 		reader.onload = () => {
 			const value = typeof reader.result === 'string' ? reader.result : '';
@@ -121,18 +144,47 @@
 
 	function handleCommunityImageUpload(event: Event) {
 		const input = event.currentTarget as HTMLInputElement;
-		communityImageFile = input.files?.[0];
-		readImageFile(event, (value, name) => {
+		selectCommunityImage(input.files?.[0]);
+	}
+
+	function selectCommunityImage(file: File | undefined) {
+		if (!file?.type.startsWith('image/')) return;
+		communityImageFile = file;
+		previewImageFile(file, (value, name) => {
 			communityImage = value;
 			communityImageName = name;
 		});
 	}
 
 	function handlePictureUpload(event: Event) {
-		readImageFile(event, (value, name) => {
+		const input = event.currentTarget as HTMLInputElement;
+		selectPicture(input.files?.[0]);
+	}
+
+	function selectPicture(file: File | undefined) {
+		if (!file?.type.startsWith('image/')) return;
+		pictureFile = file;
+		previewImageFile(file, (value, name) => {
 			picture = value;
 			pictureName = name;
 		});
+	}
+
+	function handleImageDragOver(event: DragEvent) {
+		event.preventDefault();
+		if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+	}
+
+	function handleCommunityImageDrop(event: DragEvent) {
+		event.preventDefault();
+		event.stopPropagation();
+		selectCommunityImage(event.dataTransfer?.files[0]);
+	}
+
+	function handlePictureDrop(event: DragEvent) {
+		event.preventDefault();
+		event.stopPropagation();
+		selectPicture(event.dataTransfer?.files[0]);
 	}
 
 	async function connectWithExtension() {
@@ -142,12 +194,8 @@
 		error = '';
 		try {
 			const pubkey = await nostr.getPublicKey();
-			manager.setSigner('nip07');
-			$key = {
-				pub: pubkey,
-				npub: nip19.npubEncode(pubkey),
-				hasSigner: true
-			};
+			await setSignerAndWait('nip07', undefined, pubkey);
+			await loadCreatorProfile(pubkey);
 			state = 'idle';
 		} catch (err) {
 			state = 'error';
@@ -155,37 +203,16 @@
 		}
 	}
 
-	function createLocalAccount() {
+	async function createLocalAccount() {
 		const secret = schnorr.utils.randomSecretKey();
 		const privkey = bytesToHex(secret);
 		const pubkey = bytesToHex(schnorr.getPublicKey(secret));
 		recoveryNsec = nip19.nsecEncode(secret);
 
-		manager.setSigner('privkey', privkey);
-		$key = {
-			pub: pubkey,
-			priv: privkey,
-			npub: nip19.npubEncode(pubkey),
-			nsec: recoveryNsec,
-			hasSigner: true
-		};
-
-		const metadata: EventTemplate = {
-			kind: 0,
-			tags: [],
-			content: JSON.stringify({
-				name: creatorName.trim(),
-				display_name: creatorName.trim(),
-				picture,
-				about: `Creator of ${communityName.trim()}`
-			}),
-			created_at: now()
-		};
-
-		usePublish('community_signup_' + pubkey, metadata, () => undefined, {
-			trackStatus: true,
-			defaultRelays: INDEXER_RELAYS
-		});
+		await setSignerAndWait('privkey', privkey, pubkey);
+		creatorProfileLookupPubkey = pubkey;
+		creatorProfileLookupDone = true;
+		fetchedCreatorProfile = undefined;
 
 		return pubkey;
 	}
@@ -204,7 +231,7 @@
 
 		usePublish('community_relay_list_' + pubkey, relayList, () => undefined, {
 			trackStatus: true,
-			defaultRelays: INDEXER_RELAYS
+			defaultRelays: Array.from(new Set([communityRelay, ...INDEXER_RELAYS]))
 		});
 	}
 
@@ -219,7 +246,9 @@
 		pubId: string,
 		event: EventTemplate,
 		onSuccess: () => void,
-		onError: (error: Error) => void
+		onError: (error: Error) => void,
+		relays: string[] = RELAY_LIST_PUBLISH_RELAYS,
+		errorMessage = `Could not publish kind ${event.kind} to the relay list relays.`
 	) {
 		let settled = false;
 		let unsubscribePublish: () => void = () => {};
@@ -227,7 +256,10 @@
 			if (settled) return;
 			settled = true;
 			unsubscribePublish();
-			onError(new Error(`Could not publish kind ${event.kind} to the relay list relays.`));
+			publishUnsubscribers = publishUnsubscribers.filter(
+				(unsubscribe) => unsubscribe !== unsubscribePublish
+			);
+			onError(new Error(errorMessage));
 		}, 8000);
 
 		unsubscribePublish = usePublish(
@@ -249,11 +281,138 @@
 			},
 			{
 				trackStatus: true,
-				defaultRelays: RELAY_LIST_PUBLISH_RELAYS
+				defaultRelays: relays
 			}
 		);
 
 		publishUnsubscribers.push(unsubscribePublish);
+	}
+
+	function publishCreatorProfile(
+		pubkey: string,
+		communityRelay: string,
+		profileEvent: EventTemplate,
+		onSuccess: () => void,
+		onError: (error: Error) => void
+	) {
+		const targetRelay = normalizeURL(communityRelay);
+		let settled = false;
+		let unsubscribePublish: () => void = () => {};
+		const timeout = window.setTimeout(() => {
+			if (settled) return;
+			settled = true;
+			unsubscribePublish();
+			publishUnsubscribers = publishUnsubscribers.filter(
+				(unsubscribe) => unsubscribe !== unsubscribePublish
+			);
+			onError(new Error('The community relay did not confirm the creator profile.'));
+		}, 12000);
+
+		unsubscribePublish = usePublish(
+			'community_creator_profile_' + pubkey,
+			profileEvent,
+			(message: WorkerMessage) => {
+				const status = isConnectionStatus(message);
+				const statusRelay = status?.relayUrl();
+				if (
+					status?.status() !== 'true' ||
+					!statusRelay ||
+					normalizeURL(statusRelay) !== targetRelay ||
+					settled
+				) {
+					return;
+				}
+				settled = true;
+				window.clearTimeout(timeout);
+				window.setTimeout(() => {
+					unsubscribePublish();
+					publishUnsubscribers = publishUnsubscribers.filter(
+						(unsubscribe) => unsubscribe !== unsubscribePublish
+					);
+					onSuccess();
+				}, 0);
+			},
+			{
+				trackStatus: true,
+				defaultRelays: [communityRelay]
+			}
+		);
+		publishUnsubscribers.push(unsubscribePublish);
+	}
+
+	function fetchCreatorProfile(pubkey: string) {
+		if ($kind0?.pubkey() === pubkey && $kind0.kind() === 0) {
+			return Promise.resolve($kind0);
+		}
+
+		unsubscribeCreatorProfile?.();
+		const relayList =
+			$kind10002?.pubkey() === pubkey && $kind10002.kind() === 10002
+				? asKind10002($kind10002)
+				: undefined;
+		const advertisedRelays = relayList
+			? fbArray(relayList, 'relays')
+					.map((relayInfo) => relayInfo.url())
+					.filter((relayUrl): relayUrl is string => Boolean(relayUrl))
+			: [];
+		const relays = Array.from(new Set([...advertisedRelays, ...INDEXER_RELAYS, ...DEFAULT_RELAYS]));
+		const completedRelays: string[] = [];
+
+		return new Promise<ParsedEvent | undefined>((resolveCreatorProfile) => {
+			let latest: ParsedEvent | undefined;
+			let settled = false;
+			const finish = () => {
+				if (settled) return;
+				settled = true;
+				window.clearTimeout(timeout);
+				unsubscribeCreatorProfile?.();
+				unsubscribeCreatorProfile = undefined;
+				resolveCreatorProfile(latest);
+			};
+			const timeout = window.setTimeout(finish, 5000);
+
+			unsubscribeCreatorProfile = useSubscription(
+				`community_creator_profile_fetch_${pubkey}_${[...relays].sort().join(',')}`,
+				[
+					{
+						kinds: [0],
+						authors: [pubkey],
+						limit: 10,
+						relays,
+						cacheFirst: true
+					}
+				],
+				(message: WorkerMessage) => {
+					const status = isConnectionStatus(message);
+					const statusRelay = status?.relayUrl();
+					if (status?.status() === 'EOSE' && statusRelay) {
+						const completedRelay = normalizeURL(statusRelay);
+						if (!completedRelays.includes(completedRelay)) completedRelays.push(completedRelay);
+						if (relays.every((relayUrl) => completedRelays.includes(normalizeURL(relayUrl)))) {
+							finish();
+						}
+						return;
+					}
+
+					const parsedEvent = isParsedEvent(message);
+					if (!parsedEvent || parsedEvent.kind() !== 0 || parsedEvent.pubkey() !== pubkey) {
+						return;
+					}
+					if (!latest || parsedEvent.createdAt() > latest.createdAt()) latest = parsedEvent;
+				},
+				{ bytesPerEvent: 10 * 1024 }
+			);
+		});
+	}
+
+	async function loadCreatorProfile(pubkey: string) {
+		creatorProfileLookupPubkey = pubkey;
+		creatorProfileLookupDone = false;
+		fetchedCreatorProfile = undefined;
+		const foundProfile = await fetchCreatorProfile(pubkey);
+		if ($key?.pub !== pubkey || creatorProfileLookupPubkey !== pubkey) return;
+		fetchedCreatorProfile = foundProfile;
+		creatorProfileLookupDone = true;
 	}
 
 	function publishCommunityRelaySet(
@@ -391,6 +550,7 @@
 		const url = `${coordinatorUrl.replace(/\/$/, '')}/relays`;
 		const body = JSON.stringify({
 			name: communityName.trim(),
+			description: communityDescription.trim() || undefined,
 			domain_label: communitySlug,
 			admin_pubkeys: [adminPubkey],
 			badge_d: 'members'
@@ -423,6 +583,9 @@
 		if (!communityImageFile) return '';
 		try {
 			const uploaded = await uploadFile(communityImageFile, {
+				server: DEFAULT_SERVER,
+				serverType: 'blossom',
+				preferUserServers: false,
 				alt: communityName.trim() || communityImageFile.name
 			});
 			return uploaded.url;
@@ -432,7 +595,28 @@
 		}
 	}
 
-	function publishCommunityProfile(communityRelay: string, imageUrl: string) {
+	async function uploadCreatorPicture() {
+		if (!pictureFile) return '';
+		try {
+			const uploaded = await uploadFile(pictureFile, {
+				server: DEFAULT_SERVER,
+				serverType: 'blossom',
+				preferUserServers: false,
+				alt: creatorName.trim() || pictureFile.name
+			});
+			return uploaded.url;
+		} catch {
+			// Account creation can continue without an optional profile picture.
+			return '';
+		}
+	}
+
+	function publishCommunityProfile(
+		communityRelay: string,
+		imageUrl: string,
+		onSuccess: () => void,
+		onError: (error: Error) => void
+	) {
 		const profileEvent: EventTemplate = {
 			kind: COMMUNITY_PROFILE_KIND,
 			tags: buildCommunityProfileTags({
@@ -444,31 +628,51 @@
 			created_at: now()
 		};
 
-		usePublish('community_profile_' + communityRelay, profileEvent, () => undefined, {
-			trackStatus: true,
-			defaultRelays: [communityRelay]
-		});
+		let settled = false;
+		let unsubscribePublish: () => void = () => {};
+		const timeout = window.setTimeout(() => {
+			if (settled) return;
+			settled = true;
+			unsubscribePublish();
+			publishUnsubscribers = publishUnsubscribers.filter(
+				(unsubscribe) => unsubscribe !== unsubscribePublish
+			);
+			onError(new Error('The community relay did not confirm its profile.'));
+		}, 12000);
+
+		unsubscribePublish = usePublish(
+			'community_profile_' + communityRelay,
+			profileEvent,
+			(message: WorkerMessage) => {
+				const status = isConnectionStatus(message);
+				if (status?.status() !== 'true' || settled) return;
+				settled = true;
+				window.clearTimeout(timeout);
+				window.setTimeout(() => {
+					unsubscribePublish();
+					publishUnsubscribers = publishUnsubscribers.filter(
+						(unsubscribe) => unsubscribe !== unsubscribePublish
+					);
+					onSuccess();
+				}, 0);
+			},
+			{
+				trackStatus: true,
+				defaultRelays: [communityRelay]
+			}
+		);
+		publishUnsubscribers.push(unsubscribePublish);
 	}
 
-	async function createCommunity() {
-		if (!canCreate || state === 'creating-account' || state === 'creating-relay') return;
-
-		error = '';
-		recoveryNsec = '';
-		relay = undefined;
-
+	async function continueCommunityCreation(
+		adminPubkey: string,
+		creatorProfileEvent: EventTemplate
+	) {
 		try {
-			let adminPubkey = $key?.pub;
-			if (!adminPubkey) {
-				state = 'creating-account';
-				adminPubkey = createLocalAccount();
-			} else {
-				relayFeed = await (relayFeedFetch || fetchRelayFeed(adminPubkey));
-			}
-
 			state = 'creating-relay';
 			relay = await createRelay(adminPubkey);
 			rememberAdminServiceBaseUrl(relay.relay_url, relay.base_url);
+			await waitForRelayReady(relay.relay_url);
 			const profileImageUrl = await uploadCommunityImage();
 			adminRelaySet = await (adminRelaySetFetch || fetchAdminRelaySet(adminPubkey));
 			publishRelayList(adminPubkey, relay.relay_url);
@@ -477,13 +681,116 @@
 				relay.relay_url,
 				() => {
 					if (!relay) return;
-					publishCommunityProfile(relay.relay_url, profileImageUrl);
-					void goto(resolve(`/admin/${encodeURIComponent(relay.relay_url)}`));
+					publishCreatorProfile(
+						adminPubkey,
+						relay.relay_url,
+						creatorProfileEvent,
+						() => {
+							if (!relay) return;
+							publishCommunityProfile(
+								relay.relay_url,
+								profileImageUrl,
+								() => {
+									if (!relay) return;
+									void goto(resolve(`/admin/${encodeURIComponent(relay.relay_url)}`));
+								},
+								(err) => {
+									state = 'error';
+									error = err.message;
+								}
+							);
+						},
+						(err) => {
+							state = 'error';
+							error = err.message;
+						}
+					);
 				},
 				(err) => {
 					state = 'error';
 					error = err.message;
 				}
+			);
+		} catch (err) {
+			state = 'error';
+			error = err instanceof Error ? err.message : 'Could not create community.';
+		}
+	}
+
+	async function createCommunity() {
+		if (
+			!canCreate ||
+			state === 'finding-profile' ||
+			state === 'creating-account' ||
+			state === 'creating-relay'
+		) {
+			return;
+		}
+
+		error = '';
+		recoveryNsec = '';
+		relay = undefined;
+
+		try {
+			let adminPubkey = $key?.pub;
+			const isNewSignup = !adminPubkey;
+			if (isNewSignup) {
+				state = 'creating-account';
+				adminPubkey = await createLocalAccount();
+			} else {
+				state = 'finding-profile';
+				relayFeed = await (relayFeedFetch || fetchRelayFeed(adminPubkey));
+			}
+
+			if (!isNewSignup) {
+				const foundProfile =
+					creatorProfile?.pubkey() === adminPubkey && creatorProfile.kind() === 0
+						? creatorProfile
+						: await fetchCreatorProfile(adminPubkey);
+				const existingProfile = foundProfile ? asKind0(foundProfile) : undefined;
+				if (!existingProfile) {
+					creatorProfileLookupDone = true;
+					throw new Error(
+						'Could not find a kind-0 profile for this account. Community creation requires the existing profile for the provided pubkey.'
+					);
+				}
+				fetchedCreatorProfile = foundProfile;
+				creatorProfileLookupDone = true;
+				const creatorProfileEvent = buildProfileReplicationEvent(existingProfile, {}, now());
+				await continueCommunityCreation(adminPubkey, creatorProfileEvent);
+				return;
+			}
+
+			if (!adminPubkey) throw new Error('Could not create the account.');
+			if (creatorName.trim().length < 2) {
+				throw new Error('A profile with your name is required to create a community.');
+			}
+
+			state = 'creating-account';
+			const creatorPictureUrl = await uploadCreatorPicture();
+			const creatorProfileEvent = buildProfileReplicationEvent(
+				undefined,
+				{
+					name: creatorName.trim(),
+					display_name: creatorName.trim(),
+					picture: creatorPictureUrl || undefined,
+					about: `Creator of ${communityName.trim()}`
+				},
+				now()
+			);
+			publishRequiredEvent(
+				'community_creator_profile_source_' + adminPubkey,
+				creatorProfileEvent,
+				() => {
+					creatorProfileLookupDone = true;
+					void continueCommunityCreation(adminPubkey, creatorProfileEvent);
+				},
+				(err) => {
+					state = 'error';
+					error = err.message;
+				},
+				INDEXER_RELAYS,
+				'Your profile could not be created, so the community was not created.'
 			);
 		} catch (err) {
 			state = 'error';
@@ -510,12 +817,14 @@
 		if ($key?.pub) {
 			fetchAdminRelaySet($key.pub);
 			fetchRelayFeed($key.pub);
+			void loadCreatorProfile($key.pub);
 		}
 	});
 
 	onDestroy(() => {
 		unsubscribeAdminRelaySet?.();
 		unsubscribeRelayFeed?.();
+		unsubscribeCreatorProfile?.();
 		cleanupPublishes();
 	});
 </script>
@@ -645,7 +954,11 @@
 							>
 						</label>
 
-						<label class="grid gap-2">
+						<label
+							class="grid gap-2"
+							on:dragover={handleImageDragOver}
+							on:drop={handleCommunityImageDrop}
+						>
 							<span class="text-sm font-black text-stone-600"
 								>Community image <em class="font-semibold not-italic">(optional)</em></span
 							>
@@ -672,7 +985,7 @@
 									</span>
 								{/if}
 								<span>
-									<strong class="block text-lg font-black">Upload image</strong>
+									<strong class="block text-lg font-black">Upload or drop image</strong>
 									<small class="mt-1 block text-sm font-semibold text-stone-500"
 										>{communityImageName || 'JPG, PNG or GIF. Max 5MB'}</small
 									>
@@ -680,7 +993,37 @@
 							</span>
 						</label>
 
-						{#if !accountReady}
+						{#if accountReady && !creatorProfile && !creatorProfileLookupDone}
+							<div
+								class="flex items-center gap-3 rounded-xl border border-stone-200 bg-stone-50/70 p-4 text-sm font-bold text-stone-600"
+							>
+								<Loader2 class="animate-spin" size={18} />
+								Looking for your Nostr profile…
+							</div>
+						{:else if accountReady && !creatorProfile}
+							<div class="rounded-xl border border-red-200 bg-red-50 p-4">
+								<p class="font-black text-red-950">Kind-0 profile not found</p>
+								<p class="mt-1 text-sm font-semibold leading-6 text-red-900">
+									This signed-in pubkey cannot create a community until its existing profile can be
+									retrieved.
+								</p>
+								<button
+									type="button"
+									class="mt-3 rounded-lg border border-red-300 bg-white px-3 py-2 text-sm font-black text-red-950"
+									on:click={() => $key?.pub && loadCreatorProfile($key.pub)}
+								>
+									Retry profile lookup
+								</button>
+							</div>
+						{/if}
+
+						{#if needsCreatorProfile}
+							<div class="rounded-xl border border-amber-200 bg-amber-50 p-4">
+								<p class="font-black text-amber-950">Create your profile first</p>
+								<p class="mt-1 text-sm font-semibold leading-6 text-amber-900">
+									A kind-0 profile is required before the community relay can be created.
+								</p>
+							</div>
 							<label class="grid gap-2">
 								<span class="text-sm font-black text-stone-600">Your name</span>
 								<input
@@ -691,7 +1034,11 @@
 								/>
 							</label>
 
-							<label class="grid gap-2">
+							<label
+								class="grid gap-2"
+								on:dragover={handleImageDragOver}
+								on:drop={handlePictureDrop}
+							>
 								<span class="text-sm font-black text-stone-600"
 									>Your picture <em class="font-semibold not-italic">(optional)</em></span
 								>
@@ -714,7 +1061,7 @@
 										</span>
 									{/if}
 									<span>
-										<strong class="block font-black">Upload profile picture</strong>
+										<strong class="block font-black">Upload or drop profile picture</strong>
 										<small class="mt-1 block text-sm font-semibold text-stone-500"
 											>{pictureName || 'Optional account picture'}</small
 										>
@@ -750,14 +1097,21 @@
 					<button
 						type="button"
 						class="inline-flex h-14 items-center justify-center gap-3 rounded-xl bg-emerald-950 px-7 text-base font-black text-white shadow-lg shadow-emerald-950/20 transition hover:bg-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-						disabled={!canCreate || state === 'creating-account' || state === 'creating-relay'}
+						disabled={!canCreate ||
+							state === 'finding-profile' ||
+							state === 'creating-account' ||
+							state === 'creating-relay'}
 						on:click={createCommunity}
 					>
-						{#if state === 'creating-account' || state === 'creating-relay'}
+						{#if state === 'finding-profile' || state === 'creating-account' || state === 'creating-relay'}
 							<span class="animate-spin">
 								<Loader2 size={18} />
 							</span>
-							{state === 'creating-account' ? 'Creating account' : 'Creating community'}
+							{state === 'finding-profile'
+								? 'Finding profile'
+								: state === 'creating-account'
+									? 'Creating account'
+									: 'Creating community'}
 						{:else}
 							Create community
 							<ArrowRight size={20} />

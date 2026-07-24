@@ -3,14 +3,9 @@
 	import { resolve } from 'src/lib/paths';
 	import { page } from '$app/stores';
 	import imageCompression from 'browser-image-compression';
-	import {
-		getManager,
-		type ParsedEvent,
-		type RequestObject,
-		type WorkerMessage
-	} from '@candypoets/nipworker';
+	import { type ParsedEvent, type RequestObject, type WorkerMessage } from '@candypoets/nipworker';
 	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
-	import { isConnectionStatus, isParsedEvent } from '@candypoets/nipworker/utils';
+	import { asKind0, isConnectionStatus, isParsedEvent } from '@candypoets/nipworker/utils';
 	import { schnorr } from '@noble/curves/secp256k1';
 	import { bytesToHex } from '@noble/hashes/utils';
 	import {
@@ -26,8 +21,10 @@
 		Ticket,
 		UserPlus
 	} from 'lucide-svelte';
-	import { getPublicKey, nip19, type EventTemplate } from 'nostr-tools';
-	import { key, kind10002 } from 'src/controller';
+	import { getPublicKey, type EventTemplate } from 'nostr-tools';
+	import { normalizeURL } from 'nostr-tools/utils';
+	import { onDestroy } from 'svelte';
+	import { key, kind0, kind10002 } from 'src/controller';
 	import {
 		buildRelayListTagsWithReadRelay,
 		buildRelayRoleSetTags,
@@ -36,13 +33,14 @@
 	} from 'src/lib/adminRelays';
 	import { INDEXER_RELAYS } from 'src/lib/env';
 	import { makeInviteAuthorization } from 'src/lib/invites';
+	import { setSignerAndWait } from 'src/lib/managerAuth';
 	import { now } from 'src/lib/period';
+	import { buildProfileReplicationEvent } from 'src/lib/profileReplication';
 	import { uploadFile } from 'src/lib/upload';
 	import { decodePrivKey } from 'src/lib/wallet';
 
 	type RedeemState = 'idle' | 'loading-community' | 'redeeming' | 'done' | 'error';
 
-	const manager = getManager();
 	const INVITE_INDEX_RELAYS = INDEXER_RELAYS;
 
 	let state: RedeemState = 'idle';
@@ -61,6 +59,8 @@
 	let membershipCheckKey = '';
 	let checkingMembership = false;
 	let alreadyMember = false;
+	let profilePublishUnsubscribe: (() => void) | undefined;
+	let profilePublishTimeout: number | undefined;
 
 	$: token = $page.url.searchParams.get('token') || '';
 	$: relayBaseUrl = normalizeRelayBaseUrl($page.url.searchParams.get('relay') || '');
@@ -216,19 +216,14 @@
 		error = '';
 		try {
 			const pubkey = await nostr.getPublicKey();
-			manager.setSigner('nip07');
-			$key = {
-				pub: pubkey,
-				npub: nip19.npubEncode(pubkey),
-				hasSigner: true
-			};
+			await setSignerAndWait('nip07', undefined, pubkey);
 		} catch (err) {
 			state = 'error';
 			error = err instanceof Error ? err.message : 'Could not connect signer.';
 		}
 	}
 
-	function createLocalAccount() {
+	async function createLocalAccount() {
 		if (!displayName.trim()) {
 			state = 'error';
 			error = 'Add your name to create an account.';
@@ -238,73 +233,130 @@
 		const privkey = bytesToHex(secret);
 		const pubkey = bytesToHex(schnorr.getPublicKey(secret));
 
-		manager.setSigner('privkey', privkey);
-		$key = {
-			pub: pubkey,
-			priv: privkey,
-			npub: nip19.npubEncode(pubkey),
-			nsec: nip19.nsecEncode(secret),
-			hasSigner: true
-		};
-		error = '';
-		state = 'idle';
-		void redeemInviteWithPubkey(pubkey, true);
+		try {
+			await setSignerAndWait('privkey', privkey, pubkey);
+			error = '';
+			state = 'idle';
+			void redeemInviteWithPubkey(pubkey, true);
+		} catch (err) {
+			state = 'error';
+			error = err instanceof Error ? err.message : 'Could not create the account signer.';
+		}
 	}
 
-	async function publishProfile(pubkey: string) {
-		const pictureUrl = await uploadProfilePicture();
-		const metadata: EventTemplate = {
-			kind: 0,
-			tags: [],
-			content: JSON.stringify({
-				name: displayName.trim(),
-				display_name: displayName.trim(),
-				picture: pictureUrl || undefined,
-				about: `Member of ${communityName}`
-			}),
-			created_at: now()
-		};
+	async function prepareProfileEvent(pubkey: string, createdLocalAccount: boolean) {
+		let pictureUrl = '';
+		if (createdLocalAccount) {
+			try {
+				pictureUrl = await uploadProfilePicture();
+			} catch (err) {
+				console.warn('[redeem-profile] profile picture upload failed', err);
+			}
+		}
 
-		const profileRelays = Array.from(
-			new Set([...INVITE_INDEX_RELAYS, ...(communityRelayUrl ? [communityRelayUrl] : [])])
-		);
-
-		console.log('[redeem-profile] publish kind0', {
-			pubkey,
-			communityRelayUrl,
-			profileRelays,
-			hasPicture: !!pictureUrl
-		});
-		usePublish('invite_signup_' + pubkey, metadata, (message: WorkerMessage) => {
-			const status = isConnectionStatus(message);
-			const relayUrl = status?.relayUrl();
-			if (!status || !relayUrl) return;
-			console.log('[redeem-profile] kind0 relay status', {
+		let existingProfile = $kind0?.pubkey() === pubkey && $kind0.kind() === 0 ? $kind0 : undefined;
+		if (!createdLocalAccount && !existingProfile) {
+			existingProfile = await fetchExistingEvent(
 				pubkey,
-				relay: relayUrl,
-				status: status.status()?.toString(),
-				message: status.message?.()
-			});
-		}, {
-			trackStatus: true,
-			defaultRelays: profileRelays
-		});
+				[
+					{
+						kinds: [0],
+						authors: [pubkey],
+						limit: 10,
+						relays: INVITE_INDEX_RELAYS,
+						cacheFirst: true
+					}
+				],
+				(event) => event.kind() === 0 && event.pubkey() === pubkey
+			);
+		}
+
+		return buildProfileReplicationEvent(
+			existingProfile ? asKind0(existingProfile) : undefined,
+			createdLocalAccount
+				? {
+						name: displayName.trim(),
+						display_name: displayName.trim(),
+						picture: pictureUrl || undefined,
+						about: `Member of ${communityName}`
+					}
+				: {},
+			now()
+		);
 	}
 
-	function loginWithPrivateKey() {
+	function publishProfileToCommunity(
+		pubkey: string,
+		profileEvent: EventTemplate,
+		createdLocalAccount: boolean,
+		onSuccess: () => void,
+		onError: (error: Error) => void
+	) {
+		if (!communityRelayUrl) {
+			onError(new Error('The invite is missing its community relay.'));
+			return;
+		}
+
+		profilePublishUnsubscribe?.();
+		if (profilePublishTimeout !== undefined) window.clearTimeout(profilePublishTimeout);
+
+		const targetRelay = normalizeURL(communityRelayUrl);
+		const profileRelays = createdLocalAccount
+			? Array.from(new Set([...INVITE_INDEX_RELAYS, communityRelayUrl]))
+			: [communityRelayUrl];
+		let settled = false;
+		let unsubscribePublish: () => void = () => {};
+
+		const finish = (result: 'success' | 'error', publishError?: Error) => {
+			if (settled) return;
+			settled = true;
+			if (profilePublishTimeout !== undefined) {
+				window.clearTimeout(profilePublishTimeout);
+				profilePublishTimeout = undefined;
+			}
+			unsubscribePublish();
+			if (profilePublishUnsubscribe === unsubscribePublish) {
+				profilePublishUnsubscribe = undefined;
+			}
+			if (result === 'success') onSuccess();
+			else onError(publishError || new Error('Could not publish the profile.'));
+		};
+
+		profilePublishTimeout = window.setTimeout(() => {
+			finish('error', new Error(`The ${communityName} relay did not confirm your profile.`));
+		}, 12000);
+
+		unsubscribePublish = usePublish(
+			'invite_profile_' + pubkey,
+			profileEvent,
+			(message: WorkerMessage) => {
+				const status = isConnectionStatus(message);
+				const relayUrl = status?.relayUrl();
+				if (!status || !relayUrl || normalizeURL(relayUrl) !== targetRelay) return;
+
+				console.log('[redeem-profile] kind0 community relay status', {
+					pubkey,
+					relay: relayUrl,
+					status: status.status()?.toString(),
+					message: status.message?.()
+				});
+				if (status.status() === 'true') window.setTimeout(() => finish('success'), 0);
+			},
+			{
+				trackStatus: true,
+				defaultRelays: profileRelays
+			}
+		);
+		profilePublishUnsubscribe = unsubscribePublish;
+	}
+
+	async function loginWithPrivateKey() {
 		if (!privateKey.trim()) return;
 		try {
 			const secret = decodePrivKey(privateKey.trim());
 			const pubkey = getPublicKey(secret);
 			const privkey = bytesToHex(secret);
-			manager.setSigner('privkey', privkey);
-			$key = {
-				pub: pubkey,
-				priv: privkey,
-				npub: nip19.npubEncode(pubkey),
-				nsec: nip19.nsecEncode(secret),
-				hasSigner: true
-			};
+			await setSignerAndWait('privkey', privkey, pubkey);
 			error = '';
 			state = 'idle';
 		} catch (err) {
@@ -543,14 +595,30 @@
 			if (!response.ok) {
 				throw new Error(data?.error || data?.message || 'Could not redeem invite.');
 			}
-			if (publishLocalProfile) await publishProfile(pubkey);
+			const profileEvent = await prepareProfileEvent(pubkey, publishLocalProfile);
 			await publishMembershipIndexes(pubkey);
-			state = 'done';
-			alreadyMember = true;
-			console.log('[redeem-flow] redeem done', {
+			publishProfileToCommunity(
 				pubkey,
-				communityRelayUrl
-			});
+				profileEvent,
+				publishLocalProfile,
+				() => {
+					state = 'done';
+					alreadyMember = true;
+					console.log('[redeem-flow] redeem done', {
+						pubkey,
+						communityRelayUrl
+					});
+				},
+				(err) => {
+					state = 'error';
+					error = err.message;
+					console.warn('[redeem-flow] profile replication failed', {
+						pubkey,
+						communityRelayUrl,
+						error
+					});
+				}
+			);
 		} catch (err) {
 			state = 'error';
 			error = err instanceof Error ? err.message : 'Could not redeem invite.';
@@ -560,6 +628,11 @@
 			});
 		}
 	}
+
+	onDestroy(() => {
+		if (profilePublishTimeout !== undefined) window.clearTimeout(profilePublishTimeout);
+		profilePublishUnsubscribe?.();
+	});
 </script>
 
 <svelte:head>
