@@ -17,6 +17,7 @@
 		type RelayInfo
 	} from 'src/lib/adminRelays';
 	import { DEFAULT_RELAYS, INDEXER_RELAYS } from 'src/lib/env';
+	import { switchAccountAndWait } from 'src/lib/managerAuth';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import { go } from 'src/routes/modals/modal';
 	import { communityDirectoryQuery, communityRoleSetsQuery } from 'src/routes/queries/communities';
@@ -68,6 +69,14 @@
 
 	function openCommunityDashboard(url: string) {
 		void goto(resolve(`/admin/${encodeURIComponent(url)}`));
+	}
+
+	async function selectAccount(pubkey: string) {
+		try {
+			await switchAccountAndWait(pubkey);
+		} catch (error) {
+			console.error('Could not switch account', error);
+		}
 	}
 
 	function subscribeAdminRelaySets(addresses: string[]) {
@@ -159,7 +168,7 @@
 			<div class="flex gap-2">
 				{#each accounts as key, index (key)}
 					<button
-						on:click={() => (index ? manager.switchAccount(key) : go('kind0'))}
+						on:click={() => (index ? selectAccount(key) : go('kind0'))}
 						class="btn btn-circle"
 					>
 						<Avatar pubkey={key} size="xl" customClass={!index ? 'border border-accent' : ''} />

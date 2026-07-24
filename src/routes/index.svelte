@@ -88,13 +88,6 @@
 
 	const manager = getManager();
 
-	// $: $key && $key.priv && manager.setSigner('privkey', $key.priv);
-	//
-	manager.addEventListener('auth', (event) => {
-		$key.pub = event.detail.pubkey;
-		$key.hasSigner = event.detail.hasSigner;
-	});
-
 	setupPagerAnimators($viewport, goBackRouter, goToRootRouter);
 
 	const connectionTracker = new ConnectionTracker();

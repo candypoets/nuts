@@ -11,7 +11,7 @@
 
 	function handleLogout() {
 		// Clear persistent stores to prevent stale data on reload
-		key.set({});
+		key.set({ pub: '', npub: '' });
 		walletMnemonic.set('');
 		walletPassphrase.set('');
 

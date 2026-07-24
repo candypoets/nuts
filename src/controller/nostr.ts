@@ -211,6 +211,20 @@ export const kind10096: Writable<ParsedEvent | undefined> = writable();
 export const kind10063Ready = resolvable<ParsedEvent>();
 export const kind10096Ready = resolvable<ParsedEvent>();
 
+export function resetAccountNostrState() {
+	kind0.set(undefined);
+	kind3.set(undefined);
+	kind10000.set(undefined);
+	kind10002.set(undefined);
+	kind10012.set(undefined);
+	relayRoleSets.set([]);
+	kind10019.set(undefined);
+	kind17375.set(undefined);
+	kind10063.set(undefined);
+	kind10096.set(undefined);
+	kinds7375.set([]);
+}
+
 // Derived stores for file server URLs
 export const blossomServers = derived(kind10063, ($kind10063) => {
 	if (!$kind10063) return [];

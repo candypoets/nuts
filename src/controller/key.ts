@@ -8,7 +8,7 @@ export type Key = {
 	hasSigner?: boolean;
 };
 
-export const key = persistentWritable<Key>('key', {});
+export const key = persistentWritable<Key>('key', { pub: '', npub: '' });
 
 export const walletMnemonic = persistentWritable<string>('wallet/mnemonic', '');
 export const walletMnemonicIndex = persistentWritable<number>('wallet/mnemonic_index', 0);

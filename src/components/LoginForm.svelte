@@ -12,10 +12,11 @@
 	import imageCompression from 'browser-image-compression';
 	import { getPublicKey, kinds, nip19, type EventTemplate } from 'nostr-tools';
 
-	import { key, walletMnemonic, walletMnemonicIndex, walletPassphrase } from 'src/controller';
+	import { walletMnemonic, walletMnemonicIndex, walletPassphrase } from 'src/controller';
 	import { setNutsWallet } from 'src/controller/proofs';
 	import { updateSendStatus } from 'src/controller/sendStatus';
 	import { DEFAULT_RELAYS } from 'src/lib/env';
+	import { setSignerAndWait } from 'src/lib/managerAuth';
 	import { now } from 'src/lib/period';
 	import { uploadFile } from 'src/lib/upload';
 	import { decodePrivKey, DEFAULT_MINTS, deriveFromMnemonic } from 'src/lib/wallet';
@@ -81,23 +82,21 @@
 		const loginSub = useSubscription(
 			'login_' + pubkey,
 			[{ kinds: [kinds.Metadata], authors: [pubkey], limit: 3, relays: [] }],
-			(message: WorkerMessage) => {
+			async (message: WorkerMessage) => {
 				const kind0 = isKind0(message);
 				if (kind0) {
-					loading = false;
-					// $key = {
-					// 	pub: pubkey,
-					// 	priv: privkey,
-					// 	npub: nip19.npubEncode(pubkey),
-					// 	nsec: nip19.nsecEncode(pk)
-					// };
-					manager.setSigner('privkey', privkey);
-					loginSub();
-					// If we have an animator (inside modal), go back, otherwise redirect
-					if (animator) {
-						animator.goBack();
-					} else if (redirect) {
-						goto(resolve('/explore'));
+					try {
+						await setSignerAndWait('privkey', privkey, pubkey);
+						loginSub();
+						if (animator) {
+							animator.goBack();
+						} else if (redirect) {
+							goto(resolve('/explore'));
+						}
+					} catch (error) {
+						console.error('Could not select private-key account', error);
+					} finally {
+						loading = false;
 					}
 				}
 			}
@@ -109,12 +108,7 @@
 			loading = true;
 			const pubkey = await window.nostr.getPublicKey();
 			if (pubkey) {
-				manager.setSigner('nip07');
-				$key = {
-					pub: pubkey,
-					npub: nip19.npubEncode(pubkey),
-					hasSigner: true
-				};
+				await setSignerAndWait('nip07', undefined, pubkey);
 				// If we have an animator (inside modal), go back, otherwise redirect
 				if (animator) {
 					animator.goBack();
@@ -253,16 +247,7 @@
 		const privkey = bytesToHex(priv);
 		const pubkey = bytesToHex(schnorr.getPublicKey(priv));
 
-		// Handle signup logic here
-		//
-		manager.setSigner('privkey', privkey);
-
-		// $key = {
-		// 	pub: pubkey,
-		// 	priv: privkey,
-		// 	npub: nip19.npubEncode(pubkey),
-		// 	nsec: nip19.nsecEncode(priv)
-		// };
+		await setSignerAndWait('privkey', privkey, pubkey);
 
 		const uploadedPicture = await uploadProfilePicture();
 		if (pictureFile && !uploadedPicture) {
@@ -309,7 +294,7 @@
 				const decoded = nip19.decode(pubkeyInput);
 				if (decoded.type === 'npub') {
 					const pubkey = decoded.data as string;
-					manager.setSigner('pubkey', pubkey);
+					await setSignerAndWait('pubkey', pubkey, pubkey);
 					// If we have an animator (inside modal), go back, otherwise redirect
 					if (animator) {
 						animator.goBack();
@@ -325,7 +310,7 @@
 
 		// Handle hex pubkey (64 character hex string)
 		if (/^[0-9a-fA-F]{64}$/.test(pubkeyInput)) {
-			manager.setSigner('pubkey', pubkeyInput);
+			await setSignerAndWait('pubkey', pubkeyInput, pubkeyInput);
 			// If we have an animator (inside modal), go back, otherwise redirect
 			if (animator) {
 				animator.goBack();
