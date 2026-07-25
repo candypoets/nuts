@@ -159,6 +159,11 @@ export class PagerAnimator {
 		this.captureElementSize(this.main);
 		// Ensure visibility applied if mode was decided before main arrived
 		this.applyCombinedVisibility();
+		// Child surfaces mount before Pager's onMount callback on an initial
+		// deep-link load. Reconcile that pre-registered stack synchronously so
+		// the first painted state is already at the correct depth.
+		const depths = this.updateAllSubElements(0, 0, undefined, true);
+		this.updateMainContent(0, 0, true, depths);
 	}
 
 	/**
@@ -170,6 +175,15 @@ export class PagerAnimator {
 		for (const element of this.stack) {
 			this.captureElementSize(element);
 		}
+		// The root layout initializes viewport dimensions after child surfaces
+		// mount. Reapply the current depth when those real dimensions arrive.
+		const depths = this.updateAllSubElements(
+			this.pendingDeltaX,
+			this.pendingDeltaY,
+			undefined,
+			true
+		);
+		this.updateMainContent(this.pendingDeltaX, this.pendingDeltaY, true, depths);
 		// Optionally re-evaluate on viewport change if you prefer dynamic switching:
 		// this.setMobileMode();
 	}
@@ -365,6 +379,10 @@ export class PagerAnimator {
 	registerElement(element: HTMLElement) {
 		if (this.stack.includes(element)) return;
 
+		// A surface registered before main content belongs to the initial URL,
+		// rather than to an in-app navigation.
+		const isInitialMount = !this.main;
+
 		// GPU acceleration hints
 		element.style.willChange = 'transform, opacity';
 		element.style.backfaceVisibility = 'hidden';
@@ -378,8 +396,13 @@ export class PagerAnimator {
 		// Apply visibility rules first
 		this.applyCombinedVisibility();
 
-		const depths = this.updateAllSubElements(0, 0, 'in');
-		this.updateMainContent(0, 0, false, depths);
+		const depths = this.updateAllSubElements(
+			0,
+			0,
+			isInitialMount ? undefined : 'in',
+			isInitialMount
+		);
+		this.updateMainContent(0, 0, isInitialMount, depths);
 	}
 
 	/**
