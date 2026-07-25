@@ -357,9 +357,10 @@
 		loading = true;
 		const requests = buildRequests(isPagination);
 		if (requests.length > 0) {
+			const subscriptionKey = 'notifications_' + $key.pub + '_' + notificationRelayKey;
 			const subId = isPagination
-				? 'notifications_page_' + $key.pub + '_' + paginationCounter + '_' + until
-				: 'notifications_' + $key.pub;
+				? subscriptionKey + '_page_' + paginationCounter + '_' + until
+				: subscriptionKey;
 			if (!isPagination) {
 				unsubscribe?.();
 			}
@@ -379,7 +380,7 @@
 		}
 	}
 
-	$: if (visible && $key?.pub && !hasInitialized) {
+	$: if (visible && $key?.pub && notificationRelays.length && !hasInitialized) {
 		initSubscription();
 	}
 
