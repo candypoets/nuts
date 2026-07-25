@@ -88,7 +88,7 @@
 
 		const totalRows = Math.ceil(items.length / itemsPerRow);
 
-		while (content_height < viewport_height && i < totalRows) {
+		while (content_height < viewport_height * 2 && i < totalRows) {
 			let row = rows[i - start];
 			if (!row) {
 				end = i + 1;
