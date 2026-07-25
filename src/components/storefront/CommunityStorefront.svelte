@@ -119,7 +119,7 @@
 				tags: { '#t': [CATALOG_SELLABLE_TAG] },
 				limit: 500,
 				relays: [targetRelay],
-				cacheFirst: true
+				noCache: true
 			}
 		];
 
