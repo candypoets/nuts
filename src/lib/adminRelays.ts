@@ -181,6 +181,28 @@ export function mergeRelayFeedIndexTags(
 	return tags;
 }
 
+export function createRelayEoseTracker(relays: string[]) {
+	const pendingRelays = new Set(relays.map((relay) => normalizeURL(relay)));
+	const relayCount = pendingRelays.size;
+
+	return (status: string | null | undefined, relayUrl: string | null | undefined) => {
+		if (status === 'EOSE' && relayUrl) {
+			pendingRelays.delete(normalizeURL(relayUrl));
+		}
+		return {
+			completed: relayCount - pendingRelays.size,
+			settled: pendingRelays.size === 0
+		};
+	};
+}
+
+export function nextReplaceableCreatedAt(
+	existingEvent: ParsedEvent | undefined,
+	currentTimestamp: number
+) {
+	return Math.max(currentTimestamp, (existingEvent?.createdAt() || 0) + 1);
+}
+
 function relayInfoUrl(relayUrl: string) {
 	const normalized = normalizeURL(relayUrl);
 	if (normalized.startsWith('wss://')) return `https://${normalized.slice(6)}`;

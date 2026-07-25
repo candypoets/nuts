@@ -35,7 +35,12 @@
 		ADMIN_RELAY_SET_D,
 		buildAdminRelaySetTags,
 		buildRelayListTagsWithReadRelay,
-		mergeRelayFeedIndexTags
+		createRelayEoseTracker,
+		mergeRelayFeedIndexTags,
+		nextReplaceableCreatedAt,
+		relaySetAddress,
+		relaySetAddressesFromRelayFeedEvent,
+		relayUrlsFromRelaySet
 	} from 'src/lib/adminRelays';
 	import { buildCommunityProfileTags, COMMUNITY_PROFILE_KIND } from 'src/lib/communityProfile';
 	import { archetypeFor, COMMUNITY_ARCHETYPES, type CommunityType } from 'src/lib/communityTypes';
@@ -68,8 +73,18 @@
 		admin_pubkeys: string[];
 	};
 
+	type DirectoryLookup = {
+		ready: Promise<void>;
+		settled: Promise<void>;
+		stop: () => void;
+	};
+
 	const coordinatorUrl = import.meta.env.VITE_COORDINATOR_URL || 'https://coordinator.nuts.cash';
 	const RELAY_LIST_PUBLISH_RELAYS = ['wss://relay.nuts.cash', 'wss://relay.damus.io'];
+	const DIRECTORY_READY_EOSE_COUNT = 2;
+	const DIRECTORY_READY_TIMEOUT_MS = 2500;
+	const DIRECTORY_SETTLE_TIMEOUT_MS = 5000;
+	const DIRECTORY_VERIFY_TIMEOUT_MS = 5000;
 
 	let communityName = '';
 	let communityDescription = '';
@@ -89,10 +104,10 @@
 	let qrRequest = 0;
 	let adminRelaySet: ParsedEvent | undefined;
 	let relayFeed: ParsedEvent | undefined;
-	let adminRelaySetFetch: Promise<ParsedEvent | undefined> | undefined;
-	let relayFeedFetch: Promise<ParsedEvent | undefined> | undefined;
-	let unsubscribeAdminRelaySet: (() => void) | undefined;
-	let unsubscribeRelayFeed: (() => void) | undefined;
+	let adminRelaySetLookup: DirectoryLookup | undefined;
+	let relayFeedLookup: DirectoryLookup | undefined;
+	let checkAdminRelaySetVerification: (() => void) | undefined;
+	let cancelAdminRelaySetVerification: (() => void) | undefined;
 	let unsubscribeCreatorProfile: (() => void) | undefined;
 	let publishUnsubscribers: Array<() => void> = [];
 	let fetchedCreatorProfile: ParsedEvent | undefined;
@@ -421,36 +436,133 @@
 		onSuccess: () => void,
 		onError: (error: Error) => void
 	) {
-		const relaySet: EventTemplate = {
-			kind: 30002,
-			tags: buildAdminRelaySetTags(adminRelaySet, communityRelay),
-			content: '',
-			created_at: now()
-		};
-
+		const relayFeedSnapshot = relayFeed;
 		const relayFeeds: EventTemplate = {
 			kind: 10012,
-			tags: mergeRelayFeedIndexTags(relayFeed, pubkey, ['admin', 'member', 'following']),
+			tags: mergeRelayFeedIndexTags(relayFeedSnapshot, pubkey, ['admin', 'member', 'following']),
 			content: '',
-			created_at: now()
+			created_at: nextReplaceableCreatedAt(relayFeedSnapshot, now())
 		};
 
 		publishRequiredEvent(
 			'community_relay_feeds_' + pubkey,
 			relayFeeds,
 			() => {
-				publishRequiredEvent('community_admin_relay_set_' + pubkey, relaySet, onSuccess, onError);
+				const adminRelaySetSnapshot = adminRelaySet;
+				const relaySetCreatedAt = nextReplaceableCreatedAt(adminRelaySetSnapshot, now());
+				const relaySet: EventTemplate = {
+					kind: 30002,
+					tags: buildAdminRelaySetTags(adminRelaySetSnapshot, communityRelay),
+					content: '',
+					created_at: relaySetCreatedAt
+				};
+				const expectedRelays = new Set([
+					...relayUrlsFromRelaySet(adminRelaySetSnapshot),
+					normalizeURL(communityRelay)
+				]);
+
+				publishRequiredEvent(
+					'community_admin_relay_set_' + pubkey,
+					relaySet,
+					() =>
+						verifyAdminRelaySetPublication(expectedRelays, relaySetCreatedAt, onSuccess, onError),
+					onError
+				);
 			},
 			onError
 		);
 	}
 
+	function createDirectoryLookupProgress(relays: string[]) {
+		const trackEose = createRelayEoseTracker(relays);
+		let readyDone = false;
+		let settledDone = false;
+		let resolveReady: () => void = () => {};
+		let resolveSettled: () => void = () => {};
+		const ready = new Promise<void>((resolve) => {
+			resolveReady = resolve;
+		});
+		const settled = new Promise<void>((resolve) => {
+			resolveSettled = resolve;
+		});
+		const finishReady = () => {
+			if (readyDone) return;
+			readyDone = true;
+			window.clearTimeout(readyTimeout);
+			resolveReady();
+		};
+		const finishSettled = () => {
+			if (settledDone) return;
+			settledDone = true;
+			window.clearTimeout(settleTimeout);
+			finishReady();
+			resolveSettled();
+		};
+		const readyTimeout = window.setTimeout(finishReady, DIRECTORY_READY_TIMEOUT_MS);
+		const settleTimeout = window.setTimeout(finishSettled, DIRECTORY_SETTLE_TIMEOUT_MS);
+
+		return {
+			ready,
+			settled,
+			found: finishReady,
+			status(status: string | null | undefined, relayUrl: string | null | undefined) {
+				const progress = trackEose(status, relayUrl);
+				if (progress.completed >= Math.min(DIRECTORY_READY_EOSE_COUNT, relays.length)) {
+					finishReady();
+				}
+				if (progress.settled) finishSettled();
+			},
+			stop: finishSettled
+		};
+	}
+
+	function verifyAdminRelaySetPublication(
+		expectedRelays: Set<string>,
+		minimumCreatedAt: number,
+		onSuccess: () => void,
+		onError: (error: Error) => void
+	) {
+		cancelAdminRelaySetVerification?.();
+		let finished = false;
+		const finish = (verified: boolean) => {
+			if (finished) return;
+			finished = true;
+			window.clearTimeout(timeout);
+			checkAdminRelaySetVerification = undefined;
+			cancelAdminRelaySetVerification = undefined;
+			if (verified) {
+				onSuccess();
+			} else {
+				onError(new Error('The updated community list was published but could not be verified.'));
+			}
+		};
+		const check = () => {
+			if (!adminRelaySet || adminRelaySet.createdAt() < minimumCreatedAt) return;
+			const observedRelays = new Set(relayUrlsFromRelaySet(adminRelaySet));
+			if ([...expectedRelays].every((relayUrl) => observedRelays.has(relayUrl))) {
+				finish(true);
+			}
+		};
+		const timeout = window.setTimeout(() => finish(false), DIRECTORY_VERIFY_TIMEOUT_MS);
+		checkAdminRelaySetVerification = check;
+		cancelAdminRelaySetVerification = () => {
+			if (finished) return;
+			finished = true;
+			window.clearTimeout(timeout);
+			checkAdminRelaySetVerification = undefined;
+			cancelAdminRelaySetVerification = undefined;
+		};
+		check();
+	}
+
 	function fetchAdminRelaySet(pubkey: string) {
-		unsubscribeAdminRelaySet?.();
+		adminRelaySetLookup?.stop();
+		if (adminRelaySet?.pubkey() !== pubkey) adminRelaySet = undefined;
 
 		const relays = Array.from(
 			new Set([...INDEXER_RELAYS, ...DEFAULT_RELAYS, 'wss://relay.nuts.cash'])
 		);
+		const progress = createDirectoryLookupProgress(relays);
 		const requests: RequestObject[] = [
 			{
 				kinds: [30002],
@@ -458,92 +570,87 @@
 				tags: { '#d': [ADMIN_RELAY_SET_D] },
 				limit: 10,
 				relays,
-				cacheFirst: false,
-				noCache: true
+				cacheFirst: true,
+				closeOnEOSE: false
 			}
 		];
+		const unsubscribe = useSubscription(
+			'community_admin_relay_set_fetch_' + pubkey,
+			requests,
+			(message: WorkerMessage) => {
+				const status = isConnectionStatus(message);
+				progress.status(status?.status(), status?.relayUrl());
 
-		adminRelaySetFetch = new Promise((resolveAdminRelaySet) => {
-			let resolved = false;
-			const resolveLatest = () => {
-				if (resolved) return;
-				resolved = true;
-				window.clearTimeout(timeout);
-				resolveAdminRelaySet(adminRelaySet);
-			};
-			const timeout = window.setTimeout(resolveLatest, 3000);
-			unsubscribeAdminRelaySet = useSubscription(
-				'community_admin_relay_set_fetch_' + pubkey,
-				requests,
-				(message: WorkerMessage) => {
-					const status = isConnectionStatus(message);
-					if (status?.status() === 'EOSE') {
-						resolveLatest();
-						return;
-					}
-
-					const parsedEvent = isParsedEvent(message);
-					if (!parsedEvent || parsedEvent.kind() !== 30002) return;
-					const list = asNip51(parsedEvent);
-					if (list?.d() !== ADMIN_RELAY_SET_D) return;
-					if (!adminRelaySet || parsedEvent.createdAt() > adminRelaySet.createdAt()) {
-						adminRelaySet = parsedEvent;
-					}
-				},
-				{ bytesPerEvent: 10 * 1024 }
-			);
-		});
-
-		return adminRelaySetFetch;
+				const parsedEvent = isParsedEvent(message);
+				if (!parsedEvent || parsedEvent.kind() !== 30002 || parsedEvent.pubkey() !== pubkey) {
+					return;
+				}
+				const list = asNip51(parsedEvent);
+				if (list?.d() !== ADMIN_RELAY_SET_D) return;
+				if (!adminRelaySet || parsedEvent.createdAt() > adminRelaySet.createdAt()) {
+					adminRelaySet = parsedEvent;
+					checkAdminRelaySetVerification?.();
+				}
+				progress.found();
+			},
+			{ bytesPerEvent: 10 * 1024 }
+		);
+		adminRelaySetLookup = {
+			ready: progress.ready,
+			settled: progress.settled,
+			stop: () => {
+				unsubscribe();
+				progress.stop();
+			}
+		};
+		return adminRelaySetLookup;
 	}
 
 	function fetchRelayFeed(pubkey: string) {
-		unsubscribeRelayFeed?.();
+		relayFeedLookup?.stop();
+		if (relayFeed?.pubkey() !== pubkey) relayFeed = undefined;
 
 		const relays = Array.from(
 			new Set([...INDEXER_RELAYS, ...DEFAULT_RELAYS, 'wss://relay.nuts.cash'])
 		);
+		const progress = createDirectoryLookupProgress(relays);
 		const requests: RequestObject[] = [
 			{
 				kinds: [10012],
 				authors: [pubkey],
 				limit: 10,
 				relays,
-				cacheFirst: false,
-				noCache: true
+				cacheFirst: true,
+				closeOnEOSE: false
 			}
 		];
+		const unsubscribe = useSubscription(
+			'community_relay_feed_fetch_' + pubkey,
+			requests,
+			(message: WorkerMessage) => {
+				const status = isConnectionStatus(message);
+				progress.status(status?.status(), status?.relayUrl());
 
-		relayFeedFetch = new Promise((resolveRelayFeed) => {
-			let resolved = false;
-			const resolveLatest = () => {
-				if (resolved) return;
-				resolved = true;
-				window.clearTimeout(timeout);
-				resolveRelayFeed(relayFeed);
-			};
-			const timeout = window.setTimeout(resolveLatest, 3000);
-			unsubscribeRelayFeed = useSubscription(
-				'community_relay_feed_fetch_' + pubkey,
-				requests,
-				(message: WorkerMessage) => {
-					const status = isConnectionStatus(message);
-					if (status?.status() === 'EOSE') {
-						resolveLatest();
-						return;
-					}
-
-					const parsedEvent = isParsedEvent(message);
-					if (!parsedEvent || parsedEvent.kind() !== 10012) return;
-					if (!relayFeed || parsedEvent.createdAt() > relayFeed.createdAt()) {
-						relayFeed = parsedEvent;
-					}
-				},
-				{ bytesPerEvent: 10 * 1024 }
-			);
-		});
-
-		return relayFeedFetch;
+				const parsedEvent = isParsedEvent(message);
+				if (!parsedEvent || parsedEvent.kind() !== 10012 || parsedEvent.pubkey() !== pubkey) {
+					return;
+				}
+				if (!relayFeed || parsedEvent.createdAt() > relayFeed.createdAt()) {
+					relayFeed = parsedEvent;
+				}
+				progress.found();
+			},
+			{ bytesPerEvent: 10 * 1024 }
+		);
+		relayFeedLookup = {
+			ready: progress.ready,
+			settled: progress.settled,
+			stop: () => {
+				unsubscribe();
+				progress.stop();
+			}
+		};
+		return relayFeedLookup;
 	}
 
 	async function createRelay(adminPubkey: string) {
@@ -674,7 +781,21 @@
 			rememberAdminServiceBaseUrl(relay.relay_url, relay.base_url);
 			await waitForRelayReady(relay.relay_url);
 			const profileImageUrl = await uploadCommunityImage();
-			adminRelaySet = await (adminRelaySetFetch || fetchAdminRelaySet(adminPubkey));
+			await Promise.all([
+				adminRelaySetLookup?.settled || Promise.resolve(),
+				relayFeedLookup?.settled || Promise.resolve()
+			]);
+			if (
+				adminRelaySetLookup &&
+				!adminRelaySet &&
+				relaySetAddressesFromRelayFeedEvent(relayFeed).includes(
+					relaySetAddress(adminPubkey, 'admin')
+				)
+			) {
+				throw new Error(
+					'Your community index references an existing admin relay list, but that list could not be loaded. Please retry before creating another community.'
+				);
+			}
 			publishRelayList(adminPubkey, relay.relay_url);
 			publishCommunityRelaySet(
 				adminPubkey,
@@ -730,6 +851,7 @@
 		error = '';
 		recoveryNsec = '';
 		relay = undefined;
+		cancelAdminRelaySetVerification?.();
 
 		try {
 			let adminPubkey = $key?.pub;
@@ -739,7 +861,9 @@
 				adminPubkey = await createLocalAccount();
 			} else {
 				state = 'finding-profile';
-				relayFeed = await (relayFeedFetch || fetchRelayFeed(adminPubkey));
+				const adminLookup = fetchAdminRelaySet(adminPubkey);
+				const feedLookup = fetchRelayFeed(adminPubkey);
+				await Promise.all([adminLookup.ready, feedLookup.ready]);
 			}
 
 			if (!isNewSignup) {
@@ -822,8 +946,9 @@
 	});
 
 	onDestroy(() => {
-		unsubscribeAdminRelaySet?.();
-		unsubscribeRelayFeed?.();
+		adminRelaySetLookup?.stop();
+		relayFeedLookup?.stop();
+		cancelAdminRelaySetVerification?.();
 		unsubscribeCreatorProfile?.();
 		cleanupPublishes();
 	});

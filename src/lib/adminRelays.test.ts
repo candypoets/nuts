@@ -4,13 +4,16 @@ import type { ParsedEvent } from '@candypoets/nipworker';
 import {
 	PURCHASE_RELAY_SET_D,
 	buildRelayRoleSetTags,
+	createRelayEoseTracker,
 	mergeRelayFeedIndexTags,
+	nextReplaceableCreatedAt,
 	relayRoleFromSet,
 	relaySetAddress
 } from './adminRelays';
 
-function stubEvent(tags: string[][]): ParsedEvent {
+function stubEvent(tags: string[][], createdAt = 0): ParsedEvent {
 	return {
+		createdAt: () => createdAt,
 		tagsLength: () => tags.length,
 		tags: (tagIndex: number) => {
 			const tag = tags[tagIndex];
@@ -60,5 +63,38 @@ describe('purchase relay relationship', () => {
 			['a', relaySetAddress(pubkey, 'member')],
 			['a', relaySetAddress(pubkey, 'purchase')]
 		]);
+	});
+});
+
+describe('relay query completion', () => {
+	it('waits for EOSE from every requested relay', () => {
+		const trackEose = createRelayEoseTracker([
+			'wss://one.example',
+			'wss://two.example',
+			'wss://three.example'
+		]);
+
+		expect(trackEose('EOSE', 'wss://one.example/')).toEqual({
+			completed: 1,
+			settled: false
+		});
+		expect(trackEose('NOTICE', 'wss://two.example/')).toEqual({
+			completed: 1,
+			settled: false
+		});
+		expect(trackEose('EOSE', 'wss://two.example/')).toEqual({
+			completed: 2,
+			settled: false
+		});
+		expect(trackEose('EOSE', 'wss://three.example/')).toEqual({
+			completed: 3,
+			settled: true
+		});
+	});
+
+	it('publishes replaceable updates after the observed event timestamp', () => {
+		expect(nextReplaceableCreatedAt(stubEvent([], 100), 90)).toBe(101);
+		expect(nextReplaceableCreatedAt(stubEvent([], 100), 120)).toBe(120);
+		expect(nextReplaceableCreatedAt(undefined, 120)).toBe(120);
 	});
 });
