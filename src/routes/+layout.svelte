@@ -12,12 +12,11 @@
 	import { resumePendingTransactions, clearOldTransactions } from 'src/model/cashu/tx-recovery';
 
 	$: webManifestLink = pwaInfo ? pwaInfo.webManifest.linkTag : '';
-	$: standaloneRoute =
-		$page.url.pathname.startsWith('/create') ||
-		$page.url.pathname.startsWith('/admin') ||
-		$page.url.pathname.startsWith('/memberships') ||
-		$page.url.pathname.startsWith('/redeem') ||
-		$page.url.pathname.startsWith('/stripe/connect/return');
+	$: appShellRoute =
+		$page.route.id === '/' ||
+		$page.route.id?.startsWith('/home') ||
+		$page.route.id?.startsWith('/explore') ||
+		$page.route.id?.startsWith('/chat');
 
 	function setViewport() {
 		document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
@@ -71,12 +70,12 @@
 	{@html webManifestLink}
 </svelte:head>
 
-{#if standaloneRoute}
-	<slot />
-{:else}
+{#if appShellRoute}
 	{#key $key?.pub}
 		<App />
 	{/key}
+{:else}
+	<slot />
 {/if}
 
 {#if $zoomed !== undefined}

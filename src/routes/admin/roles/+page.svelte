@@ -13,6 +13,7 @@
 		MessageSquare,
 		Plus,
 		Save,
+		ShoppingBag,
 		ShieldCheck,
 		SlidersHorizontal,
 		UsersRound
@@ -21,6 +22,7 @@
 	import type { EventTemplate } from 'nostr-tools';
 	import { key, selectedAdminRelayUrl } from 'src/controller';
 	import { parsedEventTags } from 'src/lib/adminRelays';
+	import { BADGE_DEFINITION_TYPE_TOPICS } from 'src/lib/catalog';
 	import {
 		buildRoleDefinitionTags,
 		parseRoleAward,
@@ -32,7 +34,14 @@
 	import { now } from 'src/lib/period';
 	import { onDestroy } from 'svelte';
 
-	type PermissionKey = 'posts' | 'media' | 'events' | 'invites' | 'moderation' | 'settings';
+	type PermissionKey =
+		| 'posts'
+		| 'media'
+		| 'events'
+		| 'store'
+		| 'invites'
+		| 'moderation'
+		| 'settings';
 
 	type Role = {
 		name: string;
@@ -66,6 +75,12 @@
 			label: 'Create events',
 			description: 'Publish meetups and community events.',
 			icon: CalendarDays
+		},
+		{
+			key: 'store',
+			label: 'Manage store',
+			description: 'Publish products, passes and paid memberships.',
+			icon: ShoppingBag
 		},
 		{
 			key: 'invites',
@@ -107,6 +122,7 @@
 		posts: true,
 		media: true,
 		events: false,
+		store: false,
 		invites: false,
 		moderation: false,
 		settings: false
@@ -228,6 +244,7 @@
 				posts: true,
 				media: true,
 				events: true,
+				store: true,
 				invites: true,
 				moderation: true,
 				settings: true
@@ -237,6 +254,7 @@
 			posts: true,
 			media: true,
 			events: normalized === 'coach',
+			store: false,
 			invites: false,
 			moderation: false,
 			settings: false
@@ -325,7 +343,9 @@
 			parsedEventTags(parsedEvent)
 				.filter((tag) => tag[0] === 'a' && tag[1]?.startsWith('30009:'))
 				.map((tag) => tag[1])
-				.filter((address): address is string => Boolean(address) && address.split(':')[1] === author)
+				.filter(
+					(address): address is string => Boolean(address) && address.split(':')[1] === author
+				)
 		);
 		if (!deletedAddresses.size) return;
 		roleDefinitions = roleDefinitions.filter(
@@ -347,9 +367,17 @@
 
 		const roleDefinitionRequests: RequestObject[] = [
 			{
-				kinds: [30009, 5],
+				kinds: [30009],
+				tags: { '#t': [BADGE_DEFINITION_TYPE_TOPICS.role] },
 				limit: 100,
-				relays: [relayUrl]
+				relays: [relayUrl],
+				cacheFirst: true
+			},
+			{
+				kinds: [5],
+				limit: 100,
+				relays: [relayUrl],
+				cacheFirst: true
 			}
 		];
 		const roleAwardRequests: RequestObject[] = [
@@ -361,7 +389,7 @@
 		];
 
 		unsubscribeRoleDefinitions = useSubscription(
-			'admin_role_definitions_' + relayUrl,
+			roleDefinitionSubscriptionId(relayUrl),
 			roleDefinitionRequests,
 			(message: WorkerMessage) => {
 				const parsedEvent = isParsedEvent(message);
@@ -389,6 +417,10 @@
 		window.setTimeout(() => {
 			loadingRoles = false;
 		}, 1800);
+	}
+
+	function roleDefinitionSubscriptionId(url: string) {
+		return 'admin_role_definitions_classified_v1_' + url;
 	}
 
 	function togglePermission(roleName: string, key: PermissionKey) {
@@ -450,28 +482,18 @@
 			},
 			{
 				trackStatus: true,
-				defaultRelays: [relayUrl]
+				defaultRelays: [relayUrl],
+				subId: roleDefinitionSubscriptionId(relayUrl)
 			}
 		);
 
-		roleDefinitions = [
-			...roleDefinitions,
-			{
-				address: `30009:${pubkey}:${d}`,
-				pubkey,
-				d,
-				name: roleName,
-				description: roleDescription,
-				permissions: permissionsToList(newRolePermissions),
-				createdAt: now()
-			}
-		].sort((a, b) => a.name.localeCompare(b.name));
 		newRoleName = '';
 		newRoleDescription = '';
 		newRolePermissions = {
 			posts: true,
 			media: true,
 			events: false,
+			store: false,
 			invites: false,
 			moderation: false,
 			settings: false
@@ -510,23 +532,10 @@
 				},
 				{
 					trackStatus: true,
-					defaultRelays: [relayUrl]
+					defaultRelays: [relayUrl],
+					subId: roleDefinitionSubscriptionId(relayUrl)
 				}
 			);
-
-			const address = role.address || `30009:${pubkey}:${d}`;
-			roleDefinitions = [
-				...roleDefinitions.filter((definition) => definition.address !== address),
-				{
-					address,
-					pubkey,
-					d,
-					name: role.name,
-					description,
-					permissions: permissionsToList(role.permissions),
-					createdAt: now()
-				}
-			].sort((a, b) => a.name.localeCompare(b.name));
 		}
 
 		editedPermissions = {};

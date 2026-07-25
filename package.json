@@ -5,6 +5,7 @@
 	"license": "PolyForm-Noncommercial-1.0.0",
 	"scripts": {
 		"dev": "vite dev",
+		"dev:stripe": "./scripts/stripe-listen.sh",
 		"dev:host": "vite dev --host",
 		"build": "vite build",
 		"start": "node server.ts",
@@ -70,7 +71,7 @@
 	"type": "module",
 	"dependencies": {
 		"@candypoets/lnuts": "^0.1.6",
-		"@candypoets/nipworker": "^0.97.2",
+		"@candypoets/nipworker": "^0.97.7",
 		"@cashu/cashu-ts": "3.1.1",
 		"@gandlaf21/bc-ur": "^1.1.12",
 		"@gandlaf21/bolt11-decode": "^3.1.1",

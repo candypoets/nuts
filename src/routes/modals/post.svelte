@@ -23,7 +23,7 @@
 	import { getUserRelays } from '../queries/user';
 	import { decode } from 'nostr-tools/nip19';
 	import { normalizeURL } from 'nostr-tools/utils';
-	import { parsedEventTags, relayUrlsFromRelaySet } from 'src/lib/adminRelays';
+	import { parsedEventTags, relayRoleFromSet, relayUrlsFromRelaySet } from 'src/lib/adminRelays';
 
 	export let placeholder = "Speak your mind it's Nostr";
 	export let initialContent = '';
@@ -328,7 +328,12 @@
 	}
 
 	function selectEventCategory(category: string) {
-		if (category !== 'training' && category !== 'match' && category !== 'meeting' && category !== 'social') {
+		if (
+			category !== 'training' &&
+			category !== 'match' &&
+			category !== 'meeting' &&
+			category !== 'social'
+		) {
 			return;
 		}
 		eventCategory = category;
@@ -368,8 +373,10 @@
 		const seen = new Set<string>();
 		return roleSets
 			.flatMap((event) => {
-				const d = parsedEventTags(event).find((tag) => tag[0] === 'd')?.[1] || '';
-				const role = d.includes('admin') ? 'Admin' : d.includes('member') ? 'Member' : 'Following';
+				const relayRole = relayRoleFromSet(event);
+				if (!relayRole || relayRole === 'purchase') return [];
+				const role =
+					relayRole === 'admin' ? 'Admin' : relayRole === 'member' ? 'Member' : 'Following';
 				return relayUrlsFromRelaySet(event).map((url) => ({ url: normalizeURL(url), role }));
 			})
 			.filter((item) => {
@@ -426,8 +433,7 @@
 	function parentRelayTag() {
 		if (!note) return '';
 		return (
-			parsedEventTags(note)
-				.find((tag) => tag[0] === 'r' && tag[1]?.startsWith('wss://'))?.[1] || ''
+			parsedEventTags(note).find((tag) => tag[0] === 'r' && tag[1]?.startsWith('wss://'))?.[1] || ''
 		);
 	}
 
@@ -608,7 +614,9 @@
 							class="mb-3 grid gap-3 rounded-lg border border-primary-content/30 bg-base-200/70 p-3"
 						>
 							<div class="grid grid-cols-[auto_1fr] items-start gap-3">
-								<div class="grid h-11 w-11 place-items-center rounded-md bg-blue-500/10 text-blue-500">
+								<div
+									class="grid h-11 w-11 place-items-center rounded-md bg-blue-500/10 text-blue-500"
+								>
 									<Icon icon="mdi:calendar-plus-outline" class="h-6 w-6" />
 								</div>
 								<div class="min-w-0">
@@ -842,7 +850,9 @@
 
 					{#if !reply && !repost}
 						<div class="compose-kind-switcher-wrap">
-							<div class="grid gap-3 border-t border-primary-content/20 bg-base-200/80 px-4 py-3 text-sm backdrop-blur-sm">
+							<div
+								class="grid gap-3 border-t border-primary-content/20 bg-base-200/80 px-4 py-3 text-sm backdrop-blur-sm"
+							>
 								<div class="flex items-center justify-between gap-3">
 									<div class="min-w-0">
 										<p class="text-xs font-semibold text-base-content/50">Publishing to</p>

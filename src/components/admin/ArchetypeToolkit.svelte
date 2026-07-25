@@ -96,6 +96,7 @@
 		const params = new URLSearchParams();
 		if (action.create) params.set('create', '1');
 		if (action.section) params.set('section', action.section);
+		if (action.storeType) params.set('type', action.storeType);
 		const query = params.toString();
 		void goto(query ? `${href}?${query}` : href);
 	}

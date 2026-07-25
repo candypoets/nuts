@@ -16,6 +16,7 @@
 	import type { EventTemplate } from 'nostr-tools';
 	import imageCompression from 'browser-image-compression';
 	import { key, selectedAdminRelayUrl } from 'src/controller';
+	import { BADGE_DEFINITION_TYPE_TOPICS } from 'src/lib/catalog';
 	import { makeInviteAuthorization } from 'src/lib/invites';
 	import { parsedEventTags } from 'src/lib/adminRelays';
 	import {
@@ -210,13 +211,21 @@
 		}
 		const requests: RequestObject[] = [
 			{
-				kinds: [30009, 5],
+				kinds: [30009],
+				tags: { '#t': [BADGE_DEFINITION_TYPE_TOPICS.membership] },
 				limit: 20,
-				relays: [relayUrl]
+				relays: [relayUrl],
+				cacheFirst: true
+			},
+			{
+				kinds: [5],
+				limit: 20,
+				relays: [relayUrl],
+				cacheFirst: true
 			}
 		];
 		unsubscribeDefinitions = useSubscription(
-			'admin_memberships_' + relayUrl,
+			'admin_memberships_classified_v1_' + relayUrl,
 			requests,
 			(message: WorkerMessage) => {
 				const event = isParsedEvent(message);
@@ -262,8 +271,7 @@
 			.filter((address): address is string => Boolean(address));
 		if (!deletedAddresses.length) return;
 		const remaining = memberships.filter(
-			(membership) =>
-				membership.pubkey !== author || !deletedAddresses.includes(membership.address)
+			(membership) => membership.pubkey !== author || !deletedAddresses.includes(membership.address)
 		);
 		if (remaining.length !== memberships.length) memberships = remaining;
 	}
@@ -517,19 +525,42 @@
 			{#each memberships as membership (membership.address)}<article
 					class="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm"
 				>
-					<div class="relative h-40 overflow-hidden" style:background={membership.image ? undefined : membershipGradient(membership.name)}>
-						{#if membership.image}<img src={membership.image} alt={`${membership.name} membership cover`} class="h-full w-full object-cover" />{:else}<div class="flex h-full items-end bg-gradient-to-t from-black/20 to-transparent p-5"><span class="rounded-full border border-white/50 bg-white/25 px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-white shadow-sm backdrop-blur">{membership.name}</span></div>{/if}
+					<div
+						class="relative h-40 overflow-hidden"
+						style:background={membership.image ? undefined : membershipGradient(membership.name)}
+					>
+						{#if membership.image}<img
+								src={membership.image}
+								alt={`${membership.name} membership cover`}
+								class="h-full w-full object-cover"
+							/>{:else}<div
+								class="flex h-full items-end bg-gradient-to-t from-black/20 to-transparent p-5"
+							>
+								<span
+									class="rounded-full border border-white/50 bg-white/25 px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-white shadow-sm backdrop-blur"
+									>{membership.name}</span
+								>
+							</div>{/if}
 					</div>
 					<div class="p-6">
 						<div class="flex items-start justify-between gap-5">
-							<span class="grid h-11 w-11 place-items-center rounded-xl bg-emerald-50 text-emerald-800"><BadgeCheck size={22} /></span>
-							<span class="rounded-full bg-stone-100 px-3 py-1 text-xs font-black text-stone-600">{billingLabel(membership.billing)}</span>
+							<span
+								class="grid h-11 w-11 place-items-center rounded-xl bg-emerald-50 text-emerald-800"
+								><BadgeCheck size={22} /></span
+							>
+							<span class="rounded-full bg-stone-100 px-3 py-1 text-xs font-black text-stone-600"
+								>{billingLabel(membership.billing)}</span
+							>
 						</div>
 						<h2 class="mt-5 text-xl font-black">{membership.name}</h2>
-						<p class="mt-2 min-h-10 text-sm font-semibold leading-5 text-stone-500">{membership.description}</p>
+						<p class="mt-2 min-h-10 text-sm font-semibold leading-5 text-stone-500">
+							{membership.description}
+						</p>
 						<div class="mt-5 border-t border-stone-100 pt-5">
 							<span class="text-2xl font-black">{formatPrice(membership)}</span>
-							<span class="text-sm font-bold text-stone-400">{billingLabel(membership.billing)}</span>
+							<span class="text-sm font-bold text-stone-400"
+								>{billingLabel(membership.billing)}</span
+							>
 						</div>
 					</div>
 				</article>{/each}
@@ -590,13 +621,16 @@
 						class="flex items-center gap-4 rounded-xl border border-dashed border-stone-300 bg-stone-50 p-3"
 					>
 						{#if image || imagePreview}<div class="relative h-20 w-28 shrink-0">
-							<img
-								src={image || imagePreview}
-								alt="Membership cover preview"
-								class="h-20 w-28 rounded-lg object-cover"
-							/>
-							{#if imagePreview}<span class="absolute inset-x-1 bottom-1 rounded bg-stone-950/75 px-1.5 py-0.5 text-center text-[9px] font-black uppercase tracking-wide text-white">Local preview</span>{/if}
-						</div>{:else}<div
+								<img
+									src={image || imagePreview}
+									alt="Membership cover preview"
+									class="h-20 w-28 rounded-lg object-cover"
+								/>
+								{#if imagePreview}<span
+										class="absolute inset-x-1 bottom-1 rounded bg-stone-950/75 px-1.5 py-0.5 text-center text-[9px] font-black uppercase tracking-wide text-white"
+										>Local preview</span
+									>{/if}
+							</div>{:else}<div
 								class="grid h-20 w-28 place-items-center rounded-lg bg-gradient-to-br from-emerald-200 via-amber-100 to-orange-200 text-xs font-black text-emerald-900"
 							>
 								Auto gradient
@@ -610,7 +644,11 @@
 									class="sr-only"
 									disabled={imageUploading}
 									on:change={uploadMembershipImage}
-								/>{imageUploading ? 'Uploading…' : image || imagePreview ? 'Replace image' : 'Upload image'}</label
+								/>{imageUploading
+									? 'Uploading…'
+									: image || imagePreview
+										? 'Replace image'
+										: 'Upload image'}</label
 							>{#if image || imagePreview}<button
 									type="button"
 									class="ml-2 text-xs font-black text-stone-500 hover:text-red-600"
@@ -623,10 +661,25 @@
 										imageUploadState = 'idle';
 									}}>Remove</button
 								>{/if}
-							{#if imageUploadState !== 'idle'}<div class={`mt-3 rounded-lg border px-3 py-2 text-xs font-bold ${imageUploadState === 'error' ? 'border-red-200 bg-red-50 text-red-700' : imageUploadState === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`} role="status">
-								<p class="flex items-center gap-2">{#if imageUploadState === 'success'}<BadgeCheck size={15} />{:else if imageUploadState === 'error'}<CircleAlert size={15} />{:else}<span class="h-3 w-3 animate-spin rounded-full border-2 border-current border-r-transparent"></span>{/if}{imageUploadStatus}</p>
-								{#if imageUploadState === 'success'}<p class="mt-1 break-all font-mono text-[10px] font-semibold text-emerald-700">{image}</p>{/if}
-							</div>{:else}<p class="mt-2 text-xs font-bold text-stone-400">A name-derived gradient is used when empty.</p>{/if}
+							{#if imageUploadState !== 'idle'}<div
+									class={`mt-3 rounded-lg border px-3 py-2 text-xs font-bold ${imageUploadState === 'error' ? 'border-red-200 bg-red-50 text-red-700' : imageUploadState === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}
+									role="status"
+								>
+									<p class="flex items-center gap-2">
+										{#if imageUploadState === 'success'}<BadgeCheck
+												size={15}
+											/>{:else if imageUploadState === 'error'}<CircleAlert size={15} />{:else}<span
+												class="h-3 w-3 animate-spin rounded-full border-2 border-current border-r-transparent"
+											></span>{/if}{imageUploadStatus}
+									</p>
+									{#if imageUploadState === 'success'}<p
+											class="mt-1 break-all font-mono text-[10px] font-semibold text-emerald-700"
+										>
+											{image}
+										</p>{/if}
+								</div>{:else}<p class="mt-2 text-xs font-bold text-stone-400">
+									A name-derived gradient is used when empty.
+								</p>{/if}
 						</div>
 					</div>
 				</div>

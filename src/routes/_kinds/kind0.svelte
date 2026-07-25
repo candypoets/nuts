@@ -203,7 +203,7 @@
 
 		for (const roleSet of roleSets) {
 			const role = relayRoleFromSet(roleSet);
-			if (!role) continue;
+			if (!role || role === 'purchase') continue;
 			const relationship = role === 'following' ? 'follow' : 'belong';
 
 			for (const relay of relayUrlsFromRelaySet(roleSet)) {

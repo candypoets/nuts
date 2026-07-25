@@ -24,7 +24,16 @@
 	let stack: StackItem[] = [];
 
 	// Matchers copied from the original Kind index
-	const subPaths = ['nprofile', 'nevent', 'naddr', 'kind4', 'community', 'notifications', 'tags'];
+	const subPaths = [
+		'nprofile',
+		'nevent',
+		'naddr',
+		'kind4',
+		'community',
+		'notifications',
+		'badge',
+		'tags'
+	];
 
 	let mainElement: HTMLElement;
 

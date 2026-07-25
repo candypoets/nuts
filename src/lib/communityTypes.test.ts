@@ -5,7 +5,9 @@ import {
 	archetypeFor,
 	COMMUNITY_ARCHETYPES,
 	DEFAULT_COMMUNITY_TYPE,
-	isCommunityType
+	isCommunityType,
+	STORE_PRESETS,
+	storePresetFor
 } from './communityTypes';
 import { roleDFromName } from './nip58Roles';
 
@@ -52,6 +54,51 @@ describe('community archetype registry', () => {
 				expect(d.length).toBeGreaterThan(0);
 			}
 			expect(new Set(ds).size).toBe(ds.length);
+		}
+	});
+
+	it('provides a complete, valid Store preset for every archetype', () => {
+		const definitionTypes = new Set(['product', 'membership', 'pass']);
+		const productKinds = new Set(['food', 'drink', 'merchandise', 'generic']);
+
+		expect(Object.keys(STORE_PRESETS).sort()).toEqual(
+			COMMUNITY_ARCHETYPES.map((archetype) => archetype.id).sort()
+		);
+		for (const archetype of COMMUNITY_ARCHETYPES) {
+			const preset = storePresetFor(archetype.id);
+			expect(preset.title.trim().length).toBeGreaterThan(0);
+			expect(preset.intro.trim().length).toBeGreaterThan(0);
+			expect(preset.itemLabel.trim().length).toBeGreaterThan(0);
+			expect(preset.itemsLabel.trim().length).toBeGreaterThan(0);
+			expect(preset.sectionLabel.trim().length).toBeGreaterThan(0);
+			expect(preset.suggestedDefinitionTypes.length).toBeGreaterThan(0);
+			expect(preset.suggestedDefinitionTypes).toContain('pass');
+			expect(new Set(preset.suggestedDefinitionTypes).size).toBe(
+				preset.suggestedDefinitionTypes.length
+			);
+			expect(preset.suggestedDefinitionTypes.every((type) => definitionTypes.has(type))).toBe(true);
+			expect(preset.suggestedProductKinds.length).toBeGreaterThan(0);
+			expect(new Set(preset.suggestedProductKinds).size).toBe(preset.suggestedProductKinds.length);
+			expect(preset.suggestedProductKinds.every((kind) => productKinds.has(kind))).toBe(true);
+			expect(preset.suggestedSections.every((section) => section.trim().length > 0)).toBe(true);
+			expect(new Set(preset.suggestedSections).size).toBe(preset.suggestedSections.length);
+		}
+
+		expect(storePresetFor('hospitality').presentation).toBe('menu');
+		expect(storePresetFor('hospitality').title).toBe('Menu & store');
+		expect(
+			COMMUNITY_ARCHETYPES.filter((archetype) => archetype.id !== 'hospitality').every(
+				(archetype) => storePresetFor(archetype.id).presentation === 'catalog'
+			)
+		).toBe(true);
+		expect(storePresetFor(undefined)).toBe(STORE_PRESETS[DEFAULT_COMMUNITY_TYPE]);
+	});
+
+	it('routes archetype membership shortcuts to the Store membership filter', () => {
+		for (const id of ['sports', 'hospitality', 'club', 'professional'] as const) {
+			expect(archetypeFor(id).actions).toContainEqual(
+				expect.objectContaining({ segment: 'store', storeType: 'membership' })
+			);
 		}
 	});
 });

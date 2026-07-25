@@ -37,6 +37,14 @@
 		type RoleAward,
 		type RoleDefinition
 	} from 'src/lib/nip58Roles';
+	import {
+		BADGE_DEFINITION_TYPE_TOPICS,
+		catalogAddress,
+		catalogName,
+		catalogType,
+		isNewerCatalogEvent,
+		isSellableCatalogDefinition
+	} from 'src/lib/catalog';
 	import { now } from 'src/lib/period';
 	import { makeInviteAuthorization } from 'src/lib/invites';
 	import Avatar from 'src/routes/explore/avatar.svelte';
@@ -77,6 +85,7 @@
 	let relayAdminPubkeys: string[] = [];
 	let loadedRelayUrl = '';
 	let roleDefinitions: RoleDefinition[] = [];
+	let membershipDefinitionEvents: ParsedEvent[] = [];
 	let roleAwards: RoleAward[] = [];
 	let memberProfiles: Kind0Parsed[] = [];
 	let memberProfileKey = '';
@@ -110,7 +119,7 @@
 	$: if (!selectedRoleAddress && roleDefinitions[0]) {
 		selectedRoleAddress = roleDefinitions[0].address;
 	}
-	$: memberRows = buildMemberRows(roleDefinitions, roleAwards);
+	$: memberRows = buildMemberRows(roleDefinitions, membershipDefinitionEvents, roleAwards);
 	$: syncMemberProfiles(memberRows.map((member) => member.pubkey));
 	$: filteredMemberRows = memberRows.filter((member) =>
 		member.pubkey.toLowerCase().includes(search.trim().toLowerCase())
@@ -179,18 +188,36 @@
 
 	function upsertRoleDefinition(parsedEvent: ParsedEvent) {
 		const definition = parseRoleDefinition(parsedEvent);
-		if (!definition) return;
-		const existingIndex = roleDefinitions.findIndex((role) => role.address === definition.address);
-		if (existingIndex !== -1) {
-			if (definition.createdAt <= roleDefinitions[existingIndex].createdAt) return;
-			roleDefinitions = roleDefinitions.map((role, index) =>
-				index === existingIndex ? definition : role
-			);
-		} else {
-			roleDefinitions = [...roleDefinitions, definition].sort((a, b) =>
-				a.name.localeCompare(b.name)
+		if (definition) {
+			roleDefinitions = upsertDefinition(roleDefinitions, definition);
+			return;
+		}
+		if (
+			catalogType(parsedEvent) !== 'membership' ||
+			!isSellableCatalogDefinition(parsedEvent) ||
+			!catalogAddress(parsedEvent)
+		)
+			return;
+		const address = catalogAddress(parsedEvent);
+		const existingIndex = membershipDefinitionEvents.findIndex(
+			(event) => catalogAddress(event) === address
+		);
+		if (existingIndex === -1) {
+			membershipDefinitionEvents = [...membershipDefinitionEvents, parsedEvent];
+		} else if (isNewerCatalogEvent(parsedEvent, membershipDefinitionEvents[existingIndex])) {
+			membershipDefinitionEvents = membershipDefinitionEvents.map((event, index) =>
+				index === existingIndex ? parsedEvent : event
 			);
 		}
+	}
+
+	function upsertDefinition(definitions: RoleDefinition[], definition: RoleDefinition) {
+		const existingIndex = definitions.findIndex((item) => item.address === definition.address);
+		if (existingIndex !== -1) {
+			if (definition.createdAt <= definitions[existingIndex].createdAt) return definitions;
+			return definitions.map((item, index) => (index === existingIndex ? definition : item));
+		}
+		return [...definitions, definition].sort((a, b) => a.name.localeCompare(b.name));
 	}
 
 	function upsertRoleAward(parsedEvent: ParsedEvent) {
@@ -229,6 +256,9 @@
 		);
 		if (deletedAddresses.size) {
 			roleDefinitions = roleDefinitions.filter((role) => !deletedAddresses.has(role.address));
+			membershipDefinitionEvents = membershipDefinitionEvents.filter(
+				(event) => !deletedAddresses.has(catalogAddress(event))
+			);
 		}
 		if (deletedAwardIds.size) {
 			roleAwards = roleAwards.filter(
@@ -241,6 +271,7 @@
 		unsubscribeRoleDefinitions?.();
 		unsubscribeRoleAwards?.();
 		roleDefinitions = [];
+		membershipDefinitionEvents = [];
 		roleAwards = [];
 		loadingMembers = Boolean(relayUrl);
 		if (!relayUrl) {
@@ -250,7 +281,21 @@
 
 		const roleDefinitionRequests: RequestObject[] = [
 			{
-				kinds: [30009, 5],
+				kinds: [30009],
+				tags: { '#t': [BADGE_DEFINITION_TYPE_TOPICS.role] },
+				limit: 100,
+				relays: [relayUrl],
+				cacheFirst: true
+			},
+			{
+				kinds: [30009],
+				tags: { '#t': [BADGE_DEFINITION_TYPE_TOPICS.membership] },
+				limit: 100,
+				relays: [relayUrl],
+				cacheFirst: true
+			},
+			{
+				kinds: [5],
 				limit: 100,
 				relays: [relayUrl],
 				cacheFirst: false,
@@ -268,7 +313,7 @@
 		];
 
 		unsubscribeRoleDefinitions = useSubscription(
-			'admin_member_role_definitions_' + relayUrl,
+			'admin_member_badge_definitions_classified_v1_' + relayUrl,
 			roleDefinitionRequests,
 			(message: WorkerMessage) => {
 				const parsedEvent = isParsedEvent(message);
@@ -348,7 +393,11 @@
 		);
 	}
 
-	function buildMemberRows(definitions: RoleDefinition[], awards: RoleAward[]): MemberRow[] {
+	function buildMemberRows(
+		definitions: RoleDefinition[],
+		membershipEvents: ParsedEvent[],
+		awards: RoleAward[]
+	): MemberRow[] {
 		const definitionsByAddress = new Map(
 			definitions.map((definition) => [definition.address, definition])
 		);
@@ -366,7 +415,11 @@
 
 		for (const award of awards) {
 			const role = definitionsByAddress.get(award.roleAddress);
-			const roleName = role?.name || roleNameFromAddress(award.roleAddress);
+			const membershipEvent = role
+				? undefined
+				: membershipEvents.find((event) => catalogAddress(event) === award.roleAddress);
+			if (!role && !membershipEvent) continue;
+			const roleName = role?.name || catalogName(membershipEvent!);
 			const row =
 				rows.get(award.recipient) ||
 				({
@@ -415,15 +468,6 @@
 		return Array.from(rows.values()).sort((a, b) => a.pubkey.localeCompare(b.pubkey));
 	}
 
-	function roleNameFromAddress(address: string) {
-		const d = address.split(':').slice(2).join(':') || 'Member';
-		return d
-			.split(/[-_\s]+/)
-			.filter(Boolean)
-			.map((part) => part[0]?.toUpperCase() + part.slice(1))
-			.join(' ');
-	}
-
 	function dedupeRoles(roles: MemberRow['roles']) {
 		const seen = new Set<string>();
 		return roles.filter((role) => {
@@ -468,7 +512,8 @@
 
 	function openActionMenu(event: MouseEvent, member: MemberRow) {
 		const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-		actionMenuTop = rect.bottom + 170 > window.innerHeight ? Math.max(12, rect.top - 166) : rect.bottom + 6;
+		actionMenuTop =
+			rect.bottom + 170 > window.innerHeight ? Math.max(12, rect.top - 166) : rect.bottom + 6;
 		actionMenuRight = Math.max(12, window.innerWidth - rect.right);
 		actionMember = actionMember?.pubkey === member.pubkey ? undefined : member;
 	}
@@ -711,7 +756,11 @@
 								>
 									<td class="px-7 py-5">
 										<div class="flex items-center gap-4">
-											<Avatar pubkey={member.pubkey} size="xl" relays={relayUrl ? [relayUrl] : []} />
+											<Avatar
+												pubkey={member.pubkey}
+												size="xl"
+												relays={relayUrl ? [relayUrl] : []}
+											/>
 											<div class="min-w-0">
 												<p class="truncate text-base font-black">
 													<User
@@ -732,8 +781,8 @@
 													{role.label}
 												</span>
 											{/each}
-											{#if !member.roles.length}<span
-													class="text-sm font-semibold text-stone-400">No role assigned</span
+											{#if !member.roles.length}<span class="text-sm font-semibold text-stone-400"
+													>No role assigned</span
 												>{/if}
 										</div>
 									</td>
@@ -792,16 +841,14 @@
 			type="button"
 			class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold text-stone-700 transition hover:bg-stone-50"
 			role="menuitem"
-			on:click={viewActionMember}
-		><Eye size={17} /> View member</button
+			on:click={viewActionMember}><Eye size={17} /> View member</button
 		>
 		<button
 			type="button"
 			class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold text-stone-700 transition hover:bg-stone-50 disabled:text-stone-400"
 			role="menuitem"
 			disabled={!roleDefinitions.length}
-			on:click={assignActionMember}
-		><UserCog size={17} /> Assign role</button
+			on:click={assignActionMember}><UserCog size={17} /> Assign role</button
 		>
 		<div class="my-1 border-t border-stone-100"></div>
 		<button
@@ -813,13 +860,15 @@
 				: undefined}
 			on:click={banActionMember}
 			class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:text-stone-400 disabled:hover:bg-transparent"
-		><ShieldBan size={17} /> Ban member</button
+			><ShieldBan size={17} /> Ban member</button
 		>
 	</div>
 {/if}
 
 {#if memberToBan}
-	<div class="fixed inset-0 z-50 grid place-items-center bg-stone-950/45 px-5 py-8 backdrop-blur-sm">
+	<div
+		class="fixed inset-0 z-50 grid place-items-center bg-stone-950/45 px-5 py-8 backdrop-blur-sm"
+	>
 		<div
 			class="w-full max-w-lg rounded-2xl border border-stone-200 bg-[#fbfaf7] p-6 shadow-2xl shadow-stone-950/20"
 			aria-modal="true"
@@ -827,14 +876,16 @@
 			aria-labelledby="ban-member-title"
 		>
 			<div class="flex items-start gap-4">
-				<div class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-rose-100 text-rose-700">
+				<div
+					class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-rose-100 text-rose-700"
+				>
 					<ShieldBan size={22} />
 				</div>
 				<div>
 					<h2 id="ban-member-title" class="text-2xl font-black">Ban member?</h2>
 					<p class="mt-2 text-base leading-6 text-stone-600">
-						They will be blocked from the community relay. This uses the relay's NIP-86
-						moderation API.
+						They will be blocked from the community relay. This uses the relay's NIP-86 moderation
+						API.
 					</p>
 				</div>
 			</div>
@@ -847,7 +898,9 @@
 			</div>
 
 			<label class="mt-5 grid gap-2">
-				<span class="text-sm font-black text-stone-600">Reason <span class="font-medium">(optional)</span></span>
+				<span class="text-sm font-black text-stone-600"
+					>Reason <span class="font-medium">(optional)</span></span
+				>
 				<input
 					class="rounded-xl border border-stone-200 bg-white px-4 py-3 text-base font-semibold outline-none focus:border-rose-700 focus:ring-2 focus:ring-rose-700/20"
 					bind:value={banReason}
@@ -860,15 +913,13 @@
 					type="button"
 					class="h-11 rounded-xl border border-stone-200 bg-white px-5 font-black transition hover:bg-stone-50"
 					disabled={banningMember}
-					on:click={() => (memberToBan = undefined)}
-				>Cancel</button
+					on:click={() => (memberToBan = undefined)}>Cancel</button
 				>
 				<button
 					type="button"
 					class="h-11 rounded-xl bg-rose-700 px-5 font-black text-white transition hover:bg-rose-800 disabled:cursor-wait disabled:opacity-60"
 					disabled={banningMember}
-					on:click={banMember}
-				>{banningMember ? 'Banning…' : 'Ban member'}</button
+					on:click={banMember}>{banningMember ? 'Banning…' : 'Ban member'}</button
 				>
 			</div>
 		</div>

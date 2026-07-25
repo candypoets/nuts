@@ -1,28 +1,47 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from 'src/lib/paths';
-	import type { ParsedEvent, RequestObject, WorkerMessage } from '@candypoets/nipworker';
+	import {
+		extractTagValue,
+		type ParsedEvent,
+		type RequestObject,
+		type WorkerMessage
+	} from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import {
 		asParsedEvent,
 		asConnectionStatus,
-		ConnectionTracker
+		ConnectionTracker,
+		isParsedEvent
 	} from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
+	import { normalizeURL } from 'nostr-tools/utils';
 	import {
 		defaultPipeline,
 		key,
 		lastNotificationView,
 		readRelays,
+		relayDirectoryUrls,
 		writeRelays
 	} from 'src/controller';
+	import {
+		fetchCommunityAccess,
+		fetchCommunityTrust,
+		type CommunityTrust
+	} from 'src/lib/adminAccess';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import { onMount, onDestroy } from 'svelte';
-	import { processNotifications, type ProcessedNotification } from './notifications';
+	import {
+		isBadgeStatus,
+		processBadgeNotifications,
+		processNotifications,
+		type NotificationItem
+	} from './notifications';
 	import Reactions from './reactions.svelte';
 	import Replies from './replies.svelte';
 	import Mentions from './mentions.svelte';
 	import Reposts from './reposts.svelte';
+	import Badges from './badges.svelte';
 
 	export let visible = true;
 	export let goBack: () => void;
@@ -32,7 +51,10 @@
 	// Raw events from subscription
 	let rawEvents: ParsedEvent[] = [];
 	// Processed notifications (grouped by type)
-	let notificationItems: ProcessedNotification[] = [];
+	let notificationItems: NotificationItem[] = [];
+	let badgeAwards: ParsedEvent[] = [];
+	let rawBadgeStatuses: ParsedEvent[] = [];
+	let badgeStatuses: ParsedEvent[] = [];
 
 	// Track seen event IDs to prevent duplicates
 	let seenEventIds = new Set<string>();
@@ -40,6 +62,15 @@
 	// Subscription cleanup function
 	let unsubscribe: (() => void) | undefined;
 	let connectionTracker: ConnectionTracker | undefined;
+	let badgeUnsubscribe: (() => void) | undefined;
+	let badgeInitialized = false;
+	let lastBadgeRelayKey = '';
+	let badgeGeneration = 0;
+	let trustPromises = new Map<string, Promise<CommunityTrust>>();
+	let authorizationPromises = new Map<string, Promise<boolean>>();
+	let awardAcceptanceInFlight = new Set<string>();
+	let statusAuthorizationInFlight = new Set<string>();
+	let badgeAwardRelays = new Map<string, string[]>();
 
 	// Pagination state
 	let until: number | undefined = undefined;
@@ -54,6 +85,10 @@
 		new Set(($readRelays || []).length ? $readRelays || [] : $writeRelays || [])
 	).filter((relay): relay is string => Boolean(relay));
 	$: notificationRelayKey = notificationRelays.join('|');
+	$: badgeRelays = Array.from(
+		new Set(($relayDirectoryUrls || []).map(normalizedRelay).filter(Boolean))
+	);
+	$: badgeRelayKey = badgeRelays.join('|');
 
 	// Build subscription requests
 	function buildRequests(isPagination = false): RequestObject[] {
@@ -117,7 +152,192 @@
 	}
 
 	// Process raw events into grouped notifications
-	$: notificationItems = processNotifications(rawEvents);
+	$: notificationItems = [
+		...processNotifications(rawEvents),
+		...processBadgeNotifications(badgeAwards, badgeStatuses, badgeRelays)
+	].sort((left, right) => right.createdAt() - left.createdAt());
+
+	function normalizedRelay(relay: string) {
+		try {
+			return normalizeURL(relay);
+		} catch {
+			return '';
+		}
+	}
+
+	function badgeAddress(event: ParsedEvent) {
+		return extractTagValue(event, 'a') || '';
+	}
+
+	function trustForRelay(relay: string) {
+		let trust = trustPromises.get(relay);
+		if (!trust) {
+			trust = fetchCommunityTrust(relay);
+			trustPromises.set(relay, trust);
+		}
+		return trust;
+	}
+
+	function signerAuthorization(relay: string, signer: string, permission: 'store' | 'events') {
+		const cacheKey = `${relay}:${signer}:${permission}`;
+		let authorization = authorizationPromises.get(cacheKey);
+		if (!authorization) {
+			authorization = trustForRelay(relay).then(async (trust) => {
+				if (trust.authorityPubkeys.has(signer)) return true;
+				const access = await fetchCommunityAccess(relay, signer, false);
+				return access.permissions.has(permission);
+			});
+			authorizationPromises.set(cacheKey, authorization);
+		}
+		return authorization;
+	}
+
+	async function acceptBadgeAward(event: ParsedEvent, generation: number) {
+		const id = event.id();
+		const recipient = extractTagValue(event, 'p');
+		const address = badgeAddress(event);
+		const issuer = event.pubkey();
+		if (
+			event.kind() !== 8 ||
+			!id ||
+			recipient !== $key?.pub ||
+			!address.startsWith('30009:') ||
+			!issuer
+		) {
+			return;
+		}
+		if (badgeAwards.some((candidate) => candidate.id() === id) || awardAcceptanceInFlight.has(id)) {
+			return;
+		}
+		awardAcceptanceInFlight.add(id);
+		try {
+			const trustedRelays = (
+				await Promise.all(
+					badgeRelays.map(async (relay) => {
+						const trust = await trustForRelay(relay);
+						return trust.authorityPubkeys.has(issuer) || trust.badgeIssuer === issuer ? relay : '';
+					})
+				)
+			).filter(Boolean);
+			if (generation !== badgeGeneration || !trustedRelays.length) return;
+			badgeAwardRelays.set(id, trustedRelays);
+			badgeAwards = [...badgeAwards, event];
+			reconcileBadgeStatuses();
+		} finally {
+			awardAcceptanceInFlight.delete(id);
+		}
+	}
+
+	function reconcileBadgeStatuses() {
+		for (const event of rawBadgeStatuses) {
+			const id = event.id();
+			const awardId = extractTagValue(event, 'e');
+			const address = extractTagValue(event, 'a');
+			const recipient = extractTagValue(event, 'p');
+			const signer = event.pubkey();
+			if (
+				!id ||
+				!awardId ||
+				!address ||
+				recipient !== $key?.pub ||
+				!signer ||
+				!isBadgeStatus(extractTagValue(event, 'status')) ||
+				badgeStatuses.some((status) => status.id() === id)
+			) {
+				continue;
+			}
+			const award = badgeAwards.find(
+				(item) => item.id() === awardId && badgeAddress(item) === address
+			);
+			if (!award) continue;
+			const candidateRelays = badgeAwardRelays.get(awardId) || [];
+			if (!candidateRelays.length) continue;
+			const authorizationKey = `${badgeGeneration}:${id}`;
+			if (statusAuthorizationInFlight.has(authorizationKey)) continue;
+			statusAuthorizationInFlight.add(authorizationKey);
+			const generation = badgeGeneration;
+			void Promise.all(
+				candidateRelays.map(async (relay) => {
+					if (await signerAuthorization(relay, signer, 'store')) return true;
+					return signerAuthorization(relay, signer, 'events');
+				})
+			).then((results) => {
+				statusAuthorizationInFlight.delete(authorizationKey);
+				if (
+					generation !== badgeGeneration ||
+					!results.some(Boolean) ||
+					badgeStatuses.some((status) => status.id() === id)
+				) {
+					return;
+				}
+				badgeStatuses = [...badgeStatuses, event];
+			});
+		}
+	}
+
+	function handleBadgeEvents(message: WorkerMessage, generation: number) {
+		const event = isParsedEvent(message);
+		if (!event || generation !== badgeGeneration) return;
+		if (event.kind() === 8) {
+			void acceptBadgeAward(event, generation);
+			return;
+		}
+		if (event.kind() !== 27237 || extractTagValue(event, 'p') !== $key?.pub) return;
+		const id = event.id();
+		if (
+			!id ||
+			!isBadgeStatus(extractTagValue(event, 'status')) ||
+			Boolean(extractTagValue(event, 'order')) === Boolean(extractTagValue(event, 'event')) ||
+			rawBadgeStatuses.some((candidate) => candidate.id() === id)
+		) {
+			return;
+		}
+		rawBadgeStatuses = [...rawBadgeStatuses, event];
+		reconcileBadgeStatuses();
+	}
+
+	function resetBadgeSubscription() {
+		badgeGeneration += 1;
+		badgeUnsubscribe?.();
+		badgeUnsubscribe = undefined;
+		badgeInitialized = false;
+		badgeAwards = [];
+		rawBadgeStatuses = [];
+		badgeStatuses = [];
+		trustPromises = new Map();
+		authorizationPromises = new Map();
+		badgeAwardRelays = new Map();
+		awardAcceptanceInFlight.clear();
+		statusAuthorizationInFlight.clear();
+	}
+
+	function initBadgeSubscription() {
+		if (!visible || badgeInitialized || !$key?.pub || !badgeRelays.length) return;
+		badgeInitialized = true;
+		lastBadgeRelayKey = badgeRelayKey;
+		const generation = ++badgeGeneration;
+		badgeUnsubscribe = useSubscription(
+			`notifications_badges_${$key.pub}_${badgeRelayKey}`,
+			[
+				{
+					kinds: [8],
+					tags: { '#p': [$key.pub] },
+					limit: 200,
+					relays: badgeRelays,
+					cacheFirst: true
+				},
+				{
+					kinds: [27237],
+					tags: { '#p': [$key.pub] },
+					limit: 200,
+					relays: badgeRelays,
+					cacheFirst: true
+				}
+			],
+			(message: WorkerMessage) => handleBadgeEvents(message, generation),
+			{ bytesPerEvent: 10 * 1024 }
+		);
+	}
 
 	// Initialize subscription
 	let hasInitialized = false;
@@ -163,6 +383,10 @@
 		initSubscription();
 	}
 
+	$: if (visible && $key?.pub && badgeRelays.length && !badgeInitialized) {
+		initBadgeSubscription();
+	}
+
 	$: if (visible && $key?.pub && hasInitialized && notificationRelayKey !== lastRelayKey) {
 		unsubscribe?.();
 		unsubscribe = undefined;
@@ -174,12 +398,18 @@
 		initSubscription();
 	}
 
+	$: if (visible && $key?.pub && badgeInitialized && badgeRelayKey !== lastBadgeRelayKey) {
+		resetBadgeSubscription();
+		initBadgeSubscription();
+	}
+
 	// Cleanup subscription when not visible
 	$: if (!visible) {
 		unsubscribe?.();
 		unsubscribe = undefined;
 		connectionTracker = undefined;
 		hasInitialized = false;
+		resetBadgeSubscription();
 	}
 
 	onMount(() => {
@@ -187,11 +417,13 @@
 		window.scrollTo(0, 0);
 		return () => {
 			unsubscribe?.();
+			badgeUnsubscribe?.();
 		};
 	});
 
 	onDestroy(() => {
 		unsubscribe?.();
+		badgeUnsubscribe?.();
 		if (paginationTimeout) clearTimeout(paginationTimeout);
 		prevPaginationSubId = undefined;
 	});
@@ -270,10 +502,7 @@
 		// Use a stable primitive key. Returning object/random causes row churn.
 		const idObj = item?.id?.();
 		const hash = idObj?.fnv1aHash?.();
-		return (
-			hash ||
-			`${item?.type || 'notification'}-${item?.parsed?.referencedPostId || item?.createdAt?.() || 'unknown'}`
-		);
+		return hash || `${item?.type || 'notification'}-${item?.createdAt?.() || 'unknown'}`;
 	}}
 	onNearBottom={handleNearBottom}
 >
@@ -320,6 +549,8 @@
 				<Mentions {post} {visible} />
 			{:else if post.type === 'repost'}
 				<Reposts {post} {visible} />
+			{:else if post.type === 'badge'}
+				<Badges {post} />
 			{/if}
 		</div>
 	</svelte:fragment>

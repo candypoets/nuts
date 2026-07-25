@@ -1,4 +1,5 @@
 import {
+	extractTagValue,
 	Kind1Parsed,
 	Kind6Parsed,
 	ParsedData,
@@ -35,6 +36,118 @@ export interface ProcessedNotification {
 	content: '';
 	timestamp: number;
 	parsed: NotificationGroup;
+}
+
+export const BADGE_STATUSES = [
+	'pending',
+	'accepted',
+	'processing',
+	'ready',
+	'fulfilled',
+	'cancelled'
+] as const;
+
+export type BadgeStatus = (typeof BADGE_STATUSES)[number];
+
+interface BadgeNotificationGroup {
+	award: ParsedEvent;
+	statuses: ParsedEvent[];
+	relays: string[];
+}
+
+export interface BadgeNotification {
+	id: () => { fnv1aHash: () => string };
+	type: 'badge';
+	createdAt: () => number;
+	timestamp: number;
+	parsed: BadgeNotificationGroup;
+}
+
+export type NotificationItem = ProcessedNotification | BadgeNotification;
+
+export function isBadgeStatus(value: string | undefined): value is BadgeStatus {
+	return BADGE_STATUSES.includes(value as BadgeStatus);
+}
+
+function eventAddress(event: ParsedEvent) {
+	return extractTagValue(event, 'a') || '';
+}
+
+function latestStatusEvents(award: ParsedEvent, statuses: ParsedEvent[]): ParsedEvent[] {
+	const awardId = award.id();
+	const address = eventAddress(award);
+	const recipient = extractTagValue(award, 'p');
+	if (!awardId || !address || !recipient) return [];
+
+	const latest = new Map<string, ParsedEvent>();
+	for (const event of statuses) {
+		if (
+			event.kind() !== 27237 ||
+			extractTagValue(event, 'e') !== awardId ||
+			extractTagValue(event, 'a') !== address ||
+			extractTagValue(event, 'p') !== recipient ||
+			!isBadgeStatus(extractTagValue(event, 'status'))
+		) {
+			continue;
+		}
+		const order = extractTagValue(event, 'order');
+		const eventContext = extractTagValue(event, 'event');
+		if (Boolean(order) === Boolean(eventContext)) continue;
+		const contextKey = order ? `order:${order}` : `event:${eventContext}`;
+		const current = latest.get(contextKey);
+		if (
+			!current ||
+			event.createdAt() > current.createdAt() ||
+			(event.createdAt() === current.createdAt() && (event.id() || '') < (current.id() || ''))
+		) {
+			latest.set(contextKey, event);
+		}
+	}
+	return Array.from(latest.values()).sort(
+		(left, right) =>
+			right.createdAt() - left.createdAt() || (left.id() || '').localeCompare(right.id() || '')
+	);
+}
+
+export function processBadgeNotifications(
+	awards: ParsedEvent[],
+	statuses: ParsedEvent[],
+	relays: string[]
+): BadgeNotification[] {
+	const items: BadgeNotification[] = [];
+	const seenAwardIds = new Set<string>();
+	for (const award of awards) {
+		const awardId = award.id();
+		const address = eventAddress(award);
+		if (
+			award.kind() !== 8 ||
+			!awardId ||
+			seenAwardIds.has(awardId) ||
+			!address ||
+			!extractTagValue(award, 'p')
+		) {
+			continue;
+		}
+
+		seenAwardIds.add(awardId);
+		const latestStatuses = latestStatusEvents(award, statuses);
+		const timestamp = Math.max(
+			award.createdAt(),
+			...latestStatuses.map((event) => event.createdAt())
+		);
+		items.push({
+			id: () => ({ fnv1aHash: () => `notification-badge-${awardId}` }),
+			type: 'badge',
+			createdAt: () => timestamp,
+			timestamp,
+			parsed: {
+				award,
+				statuses: latestStatuses,
+				relays: [...relays]
+			}
+		});
+	}
+	return items.sort((left, right) => right.timestamp - left.timestamp);
 }
 
 export function processNotifications(feed: ParsedEvent[]): ProcessedNotification[] {

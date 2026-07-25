@@ -54,6 +54,7 @@ export const pathNeedsLogin = [
 	'melted',
 	'newchat',
 	'notifications',
+	'badge',
 	'tapcash',
 	'profile',
 	'zaps',

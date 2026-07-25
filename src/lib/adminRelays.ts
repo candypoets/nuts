@@ -2,7 +2,7 @@ import type { ListParsed, ParsedEvent } from '@candypoets/nipworker';
 import { fbArray } from '@candypoets/nipworker/utils';
 import { normalizeURL } from 'nostr-tools/utils';
 
-export type RelayRole = 'admin' | 'member' | 'following';
+export type RelayRole = 'admin' | 'member' | 'following' | 'purchase';
 
 export const RELAY_ROLE_SETS: Record<RelayRole, { d: string; title: string; description: string }> =
 	{
@@ -20,10 +20,16 @@ export const RELAY_ROLE_SETS: Record<RelayRole, { d: string; title: string; desc
 			d: 'nuts-relays-following',
 			title: 'Nuts relays I follow',
 			description: 'Relays this Nuts account follows'
+		},
+		purchase: {
+			d: 'nuts-relays-purchases',
+			title: 'Nuts relays I purchased from',
+			description: 'Relays where this Nuts account has purchases or active orders'
 		}
 	};
 
 export const ADMIN_RELAY_SET_D = RELAY_ROLE_SETS.admin.d;
+export const PURCHASE_RELAY_SET_D = RELAY_ROLE_SETS.purchase.d;
 
 export type RelayInfo = {
 	url: string;

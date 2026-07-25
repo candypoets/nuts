@@ -40,6 +40,13 @@
 		type RoleAward,
 		type RoleDefinition
 	} from 'src/lib/nip58Roles';
+	import {
+		BADGE_DEFINITION_TYPE_TOPICS,
+		catalogAddress,
+		catalogType,
+		isNewerCatalogEvent,
+		isSellableCatalogDefinition
+	} from 'src/lib/catalog';
 	import { now } from 'src/lib/period';
 	import { go } from 'src/routes/modals/modal';
 	import { onDestroy } from 'svelte';
@@ -92,6 +99,7 @@
 	let error = '';
 	let loadedRelayUrl = '';
 	let roleDefinitions: RoleDefinition[] = [];
+	let membershipDefinitionEvents: ParsedEvent[] = [];
 	let roleAwards: RoleAward[] = [];
 	let upcomingEvents: CalendarEventCard[] = [];
 	let eventsLoading = false;
@@ -105,7 +113,17 @@
 		subscribeOverview();
 		subscribeEvents();
 	}
-	$: activeAwards = roleAwards.filter((award) => !award.expiresAt || award.expiresAt > now());
+	$: memberDefinitionAddresses = new Set(
+		[
+			...roleDefinitions.map((definition) => definition.address),
+			...membershipDefinitionEvents.map(catalogAddress)
+		].filter(Boolean)
+	);
+	$: activeAwards = roleAwards.filter(
+		(award) =>
+			memberDefinitionAddresses.has(award.roleAddress) &&
+			(!award.expiresAt || award.expiresAt > now())
+	);
 	$: memberPubkeys = Array.from(new Set(activeAwards.map((award) => award.recipient))).sort();
 	$: roleCount = roleDefinitions.length;
 	$: expiringSoonCount = activeAwards.filter(
@@ -174,18 +192,36 @@
 
 	function upsertRoleDefinition(parsedEvent: ParsedEvent) {
 		const definition = parseRoleDefinition(parsedEvent);
-		if (!definition) return;
-		const existingIndex = roleDefinitions.findIndex((role) => role.address === definition.address);
-		if (existingIndex !== -1) {
-			if (definition.createdAt <= roleDefinitions[existingIndex].createdAt) return;
-			roleDefinitions = roleDefinitions.map((role, index) =>
-				index === existingIndex ? definition : role
-			);
-		} else {
-			roleDefinitions = [...roleDefinitions, definition].sort((a, b) =>
-				a.name.localeCompare(b.name)
+		if (definition) {
+			roleDefinitions = upsertDefinition(roleDefinitions, definition);
+			return;
+		}
+		if (
+			catalogType(parsedEvent) !== 'membership' ||
+			!isSellableCatalogDefinition(parsedEvent) ||
+			!catalogAddress(parsedEvent)
+		)
+			return;
+		const address = catalogAddress(parsedEvent);
+		const existingIndex = membershipDefinitionEvents.findIndex(
+			(event) => catalogAddress(event) === address
+		);
+		if (existingIndex === -1) {
+			membershipDefinitionEvents = [...membershipDefinitionEvents, parsedEvent];
+		} else if (isNewerCatalogEvent(parsedEvent, membershipDefinitionEvents[existingIndex])) {
+			membershipDefinitionEvents = membershipDefinitionEvents.map((event, index) =>
+				index === existingIndex ? parsedEvent : event
 			);
 		}
+	}
+
+	function upsertDefinition(definitions: RoleDefinition[], definition: RoleDefinition) {
+		const existingIndex = definitions.findIndex((item) => item.address === definition.address);
+		if (existingIndex !== -1) {
+			if (definition.createdAt <= definitions[existingIndex].createdAt) return definitions;
+			return definitions.map((item, index) => (index === existingIndex ? definition : item));
+		}
+		return [...definitions, definition].sort((a, b) => a.name.localeCompare(b.name));
 	}
 
 	function upsertRoleAward(award: RoleAward) {
@@ -215,6 +251,9 @@
 		roleDefinitions = roleDefinitions.filter(
 			(role) => role.pubkey !== author || !addresses.includes(role.address)
 		);
+		membershipDefinitionEvents = membershipDefinitionEvents.filter(
+			(event) => event.pubkey() !== author || !addresses.includes(catalogAddress(event))
+		);
 		roleAwards = roleAwards.filter((award) => award.pubkey !== author || !ids.includes(award.id));
 	}
 
@@ -222,6 +261,7 @@
 		unsubscribeRoleDefinitions?.();
 		unsubscribeRoleAwards?.();
 		roleDefinitions = [];
+		membershipDefinitionEvents = [];
 		roleAwards = [];
 		checkedOverview = false;
 		error = '';
@@ -234,7 +274,21 @@
 
 		const roleDefinitionRequests: RequestObject[] = [
 			{
-				kinds: [30009, 5],
+				kinds: [30009],
+				tags: { '#t': [BADGE_DEFINITION_TYPE_TOPICS.role] },
+				limit: 100,
+				relays: [relayUrl],
+				cacheFirst: true
+			},
+			{
+				kinds: [30009],
+				tags: { '#t': [BADGE_DEFINITION_TYPE_TOPICS.membership] },
+				limit: 100,
+				relays: [relayUrl],
+				cacheFirst: true
+			},
+			{
+				kinds: [5],
 				limit: 100,
 				relays: [relayUrl],
 				cacheFirst: false,
@@ -252,7 +306,7 @@
 		];
 
 		unsubscribeRoleDefinitions = useSubscription(
-			'admin_member_role_definitions_' + relayUrl,
+			'admin_overview_badge_definitions_classified_v1_' + relayUrl,
 			roleDefinitionRequests,
 			(message: WorkerMessage) => {
 				const parsedEvent = isParsedEvent(message);

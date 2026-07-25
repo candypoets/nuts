@@ -8,9 +8,10 @@ import {
 
 /**
  * Community profile: an addressable app-data event (NIP-78, kind 30078) published
- * by an admin to the community relay only. It carries the community archetype and
- * the metadata the coordinator/NIP-11 does not store (description, image, and the
- * hospitality booking/menu links). See tasks/prd-community-archetypes.md.
+ * by an admin to the community relay only. Description and image are duplicated
+ * from NIP-11 so Nostr clients can resolve the profile from relay events; the
+ * community archetype and hospitality booking/menu links only live here.
+ * See tasks/prd-community-archetypes.md.
  */
 export const COMMUNITY_PROFILE_KIND = 30078;
 export const COMMUNITY_PROFILE_D = 'nuts-community-profile';

@@ -1,5 +1,10 @@
 import type { ParsedEvent } from '@candypoets/nipworker';
 import { parsedEventTags } from 'src/lib/adminRelays';
+import {
+	badgeDefinitionHasTypeTopic,
+	buildBadgeDefinitionClassificationTags,
+	catalogSellable
+} from 'src/lib/catalog';
 import { roleAddress, roleDFromName } from 'src/lib/nip58Roles';
 
 export type MembershipDefinition = {
@@ -20,6 +25,8 @@ export function parseMembershipDefinition(event: ParsedEvent): MembershipDefinit
 	if (event.kind() !== 30009) return undefined;
 	const tags = parsedEventTags(event);
 	if (tags.find((tag) => tag[0] === 'type')?.[1] !== 'membership') return undefined;
+	if (!badgeDefinitionHasTypeTopic(event, 'membership') || !catalogSellable(event))
+		return undefined;
 	const d = tags.find((tag) => tag[0] === 'd')?.[1];
 	const pubkey = event.pubkey();
 	if (!d || !pubkey) return undefined;
@@ -61,9 +68,10 @@ export function buildMembershipDefinitionTags(membership: {
 		['d', membership.d],
 		['name', membership.name],
 		['description', membership.description],
-		['type', 'membership'],
+		...buildBadgeDefinitionClassificationTags('membership', true),
 		['price', membership.price, membership.currency.toUpperCase()],
 		['billing', membership.billing],
+		['availability', 'available'],
 		['stripe_account', membership.stripeAccountId]
 	];
 	if (membership.image?.trim()) tags.push(['image', membership.image.trim()]);

@@ -4,6 +4,7 @@
 	import Kind30023 from 'src/routes/_kinds/kind30023.svelte';
 	import Kind4 from 'src/routes/_kinds/kind4.svelte';
 	import Community from 'src/routes/_kinds/community.svelte';
+	import Kind8 from 'src/routes/_kinds/kind8.svelte';
 	import Tags from 'src/routes/_kinds/tags.svelte';
 	import Notifications from 'src/routes/notifications/index.svelte';
 
@@ -14,6 +15,8 @@
 	export let visible: boolean;
 	export let depth: number = 0;
 	export let modalDepth: number = 0;
+
+	$: subKey = path.split(':')[0];
 
 	let pagerAnimator: PagerAnimator | undefined = getContext('animator');
 	let element: HTMLElement;
@@ -159,21 +162,23 @@
 		on:touchmove|stopPropagation={handleTouchMove}
 		on:touchend|stopPropagation={handleTouchEnd}
 	>
-		{#if path.includes('nprofile')}
+		{#if subKey === 'nprofile'}
 			<Kind0 pubkey={path.split(':')?.[1]} {visible} {goBack} />
-		{:else if path.includes('nevent')}
+		{:else if subKey === 'nevent'}
 			<Kind1 nevent={path.split(':')?.[1]} {visible} {goBack} />
-		{:else if path.includes('naddr')}
+		{:else if subKey === 'naddr'}
 			{@const naddrValue = path.slice(path.indexOf(':') + 1)}
 			<Kind30023 naddr={naddrValue} {visible} {goBack} />
-		{:else if path.includes('kind4')}
+		{:else if subKey === 'kind4'}
 			<Kind4 pubkey={path.split(':')?.[1]} {visible} {goBack} />
-		{:else if path.includes('community')}
+		{:else if subKey === 'community'}
 			{@const communityRelay = decodeURIComponent(path.slice(path.indexOf(':') + 1))}
 			<Community relay={communityRelay} {visible} {goBack} />
-		{:else if path.includes('notifications')}
+		{:else if subKey === 'notifications'}
 			<Notifications {goBack} />
-		{:else if path.includes('tags')}
+		{:else if subKey === 'badge'}
+			<Kind8 nevent={path.split(':')?.[1]} {visible} {goBack} />
+		{:else if subKey === 'tags'}
 			<Tags tags={[path.split(':')?.[1]]} {visible} {goBack} />
 		{/if}
 	</div>

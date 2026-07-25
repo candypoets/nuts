@@ -30,6 +30,8 @@
 	import type { EventTemplate } from 'nostr-tools';
 	import { key, selectedAdminRelayUrl } from 'src/controller';
 	import { parsedEventTags } from 'src/lib/adminRelays';
+	import { BADGE_DEFINITION_TYPE_TOPICS } from 'src/lib/catalog';
+	import { buildPaidEventAccess } from 'src/lib/eventAccess';
 	import { parseMembershipDefinition } from 'src/lib/memberships';
 	import { parseRoleDefinition, type RoleDefinition } from 'src/lib/nip58Roles';
 	import { uploadFile } from 'src/lib/upload';
@@ -97,6 +99,7 @@
 	let entranceCurrency = 'EUR';
 	let entranceSats = '';
 	let publishStatus = '';
+	let publishingEvent = false;
 	let uploadStatus = '';
 	let loadingEvents = true;
 	let events: CommunityEvent[] = [];
@@ -104,6 +107,7 @@
 	let loadingRoles = false;
 	let publishUnsubscribe: (() => void) | undefined;
 	let badgePublishUnsubscribe: (() => void) | undefined;
+	let publishTimeouts: number[] = [];
 	let unsubscribeEvents: (() => void) | undefined;
 	let unsubscribeRoles: (() => void) | undefined;
 	let createModalOpen = false;
@@ -131,7 +135,13 @@
 	);
 	$: scheduleSummary = formatScheduleSummary(startsAtTimestamp, endsAtTimestamp);
 	$: canCreateEvent = Boolean(
-		relayUrl && title.trim() && scheduleValid && admissionValid && paymentValid && (!paidEntrance || $key?.pub)
+		relayUrl &&
+		title.trim() &&
+		scheduleValid &&
+		admissionValid &&
+		paymentValid &&
+		(!paidEntrance || $key?.pub) &&
+		!publishingEvent
 	);
 	$: admissionSummary = buildAdmissionSummary(
 		freeEntry,
@@ -187,7 +197,7 @@
 		];
 
 		unsubscribeEvents = useSubscription(
-			'admin_events_' + relayUrl,
+			eventSubscriptionId(relayUrl),
 			requests,
 			(message: WorkerMessage) => {
 				const parsedEvent = isParsedEvent(message);
@@ -216,14 +226,21 @@
 		}
 
 		unsubscribeRoles = useSubscription(
-			'admin_event_access_badges_' + relayUrl,
+			'admin_event_access_badges_classified_v1_' + relayUrl,
 			[
 				{
 					kinds: [30009],
+					tags: { '#t': [BADGE_DEFINITION_TYPE_TOPICS.role] },
 					limit: 100,
 					relays: [relayUrl],
-					cacheFirst: false,
-					noCache: true
+					cacheFirst: true
+				},
+				{
+					kinds: [30009],
+					tags: { '#t': [BADGE_DEFINITION_TYPE_TOPICS.membership] },
+					limit: 100,
+					relays: [relayUrl],
+					cacheFirst: true
 				}
 			],
 			(message: WorkerMessage) => {
@@ -231,16 +248,18 @@
 				if (!parsedEvent) return;
 				const roleDefinition = parseRoleDefinition(parsedEvent);
 				const membershipDefinition = parseMembershipDefinition(parsedEvent);
-				const definition: RoleDefinition | undefined = roleDefinition || (membershipDefinition
-					? {
-							address: membershipDefinition.address,
-							pubkey: membershipDefinition.pubkey,
-							d: membershipDefinition.d,
-							name: membershipDefinition.name,
-							description: membershipDefinition.description,
-							createdAt: membershipDefinition.createdAt
-						}
-					: undefined);
+				const definition: RoleDefinition | undefined =
+					roleDefinition ||
+					(membershipDefinition
+						? {
+								address: membershipDefinition.address,
+								pubkey: membershipDefinition.pubkey,
+								d: membershipDefinition.d,
+								name: membershipDefinition.name,
+								description: membershipDefinition.description,
+								createdAt: membershipDefinition.createdAt
+							}
+						: undefined);
 				if (!definition) return;
 				const existingIndex = roleDefinitions.findIndex(
 					(role) => role.address === definition.address
@@ -348,13 +367,15 @@
 			])
 		);
 		selectedEvent = undefined;
-		go(`scan:${encodeCheckInContext({
-			type: 'event_checkin',
-			community: relayUrl,
-			eventAddress: event.id,
-			eventTitle: event.title,
-			badgeAddresses
-		})}`);
+		go(
+			`scan:${encodeCheckInContext({
+				type: 'event_checkin',
+				community: relayUrl,
+				eventAddress: event.id,
+				eventTitle: event.title,
+				badgeAddresses
+			})}`
+		);
 	}
 
 	function upsertRsvp(event: ParsedEvent) {
@@ -591,164 +612,27 @@
 		}
 	}
 
-	function createEvent() {
-		console.log('[admin-event-publish] publish button clicked', {
-			canCreateEvent,
-			relayUrl: relayUrl || undefined,
-			hasSigner: Boolean($key?.pub),
-			title: title.trim(),
-			scheduleValid,
-			admissionValid,
-			paymentValid,
-			paidEntrance
-		});
-		if (!canCreateEvent) {
-			console.warn('[admin-event-publish] publish blocked by validation');
-			return;
-		}
-		const d = slugFromTitle(title);
-		const pubkey = $key?.pub || '';
-		const eventTitle = title.trim();
-		const eventSummary = summary.trim();
-		const eventImage = image.trim();
-		const eventLocation = location.trim();
-		const eventCapacity = capacity ? Math.max(1, Math.floor(Number(capacity))) : undefined;
-		// Svelte coerces values bound to number inputs to numbers at runtime. Nostr tags
-		// must contain strings or nipworker's FlatBuffer StringVec packer will try to
-		// call `.pack()` on the numeric value.
-		const entrancePriceValue = String(Number(entrancePrice));
-		const eventAddress = `31923:${pubkey}:${d}`;
-		const entranceBadgeD = `event-${d}-entrance`;
-		const entranceBadgeAddress = `30009:${pubkey}:${entranceBadgeD}`;
-		const tags = [
-			['d', d],
-			['title', eventTitle],
-			['summary', eventSummary],
-			['start', String(startsAtTimestamp)],
-			['t', category]
-		];
-		tags.push(['end', String(endsAtTimestamp)]);
-		if (eventImage) tags.push(['image', eventImage]);
-		if (eventLocation) tags.push(['location', eventLocation]);
-		if (eventCapacity) tags.push(['capacity', String(eventCapacity)]);
-		tags.push(['access', freeEntry === 'everyone' ? 'open' : 'restricted']);
-		if (freeEntry === 'selected') {
-			for (const badgeAddress of selectedBadgeAddresses) {
-				tags.push(['required_badge', badgeAddress]);
-			}
-		}
-		if (paidEntrance) {
-			tags.push(['entrance_price', entrancePriceValue, entranceCurrency]);
-			tags.push(['entrance_badge', entranceBadgeAddress]);
-			if (Number(entranceSats) > 0) tags.push(['entrance_sats', String(Math.floor(Number(entranceSats)))]);
-		}
+	function eventSubscriptionId(url: string) {
+		return 'admin_events_' + url;
+	}
 
-		const event: EventTemplate = {
-			kind: 31923,
-			content: eventSummary,
-			created_at: now(),
-			tags
-		};
-		console.log('[admin-event-publish] event template created', {
-			relayUrl,
-			eventAddress,
-			event
-		});
-		if (paidEntrance) {
-			const badgeDefinition: EventTemplate = {
-				kind: 30009,
-				content: `Paid entrance for ${eventTitle}`,
-				created_at: now(),
-				tags: [
-					['d', entranceBadgeD],
-					['type', 'event_access'],
-					['name', `${eventTitle} entrance`],
-					['description', `Paid entrance for ${eventTitle}`],
-					['a', eventAddress],
-					['price', entrancePriceValue, entranceCurrency],
-					['billing', 'one_time'],
-					['max_uses', '1'],
-					['expiration', String(endsAtTimestamp)],
-					...(Number(entranceSats) > 0 ? [['price_sats', String(Math.floor(Number(entranceSats)))]] : []),
-					...(eventImage ? [['image', eventImage]] : [])
-				]
-			};
-			const badgePublishId = 'admin_event_badge_' + relayUrl + '_' + entranceBadgeD;
-			console.log('[admin-event-publish] publishing entrance badge', {
-				publishId: badgePublishId,
-				relayUrl,
-				badgeDefinition
-			});
-			badgePublishUnsubscribe?.();
-			badgePublishUnsubscribe = usePublish(
-				badgePublishId,
-				badgeDefinition,
-				(message: WorkerMessage) => {
-					const status = isConnectionStatus(message);
-					console.log('[admin-event-publish] entrance badge worker response', {
-						publishId: badgePublishId,
-						messageType: message.type(),
-						relayUrl: status?.relayUrl() || undefined,
-						status: status?.status() || undefined,
-						message: status?.message() || undefined
-					});
-				},
-				{ trackStatus: true, defaultRelays: [relayUrl] }
-			);
-		}
+	function publishAccepted(message: WorkerMessage) {
+		const value = isConnectionStatus(message)?.status()?.toString();
+		return value === 'true' || value === 'OK';
+	}
 
-		publishUnsubscribe?.();
-		publishStatus = 'Publishing event...';
-		const eventPublishId = 'admin_event_' + relayUrl + '_' + d;
-		console.log('[admin-event-publish] calling usePublish', {
-			publishId: eventPublishId,
-			relayUrl
-		});
-		publishUnsubscribe = usePublish(
-			eventPublishId,
-			event,
-			(message: WorkerMessage) => {
-				const status = isConnectionStatus(message);
-				console.log('[admin-event-publish] event worker response', {
-					publishId: eventPublishId,
-					messageType: message.type(),
-					relayUrl: status?.relayUrl() || undefined,
-					status: status?.status() || undefined,
-					message: status?.message() || undefined
-				});
-				if (status?.status() === 'true') publishStatus = 'Event published';
-			},
-			{
-				trackStatus: true,
-				defaultRelays: [relayUrl]
-			}
-		);
+	function trackPublishTimeout(callback: () => void) {
+		const timeout = window.setTimeout(callback, 5000);
+		publishTimeouts = [...publishTimeouts, timeout];
+		return timeout;
+	}
 
-		events = [
-			{
-				id: eventAddress,
-				title: eventTitle,
-				summary: eventSummary,
-				category,
-				startsAt: startsAtTimestamp,
-				endsAt: endsAtTimestamp,
-				location: eventLocation,
-				capacity: eventCapacity,
-				image: eventImage,
-				createdAt: now(),
-				access: freeEntry === 'everyone' ? 'open' : 'restricted',
-				requiredBadgeCount: selectedBadgeAddresses.length,
-				requiredBadgeAddresses: [...selectedBadgeAddresses],
-				entrancePrice: paidEntrance ? entrancePriceValue : undefined,
-				entranceCurrency: paidEntrance ? entranceCurrency : undefined,
-				entranceBadgeAddress: paidEntrance ? entranceBadgeAddress : undefined,
-				entranceSats:
-					paidEntrance && Number(entranceSats) > 0
-						? Math.floor(Number(entranceSats))
-						: undefined
-			},
-			...events
-		];
+	function clearPublishTimeout(timeout: number) {
+		window.clearTimeout(timeout);
+		publishTimeouts = publishTimeouts.filter((candidate) => candidate !== timeout);
+	}
+
+	function resetEventForm() {
 		title = '';
 		summary = '';
 		image = '';
@@ -766,10 +650,150 @@
 		entrancePrice = '';
 		entranceCurrency = 'EUR';
 		entranceSats = '';
-		console.log('[admin-event-publish] publish started; closing create modal', {
-			publishId: eventPublishId
-		});
 		createModalOpen = false;
+	}
+
+	function publishCalendarEvent(event: EventTemplate, d: string) {
+		publishUnsubscribe?.();
+		publishStatus = 'Publishing event...';
+		let settled = false;
+		const timeout = trackPublishTimeout(() => {
+			if (settled) return;
+			settled = true;
+			publishingEvent = false;
+			publishStatus = 'The relay did not confirm the event. Retry to finish publishing.';
+		});
+		try {
+			publishUnsubscribe = usePublish(
+				'admin_event_' + relayUrl + '_' + d,
+				event,
+				(message: WorkerMessage) => {
+					if (settled || !publishAccepted(message)) return;
+					settled = true;
+					clearPublishTimeout(timeout);
+					publishingEvent = false;
+					publishStatus = 'Event published';
+					resetEventForm();
+				},
+				{
+					trackStatus: true,
+					defaultRelays: [relayUrl],
+					subId: eventSubscriptionId(relayUrl)
+				}
+			);
+		} catch (error) {
+			settled = true;
+			clearPublishTimeout(timeout);
+			publishingEvent = false;
+			publishStatus = error instanceof Error ? error.message : 'Event publication failed.';
+		}
+	}
+
+	function publishTicketThenEvent(
+		badgeDefinition: EventTemplate,
+		badgeD: string,
+		event: EventTemplate,
+		eventD: string
+	) {
+		badgePublishUnsubscribe?.();
+		publishStatus = 'Publishing entrance ticket...';
+		let settled = false;
+		const timeout = trackPublishTimeout(() => {
+			if (settled) return;
+			settled = true;
+			publishingEvent = false;
+			publishStatus =
+				'The entrance ticket was not confirmed, so the event was not published. Retry to continue.';
+		});
+		try {
+			badgePublishUnsubscribe = usePublish(
+				'admin_event_badge_' + relayUrl + '_' + badgeD,
+				badgeDefinition,
+				(message: WorkerMessage) => {
+					if (settled || !publishAccepted(message)) return;
+					settled = true;
+					clearPublishTimeout(timeout);
+					publishStatus = 'Entrance ticket saved. Publishing event...';
+					publishCalendarEvent(event, eventD);
+				},
+				{ trackStatus: true, defaultRelays: [relayUrl] }
+			);
+		} catch (error) {
+			settled = true;
+			clearPublishTimeout(timeout);
+			publishingEvent = false;
+			publishStatus = error instanceof Error ? error.message : 'Ticket publication failed.';
+		}
+	}
+
+	function createEvent() {
+		if (!canCreateEvent) return;
+		const d = slugFromTitle(title);
+		const pubkey = $key?.pub || '';
+		const eventTitle = title.trim();
+		const eventSummary = summary.trim();
+		const eventImage = image.trim();
+		const eventLocation = location.trim();
+		const eventCapacity = capacity ? Math.max(1, Math.floor(Number(capacity))) : undefined;
+		let paidAccess: ReturnType<typeof buildPaidEventAccess> | undefined;
+		if (paidEntrance) {
+			try {
+				paidAccess = buildPaidEventAccess({
+					eventKind: 31923,
+					eventAuthor: pubkey,
+					eventD: d,
+					eventTitle,
+					eventImage,
+					price: entrancePrice,
+					currency: entranceCurrency,
+					...(Number(entranceSats) > 0 ? { priceSats: Math.floor(Number(entranceSats)) } : {}),
+					expiresAt: endsAtTimestamp,
+					relay: relayUrl
+				});
+			} catch (error) {
+				publishStatus = error instanceof Error ? error.message : 'The entrance ticket is invalid.';
+				return;
+			}
+		}
+
+		const tags: string[][] = [
+			['d', d],
+			['title', eventTitle],
+			['summary', eventSummary],
+			['start', String(startsAtTimestamp)],
+			['t', category]
+		];
+		tags.push(['end', String(endsAtTimestamp)]);
+		if (eventImage) tags.push(['image', eventImage]);
+		if (eventLocation) tags.push(['location', eventLocation]);
+		if (eventCapacity) tags.push(['capacity', String(eventCapacity)]);
+		tags.push(['access', freeEntry === 'everyone' ? 'open' : 'restricted']);
+		if (freeEntry === 'selected') {
+			for (const badgeAddress of selectedBadgeAddresses) {
+				tags.push(['required_badge', badgeAddress]);
+			}
+		}
+		if (paidAccess) tags.push(...paidAccess.eventTags);
+
+		const event: EventTemplate = {
+			kind: 31923,
+			content: eventSummary,
+			created_at: now(),
+			tags
+		};
+
+		publishingEvent = true;
+		if (paidAccess) {
+			const badgeDefinition: EventTemplate = {
+				kind: 30009,
+				content: paidAccess.description,
+				created_at: now(),
+				tags: paidAccess.definitionTags
+			};
+			publishTicketThenEvent(badgeDefinition, paidAccess.badgeD, event, d);
+			return;
+		}
+		publishCalendarEvent(event, d);
 	}
 
 	onDestroy(() => {
@@ -777,6 +801,7 @@
 		unsubscribeRoles?.();
 		publishUnsubscribe?.();
 		badgePublishUnsubscribe?.();
+		publishTimeouts.forEach((timeout) => window.clearTimeout(timeout));
 	});
 </script>
 
@@ -1256,7 +1281,7 @@
 													step="300"
 													bind:value={startTime}
 												/>
-												</label>
+											</label>
 											<label class="grid gap-2">
 												<span class="text-sm font-black text-stone-700">Ends</span>
 												<input
@@ -1536,10 +1561,32 @@
 																<option value="EUR">EUR</option>
 																<option value="USD">USD</option>
 																<option value="GBP">GBP</option>
-														<option value="CHF">CHF</option>
-													</select>
-												</label>
-												<label class="grid gap-2 sm:col-span-2"><span class="text-sm font-black text-stone-700">Bitcoin price <span class="font-semibold text-stone-400">· optional</span></span><div class="relative"><Bitcoin size={18} class="absolute left-4 top-1/2 -translate-y-1/2 text-amber-600" /><input class="h-12 w-full rounded-xl border border-stone-200 bg-white pl-11 pr-16 text-base font-black text-[#171614] outline-none focus:border-emerald-900 focus:ring-2 focus:ring-emerald-800/20" type="number" min="1" step="1" placeholder="2100" bind:value={entranceSats} /><span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-stone-400">sats</span></div></label>
+																<option value="CHF">CHF</option>
+															</select>
+														</label>
+														<label class="grid gap-2 sm:col-span-2"
+															><span class="text-sm font-black text-stone-700"
+																>Bitcoin price <span class="font-semibold text-stone-400"
+																	>· optional</span
+																></span
+															>
+															<div class="relative">
+																<Bitcoin
+																	size={18}
+																	class="absolute left-4 top-1/2 -translate-y-1/2 text-amber-600"
+																/><input
+																	class="h-12 w-full rounded-xl border border-stone-200 bg-white pl-11 pr-16 text-base font-black text-[#171614] outline-none focus:border-emerald-900 focus:ring-2 focus:ring-emerald-800/20"
+																	type="number"
+																	min="1"
+																	step="1"
+																	placeholder="2100"
+																	bind:value={entranceSats}
+																/><span
+																	class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-stone-400"
+																	>sats</span
+																>
+															</div></label
+														>
 													</div>
 												{/if}
 											</div>

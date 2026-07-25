@@ -19,6 +19,7 @@
 		LogOut,
 		Plus,
 		Settings,
+		Store,
 		Ticket,
 		UsersRound
 	} from 'lucide-svelte';
@@ -38,7 +39,11 @@
 		type RelayInfo
 	} from 'src/lib/adminRelays';
 	import { DEFAULT_RELAYS, INDEXER_RELAYS } from 'src/lib/env';
-	import { fetchCommunityAccess, type AdminPermission, type CommunityAccess } from 'src/lib/adminAccess';
+	import {
+		fetchCommunityAccess,
+		type AdminPermission,
+		type CommunityAccess
+	} from 'src/lib/adminAccess';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import User from 'src/routes/explore/user.svelte';
 	import PaymentSetupNotice from 'src/components/admin/PaymentSetupNotice.svelte';
@@ -48,8 +53,14 @@
 
 	const navItems = [
 		{ label: 'Dashboard', segment: '', icon: LayoutDashboard, permissions: [] },
-		{ label: 'People', segment: 'members', icon: UsersRound, permissions: ['moderation', 'settings'] },
+		{
+			label: 'People',
+			segment: 'members',
+			icon: UsersRound,
+			permissions: ['moderation', 'settings']
+		},
 		{ label: 'Events', segment: 'events', icon: CalendarDays, permissions: ['events'] },
+		{ label: 'Store', segment: 'store', icon: Store, permissions: ['store'] },
 		{ label: 'Invites', segment: 'invites', icon: Ticket, permissions: ['invites'] }
 	] as const;
 
@@ -58,6 +69,7 @@
 		| '/admin'
 		| '/admin/members'
 		| '/admin/events'
+		| '/admin/store'
 		| '/admin/settings'
 		| '/admin/invites';
 
@@ -98,8 +110,12 @@
 	}
 	$: displayName = selectedRelayName || selectedRelayUrl;
 	$: displayDescription = selectedRelayDescription || 'Community admin';
-	$: visibleNavItems = navItems.filter((item) =>
-		!item.permissions.length || item.permissions.some((permission) => communityAccess.permissions.has(permission as AdminPermission))
+	$: visibleNavItems = navItems.filter(
+		(item) =>
+			!item.permissions.length ||
+			item.permissions.some((permission) =>
+				communityAccess.permissions.has(permission as AdminPermission)
+			)
 	);
 	$: if (selectedRelayUrl && !accessLoading && !canOpenSegment(activeAdminSegment)) {
 		goto(resolve('/admin'));
@@ -124,8 +140,11 @@
 		if (!segment) return true;
 		if (segment === 'events') return communityAccess.permissions.has('events');
 		if (segment === 'invites') return communityAccess.permissions.has('invites');
+		if (segment === 'store') return communityAccess.permissions.has('store');
 		if (segment === 'settings') return communityAccess.permissions.has('settings');
-		return communityAccess.permissions.has('moderation') || communityAccess.permissions.has('settings');
+		return (
+			communityAccess.permissions.has('moderation') || communityAccess.permissions.has('settings')
+		);
 	}
 
 	function adminSegmentFromPath(pathname: string): AdminNavSegment {
@@ -133,7 +152,12 @@
 		const candidate = segments[2] || segments[1] || '';
 		if (candidate === 'roles') return 'members';
 		if (candidate === 'settings') return 'settings';
-		if (candidate === 'members' || candidate === 'events' || candidate === 'invites') {
+		if (
+			candidate === 'members' ||
+			candidate === 'events' ||
+			candidate === 'store' ||
+			candidate === 'invites'
+		) {
 			return candidate;
 		}
 		return '';
@@ -207,10 +231,12 @@
 
 		adminRelaysLoading = true;
 		Promise.all(urls.map((url) => fetchRelayInfo(url, pubkey))).then(async (infos) => {
-			const accessible = await Promise.all(infos.map(async (info) => ({
-				info,
-				access: await fetchCommunityAccess(info.url, pubkey, info.isAdmin)
-			})));
+			const accessible = await Promise.all(
+				infos.map(async (info) => ({
+					info,
+					access: await fetchCommunityAccess(info.url, pubkey, info.isAdmin)
+				}))
+			);
 			adminRelays = accessible
 				.filter(({ access }) => access.isOwner || access.permissions.size > 0)
 				.map(({ info }) => info);
@@ -222,9 +248,10 @@
 		const pubkey = $key?.pub;
 		if (!pubkey) return;
 		const nextRelaySetAddressKey = addresses
-			.filter((address) =>
-				address === `30002:${pubkey}:nuts-relays-admin` ||
-				address === `30002:${pubkey}:nuts-relays-member`
+			.filter(
+				(address) =>
+					address === `30002:${pubkey}:nuts-relays-admin` ||
+					address === `30002:${pubkey}:nuts-relays-member`
 			)
 			.sort()
 			.join('|');
@@ -367,7 +394,7 @@
 	function signOut() {
 		communityMenuOpen = false;
 		// Clear persistent stores to prevent stale data on reload
-		key.set({});
+		key.set({ pub: '', npub: '' });
 		walletMnemonic.set('');
 		walletPassphrase.set('');
 		selectAdminRelayUrl('');
@@ -571,24 +598,24 @@
 							{/if}
 
 							{#if communityAccess.permissions.has('settings')}<button
-								type="button"
-								class="mt-4 flex w-full items-center gap-4 rounded-xl px-3 py-2.5 text-left text-emerald-900 transition hover:bg-stone-50 focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.99]"
-								on:click={createCommunity}
-							>
-								<Plus size={24} />
-								<span class="text-lg font-black">Create community</span>
-							</button>
+									type="button"
+									class="mt-4 flex w-full items-center gap-4 rounded-xl px-3 py-2.5 text-left text-emerald-900 transition hover:bg-stone-50 focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.99]"
+									on:click={createCommunity}
+								>
+									<Plus size={24} />
+									<span class="text-lg font-black">Create community</span>
+								</button>
 
-							<div class="my-6 h-px bg-stone-200"></div>
+								<div class="my-6 h-px bg-stone-200"></div>
 
-							<button
-								type="button"
-								class="flex w-full items-center gap-4 rounded-xl px-3 py-3 text-left text-lg font-black text-stone-800 transition hover:bg-stone-50 focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.99]"
-								on:click={openSettings}
-							>
-								<Settings size={23} strokeWidth={1.8} />
-								Community settings
-							</button>{/if}
+								<button
+									type="button"
+									class="flex w-full items-center gap-4 rounded-xl px-3 py-3 text-left text-lg font-black text-stone-800 transition hover:bg-stone-50 focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.99]"
+									on:click={openSettings}
+								>
+									<Settings size={23} strokeWidth={1.8} />
+									Community settings
+								</button>{/if}
 
 							<button
 								type="button"

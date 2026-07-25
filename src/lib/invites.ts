@@ -1,5 +1,7 @@
 import { getManager } from '@candypoets/nipworker';
 import { useSignEvent } from '@candypoets/nipworker/hooks';
+import { sha256 } from '@noble/hashes/sha256';
+import { bytesToHex } from '@noble/hashes/utils';
 
 type SignedEvent = {
 	id: string;
@@ -19,10 +21,7 @@ function base64Url(value: string) {
 }
 
 export async function sha256Hex(value: string) {
-	const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
-	return Array.from(new Uint8Array(hash))
-		.map((byte) => byte.toString(16).padStart(2, '0'))
-		.join('');
+	return bytesToHex(sha256(new TextEncoder().encode(value)));
 }
 
 export function normalizeSignedEvent(value: string | SignedEvent): SignedEvent {
@@ -81,23 +80,38 @@ export async function makeInviteAuthorization(url: string, body: string, expecte
 	};
 
 	return await new Promise<string>((resolve, reject) => {
+		let settled = false;
+		const timeout = window.setTimeout(() => {
+			settled = true;
+			reject(new Error('Timed out while waiting for the Nostr signer'));
+		}, 10_000);
+
+		function settle(callback: () => void) {
+			if (settled) return;
+			settled = true;
+			window.clearTimeout(timeout);
+			callback();
+		}
+
 		try {
 			useSignEvent(unsigned, (signedEvent) => {
 				try {
 					const normalized = normalizeSignedEvent(signedEvent);
 					if (expectedPubkey && normalized.pubkey !== expectedPubkey) {
-						reject(
-							new Error('The active signer does not match the community administrator account')
+						settle(() =>
+							reject(
+								new Error('The active signer does not match the community administrator account')
+							)
 						);
 						return;
 					}
-					resolve(`Nostr ${base64Url(JSON.stringify(normalized))}`);
+					settle(() => resolve(`Nostr ${base64Url(JSON.stringify(normalized))}`));
 				} catch (error) {
-					reject(error);
+					settle(() => reject(error));
 				}
 			});
 		} catch (error) {
-			reject(error);
+			settle(() => reject(error));
 		}
 	});
 }
