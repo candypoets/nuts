@@ -1050,7 +1050,7 @@
 						<div class="flex items-center justify-between gap-3">
 							<div class="min-w-0">
 								<h3 class="text-xl font-bold">Communities</h3>
-								<p class="mt-1 text-sm text-primary-content">Your spaces. Your people.</p>
+								<p class="mt-1 text-sm text-base-content/70">Your spaces. Your people.</p>
 							</div>
 							<button
 								type="button"
@@ -1066,26 +1066,26 @@
 							class="mt-3 grid grid-cols-3 overflow-hidden rounded-lg border border-base-200 bg-base-300"
 						>
 							<div class="border-r border-base-200 px-3 py-3">
-								<Icon icon="mdi:account-group" class="text-lg text-primary-content" />
+								<Icon icon="mdi:account-group" class="text-lg text-base-content/60" />
 								<p class="text-lg font-bold">{communities.length}</p>
-								<p class="text-[11px] font-semibold uppercase text-primary-content">Communities</p>
+								<p class="text-[11px] font-semibold uppercase text-base-content/60">Communities</p>
 							</div>
 							<div class="border-r border-base-200 px-3 py-3">
-								<Icon icon="mdi:shield-check" class="text-lg text-primary-content" />
+								<Icon icon="mdi:shield-check" class="text-lg text-base-content/60" />
 								<p class="text-lg font-bold">{belongCommunities.length}</p>
-								<p class="text-[11px] font-semibold uppercase text-primary-content">Roles</p>
+								<p class="text-[11px] font-semibold uppercase text-base-content/60">Roles</p>
 							</div>
 							<div class="px-3 py-3">
-								<Icon icon="mdi:message-text" class="text-lg text-primary-content" />
+								<Icon icon="mdi:message-text" class="text-lg text-base-content/60" />
 								<p class="text-lg font-bold">{contributionCount}</p>
-								<p class="text-[11px] font-semibold uppercase text-primary-content">24h posts</p>
+								<p class="text-[11px] font-semibold uppercase text-base-content/60">24h posts</p>
 							</div>
 						</div>
 
 						<div class="tabs tabs-boxed mt-4 bg-base-200">
 							<button
 								type="button"
-								class="tab flex-1"
+								class="tab flex-1 {!belongCommunities.length ? '!text-base-content/50' : ''}"
 								class:tab-active={communityMode === 'belong'}
 								class:tab-disabled={!belongCommunities.length}
 								on:click={() => (communityMode = 'belong')}
@@ -1094,7 +1094,7 @@
 							</button>
 							<button
 								type="button"
-								class="tab flex-1"
+								class="tab flex-1 {!followCommunities.length ? '!text-base-content/50' : ''}"
 								class:tab-active={communityMode === 'follow'}
 								class:tab-disabled={!followCommunities.length}
 								on:click={() => (communityMode = 'follow')}
@@ -1149,7 +1149,7 @@
 											</span>
 										</span>
 									</div>
-									<p class="mt-3 line-clamp-2 min-h-10 text-sm leading-5 text-primary-content">
+									<p class="mt-3 line-clamp-2 min-h-10 text-sm leading-5 text-base-content/70">
 										{info?.description || 'Public community'}
 									</p>
 									<div class="mt-3 flex h-6 items-center">
@@ -1165,20 +1165,20 @@
 														class="h-full w-full object-cover"
 													/>
 												{:else}
-													<span class="text-[9px] font-bold text-primary-content">
+													<span class="text-[9px] font-bold text-base-content">
 														{initials(profile.name)}
 													</span>
 												{/if}
 											</span>
 										{/each}
 										{#if profiles.length > 5}
-											<span class="ml-2 text-xs font-semibold text-primary-content">
+											<span class="ml-2 text-xs font-semibold text-base-content/70">
 												+{profiles.length - 5}
 											</span>
 										{/if}
 									</div>
 									<div
-										class="mt-3 flex items-center gap-1 text-xs font-medium text-primary-content"
+										class="mt-3 flex items-center gap-1 text-xs font-medium text-base-content/70"
 									>
 										<Icon icon="mdi:account-group" class="text-sm" />
 										<span>Public</span>

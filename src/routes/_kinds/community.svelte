@@ -593,7 +593,7 @@
 							{#if icon}
 								<img src={proxyAvatarUrl(icon)} alt="" class="h-full w-full object-cover" />
 							{:else}
-								<span class="text-2xl font-black text-primary-content">{initials(name)}</span>
+								<span class="text-2xl font-black text-base-content">{initials(name)}</span>
 							{/if}
 						</div>
 						<div
@@ -604,11 +604,11 @@
 					</div>
 
 					<h1 class="mt-4 text-3xl font-bold leading-tight">{name}</h1>
-					<p class="mt-1 truncate text-base font-medium text-primary-content">
+					<p class="mt-1 truncate text-base font-medium text-base-content/70">
 						Public community{#if communityProfile && communityProfile.type !== 'other'}
 							· {communityArchetype.shortLabel}{/if} · {relayLabel(normalizedRelay)}
 					</p>
-					<p class="mt-5 text-base leading-6 text-primary-content">{description}</p>
+					<p class="mt-5 text-base leading-6 text-base-content/80">{description}</p>
 					{#if communityProfile && (communityProfile.menuUrl || communityProfile.bookingUrl)}
 						<div class="mt-4 flex flex-wrap gap-2">
 							{#if communityProfile.menuUrl}
@@ -638,7 +638,7 @@
 
 					<div class="mt-6 flex items-center justify-between gap-3">
 						<div class="min-w-0">
-							<p class="text-xs font-bold uppercase text-primary-content opacity-70">Your role</p>
+							<p class="text-xs font-bold uppercase text-base-content/70">Your role</p>
 							<div
 								class="mt-1 inline-flex items-center rounded-full bg-base-200 px-3 py-1.5 text-sm font-bold text-primary"
 							>
@@ -661,7 +661,7 @@
 						{/if}
 					</div>
 					{#if publishStatus}
-						<p class="mt-2 text-sm font-semibold text-primary-content">{publishStatus}</p>
+						<p class="mt-2 text-sm font-semibold text-base-content/70">{publishStatus}</p>
 					{/if}
 
 					<div
@@ -676,7 +676,7 @@
 							class={`flex h-11 items-center justify-center gap-2 rounded-lg text-sm font-black transition ${
 								communityTab === 'home'
 									? 'bg-base-100 text-primary shadow-sm'
-									: 'text-primary-content hover:bg-base-100/60'
+									: 'text-base-content/70 hover:bg-base-100/60'
 							}`}
 							on:click={() => (communityTab = 'home')}
 						>
@@ -690,7 +690,7 @@
 							class={`flex h-11 items-center justify-center gap-2 rounded-lg text-sm font-black transition ${
 								communityTab === 'store'
 									? 'bg-base-100 text-primary shadow-sm'
-									: 'text-primary-content hover:bg-base-100/60'
+									: 'text-base-content/70 hover:bg-base-100/60'
 							}`}
 							on:click={() => (communityTab = 'store')}
 						>
@@ -728,7 +728,7 @@
 									{/each}
 								</div>
 							{:else}
-								<p class="text-sm font-medium text-primary-content">No upcoming events</p>
+								<p class="text-sm font-medium text-base-content/70">No upcoming events</p>
 							{/if}
 						</div>
 
@@ -749,7 +749,7 @@
 
 		<svelte:fragment slot="empty-content">
 			{#if communityTab === 'home'}
-				<div class="px-6 py-16 text-center text-base font-semibold text-primary-content">
+				<div class="px-6 py-16 text-center text-base font-semibold text-base-content/70">
 					{emptyTimedOut ? 'No community posts yet.' : 'Loading community posts...'}
 				</div>
 			{/if}

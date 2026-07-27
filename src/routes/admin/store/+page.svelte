@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { dev } from '$app/environment';
 	import { page } from '$app/stores';
 	import {
 		extractTagValue,
@@ -13,7 +14,6 @@
 		Archive,
 		ArrowDown,
 		ArrowUp,
-		BadgeCheck,
 		CircleAlert,
 		Coffee,
 		ImagePlus,
@@ -67,9 +67,16 @@
 	import { now } from 'src/lib/period';
 	import { uploadFile } from 'src/lib/upload';
 	import { onDestroy } from 'svelte';
+	import CatalogPublishNotice from './CatalogPublishNotice.svelte';
 
 	type StoreCatalogType = Exclude<CatalogDefinitionType, 'event_access'>;
 	type AvailabilityFilter = 'current' | CatalogAvailability;
+	type ItemPublishState = {
+		attempt: number;
+		input: CatalogDefinitionInput;
+		phase: 'publishing' | 'failed';
+		message: string;
+	};
 
 	let relayUrl = '';
 	let loadedRelayUrl = '';
@@ -82,8 +89,9 @@
 	let availabilityFilter: AvailabilityFilter = 'current';
 	let sectionFilter = 'all';
 	let appliedTypeQuery = '';
-	let publishStatus = '';
 	let publishError = '';
+	let itemPublishStates = new Map<string, ItemPublishState>();
+	let publishAttempt = 0;
 	let connectedStripeAccountId = '';
 	let paymentStatusLoading = false;
 	let paymentStatusError = '';
@@ -195,11 +203,11 @@
 		pendingPublishCount = 0;
 		publishing = false;
 		lastPublishedAtByD.clear();
+		itemPublishStates = new Map();
 		catalogEvents = [];
 		communityType = 'other';
 		profileCreatedAt = 0;
 		loading = Boolean(relayUrl);
-		publishStatus = '';
 		publishError = '';
 		connectedStripeAccountId = '';
 		paymentStatusError = '';
@@ -615,11 +623,29 @@
 			created_at: nextCatalogCreatedAt(input.d),
 			tags
 		};
+		const attempt = ++publishAttempt;
 		let settled = false;
+		const failPublish = (statusValue = '', statusRelay = '', statusMessage = '') => {
+			if (settled) return;
+			settled = true;
+			pendingPublishCount = Math.max(0, pendingPublishCount - 1);
+			publishing = pendingPublishCount > 0;
+			setItemPublishState(input.d, {
+				attempt,
+				input,
+				phase: 'failed',
+				message: itemPublishFailureMessage(statusValue, statusRelay, statusMessage)
+			});
+		};
 		pendingPublishCount += 1;
 		publishing = true;
 		publishError = '';
-		publishStatus = `${label}…`;
+		setItemPublishState(input.d, {
+			attempt,
+			input,
+			phase: 'publishing',
+			message: `${label}…`
+		});
 		try {
 			const unsubscribe = usePublish(
 				`admin_store_${relayUrl}_${input.d}_${template.created_at}`,
@@ -627,11 +653,21 @@
 				(message: WorkerMessage) => {
 					const status = isConnectionStatus(message);
 					const value = status?.status()?.toString();
-					if (settled || !status || (value !== 'true' && value !== 'OK')) return;
+					const normalizedValue = value?.toLowerCase();
+					if (settled || !status) return;
+					if (normalizedValue === 'false') {
+						failPublish(
+							value || '',
+							status.relayUrl()?.toString() || message.url()?.toString() || relayUrl,
+							status.message()?.toString() || ''
+						);
+						return;
+					}
+					if (normalizedValue !== 'true' && normalizedValue !== 'ok') return;
 					settled = true;
 					pendingPublishCount = Math.max(0, pendingPublishCount - 1);
 					publishing = pendingPublishCount > 0;
-					publishStatus = `${label} saved`;
+					clearItemPublishState(input.d, attempt);
 				},
 				{
 					trackStatus: true,
@@ -644,19 +680,49 @@
 			settled = true;
 			pendingPublishCount = Math.max(0, pendingPublishCount - 1);
 			publishing = pendingPublishCount > 0;
+			clearItemPublishState(input.d, attempt);
 			publishError = error instanceof Error ? error.message : 'Could not publish this change.';
 			return false;
 		}
 		const timeout = window.setTimeout(() => {
-			if (settled) return;
-			settled = true;
-			pendingPublishCount = Math.max(0, pendingPublishCount - 1);
-			publishing = pendingPublishCount > 0;
-			publishError =
-				'The relay did not confirm this change. It is still shown optimistically; retry before relying on it.';
+			failPublish();
 		}, 5000);
 		publishTimeouts = [...publishTimeouts, timeout];
 		return true;
+	}
+
+	function itemPublishFailureMessage(status: string, relay: string, relayMessage: string) {
+		const message =
+			'This item is still shown optimistically. Publish it again before relying on it.';
+		if (!dev || (!status && !relay && !relayMessage)) return message;
+
+		const response = [
+			relay ? `relay=${relay}` : '',
+			status ? `status=${status}` : '',
+			relayMessage ? `message=${relayMessage}` : ''
+		]
+			.filter(Boolean)
+			.join(' · ');
+		return `${message} Relay response: ${response}`;
+	}
+
+	function setItemPublishState(d: string, state: ItemPublishState) {
+		const current = itemPublishStates.get(d);
+		if (current && current.attempt > state.attempt) return;
+		itemPublishStates = new Map(itemPublishStates).set(d, state);
+	}
+
+	function clearItemPublishState(d: string, attempt: number) {
+		if (itemPublishStates.get(d)?.attempt !== attempt) return;
+		const next = new Map(itemPublishStates);
+		next.delete(d);
+		itemPublishStates = next;
+	}
+
+	function retryPublish(d: string) {
+		const state = itemPublishStates.get(d);
+		if (!state || state.phase !== 'failed') return;
+		publishDefinition(state.input, 'Publishing item');
 	}
 
 	function nextCatalogCreatedAt(d: string) {
@@ -782,12 +848,12 @@
 		</button>
 	</header>
 
-	{#if publishStatus || publishError}
+	{#if publishError}
 		<div
-			class={`mt-5 flex items-center gap-3 rounded-xl border px-4 py-3 text-sm font-bold ${publishError ? 'border-rose-200 bg-rose-50 text-rose-800' : 'border-emerald-200 bg-emerald-50 text-emerald-800'}`}
+			class="mt-5 flex items-center gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-800"
 		>
-			{#if publishError}<CircleAlert size={18} />{:else}<BadgeCheck size={18} />{/if}
-			<span>{publishError || publishStatus}</span>
+			<CircleAlert size={18} />
+			<span>{publishError}</span>
 		</div>
 	{/if}
 
@@ -903,91 +969,104 @@
 					<div class="divide-y divide-stone-100">
 						{#each sectionEvents(section) as event, index (event.id())}
 							{@const priceSats = catalogPriceSats(event)}
-							<div
-								class={`flex flex-col gap-4 p-5 sm:flex-row sm:items-center ${catalogAvailability(event) === 'unavailable' ? 'bg-stone-50 opacity-70' : ''}`}
-							>
-								<div class="flex min-w-0 flex-1 items-center gap-4">
-									<div
-										class="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-xl bg-emerald-50 text-emerald-800"
-									>
-										{#if catalogImage(event)}
-											<img src={catalogImage(event)} alt="" class="h-full w-full object-cover" />
-										{:else}
-											<svelte:component this={itemIcon(event)} size={25} />
-										{/if}
-									</div>
-									<div class="min-w-0">
-										<div class="flex flex-wrap items-center gap-2">
-											<h3 class="truncate text-lg font-black">{catalogName(event)}</h3>
-											<span
-												class="rounded-full bg-stone-100 px-2.5 py-1 text-[11px] font-black uppercase tracking-wide text-stone-600"
-												>{typeLabel(event)}</span
-											>
-											{#if catalogAvailability(event) !== 'available'}
-												<span
-													class="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-black uppercase tracking-wide text-amber-800"
-													>{catalogAvailability(event)}</span
-												>
+							{@const itemPublishState = itemPublishStates.get(catalogD(event))}
+							<div class={catalogAvailability(event) === 'unavailable' ? 'bg-stone-50' : ''}>
+								<div
+									class={`flex flex-col gap-4 p-5 sm:flex-row sm:items-center ${catalogAvailability(event) === 'unavailable' ? 'opacity-70' : ''}`}
+								>
+									<div class="flex min-w-0 flex-1 items-center gap-4">
+										<div
+											class="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-xl bg-emerald-50 text-emerald-800"
+										>
+											{#if catalogImage(event)}
+												<img src={catalogImage(event)} alt="" class="h-full w-full object-cover" />
+											{:else}
+												<svelte:component this={itemIcon(event)} size={25} />
 											{/if}
 										</div>
-										<p class="mt-1 line-clamp-1 text-sm font-semibold text-stone-500">
-											{catalogDescription(event) || 'No description'}
-										</p>
+										<div class="min-w-0">
+											<div class="flex flex-wrap items-center gap-2">
+												<h3 class="truncate text-lg font-black">{catalogName(event)}</h3>
+												<span
+													class="rounded-full bg-stone-100 px-2.5 py-1 text-[11px] font-black uppercase tracking-wide text-stone-600"
+													>{typeLabel(event)}</span
+												>
+												{#if catalogAvailability(event) !== 'available'}
+													<span
+														class="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-black uppercase tracking-wide text-amber-800"
+														>{catalogAvailability(event)}</span
+													>
+												{/if}
+											</div>
+											<p class="mt-1 line-clamp-1 text-sm font-semibold text-stone-500">
+												{catalogDescription(event) || 'No description'}
+											</p>
+										</div>
+									</div>
+									<div class="shrink-0 text-right">
+										<p class="text-lg font-black text-emerald-950">{formatPrice(event)}</p>
+										{#if priceSats}
+											<p class="mt-0.5 text-xs font-bold text-amber-700">
+												₿ {priceSats.toLocaleString()} sats
+											</p>
+										{/if}
+									</div>
+									<div class="flex shrink-0 flex-wrap items-center gap-2">
+										<button
+											type="button"
+											class="grid h-9 w-9 place-items-center rounded-lg border border-stone-200 bg-white disabled:opacity-30"
+											disabled={index === 0 || !canEditEvent(event)}
+											aria-label="Move item up"
+											on:click={() => moveEvent(event, -1)}><ArrowUp size={16} /></button
+										>
+										<button
+											type="button"
+											class="grid h-9 w-9 place-items-center rounded-lg border border-stone-200 bg-white disabled:opacity-30"
+											disabled={index === sectionEvents(section).length - 1 || !canEditEvent(event)}
+											aria-label="Move item down"
+											on:click={() => moveEvent(event, 1)}><ArrowDown size={16} /></button
+										>
+										{#if catalogAvailability(event) === 'available'}
+											<button
+												type="button"
+												class="h-9 rounded-lg border border-stone-200 bg-white px-3 text-xs font-black disabled:opacity-40"
+												disabled={!canEditEvent(event)}
+												on:click={() => changeAvailability(event, 'unavailable')}
+												>Unavailable</button
+											>
+										{:else}
+											<button
+												type="button"
+												class="h-9 rounded-lg bg-emerald-800 px-3 text-xs font-black text-white disabled:opacity-40"
+												disabled={!canEditEvent(event)}
+												on:click={() => changeAvailability(event, 'available')}>Available</button
+											>
+										{/if}
+										<button
+											type="button"
+											class="grid h-9 w-9 place-items-center rounded-lg border border-stone-200 bg-white disabled:opacity-30"
+											disabled={!canEditEvent(event)}
+											aria-label="Edit item"
+											on:click={() => openEditEditor(event)}><Pencil size={16} /></button
+										>
+										<button
+											type="button"
+											class="grid h-9 w-9 place-items-center rounded-lg border border-stone-200 bg-white text-rose-700 disabled:opacity-30"
+											disabled={!canEditEvent(event)}
+											aria-label="Archive item"
+											on:click={() => archiveEvent(event)}><Archive size={16} /></button
+										>
 									</div>
 								</div>
-								<div class="shrink-0 text-right">
-									<p class="text-lg font-black text-emerald-950">{formatPrice(event)}</p>
-									{#if priceSats}
-										<p class="mt-0.5 text-xs font-bold text-amber-700">
-											₿ {priceSats.toLocaleString()} sats
-										</p>
-									{/if}
-								</div>
-								<div class="flex shrink-0 flex-wrap items-center gap-2">
-									<button
-										type="button"
-										class="grid h-9 w-9 place-items-center rounded-lg border border-stone-200 bg-white disabled:opacity-30"
-										disabled={index === 0 || !canEditEvent(event)}
-										aria-label="Move item up"
-										on:click={() => moveEvent(event, -1)}><ArrowUp size={16} /></button
-									>
-									<button
-										type="button"
-										class="grid h-9 w-9 place-items-center rounded-lg border border-stone-200 bg-white disabled:opacity-30"
-										disabled={index === sectionEvents(section).length - 1 || !canEditEvent(event)}
-										aria-label="Move item down"
-										on:click={() => moveEvent(event, 1)}><ArrowDown size={16} /></button
-									>
-									{#if catalogAvailability(event) === 'available'}
-										<button
-											type="button"
-											class="h-9 rounded-lg border border-stone-200 bg-white px-3 text-xs font-black disabled:opacity-40"
-											disabled={!canEditEvent(event)}
-											on:click={() => changeAvailability(event, 'unavailable')}>Unavailable</button
-										>
-									{:else}
-										<button
-											type="button"
-											class="h-9 rounded-lg bg-emerald-800 px-3 text-xs font-black text-white disabled:opacity-40"
-											disabled={!canEditEvent(event)}
-											on:click={() => changeAvailability(event, 'available')}>Available</button
-										>
-									{/if}
-									<button
-										type="button"
-										class="grid h-9 w-9 place-items-center rounded-lg border border-stone-200 bg-white disabled:opacity-30"
-										disabled={!canEditEvent(event)}
-										aria-label="Edit item"
-										on:click={() => openEditEditor(event)}><Pencil size={16} /></button
-									>
-									<button
-										type="button"
-										class="grid h-9 w-9 place-items-center rounded-lg border border-stone-200 bg-white text-rose-700 disabled:opacity-30"
-										disabled={!canEditEvent(event)}
-										aria-label="Archive item"
-										on:click={() => archiveEvent(event)}><Archive size={16} /></button
-									>
-								</div>
+								{#if itemPublishState}
+									<div class="px-5 pb-5">
+										<CatalogPublishNotice
+											phase={itemPublishState.phase}
+											message={itemPublishState.message}
+											onRetry={() => retryPublish(catalogD(event))}
+										/>
+									</div>
+								{/if}
 							</div>
 						{/each}
 					</div>
@@ -1003,6 +1082,7 @@
 					<div class="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
 						{#each hospitalityOtherEvents as event (event.id())}
 							{@const priceSats = catalogPriceSats(event)}
+							{@const itemPublishState = itemPublishStates.get(catalogD(event))}
 							<article
 								class="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm shadow-stone-950/5"
 							>
@@ -1043,6 +1123,15 @@
 										on:click={() => openEditEditor(event)}><Pencil size={14} /> Edit</button
 									>
 								</div>
+								{#if itemPublishState}
+									<div class="mt-4">
+										<CatalogPublishNotice
+											phase={itemPublishState.phase}
+											message={itemPublishState.message}
+											onRetry={() => retryPublish(catalogD(event))}
+										/>
+									</div>
+								{/if}
 							</article>
 						{/each}
 					</div>
@@ -1053,6 +1142,7 @@
 		<div class="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
 			{#each visibleEvents as event (event.id())}
 				{@const priceSats = catalogPriceSats(event)}
+				{@const itemPublishState = itemPublishStates.get(catalogD(event))}
 				<article
 					class={`rounded-2xl border border-stone-200 bg-white p-5 shadow-sm shadow-stone-950/5 ${catalogAvailability(event) === 'archived' ? 'opacity-60' : ''}`}
 				>
@@ -1139,6 +1229,15 @@
 						<p class="mt-4 border-t border-stone-100 pt-3 text-xs font-semibold text-stone-400">
 							Published by another community key
 						</p>
+					{/if}
+					{#if itemPublishState}
+						<div class="mt-4">
+							<CatalogPublishNotice
+								phase={itemPublishState.phase}
+								message={itemPublishState.message}
+								onRetry={() => retryPublish(catalogD(event))}
+							/>
+						</div>
 					{/if}
 				</article>
 			{/each}
