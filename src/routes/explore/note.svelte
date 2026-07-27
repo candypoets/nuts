@@ -58,6 +58,8 @@
 	export let showRoot: boolean = true;
 	export let depth = 0;
 
+	const ARTICLE_BYTES_PER_EVENT = 64 * 1024;
+
 	// Repost handling variables
 	let kind6: ReturnType<typeof asKind6> | undefined;
 	let isRepost = false;
@@ -241,22 +243,12 @@
 					if (!sub && (nid || naddrDecoded)) {
 						subed++;
 
-						// Build the main request based on whether it's naddr or regular note
-						// Skip loading note by ID if we already have it (naddr always needs loading)
-						const mainRequest = naddrDecoded
-							? {
-									// Naddr: query by kind + author + d-tag
-									kinds: [naddrDecoded.kind],
-									authors: [naddrDecoded.pubkey],
-									tags: { '#d': [naddrDecoded.identifier] },
-									limit: 5,
-									relays: relays.slice(0, 5) || [],
-									cacheFirst: true
-								}
-							: note
-								? null // Already have the note, skip the ids request
+						// Address references are resolved by the parent event's nipworker-generated
+						// requests. The nested naddr note only consumes the resulting context event.
+						const mainRequest =
+							note || naddrDecoded
+								? null
 								: {
-										// Regular note: query by id
 										ids: nid ? [nid] : [],
 										limit: 5,
 										relays: relays.slice(0, 5) || [],
@@ -275,6 +267,9 @@
 							currentReply = (currentReply as any)?.reply?.() || undefined;
 						}
 
+						const parsedEventRequests = displayNote
+							? fbArray(displayNote, 'requests').map((r) => withKnownRelays(toRequestObject(r)))
+							: [];
 						const requests = [
 							// Only include main request if we need to load the note
 							...(mainRequest ? [mainRequest] : []),
@@ -284,14 +279,20 @@
 								: []),
 							// For naddr, replies work differently (no #e tag to query)
 							...(naddrDecoded ? [] : [{ limit: 10, tags: { '#e': [nid] }, relays: relays || [] }]),
-							...(displayNote
-								? fbArray(displayNote, 'requests').map((r) => withKnownRelays(toRequestObject(r)))
-								: [])
+							...parsedEventRequests
 						];
+						const resolvesArticle = parsedEventRequests.some((request) =>
+							request.kinds?.includes(30023)
+						);
 
 						// Only subscribe if there are requests to make
 						if (requests.length > 0) {
-							sub = useSubscription(subId || effectiveNid || 'unknown', requests, handleEvents);
+							sub = useSubscription(
+								subId || effectiveNid || 'unknown',
+								requests,
+								handleEvents,
+								resolvesArticle ? { bytesPerEvent: ARTICLE_BYTES_PER_EVENT } : undefined
+							);
 						}
 						// Fallback: if displayNote not yet available, load direct ancestor separately
 						// This handles cases where kind1 is parsed but the note hasn't loaded yet
@@ -309,9 +310,10 @@
 							}
 						}
 					}
-					if (!relays.length && !relaysub) {
+					const relayLookupPubkey = displayNote?.pubkey();
+					if (!naddrDecoded && relayLookupPubkey && !relays.length && !relaysub) {
 						relaysub = getUserRelays(
-							displayNote?.pubkey()! as string,
+							relayLookupPubkey,
 							(result) => {
 								relays = result.slice(0, $isMobile ? 3 : 5);
 							},
