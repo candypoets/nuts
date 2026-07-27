@@ -251,6 +251,14 @@
 				</div>
 				<Icon icon="carbon:arrow-right" class="w-16 h-6" />
 			</div>
+			<div class="flex items-center justify-around py-2 border-b" on:click={() => go('lnurl')}>
+				<Icon icon="mdi:at" class="w-16 h-6" />
+				<div class="flex-grow">
+					<strong>Lightning addresses</strong>
+					<p class="text-xs">Claim and manage your LNURL handles</p>
+				</div>
+				<Icon icon="carbon:arrow-right" class="w-16 h-6" />
+			</div>
 			<div class="flex items-center justify-around py-2" on:click={() => go('theme')}>
 				<Icon icon="mdi:palette" class="w-16 h-6" />
 				<div class="flex-grow">

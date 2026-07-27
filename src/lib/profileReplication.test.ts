@@ -1,7 +1,10 @@
 import type { Kind0Parsed } from '@candypoets/nipworker';
 import { describe, expect, it } from 'vitest';
 
-import { buildProfileReplicationEvent } from './profileReplication';
+import {
+	buildProfileLightningAddressEvent,
+	buildProfileReplicationEvent
+} from './profileReplication';
 
 const value = (values: Record<string, string | null>, key: string) => () => values[key] ?? null;
 
@@ -88,5 +91,28 @@ describe('buildProfileReplicationEvent', () => {
 			content: '{}',
 			created_at: 789
 		});
+	});
+
+	it('updates only lud16 while preserving parsed profile metadata', () => {
+		const event = buildProfileLightningAddressEvent(
+			profileView({
+				name: 'alice',
+				displayName: 'Alice',
+				about: 'Hello',
+				lud16: 'old@example.com',
+				github: 'alice'
+			}),
+			'alice@nuts.cash',
+			999
+		);
+
+		expect(JSON.parse(event.content)).toEqual({
+			name: 'alice',
+			display_name: 'Alice',
+			about: 'Hello',
+			lud16: 'alice@nuts.cash',
+			github: 'alice'
+		});
+		expect(event.created_at).toBe(999);
 	});
 });

@@ -5,6 +5,7 @@
 	import Logout from 'src/routes/modals/_profile/logout.svelte';
 	import Relays from 'src/routes/modals/_profile/relays.svelte';
 	import Wallet from 'src/routes/modals/_profile/wallet.svelte';
+	import Lnurl from 'src/routes/modals/_profile/lnurl.svelte';
 	import Ecash from 'src/routes/modals/ecash.svelte';
 	import Lightning from 'src/routes/modals/lightning.svelte';
 	import Melt from 'src/routes/modals/melt.svelte';
@@ -275,6 +276,8 @@
 			<EventModal relay={path.split(':')?.[1]} address={path.split(':')?.[2]} />
 		{:else if modalKey === 'wallet'}
 			<Wallet />
+		{:else if modalKey === 'lnurl'}
+			<Lnurl />
 		{:else if modalKey === 'relays'}
 			<Relays />
 		{:else if modalKey === 'theme'}

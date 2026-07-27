@@ -1,12 +1,6 @@
 <script lang="ts">
-	import {
-		constructClaimEvent,
-		postClaimEvent,
-		queryExistingClaim,
-		type Alias
-	} from '@candypoets/lnuts/utils';
 	import { ConnectionStatus, Kind17375Parsed } from '@candypoets/nipworker';
-	import { usePublish, useSignEvent } from '@candypoets/nipworker/hooks';
+	import { usePublish } from '@candypoets/nipworker/hooks';
 	import { asKind17375, fbArray, isConnectionStatus } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
@@ -16,13 +10,12 @@
 	import { generateSecretKey, getPublicKey, nip19, type EventTemplate } from 'nostr-tools';
 	import { normalizeURL } from 'nostr-tools/utils';
 
-	import { kind17375, readRelays } from 'src/controller/nostr';
+	import { kind17375 } from 'src/controller/nostr';
 	import { isMintUrlValid } from 'src/lib/mint';
 	import { now } from 'src/lib/period';
 	import { areStringListEqual } from 'src/lib/utils';
 	import { getContext, onMount } from 'svelte';
 	// New imports from wallet utils
-	import { env } from '$env/dynamic/public';
 	import { key, walletMnemonic, walletMnemonicIndex, walletPassphrase } from 'src/controller';
 	import { nutsWallet, setNutsWallet } from 'src/controller/proofs';
 	import { updateSendStatus } from 'src/controller/sendStatus';
@@ -60,8 +53,6 @@
 	// Private key input
 	let inputPrivkey = '';
 	let privkeyError: string | null = null;
-
-	let alias: Alias | null = null;
 
 	// A single stable fallback secret key (used when no user input and no existing wallet)
 	const fallbackSecretKey: Uint8Array = generateSecretKey();
@@ -128,11 +119,8 @@
 	$: npub = pubkey ? nip19.npubEncode(pubkey) : '';
 	$: nsec = secretKey ? nip19.nsecEncode(secretKey) : '';
 
-	let lnurlHandle = '';
-
 	onMount(async () => {
 		availableMints = await fetchAvailableMints();
-		queryAlias();
 	});
 
 	// Initialize selectedMints from existing wallet or defaults (once when availableMints loads)
@@ -154,33 +142,6 @@
 				mint.url.toLowerCase().includes(searchTerm) ||
 				mint.description.toLowerCase().includes(searchTerm)
 		);
-	}
-
-	function claimLNURL(handle: string) {
-		const claimEvent = constructClaimEvent(
-			handle,
-			$key?.pub,
-			selectedMints[0],
-			$readRelays,
-			k17375?.p2pkPubKey()
-		);
-
-		useSignEvent(claimEvent, async (signed) => {
-			try {
-				// Handle case where signed might be a string
-				const signedEvent = typeof signed === 'string' ? JSON.parse(signed) : signed;
-				const result = await postClaimEvent(signedEvent, env.PUBLIC_LNUTS_DOMAIN);
-				console.log(result);
-			} catch (e) {
-				console.error('Failed to claim handle:', e);
-				alert('Failed to claim handle. Please try again.');
-			}
-		});
-	}
-
-	async function queryAlias() {
-		const { data: aliases } = await queryExistingClaim($key?.pub, env.PUBLIC_LNUTS_DOMAIN);
-		alias = aliases?.[0] || null;
 	}
 
 	function removeMint(url: string) {
@@ -414,61 +375,6 @@
 					<Icon icon="material-symbols:content-copy" class="w-5 h-5" />
 				</button>
 			</div>
-		</div>
-
-		<!-- LNURL section -->
-		<div class="bg-base-300 p-4 rounded-lg border-primary-content border space-y-3">
-			<h3 class="font-semibold">LNURL</h3>
-
-			<label class="text-sm opacity-80">Handle</label>
-			{#if alias}
-				<!-- Show existing alias -->
-				<div class="flex items-center">
-					<div class="join flex-grow">
-						<input
-							type="text"
-							value={alias.alias}
-							readonly
-							class="input input-bordered join-item text-sm w-full bg-base-200"
-						/>
-						<div
-							class="indicator-item px-4 flex items-center border border-primary-content rounded-r-lg bg-base-200"
-						>
-							@nuts.cash
-						</div>
-					</div>
-					<button
-						class="btn btn-square ml-2"
-						on:click={() => navigator.clipboard.writeText(`${alias.alias}@nuts.cash`)}
-					>
-						<Icon icon="material-symbols:content-copy" class="w-5 h-5" />
-					</button>
-				</div>
-			{:else}
-				<!-- Show input to claim new handle -->
-				<div class="flex items-center">
-					<div class="join flex-grow">
-						<input
-							type="text"
-							bind:value={lnurlHandle}
-							class="input input-bordered join-item text-sm w-full"
-						/>
-						<div
-							class="indicator-item px-4 flex items-center border border-primary-content rounded-r-lg bg-base-200"
-						>
-							@nuts.cash
-						</div>
-					</div>
-					<button 
-						class="btn ml-2 text-lg px-4" 
-						on:click={() => claimLNURL(lnurlHandle)}
-						disabled={!$key?.hasSigner}
-						title={$key?.hasSigner ? 'Claim this handle' : 'You need a signer to claim a handle'}
-					>
-						Claim
-					</button>
-				</div>
-			{/if}
 		</div>
 
 		<!-- Mint Selection Section -->

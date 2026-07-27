@@ -66,3 +66,18 @@ export function buildProfileReplicationEvent(
 		created_at: createdAt
 	};
 }
+
+export function buildProfileLightningAddressEvent(
+	profile: Kind0Parsed | null | undefined,
+	lightningAddress: string,
+	createdAt: number
+): EventTemplate {
+	const event = buildProfileReplicationEvent(profile, {}, createdAt);
+	const metadata = JSON.parse(event.content) as ProfileMetadata;
+	metadata.lud16 = lightningAddress;
+
+	return {
+		...event,
+		content: JSON.stringify(metadata)
+	};
+}
