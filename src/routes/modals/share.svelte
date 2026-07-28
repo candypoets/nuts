@@ -48,10 +48,9 @@
 
 	let note: ParsedEvent | undefined = undefined;
 	let relays: string[] = [];
-	let copiedNevent = false;
-	let copiedWebLink = false;
-
-
+	type CopyTarget = 'nevent' | 'web';
+	let copyFeedback: { target: CopyTarget; message: string } | undefined;
+	let copyFeedbackTimer: ReturnType<typeof setTimeout> | undefined;
 
 	$: {
 		feedRequests =
@@ -90,6 +89,7 @@
 	// Cleanup on unmount
 	onDestroy(() => {
 		unsubscribe?.();
+		if (copyFeedbackTimer) clearTimeout(copyFeedbackTimer);
 	});
 
 	function toggleContactSelect(contact: ParsedEvent) {
@@ -100,29 +100,75 @@
 		}
 	}
 
+	function encodedNevent() {
+		if (!noteId) throw new Error('Missing note ID');
+
+		let eventId = noteId;
+		let relayHints = relays;
+		try {
+			const decoded = decode(noteId);
+			if (decoded.type === 'nevent') {
+				eventId = decoded.data.id;
+				if (relayHints.length === 0) relayHints = decoded.data.relays || [];
+			}
+		} catch {
+			// Raw hex event IDs do not need decoding.
+		}
+
+		return nip19.neventEncode({
+			id: eventId,
+			author: note?.pubkey() || undefined,
+			relays: relayHints
+		});
+	}
+
+	async function writeToClipboard(value: string) {
+		if (navigator.clipboard && window.isSecureContext) {
+			try {
+				await navigator.clipboard.writeText(value);
+				return;
+			} catch {
+				// Some browsers expose the API but reject it; try the synchronous fallback.
+			}
+		}
+
+		const textarea = document.createElement('textarea');
+		textarea.value = value;
+		textarea.style.position = 'fixed';
+		textarea.style.left = '-9999px';
+		document.body.appendChild(textarea);
+		try {
+			textarea.focus();
+			textarea.select();
+			if (!document.execCommand('copy')) throw new Error('Clipboard copy was rejected');
+		} finally {
+			textarea.remove();
+		}
+	}
+
+	async function copyValue(target: CopyTarget, value: () => string) {
+		try {
+			await writeToClipboard(value());
+			copyFeedback = { target, message: 'Copied!' };
+		} catch {
+			copyFeedback = { target, message: 'Copy failed' };
+		}
+
+		if (copyFeedbackTimer) clearTimeout(copyFeedbackTimer);
+		copyFeedbackTimer = setTimeout(() => {
+			copyFeedback = undefined;
+			copyFeedbackTimer = undefined;
+		}, 2500);
+	}
+
 	function copyNevent() {
-		navigator.clipboard.writeText(
-			'nostr:' +
-				nip19.neventEncode({
-					id: noteId as string,
-					author: note?.pubkey(),
-					relays
-				})
-		);
-		copiedNevent = true;
-		setTimeout(() => (copiedNevent = false), 2500);
+		return copyValue('nevent', () => 'nostr:' + encodedNevent());
 	}
 
 	function copyWebLink() {
-		navigator.clipboard.writeText(
-			`${window.location.origin}/explore/nevent:${nip19.neventEncode({
-				id: noteId as string,
-				author: note?.pubkey(),
-				relays
-			})}`
+		return copyValue('web', () =>
+			new URL(`/explore/nevent:${encodedNevent()}`, window.location.origin).toString()
 		);
-		copiedWebLink = true;
-		setTimeout(() => (copiedWebLink = false), 2500);
 	}
 
 	function handleSendMessage() {
@@ -133,8 +179,7 @@
 			tags: [['p', selectedContact!.pubkey()]]
 		};
 
-		post.content +=
-			'\n\nnostr:' + nip19.neventEncode({ id: noteId as string, author: note?.pubkey(), relays });
+		post.content += '\n\nnostr:' + encodedNevent();
 
 		let sendStatus: { [url: string]: ConnectionStatus } = {};
 		const id = Math.random().toString(36).substring(2, 9);
@@ -301,15 +346,19 @@
 				<div class="flex justify-around">
 					<div class="flex flex-col items-center">
 						<button
+							type="button"
 							class="btn btn-circle btn-outline relative"
-							on:click={() => {
-								copyNevent();
-							}}
+							aria-label="Copy note ID"
+							on:click={copyNevent}
 						>
 							<Icon icon="carbon:copy" />
-							{#if copiedNevent}
-								<div class="absolute top-full mt-1 bg-black text-white text-xs px-2 py-1 rounded">
-									Copied!
+							{#if copyFeedback?.target === 'nevent'}
+								<div
+									class="absolute top-full mt-1 bg-black text-white text-xs px-2 py-1 rounded"
+									aria-live="polite"
+									role="status"
+								>
+									{copyFeedback.message}
 								</div>
 							{/if}
 						</button>
@@ -317,15 +366,19 @@
 					</div>
 					<div class="flex flex-col items-center">
 						<button
+							type="button"
 							class="btn btn-circle btn-outline relative"
-							on:click={() => {
-								copyWebLink();
-							}}
+							aria-label="Copy web link"
+							on:click={copyWebLink}
 						>
 							<Icon icon="carbon:link" />
-							{#if copiedWebLink}
-								<div class="absolute top-full mt-1 bg-black text-white text-xs px-2 py-1 rounded">
-									Copied!
+							{#if copyFeedback?.target === 'web'}
+								<div
+									class="absolute top-full mt-1 bg-black text-white text-xs px-2 py-1 rounded"
+									aria-live="polite"
+									role="status"
+								>
+									{copyFeedback.message}
 								</div>
 							{/if}
 						</button>
