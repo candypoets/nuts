@@ -30,6 +30,7 @@
 		'naddr',
 		'kind4',
 		'community',
+		'store',
 		'notifications',
 		'badge',
 		'tags'
@@ -69,7 +70,7 @@
 
 			stack = segments
 				.filter((seg) => {
-					const isSub = subPaths.some((p) => seg.includes(p));
+					const isSub = subPaths.includes(seg.split(':')[0]);
 					const isModal = pathOptions.some((opt) => seg.split(':')[0] === opt);
 					return isSub || isModal;
 				})

@@ -8,7 +8,7 @@
 
 	export let modals: string[] = [];
 
-	const subPaths = ['nprofile', 'nevent', 'kind4', 'community', 'notifications', 'tags'];
+	const subPaths = ['nprofile', 'nevent', 'kind4', 'community', 'store', 'notifications', 'tags'];
 
 	function rawPathname() {
 		return $page.url.href.replace($page.url.origin, '').split(/[?#]/)[0];
@@ -21,7 +21,7 @@
 			subs = path
 				.split('/')
 				.slice(2)
-				.filter((sub) => subPaths.some((path) => sub.includes(path)));
+				.filter((sub) => subPaths.includes(sub.split(':')[0]));
 		}
 	}
 </script>

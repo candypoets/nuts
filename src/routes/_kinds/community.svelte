@@ -22,7 +22,6 @@
 	import { normalizeURL } from 'nostr-tools/utils';
 	import EventCard, { type CalendarEventCard } from 'src/components/EventCard.svelte';
 	import KindSwitcher from 'src/components/KindSwitcher.svelte';
-	import CommunityStorefront from 'src/components/storefront/CommunityStorefront.svelte';
 	import { key } from 'src/controller';
 	import { ALL_FEED_KINDS, type FeedKind } from 'src/controller/feed';
 	import { kind10012, relayRoleSets } from 'src/controller/nostr';
@@ -47,11 +46,13 @@
 	import { now } from 'src/lib/period';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import Feed from 'src/routes/explore/feed.svelte';
+	import { go, usePagerNavigation } from 'src/routes/modals/modal';
 	import { onDestroy, onMount } from 'svelte';
 
 	export let relay: string;
 	export let visible = true;
 	export let goBack: (() => void) | undefined;
+	const nav = usePagerNavigation();
 
 	let selectedKinds: FeedKind[] = [];
 	let items: ParsedEvent[] = [];
@@ -80,7 +81,6 @@
 	let communityProfile: CommunityProfile | undefined;
 	let profileSub: (() => void) | undefined;
 	let lastProfileRelay = '';
-	let communityTab: 'home' | 'store' = 'home';
 
 	$: normalizedRelay = normalizeURL(relay);
 	$: relayInfo = $relayInfos.get(normalizedRelay);
@@ -140,6 +140,11 @@
 
 	function titleCase(value: string) {
 		return value.charAt(0).toUpperCase() + value.slice(1);
+	}
+
+	function openStore() {
+		const storePath = `store:${encodeURIComponent(normalizedRelay)}`;
+		nav ? nav.push(storePath) : go(storePath);
 	}
 
 	function relaySetForRole(roleSets: ParsedEvent[], role: RelayRole) {
@@ -327,7 +332,6 @@
 		lastProfileRelay = normalizedRelay;
 		profileSub?.();
 		communityProfile = undefined;
-		communityTab = 'home';
 
 		const profileSubId = `community_profile_${relayHash(normalizedRelay)}`;
 		setSubRelays(profileSubId, [normalizedRelay]);
@@ -554,12 +558,12 @@
 	});
 </script>
 
-{#key `${normalizedRelay}:${communityTab}`}
+{#key normalizedRelay}
 	<Feed
-		items={communityTab === 'home' ? items : []}
+		{items}
 		getItemId={(item) => item.id() || item.createdAt()}
 		{visible}
-		loading={communityTab === 'home' && loading}
+		{loading}
 		onNearBottom={handleNearBottom}
 	>
 		<svelte:fragment slot="sticky-header">
@@ -664,95 +668,74 @@
 						<p class="mt-2 text-sm font-semibold text-base-content/70">{publishStatus}</p>
 					{/if}
 
-					<div
-						class="mt-6 grid grid-cols-2 rounded-xl bg-base-200 p-1"
-						role="tablist"
-						aria-label="Community sections"
+					<button
+						type="button"
+						class="mt-6 flex w-full items-center gap-3 rounded-xl bg-base-200 p-4 text-left transition hover:bg-base-100"
+						on:click={openStore}
 					>
-						<button
-							type="button"
-							role="tab"
-							aria-selected={communityTab === 'home'}
-							class={`flex h-11 items-center justify-center gap-2 rounded-lg text-sm font-black transition ${
-								communityTab === 'home'
-									? 'bg-base-100 text-primary shadow-sm'
-									: 'text-base-content/70 hover:bg-base-100/60'
-							}`}
-							on:click={() => (communityTab = 'home')}
-						>
-							<Icon icon="mdi:home-outline" class="text-lg" />
-							Home
-						</button>
-						<button
-							type="button"
-							role="tab"
-							aria-selected={communityTab === 'store'}
-							class={`flex h-11 items-center justify-center gap-2 rounded-lg text-sm font-black transition ${
-								communityTab === 'store'
-									? 'bg-base-100 text-primary shadow-sm'
-									: 'text-base-content/70 hover:bg-base-100/60'
-							}`}
-							on:click={() => (communityTab = 'store')}
+						<span
+							class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-primary/15 text-primary"
 						>
 							<Icon
 								icon={communityProfile?.type === 'hospitality'
 									? 'mdi:silverware-fork-knife'
 									: 'mdi:storefront-outline'}
-								class="text-lg"
+								class="text-xl"
 							/>
-							{communityProfile?.type === 'hospitality' ? 'Menu' : 'Store'}
-						</button>
-					</div>
+						</span>
+						<span class="min-w-0 flex-1">
+							<span class="block text-base font-black">
+								{communityProfile?.type === 'hospitality' ? 'Menu' : 'Store'}
+							</span>
+							<span class="mt-0.5 block text-sm font-medium text-base-content/65">
+								{communityProfile?.type === 'hospitality'
+									? 'Browse the community menu and current offers'
+									: 'Browse products, passes and memberships'}
+							</span>
+						</span>
+						<Icon icon="mdi:chevron-right" class="text-2xl text-base-content/50" />
+					</button>
 
-					{#if communityTab === 'store'}
-						<CommunityStorefront
-							relay={normalizedRelay}
-							communityType={communityProfile?.type || 'other'}
-						/>
-					{:else}
-						<div class="mt-6 border-t border-base-200 pt-4">
-							<div class="mb-3 flex items-center justify-between">
-								<h2 class="text-base font-bold">Upcoming events</h2>
-								{#if upcomingEvents.length}
-									<span class="text-sm font-bold text-primary">See all</span>
-								{/if}
-							</div>
+					<div class="mt-6 border-t border-base-200 pt-4">
+						<div class="mb-3 flex items-center justify-between">
+							<h2 class="text-base font-bold">Upcoming events</h2>
 							{#if upcomingEvents.length}
-								<div class="flex items-start gap-3 overflow-x-auto pb-1 scrollbar-hide">
-									{#each upcomingEvents.slice(0, 3) as event (event.id)}
-										<EventCard
-											{event}
-											feedRelays={[normalizedRelay]}
-											rsvpCount={rsvpCountsByAddress[event.address] || 0}
-										/>
-									{/each}
-								</div>
-							{:else}
-								<p class="text-sm font-medium text-base-content/70">No upcoming events</p>
+								<span class="text-sm font-bold text-primary">See all</span>
 							{/if}
 						</div>
-
-						<div class="mt-6 border-t border-base-200 pt-4">
-							<h2 class="text-xl font-bold">Recent activity</h2>
-							<div class="mt-3">
-								<KindSwitcher
-									{selectedKinds}
-									ariaLabel="Community content filters"
-									on:select={selectKinds}
-								/>
+						{#if upcomingEvents.length}
+							<div class="flex items-start gap-3 overflow-x-auto pb-1 scrollbar-hide">
+								{#each upcomingEvents.slice(0, 3) as event (event.id)}
+									<EventCard
+										{event}
+										feedRelays={[normalizedRelay]}
+										rsvpCount={rsvpCountsByAddress[event.address] || 0}
+									/>
+								{/each}
 							</div>
+						{:else}
+							<p class="text-sm font-medium text-base-content/70">No upcoming events</p>
+						{/if}
+					</div>
+
+					<div class="mt-6 border-t border-base-200 pt-4">
+						<h2 class="text-xl font-bold">Recent activity</h2>
+						<div class="mt-3">
+							<KindSwitcher
+								{selectedKinds}
+								ariaLabel="Community content filters"
+								on:select={selectKinds}
+							/>
 						</div>
-					{/if}
+					</div>
 				</div>
 			</div>
 		</svelte:fragment>
 
 		<svelte:fragment slot="empty-content">
-			{#if communityTab === 'home'}
-				<div class="px-6 py-16 text-center text-base font-semibold text-base-content/70">
-					{emptyTimedOut ? 'No community posts yet.' : 'Loading community posts...'}
-				</div>
-			{/if}
+			<div class="px-6 py-16 text-center text-base font-semibold text-base-content/70">
+				{emptyTimedOut ? 'No community posts yet.' : 'Loading community posts...'}
+			</div>
 		</svelte:fragment>
 	</Feed>
 {/key}

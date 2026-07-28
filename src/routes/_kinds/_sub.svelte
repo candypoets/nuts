@@ -4,6 +4,7 @@
 	import Kind30023 from 'src/routes/_kinds/kind30023.svelte';
 	import Kind4 from 'src/routes/_kinds/kind4.svelte';
 	import Community from 'src/routes/_kinds/community.svelte';
+	import Store from 'src/routes/_kinds/store.svelte';
 	import Kind8 from 'src/routes/_kinds/kind8.svelte';
 	import Tags from 'src/routes/_kinds/tags.svelte';
 	import Notifications from 'src/routes/notifications/index.svelte';
@@ -174,6 +175,9 @@
 		{:else if subKey === 'community'}
 			{@const communityRelay = decodeURIComponent(path.slice(path.indexOf(':') + 1))}
 			<Community relay={communityRelay} {visible} {goBack} />
+		{:else if subKey === 'store'}
+			{@const communityRelay = decodeURIComponent(path.slice(path.indexOf(':') + 1))}
+			<Store relay={communityRelay} {visible} {goBack} />
 		{:else if subKey === 'notifications'}
 			<Notifications {goBack} />
 		{:else if subKey === 'badge'}
