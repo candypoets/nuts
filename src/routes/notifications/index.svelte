@@ -21,14 +21,14 @@
 		key,
 		lastNotificationView,
 		readRelays,
-		relayDirectoryUrls,
-		writeRelays
+		relayDirectoryUrls
 	} from 'src/controller';
 	import {
 		fetchCommunityAccess,
 		fetchCommunityTrust,
 		type CommunityTrust
 	} from 'src/lib/adminAccess';
+	import { DEFAULT_RELAYS } from 'src/lib/env';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import { onMount, onDestroy } from 'svelte';
 	import {
@@ -76,13 +76,26 @@
 	let until: number | undefined = undefined;
 	let hasMore = true;
 	let paginationCounter = 0;
-	let itemsBeforePagination = 0;
 	let paginationTimeout: ReturnType<typeof setTimeout> | undefined;
+	let initialTimeout: ReturnType<typeof setTimeout> | undefined;
 	let prevPaginationSubId: string | undefined = undefined;
 	let lastRelayKey = '';
+	// Pagination subscriptions get their own cleanup/tracker so EOSE accounting
+	// is never mixed with the main subscription
+	let paginationUnsubscribe: (() => void) | undefined;
+	let paginationTracker: ConnectionTracker | undefined;
+	let seenCountBeforePagination = 0;
+	// Auto-backfill state: grouped pages can be too short to scroll, which would
+	// otherwise prevent onNearBottom from ever firing
+	let shortBackfillCount = 0;
+
+	const SHORT_PAGE_BACKFILL_ROWS = 25;
+	const MAX_SHORT_PAGE_BACKFILLS = 6;
+	const PAGINATION_TIMEOUT_MS = 10000;
+	const EOSE_FALLBACK_TIMEOUT_MS = 1000;
 
 	$: notificationRelays = Array.from(
-		new Set(($readRelays || []).length ? $readRelays || [] : $writeRelays || [])
+		new Set(($readRelays || []).length ? $readRelays || [] : DEFAULT_RELAYS)
 	).filter((relay): relay is string => Boolean(relay));
 	$: notificationRelayKey = notificationRelays.join('|');
 	$: badgeRelays = Array.from(
@@ -114,26 +127,7 @@
 		void goto(resolve('/settings' as any));
 	}
 
-	// Handle incoming events from subscription
-	function handleEvents(message: WorkerMessage) {
-		// Handle connection status (including EOSE detection via resolutionRate)
-		const status = asConnectionStatus(message);
-		if (status && connectionTracker) {
-			const relayUrl = status.relayUrl();
-			if (relayUrl) {
-				connectionTracker.handleMessage(message);
-				// When >50% of relays have reached EOSE, mark loading as done
-				if (connectionTracker.resolutionRate > 0.5) {
-					loading = false;
-				}
-			}
-			return;
-		}
-
-		// Handle parsed events
-		const parsedEvent = asParsedEvent(message);
-		if (!parsedEvent) return;
-
+	function addEvent(parsedEvent: ParsedEvent) {
 		// Filter out events authored by the logged-in user
 		const author = parsedEvent.pubkey();
 		if (author === $key?.pub) return;
@@ -149,6 +143,49 @@
 		seenEventIds.add(eventId);
 
 		rawEvents = [...rawEvents, parsedEvent];
+	}
+
+	// Handle incoming events from the main subscription
+	function handleEvents(message: WorkerMessage) {
+		// Handle connection status (including EOSE detection via resolutionRate)
+		const status = asConnectionStatus(message);
+		if (status && connectionTracker) {
+			const relayUrl = status.relayUrl();
+			if (relayUrl) {
+				connectionTracker.handleMessage(message);
+				// When >50% of relays have reached EOSE, mark loading as done
+				if (connectionTracker.resolutionRate > 0.5) {
+					clearInitialTimeout();
+					loading = false;
+				}
+			}
+			return;
+		}
+
+		const parsedEvent = asParsedEvent(message);
+		if (parsedEvent) addEvent(parsedEvent);
+	}
+
+	// Handle incoming events from pagination subscriptions.
+	// Uses its own tracker so main-sub status messages can't flip loading prematurely.
+	function handlePaginationEvents(message: WorkerMessage) {
+		const status = asConnectionStatus(message);
+		if (status && paginationTracker) {
+			const relayUrl = status.relayUrl();
+			if (relayUrl) {
+				paginationTracker.handleMessage(message);
+				if (paginationTracker.resolutionRate > 0.5) {
+					clearPaginationTimeout();
+					// The page is exhausted when EOSE arrived without any new events
+					hasMore = seenEventIds.size > seenCountBeforePagination;
+					loading = false;
+				}
+			}
+			return;
+		}
+
+		const parsedEvent = asParsedEvent(message);
+		if (parsedEvent) addEvent(parsedEvent);
 	}
 
 	// Process raw events into grouped notifications
@@ -339,6 +376,20 @@
 		);
 	}
 
+	function clearPaginationTimeout() {
+		if (paginationTimeout) {
+			clearTimeout(paginationTimeout);
+			paginationTimeout = undefined;
+		}
+	}
+
+	function clearInitialTimeout() {
+		if (initialTimeout) {
+			clearTimeout(initialTimeout);
+			initialTimeout = undefined;
+		}
+	}
+
 	// Initialize subscription
 	let hasInitialized = false;
 
@@ -353,6 +404,22 @@
 			seenEventIds.clear();
 			hasInitialized = true;
 			lastRelayKey = notificationRelayKey;
+			// Reset pagination state so a fresh sub can't inherit a dead cursor
+			hasMore = true;
+			until = undefined;
+			paginationCounter = 0;
+			prevPaginationSubId = undefined;
+			seenCountBeforePagination = 0;
+			shortBackfillCount = 0;
+			unsubscribe?.();
+			paginationUnsubscribe?.();
+			paginationUnsubscribe = undefined;
+			paginationTracker = undefined;
+			clearPaginationTimeout();
+			clearInitialTimeout();
+			connectionTracker = new ConnectionTracker();
+		} else {
+			paginationTracker = new ConnectionTracker();
 		}
 		loading = true;
 		const requests = buildRequests(isPagination);
@@ -361,21 +428,36 @@
 			const subId = isPagination
 				? subscriptionKey + '_page_' + paginationCounter + '_' + until
 				: subscriptionKey;
-			if (!isPagination) {
-				unsubscribe?.();
-			}
-			connectionTracker = new ConnectionTracker();
-			const unsub = useSubscription(subId, requests, handleEvents, {
-				bytesPerEvent: 10 * 1024,
-				pipeline: $defaultPipeline.for(subId),
-				pagination: isPagination ? prevPaginationSubId : undefined
-			});
-			if (!isPagination) {
-				unsubscribe = unsub;
-			}
-			// Track this subId for next pagination
+			const unsub = useSubscription(
+				subId,
+				requests,
+				isPagination ? handlePaginationEvents : handleEvents,
+				{
+					bytesPerEvent: 10 * 1024,
+					pipeline: $defaultPipeline.for(subId),
+					pagination: isPagination ? prevPaginationSubId : undefined
+				}
+			);
 			if (isPagination) {
+				// Close the previous page sub; only one pagination sub stays live
+				paginationUnsubscribe?.();
+				paginationUnsubscribe = unsub;
+				// Track this subId for next pagination
 				prevPaginationSubId = subId;
+				// Fallback: resolve the page if EOSE never arrives
+				clearPaginationTimeout();
+				paginationTimeout = setTimeout(() => {
+					paginationTimeout = undefined;
+					hasMore = seenEventIds.size > seenCountBeforePagination;
+					loading = false;
+				}, PAGINATION_TIMEOUT_MS);
+			} else {
+				unsubscribe = unsub;
+				// Fallback: don't spin forever if relays never reach EOSE
+				initialTimeout = setTimeout(() => {
+					initialTimeout = undefined;
+					loading = false;
+				}, EOSE_FALLBACK_TIMEOUT_MS);
 			}
 		}
 	}
@@ -409,6 +491,11 @@
 		unsubscribe?.();
 		unsubscribe = undefined;
 		connectionTracker = undefined;
+		paginationUnsubscribe?.();
+		paginationUnsubscribe = undefined;
+		paginationTracker = undefined;
+		clearPaginationTimeout();
+		clearInitialTimeout();
 		hasInitialized = false;
 		resetBadgeSubscription();
 	}
@@ -418,79 +505,62 @@
 		window.scrollTo(0, 0);
 		return () => {
 			unsubscribe?.();
+			paginationUnsubscribe?.();
 			badgeUnsubscribe?.();
 		};
 	});
 
 	onDestroy(() => {
 		unsubscribe?.();
+		paginationUnsubscribe?.();
 		badgeUnsubscribe?.();
-		if (paginationTimeout) clearTimeout(paginationTimeout);
+		clearPaginationTimeout();
+		clearInitialTimeout();
 		prevPaginationSubId = undefined;
 	});
 
-	// Handle near-bottom pagination
-	function handleNearBottom(event: { distance: number }) {
-		console.log('[Notifications] handleNearBottom called', {
-			loading,
-			hasMore,
-			rawEventsLength: rawEvents.length
-		});
-		if (loading || !hasMore || rawEvents.length === 0) {
-			console.log('[Notifications] Pagination blocked:', {
-				loading,
-				hasMore,
-				rawEventsLength: rawEvents.length
-			});
+	// Load the next page of notifications.
+	// isAutoBackfill: triggered by the short-page backfill below, not by scrolling.
+	function loadNextPage(isAutoBackfill = false) {
+		if (loading || !hasMore || rawEvents.length === 0) return;
+
+		if (isAutoBackfill) shortBackfillCount += 1;
+		loading = true;
+		paginationCounter++;
+		seenCountBeforePagination = seenEventIds.size;
+
+		// Use the createdAt of an item ~5 positions back as until (with overlap buffer).
+		// Sort first: rawEvents is in arrival order (cache/relays interleave), not
+		// chronological, so an unsorted cursor can skip or repeat pages.
+		const sorted = [...rawEvents].sort((left, right) => right.createdAt() - left.createdAt());
+		const cursorIndex = sorted.length > 6 ? sorted.length - 6 : sorted.length - 1;
+		const cursorItem = sorted[cursorIndex];
+		if (!cursorItem) {
+			loading = false;
 			return;
 		}
-
-		loading = true;
-		itemsBeforePagination = rawEvents.length;
-		paginationCounter++;
-
-		// Use the createdAt of an item ~5 positions back as until (with overlap buffer)
-		const overlapIndex = Math.max(0, rawEvents.length - 6);
-		const cursorItem = rawEvents[overlapIndex];
-		if (cursorItem) {
-			until = cursorItem.createdAt() - 1;
-			console.log(
-				'[Notifications] Pagination cursor at index',
-				overlapIndex,
-				'of',
-				rawEvents.length,
-				'timestamp:',
-				until
-			);
-		}
+		until = cursorItem.createdAt() - 1;
 
 		initSubscription(true);
-
-		// Fallback: clear loading after timeout if EOSE isn't received
-		paginationTimeout = setTimeout(() => {
-			console.log('[Notifications] Pagination timeout, clearing loading state');
-			loading = false;
-		}, 10000);
 	}
 
-	// Track when pagination completes and check if new items were added
-	$: if (!loading && itemsBeforePagination > 0) {
-		const itemsAtCheck = itemsBeforePagination;
+	// Handle near-bottom pagination
+	function handleNearBottom() {
+		loadNextPage(false);
+	}
 
-		// Clear the timeout if it hasn't fired yet
-		if (paginationTimeout) {
-			clearTimeout(paginationTimeout);
-			paginationTimeout = undefined;
-		}
-
-		// Check if we actually got new items
-		const newItemsAdded = rawEvents.length - itemsAtCheck;
-		console.log('[Notifications] Pagination complete. New items added:', newItemsAdded);
-		if (newItemsAdded === 0) {
-			hasMore = false;
-			console.log('[Notifications] No more data available');
-		}
-		itemsBeforePagination = 0;
+	// Auto-backfill when a page groups down to too few rows to fill the viewport.
+	// The feed only fires onNearBottom after the user scrolls, so short pages
+	// would otherwise deadlock with no way to trigger pagination.
+	$: if (
+		visible &&
+		!loading &&
+		hasMore &&
+		rawEvents.length > 0 &&
+		notificationItems.length < SHORT_PAGE_BACKFILL_ROWS &&
+		shortBackfillCount < MAX_SHORT_PAGE_BACKFILLS
+	) {
+		loadNextPage(true);
 	}
 </script>
 
