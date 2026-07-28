@@ -384,6 +384,18 @@ export class NutsWallet {
 		return wallet;
 	};
 
+	public receiveProofs = async (mint: string, proofs: Proof[]): Promise<Proof[]> => {
+		if (!mint || !proofs?.length) return [];
+
+		const cashuWallet = await this.getWallet(mint);
+		const receivedProofs = await cashuWallet.receive(
+			{ mint, proofs, unit: 'sat' },
+			{ privkey: this.privkey }
+		);
+		await this.saveProofs(mint, receivedProofs);
+		return receivedProofs;
+	};
+
 	public addProofs = (mint: string, unspent: Proof[]) => {
 		mint = normalizeMintURL(mint);
 		if (!mint || !unspent?.length) return;

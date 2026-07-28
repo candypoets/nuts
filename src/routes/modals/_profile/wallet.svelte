@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { ConnectionStatus, Kind17375Parsed } from '@candypoets/nipworker';
-	import { usePublish } from '@candypoets/nipworker/hooks';
+	import { usePublish, useSignEvent } from '@candypoets/nipworker/hooks';
 	import { asKind17375, fbArray, isConnectionStatus } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
@@ -12,6 +12,10 @@
 
 	import { kind17375 } from 'src/controller/nostr';
 	import { isMintUrlValid } from 'src/lib/mint';
+	import {
+		constructProofAuthorizationEvent,
+		queryClaimableProofs
+	} from 'src/lib/lightningAddressClient';
 	import { now } from 'src/lib/period';
 	import { areStringListEqual } from 'src/lib/utils';
 	import { getContext, onMount } from 'svelte';
@@ -87,9 +91,7 @@
 
 	// Use existing k17375 priv key if present (hex string), otherwise fallback
 	$: defaultSecretKey =
-		(k17375?.p2pkPrivKey() &&
-			hexToBytes(k17375?.p2pkPrivKey() as string)) ||
-		fallbackSecretKey;
+		(k17375?.p2pkPrivKey() && hexToBytes(k17375?.p2pkPrivKey() as string)) || fallbackSecretKey;
 
 	// The effective secret key: preference order is user-provided (mnemonic/privkey/create) then existing or fallback
 	$: userSecretKey =
@@ -111,6 +113,14 @@
 
 	let availableMints: MintInfo[] = [];
 	let selectedMints: string[] = [];
+	let checkingLightningPayments = false;
+	let lightningPaymentMessage = '';
+	let lightningPaymentError = '';
+
+	type ProofSyncState = {
+		receivedThrough: number;
+		paymentIds: string[];
+	};
 
 	$: selectableMints = availableMints.filter((am) => !selectedMints.some((sm) => sm == am.url));
 
@@ -120,6 +130,9 @@
 	$: nsec = secretKey ? nip19.nsecEncode(secretKey) : '';
 
 	onMount(async () => {
+		if ($nutsWallet && $key.pub && $key.hasSigner === true) {
+			checkLightningPayments();
+		}
 		availableMints = await fetchAvailableMints();
 	});
 
@@ -244,6 +257,108 @@
 			defaultRelays: DEFAULT_RELAYS
 		});
 	}
+
+	function proofSyncStorageKey(): string {
+		return `lnuts/proofs/${$key.pub}`;
+	}
+
+	function loadProofSyncState(): ProofSyncState {
+		try {
+			const stored = JSON.parse(localStorage.getItem(proofSyncStorageKey()) || '{}');
+			return {
+				receivedThrough:
+					Number.isSafeInteger(stored.receivedThrough) && stored.receivedThrough >= 0
+						? stored.receivedThrough
+						: 0,
+				paymentIds: Array.isArray(stored.paymentIds)
+					? stored.paymentIds.filter((id: unknown): id is string => typeof id === 'string')
+					: []
+			};
+		} catch {
+			return { receivedThrough: 0, paymentIds: [] };
+		}
+	}
+
+	function saveProofSyncState(state: ProofSyncState): void {
+		localStorage.setItem(
+			proofSyncStorageKey(),
+			JSON.stringify({
+				receivedThrough: state.receivedThrough,
+				paymentIds: state.paymentIds.slice(-250)
+			})
+		);
+	}
+
+	function checkLightningPayments(): void {
+		lightningPaymentMessage = '';
+		lightningPaymentError = '';
+
+		if (!$nutsWallet) {
+			lightningPaymentError = 'Set up your Cashu wallet before checking for payments.';
+			return;
+		}
+		if (!$key.pub || $key.hasSigner !== true) {
+			lightningPaymentError = 'Reconnect your Nostr account with a signer to check for payments.';
+			return;
+		}
+
+		const wallet = $nutsWallet;
+		const state = loadProofSyncState();
+		const proofsUrl = new URL('/api/proofs', window.location.origin);
+		if (state.receivedThrough > 0) {
+			proofsUrl.searchParams.set('since', String(state.receivedThrough));
+		}
+
+		checkingLightningPayments = true;
+		try {
+			const authorization = constructProofAuthorizationEvent($key.pub, proofsUrl.toString());
+			useSignEvent(authorization, async (signed) => {
+				try {
+					const result = await queryClaimableProofs(signed, proofsUrl.toString());
+					const importedPaymentIds = [...state.paymentIds];
+					let receivedSats = 0;
+					let receivedPayments = 0;
+
+					for (const payment of result.proofs) {
+						if (importedPaymentIds.includes(payment.paymentId)) continue;
+						if (!Array.isArray(payment.token?.token) || payment.token.token.length === 0) {
+							throw new Error(`Payment ${payment.paymentId} did not contain a Cashu token.`);
+						}
+
+						for (const token of payment.token.token) {
+							const received = await wallet.receiveProofs(
+								token.mint || payment.mintUrl,
+								token.proofs
+							);
+							receivedSats += received.reduce((total, proof) => total + proof.amount, 0);
+						}
+
+						receivedPayments += 1;
+						importedPaymentIds.push(payment.paymentId);
+						state.paymentIds = importedPaymentIds;
+						saveProofSyncState(state);
+					}
+
+					state.receivedThrough = result.receivedThrough;
+					state.paymentIds = importedPaymentIds;
+					saveProofSyncState(state);
+					lightningPaymentMessage =
+						receivedPayments > 0
+							? `Received ${receivedSats} sat${receivedSats === 1 ? '' : 's'} from ${receivedPayments} Lightning payment${receivedPayments === 1 ? '' : 's'}.`
+							: 'No new Lightning payments.';
+				} catch (error) {
+					lightningPaymentError =
+						error instanceof Error ? error.message : 'Could not check for Lightning payments.';
+				} finally {
+					checkingLightningPayments = false;
+				}
+			});
+		} catch (error) {
+			checkingLightningPayments = false;
+			lightningPaymentError =
+				error instanceof Error ? error.message : 'Could not request a Nostr signature.';
+		}
+	}
 </script>
 
 <div class="h-screen bg-base-300 bg-opacity-85 pt-4 overflow-scroll" data-scroll-container>
@@ -286,17 +401,21 @@
 
 				{#if walletMode === 'mnemonic' || walletMode === 'create'}
 					<div class="space-y-3">
-						<label class="text-sm opacity-80">BIP-39 mnemonic</label>
+						<label class="text-sm opacity-80" for="wallet-mnemonic">BIP-39 mnemonic</label>
 						<textarea
+							id="wallet-mnemonic"
 							class="textarea textarea-bordered w-full"
 							rows="3"
 							placeholder="treat dwarf wealth gasp brass outside high rent blood crowd make end"
 							bind:value={inputMnemonic}
-						/>
+						></textarea>
 						<div class="grid grid-cols-1 md:grid-cols-3 gap-3">
 							<div class="col-span-1">
-								<label class="text-sm opacity-80">Passphrase (optional)</label>
+								<label class="text-sm opacity-80" for="wallet-passphrase">
+									Passphrase (optional)
+								</label>
 								<input
+									id="wallet-passphrase"
 									class="input input-bordered w-full"
 									type="password"
 									placeholder="Optional BIP-39 passphrase"
@@ -304,16 +423,20 @@
 								/>
 							</div>
 							<div class="col-span-1">
-								<label class="text-sm opacity-80">Derivation path</label>
+								<label class="text-sm opacity-80" for="wallet-derivation-path">
+									Derivation path
+								</label>
 								<input
+									id="wallet-derivation-path"
 									class="input input-bordered w-full"
 									readonly
 									value={`${CASHU_BASE_PATH}/${mnemonicIndex}`}
 								/>
 							</div>
 							<div class="col-span-1">
-								<label class="text-sm opacity-80">Index</label>
+								<label class="text-sm opacity-80" for="wallet-index">Index</label>
 								<input
+									id="wallet-index"
 									class="input input-bordered w-full"
 									type="number"
 									min="0"
@@ -341,8 +464,11 @@
 					</div>
 				{:else if walletMode === 'privkey'}
 					<div class="space-y-3">
-						<label class="text-sm opacity-80">Private key (hex 64 chars or nsec...)</label>
+						<label class="text-sm opacity-80" for="wallet-private-key">
+							Private key (hex 64 chars or nsec...)
+						</label>
 						<input
+							id="wallet-private-key"
 							class="input input-bordered w-full"
 							type="text"
 							placeholder="nsec1... or 64-char hex"
@@ -356,21 +482,62 @@
 			</div>
 		{/if}
 
+		{#if $nutsWallet}
+			<div class="bg-base-300 p-4 rounded-lg border-primary-content border space-y-3">
+				<div>
+					<h3 class="font-semibold">Lightning payments</h3>
+					<p class="text-sm opacity-70">
+						Check for sats sent to your claimed Lightning address and save them to this wallet.
+					</p>
+				</div>
+				<button
+					class="btn btn-primary w-full text-white"
+					disabled={checkingLightningPayments || $key.hasSigner !== true}
+					on:click={checkLightningPayments}
+				>
+					{#if checkingLightningPayments}
+						<span class="loading loading-spinner loading-sm"></span>
+						Checking payments…
+					{:else}
+						Check for new sats
+					{/if}
+				</button>
+				{#if lightningPaymentMessage}
+					<p class="text-success text-sm">{lightningPaymentMessage}</p>
+				{/if}
+				{#if lightningPaymentError}
+					<p class="text-error text-sm">{lightningPaymentError}</p>
+				{/if}
+			</div>
+		{/if}
+
 		<!-- Wallet Address Section -->
 		<div class="bg-base-300 p-4 rounded-lg border-primary-content border space-y-3">
 			<h3 class="font-semibold">Wallet Address</h3>
 
-			<label class="text-sm opacity-80">npub (shareable)</label>
+			<label class="text-sm opacity-80" for="wallet-npub">npub (shareable)</label>
 			<div class="flex items-center">
-				<input type="text" readonly value={npub} class="input input-bordered w-full text-sm" />
+				<input
+					id="wallet-npub"
+					type="text"
+					readonly
+					value={npub}
+					class="input input-bordered w-full text-sm"
+				/>
 				<button class="btn btn-square ml-2" on:click={() => navigator.clipboard.writeText(npub)}>
 					<Icon icon="material-symbols:content-copy" class="w-5 h-5" />
 				</button>
 			</div>
 
-			<label class="text-sm opacity-80 mt-2">nsec (private)</label>
+			<label class="text-sm opacity-80 mt-2" for="wallet-nsec">nsec (private)</label>
 			<div class="flex items-center">
-				<input type="text" readonly value={nsec} class="input input-bordered w-full text-sm" />
+				<input
+					id="wallet-nsec"
+					type="text"
+					readonly
+					value={nsec}
+					class="input input-bordered w-full text-sm"
+				/>
 				<button class="btn btn-square ml-2" on:click={() => navigator.clipboard.writeText(nsec)}>
 					<Icon icon="material-symbols:content-copy" class="w-5 h-5" />
 				</button>
@@ -408,7 +575,7 @@
 						{#if isInvalid}
 							<div class="p-3 text-error text-sm">Invalid mint URL</div>
 						{:else}
-							{#each filteredMints as mint}
+							{#each filteredMints as mint (mint.url)}
 								<button
 									class="w-full text-left p-3 hover:bg-base-300 cursor-pointer border-b border-primary-content last:border-none flex items-center"
 									on:click={() => selectMint(mint)}
@@ -445,7 +612,7 @@
 			{#if selectedMints.length > 0}
 				<h4 class="text-sm font-medium mb-2 opacity-70">Your Mints ({selectedMints.length})</h4>
 				<div class="space-y-2">
-					{#each selectedMints as mint}
+					{#each selectedMints as mint (mint)}
 						{@const nurl = normalizeURL(mint)}
 						{@const mintInfo = availableMints.find((m) => m.url === nurl)}
 						<div
@@ -467,7 +634,8 @@
 										<div class="text-xs truncate opacity-70">{nurl}</div>
 										{#if mintInfo}
 											<div class="flex items-center gap-2 text-xs mt-1">
-												<span class={`w-2 h-2 rounded-full ${getStatusColor(mintInfo.state)}`}></span>
+												<span class={`w-2 h-2 rounded-full ${getStatusColor(mintInfo.state)}`}
+												></span>
 												<span class="opacity-70">{getStatsText(mintInfo)}</span>
 											</div>
 										{/if}
@@ -502,10 +670,7 @@
 	<div class="flex justify-center mt-6 px-4 mb-8">
 		<button
 			class="btn btn-primary w-full text-white"
-			disabled={areStringListEqual(
-				selectedMints,
-				fbArray(k17375, 'mints')
-			)}
+			disabled={areStringListEqual(selectedMints, fbArray(k17375, 'mints'))}
 			on:click={() => {
 				saveWallet();
 			}}

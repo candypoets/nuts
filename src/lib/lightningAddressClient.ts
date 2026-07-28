@@ -1,5 +1,6 @@
 import { sha256 } from '@noble/hashes/sha256';
 import { bytesToHex } from '@noble/hashes/utils';
+import type { Proof } from '@cashu/cashu-ts';
 import type { NostrEvent, UnsignedEvent } from 'nostr-tools';
 
 export interface LightningAlias {
@@ -24,6 +25,26 @@ export interface ClaimRequest {
 export type AliasAvailability =
 	| { status: 'success'; available: true }
 	| { status: 'success'; available: false; data: LightningAlias };
+
+export interface ClaimableProof {
+	paymentId: string;
+	alias: string;
+	amount: number;
+	mintUrl: string;
+	mintedAt: number;
+	token: {
+		token: Array<{
+			mint: string;
+			proofs: Proof[];
+			unit?: string;
+		}>;
+	};
+}
+
+export interface ClaimableProofs {
+	proofs: ClaimableProof[];
+	receivedThrough: number;
+}
 
 export function constructClaimRequest(
 	alias: string,
@@ -78,6 +99,46 @@ export async function postClaimRequest(
 	}
 
 	return await response.json();
+}
+
+export function constructProofAuthorizationEvent(pubkey: string, url: string): UnsignedEvent {
+	return {
+		kind: 27235,
+		pubkey,
+		created_at: Math.floor(Date.now() / 1000),
+		tags: [
+			['u', url],
+			['method', 'GET']
+		],
+		content: ''
+	};
+}
+
+export async function queryClaimableProofs(
+	authorizationEvent: NostrEvent,
+	url: string
+): Promise<ClaimableProofs> {
+	const response = await fetch(url, {
+		headers: {
+			Accept: 'application/json',
+			Authorization: `Nostr ${encodeBase64(JSON.stringify(authorizationEvent))}`
+		}
+	});
+
+	if (!response.ok) {
+		throw new Error(await responseError(response, 'Could not check for Lightning payments.'));
+	}
+
+	const result = (await response.json()) as {
+		status: 'success' | 'error';
+		data?: ClaimableProofs;
+		reason?: string;
+	};
+	if (result.status !== 'success' || !result.data) {
+		throw new Error(result.reason || 'The Lightning payment lookup returned no data.');
+	}
+
+	return result.data;
 }
 
 export async function queryExistingClaims(pubkey: string): Promise<LightningAlias[]> {
