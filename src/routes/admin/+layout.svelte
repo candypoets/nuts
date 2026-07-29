@@ -14,6 +14,7 @@
 		CalendarDays,
 		Check,
 		ChevronDown,
+		ClipboardList,
 		ExternalLink,
 		LayoutDashboard,
 		LogOut,
@@ -61,6 +62,7 @@
 		},
 		{ label: 'Events', segment: 'events', icon: CalendarDays, permissions: ['events'] },
 		{ label: 'Store', segment: 'store', icon: Store, permissions: ['store'] },
+		{ label: 'Orders', segment: 'orders', icon: ClipboardList, permissions: ['store', 'events'] },
 		{ label: 'Invites', segment: 'invites', icon: Ticket, permissions: ['invites'] }
 	] as const;
 
@@ -70,6 +72,7 @@
 		| '/admin/members'
 		| '/admin/events'
 		| '/admin/store'
+		| '/admin/orders'
 		| '/admin/settings'
 		| '/admin/invites';
 
@@ -141,6 +144,9 @@
 		if (segment === 'events') return communityAccess.permissions.has('events');
 		if (segment === 'invites') return communityAccess.permissions.has('invites');
 		if (segment === 'store') return communityAccess.permissions.has('store');
+		if (segment === 'orders') {
+			return communityAccess.permissions.has('store') || communityAccess.permissions.has('events');
+		}
 		if (segment === 'settings') return communityAccess.permissions.has('settings');
 		return (
 			communityAccess.permissions.has('moderation') || communityAccess.permissions.has('settings')
@@ -156,6 +162,7 @@
 			candidate === 'members' ||
 			candidate === 'events' ||
 			candidate === 'store' ||
+			candidate === 'orders' ||
 			candidate === 'invites'
 		) {
 			return candidate;

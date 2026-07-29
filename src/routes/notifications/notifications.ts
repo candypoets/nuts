@@ -73,7 +73,7 @@ function eventAddress(event: ParsedEvent) {
 	return extractTagValue(event, 'a') || '';
 }
 
-function latestStatusEvents(award: ParsedEvent, statuses: ParsedEvent[]): ParsedEvent[] {
+export function latestStatusEvents(award: ParsedEvent, statuses: ParsedEvent[]): ParsedEvent[] {
 	const awardId = award.id();
 	const address = eventAddress(award);
 	const recipient = extractTagValue(award, 'p');
