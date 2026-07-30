@@ -29,13 +29,16 @@
 	import { normalizeURL } from 'nostr-tools/utils';
 	import type { EventTemplate } from 'nostr-tools';
 	import { key, selectedAdminRelayUrl } from 'src/controller';
+	import { nutsWallet } from 'src/controller/proofs';
 	import { parsedEventTags } from 'src/lib/adminRelays';
+	import { buildCashuProfile, isCashuP2pkPublicKey } from 'src/lib/cashuProfile';
 	import { BADGE_DEFINITION_TYPE_TOPICS } from 'src/lib/catalog';
 	import { buildPaidEventAccess } from 'src/lib/eventAccess';
 	import { parseMembershipDefinition } from 'src/lib/memberships';
 	import { parseRoleDefinition, type RoleDefinition } from 'src/lib/nip58Roles';
 	import { uploadFile } from 'src/lib/upload';
 	import { now } from 'src/lib/period';
+	import { decodePrivKey } from 'src/lib/wallet';
 	import { encodeCheckInContext } from 'src/lib/presentation';
 	import { go } from 'src/routes/modals/modal';
 	import { onDestroy, onMount } from 'svelte';
@@ -110,6 +113,10 @@
 	let publishTimeouts: number[] = [];
 	let unsubscribeEvents: (() => void) | undefined;
 	let unsubscribeRoles: (() => void) | undefined;
+	let unsubscribeCashuProfile: (() => void) | undefined;
+	let cashuProfilePublishUnsubscribe: (() => void) | undefined;
+	let organizerCashuProfile: ParsedEvent | undefined;
+	let loadedCashuProfileKey = '';
 	let createModalOpen = false;
 	let createStep = 1;
 	let eventFilter: EventFilter = 'upcoming';
@@ -127,7 +134,20 @@
 		freeEntry === 'everyone' ||
 		selectedBadgeAddresses.length > 0 ||
 		(paidEntrance && Number(entrancePrice) > 0);
-	$: paymentValid = !paidEntrance || Number(entrancePrice) > 0;
+	$: cashuEntranceRequested = paidEntrance && Number(entranceSats) > 0;
+	$: cashuAmountValid =
+		!entranceSats || (Number.isSafeInteger(Number(entranceSats)) && Number(entranceSats) > 0);
+	$: organizerCashuProfileValid = isValidOrganizerCashuProfile(organizerCashuProfile);
+	$: canPublishOrganizerCashuProfile = Boolean(
+		$nutsWallet?.privkey && $nutsWallet?.mintUrls.length
+	);
+	$: paymentValid =
+		!paidEntrance ||
+		(Number(entrancePrice) > 0 &&
+			cashuAmountValid &&
+			(!cashuEntranceRequested ||
+				organizerCashuProfileValid ||
+				canPublishOrganizerCashuProfile));
 	$: startsAtTimestamp = timestampFromSchedule(eventDate, startTime);
 	$: endsAtTimestamp = timestampFromSchedule(eventDate, endTime);
 	$: scheduleValid = Boolean(
@@ -171,6 +191,11 @@
 	$: upcomingEvents = events.filter((event) => (event.endsAt || event.startsAt) >= now());
 	$: totalGoing = events.reduce((total, event) => total + rsvpCount(event.id, 'accepted'), 0);
 	$: totalInterested = events.reduce((total, event) => total + rsvpCount(event.id, 'tentative'), 0);
+	$: cashuProfileSubscriptionKey = `${relayUrl}|${$key?.pub || ''}`;
+	$: if (cashuProfileSubscriptionKey !== loadedCashuProfileKey) {
+		loadedCashuProfileKey = cashuProfileSubscriptionKey;
+		subscribeCashuProfile();
+	}
 
 	function loadCommunityRelay() {
 		relayUrl = $selectedAdminRelayUrl ? normalizeURL($selectedAdminRelayUrl) : '';
@@ -283,6 +308,50 @@
 		window.setTimeout(() => {
 			loadingRoles = false;
 		}, 900);
+	}
+
+	function subscribeCashuProfile() {
+		unsubscribeCashuProfile?.();
+		organizerCashuProfile = undefined;
+		const organizer = $key?.pub;
+		if (!relayUrl || !organizer) return;
+		unsubscribeCashuProfile = useSubscription(
+			`admin_event_cashu_profile_${relayUrl}_${organizer}`,
+			[
+				{
+					kinds: [10019],
+					authors: [organizer],
+					limit: 3,
+					relays: [relayUrl],
+					cacheFirst: true
+				}
+			],
+			(message: WorkerMessage) => {
+				const event = isParsedEvent(message);
+				if (!event || event.kind() !== 10019) return;
+				if (
+					organizerCashuProfile &&
+					Number(event.createdAt()) <= Number(organizerCashuProfile.createdAt())
+				)
+					return;
+				organizerCashuProfile = event;
+			}
+		);
+	}
+
+	function isValidOrganizerCashuProfile(event: ParsedEvent | undefined) {
+		if (!event) return false;
+		const tags = parsedEventTags(event);
+		return (
+			isCashuP2pkPublicKey(tags.find((tag) => tag[0] === 'pubkey')?.[1]) &&
+			tags.some((tag) => tag[0] === 'mint' && /^https?:\/\//.test(tag[1] || ''))
+		);
+	}
+
+	function localCashuProfile(): EventTemplate | undefined {
+		const wallet = $nutsWallet;
+		if (!wallet?.privkey || !wallet.mintUrls.length) return undefined;
+		return buildCashuProfile(decodePrivKey(wallet.privkey), wallet.mintUrls, now());
 	}
 
 	function selectFreeEntry(value: FreeEntry) {
@@ -726,6 +795,45 @@
 		}
 	}
 
+	function publishCashuProfileThenTicket(
+		profile: EventTemplate,
+		badgeDefinition: EventTemplate,
+		badgeD: string,
+		event: EventTemplate,
+		eventD: string
+	) {
+		cashuProfilePublishUnsubscribe?.();
+		publishStatus = 'Publishing organizer Cashu profile...';
+		let settled = false;
+		const timeout = trackPublishTimeout(() => {
+			if (settled) return;
+			settled = true;
+			publishingEvent = false;
+			publishStatus =
+				'The organizer Cashu profile was not confirmed, so the paid event was not published.';
+		});
+		try {
+			cashuProfilePublishUnsubscribe = usePublish(
+				`admin_event_cashu_profile_publish_${relayUrl}`,
+				profile,
+				(message: WorkerMessage) => {
+					if (settled || !publishAccepted(message)) return;
+					settled = true;
+					clearPublishTimeout(timeout);
+					publishStatus = 'Cashu profile saved. Publishing entrance ticket...';
+					publishTicketThenEvent(badgeDefinition, badgeD, event, eventD);
+				},
+				{ trackStatus: true, defaultRelays: [relayUrl] }
+			);
+		} catch (error) {
+			settled = true;
+			clearPublishTimeout(timeout);
+			publishingEvent = false;
+			publishStatus =
+				error instanceof Error ? error.message : 'Cashu profile publication failed.';
+		}
+	}
+
 	function createEvent() {
 		if (!canCreateEvent) return;
 		const d = slugFromTitle(title);
@@ -790,6 +898,16 @@
 				created_at: now(),
 				tags: paidAccess.definitionTags
 			};
+			if (cashuEntranceRequested && !organizerCashuProfileValid) {
+				const profile = localCashuProfile();
+				if (!profile) {
+					publishingEvent = false;
+					publishStatus = 'Set up a Cashu wallet before enabling a sats entrance price.';
+					return;
+				}
+				publishCashuProfileThenTicket(profile, badgeDefinition, paidAccess.badgeD, event, d);
+				return;
+			}
 			publishTicketThenEvent(badgeDefinition, paidAccess.badgeD, event, d);
 			return;
 		}
@@ -799,8 +917,10 @@
 	onDestroy(() => {
 		unsubscribeEvents?.();
 		unsubscribeRoles?.();
+		unsubscribeCashuProfile?.();
 		publishUnsubscribe?.();
 		badgePublishUnsubscribe?.();
+		cashuProfilePublishUnsubscribe?.();
 		publishTimeouts.forEach((timeout) => window.clearTimeout(timeout));
 	});
 </script>
@@ -1605,7 +1725,23 @@
 											</p>
 										{:else if !paymentValid}
 											<p class="text-sm font-black text-rose-700">
-												Enter a price greater than zero.
+												{#if entranceSats && !cashuAmountValid}
+													Enter a whole sats amount greater than zero.
+												{:else if cashuEntranceRequested && !organizerCashuProfileValid && !canPublishOrganizerCashuProfile}
+													Set up a Cashu wallet before accepting ecash for this event.
+													<button
+														type="button"
+														class="ml-1 underline"
+														on:click={() => go('wallet')}>Set up wallet</button
+													>
+												{:else}
+													Enter a price greater than zero.
+												{/if}
+											</p>
+										{:else if cashuEntranceRequested && !organizerCashuProfileValid}
+											<p class="text-sm font-bold text-amber-700">
+												Your organizer kind-10019 will be published to this community before the
+												event.
 											</p>
 										{/if}
 									</div>

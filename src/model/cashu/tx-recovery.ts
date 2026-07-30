@@ -7,12 +7,13 @@
 
 import type { Proof } from '@cashu/cashu-ts';
 import type { MeltQuoteResponse, MintQuoteResponse } from '@cashu/cashu-ts';
-import type { EventTemplate } from 'nostr-tools';
+import type { EventTemplate, NostrEvent } from 'nostr-tools';
 import { get } from 'svelte/store';
 import { nutsWallet } from 'src/controller/proofs';
 import { usePublish } from '@candypoets/nipworker/hooks';
 import { isConnectionStatus } from '@candypoets/nipworker/utils';
 import type { WorkerMessage } from '@candypoets/nipworker';
+import { makeInviteAuthorization } from 'src/lib/invites';
 import {
 	getPendingBackups,
 	markBackupAttempt,
@@ -26,10 +27,18 @@ import {
 
 export type TxType = 'nutszap' | 'nutszap-melt' | 'zap' | 'melt';
 
+export type EventCheckoutContext = {
+	community: string;
+	service: string;
+	eventAddress: string;
+	badgeAddress: string;
+	amount: number;
+};
+
 export interface TxState {
 	txId: string;
 	type: TxType;
-	status: 'pending' | 'completed' | 'failed' | 'pending_publish';
+	status: 'pending' | 'completed' | 'failed' | 'pending_redemption' | 'pending_publish';
 	params: {
 		fromMint: string;
 		toMint?: string;
@@ -40,11 +49,13 @@ export interface TxState {
 		lnurl?: string;
 		p2pkPubkey?: string;
 		receiptRelays?: string[];
+		checkoutContext?: EventCheckoutContext;
 	};
 	proofs: Proof[];
 	meltQuote?: MeltQuoteResponse & { mintUrl: string };
 	mintQuote?: MintQuoteResponse & { mintUrl: string };
 	nutzapEvent?: EventTemplate;
+	proofsCommitted: boolean;
 	published: boolean; // Whether nutzap was successfully published
 	publishAttempts: number;
 	error?: string;
@@ -138,6 +149,7 @@ export async function startTransaction(
 		status: 'pending',
 		params,
 		proofs,
+		proofsCommitted: false,
 		published: false,
 		publishAttempts: 0,
 		createdAt: Date.now(),
@@ -204,7 +216,7 @@ export async function retryPublish(txId: string): Promise<boolean> {
 
 	console.log(`[tx] Retrying publish for ${txId} (attempt ${state.publishAttempts + 1})`);
 
-	const success = await publishWithRetry(state.nutzapEvent);
+	const success = await publishWithRetry(state.nutzapEvent, 10000, 3, state.params.receiptRelays);
 
 	if (success) {
 		await markPublished(txId);
@@ -212,6 +224,77 @@ export async function retryPublish(txId: string): Promise<boolean> {
 	} else {
 		state.publishAttempts++;
 		await saveTx(state);
+		return false;
+	}
+}
+
+export async function markPendingRedemption(txId: string, error: string): Promise<void> {
+	const state = await loadTx(txId);
+	if (!state) return;
+	state.status = 'pending_redemption';
+	state.error = error;
+	await saveTx(state);
+	console.warn(`[tx] Transaction ${txId} pending event redemption`, error);
+}
+
+export async function listPendingRedemption(): Promise<TxState[]> {
+	const db = await getDB();
+	const tx = db.transaction(STORE_NAME, 'readonly');
+	const store = tx.objectStore(STORE_NAME);
+	return new Promise((resolve, reject) => {
+		const req = store.getAll();
+		req.onsuccess = () => {
+			const all: TxState[] = req.result;
+			resolve(
+				all.filter(
+					(item) =>
+						item.status === 'pending_redemption' &&
+						Boolean(item.params.checkoutContext) &&
+						Boolean(item.nutzapEvent)
+				)
+			);
+		};
+		req.onerror = () => reject(req.error);
+	});
+}
+
+export async function retryRedemption(txId: string): Promise<boolean> {
+	const state = await loadTx(txId);
+	const checkoutContext = state?.params.checkoutContext;
+	const nutzapEvent = state?.nutzapEvent;
+	if (!state || !checkoutContext || !nutzapEvent) return false;
+
+	try {
+		const body = JSON.stringify({
+			type: 'cashu',
+			event_address: checkoutContext.eventAddress,
+			badge_address: checkoutContext.badgeAddress,
+			amount: checkoutContext.amount,
+			nutzap: nutzapEvent as NostrEvent
+		});
+		const url = new URL('/redeem', `${checkoutContext.service}/`).toString();
+		const authorization = await makeInviteAuthorization(url, body);
+		const response = await fetch(url, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json', authorization },
+			body
+		});
+		const result = await response.json().catch(() => ({}));
+		if (!response.ok) {
+			throw new Error(result.message || result.error || 'Entrance redemption failed');
+		}
+		if (!/^[0-9a-f]{64}$/i.test(result.event_id || '')) {
+			throw new Error('Entrance redemption returned no badge');
+		}
+		state.status = 'pending_publish';
+		state.error = undefined;
+		await saveTx(state);
+		return retryPublish(txId);
+	} catch (cause) {
+		await markPendingRedemption(
+			txId,
+			cause instanceof Error ? cause.message : 'Entrance redemption failed'
+		);
 		return false;
 	}
 }
@@ -227,7 +310,7 @@ export async function failTransaction(txId: string, error: string): Promise<void
 
 	// Return proofs to wallet
 	const wallet = get(nutsWallet);
-	if (wallet && state.proofs.length) {
+	if (wallet && state.proofs.length && !state.proofsCommitted) {
 		// Proofs were reserved - add them back
 		wallet.addProofs(state.params.fromMint, state.proofs);
 		console.log(`[tx] Returned ${state.proofs.length} proofs to wallet`);
@@ -265,6 +348,14 @@ export async function listPendingPublish(): Promise<TxState[]> {
 }
 
 export async function resumePendingTransactions(): Promise<void> {
+	const pendingRedemption = await listPendingRedemption();
+	if (pendingRedemption.length) {
+		console.log(`[tx] Found ${pendingRedemption.length} event payments pending redemption`);
+		for (const tx of pendingRedemption) {
+			await retryRedemption(tx.txId);
+		}
+	}
+
 	// First handle stuck pending transactions
 	const pending = await listPending();
 	if (pending.length) {
@@ -279,13 +370,6 @@ export async function resumePendingTransactions(): Promise<void> {
 				console.log(`[tx] Transaction ${tx.txId} is stale (>5min), marking as failed`);
 				await failTransaction(tx.txId, 'Transaction timed out');
 				continue;
-			}
-
-			// Return proofs to wallet - user can retry manually
-			const wallet = get(nutsWallet);
-			if (wallet && tx.proofs.length) {
-				wallet.addProofs(tx.params.fromMint, tx.proofs);
-				console.log(`[tx] Returned ${tx.proofs.length} proofs to wallet`);
 			}
 
 			// Mark as failed
@@ -353,29 +437,46 @@ export async function retryPendingBackups(): Promise<void> {
 export async function publishWithRetry(
 	event: EventTemplate,
 	timeoutMs: number = 10000,
-	maxRetries: number = 3
+	maxRetries: number = 3,
+	defaultRelays?: string[]
 ): Promise<boolean> {
 	for (let attempt = 1; attempt <= maxRetries; attempt++) {
 		const success = await new Promise<boolean>((resolve) => {
+			let settled = false;
+			let unsubscribe = () => {};
+			const finish = (published: boolean) => {
+				if (settled) return;
+				settled = true;
+				clearTimeout(timeout);
+				unsubscribe();
+				resolve(published);
+			};
 			const timeout = setTimeout(() => {
 				console.log(`[publish] Attempt ${attempt} timeout - no response`);
-				resolve(false);
+				finish(false);
 			}, timeoutMs);
 
-			usePublish(`pub_${Date.now()}_${attempt}`, event, (msg: WorkerMessage) => {
-				console.log(`[publish] Attempt ${attempt} received message:`, msg.type());
-				const status = isConnectionStatus(msg);
-				if (status) {
-					const statusValue = status.status();
-					console.log(`[publish] Status:`, statusValue);
-					// Status can be "SENT" (string) or "true" (string) - both mean success
-					const statusStr = statusValue;
-					if (statusStr === 'SENT' || statusStr === 'true') {
-						clearTimeout(timeout);
-						resolve(true);
+			unsubscribe = usePublish(
+				`pub_${Date.now()}_${attempt}`,
+				event,
+				(msg: WorkerMessage) => {
+					console.log(`[publish] Attempt ${attempt} received message:`, msg.type());
+					const status = isConnectionStatus(msg);
+					if (status) {
+						const statusValue = status.status();
+						console.log(`[publish] Status:`, statusValue);
+						// Status can be "SENT" (string) or "true" (string) - both mean success
+						const statusStr = statusValue;
+						if (statusStr === 'SENT' || statusStr === 'true') {
+							finish(true);
+						}
 					}
+				},
+				{
+					trackStatus: true,
+					...(defaultRelays?.length ? { defaultRelays } : {})
 				}
-			});
+			);
 		});
 
 		if (success) {
@@ -410,7 +511,7 @@ export async function clearOldTransactions(maxAgeMs: number = 24 * 60 * 60 * 100
 
 	const cutoff = Date.now() - maxAgeMs;
 	for (const t of all) {
-		if (t.createdAt < cutoff) {
+		if (t.createdAt < cutoff && (t.status === 'completed' || t.status === 'failed')) {
 			await new Promise<void>((resolve, reject) => {
 				const req = store.delete(t.txId);
 				req.onsuccess = () => resolve();
@@ -428,7 +529,9 @@ if (typeof window !== 'undefined') {
 	(window as any).__tx = {
 		getTransaction,
 		listPending,
+		listPendingRedemption,
 		listPendingPublish,
+		retryRedemption,
 		retryPublish,
 		resumePendingTransactions,
 		retryPendingBackups,
@@ -436,6 +539,7 @@ if (typeof window !== 'undefined') {
 		clearOldTransactions,
 		updateTransaction,
 		completeTransaction,
+		markPendingRedemption,
 		failTransaction,
 		publishProofsBackup
 	};

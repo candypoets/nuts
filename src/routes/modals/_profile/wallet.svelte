@@ -12,6 +12,7 @@
 
 	import { kind17375 } from 'src/controller/nostr';
 	import { isMintUrlValid } from 'src/lib/mint';
+	import { buildCashuProfile } from 'src/lib/cashuProfile';
 	import { claimLightningProofs } from 'src/lib/lightningProofs';
 	import { now } from 'src/lib/period';
 	import { areStringListEqual } from 'src/lib/utils';
@@ -176,7 +177,11 @@
 			isInvalid = true;
 			return;
 		}
-		const isLocalMint = ['localhost', '127.0.0.1', '::1'].includes(parsedUrl.hostname);
+		const isLocalMint =
+			['localhost', '127.0.0.1', '::1'].includes(parsedUrl.hostname) ||
+			/^10\./.test(parsedUrl.hostname) ||
+			/^192\.168\./.test(parsedUrl.hostname) ||
+			/^172\.(1[6-9]|2\d|3[01])\./.test(parsedUrl.hostname);
 		if (parsedUrl.protocol === 'http:' && !isLocalMint) {
 			parsedUrl.protocol = 'https:';
 			url = parsedUrl.toString();
@@ -215,12 +220,7 @@
 			]),
 			tags: []
 		};
-		const trustedMints: EventTemplate = {
-			kind: 10019,
-			created_at: now(),
-			content: '',
-			tags: [...selectedMints.map((sm) => ['mint', sm]), ['pubkey', pubkey]]
-		};
+		const trustedMints = buildCashuProfile(secretKey, selectedMints, now());
 
 		// Persist mnemonic locally when applicable
 		if (walletMode === 'mnemonic' || walletMode === 'create') {

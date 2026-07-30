@@ -2,7 +2,7 @@
 	import Icon from '@iconify/svelte';
 	import Loader from 'src/components/Loader.svelte';
 	import type { EventTemplate, NostrEvent } from 'nostr-tools';
-	import { getContext, onMount, tick } from 'svelte';
+	import { getContext, onDestroy, onMount, tick } from 'svelte';
 
 	import MintSelector from 'src/components/MintSelector.svelte';
 	import VirtualList from 'src/components/VirtualList.svelte';
@@ -44,9 +44,12 @@
 		completeTransaction,
 		failTransaction,
 		markPublished,
+		markPendingRedemption,
 		publishWithRetry,
+		retryRedemption,
 		startTransaction,
 		updateTransaction,
+		type EventCheckoutContext,
 		type TxType
 	} from 'src/model/cashu/tx-recovery';
 	import { fly } from 'svelte/transition';
@@ -73,18 +76,18 @@
 	export let amount = 21;
 	export let checkout = '';
 
-	type CheckoutContext = {
-		community: string;
-		eventAddress: string;
-		badgeAddress: string;
-		amount: number;
-	};
-
-	function parseCheckout(value: string): CheckoutContext | undefined {
+	function parseCheckout(value: string): EventCheckoutContext | undefined {
 		if (!value) return undefined;
 		try {
 			const parsed = JSON.parse(decodeURIComponent(value));
-			if (!parsed.community || !parsed.eventAddress || !parsed.badgeAddress || Number(parsed.amount) <= 0) return undefined;
+			if (
+				!parsed.community ||
+				!parsed.service ||
+				!parsed.eventAddress ||
+				!parsed.badgeAddress ||
+				Number(parsed.amount) <= 0
+			)
+				return undefined;
 			return { ...parsed, amount: Math.floor(Number(parsed.amount)) };
 		} catch {
 			return undefined;
@@ -103,6 +106,9 @@
 	let scroller: HTMLElement;
 
 	let kind10019: Kind10019Parsed;
+	let unsubscribeRelayDiscovery: (() => void) | undefined;
+	let unsubscribeRecipient: (() => void) | undefined;
+	let destroyed = false;
 
 	let zap = true;
 	let receiptRelays: string[] = [];
@@ -110,15 +116,13 @@
 
 	$: walletReadRelays =
 		$walletKind10019 &&
-		(fbArray(asKind10019($walletKind10019) as Kind10019Parsed, 'readRelays')?.map((r) =>
-			r
-		) ||
-			[]);
+		(fbArray(asKind10019($walletKind10019) as Kind10019Parsed, 'readRelays')?.map((r) => r) || []);
 
 	$: zapReceiptRelays = uniqueRelays([
 		...receiptRelays,
 		...($readRelays || []),
 		...(walletReadRelays || []),
+		checkoutContext?.community,
 		...DEFAULT_RELAYS
 	]);
 
@@ -132,6 +136,9 @@
 		}
 		if (status === 'No proofs available') {
 			return { state: 'failed' as const, message: status };
+		}
+		if (status.startsWith('Payment sent. Ticket delivery')) {
+			return { state: 'processing' as const, message: status, progress: 0.8 };
 		}
 		if (processing === 'sending' || processing) {
 			return { state: 'processing' as const, message: status || processing, progress: 0.5 };
@@ -187,39 +194,68 @@
 
 	onMount(() => {
 		console.log('[ecash] Modal opened - hexNoteId:', hexNoteId, 'pubkey:', pubkey);
-		const requests: RequestObject[] = [
-			{ kinds: [0], authors: [pubkey], limit: 1, cacheFirst: true, relays: [] },
-			{ kinds: [10002], authors: [pubkey], limit: 3, cacheFirst: true, relays: [] },
-			{ kinds: [10019], authors: [pubkey], limit: 3, cacheFirst: true, relays: [] }
-		];
-		getUserRelays(pubkey, (relays: string[]) => {
-			useSubscription('wallet_' + pubkey, requests, (message: WorkerMessage) => {
-				const parsedEvent = isParsedEvent(message);
-				if (parsedEvent) {
-					switch (parsedEvent.parsedType()) {
-						case ParsedData.Kind10019Parsed:
-							kind10019 = asKind10019(parsedEvent) as Kind10019Parsed;
-							toMint = kind10019?.trustedMints(0)?.url() as string;
-							zap = false;
-							break;
-						case ParsedData.Kind10002Parsed:
-							const kind1002 = asKind10002(parsedEvent) as Kind10002Parsed;
-							// Use write relays since LNURL provider needs to publish receipt there
-							receiptRelays = (fbArray(kind1002, 'relays')
-								?.filter((r) => r.write())
-								.map((r) => r.url())
-								.filter(Boolean) || []) as string[];
-							console.log('[zap] Recipient write relays:', receiptRelays);
-							break;
+		unsubscribeRelayDiscovery = getUserRelays(pubkey, (relays: string[]) => {
+			if (destroyed) return;
+			const recipientRelays = uniqueRelays([
+				...relays,
+				checkoutContext?.community,
+				...DEFAULT_RELAYS
+			]);
+			const requests: RequestObject[] = [
+				{ kinds: [0], authors: [pubkey], limit: 1, cacheFirst: true, relays: recipientRelays },
+				{
+					kinds: [10002],
+					authors: [pubkey],
+					limit: 3,
+					cacheFirst: true,
+					relays: recipientRelays
+				},
+				{
+					kinds: [10019],
+					authors: [pubkey],
+					limit: 3,
+					cacheFirst: true,
+					relays: recipientRelays
+				}
+			];
+			unsubscribeRecipient?.();
+			unsubscribeRecipient = useSubscription(
+				'wallet_' + pubkey + '_' + recipientRelays.join(','),
+				requests,
+				(message: WorkerMessage) => {
+					const parsedEvent = isParsedEvent(message);
+					if (parsedEvent) {
+						switch (parsedEvent.parsedType()) {
+							case ParsedData.Kind10019Parsed:
+								kind10019 = asKind10019(parsedEvent) as Kind10019Parsed;
+								toMint = kind10019?.trustedMints(0)?.url() as string;
+								zap = false;
+								break;
+							case ParsedData.Kind10002Parsed:
+								const kind1002 = asKind10002(parsedEvent) as Kind10002Parsed;
+								// Use write relays since LNURL provider needs to publish receipt there
+								receiptRelays = (fbArray(kind1002, 'relays')
+									?.filter((r) => r.write())
+									.map((r) => r.url())
+									.filter(Boolean) || []) as string[];
+								console.log('[zap] Recipient write relays:', receiptRelays);
+								break;
 
-						case ParsedData.Kind0Parsed:
-							kind0 = parsedEvent;
-							computeFees(Number(amount), fromMint || '', toMint || '', zap);
-							break;
+							case ParsedData.Kind0Parsed:
+								kind0 = parsedEvent;
+								computeFees(Number(amount), fromMint || '', toMint || '', zap);
+								break;
+						}
 					}
 				}
-			});
+			);
 		});
+	});
+
+	onDestroy(() => {
+		destroyed = true;
+		unsubscribeRelayDiscovery?.();
+		unsubscribeRecipient?.();
 	});
 
 	const computeFees = throttle(
@@ -324,7 +360,8 @@
 				noteId: noteId || undefined,
 				lnurl: lnurl || undefined,
 				p2pkPubkey: kind10019?.p2pkPubkey(),
-				receiptRelays: zapReceiptRelays.length > 0 ? zapReceiptRelays : undefined
+				receiptRelays: zapReceiptRelays.length > 0 ? zapReceiptRelays : undefined,
+				checkoutContext
 			},
 			proofs
 		);
@@ -365,7 +402,6 @@
 			} else {
 				// Not a spent token error
 				await failTransaction(txId, errorMsg);
-				$nutsWallet.addProofs(fromMint, proofs);
 				status = 'Error: ' + errorMsg;
 			}
 
@@ -393,8 +429,14 @@
 	async function redeemEventNutzap(event: NostrEvent) {
 		if (!checkoutContext) return;
 		status = 'Confirming entrance…';
-		const body = JSON.stringify({ ...checkoutContext, nutzap: event });
-		const url = new URL('/api/ecash/redeem', window.location.origin).toString();
+		const body = JSON.stringify({
+			type: 'cashu',
+			event_address: checkoutContext.eventAddress,
+			badge_address: checkoutContext.badgeAddress,
+			amount: checkoutContext.amount,
+			nutzap: event
+		});
+		const url = new URL('/redeem', `${checkoutContext.service}/`).toString();
 		const authorization = await makeInviteAuthorization(url, body);
 		const response = await fetch(url, {
 			method: 'POST',
@@ -402,8 +444,26 @@
 			body
 		});
 		const result = await response.json().catch(() => ({}));
-		if (!response.ok) throw new Error(result.message || result.error || 'Entrance redemption failed');
+		if (!response.ok)
+			throw new Error(result.message || result.error || 'Entrance redemption failed');
+		if (!/^[0-9a-f]{64}$/i.test(result.event_id || '')) {
+			throw new Error('Entrance redemption returned no badge');
+		}
 		status = 'Entrance unlocked!';
+	}
+
+	async function redeemEventNutzapOrQueue(txId: string, event: NostrEvent) {
+		try {
+			await redeemEventNutzap(event);
+			return true;
+		} catch (cause) {
+			const message = cause instanceof Error ? cause.message : 'Entrance redemption failed';
+			await markPendingRedemption(txId, message);
+			status = 'Payment sent. Ticket delivery will retry automatically.';
+			processing = '';
+			setTimeout(() => void retryRedemption(txId), 5000);
+			return false;
+		}
 	}
 
 	// Execute the transaction based on type
@@ -432,16 +492,20 @@
 				createdAt: now()
 			});
 			console.log('[ecash] Zap request created:', JSON.stringify(zapRequest));
-			console.log('[ecash] Event reference in zap request:', noteId ? `e tag present: ${noteId}` : 'NO e tag - noteId was missing!');
+			console.log(
+				'[ecash] Event reference in zap request:',
+				noteId ? `e tag present: ${noteId}` : 'NO e tag - noteId was missing!'
+			);
 
 			// Sign the zap request and get invoice
 			await new Promise<void>((resolve, reject) => {
 				useSignEvent(zapRequest, async (signedZapRequest) => {
 					try {
 						// Handle case where signedZapRequest might be a string
-						const signedEvent = typeof signedZapRequest === 'string'
-							? JSON.parse(signedZapRequest)
-							: signedZapRequest;
+						const signedEvent =
+							typeof signedZapRequest === 'string'
+								? JSON.parse(signedZapRequest)
+								: signedZapRequest;
 						// Get invoice with zap request (LNURL will publish kind 9735 receipt)
 						const { pr, allowsNostr } = await getZapInvoice(
 							lnurl,
@@ -458,6 +522,7 @@
 
 						const { quote, change } = await wallet.meltProofs(meltquote, proofs);
 						if (quote.state !== 'PAID') throw new Error('Payment failed');
+						await updateTransaction(txId, { proofsCommitted: true });
 
 						status = allowsNostr
 							? 'Zap sent! ⚡️'
@@ -498,6 +563,7 @@
 
 			const { quote: meltQuoteResult, change } = await fromWallet.meltProofs(meltquote, proofs);
 			if (meltQuoteResult.state !== 'PAID') throw new Error('Cross-mint swap failed');
+			await updateTransaction(txId, { proofsCommitted: true });
 
 			console.log('awaiting mint...', amount);
 			// Poll for mint quote to be paid
@@ -537,12 +603,13 @@
 				{},
 				{ type: 'p2pk', options: { pubkey: recipientPubkey } }
 			);
+			await updateTransaction(txId, { proofsCommitted: true });
 
 			const nutzapEvent: EventTemplate = {
 				kind: 9321,
 				content: memo,
 				created_at: Math.floor(Date.now() / 1000),
-					tags: [
+				tags: [
 					...lockedProofs.map((p: Proof) => ['proof', JSON.stringify(p)]),
 					['u', toMint],
 					['unit', 'sat'],
@@ -557,9 +624,14 @@
 			// Validate the signed payment and issue the entrance badge before publishing it.
 			// This prevents a temporary redemption failure from leaving a public payment
 			// event behind without the badge it purchased.
-			if (checkoutContext) await redeemEventNutzap(eventToPublish as NostrEvent);
+			if (
+				checkoutContext &&
+				!(await redeemEventNutzapOrQueue(txId, eventToPublish as NostrEvent))
+			) {
+				return;
+			}
 			// Try to publish - if it fails, transaction will be pending_publish
-			const published = await publishWithRetry(eventToPublish);
+			const published = await publishWithRetry(eventToPublish, 10000, 3, zapReceiptRelays);
 			if (published) {
 				await markPublished(txId);
 				status = checkoutContext ? 'Entrance unlocked!' : 'Zap sent! ⚡️';
@@ -593,12 +665,13 @@
 				{},
 				{ type: 'p2pk', options: { pubkey: recipientPubkey } }
 			);
+			await updateTransaction(txId, { proofsCommitted: true });
 
 			const nutzapEvent: EventTemplate = {
 				kind: 9321,
 				content: memo,
 				created_at: Math.floor(Date.now() / 1000),
-					tags: [
+				tags: [
 					...lockedProofs.map((p: Proof) => ['proof', JSON.stringify(p)]),
 					['u', fromMint],
 					['unit', 'sat'],
@@ -621,11 +694,16 @@
 
 			const eventToPublish = checkoutContext ? await signNutzap(nutzapEvent) : nutzapEvent;
 			await updateTransaction(txId, { nutzapEvent: eventToPublish });
-			// The server validates the signed nutzap itself, so redemption does not depend
-			// on relay propagation and can safely happen before publication.
-			if (checkoutContext) await redeemEventNutzap(eventToPublish as NostrEvent);
+			// The community badge service validates the signed Nutzap directly, so
+			// redemption does not depend on relay propagation.
+			if (
+				checkoutContext &&
+				!(await redeemEventNutzapOrQueue(txId, eventToPublish as NostrEvent))
+			) {
+				return;
+			}
 			// Try to publish - if it fails, transaction will be pending_publish
-			const published = await publishWithRetry(eventToPublish);
+			const published = await publishWithRetry(eventToPublish, 10000, 3, zapReceiptRelays);
 			if (published) {
 				await markPublished(txId);
 				status = checkoutContext ? 'Entrance unlocked!' : 'Sent! 🎉';
@@ -677,8 +755,8 @@
 						<!-- Sender (Mint) in header -->
 						<div class="flex-1 flex justify-center pt-safe mt-4">
 							<MintSelector
-								mints={($kind17375 && fbArray(asKind17375($kind17375), 'mints'))?.map((mint) =>
-									mint
+								mints={($kind17375 && fbArray(asKind17375($kind17375), 'mints'))?.map(
+									(mint) => mint
 								) || []}
 								pubkey={$key?.pub}
 								bind:activeMint={fromMint}
@@ -718,140 +796,143 @@
 								</div>
 							{/if}
 						</div>
-					<div>
-						<div class="w-full gap-3">
-							<div class="md:h-48 flex flex-col items-center">
-								{#if !status && (!processing || amountInputFocused)}
-									<div class="join items-center mt-10">
-										<div class="join-item w-0">
-											<Icon icon="bitcoin-icons:satoshi-v2-filled" class="text-4xl" />
+						<div>
+							<div class="w-full gap-3">
+								<div class="md:h-48 flex flex-col items-center">
+									{#if !status && (!processing || amountInputFocused)}
+										<div class="join items-center mt-10">
+											<div class="join-item w-0">
+												<Icon icon="bitcoin-icons:satoshi-v2-filled" class="text-4xl" />
+											</div>
+											<input
+												id="send-amt"
+												placeholder="0"
+												type="text"
+												inputmode="decimal"
+												autocomplete="off"
+												bind:value={amount}
+												readonly={Boolean(checkoutContext)}
+												class="join-item text-7xl bg-transparent caret-transparent focus:outline-none text-center max-w-xs rounded-xl"
+												on:focus={() => (amountInputFocused = true)}
+												on:blur={() => (amountInputFocused = false)}
+												on:keydown|stopPropagation={(e) => {
+													if (!!processing) return;
+													if (e.key === 'Enter') {
+														sendEcash();
+													}
+												}}
+											/>
 										</div>
-						<input
-											id="send-amt"
-											placeholder="0"
-											type="text"
-											inputmode="decimal"
-											autocomplete="off"
-							bind:value={amount}
-							readonly={Boolean(checkoutContext)}
-											class="join-item text-7xl bg-transparent caret-transparent focus:outline-none text-center max-w-xs rounded-xl"
-											on:focus={() => (amountInputFocused = true)}
-											on:blur={() => (amountInputFocused = false)}
-											on:keydown|stopPropagation={(e) => {
-												if (!!processing) return;
-												if (e.key === 'Enter') {
-													sendEcash();
-												}
-											}}
+										<div class="flex items-center justify-center gap-6 mt-4">
+											<button
+												type="button"
+												class="btn btn-ghost text-3xl"
+												title="Set amount to 21"
+												on:click={() => {
+													if (!!processing) return;
+													amount = 21;
+												}}>🥜</button
+											>
+											<button
+												type="button"
+												class="btn btn-ghost text-3xl"
+												title="Set amount to 42"
+												on:click={() => {
+													if (!!processing) return;
+													amount = 42;
+												}}>🍫</button
+											>
+											<button
+												type="button"
+												class="btn btn-ghost text-3xl"
+												title="Set amount to 69"
+												on:click={() => {
+													if (!!processing) return;
+													amount = 69;
+												}}>⚡️</button
+											>
+											<button
+												type="button"
+												class="btn btn-ghost text-3xl"
+												title="Set amount to 420"
+												on:click={() => {
+													if (!!processing) return;
+													amount = 420;
+												}}>🚀</button
+											>
+										</div>
+									{:else}
+										<TransactionStatus
+											state={txState.state}
+											message={txState.message}
+											progress={txState.progress}
 										/>
-									</div>
-									<div class="flex items-center justify-center gap-6 mt-4">
-										<button
-											type="button"
-											class="btn btn-ghost text-3xl"
-											title="Set amount to 21"
-											on:click={() => {
-												if (!!processing) return;
-												amount = 21;
-											}}>🥜</button
-										>
-										<button
-											type="button"
-											class="btn btn-ghost text-3xl"
-											title="Set amount to 42"
-											on:click={() => {
-												if (!!processing) return;
-												amount = 42;
-											}}>🍫</button
-										>
-										<button
-											type="button"
-											class="btn btn-ghost text-3xl"
-											title="Set amount to 69"
-											on:click={() => {
-												if (!!processing) return;
-												amount = 69;
-											}}>⚡️</button
-										>
-										<button
-											type="button"
-											class="btn btn-ghost text-3xl"
-											title="Set amount to 420"
-											on:click={() => {
-												if (!!processing) return;
-												amount = 420;
-											}}>🚀</button
-										>
-									</div>
-								{:else}
-									<TransactionStatus
-										state={txState.state}
-										message={txState.message}
-										progress={txState.progress}
-									/>
-								{/if}
-							</div>
-						</div>
-						{#if fees === 0 && zap}
-							<div class="px-4 w-full mt-4" transition:fly>
-								<div class="text-sm text-primary">No fees applies</div>
-							</div>
-						{/if}
-						{#if fees}
-							<div class="px-4 w-full mt-4" transition:fly>
-								<div class="text-sm text-primary">
-									A fee of {fees} sats may apply for this transaction. This covers Lightning network costs
-									and is only reserved - you might get some or all of it refunded.
+									{/if}
 								</div>
 							</div>
-						{/if}
-						{#if zapReceiptSupported === false}
-							<div class="px-4 w-full mt-4" transition:fly>
-								<div class="text-sm text-warning">
-									This Lightning Address does not support zap receipts, so this was sent as a normal
-									Lightning payment.
+							{#if fees === 0 && zap}
+								<div class="px-4 w-full mt-4" transition:fly>
+									<div class="text-sm text-primary">No fees applies</div>
 								</div>
-							</div>
-						{/if}
-						<div class="px-4 w-full my-8">
-							<input
-								type="text"
-								placeholder="Add a memo"
-								bind:value={memo}
-								class="input w-full join-item md:hidden block my-4 input-bordered"
-							/>
-							<div class="join w-full pb-4">
-								<label class="swap join-item border bg-base-300">
-									<input type="checkbox" bind:checked={zap} />
-									<div class="swap-on px-4">
-										<Icon icon="emojione-v1:lightning-mood" class="text-2xl" />
+							{/if}
+							{#if fees}
+								<div class="px-4 w-full mt-4" transition:fly>
+									<div class="text-sm text-primary">
+										A fee of {fees} sats may apply for this transaction. This covers Lightning network
+										costs and is only reserved - you might get some or all of it refunded.
 									</div>
-									<div class="swap-off px-4"><Icon icon="openmoji:peanuts" class="text-2xl" /></div>
-								</label>
+								</div>
+							{/if}
+							{#if zapReceiptSupported === false}
+								<div class="px-4 w-full mt-4" transition:fly>
+									<div class="text-sm text-warning">
+										This Lightning Address does not support zap receipts, so this was sent as a
+										normal Lightning payment.
+									</div>
+								</div>
+							{/if}
+							<div class="px-4 w-full my-8">
 								<input
 									type="text"
-									class="input input-bordered w-full join-item md:block hidden"
 									placeholder="Add a memo"
 									bind:value={memo}
+									class="input w-full join-item md:hidden block my-4 input-bordered"
 								/>
+								<div class="join w-full pb-4">
+									<label class="swap join-item border bg-base-300">
+										<input type="checkbox" bind:checked={zap} disabled={Boolean(checkoutContext)} />
+										<div class="swap-on px-4">
+											<Icon icon="emojione-v1:lightning-mood" class="text-2xl" />
+										</div>
+										<div class="swap-off px-4">
+											<Icon icon="openmoji:peanuts" class="text-2xl" />
+										</div>
+									</label>
+									<input
+										type="text"
+										class="input input-bordered w-full join-item md:block hidden"
+										placeholder="Add a memo"
+										bind:value={memo}
+									/>
 
-								<button
-									class="btn btn-outline join-item border flex-grow"
-									{disabled}
-									on:click={sendEcash}
-								>
-									{#if processing === 'sending'}
-										<Loader size="sm" />
-									{:else}
-										<Icon icon="mdi:send" />
-									{/if}
-								</button>
+									<button
+										class="btn btn-outline join-item border flex-grow"
+										{disabled}
+										aria-label={checkoutContext ? 'Pay with Cashu' : 'Send Cashu'}
+										on:click={sendEcash}
+									>
+										{#if processing === 'sending'}
+											<Loader size="sm" />
+										{:else}
+											<Icon icon="mdi:send" />
+										{/if}
+									</button>
+								</div>
 							</div>
 						</div>
 					</div>
 				</div>
 			</div>
-		</div>
-	</VirtualList>
+		</VirtualList>
 	</div>
 </div>

@@ -32,6 +32,7 @@
 	import { now } from 'src/lib/period';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import { key } from 'src/controller';
+	import { adminServiceBaseUrl } from 'src/controller/admin';
 	import { go } from 'src/routes/modals/modal';
 	import { onDestroy } from 'svelte';
 
@@ -405,6 +406,7 @@
 		const context = encodeURIComponent(
 			JSON.stringify({
 				community: selectedRelay,
+				service: adminServiceBaseUrl(selectedRelay),
 				eventAddress: decodedAddress,
 				badgeAddress,
 				amount

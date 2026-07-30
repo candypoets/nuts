@@ -16,6 +16,7 @@
 	import { setNutsWallet } from 'src/controller/proofs';
 	import { updateSendStatus } from 'src/controller/sendStatus';
 	import { DEFAULT_RELAYS } from 'src/lib/env';
+	import { buildCashuProfile } from 'src/lib/cashuProfile';
 	import { setSignerAndWait } from 'src/lib/managerAuth';
 	import { now } from 'src/lib/period';
 	import { uploadFile } from 'src/lib/upload';
@@ -128,6 +129,7 @@
 		const inputMnemonic = generateMnemonic(wordlist, 128);
 		const mnemonicIndex = 0;
 		const secretKey = deriveFromMnemonic(inputMnemonic, '', mnemonicIndex);
+		if (!secretKey) return;
 		console.log(secretKey, inputMnemonic);
 		const pubkey = getPublicKey(secretKey);
 		const newWallet: EventTemplate = {
@@ -139,12 +141,7 @@
 			]),
 			tags: []
 		};
-		const trustedMints: EventTemplate = {
-			kind: 10019,
-			created_at: now(),
-			content: '',
-			tags: [...selectedMints.map((sm) => ['mint', sm]), ['pubkey', pubkey]]
-		};
+		const trustedMints = buildCashuProfile(secretKey, selectedMints, now());
 
 		// Persist mnemonic locally when applicable
 		const trimmed = (inputMnemonic || '').trim();
