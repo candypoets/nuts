@@ -131,10 +131,10 @@
 				  fetchedCreatorProfile.kind() === 0
 				? fetchedCreatorProfile
 				: undefined;
-	$: needsCreatorProfile = !accountReady;
+	$: needsCreatorProfile = !accountReady || (creatorProfileLookupDone && !creatorProfile);
 	$: canCreate =
 		communityName.trim().length > 1 &&
-		Boolean(accountReady ? creatorProfile : creatorName.trim().length > 1);
+		Boolean(creatorProfile || creatorName.trim().length > 1);
 	$: generateQr(successInviteUrl);
 
 	function slugFromName(value: string) {
@@ -872,17 +872,14 @@
 						? creatorProfile
 						: await fetchCreatorProfile(adminPubkey);
 				const existingProfile = foundProfile ? asKind0(foundProfile) : undefined;
-				if (!existingProfile) {
+				if (existingProfile) {
+					fetchedCreatorProfile = foundProfile;
 					creatorProfileLookupDone = true;
-					throw new Error(
-						'Could not find a kind-0 profile for this account. Community creation requires the existing profile for the provided pubkey.'
-					);
+					const creatorProfileEvent = buildProfileReplicationEvent(existingProfile, {}, now());
+					await continueCommunityCreation(adminPubkey, creatorProfileEvent);
+					return;
 				}
-				fetchedCreatorProfile = foundProfile;
-				creatorProfileLookupDone = true;
-				const creatorProfileEvent = buildProfileReplicationEvent(existingProfile, {}, now());
-				await continueCommunityCreation(adminPubkey, creatorProfileEvent);
-				return;
+				// No existing profile (e.g. new signup): fall through and create one below.
 			}
 
 			if (!adminPubkey) throw new Error('Could not create the account.');
@@ -1124,21 +1121,6 @@
 							>
 								<Loader2 class="animate-spin" size={18} />
 								Looking for your Nostr profile…
-							</div>
-						{:else if accountReady && !creatorProfile}
-							<div class="rounded-xl border border-red-200 bg-red-50 p-4">
-								<p class="font-black text-red-950">Kind-0 profile not found</p>
-								<p class="mt-1 text-sm font-semibold leading-6 text-red-900">
-									This signed-in pubkey cannot create a community until its existing profile can be
-									retrieved.
-								</p>
-								<button
-									type="button"
-									class="mt-3 rounded-lg border border-red-300 bg-white px-3 py-2 text-sm font-black text-red-950"
-									on:click={() => $key?.pub && loadCreatorProfile($key.pub)}
-								>
-									Retry profile lookup
-								</button>
 							</div>
 						{/if}
 

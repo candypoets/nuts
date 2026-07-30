@@ -371,13 +371,18 @@
 				tags: { '#t': [BADGE_DEFINITION_TYPE_TOPICS.role] },
 				limit: 100,
 				relays: [relayUrl],
-				cacheFirst: true
+				// The dashboard only ever talks to the community relay: a cacheFirst
+				// feed can serve a stale cached page and never stream live relay
+				// events, which hid freshly created role definitions.
+				cacheFirst: false,
+				noCache: true
 			},
 			{
 				kinds: [5],
 				limit: 100,
 				relays: [relayUrl],
-				cacheFirst: true
+				cacheFirst: false,
+				noCache: true
 			}
 		];
 		const roleAwardRequests: RequestObject[] = [

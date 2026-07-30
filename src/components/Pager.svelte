@@ -70,8 +70,12 @@
 
 			stack = segments
 				.filter((seg) => {
-					const isSub = subPaths.includes(seg.split(':')[0]);
-					const isModal = pathOptions.some((opt) => seg.split(':')[0] === opt);
+					const [key, payload] = seg.split(':');
+					// Sub-routes carry their target after a colon ('store:<relay>',
+					// 'community:<relay>', 'nevent:…'). A bare segment such as the
+					// 'store' in /admin/<relay>/store is a real page, not a sub-route.
+					const isSub = subPaths.includes(key) && Boolean(payload);
+					const isModal = pathOptions.some((opt) => key === opt);
 					return isSub || isModal;
 				})
 				.map((seg) => {

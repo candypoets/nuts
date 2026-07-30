@@ -13,7 +13,7 @@
 		type WorkerMessage
 	} from '@candypoets/nipworker';
 	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
-	import { isKind0, isParsedEvent } from '@candypoets/nipworker/utils';
+	import { isConnectionStatus, isKind0, isParsedEvent } from '@candypoets/nipworker/utils';
 	import {
 		ArrowLeft,
 		BadgeCheck,
@@ -42,11 +42,9 @@
 		catalogAddress,
 		catalogName,
 		catalogType,
-		isNewerCatalogEvent,
-		isSellableCatalogDefinition
+		isNewerCatalogEvent
 	} from 'src/lib/catalog';
 	import { now } from 'src/lib/period';
-	import { makeInviteAuthorization } from 'src/lib/invites';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import User from 'src/routes/explore/user.svelte';
 	import { onDestroy } from 'svelte';
@@ -192,12 +190,9 @@
 			roleDefinitions = upsertDefinition(roleDefinitions, definition);
 			return;
 		}
-		if (
-			catalogType(parsedEvent) !== 'membership' ||
-			!isSellableCatalogDefinition(parsedEvent) ||
-			!catalogAddress(parsedEvent)
-		)
-			return;
+		// Membership definitions gate membership visibility, not purchasability:
+		// invite-redeemed members hold awards for a non-sellable definition.
+		if (catalogType(parsedEvent) !== 'membership' || !catalogAddress(parsedEvent)) return;
 		const address = catalogAddress(parsedEvent);
 		const existingIndex = membershipDefinitionEvents.findIndex(
 			(event) => catalogAddress(event) === address
@@ -231,7 +226,14 @@
 			(item) => item.recipient === award.recipient && item.roleAddress === award.roleAddress
 		);
 		if (existingIndex !== -1) {
-			if (award.createdAt <= roleAwards[existingIndex].createdAt) return;
+			const existing = roleAwards[existingIndex];
+			// assignRole() inserts an optimistic entry with a synthetic
+			// `<addr>:<recipient>:<ts>` id; the real relay event MUST replace it on
+			// a created_at tie, otherwise kind-5 deletion (which references the
+			// real event id) can never match the rendered award.
+			const existingIsOptimistic = !/^[0-9a-f]{64}$/.test(existing.id);
+			if (award.createdAt < existing.createdAt) return;
+			if (award.createdAt === existing.createdAt && !existingIsOptimistic) return;
 			roleAwards = roleAwards.map((item, index) => (index === existingIndex ? award : item));
 		} else {
 			roleAwards = [...roleAwards, award];
@@ -261,8 +263,14 @@
 			);
 		}
 		if (deletedAwardIds.size) {
+			// NIP-09 deletes apply to the author's own events; community admins may
+			// additionally revoke any award (banning deletes the issuer-signed
+			// membership badge) — mirrors the relay gate's rule.
+			const adminPubkeys = new Set([...defaultAdminPubkeys(), ...relayAdminPubkeys]);
 			roleAwards = roleAwards.filter(
-				(award) => award.pubkey !== deleter || !deletedAwardIds.has(award.id)
+				(award) =>
+					!deletedAwardIds.has(award.id) ||
+					(award.pubkey !== deleter && !adminPubkeys.has(deleter))
 			);
 		}
 	}
@@ -285,14 +293,19 @@
 				tags: { '#t': [BADGE_DEFINITION_TYPE_TOPICS.role] },
 				limit: 100,
 				relays: [relayUrl],
-				cacheFirst: true
+				// The dashboard only ever talks to the community relay: a cacheFirst
+				// feed serves a frozen OPFS snapshot (never revalidated), which hid
+				// freshly created role definitions and disabled Assign role.
+				cacheFirst: false,
+				noCache: true
 			},
 			{
 				kinds: [30009],
 				tags: { '#t': [BADGE_DEFINITION_TYPE_TOPICS.membership] },
 				limit: 100,
 				relays: [relayUrl],
-				cacheFirst: true
+				cacheFirst: false,
+				noCache: true
 			},
 			{
 				kinds: [5],
@@ -378,7 +391,11 @@
 					authors: pubkeys,
 					limit: pubkeys.length,
 					relays: [relayUrl],
-					cacheFirst: true
+					// The dashboard only ever talks to the community relay: member
+					// profiles must resolve from what joiners published there, never
+					// from a cross-relay cache.
+					cacheFirst: false,
+					noCache: true
 				}
 			],
 			(message: WorkerMessage) => {
@@ -555,34 +572,48 @@
 
 	async function banMember() {
 		if (!memberToBan || !$key?.pub || !relayUrl || banningMember) return;
+		const member = memberToBan;
+		// Banning = deleting the member's membership badge: the relay gate only
+		// lets badge holders write, and it honors kind-5 deletions of membership
+		// awards signed by an admin (or the badge issuer).
+		const membershipAddresses = new Set(
+			membershipDefinitionEvents.map((event) => catalogAddress(event))
+		);
+		const membershipAwards = roleAwards.filter(
+			(award) => award.recipient === member.pubkey && membershipAddresses.has(award.roleAddress)
+		);
+		if (!membershipAwards.length) {
+			publishStatus = 'This member has no membership badge to revoke.';
+			return;
+		}
 		banningMember = true;
 		publishStatus = '';
-		const endpoint = relayInfoUrl(relayUrl);
-		const body = JSON.stringify({
-			method: 'banpubkey',
-			params: [memberToBan.pubkey, banReason.trim()]
-		});
-		try {
-			const authorization = await makeInviteAuthorization(relayUrl, body, $key.pub);
-			const response = await fetch(endpoint, {
-				method: 'POST',
-				headers: {
-					authorization,
-					'content-type': 'application/nostr+json+rpc'
-				},
-				body
-			});
-			const result = await response.json().catch(() => undefined);
-			if (!response.ok || result?.error || result?.result !== true) {
-				throw new Error(result?.error || 'This relay did not accept the ban request.');
+		const event: EventTemplate = {
+			kind: 5,
+			content: banReason.trim(),
+			created_at: now(),
+			tags: [...membershipAwards.map((award) => ['e', award.id]), ['k', '8']]
+		};
+		publishUnsubscribe?.();
+		publishUnsubscribe = usePublish(
+			'admin_member_ban_' + relayUrl + '_' + member.pubkey,
+			event,
+			(message: WorkerMessage) => {
+				const status = isConnectionStatus(message);
+				if (status?.status()?.toString() === 'true') {
+					publishStatus = 'Member banned: their membership badge was revoked.';
+					memberToBan = undefined;
+					banningMember = false;
+				}
+			},
+			{ trackStatus: true, defaultRelays: [relayUrl] }
+		);
+		window.setTimeout(() => {
+			if (banningMember) {
+				banningMember = false;
+				publishStatus = 'The relay did not confirm the ban.';
 			}
-			publishStatus = 'Member banned from the community relay';
-			memberToBan = undefined;
-		} catch (error) {
-			publishStatus = error instanceof Error ? error.message : 'Could not ban this member.';
-		} finally {
-			banningMember = false;
-		}
+		}, 8000);
 	}
 
 	function assignRole() {
@@ -884,8 +915,8 @@
 				<div>
 					<h2 id="ban-member-title" class="text-2xl font-black">Ban member?</h2>
 					<p class="mt-2 text-base leading-6 text-stone-600">
-						They will be blocked from the community relay. This uses the relay's NIP-86 moderation
-						API.
+						They will no longer be able to post to the community relay: their membership badge
+						is revoked.
 					</p>
 				</div>
 			</div>

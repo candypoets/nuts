@@ -59,12 +59,16 @@
 	let membershipCheckKey = '';
 	let checkingMembership = false;
 	let alreadyMember = false;
+	let communityInfoRelayUrl = '';
 	let profilePublishUnsubscribe: (() => void) | undefined;
 	let profilePublishTimeout: number | undefined;
 
 	$: token = $page.url.searchParams.get('token') || '';
 	$: relayBaseUrl = normalizeRelayBaseUrl($page.url.searchParams.get('relay') || '');
-	$: communityRelayUrl = relayUrlFromBaseUrl(relayBaseUrl);
+	// The claim URL carries the service base URL, which only shares an origin
+	// with the relay in production. Prefer the relay URL advertised by the
+	// invite service (/community/info); fall back to scheme derivation.
+	$: communityRelayUrl = communityInfoRelayUrl || relayUrlFromBaseUrl(relayBaseUrl);
 	$: redeemEndpoint = relayBaseUrl ? `${relayBaseUrl}/redeem` : '';
 	$: communityName =
 		relayName || (relayBaseUrl ? communityNameFromRelay(relayBaseUrl) : 'this community');
@@ -90,6 +94,7 @@
 	$: if (relayBaseUrl && relayBaseUrl !== lastRelay) {
 		lastRelay = relayBaseUrl;
 		void fetchRelayInfo();
+		void resolveCommunityRelayUrl(relayBaseUrl);
 	}
 	$: if (
 		$key?.pub &&
@@ -113,6 +118,22 @@
 		if (value.startsWith('https://')) return `wss://${value.slice(8)}`;
 		if (value.startsWith('http://')) return `ws://${value.slice(7)}`;
 		return value;
+	}
+
+	async function resolveCommunityRelayUrl(baseUrl: string) {
+		communityInfoRelayUrl = '';
+		if (!baseUrl) return;
+		try {
+			const response = await fetch(`${baseUrl}/community/info`);
+			if (!response.ok) return;
+			const info = await response.json();
+			const advertised = typeof info.relay_url === 'string' ? info.relay_url.trim() : '';
+			if (/^wss?:\/\//.test(advertised) && relayBaseUrl === baseUrl) {
+				communityInfoRelayUrl = advertised;
+			}
+		} catch {
+			// Older invite services do not advertise relay_url; keep the derived fallback.
+		}
 	}
 
 	function communityNameFromRelay(url: string) {
@@ -269,6 +290,15 @@
 				],
 				(event) => event.kind() === 0 && event.pubkey() === pubkey
 			);
+			if (!existingProfile) {
+				// Joining must still publish a kind-0 to the community relay, but an
+				// empty one renders as a bare npub in the dashboard. Loud, so we can
+				// tell a genuine profile-less account from a lookup race.
+				console.warn(
+					'[redeem-profile] no kind-0 found on the index relays; replicating an empty profile',
+					{ pubkey }
+				);
+			}
 		}
 
 		return buildProfileReplicationEvent(
@@ -373,6 +403,14 @@
 		return new Promise<ParsedEvent | undefined>((resolveExistingEvent) => {
 			let latest: ParsedEvent | undefined;
 			let settled = false;
+			let eoseCount = 0;
+			// nipworker sends one REQ per filter per relay, so the answers arrive
+			// interleaved with one EOSE each. Resolving on the FIRST EOSE loses the
+			// profile to whichever relay answers fastest; wait for all of them.
+			const expectedEoses = requests.reduce(
+				(total, request) => total + (Array.isArray(request.relays) ? request.relays.length : 1),
+				0
+			);
 			let unsubscribe: (() => void) | undefined;
 
 			const finish = () => {
@@ -383,14 +421,15 @@
 				resolveExistingEvent(latest);
 			};
 
-			const timeout = window.setTimeout(finish, 2500);
+			const timeout = window.setTimeout(finish, 5000);
 			unsubscribe = useSubscription(
 				'invite_existing_' + pubkey + '_' + Math.random().toString(36).slice(2),
 				requests,
 				(message: WorkerMessage) => {
 					const status = isConnectionStatus(message);
 					if (status?.status() === 'EOSE') {
-						finish();
+						eoseCount += 1;
+						if (eoseCount >= expectedEoses) finish();
 						return;
 					}
 
