@@ -1,6 +1,7 @@
 import { env } from '$env/dynamic/private';
 import { error, json, type RequestHandler } from '@sveltejs/kit';
 import type Stripe from 'stripe';
+import { communityPaymentRedemptionUrl } from 'src/lib/server/communityPayments';
 import { paymentServiceAuthorization } from 'src/lib/server/paymentNip98';
 import { stripeClient } from 'src/lib/server/stripe';
 import {
@@ -12,14 +13,6 @@ import {
 	resolveCheckoutPaymentIntentId,
 	resolveInvoicePaymentIntentId
 } from 'src/lib/server/stripeFulfillment';
-
-function redeemUrl(community: string) {
-	const url = new URL(community.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:'));
-	url.pathname = '/redeem';
-	url.search = '';
-	url.hash = '';
-	return url.toString();
-}
 
 async function dispatchRedemption(
 	fetch: typeof globalThis.fetch,
@@ -64,7 +57,7 @@ async function dispatchRedemption(
 		paid_at: paidAt,
 		badge_expires_at: badgeExpiresAt
 	});
-	const url = redeemUrl(community);
+	const url = communityPaymentRedemptionUrl(community);
 	console.info('[stripe:webhook] dispatching badge redemption', {
 		stripeEventId: stripeEvent.id,
 		redemptionId,
