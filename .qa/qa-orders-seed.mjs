@@ -87,19 +87,20 @@ await Promise.allSettled(pool.publish([RELAY], award2)).then((r) =>
 	console.log(`order award: member2 -> QA Ramen: ${r.map((x) => (x.status === 'fulfilled' ? 'ok' : x.reason)).join(',')}`)
 );
 await publish('admin', {
-	kind: 27237,
+	kind: 37237,
 	created_at: now - 300,
 	tags: [
 		['status', 'accepted'],
 		['a', productAddress],
 		['e', award2.id],
 		['p', pub('member2')],
-		['order', 'qa-order-ramen-2']
+		['order', 'qa-order-ramen-2'],
+		['d', 'order:qa-order-ramen-2']
 	],
 	content: ''
 }, 'status: order-2 accepted');
 
-const counts = await pool.querySync([RELAY], { kinds: [8, 30009, 27237], limit: 100 });
+const counts = await pool.querySync([RELAY], { kinds: [8, 30009, 37237], limit: 100 });
 console.log(`relay now holds ${counts.length} commerce events`);
 pool.destroy([RELAY]);
 process.exit(0);

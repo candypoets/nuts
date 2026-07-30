@@ -22,7 +22,7 @@ page.on('websocket', (ws) => {
 	});
 	ws.on('framereceived', (f) => {
 		const p = String(f.payload || '');
-		if (p.includes('27237') || p.includes('OK')) console.log('[ws rx]', p.slice(0, 160));
+		if (p.includes('37237') || p.includes('OK')) console.log('[ws rx]', p.slice(0, 160));
 	});
 });
 
