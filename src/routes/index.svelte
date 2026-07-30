@@ -28,6 +28,7 @@
 	import { page } from '$app/stores';
 
 	import Alert from 'src/components/Alert.svelte';
+	import NotificationToaster from 'src/components/NotificationToaster.svelte';
 	import Statuses from 'src/components/Statuses.svelte';
 	import { key } from 'src/controller';
 	import {
@@ -635,6 +636,7 @@
 		{/if}
 	{/each}
 	<Alert />
+	<NotificationToaster />
 	<!-- {#if $key?.pub} -->
 	<div
 		class="carousel-container"

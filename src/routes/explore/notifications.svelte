@@ -6,19 +6,30 @@
 		type WorkerMessage
 	} from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
-	import { asKind10002, asParsedEvent, fbArray } from '@candypoets/nipworker/utils';
+	import {
+		asConnectionStatus,
+		asKind10002,
+		asParsedEvent,
+		ConnectionTracker,
+		fbArray
+	} from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { normalizeURL } from 'nostr-tools/utils';
 	import { onDestroy } from 'svelte';
 
 	import { key, kind10002Ready, lastNotificationView, relayDirectoryUrls } from 'src/controller';
+	import { showNotificationToast } from 'src/controller/notificationToast';
 	import {
 		fetchCommunityAccess,
 		fetchCommunityTrust,
 		type CommunityTrust
 	} from 'src/lib/adminAccess';
 	import { go, usePagerNavigation } from 'src/routes/modals/modal';
-	import { isBadgeStatus } from 'src/routes/notifications/notifications';
+	import {
+		isBadgeStatus,
+		processNotifications,
+		type ProcessedNotification
+	} from 'src/routes/notifications/notifications';
 
 	let missed = 0;
 	let socialUnsubscribe: (() => void) | undefined;
@@ -27,6 +38,8 @@
 	let badgeSubscriptionKey = '';
 	let badgeGeneration = 0;
 	let seenEventIds = new Set<string>();
+	let socialEoseReceived = false;
+	const socialConnectionTracker = new ConnectionTracker();
 	let trustPromises = new Map<string, Promise<CommunityTrust>>();
 	let authorizationPromises = new Map<string, Promise<boolean>>();
 	const nav = usePagerNavigation();
@@ -38,6 +51,13 @@
 	kind10002Ready.promise.then((result) => {
 		if (destroyed || !$key?.pub) return;
 		const kind10002 = asKind10002(result) as Kind10002Parsed;
+		const socialRelays =
+			fbArray(kind10002, 'relays')
+				?.filter((relay) => relay.write() === true)
+				.map((relay) => relay.url())
+				.filter((relay): relay is string => Boolean(relay)) || [];
+		socialConnectionTracker.reset();
+		socialEoseReceived = false;
 		socialUnsubscribe = useSubscription(
 			'notifications',
 			[
@@ -45,16 +65,23 @@
 					kinds: [1, 7, 6],
 					tags: { '#p': [$key?.pub] },
 					limit: 100,
-					relays:
-						fbArray(kind10002, 'relays')
-							?.filter((r) => r.write() == true)
-							.map((r) => r.url())
-							.filter((relay): relay is string => Boolean(relay)) || []
+					relays: socialRelays
 				}
 			],
 			(message: WorkerMessage) => {
+				const status = asConnectionStatus(message);
+				if (status) {
+					socialConnectionTracker.handleMessage(message);
+					if (socialConnectionTracker.resolutionRate > 0.5) {
+						socialEoseReceived = true;
+					}
+					return;
+				}
+
 				const parsedEvent = asParsedEvent(message);
-				if (parsedEvent) markUnread(parsedEvent);
+				if (parsedEvent && markUnread(parsedEvent) && socialEoseReceived) {
+					showSocialToast(parsedEvent, socialRelays);
+				}
 			}
 		);
 	});
@@ -96,11 +123,58 @@
 		return authorization;
 	}
 
+	function toastContent(notification: ProcessedNotification) {
+		switch (notification.type) {
+			case 'reply':
+				return {
+					title: 'New reply',
+					message: 'Someone replied to your post'
+				};
+			case 'mention':
+				return {
+					title: 'New mention',
+					message: 'You were mentioned in a post'
+				};
+			case 'reaction':
+				return {
+					title: 'New reaction',
+					message: 'Someone reacted to your post'
+				};
+			case 'repost':
+				return {
+					title: 'New repost',
+					message: 'Someone reposted your post'
+				};
+		}
+	}
+
+	function showSocialToast(event: ParsedEvent, relays: string[]) {
+		const notification = processNotifications([event])[0];
+		const id = event.id();
+		if (!notification || !id) return;
+
+		const targetEventId =
+			notification.type === 'reply' || notification.type === 'mention'
+				? id
+				: notification.parsed.referencedPostId;
+		if (!targetEventId) return;
+
+		showNotificationToast({
+			id,
+			...toastContent(notification),
+			targetEventId,
+			relays: [...relays]
+		});
+	}
+
 	function markUnread(event: ParsedEvent) {
 		const id = event.id();
-		if (!id || seenEventIds.has(id) || event.createdAt() <= $lastNotificationView / 1000) return;
+		if (!id || seenEventIds.has(id) || event.createdAt() <= $lastNotificationView / 1000) {
+			return false;
+		}
 		seenEventIds.add(id);
 		missed = seenEventIds.size;
+		return true;
 	}
 
 	async function handleBadgeEvent(event: ParsedEvent, generation: number, pubkey: string) {
