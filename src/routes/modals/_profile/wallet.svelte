@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { ConnectionStatus, Kind17375Parsed } from '@candypoets/nipworker';
-	import { usePublish, useSignEvent } from '@candypoets/nipworker/hooks';
+	import { usePublish } from '@candypoets/nipworker/hooks';
 	import { asKind17375, fbArray, isConnectionStatus } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
@@ -12,10 +12,7 @@
 
 	import { kind17375 } from 'src/controller/nostr';
 	import { isMintUrlValid } from 'src/lib/mint';
-	import {
-		constructProofAuthorizationEvent,
-		queryClaimableProofs
-	} from 'src/lib/lightningAddressClient';
+	import { claimLightningProofs } from 'src/lib/lightningProofs';
 	import { now } from 'src/lib/period';
 	import { areStringListEqual } from 'src/lib/utils';
 	import { getContext, onMount } from 'svelte';
@@ -117,11 +114,6 @@
 	let lightningPaymentMessage = '';
 	let lightningPaymentError = '';
 
-	type ProofSyncState = {
-		receivedThrough: number;
-		paymentIds: string[];
-	};
-
 	$: selectableMints = availableMints.filter((am) => !selectedMints.some((sm) => sm == am.url));
 
 	// Pubkey/npub/nsec
@@ -174,11 +166,20 @@
 	}
 
 	async function selectMintUrl(url: string) {
-		if (url.startsWith('http')) {
-			//force https
-			url = url.replace(/^http:/, 'https:');
-		} else if (!url.startsWith('https://')) {
+		if (!url.startsWith('http://') && !url.startsWith('https://')) {
 			url = 'https://' + url;
+		}
+		let parsedUrl: URL;
+		try {
+			parsedUrl = new URL(url);
+		} catch {
+			isInvalid = true;
+			return;
+		}
+		const isLocalMint = ['localhost', '127.0.0.1', '::1'].includes(parsedUrl.hostname);
+		if (parsedUrl.protocol === 'http:' && !isLocalMint) {
+			parsedUrl.protocol = 'https:';
+			url = parsedUrl.toString();
 		}
 		loading = true;
 		const isValid = await isMintUrlValid(url);
@@ -258,38 +259,7 @@
 		});
 	}
 
-	function proofSyncStorageKey(): string {
-		return `lnuts/proofs/${$key.pub}`;
-	}
-
-	function loadProofSyncState(): ProofSyncState {
-		try {
-			const stored = JSON.parse(localStorage.getItem(proofSyncStorageKey()) || '{}');
-			return {
-				receivedThrough:
-					Number.isSafeInteger(stored.receivedThrough) && stored.receivedThrough >= 0
-						? stored.receivedThrough
-						: 0,
-				paymentIds: Array.isArray(stored.paymentIds)
-					? stored.paymentIds.filter((id: unknown): id is string => typeof id === 'string')
-					: []
-			};
-		} catch {
-			return { receivedThrough: 0, paymentIds: [] };
-		}
-	}
-
-	function saveProofSyncState(state: ProofSyncState): void {
-		localStorage.setItem(
-			proofSyncStorageKey(),
-			JSON.stringify({
-				receivedThrough: state.receivedThrough,
-				paymentIds: state.paymentIds.slice(-250)
-			})
-		);
-	}
-
-	function checkLightningPayments(): void {
+	async function checkLightningPayments(): Promise<void> {
 		lightningPaymentMessage = '';
 		lightningPaymentError = '';
 
@@ -302,61 +272,18 @@
 			return;
 		}
 
-		const wallet = $nutsWallet;
-		const state = loadProofSyncState();
-		const proofsUrl = new URL('/api/proofs', window.location.origin);
-		if (state.receivedThrough > 0) {
-			proofsUrl.searchParams.set('since', String(state.receivedThrough));
-		}
-
 		checkingLightningPayments = true;
 		try {
-			const authorization = constructProofAuthorizationEvent($key.pub, proofsUrl.toString());
-			useSignEvent(authorization, async (signed) => {
-				try {
-					const result = await queryClaimableProofs(signed, proofsUrl.toString());
-					const importedPaymentIds = [...state.paymentIds];
-					let receivedSats = 0;
-					let receivedPayments = 0;
-
-					for (const payment of result.proofs) {
-						if (importedPaymentIds.includes(payment.paymentId)) continue;
-						if (!Array.isArray(payment.token?.token) || payment.token.token.length === 0) {
-							throw new Error(`Payment ${payment.paymentId} did not contain a Cashu token.`);
-						}
-
-						for (const token of payment.token.token) {
-							const received = await wallet.receiveProofs(
-								token.mint || payment.mintUrl,
-								token.proofs
-							);
-							receivedSats += received.reduce((total, proof) => total + proof.amount, 0);
-						}
-
-						receivedPayments += 1;
-						importedPaymentIds.push(payment.paymentId);
-						state.paymentIds = importedPaymentIds;
-						saveProofSyncState(state);
-					}
-
-					state.receivedThrough = result.receivedThrough;
-					state.paymentIds = importedPaymentIds;
-					saveProofSyncState(state);
-					lightningPaymentMessage =
-						receivedPayments > 0
-							? `Received ${receivedSats} sat${receivedSats === 1 ? '' : 's'} from ${receivedPayments} Lightning payment${receivedPayments === 1 ? '' : 's'}.`
-							: 'No new Lightning payments.';
-				} catch (error) {
-					lightningPaymentError =
-						error instanceof Error ? error.message : 'Could not check for Lightning payments.';
-				} finally {
-					checkingLightningPayments = false;
-				}
-			});
+			const result = await claimLightningProofs($key.pub, $nutsWallet);
+			lightningPaymentMessage =
+				result.receivedPayments > 0
+					? `Received ${result.receivedSats} sat${result.receivedSats === 1 ? '' : 's'} from ${result.receivedPayments} Lightning payment${result.receivedPayments === 1 ? '' : 's'}.`
+					: 'No new Lightning payments.';
 		} catch (error) {
-			checkingLightningPayments = false;
 			lightningPaymentError =
-				error instanceof Error ? error.message : 'Could not request a Nostr signature.';
+				error instanceof Error ? error.message : 'Could not check for Lightning payments.';
+		} finally {
+			checkingLightningPayments = false;
 		}
 	}
 </script>

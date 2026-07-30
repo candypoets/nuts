@@ -1,6 +1,6 @@
 /**
  * Simplified Transaction Recovery
- * 
+ *
  * Just handles: reserve proofs → execute → commit/rollback
  * No state machine, no step tracking, just crash protection.
  */
@@ -13,6 +13,12 @@ import { nutsWallet } from 'src/controller/proofs';
 import { usePublish } from '@candypoets/nipworker/hooks';
 import { isConnectionStatus } from '@candypoets/nipworker/utils';
 import type { WorkerMessage } from '@candypoets/nipworker';
+import {
+	getPendingBackups,
+	markBackupAttempt,
+	markBackupSuccess,
+	publishProofsBackup
+} from 'src/model/cashu/proof-backup';
 
 // ============================================================================
 // Types
@@ -109,7 +115,7 @@ async function listPending(): Promise<TxState[]> {
 		const req = store.getAll();
 		req.onsuccess = () => {
 			const all: TxState[] = req.result;
-			resolve(all.filter(t => t.status === 'pending'));
+			resolve(all.filter((t) => t.status === 'pending'));
 		};
 		req.onerror = () => reject(req.error);
 	});
@@ -125,7 +131,7 @@ export async function startTransaction(
 	proofs: Proof[]
 ): Promise<string> {
 	const txId = `tx_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-	
+
 	const state: TxState = {
 		txId,
 		type,
@@ -137,16 +143,19 @@ export async function startTransaction(
 		createdAt: Date.now(),
 		updatedAt: Date.now()
 	};
-	
+
 	await saveTx(state);
 	console.log(`[tx] Started ${type} transaction: ${txId}`);
 	return txId;
 }
 
-export async function completeTransaction(txId: string, requirePublish: boolean = false): Promise<void> {
+export async function completeTransaction(
+	txId: string,
+	requirePublish: boolean = false
+): Promise<void> {
 	const state = await loadTx(txId);
 	if (!state) return;
-	
+
 	// If publish is required and not done, mark as pending_publish
 	if (requirePublish && !state.published && state.nutzapEvent) {
 		state.status = 'pending_publish';
@@ -154,11 +163,11 @@ export async function completeTransaction(txId: string, requirePublish: boolean 
 		console.log(`[tx] Transaction ${txId} pending publish`);
 		return;
 	}
-	
+
 	state.status = 'completed';
 	await saveTx(state);
 	console.log(`[tx] Completed transaction: ${txId}`);
-	
+
 	// Clean up after a delay
 	setTimeout(() => deleteTx(txId), 60000);
 }
@@ -166,12 +175,12 @@ export async function completeTransaction(txId: string, requirePublish: boolean 
 export async function markPublished(txId: string): Promise<void> {
 	const state = await loadTx(txId);
 	if (!state) return;
-	
+
 	state.published = true;
 	state.publishAttempts++;
 	await saveTx(state);
 	console.log(`[tx] Transaction ${txId} marked as published`);
-	
+
 	// Now complete the transaction
 	await completeTransaction(txId);
 }
@@ -182,21 +191,21 @@ export async function retryPublish(txId: string): Promise<boolean> {
 		console.error(`[tx] Transaction ${txId} not found`);
 		return false;
 	}
-	
+
 	if (!state.nutzapEvent) {
 		console.error(`[tx] No nutzap event to publish for ${txId}`);
 		return false;
 	}
-	
+
 	if (state.published) {
 		console.log(`[tx] Transaction ${txId} already published`);
 		return true;
 	}
-	
+
 	console.log(`[tx] Retrying publish for ${txId} (attempt ${state.publishAttempts + 1})`);
-	
+
 	const success = await publishWithRetry(state.nutzapEvent);
-	
+
 	if (success) {
 		await markPublished(txId);
 		return true;
@@ -210,12 +219,12 @@ export async function retryPublish(txId: string): Promise<boolean> {
 export async function failTransaction(txId: string, error: string): Promise<void> {
 	const state = await loadTx(txId);
 	if (!state) return;
-	
+
 	state.status = 'failed';
 	state.error = error;
 	await saveTx(state);
 	console.log(`[tx] Failed transaction: ${txId}`, error);
-	
+
 	// Return proofs to wallet
 	const wallet = get(nutsWallet);
 	if (wallet && state.proofs.length) {
@@ -228,7 +237,7 @@ export async function failTransaction(txId: string, error: string): Promise<void
 export async function updateTransaction(txId: string, updates: Partial<TxState>): Promise<void> {
 	const state = await loadTx(txId);
 	if (!state) throw new Error('Transaction not found');
-	
+
 	Object.assign(state, updates, { updatedAt: Date.now() });
 	await saveTx(state);
 }
@@ -249,7 +258,7 @@ export async function listPendingPublish(): Promise<TxState[]> {
 		const req = store.getAll();
 		req.onsuccess = () => {
 			const all: TxState[] = req.result;
-			resolve(all.filter(t => t.status === 'pending_publish' && !t.published));
+			resolve(all.filter((t) => t.status === 'pending_publish' && !t.published));
 		};
 		req.onerror = () => reject(req.error);
 	});
@@ -260,10 +269,10 @@ export async function resumePendingTransactions(): Promise<void> {
 	const pending = await listPending();
 	if (pending.length) {
 		console.log(`[tx] Found ${pending.length} pending transactions`);
-		
+
 		for (const tx of pending) {
 			console.log(`[tx] Resuming ${tx.txId} (${tx.type})`);
-			
+
 			// For pending transactions older than 5 minutes, assume they failed
 			const age = Date.now() - tx.createdAt;
 			if (age > 5 * 60 * 1000) {
@@ -271,131 +280,32 @@ export async function resumePendingTransactions(): Promise<void> {
 				await failTransaction(tx.txId, 'Transaction timed out');
 				continue;
 			}
-			
+
 			// Return proofs to wallet - user can retry manually
 			const wallet = get(nutsWallet);
 			if (wallet && tx.proofs.length) {
 				wallet.addProofs(tx.params.fromMint, tx.proofs);
 				console.log(`[tx] Returned ${tx.proofs.length} proofs to wallet`);
 			}
-			
+
 			// Mark as failed
 			await failTransaction(tx.txId, 'App crashed during transaction');
 		}
 	}
-	
+
 	// Then handle pending_publish transactions - auto-retry them
 	const pendingPublish = await listPendingPublish();
 	if (pendingPublish.length) {
 		console.log(`[tx] Found ${pendingPublish.length} transactions pending publish`);
-		
+
 		for (const tx of pendingPublish) {
 			console.log(`[tx] Auto-retrying publish for ${tx.txId}`);
 			await retryPublish(tx.txId);
 		}
 	}
-	
+
 	// Finally retry pending proof backups
 	await retryPendingBackups();
-}
-
-// ============================================================================
-// Nostr Backup Helper
-// ============================================================================
-
-export async function publishProofsBackup(
-	mint: string,
-	proofs: Proof[],
-	timeoutMs: number = 15000
-): Promise<boolean> {
-	const { now } = await import('src/lib/period');
-	const wallet = get(nutsWallet);
-	if (!wallet) return false;
-	
-	// Get all current unspent proofs for this mint to create full backup
-	const existingProofs = wallet.unspentProofs.get(mint) || [];
-	const allProofs = [...existingProofs];
-	
-	const event = {
-		kind: 7375,
-		content: JSON.stringify({
-			mint,
-			proofs: allProofs,
-			del: []
-		}),
-		tags: [],
-		created_at: now()
-	};
-	
-	const success = await new Promise<boolean>((resolve) => {
-		const timeout = setTimeout(() => {
-			console.log('[backup] Publish timeout - no response received');
-			resolve(false);
-		}, timeoutMs);
-		
-		usePublish(`backup_${Date.now()}`, event, (msg: WorkerMessage) => {
-			console.log('[backup] Received message:', msg.type(), msg);
-			const status = isConnectionStatus(msg);
-			if (status) {
-				const statusValue = status.status();
-				console.log('[backup] ConnectionStatus:', statusValue, status.relayUrl());
-				// Status can be "SENT" (initial) or "ok" (success) - check both with and without newline
-				const statusStr = statusValue?.trim();
-				if (statusStr === 'ok' || statusStr === 'SENT') {
-					clearTimeout(timeout);
-					resolve(true);
-				}
-			}
-		});
-	});
-	
-	if (success) {
-		markBackupSuccess(mint);
-	} else {
-		markBackupPending(mint);
-	}
-	
-	return success;
-}
-
-// ============================================================================
-// Pending Backup Queue (for failed Nostr backups)
-// ============================================================================
-
-const PENDING_BACKUP_KEY = 'pendingProofBackups_v1';
-
-interface PendingBackup {
-	mint: string;
-	attempts: number;
-	lastAttempt: number;
-}
-
-export function getPendingBackups(): Record<string, PendingBackup> {
-	if (typeof localStorage === 'undefined') return {};
-	try {
-		return JSON.parse(localStorage.getItem(PENDING_BACKUP_KEY) || '{}');
-	} catch {
-		return {};
-	}
-}
-
-function setPendingBackups(backups: Record<string, PendingBackup>): void {
-	if (typeof localStorage === 'undefined') return;
-	localStorage.setItem(PENDING_BACKUP_KEY, JSON.stringify(backups));
-}
-
-export function markBackupPending(mint: string): void {
-	const pending = getPendingBackups();
-	pending[mint] = { mint, attempts: 0, lastAttempt: 0 };
-	setPendingBackups(pending);
-	console.log(`[backup] Marked ${mint} as pending backup`);
-}
-
-export function markBackupSuccess(mint: string): void {
-	const pending = getPendingBackups();
-	delete pending[mint];
-	setPendingBackups(pending);
-	console.log(`[backup] ${mint} backup success, removed from pending`);
 }
 
 export async function retryPendingBackups(): Promise<void> {
@@ -405,30 +315,28 @@ export async function retryPendingBackups(): Promise<void> {
 		console.log('[backup] No pending backups to retry');
 		return;
 	}
-	
+
 	console.log(`[backup] Retrying ${mints.length} pending backups`);
 	const wallet = get(nutsWallet);
 	if (!wallet) {
 		console.warn('[backup] Wallet not available for retry');
 		return;
 	}
-	
+
 	for (const mint of mints) {
-		const backup = pending[mint];
-		backup.attempts++;
-		backup.lastAttempt = Date.now();
-		setPendingBackups(pending);
-		
+		const backup = markBackupAttempt(mint);
+		if (!backup) continue;
+
 		const proofs = wallet.unspentProofs.get(mint) || [];
 		if (!proofs.length) {
 			console.log(`[backup] No proofs for ${mint}, removing from pending`);
 			markBackupSuccess(mint);
 			continue;
 		}
-		
+
 		console.log(`[backup] Retrying ${mint} (attempt ${backup.attempts})`);
 		const success = await publishProofsBackup(mint, proofs);
-		
+
 		if (success) {
 			markBackupSuccess(mint);
 		} else if (backup.attempts >= 5) {
@@ -453,7 +361,7 @@ export async function publishWithRetry(
 				console.log(`[publish] Attempt ${attempt} timeout - no response`);
 				resolve(false);
 			}, timeoutMs);
-			
+
 			usePublish(`pub_${Date.now()}_${attempt}`, event, (msg: WorkerMessage) => {
 				console.log(`[publish] Attempt ${attempt} received message:`, msg.type());
 				const status = isConnectionStatus(msg);
@@ -469,18 +377,18 @@ export async function publishWithRetry(
 				}
 			});
 		});
-		
+
 		if (success) {
 			console.log(`[publish] Success on attempt ${attempt}`);
 			return true;
 		}
-		
+
 		if (attempt < maxRetries) {
 			console.log(`[publish] Retrying... (${attempt}/${maxRetries})`);
-			await new Promise(r => setTimeout(r, 1000 * attempt)); // Exponential backoff
+			await new Promise((r) => setTimeout(r, 1000 * attempt)); // Exponential backoff
 		}
 	}
-	
+
 	console.error(`[publish] Failed after ${maxRetries} attempts`);
 	return false;
 }
@@ -493,13 +401,13 @@ export async function clearOldTransactions(maxAgeMs: number = 24 * 60 * 60 * 100
 	const db = await getDB();
 	const tx = db.transaction(STORE_NAME, 'readwrite');
 	const store = tx.objectStore(STORE_NAME);
-	
+
 	const all = await new Promise<TxState[]>((resolve, reject) => {
 		const req = store.getAll();
 		req.onsuccess = () => resolve(req.result);
 		req.onerror = () => reject(req.error);
 	});
-	
+
 	const cutoff = Date.now() - maxAgeMs;
 	for (const t of all) {
 		if (t.createdAt < cutoff) {

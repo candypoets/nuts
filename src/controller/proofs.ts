@@ -17,6 +17,7 @@ import _, { random } from 'lodash';
 import { now } from 'src/lib/period';
 import { normalizeMintURL } from 'src/lib/utils';
 import { decodePrivKey } from 'src/lib/wallet';
+import { publishProofsBackup } from 'src/model/cashu/proof-backup';
 import { go } from 'src/routes/modals/modal';
 import type { Mint } from 'src/types/mint';
 import { fetchMintData, validateP2pkPubkey } from './wallet';
@@ -426,8 +427,8 @@ export class NutsWallet {
 		console.log(`[saveProofs] Proofs added to wallet`);
 
 		// Backup to Nostr (fire-and-forget, don't block)
-		const { publishProofsBackup } = await import('src/model/cashu/tx-recovery');
-		publishProofsBackup(mint, proofs)
+		const allProofs = this.unspentProofs.get(normalizeMintURL(mint)) || [];
+		publishProofsBackup(mint, allProofs)
 			.then((ok) => {
 				if (ok) {
 					console.log(`[saveProofs] Backed up ${proofs.length} proofs to Nostr`);

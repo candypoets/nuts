@@ -47,6 +47,7 @@
 	import { addProofs, nutsWallet, setNutsWallet } from 'src/controller/proofs';
 	import { activeMintUrl, walletLoaded } from 'src/controller/wallet';
 	import { DEFAULT_RELAYS } from 'src/lib/env';
+	import { claimLightningProofs } from 'src/lib/lightningProofs';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import { normalizeMintURL } from 'src/lib/utils';
 	import Feed from 'src/routes/explore/feed.svelte';
@@ -72,6 +73,9 @@
 	let showLinkProfile = true;
 	let refreshing = false;
 	let refreshCounter = 0;
+	let initialLightningSyncKey = '';
+	let relaySubscriptionVersion = 0;
+	let relaySubscriptionSignature = '';
 
 	// Wallet feed items - managed in parent
 	let rawWalletEvents: ParsedEvent[] = [];
@@ -134,11 +138,20 @@
 		])
 	).filter((relay): relay is string => !!relay);
 
+	$: {
+		const nextRelaySignature = relays.join('|');
+		if (nextRelaySignature !== relaySubscriptionSignature) {
+			relaySubscriptionSignature = nextRelaySignature;
+			relaySubscriptionVersion++;
+		}
+	}
+
 	const relayPromise = Promise.race([kind10019Ready.promise, delayedPromise]);
 
 	let unsubscribeWallet: (() => void) | undefined;
 	let unsubscribeProofs: (() => void) | undefined;
 	let unsubscribeActiveWallet: (() => void) | undefined;
+	let unsubscribeLightningReceipts: (() => void) | undefined;
 	let prevPaginationSubId: string | undefined = undefined;
 
 	let proofs: () => void;
@@ -240,7 +253,7 @@
 	function initProofsSubscription() {
 		if (!$key?.pub) return;
 		unsubscribeProofs?.();
-		const subId = 'nutszap_' + $key?.pub + '_' + refreshCounter;
+		const subId = 'nutszap_' + $key?.pub + '_' + refreshCounter + '_' + relaySubscriptionVersion;
 		const requests: HomeRelayRequest[] = [
 			{ kinds: [7375], authors: [$key?.pub], relays },
 			{
@@ -262,7 +275,13 @@
 		});
 	}
 
-	$: if ($key?.pub && $key?.hasSigner !== false && !loading) {
+	$: if (
+		$key?.pub &&
+		$key?.hasSigner !== false &&
+		!loading &&
+		relays.length &&
+		relaySubscriptionVersion
+	) {
 		resetEoseFlag();
 		initProofsSubscription();
 	}
@@ -304,7 +323,7 @@
 		}
 		const subId = isPagination
 			? 'home_page_' + $key?.pub + '_' + paginationCounter + '_' + until
-			: 'home_' + $key?.pub + '_' + refreshCounter;
+			: 'home_' + $key?.pub + '_' + refreshCounter + '_' + relaySubscriptionVersion;
 		const requests = buildWalletRequests(isPagination);
 		const unsubscribe = useSubscription(subId, requests, handleWalletFeedEvents, {
 			pagination: isPagination ? prevPaginationSubId : undefined
@@ -319,7 +338,13 @@
 		return unsubscribe;
 	}
 
-	$: if (visible && $key?.pub && $key?.hasSigner !== false && relays?.length) {
+	$: if (
+		visible &&
+		$key?.pub &&
+		$key?.hasSigner !== false &&
+		relays?.length &&
+		relaySubscriptionVersion
+	) {
 		initWalletFeedSubscription();
 	}
 
@@ -350,6 +375,45 @@
 		if (rawWalletEvents.some((e) => e.id() === eventId)) return;
 
 		rawWalletEvents = [...rawWalletEvents, event];
+		if (kind9735) {
+			syncLightningPayments();
+		}
+	}
+
+	function syncLightningPayments() {
+		if (!$nutsWallet || !$key?.pub || $key.hasSigner !== true) return;
+		claimLightningProofs($key.pub, $nutsWallet).catch((error) =>
+			console.error('[wallet] Could not claim Lightning proofs:', error)
+		);
+	}
+
+	function initLightningReceiptSubscription() {
+		if (!$key?.pub || !relays.length) return;
+		unsubscribeLightningReceipts?.();
+		unsubscribeLightningReceipts = useSubscription(
+			`home_lightning_receipts_${$key.pub}_${relaySubscriptionVersion}`,
+			[
+				{
+					kinds: [9735],
+					tags: { '#p': [$key.pub] },
+					relays,
+					noCache: true
+				}
+			],
+			handleWalletFeedEvents
+		);
+	}
+
+	$: if ($key?.pub && $key.hasSigner !== false && relays.length && relaySubscriptionVersion) {
+		initLightningReceiptSubscription();
+	}
+
+	$: if (visible && $nutsWallet && $key?.pub && $key.hasSigner === true) {
+		const syncKey = `${$key.pub}:${$nutsWallet.createdAt}`;
+		if (syncKey !== initialLightningSyncKey) {
+			initialLightningSyncKey = syncKey;
+			syncLightningPayments();
+		}
 	}
 
 	// Process and sort wallet items in parent (slice to avoid mutating original)
@@ -361,6 +425,7 @@
 		unsubscribeWallet?.();
 		unsubscribeProofs?.();
 		unsubscribeActiveWallet?.();
+		unsubscribeLightningReceipts?.();
 		if (refreshTimeout) clearTimeout(refreshTimeout);
 		if (paginationTimeout) clearTimeout(paginationTimeout);
 		if (paginationMinTimeout) clearTimeout(paginationMinTimeout);
@@ -467,7 +532,8 @@
 	function initActiveWalletSubscription() {
 		if (!$key?.pub || !relays?.length) return;
 		unsubscribeActiveWallet?.();
-		const subId = 'active_wallet_' + $key?.pub + '_' + refreshCounter;
+		const subId =
+			'active_wallet_' + $key?.pub + '_' + refreshCounter + '_' + relaySubscriptionVersion;
 		const requests: HomeRelayRequest[] = [
 			{
 				kinds: [17375],
@@ -482,7 +548,7 @@
 		});
 	}
 
-	$: if ($key?.pub && $key?.hasSigner !== false && relays?.length) {
+	$: if ($key?.pub && $key?.hasSigner !== false && relays?.length && relaySubscriptionVersion) {
 		initActiveWalletSubscription();
 	}
 
