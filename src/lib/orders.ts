@@ -3,17 +3,20 @@ import type { EventTemplate } from 'nostr-tools';
 import { catalogEventAddress, catalogMaxUses, catalogType } from 'src/lib/catalog';
 import type { CommunityType } from 'src/lib/communityTypes';
 import {
+	BADGE_STATUS_KIND,
 	isBadgeStatus,
 	latestStatusEvents,
 	type BadgeStatus
 } from 'src/routes/notifications/notifications';
 
-export const BADGE_STATUS_KIND = 27237;
+// The kind constant lives in notifications (which cannot import this module)
+// and is re-exported here so existing `src/lib/orders` consumers keep working.
+export { BADGE_STATUS_KIND } from 'src/routes/notifications/notifications';
 
 /**
  * One trackable order line on the admin orders dashboard: a kind 8 award paired
  * with the fulfillment context (an `order` id or an `event` coordinate) it is
- * being fulfilled against. `status` is the latest valid kind 27237 status for
+ * being fulfilled against. `status` is the latest valid kind 37237 status for
  * that context, or an implicit `pending` when the purchase has no status yet.
  * Award and definition stay FlatBuffer views; only display strings are copied.
  */
@@ -67,7 +70,7 @@ function recordFromStatus(
 }
 
 /**
- * Projects the community relay's kind 8 awards + kind 27237 statuses into order
+ * Projects the community relay's kind 8 awards + kind 37237 statuses into order
  * lines. Single-use entitlements (products, event tickets) yield exactly one
  * line per award - implicitly `pending` until a status exists. Reusable
  * entitlements (passes, memberships) yield one line per active fulfillment
@@ -166,9 +169,23 @@ export function buildBadgeStatusTemplate(
 			['a', target.badgeAddress],
 			['e', target.awardId],
 			['p', target.holder],
-			target.contextTag
+			target.contextTag,
+			// Addressable replacement key: the context string prefixed with
+			// `order:`/`event:`, matching whichever context tag is present.
+			['d', `${target.contextTag[0]}:${target.contextTag[1]}`]
 		]
 	};
+}
+
+/**
+ * Readers resolve the current status per context by latest created_at, then by
+ * smallest event id as a deterministic tie-break. Two updates landing in the
+ * same second are therefore a coin flip — publishers MUST keep created_at
+ * strictly monotonic per context. Pass the latest status's created_at for the
+ * context being updated (0/undefined when there is none).
+ */
+export function nextStatusCreatedAt(latestCreatedAt = 0, now = Math.floor(Date.now() / 1000)) {
+	return Math.max(now, latestCreatedAt + 1);
 }
 
 /** A manual pass/membership check-in gets a fresh single-use order context. */

@@ -26,6 +26,7 @@
 	} from 'src/lib/adminAccess';
 	import { go, usePagerNavigation } from 'src/routes/modals/modal';
 	import {
+		BADGE_STATUS_KIND,
 		isBadgeStatus,
 		processNotifications,
 		type ProcessedNotification
@@ -199,7 +200,7 @@
 		const order = extractTagValue(event, 'order');
 		const eventContext = extractTagValue(event, 'event');
 		if (
-			event.kind() !== 27237 ||
+			event.kind() !== BADGE_STATUS_KIND ||
 			!extractTagValue(event, 'e') ||
 			!isBadgeStatus(extractTagValue(event, 'status')) ||
 			Boolean(order) === Boolean(eventContext)
@@ -233,7 +234,7 @@
 					cacheFirst: true
 				},
 				{
-					kinds: [27237],
+					kinds: [BADGE_STATUS_KIND],
 					tags: { '#p': [pubkey] },
 					limit: 100,
 					relays: badgeRelays,

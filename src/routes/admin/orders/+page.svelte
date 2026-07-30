@@ -36,6 +36,7 @@
 		deriveOrderRecords,
 		isAwardExpired,
 		nextFlowStatus,
+		nextStatusCreatedAt,
 		ordersTitleFor,
 		ordersViewFor,
 		remainingAwardUses,
@@ -46,6 +47,7 @@
 	import {
 		formatTime,
 		isBadgeStatus,
+		BADGE_STATUS_KIND,
 		type BadgeStatus
 	} from 'src/routes/notifications/notifications';
 	import User from 'src/routes/explore/user.svelte';
@@ -122,7 +124,7 @@
 	}
 
 	function statusEventTrusted(event: ParsedEvent, defs: ReadonlyMap<string, ParsedEvent>) {
-		if (event.kind() !== 27237) return false;
+		if (event.kind() !== BADGE_STATUS_KIND) return false;
 		if (!isBadgeStatus(extractTagValue(event, 'status'))) return false;
 		if (!defs.has(extractTagValue(event, 'a') || '')) return false;
 		if (!extractTagValue(event, 'e') || !extractTagValue(event, 'p')) return false;
@@ -214,7 +216,7 @@
 			if (event) {
 				if (event.kind() === 8) {
 					awardEvents = upsertById(awardEvents, event);
-				} else if (event.kind() === 27237) {
+				} else if (event.kind() === BADGE_STATUS_KIND) {
 					statusEvents = upsertById(statusEvents, event);
 				} else if (event.kind() === 5 && awardIssuerTrusted(event)) {
 					const revoked = parsedEventTags(event)
@@ -238,7 +240,7 @@
 			),
 			useSubscription(
 				`admin_orders_statuses_${target}`,
-				[{ kinds: [27237], ...liveRequest }],
+				[{ kinds: [BADGE_STATUS_KIND], ...liveRequest }],
 				handleOrderMessage,
 				{ bytesPerEvent: 8 * 1024 }
 			),
@@ -321,6 +323,13 @@
 		return ref.length > 16 ? `${ref.slice(0, 8)}…${ref.slice(-4)}` : ref;
 	}
 
+	// Last created_at we published per context key. The relay ACK (which
+	// re-enables the button) can arrive before the live subscription delivers
+	// the event that refreshes record.updatedAt, so a fast follow-up click
+	// would otherwise compute a same-second created_at — a coin flip that
+	// strfry resolves by event id, silently dropping the newer status.
+	let lastPublishedCreatedAt = new Map<string, number>();
+
 	function publishStatus(
 		target: {
 			key: string;
@@ -328,11 +337,21 @@
 			badgeAddress: string;
 			holder: string;
 			contextTag: string[];
+			updatedAt?: number;
 		},
 		status: BadgeStatus
 	) {
 		if (!relayUrl || !$key?.pub || publishingKeys.has(target.key)) return;
-		const template = buildBadgeStatusTemplate(status, target);
+		// Same-second updates for one context are a coin flip on the reader side
+		// (created_at tie → smallest event id wins); keep created_at monotonic.
+		const template = buildBadgeStatusTemplate(
+			status,
+			target,
+			nextStatusCreatedAt(
+				Math.max(target.updatedAt ?? 0, lastPublishedCreatedAt.get(target.key) ?? 0)
+			)
+		);
+		lastPublishedCreatedAt.set(target.key, template.created_at ?? 0);
 		publishingKeys = new Set(publishingKeys).add(target.key);
 		publishError = '';
 		let settled = false;

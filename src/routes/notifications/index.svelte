@@ -32,6 +32,7 @@
 	import Feed from 'src/routes/explore/feed.svelte';
 	import { onMount, onDestroy } from 'svelte';
 	import {
+		BADGE_STATUS_KIND,
 		isBadgeStatus,
 		processBadgeNotifications,
 		processNotifications,
@@ -319,7 +320,7 @@
 			void acceptBadgeAward(event, generation);
 			return;
 		}
-		if (event.kind() !== 27237 || extractTagValue(event, 'p') !== $key?.pub) return;
+		if (event.kind() !== BADGE_STATUS_KIND || extractTagValue(event, 'p') !== $key?.pub) return;
 		const id = event.id();
 		if (
 			!id ||
@@ -364,7 +365,7 @@
 					cacheFirst: true
 				},
 				{
-					kinds: [27237],
+					kinds: [BADGE_STATUS_KIND],
 					tags: { '#p': [$key.pub] },
 					limit: 200,
 					relays: badgeRelays,

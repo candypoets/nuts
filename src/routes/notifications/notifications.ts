@@ -49,6 +49,10 @@ export const BADGE_STATUSES = [
 
 export type BadgeStatus = (typeof BADGE_STATUSES)[number];
 
+// Addressable badge order/check-in statuses. The d tag identifies the
+// fulfillment context so the relay retains the current state for each use.
+export const BADGE_STATUS_KIND = 37237;
+
 interface BadgeNotificationGroup {
 	award: ParsedEvent;
 	statuses: ParsedEvent[];
@@ -82,7 +86,7 @@ export function latestStatusEvents(award: ParsedEvent, statuses: ParsedEvent[]):
 	const latest = new Map<string, ParsedEvent>();
 	for (const event of statuses) {
 		if (
-			event.kind() !== 27237 ||
+			event.kind() !== BADGE_STATUS_KIND ||
 			extractTagValue(event, 'e') !== awardId ||
 			extractTagValue(event, 'a') !== address ||
 			extractTagValue(event, 'p') !== recipient ||
@@ -93,7 +97,9 @@ export function latestStatusEvents(award: ParsedEvent, statuses: ParsedEvent[]):
 		const order = extractTagValue(event, 'order');
 		const eventContext = extractTagValue(event, 'event');
 		if (Boolean(order) === Boolean(eventContext)) continue;
-		const contextKey = order ? `order:${order}` : `event:${eventContext}`;
+		const expectedContextKey = order ? `order:${order}` : `event:${eventContext}`;
+		const contextKey = extractTagValue(event, 'd');
+		if (contextKey !== expectedContextKey) continue;
 		const current = latest.get(contextKey);
 		if (
 			!current ||

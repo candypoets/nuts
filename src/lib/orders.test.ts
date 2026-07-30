@@ -5,6 +5,7 @@ import {
 	buildBadgeStatusTemplate,
 	deriveOrderRecords,
 	fulfilledUseCount,
+	nextStatusCreatedAt,
 	remainingAwardUses
 } from './orders';
 
@@ -70,10 +71,17 @@ function status(
 ) {
 	return event({
 		id,
-		kind: 27237,
+		kind: 37237,
 		pubkey: issuer,
 		createdAt,
-		tags: [['status', statusValue], ['a', address], ['e', awardId], ['p', holder], contextTag]
+		tags: [
+			['status', statusValue],
+			['a', address],
+			['e', awardId],
+			['p', holder],
+			contextTag,
+			['d', `${contextTag[0]}:${contextTag[1]}`]
+		]
 	});
 }
 
@@ -139,6 +147,31 @@ describe('deriveOrderRecords', () => {
 		expect(deriveOrderRecords([pass], [], definitions)).toHaveLength(0);
 	});
 
+	it('rejects statuses whose d tag does not match the fulfillment context', () => {
+		const def = definition('gym-pass', 'pass', [['max_uses', '5']]);
+		const definitions = new Map([[def.address, def.event]]);
+		const pass = award('award-3', def.address);
+		const s1 = status('s1', 'award-3', def.address, 'fulfilled', ['order', 'checkin-1'], 20);
+		// Same `d` as s1 but a conflicting order tag: the event is invalid and
+		// cannot supersede the fulfilled checkin-1 status.
+		const s2 = event({
+			id: 's2',
+			kind: 37237,
+			pubkey: issuer,
+			createdAt: 21,
+			tags: [
+				['status', 'cancelled'],
+				['a', def.address],
+				['e', 'award-3'],
+				['p', holder],
+				['order', 'checkin-2'],
+				['d', 'order:checkin-1']
+			]
+		});
+
+		expect(fulfilledUseCount(pass, [s1, s2])).toBe(1);
+	});
+
 	it('skips awards whose definition is not part of the community catalog', () => {
 		const orphan = award('award-9', `30009:${issuer}:unknown`);
 		expect(deriveOrderRecords([orphan], [], new Map())).toHaveLength(0);
@@ -168,7 +201,7 @@ describe('use accounting', () => {
 });
 
 describe('buildBadgeStatusTemplate', () => {
-	it('builds a kind 27237 template with status, award and context tags', () => {
+	it('builds a kind 37237 template with status, award, context and d tags', () => {
 		const template = buildBadgeStatusTemplate(
 			'ready',
 			{
@@ -180,14 +213,43 @@ describe('buildBadgeStatusTemplate', () => {
 			42
 		);
 
-		expect(template.kind).toBe(27237);
+		expect(template.kind).toBe(37237);
 		expect(template.created_at).toBe(42);
 		expect(template.tags).toEqual([
 			['status', 'ready'],
 			['a', `30009:${issuer}:coffee`],
 			['e', 'award-1'],
 			['p', holder],
-			['order', 'order-1']
+			['order', 'order-1'],
+			['d', 'order:order-1']
 		]);
+	});
+
+	it('derives the d value from an event context tag', () => {
+		const template = buildBadgeStatusTemplate('fulfilled', {
+			awardId: 'award-2',
+			badgeAddress: `30009:${issuer}:gig-ticket`,
+			holder,
+			contextTag: ['event', `31923:${issuer}:gig`]
+		});
+
+		expect(template.tags).toContainEqual(['d', `event:31923:${issuer}:gig`]);
+	});
+});
+
+describe('nextStatusCreatedAt', () => {
+	it('uses now when there is no prior status', () => {
+		expect(nextStatusCreatedAt(0, 100)).toBe(100);
+		expect(nextStatusCreatedAt(undefined, 100)).toBe(100);
+	});
+
+	it('keeps created_at strictly monotonic on a same-second update', () => {
+		// A transition landing in the same second as the previous status must
+		// still sort after it: readers tie-break equal created_at by smallest id.
+		expect(nextStatusCreatedAt(100, 100)).toBe(101);
+	});
+
+	it('does not jump ahead when now is past the latest status', () => {
+		expect(nextStatusCreatedAt(100, 105)).toBe(105);
 	});
 });

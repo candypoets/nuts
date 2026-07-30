@@ -29,7 +29,10 @@
 	import { encodePresentation, entitlementPresentationTemplate } from 'src/lib/presentation';
 	import { go } from 'src/routes/modals/modal';
 	import type { BadgeStatus } from 'src/routes/notifications/notifications';
-	import { isBadgeStatus } from 'src/routes/notifications/notifications';
+	import {
+		BADGE_STATUS_KIND,
+		isBadgeStatus
+	} from 'src/routes/notifications/notifications';
 	import { onDestroy, onMount } from 'svelte';
 
 	export let nevent: string;
@@ -293,7 +296,7 @@
 		const eventId = event.id();
 		if (
 			currentGeneration !== generation ||
-			event.kind() !== 27237 ||
+			event.kind() !== BADGE_STATUS_KIND ||
 			!eventId ||
 			extractTagValue(event, 'e') !== pointer.id ||
 			extractTagValue(event, 'p') !== $key?.pub ||
@@ -348,7 +351,7 @@
 		if (!event) return;
 		if (event.kind() === 8) {
 			void acceptAward(event, currentGeneration);
-		} else if (event.kind() === 27237) {
+		} else if (event.kind() === BADGE_STATUS_KIND) {
 			acceptRawStatus(event, currentGeneration);
 		}
 	}
@@ -397,7 +400,7 @@
 					cacheFirst: true
 				},
 				{
-					kinds: [27237],
+					kinds: [BADGE_STATUS_KIND],
 					tags: { '#e': [pointer.id], '#p': [$key.pub] },
 					limit: 200,
 					relays,

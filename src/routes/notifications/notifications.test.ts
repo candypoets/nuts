@@ -66,7 +66,7 @@ describe('badge notifications', () => {
 		});
 		const pending = event({
 			id: 'status-a',
-			kind: 27237,
+			kind: 37237,
 			pubkey: issuer,
 			createdAt: 20,
 			tags: [
@@ -74,12 +74,13 @@ describe('badge notifications', () => {
 				['a', address],
 				['e', 'award'],
 				['p', holder],
-				['order', 'order-1']
+				['order', 'order-1'],
+				['d', 'order:order-1']
 			]
 		});
 		const ready = event({
 			id: 'status-b',
-			kind: 27237,
+			kind: 37237,
 			pubkey: issuer,
 			createdAt: 21,
 			tags: [
@@ -87,7 +88,8 @@ describe('badge notifications', () => {
 				['a', address],
 				['e', 'award'],
 				['p', holder],
-				['order', 'order-1']
+				['order', 'order-1'],
+				['d', 'order:order-1']
 			]
 		});
 
@@ -110,7 +112,7 @@ describe('badge notifications', () => {
 		});
 		const higherId = event({
 			id: 'status-z',
-			kind: 27237,
+			kind: 37237,
 			pubkey: issuer,
 			createdAt: 20,
 			tags: [
@@ -118,12 +120,13 @@ describe('badge notifications', () => {
 				['a', address],
 				['e', 'award'],
 				['p', holder],
-				['order', 'order-1']
+				['order', 'order-1'],
+				['d', 'order:order-1']
 			]
 		});
 		const lowerId = event({
 			id: 'status-a',
-			kind: 27237,
+			kind: 37237,
 			pubkey: issuer,
 			createdAt: 20,
 			tags: [
@@ -131,7 +134,8 @@ describe('badge notifications', () => {
 				['a', address],
 				['e', 'award'],
 				['p', holder],
-				['order', 'order-1']
+				['order', 'order-1'],
+				['d', 'order:order-1']
 			]
 		});
 
@@ -169,7 +173,7 @@ describe('badge notifications', () => {
 		});
 		const invalidStatus = event({
 			id: 'status',
-			kind: 27237,
+			kind: 37237,
 			pubkey: issuer,
 			createdAt: 20,
 			tags: [
@@ -184,4 +188,5 @@ describe('badge notifications', () => {
 		expect(notification.createdAt()).toBe(10);
 		expect(notification.parsed.statuses).toEqual([]);
 	});
+
 });

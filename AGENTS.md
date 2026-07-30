@@ -156,8 +156,10 @@ Nuts uses the NIP-58 badge model as a generic product and entitlement workflow:
 
 - Kind `30009` is the product, pass, membership, role, or other entitlement definition.
 - Kind `8` awards the holder the right to that product or entitlement.
-- Kind `27237` records the status of one use of a kind `8` award.
-- The implemented/custom kind is `27237`, **not** `27327`.
+- Kind `37237` records the status of one use of a kind `8` award.
+- Kind `37237` is addressable: the `d` tag carries the fulfillment context
+  (`order:<order-id>` or `event:<event-coordinate>`), so the latest status per
+  context survives on the relay.
 
 This same model applies across community types. A limited-entry gym pass, event ticket,
 drink, prepared food item, or merchandise pickup are all badge-backed entitlements.
@@ -175,7 +177,7 @@ definition grants the required `store` or `events` permission. Resolve that role
 definition and kind `8` role award from the community relay. Do not add a parallel
 HTTP endpoint or invite format for definition authorization.
 
-### Kind 27237 Badge Status
+### Kind 37237 Badge Status
 
 Supported statuses are:
 
@@ -197,19 +199,21 @@ tie-breaker.
 
 ```json
 {
-	"kind": 27237,
+	"kind": 37237,
 	"tags": [
 		["status", "<badge-status>"],
 		["a", "30009:<issuer-pubkey>:<definition-d>"],
 		["e", "<kind-8-award-event-id>"],
 		["p", "<holder-pubkey>"],
-		["event", "<event-coordinate>"]
+		["event", "<event-coordinate>"],
+		["d", "event:<event-coordinate>"]
 	]
 }
 ```
 
-Kind `27237` itself identifies a badge status event. It must carry a valid `status`
-tag. Do not add a `type` or `uses` tag.
+Kind `37237` itself identifies a badge status event. It must carry a valid `status`
+tag and a `d` tag matching its context (`order:<order-id>` or
+`event:<event-coordinate>`). Do not add a `type` or `uses` tag.
 
 ### Derived State
 
@@ -235,7 +239,7 @@ entitlements, the award is signed by the community redemption service advertised
 `badge_issuer` by `/community/info`; its `a` tag still references the authorized
 admin's kind `30009` definition. Consumers and scanners must trust that advertised
 community issuer for the award and must not require the award signer to equal the
-definition author. Kind `27237` fulfills one use of that entitlement. Keep these two
+definition author. Kind `37237` fulfills one use of that entitlement. Keep these two
 stages distinct.
 
 Kind `30009` is addressable and may be updated in place for price, image, description,

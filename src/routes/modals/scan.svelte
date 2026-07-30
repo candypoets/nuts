@@ -27,6 +27,11 @@
 	} from 'src/lib/catalog';
 	import { fetchCommunityAccess, fetchCommunityTrust } from 'src/lib/adminAccess';
 	import {
+		BADGE_STATUS_KIND,
+		buildBadgeStatusTemplate,
+		nextStatusCreatedAt
+	} from 'src/lib/orders';
+	import {
 		decodeCheckInContext,
 		decodeEntitlementPresentation,
 		decodePresentation,
@@ -58,6 +63,7 @@
 	let verificationSubscriptions: (() => void)[] = [];
 	let badgeStatusPublish: (() => void) | undefined;
 	let verificationTimeout: ReturnType<typeof setTimeout> | undefined;
+	let entitlementVerificationAttempt = 0;
 	let readerElement: HTMLDivElement;
 	let startTimer: ReturnType<typeof setTimeout> | undefined;
 	let mounted = false;
@@ -69,6 +75,7 @@
 				tags: string[][];
 				actionLabel: string;
 				successMessage: string;
+				latestStatusCreatedAt: number;
 		  }
 		| undefined;
 
@@ -298,7 +305,7 @@
 							cacheFirst: true
 						},
 						{
-							kinds: [27237],
+							kinds: [BADGE_STATUS_KIND],
 							tags: {
 								'#e': awardIds,
 								'#p': [presentation.pubkey],
@@ -318,7 +325,7 @@
 							if (event.pubkey() === awards.get(awardId)?.issuer) revokedAwardIds.add(awardId);
 							return;
 						}
-						if (event.kind() !== 27237) return;
+						if (event.kind() !== BADGE_STATUS_KIND) return;
 						const signer = event.pubkey();
 						const id = event.id();
 						const eventAddress = extractTagValue(event, 'event');
@@ -373,18 +380,12 @@
 					return;
 				}
 				verificationMessage = 'Recording badge use…';
-				const badgeStatus: EventTemplate = {
-					kind: 27237,
-					created_at: Math.floor(Date.now() / 1000),
-					content: '',
-					tags: [
-						['status', 'fulfilled'],
-						['a', usableAward.address],
-						['e', usableAward.id],
-						['p', presentation.pubkey],
-						['event', checkInContext.eventAddress]
-					]
-				};
+				const badgeStatus: EventTemplate = buildBadgeStatusTemplate('fulfilled', {
+					awardId: usableAward.id,
+					badgeAddress: usableAward.address,
+					holder: presentation.pubkey,
+					contextTag: ['event', checkInContext.eventAddress]
+				});
 				badgeStatusPublish = usePublish(
 					`event_checkin_status_${presentation.id}`,
 					badgeStatus,
@@ -409,7 +410,9 @@
 			const order = extractTagValue(event, 'order');
 			const eventAddress = extractTagValue(event, 'event');
 			if (Boolean(order) === Boolean(eventAddress)) continue;
-			const context = order ? `order:${order}` : `event:${eventAddress}`;
+			const expectedContext = order ? `order:${order}` : `event:${eventAddress}`;
+			const context = extractTagValue(event, 'd');
+			if (context !== expectedContext) continue;
 			const current = latest.get(context);
 			if (
 				!current ||
@@ -521,45 +524,59 @@
 		const revocationSigners = new Set<string>();
 		const rawStatuses: ParsedEvent[] = [];
 		verificationMessage = 'Loading entitlement and fulfillment history…';
+		// A fresh subscription id per scan attempt: nipworker dedupes re-used ids,
+		// so re-scanning the same presentation would otherwise resolve from the
+		// pre-fulfillment cache without any relay round-trip.
+		entitlementVerificationAttempt += 1;
+		const entitlementFilters: RequestObject[] = [
+			{
+				kinds: [8],
+				ids: [presentation.awardId],
+				limit: 1,
+				relays: [community],
+				cacheFirst: true
+			},
+			{
+				kinds: [30009],
+				authors: [definitionAuthor],
+				tags: { '#d': [definitionD] },
+				limit: 20,
+				relays: [community],
+				cacheFirst: true
+			},
+			{
+				kinds: [BADGE_STATUS_KIND],
+				tags: {
+					'#e': [presentation.awardId],
+					'#a': [presentation.badgeAddress],
+					'#p': [presentation.event.pubkey]
+				},
+				limit: 500,
+				relays: [community],
+				cacheFirst: true
+			},
+			{
+				kinds: [5],
+				tags: { '#e': [presentation.awardId] },
+				limit: 50,
+				relays: [community],
+				cacheFirst: true
+			}
+		];
+		// nipworker sends each filter as its own REQ under one subscription id, so
+		// the relay answers with one EOSE per filter; only verify after all of them.
+		let eoseCount = 0;
 		verificationSubscriptions.push(
 			useSubscription(
-				`entitlement_redemption_${presentation.event.id}`,
-				[
-					{
-						kinds: [8],
-						ids: [presentation.awardId],
-						limit: 1,
-						relays: [community],
-						cacheFirst: true
-					},
-					{
-						kinds: [30009],
-						authors: [definitionAuthor],
-						tags: { '#d': [definitionD] },
-						limit: 20,
-						relays: [community],
-						cacheFirst: true
-					},
-					{
-						kinds: [27237],
-						tags: {
-							'#e': [presentation.awardId],
-							'#a': [presentation.badgeAddress],
-							'#p': [presentation.event.pubkey]
-						},
-						limit: 500,
-						relays: [community],
-						cacheFirst: true
-					},
-					{
-						kinds: [5],
-						tags: { '#e': [presentation.awardId] },
-						limit: 50,
-						relays: [community],
-						cacheFirst: true
-					}
-				],
+				`entitlement_redemption_${presentation.event.id}_${entitlementVerificationAttempt}`,
+				entitlementFilters,
 				(message: WorkerMessage) => {
+					const connectionStatus = isConnectionStatus(message);
+					if (connectionStatus?.status() === 'EOSE') {
+						eoseCount += 1;
+						if (eoseCount >= entitlementFilters.length) void runVerification();
+						return;
+					}
 					const event = isParsedEvent(message);
 					if (!event) return;
 					if (event.kind() === 8) {
@@ -595,7 +612,7 @@
 						return;
 					}
 					if (
-						event.kind() === 27237 &&
+						event.kind() === BADGE_STATUS_KIND &&
 						extractTagValue(event, 'e') === presentation.awardId &&
 						extractTagValue(event, 'a') === presentation.badgeAddress &&
 						extractTagValue(event, 'p') === presentation.event.pubkey &&
@@ -609,7 +626,12 @@
 			)
 		);
 
-		verificationTimeout = setTimeout(async () => {
+		let verificationResolved = false;
+		const runVerification = async () => {
+			if (verificationResolved) return;
+			verificationResolved = true;
+			if (verificationTimeout) clearTimeout(verificationTimeout);
+			verificationTimeout = undefined;
 			if (!award || !definition) {
 				finishVerification(false, 'The entitlement could not be found on this community relay.');
 				return;
@@ -716,13 +738,20 @@
 					['a', presentation.badgeAddress],
 					['e', presentation.awardId],
 					['p', presentation.event.pubkey],
-					contextTag
+					contextTag,
+					['d', contextKey]
 				],
 				actionLabel: action.actionLabel,
-				successMessage: action.successMessage
+				successMessage: action.successMessage,
+				latestStatusCreatedAt: currentStatus?.createdAt() || 0
 			};
 			clearVerificationWork();
-		}, 2500);
+		};
+
+		// Resolve once every filter's EOSE arrived (all stored events delivered)
+		// instead of a fixed window; the timeout is only a backstop for when EOSE
+		// never arrives.
+		verificationTimeout = setTimeout(() => void runVerification(), 12000);
 	}
 
 	function confirmEntitlementRedemption() {
@@ -731,8 +760,10 @@
 		verificationState = 'checking';
 		verificationMessage = 'Recording fulfillment…';
 		const template: EventTemplate = {
-			kind: 27237,
-			created_at: Math.floor(Date.now() / 1000),
+			kind: BADGE_STATUS_KIND,
+			// Keep created_at strictly past the current status for this context:
+			// a same-second fulfillment can lose the reader-side id tie-break.
+			created_at: nextStatusCreatedAt(candidate.latestStatusCreatedAt),
 			content: '',
 			tags: candidate.tags
 		};
@@ -753,6 +784,10 @@
 	}
 
 	const qrCodeSuccessCallback: QrcodeSuccessCallback = (decodedText, decodedResult) => {
+		// html5-qrcode can deliver late decodes from its backlog while stop() is
+		// still resolving; every handler leaves the scan view synchronously, so
+		// only the first detection may drive the flow.
+		if (view !== 'scan') return;
 		console.log('[scan] QR detected:', decodedText.substring(0, 50) + '...');
 		if (verifyEntitlementRedemption(decodedText)) return;
 		if (verifyCheckIn(decodedText)) return;
