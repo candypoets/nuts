@@ -8,6 +8,7 @@
 
 	import { viewport } from 'src/controller/viewport';
 	import { PagerAnimator } from 'src/lib/animations/PagerAnimator';
+	import { pagerSegmentType, type PagerStackItemType } from 'src/lib/pagerRoutes';
 	import { pagerAnimators } from 'src/controller/pager';
 	import {
 		createPagerNavigation,
@@ -20,21 +21,8 @@
 	export let rootPath: string;
 
 	// Interleaved stack derived from the current URL
-	type StackItem = { type: 'sub' | 'modal'; value: string };
+	type StackItem = { type: PagerStackItemType; value: string };
 	let stack: StackItem[] = [];
-
-	// Matchers copied from the original Kind index
-	const subPaths = [
-		'nprofile',
-		'nevent',
-		'naddr',
-		'kind4',
-		'community',
-		'store',
-		'notifications',
-		'badge',
-		'tags'
-	];
 
 	let mainElement: HTMLElement;
 
@@ -68,20 +56,10 @@
 		if (rawPath.startsWith(rootPath)) {
 			const segments = rawPath.split('/').slice(2).filter(Boolean);
 
-			stack = segments
-				.filter((seg) => {
-					const [key, payload] = seg.split(':');
-					// Sub-routes carry their target after a colon ('store:<relay>',
-					// 'community:<relay>', 'nevent:…'). A bare segment such as the
-					// 'store' in /admin/<relay>/store is a real page, not a sub-route.
-					const isSub = subPaths.includes(key) && Boolean(payload);
-					const isModal = pathOptions.some((opt) => key === opt);
-					return isSub || isModal;
-				})
-				.map((seg) => {
-					const isModal = pathOptions.some((opt) => seg.split(':')[0] === opt);
-					return { type: isModal ? 'modal' : 'sub', value: seg };
-				});
+			stack = segments.flatMap((segment) => {
+				const type = pagerSegmentType(segment, pathOptions);
+				return type ? [{ type, value: segment }] : [];
+			});
 		} else {
 			stack = [];
 		}

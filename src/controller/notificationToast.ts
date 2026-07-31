@@ -14,6 +14,14 @@ const dismissTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 export const notificationToasts = writable<NotificationToast[]>([]);
 
+export function shouldShowLiveNotificationToast(
+	createdAt: number,
+	subscriptionStartedAt: number,
+	initialSyncComplete: boolean
+) {
+	return initialSyncComplete && createdAt >= subscriptionStartedAt;
+}
+
 export function dismissNotificationToast(id: string) {
 	const timer = dismissTimers.get(id);
 	if (timer) clearTimeout(timer);

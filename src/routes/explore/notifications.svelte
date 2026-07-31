@@ -18,7 +18,10 @@
 	import { onDestroy } from 'svelte';
 
 	import { key, kind10002Ready, lastNotificationView, relayDirectoryUrls } from 'src/controller';
-	import { showNotificationToast } from 'src/controller/notificationToast';
+	import {
+		shouldShowLiveNotificationToast,
+		showNotificationToast
+	} from 'src/controller/notificationToast';
 	import {
 		fetchCommunityAccess,
 		fetchCommunityTrust,
@@ -39,7 +42,9 @@
 	let badgeSubscriptionKey = '';
 	let badgeGeneration = 0;
 	let seenEventIds = new Set<string>();
+	let toastedEventIds = new Set<string>();
 	let socialEoseReceived = false;
+	let socialSubscriptionStartedAt = 0;
 	const socialConnectionTracker = new ConnectionTracker();
 	let trustPromises = new Map<string, Promise<CommunityTrust>>();
 	let authorizationPromises = new Map<string, Promise<boolean>>();
@@ -59,6 +64,8 @@
 				.filter((relay): relay is string => Boolean(relay)) || [];
 		socialConnectionTracker.reset();
 		socialEoseReceived = false;
+		socialSubscriptionStartedAt = Math.floor(Date.now() / 1000);
+		toastedEventIds.clear();
 		socialUnsubscribe = useSubscription(
 			'notifications',
 			[
@@ -80,7 +87,16 @@
 				}
 
 				const parsedEvent = asParsedEvent(message);
-				if (parsedEvent && markUnread(parsedEvent) && socialEoseReceived) {
+				if (!parsedEvent) return;
+
+				markUnread(parsedEvent);
+				if (
+					shouldShowLiveNotificationToast(
+						parsedEvent.createdAt(),
+						socialSubscriptionStartedAt,
+						socialEoseReceived
+					)
+				) {
 					showSocialToast(parsedEvent, socialRelays);
 				}
 			}
@@ -152,13 +168,14 @@
 	function showSocialToast(event: ParsedEvent, relays: string[]) {
 		const notification = processNotifications([event])[0];
 		const id = event.id();
-		if (!notification || !id) return;
+		if (!notification || !id || toastedEventIds.has(id)) return;
 
 		const targetEventId =
 			notification.type === 'reply' || notification.type === 'mention'
 				? id
 				: notification.parsed.referencedPostId;
 		if (!targetEventId) return;
+		toastedEventIds.add(id);
 
 		showNotificationToast({
 			id,
