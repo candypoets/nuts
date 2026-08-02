@@ -129,9 +129,12 @@
 	let feedPager: TimeWindowPager | undefined;
 	let paginationStarted = false;
 	let hasMore = true;
-	let pageItemsAdded = 0;
+	let pageInFlight = false;
+	let pageOldestCreatedAt: number | undefined;
+	let pageExpectedRelays = new Set<string>();
+	let pageEoseRelays = new Set<string>();
 	let paginationTimeout: ReturnType<typeof setTimeout> | undefined;
-	let paginationCheckTimeout: ReturnType<typeof setTimeout> | undefined;
+	let paginationDrainTimeout: ReturnType<typeof setTimeout> | undefined;
 	let feedLoadingTimeout: ReturnType<typeof setTimeout> | undefined;
 
 	$: feedItems = mode === 'profile' ? profileFeedItems : followsFeedItems;
@@ -390,7 +393,7 @@
 		}
 	}
 
-	function processFeedMessage(message: WorkerMessage): boolean {
+	function processFeedMessage(message: WorkerMessage): ParsedEvent | undefined {
 		// Handle connection status
 		const status = asConnectionStatus(message);
 		if (status) {
@@ -399,25 +402,25 @@
 				const normalizedUrl = normalizeURL(relayUrl);
 				connectionStatus = { ...connectionStatus, [normalizedUrl]: status };
 			}
-			return false;
+			return undefined;
 		}
 
 		const parsedEvent = asParsedEvent(message);
-		if (!parsedEvent) return false;
+		if (!parsedEvent) return undefined;
 
-		if (!shouldIncludeFeedEvent(parsedEvent)) return false;
+		if (!shouldIncludeFeedEvent(parsedEvent)) return undefined;
 
 		const eventId = parsedEvent.id();
-		if (!eventId) return false;
+		if (!eventId) return undefined;
 
 		if (mode === 'profile') {
-			if (profileSeenIds.has(eventId)) return false;
+			if (profileSeenIds.has(eventId)) return undefined;
 			profileSeenIds.add(eventId);
 			profileFeedItems = [...profileFeedItems, parsedEvent].sort(
 				(a, b) => b.createdAt() - a.createdAt()
 			);
 		} else {
-			if (followsSeenIds.has(eventId)) return false;
+			if (followsSeenIds.has(eventId)) return undefined;
 			followsSeenIds.add(eventId);
 			followsFeedItems = [...followsFeedItems, parsedEvent].sort(
 				(a, b) => b.createdAt() - a.createdAt()
@@ -427,7 +430,7 @@
 			clearTimeout(feedLoadingTimeout);
 			feedLoadingTimeout = undefined;
 		}
-		return true;
+		return parsedEvent;
 	}
 
 	function handleFeedEvents(message: WorkerMessage) {
@@ -435,9 +438,27 @@
 	}
 
 	function handlePaginationEvents(message: WorkerMessage) {
-		if (!processFeedMessage(message)) return;
-		pageItemsAdded++;
-		settlePagination();
+		const status = asConnectionStatus(message);
+		const parsedEvent = processFeedMessage(message);
+		if (parsedEvent) {
+			pageOldestCreatedAt = Math.min(
+				pageOldestCreatedAt ?? parsedEvent.createdAt(),
+				parsedEvent.createdAt()
+			);
+		}
+
+		const relayUrl = status?.relayUrl();
+		if (status?.status() === 'EOSE' && relayUrl) {
+			pageEoseRelays.add(normalizeURL(relayUrl));
+			if (Array.from(pageExpectedRelays).every((relay) => pageEoseRelays.has(relay))) {
+				if (!paginationDrainTimeout) {
+					paginationDrainTimeout = setTimeout(() => {
+						paginationDrainTimeout = undefined;
+						settlePagination();
+					}, 500);
+				}
+			}
+		}
 	}
 
 	function shouldIncludeFeedEvent(parsedEvent: ParsedEvent): boolean {
@@ -542,7 +563,7 @@
 	onDestroy(() => {
 		unsubscribe();
 		if (paginationTimeout) clearTimeout(paginationTimeout);
-		if (paginationCheckTimeout) clearTimeout(paginationCheckTimeout);
+		if (paginationDrainTimeout) clearTimeout(paginationDrainTimeout);
 		if (feedLoadingTimeout) clearTimeout(feedLoadingTimeout);
 		followPublishUnsub?.();
 		relaySubUnsubscribe?.();
@@ -704,7 +725,6 @@
 		if (loading || !hasMore || feedItems.length === 0 || !pager) return;
 
 		loading = true;
-		pageItemsAdded = 0;
 
 		if (!paginationStarted) {
 			const windowFloor = pager.anchor - pager.windowSeconds;
@@ -717,7 +737,16 @@
 			}
 			paginationStarted = true;
 		}
+		startNextPage();
+	}
 
+	function startNextPage() {
+		const pager = feedPager;
+		if (!pager) {
+			loading = false;
+			hasMore = false;
+			return;
+		}
 		const page = pager.next();
 		if (!page) {
 			loading = false;
@@ -726,6 +755,13 @@
 		}
 
 		paginationSub?.();
+		paginationSub = undefined;
+		pageInFlight = true;
+		pageOldestCreatedAt = undefined;
+		pageEoseRelays = new Set<string>();
+		pageExpectedRelays = new Set(
+			page.requests.flatMap((request) => request.relays.map(normalizeURL))
+		);
 		paginationSub = useSubscription(page.subId, page.requests, handlePaginationEvents, {
 			pipeline: $defaultPipeline.for(page.subId),
 			...page.options
@@ -734,20 +770,29 @@
 	}
 
 	function settlePagination() {
-		if (!loading) return;
-		loading = false;
+		if (!pageInFlight) return;
+		pageInFlight = false;
 		if (paginationTimeout) {
 			clearTimeout(paginationTimeout);
 			paginationTimeout = undefined;
 		}
-		if (paginationCheckTimeout) clearTimeout(paginationCheckTimeout);
-		paginationCheckTimeout = setTimeout(() => {
-			if (pageItemsAdded === 0) hasMore = false;
-			pageItemsAdded = 0;
-			paginationSub?.();
-			paginationSub = undefined;
-			paginationCheckTimeout = undefined;
-		}, 500);
+		if (paginationDrainTimeout) {
+			clearTimeout(paginationDrainTimeout);
+			paginationDrainTimeout = undefined;
+		}
+		paginationSub?.();
+		paginationSub = undefined;
+
+		const completion = feedPager?.complete(pageOldestCreatedAt);
+		pageOldestCreatedAt = undefined;
+		pageExpectedRelays = new Set<string>();
+		pageEoseRelays = new Set<string>();
+		hasMore = completion?.hasMore ?? false;
+		if (completion?.shouldRetry) {
+			startNextPage();
+			return;
+		}
+		loading = false;
 	}
 
 	// Base subId for relay swapping (without relay hash)
@@ -855,15 +900,18 @@
 		feedSub = undefined;
 		paginationSub?.();
 		paginationSub = undefined;
+		pageInFlight = false;
+		pageOldestCreatedAt = undefined;
+		pageExpectedRelays = new Set<string>();
+		pageEoseRelays = new Set<string>();
 		if (paginationTimeout) {
 			clearTimeout(paginationTimeout);
 			paginationTimeout = undefined;
 		}
-		if (paginationCheckTimeout) {
-			clearTimeout(paginationCheckTimeout);
-			paginationCheckTimeout = undefined;
+		if (paginationDrainTimeout) {
+			clearTimeout(paginationDrainTimeout);
+			paginationDrainTimeout = undefined;
 		}
-		pageItemsAdded = 0;
 		if (feedLoadingTimeout) {
 			clearTimeout(feedLoadingTimeout);
 			feedLoadingTimeout = undefined;
@@ -872,7 +920,9 @@
 		feedPager = createTimeWindowPager({
 			subId: feedRequest.subId,
 			requests: feedRequest.requests,
-			windowSeconds: FEED_PAGE_WINDOW_SECONDS
+			windowSeconds: FEED_PAGE_WINDOW_SECONDS,
+			maxEmptyPages: 3,
+			emptyWindowGrowthFactor: 2
 		});
 		paginationStarted = false;
 		hasMore = true;
