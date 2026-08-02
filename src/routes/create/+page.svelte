@@ -61,6 +61,38 @@
 		| 'done'
 		| 'error';
 
+	type CreationStep = 'account' | 'home' | 'directory' | 'profile' | 'finishing';
+
+	// Friendly, non-technical progress shown while the community is being set up.
+	// Order matches the real creation chain in continueCommunityCreation.
+	const CREATION_STEPS: Array<{ id: CreationStep; title: string; description: string }> = [
+		{
+			id: 'account',
+			title: 'Setting up your account',
+			description: 'Creating or checking your personal account.'
+		},
+		{
+			id: 'home',
+			title: "Reserving your community's home",
+			description: 'A private space on the network, just for your people.'
+		},
+		{
+			id: 'directory',
+			title: 'Listing your community',
+			description: 'So you can find it again from any device.'
+		},
+		{
+			id: 'profile',
+			title: 'Adding your profile',
+			description: 'So your members know who you are.'
+		},
+		{
+			id: 'finishing',
+			title: 'Finishing touches',
+			description: 'Almost there.'
+		}
+	];
+
 	type RelayRecord = {
 		id: string;
 		name?: string;
@@ -113,6 +145,23 @@
 	let fetchedCreatorProfile: ParsedEvent | undefined;
 	let creatorProfileLookupDone = false;
 	let creatorProfileLookupPubkey = '';
+	let currentStep: CreationStep = 'account';
+	let completedSteps: CreationStep[] = [];
+	let directoryNotice = '';
+
+	function advanceTo(step: CreationStep) {
+		const index = CREATION_STEPS.findIndex((candidate) => candidate.id === step);
+		completedSteps = CREATION_STEPS.slice(0, Math.max(index, 0)).map((candidate) => candidate.id);
+		currentStep = step;
+	}
+
+	function stepDone(step: CreationStep) {
+		return completedSteps.includes(step);
+	}
+
+	function stepActive(step: CreationStep) {
+		return !stepDone(step) && currentStep === step;
+	}
 
 	$: communitySlug = slugFromName(communityName);
 	$: selectedArchetype = archetypeFor(communityType);
@@ -777,6 +826,7 @@
 	) {
 		try {
 			state = 'creating-relay';
+			advanceTo('home');
 			relay = await createRelay(adminPubkey);
 			rememberAdminServiceBaseUrl(relay.relay_url, relay.base_url);
 			await waitForRelayReady(relay.relay_url);
@@ -796,42 +846,45 @@
 					'Your community index references an existing admin relay list, but that list could not be loaded. Please retry before creating another community.'
 				);
 			}
+			advanceTo('directory');
 			publishRelayList(adminPubkey, relay.relay_url);
-			publishCommunityRelaySet(
-				adminPubkey,
-				relay.relay_url,
-				() => {
-					if (!relay) return;
-					publishCreatorProfile(
-						adminPubkey,
-						relay.relay_url,
-						creatorProfileEvent,
-						() => {
-							if (!relay) return;
-							publishCommunityProfile(
-								relay.relay_url,
-								profileImageUrl,
-								() => {
-									if (!relay) return;
-									void goto(resolve(`/admin/${encodeURIComponent(relay.relay_url)}`));
-								},
-								(err) => {
-									state = 'error';
-									error = err.message;
-								}
-							);
-						},
-						(err) => {
-							state = 'error';
-							error = err.message;
-						}
-					);
-				},
-				(err) => {
-					state = 'error';
-					error = err.message;
-				}
-			);
+			const continueWithProfile = () => {
+				if (!relay) return;
+				advanceTo('profile');
+				publishCreatorProfile(
+					adminPubkey,
+					relay.relay_url,
+					creatorProfileEvent,
+					() => {
+						if (!relay) return;
+						advanceTo('finishing');
+						publishCommunityProfile(
+							relay.relay_url,
+							profileImageUrl,
+							() => {
+								if (!relay) return;
+								void goto(resolve(`/admin/${encodeURIComponent(relay.relay_url)}`));
+							},
+							(err) => {
+								state = 'error';
+								error = err.message;
+							}
+						);
+					},
+					(err) => {
+						state = 'error';
+						error = err.message;
+					}
+				);
+			};
+			publishCommunityRelaySet(adminPubkey, relay.relay_url, continueWithProfile, () => {
+				// The directory listing is best-effort: the community itself is ready
+				// and the list heals on the next publish. Warn and keep going instead
+				// of stranding a created community behind a read-back timeout.
+				directoryNotice =
+					'Your community is ready. Its listing in the public directory is still catching up — this usually sorts itself out within a few minutes.';
+				continueWithProfile();
+			});
 		} catch (err) {
 			state = 'error';
 			error = err instanceof Error ? err.message : 'Could not create community.';
@@ -852,6 +905,16 @@
 		recoveryNsec = '';
 		relay = undefined;
 		cancelAdminRelaySetVerification?.();
+		advanceTo('account');
+		directoryNotice = '';
+
+		// Nothing can be published without an active signer: a pubkey-only
+		// session (e.g. restored read-only) must sign in again first.
+		if ($key?.pub && $key?.hasSigner === false) {
+			state = 'error';
+			error = 'Please sign in again before creating your community.';
+			return;
+		}
 
 		try {
 			let adminPubkey = $key?.pub;
@@ -1179,7 +1242,7 @@
 					</div>
 				</div>
 
-				{#if !accountReady}
+				{#if !accountReady || $key?.hasSigner === false}
 					<div
 						class="mt-5 flex max-w-5xl flex-wrap items-center gap-3 rounded-2xl border border-stone-200 bg-white/60 p-3 text-sm font-bold text-stone-600 shadow-sm shadow-stone-950/5"
 					>
@@ -1190,6 +1253,54 @@
 						>
 						<span>or continue below to create a new account</span>
 					</div>
+				{/if}
+
+				{#if state === 'finding-profile' || state === 'creating-account' || state === 'creating-relay'}
+					<ol
+						class="mt-6 max-w-5xl space-y-3 rounded-2xl border border-stone-200 bg-white/60 p-5 shadow-sm shadow-stone-950/5"
+						aria-label="Creation progress"
+					>
+						{#each CREATION_STEPS as step (step.id)}
+							<li class="flex items-start gap-3">
+								<span
+									class="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full {stepDone(
+										step.id
+									)
+										? 'bg-emerald-800 text-white'
+										: stepActive(step.id)
+											? 'bg-emerald-100 text-emerald-900'
+											: 'bg-stone-200 text-stone-400'}"
+								>
+									{#if stepDone(step.id)}
+										<CheckCircle2 size={15} />
+									{:else if stepActive(step.id)}
+										<span class="animate-spin"><Loader2 size={14} /></span>
+									{:else}
+										<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+									{/if}
+								</span>
+								<span>
+									<strong
+										class="block text-sm font-black {stepDone(step.id) || stepActive(step.id)
+											? 'text-[#171614]'
+											: 'text-stone-400'}">{step.title}</strong
+									>
+									{#if stepActive(step.id)}
+										<small class="block text-sm font-semibold text-stone-500"
+											>{step.description}</small
+										>
+									{/if}
+								</span>
+							</li>
+						{/each}
+						{#if directoryNotice}
+							<li
+								class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-800"
+							>
+								{directoryNotice}
+							</li>
+						{/if}
+					</ol>
 				{/if}
 
 				{#if state === 'error'}
