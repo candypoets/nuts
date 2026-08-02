@@ -5,7 +5,11 @@
 		type ParsedEvent,
 		type WorkerMessage
 	} from '@candypoets/nipworker';
-	import { useSubscription } from '@candypoets/nipworker/hooks';
+	import {
+		createPaginatedSubscription,
+		type PaginatedSubscription,
+		useSubscription
+	} from '@candypoets/nipworker/hooks';
 	import {
 		asConnectionStatus,
 		asKind1,
@@ -22,7 +26,7 @@
 	import RelaysList from 'src/components/RelaysList.svelte';
 	import { isMobile } from 'src/controller';
 	import { defaultPipeline } from 'src/controller/nostr';
-	import { limit } from 'src/controller/pagination';
+	import { FEED_PAGE_WINDOW_SECONDS, limit } from 'src/controller/pagination';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import Note from 'src/routes/explore/note.svelte';
 	import { getUserRelays } from 'src/routes/queries/user';
@@ -43,8 +47,7 @@
 	let sub: (() => void) | undefined;
 	let cachesub: (() => void) | undefined;
 	let relaysub: (() => void) | undefined;
-	let repliesSub: (() => void) | undefined;
-	let paginationSub: (() => void) | undefined;
+	let repliesSubscription: PaginatedSubscription | undefined;
 	let currentEventId: string | undefined = undefined;
 
 	let connectionStatus: { [url: string]: ConnectionStatus } = {};
@@ -66,15 +69,6 @@
 	// Feed items managed by parent
 	let feedItems: ParsedEvent[] = [];
 
-	// Pagination state
-	let until: number | undefined = undefined;
-	let hasMore = true;
-	let itemsBeforePagination = 0;
-	let paginationTimeout: ReturnType<typeof setTimeout> | undefined;
-	let paginationCheckTimeout: ReturnType<typeof setTimeout> | undefined;
-	let paginationCounter = 0;
-	let prevPaginationSubId: string | undefined = undefined;
-
 	// Base subId for relay swapping
 	$: baseSubId = 'kind1_' + data?.id;
 
@@ -87,15 +81,10 @@
 		loading = true;
 		connectionStatus = {};
 		currentRelays = data.relays || [];
-		until = undefined;
-		hasMore = true;
-		itemsBeforePagination = 0;
-		paginationCounter = 0;
-		prevPaginationSubId = undefined;
 	}
 
 	// Handle incoming events from subscription
-	function handleEvents(message: WorkerMessage) {
+	function handleEvents(message: WorkerMessage): number | undefined {
 		// Handle connection status
 		const status = asConnectionStatus(message);
 		if (status) {
@@ -104,28 +93,28 @@
 				const normalizedUrl = normalizeURL(relayUrl);
 				connectionStatus = { ...connectionStatus, [normalizedUrl]: status };
 			}
-			return;
+			return undefined;
 		}
 
 		switch (message.type()) {
 			case MessageType.Eoce:
 				eoce = true;
-				break;
+				return undefined;
 			case MessageType.ParsedNostrEvent:
 				const parsedEvent = asParsedEvent(message);
-				if (!parsedEvent) return;
+				if (!parsedEvent) return undefined;
 
 				const kind1 = asKind1(parsedEvent);
 				if (kind1) {
 					// only show replies to root posts
-					if (kind1.reply()?.id() && kind1.reply()?.id() != data?.id) return;
+					if (kind1.reply()?.id() && kind1.reply()?.id() != data?.id) return undefined;
 					if (
 						(!kind1.reply()?.id() || kind1.reply()?.id() == kind1.root()?.id()) &&
 						kind1?.root()?.id() != data?.id
 					)
-						return;
+						return undefined;
 					// if replies are quote return the feed
-					if (fbArray(kind1, 'mentions').some((q) => q.id() == data.id)) return;
+					if (fbArray(kind1, 'mentions').some((q) => q.id() == data.id)) return undefined;
 
 					const eventId = parsedEvent.id();
 					const existingIndex = feedItems.findIndex((item) => item.id() === eventId);
@@ -142,10 +131,12 @@
 								);
 							}
 						}
+						return parsedEvent.createdAt();
 					}
 				}
-				break;
+				return undefined;
 		}
+		return undefined;
 	}
 
 	function subscribe() {
@@ -204,22 +195,30 @@
 									currentRelays = relays;
 								}
 								// Subscribe to replies for this post
-								if (!repliesSub) {
-									repliesSub = useSubscription(
-										'replies_' + data?.id,
-										[
-											{
-												tags: { '#e': [data?.id] },
-												limit: $limit,
-												noContext: true,
-												relays: effectiveRelays
-											}
-										],
-										handleEvents,
+								if (!repliesSubscription) {
+									const repliesSubId = 'replies_' + data?.id;
+									const requests = [
 										{
-											pipeline: $defaultPipeline.for('replies_' + data?.id)
+											tags: { '#e': [data?.id] },
+											limit: $limit,
+											noContext: true,
+											relays: effectiveRelays
 										}
-									);
+									];
+									repliesSubscription = createPaginatedSubscription({
+										subId: repliesSubId,
+										requests,
+										pageRequests: requests.map((request) => ({ ...request, kinds: [1] })),
+										windowSeconds: FEED_PAGE_WINDOW_SECONDS,
+										maxEmptyPages: 3,
+										initialLoading: false,
+										onMessage: handleEvents,
+										onStateChange: (state) => (loading = state.loading),
+										options: (subscriptionId) => ({
+											pipeline: $defaultPipeline.for(subscriptionId)
+										})
+									});
+									repliesSubscription.start();
 								}
 							},
 							'read'
@@ -245,94 +244,25 @@
 		relaysub = undefined;
 		cachesub?.();
 		cachesub = undefined;
-		repliesSub?.();
-		repliesSub = undefined;
-		paginationSub?.();
-		paginationSub = undefined;
+		repliesSubscription?.close();
+		repliesSubscription = undefined;
 	}
 
 	// Handle near-bottom pagination
 	function handleNearBottom(event: { distance: number }) {
-		if (loading || !hasMore || feedItems.length === 0) return;
-
-		loading = true;
-		itemsBeforePagination = feedItems.length;
-		paginationCounter++;
-
-		// Use the createdAt of the last item as until
-		const lastItem = feedItems[feedItems.length - 1];
-		if (lastItem) {
-			until = lastItem.createdAt() - 1;
-		}
-
-		const pageSubId = 'replies_' + data?.id + '_page_' + paginationCounter + '_' + until;
-		paginationSub?.();
-		paginationSub = useSubscription(
-			pageSubId,
-			[
-				{
-					kinds: [1],
-					tags: { '#e': [data?.id] },
-					limit: $limit,
-					until,
-					noContext: true,
-					relays: currentRelays.length ? currentRelays : data.relays || []
-				}
-			],
-			handleEvents,
-			{
-				pipeline: $defaultPipeline.for(pageSubId),
-				pagination: prevPaginationSubId
-			}
-		);
-		// Track this subId for next pagination
-		prevPaginationSubId = pageSubId;
-
-		// Fallback: clear loading after timeout
-		paginationTimeout = setTimeout(() => {
-			loading = false;
-		}, 10000);
-	}
-
-	// Track when pagination completes and check if new items were added
-	$: if (!loading && itemsBeforePagination > 0) {
-		const itemsAtCheck = itemsBeforePagination;
-
-		// Clear the timeout if it hasn't fired yet
-		if (paginationTimeout) {
-			clearTimeout(paginationTimeout);
-			paginationTimeout = undefined;
-		}
-
-		// Delay the check to allow late events to arrive via subscription
-		paginationCheckTimeout = setTimeout(() => {
-			const newItemsAdded = feedItems.length - itemsAtCheck;
-			if (newItemsAdded === 0) {
-				hasMore = false;
-			}
-			itemsBeforePagination = 0;
-		}, 500); // Wait 500ms for late events to arrive
+		if (loading || feedItems.length === 0) return;
+		repliesSubscription?.loadMore();
 	}
 
 	let imageContext = getContext('imageContext');
 
 	onDestroy(() => {
 		unsubscribe();
-		if (paginationTimeout) clearTimeout(paginationTimeout);
-		if (paginationCheckTimeout) clearTimeout(paginationCheckTimeout);
 	});
 
 	// Reset and re-subscribe when the target nevent changes in-place
 	$: if (data?.id && data.id !== currentEventId) {
 		unsubscribe();
-		if (paginationTimeout) {
-			clearTimeout(paginationTimeout);
-			paginationTimeout = undefined;
-		}
-		if (paginationCheckTimeout) {
-			clearTimeout(paginationCheckTimeout);
-			paginationCheckTimeout = undefined;
-		}
 		currentEventId = data.id;
 		resetStateForEvent();
 		if (visible) {

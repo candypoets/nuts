@@ -20,7 +20,7 @@
 		mutedPubkeys,
 		writeRelays as userWriteRelays
 	} from 'src/controller/nostr';
-	import { limit } from 'src/controller/pagination';
+	import { FEED_PAGE_WINDOW_SECONDS, limit } from 'src/controller/pagination';
 	import { now } from 'src/lib/period';
 	import { proxyAvatarUrl, proxyBannerUrl } from 'src/lib/proxy';
 	import Feed from 'src/routes/explore/feed.svelte';
@@ -66,8 +66,6 @@
 
 	// Default relays as fallback
 	const DEFAULT_RELAYS = ['wss://relay.damus.io', 'wss://relay.snort.social', 'wss://nos.lol'];
-	const FEED_PAGE_WINDOW_SECONDS = 30 * 24 * 60 * 60;
-
 	// Get pubkey from URL parameter
 	export let pubkey: string;
 	export let visible: boolean;

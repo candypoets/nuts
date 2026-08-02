@@ -10,7 +10,11 @@
 		type WorkerMessage,
 		getManager
 	} from '@candypoets/nipworker';
-	import { useSubscription } from '@candypoets/nipworker/hooks';
+	import {
+		createPaginatedSubscription,
+		type PaginatedSubscription,
+		useSubscription
+	} from '@candypoets/nipworker/hooks';
 	import {
 		asConnectionStatus,
 		asKind1,
@@ -19,7 +23,6 @@
 		asKind20,
 		asParsedEvent,
 		asCountResponse,
-		ConnectionTracker,
 		fbArray
 	} from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
@@ -45,7 +48,7 @@
 		relayDirectoryUrls,
 		readRelays
 	} from 'src/controller/nostr';
-	import { limit } from 'src/controller/pagination';
+	import { FEED_PAGE_WINDOW_SECONDS, limit } from 'src/controller/pagination';
 	import { relaySub, relaySubs, setSubRelays } from 'src/controller/relay';
 	import { CALENDAR_EVENT_KINDS, RSVP_KIND, parseCalendarEvent } from 'src/lib/calendarEvent';
 	import { ago } from 'src/lib/period';
@@ -63,7 +66,6 @@
 	}
 
 	let connectionStatus: { [url: string]: ConnectionStatus } = {};
-	let connectionTracker = new ConnectionTracker();
 
 	// Feed items managed by parent
 	let feedItems: ParsedEvent[] = [];
@@ -73,20 +75,8 @@
 	// Track seen event IDs to prevent duplicates
 	let seenEventIds = new Set<string>();
 
-	// Pagination state
-	let until: number | undefined = undefined;
-	let hasMore = true;
-	let paginationCounter = 0;
 	let refreshCounter = 0;
-	let itemsBeforePagination = 0;
-	let paginationTimeout: ReturnType<typeof setTimeout> | undefined;
 	let refreshTimeout: ReturnType<typeof setTimeout> | undefined;
-	let prevPaginationSubId: string | undefined = undefined;
-
-	// When root sub changes, set it as the pagination parent for first page
-	$: if (rootSubId) {
-		prevPaginationSubId = rootSubId;
-	}
 
 	// Viewport state from Feed
 	let start = 0;
@@ -101,7 +91,6 @@
 	$: effectiveKinds = feedKindsValue.length > 0 ? feedKindsValue : (ALL_FEED_KINDS as FeedKind[]);
 	let tags: string[] = [];
 	let kind3Resolved = false;
-	let feedMessageCount = 0;
 
 	kind3Ready.promise.then(() => {
 		kind3Resolved = true;
@@ -169,7 +158,6 @@
 			resetFeed();
 			hadFeedRequest = false;
 			connectionStatus = {};
-			connectionTracker = new ConnectionTracker();
 		}
 	}
 
@@ -198,7 +186,6 @@
 	$: if (feedRelayKey !== lastConnectionRelayKey) {
 		lastConnectionRelayKey = feedRelayKey;
 		connectionStatus = {};
-		connectionTracker = new ConnectionTracker();
 	}
 
 	let eventSub: (() => void) | undefined;
@@ -325,7 +312,6 @@
 			...(authors?.length ? { authors } : {}),
 			limit: $limit,
 			since: forPagination ? undefined : ago(31 * 24 * 60 * 60),
-			until: forPagination ? until : undefined,
 			noCache: true,
 			tags: tags.length ? { '#t': tags } : undefined,
 			relays: feedRelays
@@ -343,42 +329,27 @@
 	}
 
 	// Handle incoming events from subscription
-	function handleEvents(message: WorkerMessage) {
-		feedMessageCount += 1;
-
-		// Handle connection status (including EOSE detection via resolutionRate)
+	function handleEvents(message: WorkerMessage): number | undefined {
 		const status = asConnectionStatus(message);
-		if (status && connectionTracker) {
+		if (status) {
 			const relayUrl = status.relayUrl();
 			if (relayUrl) {
-				// Normalize URL to match normalizedRelays keys
 				const normalizedUrl = normalizeURL(relayUrl);
-				// Create new object for reactivity
 				connectionStatus = { ...connectionStatus, [normalizedUrl]: status };
-				connectionTracker.handleMessage(message);
-				// When >50% of relays have reached EOSE, mark loading as done
-				if (connectionTracker.resolutionRate > 0.5) {
-					loading = false;
-					refreshing = false;
-					if (refreshTimeout) {
-						clearTimeout(refreshTimeout);
-						refreshTimeout = undefined;
-					}
-				}
 			}
-			return;
+			return undefined;
 		}
 
 		// Handle parsed events
 		const parsedEvent = asParsedEvent(message);
 		if (!parsedEvent) {
-			return;
+			return undefined;
 		}
 		const kind = parsedEvent.kind();
 
 		// Filter by kind based on feedKinds selection
 		if (!shouldIncludeKind(kind)) {
-			return;
+			return undefined;
 		}
 
 		// if (kind !== 1 && kind !== 6) return;
@@ -392,14 +363,14 @@
 				// CASE 1: Has reply but no root = reply to something (could be nested)
 				// Filter it out since we can't verify it's a direct reply to root
 				if (reply && !root) {
-					return;
+					return undefined;
 				}
 
 				// CASE 2: Has both reply and root
 				if (reply && root) {
 					// If reply ID != root ID, it's a reply to a reply (nested) - skip it
 					if (reply !== root) {
-						return;
+						return undefined;
 					}
 				}
 				// CASE 3: No reply tag = root post (allow it)
@@ -408,7 +379,7 @@
 			if (kind == 6) {
 				const kind6 = asKind6(parsedEvent);
 				if (!kind6?.repostedEvent()) {
-					return;
+					return undefined;
 				}
 			}
 		} else if (kind === 20) {
@@ -419,19 +390,19 @@
 				const images = fbArray(kind20, 'images');
 				// If any image has no dim, skip this note
 				if (images.some((img) => !img.dim())) {
-					return;
+					return undefined;
 				}
 			}
 		}
 
 		const eventId = parsedEvent.id();
 		if (!eventId) {
-			return;
+			return undefined;
 		}
 
 		// Check Set first (O(1)) for duplicate detection
 		if (seenEventIds.has(eventId)) {
-			return;
+			return undefined;
 		}
 		seenEventIds.add(eventId);
 
@@ -450,47 +421,28 @@
 				lastSeenTopItem = feedItems[0]?.createdAt();
 				newPostsCount = 0;
 			}
+			return parsedEvent.createdAt();
 		}
+		return undefined;
 	}
 
 	// Reset feed state
 	function resetFeed() {
 		feedItems = [];
 		seenEventIds.clear();
-		until = undefined;
-		hasMore = true;
-		paginationCounter = 0;
 		loading = false;
 		refreshing = false;
 		newPostsCount = 0;
-		itemsBeforePagination = 0;
-		rootSubId = undefined;
-		prevPaginationSubId = undefined;
-		if (paginationTimeout) {
-			clearTimeout(paginationTimeout);
-			paginationTimeout = undefined;
-		}
-		if (paginationCheckTimeout) {
-			clearTimeout(paginationCheckTimeout);
-			paginationCheckTimeout = undefined;
-		}
 		if (refreshTimeout) {
 			clearTimeout(refreshTimeout);
 			refreshTimeout = undefined;
 		}
-		if (initTimeout) {
-			clearTimeout(initTimeout);
-			initTimeout = undefined;
-		}
-		unsubscribePagination?.();
-		unsubscribePagination = undefined;
+		feedSubscription?.close();
+		feedSubscription = undefined;
 	}
 
 	// Initialize or update subscription when dependencies change
-	let unsubscribe: (() => void) | undefined;
-	let unsubscribePagination: (() => void) | undefined;
-	let rootSubId: string | undefined = undefined;
-	let initTimeout: ReturnType<typeof setTimeout> | undefined;
+	let feedSubscription: PaginatedSubscription | undefined;
 	let subscribedRelayKey: string | undefined;
 
 	$: relayKey = `${feedRelays.length}_${hashString(feedRelayKey)}`;
@@ -502,19 +454,19 @@
 
 		return {
 			subId: `${subId}_${relayKey}_${refreshCounter}`,
-			requests
+			requests,
+			pageRequests: buildRequests(true)
 		};
 	})();
 
 	$: if (!feedRequest) {
-		if (unsubscribe) {
-			unsubscribe();
+		if (feedSubscription) {
+			feedSubscription.close();
 			if (subscribedRelayKey !== relayKey) {
 				getManager().cleanup();
 			}
-			unsubscribe = undefined;
+			feedSubscription = undefined;
 		}
-		rootSubId = undefined;
 		lastSubId = undefined;
 		hadFeedRequest = false;
 		loading = false;
@@ -527,29 +479,41 @@
 		}
 
 		const relaySetChanged = subscribedRelayKey !== undefined && subscribedRelayKey !== relayKey;
-		if (unsubscribe) {
-			unsubscribe();
+		if (feedSubscription) {
+			feedSubscription.close();
 			if (relaySetChanged) {
 				getManager().cleanup();
 			}
 		}
-		unsubscribe = undefined;
-		rootSubId = feedRequest.subId;
+		feedSubscription = undefined;
 		lastSubId = feedRequest.subId;
-		connectionTracker = new ConnectionTracker();
-		loading = feedItems.length === 0;
-		feedMessageCount = 0;
-		unsubscribe = useSubscription(feedRequest.subId, feedRequest.requests, handleEvents, {
-			bytesPerEvent: 10 * 1024,
-			pipeline: $defaultPipeline.for(feedRequest.subId)
+		feedSubscription = createPaginatedSubscription({
+			subId: feedRequest.subId,
+			requests: feedRequest.requests,
+			pageRequests: feedRequest.pageRequests,
+			windowSeconds: FEED_PAGE_WINDOW_SECONDS,
+			maxEmptyPages: 3,
+			rootTimeoutMs: 1500,
+			initialLoading: feedItems.length === 0,
+			onMessage: handleEvents,
+			onStateChange: (state) => {
+				loading = state.loading;
+				if (!state.loading) {
+					refreshing = false;
+					if (refreshTimeout) {
+						clearTimeout(refreshTimeout);
+						refreshTimeout = undefined;
+					}
+				}
+			},
+			options: (subId) => ({
+				bytesPerEvent: 10 * 1024,
+				pipeline: $defaultPipeline.for(subId)
+			})
 		});
+		feedSubscription.start();
 		subscribedRelayKey = relayKey;
 		setSubRelays(relaySelectionSubId, feedRelays);
-
-		if (initTimeout) clearTimeout(initTimeout);
-		initTimeout = setTimeout(() => {
-			loading = false;
-		}, 1500);
 	}
 
 	$: if (visible && feedRelays.length && feedRelayKey !== lastEventRelayKey) {
@@ -562,10 +526,8 @@
 
 	// Stop active subscriptions when becoming invisible
 	$: if (!visible) {
-		unsubscribe?.();
-		unsubscribe = undefined;
-		unsubscribePagination?.();
-		unsubscribePagination = undefined;
+		feedSubscription?.close();
+		feedSubscription = undefined;
 		eventSub?.();
 		eventSub = undefined;
 		rsvpSubs.forEach((unsubscribe) => unsubscribe());
@@ -579,25 +541,17 @@
 	// Cleanup on component destroy
 	onDestroy(() => {
 		relaySubUnsubscribe?.();
-		unsubscribe?.();
-		unsubscribePagination?.();
+		feedSubscription?.close();
 		eventSub?.();
 		rsvpSubs.forEach((unsubscribe) => unsubscribe());
-		if (paginationTimeout) clearTimeout(paginationTimeout);
-		if (paginationCheckTimeout) clearTimeout(paginationCheckTimeout);
 		if (refreshTimeout) clearTimeout(refreshTimeout);
-		if (initTimeout) clearTimeout(initTimeout);
 	});
 
 	// Handle pull-to-refresh - keep existing feed items, just show loader and fetch new
 	function handleRefresh() {
 		if (refreshing) return;
 		refreshing = true;
-		// Reset connection tracker for fresh EOSE detection
-		connectionTracker = new ConnectionTracker();
 		// Don't clear feedItems or seenEventIds - keep existing content visible
-		// Reset until to fetch latest posts
-		until = undefined;
 		// Force a fresh subscription while keeping automatic relay switches stable.
 		refreshCounter++;
 		// Clear any existing refresh timeout
@@ -612,67 +566,10 @@
 		}, 10000);
 	}
 
-	// Handle near-bottom pagination with quantile-based window calculation
+	// Handle near-bottom pagination
 	function handleNearBottom(event: { distance: number }) {
-		// Only require at least 1 item to use as cursor, not full $limit
-		if (loading || !hasMore || feedItems.length === 0) return;
-
-		loading = true;
-		itemsBeforePagination = feedItems.length;
-		paginationCounter++;
-
-		// Quantile-based pagination: use the createdAt of the last item as until
-		const lastItem = feedItems[feedItems.length - 1];
-		if (lastItem) {
-			until = lastItem.createdAt() - 1;
-		}
-
-		const requests = buildRequests(true);
-		if (requests.length > 0) {
-			// Clean up previous pagination subscription if any
-			unsubscribePagination?.();
-			const pageSubId = subId + '_' + relayKey + '_page_' + paginationCounter + '_' + until;
-			unsubscribePagination = useSubscription(pageSubId, requests, handleEvents, {
-				bytesPerEvent: 10 * 1024,
-				pipeline: $defaultPipeline.for(pageSubId),
-				pagination: prevPaginationSubId
-			});
-			// Track this subId for next pagination
-			prevPaginationSubId = pageSubId;
-			// Fallback: clear loading after timeout if EOSE isn't received
-			paginationTimeout = setTimeout(() => {
-				loading = false;
-			}, 10000);
-		} else {
-			loading = false;
-			hasMore = false;
-		}
-	}
-
-	// Track when pagination completes and check if new items were added
-	let paginationCheckTimeout: ReturnType<typeof setTimeout> | undefined;
-	$: if (!loading && itemsBeforePagination > 0) {
-		const itemsAtCheck = itemsBeforePagination;
-
-		// Clear the EOSE timeout if it hasn't fired yet
-		if (paginationTimeout) {
-			clearTimeout(paginationTimeout);
-			paginationTimeout = undefined;
-		}
-
-		// Delay the check to allow late events to arrive via subscription
-		paginationCheckTimeout = setTimeout(() => {
-			const newItemsAdded = feedItems.length - itemsAtCheck;
-			if (newItemsAdded === 0) {
-				hasMore = false;
-			}
-			itemsBeforePagination = 0;
-			// Clean up pagination subscription after a delay to allow late events
-			setTimeout(() => {
-				unsubscribePagination?.();
-				unsubscribePagination = undefined;
-			}, 5000);
-		}, 500); // Wait 500ms for late events to arrive
+		if (loading || feedItems.length === 0) return;
+		feedSubscription?.loadMore();
 	}
 
 	// Merge pending new items when user clicks the new posts indicator
@@ -690,14 +587,12 @@
 		resetFeed();
 		hadFeedRequest = false;
 		connectionStatus = {};
-		connectionTracker = new ConnectionTracker();
 	}
 
 	function selectExploreKindTab(event: CustomEvent<{ kinds: FeedKind[] }>) {
 		$feedKinds = event.detail.kinds;
 		resetFeed();
 		connectionStatus = {};
-		connectionTracker = new ConnectionTracker();
 		hadFeedRequest = false;
 	}
 

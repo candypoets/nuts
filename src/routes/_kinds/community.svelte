@@ -7,7 +7,12 @@
 		type ParsedEvent,
 		type WorkerMessage
 	} from '@candypoets/nipworker';
-	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
+	import {
+		createPaginatedSubscription,
+		type PaginatedSubscription,
+		usePublish,
+		useSubscription
+	} from '@candypoets/nipworker/hooks';
 	import {
 		asConnectionStatus,
 		asKind1,
@@ -24,6 +29,7 @@
 	import KindSwitcher from 'src/components/KindSwitcher.svelte';
 	import { key } from 'src/controller';
 	import { ALL_FEED_KINDS, type FeedKind } from 'src/controller/feed';
+	import { FEED_PAGE_WINDOW_SECONDS } from 'src/controller/pagination';
 	import { kind10012, relayRoleSets } from 'src/controller/nostr';
 	import { fetchRelayInfo, relayInfos, setSubRelays } from 'src/controller/relay';
 	import {
@@ -60,21 +66,14 @@
 	let loading = false;
 	let emptyTimedOut = false;
 	let connectionStatus: Record<string, ConnectionStatus> = {};
-	let sub: (() => void) | undefined;
-	let paginationSub: (() => void) | undefined;
+	let feedSubscription: PaginatedSubscription | undefined;
 	let eventSub: (() => void) | undefined;
 	let rsvpSubs: (() => void)[] = [];
-	let emptyTimeout: ReturnType<typeof setTimeout> | undefined;
-	let paginationTimeout: ReturnType<typeof setTimeout> | undefined;
-	let paginationCheckTimeout: ReturnType<typeof setTimeout> | undefined;
 	let lastSubId = '';
 	let lastEventSubId = '';
 	let lastRsvpKey = '';
 	let upcomingEvents: CalendarEventCard[] = [];
 	let rsvpCountsByAddress: Record<string, number> = {};
-	let until: number | undefined;
-	let hasMore = true;
-	let itemsBeforePagination = 0;
 	let followIntent: boolean | undefined;
 	let publishUnsubscribers: Array<() => void> = [];
 	let publishStatus = '';
@@ -262,19 +261,8 @@
 		items = [];
 		seenIds.clear();
 		emptyTimedOut = false;
-		hasMore = true;
-		until = undefined;
-		itemsBeforePagination = 0;
-		paginationSub?.();
-		paginationSub = undefined;
-		if (paginationTimeout) {
-			clearTimeout(paginationTimeout);
-			paginationTimeout = undefined;
-		}
-		if (paginationCheckTimeout) {
-			clearTimeout(paginationCheckTimeout);
-			paginationCheckTimeout = undefined;
-		}
+		feedSubscription?.close();
+		feedSubscription = undefined;
 	}
 
 	function selectKinds(event: CustomEvent<{ kinds: FeedKind[] }>) {
@@ -283,28 +271,24 @@
 		lastSubId = '';
 	}
 
-	function handleMessage(message: WorkerMessage) {
+	function handleMessage(message: WorkerMessage): number | undefined {
 		const status = asConnectionStatus(message);
 		if (status) {
 			const relayUrl = status.relayUrl();
 			if (relayUrl) {
 				connectionStatus = { ...connectionStatus, [normalizeURL(relayUrl)]: status };
 			}
-			if (status.status()?.toString() === 'EOSE') {
-				loading = false;
-				if (!items.length) emptyTimedOut = true;
-			}
-			return;
+			return undefined;
 		}
 
 		const event = asParsedEvent(message);
-		if (!event || !shouldShowCommunityPost(event)) return;
+		if (!event || !shouldShowCommunityPost(event)) return undefined;
 
 		const id = event.id();
-		if (!id || seenIds.has(id)) return;
+		if (!id || seenIds.has(id)) return undefined;
 		seenIds.add(id);
 		items = [...items, event].sort((left, right) => right.createdAt() - left.createdAt());
-		loading = false;
+		return event.createdAt();
 	}
 
 	function handleEventMessage(events: Map<string, CalendarEventCard>, message: WorkerMessage) {
@@ -439,24 +423,15 @@
 	function subscribe() {
 		if (!visible || !normalizedRelay || subId === lastSubId) return;
 
-		sub?.();
+		feedSubscription?.close();
 		lastSubId = subId;
-		loading = true;
 		emptyTimedOut = false;
 		setSubRelays(subId, [normalizedRelay]);
 		void fetchRelayInfo(normalizedRelay);
 
-		if (emptyTimeout) clearTimeout(emptyTimeout);
-		emptyTimeout = setTimeout(() => {
-			if (!items.length) {
-				loading = false;
-				emptyTimedOut = true;
-			}
-		}, 2400);
-
-		sub = useSubscription(
+		feedSubscription = createPaginatedSubscription({
 			subId,
-			[
+			requests: [
 				{
 					kinds: requestKinds,
 					limit: 50,
@@ -464,62 +439,22 @@
 					relays: [normalizedRelay]
 				}
 			],
-			handleMessage,
-			{ bytesPerEvent: 10 * 1024 }
-		);
+			windowSeconds: FEED_PAGE_WINDOW_SECONDS,
+			maxEmptyPages: 3,
+			rootTimeoutMs: 2400,
+			onMessage: handleMessage,
+			onStateChange: (state) => {
+				loading = state.loading;
+				if (!state.loading && !items.length) emptyTimedOut = true;
+			},
+			options: { bytesPerEvent: 10 * 1024 }
+		});
+		feedSubscription.start();
 	}
 
 	function handleNearBottom() {
-		if (loading || !hasMore || !items.length) return;
-
-		const lastItem = items[items.length - 1];
-		if (!lastItem) return;
-
-		until = lastItem.createdAt() - 1;
-		itemsBeforePagination = items.length;
-		loading = true;
-
-		const pageSubId = `${subId}_page_${until}`;
-		paginationSub?.();
-		paginationSub = useSubscription(
-			pageSubId,
-			[
-				{
-					kinds: requestKinds,
-					limit: 50,
-					until,
-					noCache: true,
-					relays: [normalizedRelay]
-				}
-			],
-			handleMessage,
-			{ bytesPerEvent: 10 * 1024 }
-		);
-
-		if (paginationTimeout) clearTimeout(paginationTimeout);
-		paginationTimeout = setTimeout(() => {
-			loading = false;
-		}, 10000);
-	}
-
-	$: if (!loading && itemsBeforePagination > 0) {
-		const itemsAtCheck = itemsBeforePagination;
-		if (paginationTimeout) {
-			clearTimeout(paginationTimeout);
-			paginationTimeout = undefined;
-		}
-
-		if (paginationCheckTimeout) clearTimeout(paginationCheckTimeout);
-		paginationCheckTimeout = setTimeout(() => {
-			if (items.length - itemsAtCheck === 0) {
-				hasMore = false;
-			}
-			itemsBeforePagination = 0;
-			setTimeout(() => {
-				paginationSub?.();
-				paginationSub = undefined;
-			}, 5000);
-		}, 500);
+		if (loading || !items.length) return;
+		feedSubscription?.loadMore();
 	}
 
 	onMount(() => {
@@ -546,15 +481,11 @@
 	}
 
 	onDestroy(() => {
-		sub?.();
-		paginationSub?.();
+		feedSubscription?.close();
 		eventSub?.();
 		profileSub?.();
 		rsvpSubs.forEach((unsubscribe) => unsubscribe());
 		publishUnsubscribers.forEach((unsubscribe) => unsubscribe());
-		if (emptyTimeout) clearTimeout(emptyTimeout);
-		if (paginationTimeout) clearTimeout(paginationTimeout);
-		if (paginationCheckTimeout) clearTimeout(paginationCheckTimeout);
 	});
 </script>
 

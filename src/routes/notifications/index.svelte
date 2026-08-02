@@ -7,13 +7,12 @@
 		type RequestObject,
 		type WorkerMessage
 	} from '@candypoets/nipworker';
-	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import {
-		asParsedEvent,
-		asConnectionStatus,
-		ConnectionTracker,
-		isParsedEvent
-	} from '@candypoets/nipworker/utils';
+		createPaginatedSubscription,
+		type PaginatedSubscription,
+		useSubscription
+	} from '@candypoets/nipworker/hooks';
+	import { asParsedEvent, asConnectionStatus, isParsedEvent } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { normalizeURL } from 'nostr-tools/utils';
 	import {
@@ -23,6 +22,7 @@
 		readRelays,
 		relayDirectoryUrls
 	} from 'src/controller';
+	import { FEED_PAGE_WINDOW_SECONDS } from 'src/controller/pagination';
 	import {
 		fetchCommunityAccess,
 		fetchCommunityTrust,
@@ -61,8 +61,7 @@
 	let seenEventIds = new Set<string>();
 
 	// Subscription cleanup function
-	let unsubscribe: (() => void) | undefined;
-	let connectionTracker: ConnectionTracker | undefined;
+	let feedSubscription: PaginatedSubscription | undefined;
 	let badgeUnsubscribe: (() => void) | undefined;
 	let badgeInitialized = false;
 	let lastBadgeRelayKey = '';
@@ -74,18 +73,8 @@
 	let badgeAwardRelays = new Map<string, string[]>();
 
 	// Pagination state
-	let until: number | undefined = undefined;
 	let hasMore = true;
-	let paginationCounter = 0;
-	let paginationTimeout: ReturnType<typeof setTimeout> | undefined;
-	let initialTimeout: ReturnType<typeof setTimeout> | undefined;
-	let prevPaginationSubId: string | undefined = undefined;
 	let lastRelayKey = '';
-	// Pagination subscriptions get their own cleanup/tracker so EOSE accounting
-	// is never mixed with the main subscription
-	let paginationUnsubscribe: (() => void) | undefined;
-	let paginationTracker: ConnectionTracker | undefined;
-	let seenCountBeforePagination = 0;
 	// Auto-backfill state: grouped pages can be too short to scroll, which would
 	// otherwise prevent onNearBottom from ever firing
 	let shortBackfillCount = 0;
@@ -105,7 +94,7 @@
 	$: badgeRelayKey = badgeRelays.join('|');
 
 	// Build subscription requests
-	function buildRequests(isPagination = false): RequestObject[] {
+	function buildRequests(): RequestObject[] {
 		if (!$key?.pub) {
 			return [];
 		}
@@ -118,9 +107,6 @@
 			relays: notificationRelays,
 			noCache: true
 		};
-		if (isPagination && until) {
-			req.until = until;
-		}
 		return [req];
 	}
 
@@ -128,65 +114,34 @@
 		void goto(resolve('/settings' as any));
 	}
 
-	function addEvent(parsedEvent: ParsedEvent) {
+	function addEvent(parsedEvent: ParsedEvent): number | undefined {
 		// Filter out events authored by the logged-in user
 		const author = parsedEvent.pubkey();
-		if (author === $key?.pub) return;
+		if (author === $key?.pub) return undefined;
 
 		const kind = parsedEvent.kind();
-		if (![1, 6, 7].includes(kind)) return;
+		if (![1, 6, 7].includes(kind)) return undefined;
 
 		const eventId = parsedEvent.id();
-		if (!eventId) return;
+		if (!eventId) return undefined;
 
 		// Check Set first (O(1)) for duplicate detection
-		if (seenEventIds.has(eventId)) return;
+		if (seenEventIds.has(eventId)) return undefined;
 		seenEventIds.add(eventId);
 
 		rawEvents = [...rawEvents, parsedEvent];
+		return parsedEvent.createdAt();
 	}
 
 	// Handle incoming events from the main subscription
-	function handleEvents(message: WorkerMessage) {
-		// Handle connection status (including EOSE detection via resolutionRate)
+	function handleEvents(message: WorkerMessage): number | undefined {
 		const status = asConnectionStatus(message);
-		if (status && connectionTracker) {
-			const relayUrl = status.relayUrl();
-			if (relayUrl) {
-				connectionTracker.handleMessage(message);
-				// When >50% of relays have reached EOSE, mark loading as done
-				if (connectionTracker.resolutionRate > 0.5) {
-					clearInitialTimeout();
-					loading = false;
-				}
-			}
-			return;
+		if (status) {
+			return undefined;
 		}
 
 		const parsedEvent = asParsedEvent(message);
-		if (parsedEvent) addEvent(parsedEvent);
-	}
-
-	// Handle incoming events from pagination subscriptions.
-	// Uses its own tracker so main-sub status messages can't flip loading prematurely.
-	function handlePaginationEvents(message: WorkerMessage) {
-		const status = asConnectionStatus(message);
-		if (status && paginationTracker) {
-			const relayUrl = status.relayUrl();
-			if (relayUrl) {
-				paginationTracker.handleMessage(message);
-				if (paginationTracker.resolutionRate > 0.5) {
-					clearPaginationTimeout();
-					// The page is exhausted when EOSE arrived without any new events
-					hasMore = seenEventIds.size > seenCountBeforePagination;
-					loading = false;
-				}
-			}
-			return;
-		}
-
-		const parsedEvent = asParsedEvent(message);
-		if (parsedEvent) addEvent(parsedEvent);
+		return parsedEvent ? addEvent(parsedEvent) : undefined;
 	}
 
 	// Process raw events into grouped notifications
@@ -377,90 +332,39 @@
 		);
 	}
 
-	function clearPaginationTimeout() {
-		if (paginationTimeout) {
-			clearTimeout(paginationTimeout);
-			paginationTimeout = undefined;
-		}
-	}
-
-	function clearInitialTimeout() {
-		if (initialTimeout) {
-			clearTimeout(initialTimeout);
-			initialTimeout = undefined;
-		}
-	}
-
 	// Initialize subscription
 	let hasInitialized = false;
 
-	function initSubscription(isPagination = false) {
+	function initSubscription() {
 		if (!visible || !$key?.pub || !notificationRelays.length) return;
-		if (!isPagination && hasInitialized) return;
+		if (hasInitialized) return;
 
-		if (!isPagination) {
-			// Clear previous state BEFORE marking initialized
-			// This prevents race conditions with synchronous cached events
-			rawEvents = [];
-			seenEventIds.clear();
-			hasInitialized = true;
-			lastRelayKey = notificationRelayKey;
-			// Reset pagination state so a fresh sub can't inherit a dead cursor
-			hasMore = true;
-			until = undefined;
-			paginationCounter = 0;
-			prevPaginationSubId = undefined;
-			seenCountBeforePagination = 0;
-			shortBackfillCount = 0;
-			unsubscribe?.();
-			paginationUnsubscribe?.();
-			paginationUnsubscribe = undefined;
-			paginationTracker = undefined;
-			clearPaginationTimeout();
-			clearInitialTimeout();
-			connectionTracker = new ConnectionTracker();
-		} else {
-			paginationTracker = new ConnectionTracker();
-		}
-		loading = true;
-		const requests = buildRequests(isPagination);
-		if (requests.length > 0) {
-			const subscriptionKey = 'notifications_' + $key.pub + '_' + notificationRelayKey;
-			const subId = isPagination
-				? subscriptionKey + '_page_' + paginationCounter + '_' + until
-				: subscriptionKey;
-			const unsub = useSubscription(
-				subId,
-				requests,
-				isPagination ? handlePaginationEvents : handleEvents,
-				{
-					bytesPerEvent: 10 * 1024,
-					pipeline: $defaultPipeline.for(subId),
-					pagination: isPagination ? prevPaginationSubId : undefined
-				}
-			);
-			if (isPagination) {
-				// Close the previous page sub; only one pagination sub stays live
-				paginationUnsubscribe?.();
-				paginationUnsubscribe = unsub;
-				// Track this subId for next pagination
-				prevPaginationSubId = subId;
-				// Fallback: resolve the page if EOSE never arrives
-				clearPaginationTimeout();
-				paginationTimeout = setTimeout(() => {
-					paginationTimeout = undefined;
-					hasMore = seenEventIds.size > seenCountBeforePagination;
-					loading = false;
-				}, PAGINATION_TIMEOUT_MS);
-			} else {
-				unsubscribe = unsub;
-				// Fallback: don't spin forever if relays never reach EOSE
-				initialTimeout = setTimeout(() => {
-					initialTimeout = undefined;
-					loading = false;
-				}, EOSE_FALLBACK_TIMEOUT_MS);
-			}
-		}
+		rawEvents = [];
+		seenEventIds.clear();
+		hasInitialized = true;
+		lastRelayKey = notificationRelayKey;
+		hasMore = true;
+		shortBackfillCount = 0;
+		feedSubscription?.close();
+		const subId = 'notifications_' + $key.pub + '_' + notificationRelayKey;
+		feedSubscription = createPaginatedSubscription({
+			subId,
+			requests: buildRequests(),
+			windowSeconds: FEED_PAGE_WINDOW_SECONDS,
+			maxEmptyPages: 3,
+			rootTimeoutMs: EOSE_FALLBACK_TIMEOUT_MS,
+			pageTimeoutMs: PAGINATION_TIMEOUT_MS,
+			onMessage: handleEvents,
+			onStateChange: (state) => {
+				loading = state.loading;
+				hasMore = state.hasMore;
+			},
+			options: (subscriptionId) => ({
+				bytesPerEvent: 10 * 1024,
+				pipeline: $defaultPipeline.for(subscriptionId)
+			})
+		});
+		feedSubscription.start();
 	}
 
 	$: if (visible && $key?.pub && notificationRelays.length && !hasInitialized) {
@@ -472,11 +376,9 @@
 	}
 
 	$: if (visible && $key?.pub && hasInitialized && notificationRelayKey !== lastRelayKey) {
-		unsubscribe?.();
-		unsubscribe = undefined;
-		connectionTracker = undefined;
+		feedSubscription?.close();
+		feedSubscription = undefined;
 		hasInitialized = false;
-		prevPaginationSubId = undefined;
 		rawEvents = [];
 		seenEventIds.clear();
 		initSubscription();
@@ -489,14 +391,8 @@
 
 	// Cleanup subscription when not visible
 	$: if (!visible) {
-		unsubscribe?.();
-		unsubscribe = undefined;
-		connectionTracker = undefined;
-		paginationUnsubscribe?.();
-		paginationUnsubscribe = undefined;
-		paginationTracker = undefined;
-		clearPaginationTimeout();
-		clearInitialTimeout();
+		feedSubscription?.close();
+		feedSubscription = undefined;
 		hasInitialized = false;
 		resetBadgeSubscription();
 	}
@@ -505,19 +401,14 @@
 		$lastNotificationView = Date.now();
 		window.scrollTo(0, 0);
 		return () => {
-			unsubscribe?.();
-			paginationUnsubscribe?.();
+			feedSubscription?.close();
 			badgeUnsubscribe?.();
 		};
 	});
 
 	onDestroy(() => {
-		unsubscribe?.();
-		paginationUnsubscribe?.();
+		feedSubscription?.close();
 		badgeUnsubscribe?.();
-		clearPaginationTimeout();
-		clearInitialTimeout();
-		prevPaginationSubId = undefined;
 	});
 
 	// Load the next page of notifications.
@@ -526,23 +417,7 @@
 		if (loading || !hasMore || rawEvents.length === 0) return;
 
 		if (isAutoBackfill) shortBackfillCount += 1;
-		loading = true;
-		paginationCounter++;
-		seenCountBeforePagination = seenEventIds.size;
-
-		// Use the createdAt of an item ~5 positions back as until (with overlap buffer).
-		// Sort first: rawEvents is in arrival order (cache/relays interleave), not
-		// chronological, so an unsorted cursor can skip or repeat pages.
-		const sorted = [...rawEvents].sort((left, right) => right.createdAt() - left.createdAt());
-		const cursorIndex = sorted.length > 6 ? sorted.length - 6 : sorted.length - 1;
-		const cursorItem = sorted[cursorIndex];
-		if (!cursorItem) {
-			loading = false;
-			return;
-		}
-		until = cursorItem.createdAt() - 1;
-
-		initSubscription(true);
+		feedSubscription?.loadMore();
 	}
 
 	// Handle near-bottom pagination
