@@ -55,7 +55,6 @@
 		type CatalogAvailability,
 		type CatalogDefinitionInput,
 		type CatalogDefinitionType,
-		type MembershipBilling,
 		type ProductKind,
 		isStoreCatalogDefinition,
 		sellableCatalogSubscriptionId,
@@ -63,7 +62,6 @@
 	} from 'src/lib/catalog';
 	import { COMMUNITY_PROFILE_D, COMMUNITY_PROFILE_KIND } from 'src/lib/communityProfile';
 	import { isCommunityType, storePresetFor, type CommunityType } from 'src/lib/communityTypes';
-	import { makeInviteAuthorization } from 'src/lib/invites';
 	import { now } from 'src/lib/period';
 	import { uploadFile } from 'src/lib/upload';
 	import { onDestroy } from 'svelte';
@@ -92,9 +90,6 @@
 	let publishError = '';
 	let itemPublishStates = new Map<string, ItemPublishState>();
 	let publishAttempt = 0;
-	let connectedStripeAccountId = '';
-	let paymentStatusLoading = false;
-	let paymentStatusError = '';
 	let unsubscribeCatalog: (() => void) | undefined;
 	let unsubscribeProfile: (() => void) | undefined;
 	let publishUnsubscribers: Array<() => void> = [];
@@ -116,8 +111,6 @@
 	let formSection = '';
 	let formPosition = 0;
 	let formAvailability: CatalogAvailability = 'available';
-	let formBilling: MembershipBilling = 'one_time';
-	let formStripeAccountId = '';
 	let formMaxUses = '';
 	let editorError = '';
 	let imageUploading = false;
@@ -183,15 +176,6 @@
 			(Number.isSafeInteger(Number(formMaxUses)) && Number(formMaxUses) > 0)) &&
 		!imageUploading &&
 		!publishing;
-	$: if (
-		editorOpen &&
-		!editorEvent &&
-		formType === 'membership' &&
-		!formStripeAccountId &&
-		connectedStripeAccountId
-	) {
-		formStripeAccountId = connectedStripeAccountId;
-	}
 
 	function subscribeStore() {
 		unsubscribeCatalog?.();
@@ -209,15 +193,11 @@
 		profileCreatedAt = 0;
 		loading = Boolean(relayUrl);
 		publishError = '';
-		connectedStripeAccountId = '';
-		paymentStatusError = '';
 		closeEditor();
 		if (!relayUrl) {
 			loading = false;
-			paymentStatusLoading = false;
 			return;
 		}
-		void checkPaymentProvider(relayUrl);
 
 		const catalogRequests: RequestObject[] = [
 			{
@@ -269,51 +249,6 @@
 
 		const timeout = window.setTimeout(() => (loading = false), 1800);
 		publishTimeouts = [...publishTimeouts, timeout];
-	}
-
-	async function checkPaymentProvider(targetRelay: string) {
-		paymentStatusLoading = true;
-		paymentStatusError = '';
-		connectedStripeAccountId = '';
-		try {
-			const body = JSON.stringify({ action: 'status', community: targetRelay });
-			const url = new URL('/api/stripe/connect', window.location.origin).toString();
-			const authorization = await makeInviteAuthorization(url, body, $key?.pub);
-			const response = await fetch(url, {
-				method: 'POST',
-				headers: { 'content-type': 'application/json', authorization },
-				body
-			});
-			const value: unknown = await response.json();
-			if (relayUrl !== targetRelay) return;
-			const status =
-				value && typeof value === 'object'
-					? (value as {
-							connected?: unknown;
-							accountId?: unknown;
-							message?: unknown;
-							error?: unknown;
-						})
-					: {};
-			if (!response.ok) {
-				const message =
-					typeof status.message === 'string'
-						? status.message
-						: typeof status.error === 'string'
-							? status.error
-							: 'Could not check the payment connection.';
-				throw new Error(message);
-			}
-			if (status.connected === true && typeof status.accountId === 'string') {
-				connectedStripeAccountId = status.accountId;
-			}
-		} catch (error) {
-			if (relayUrl !== targetRelay) return;
-			paymentStatusError =
-				error instanceof Error ? error.message : 'Could not check the payment connection.';
-		} finally {
-			if (relayUrl === targetRelay) paymentStatusLoading = false;
-		}
 	}
 
 	function compareCatalogEvents(left: ParsedEvent, right: ParsedEvent) {
@@ -406,7 +341,7 @@
 		editorEvent = undefined;
 		formType =
 			type ||
-			(typeFilter === 'product' || typeFilter === 'membership' || typeFilter === 'pass'
+			(typeFilter === 'product' || typeFilter === 'pass'
 				? typeFilter
 				: preset.suggestedDefinitionTypes[0] || 'product');
 		formD = '';
@@ -421,8 +356,6 @@
 		formSection = preset.suggestedSections[0] || '';
 		formPosition = nextPosition(formSection);
 		formAvailability = 'available';
-		formBilling = formType === 'membership' ? 'monthly' : 'one_time';
-		formStripeAccountId = formType === 'membership' ? connectedStripeAccountId : '';
 		formMaxUses = '';
 		editorError = '';
 		imageUploadStatus = '';
@@ -435,7 +368,12 @@
 			return;
 		}
 		const type = catalogType(event);
-		if (type !== 'product' && type !== 'membership' && type !== 'pass') return;
+		// Memberships are community items, managed from Settings -> Memberships.
+		if (type === 'membership') {
+			publishError = 'Memberships are managed from Settings, not from the store.';
+			return;
+		}
+		if (type !== 'product' && type !== 'pass') return;
 		editorEvent = event;
 		formType = type;
 		formD = catalogD(event);
@@ -450,8 +388,6 @@
 		formSection = catalogSection(event);
 		formPosition = catalogPosition(event);
 		formAvailability = catalogAvailability(event) || 'available';
-		formBilling = catalogBilling(event) || 'one_time';
-		formStripeAccountId = catalogStripeAccountId(event) || connectedStripeAccountId;
 		formMaxUses = catalogMaxUses(event)?.toString() || '';
 		editorError = '';
 		imageUploadStatus = '';
@@ -547,14 +483,6 @@
 			position: formPosition,
 			availability: formAvailability
 		};
-		if (formType === 'membership') {
-			return {
-				...common,
-				type: 'membership',
-				billing: formBilling,
-				stripeAccountId: formStripeAccountId
-			};
-		}
 		if (formType === 'pass') {
 			return {
 				...common,
@@ -1286,13 +1214,7 @@
 							disabled={Boolean(editorEvent)}
 						>
 							{#each preset.suggestedDefinitionTypes as type (type)}
-								<option value={type}
-									>{type === 'product'
-										? 'Standard product'
-										: type === 'membership'
-											? 'Membership'
-											: 'Pass'}</option
-								>
+								<option value={type}>{type === 'product' ? 'Standard product' : 'Pass'}</option>
 							{/each}
 						</select>
 					</label>
@@ -1306,18 +1228,6 @@
 								{#each preset.suggestedProductKinds as kind (kind)}
 									<option value={kind}>{kind[0].toUpperCase() + kind.slice(1)}</option>
 								{/each}
-							</select>
-						</label>
-					{:else if formType === 'membership'}
-						<label class="grid gap-2">
-							<span class="text-sm font-black text-stone-700">Billing</span>
-							<select
-								class="h-12 rounded-xl border border-stone-200 bg-white px-3 font-bold"
-								bind:value={formBilling}
-							>
-								<option value="one_time">One time</option>
-								<option value="monthly">Monthly</option>
-								<option value="yearly">Yearly</option>
 							</select>
 						</label>
 					{:else}
@@ -1446,17 +1356,7 @@
 						</p>{/if}
 				</label>
 
-				{#if formType === 'membership' && !formStripeAccountId}
-					<p
-						class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold leading-6 text-amber-900"
-					>
-						{paymentStatusLoading
-							? 'Checking the community payment connection…'
-							: paymentStatusError
-								? 'The payment connection could not be verified. You can save this membership and retry from Settings.'
-								: 'You can prepare this membership now. Connect payments from Settings before selling it.'}
-					</p>
-				{:else if formType === 'pass'}
+				{#if formType === 'pass'}
 					<p
 						class="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold leading-6 text-sky-900"
 					>

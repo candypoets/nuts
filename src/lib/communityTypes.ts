@@ -434,7 +434,7 @@ export const STORE_PRESETS: Record<CommunityType, StorePreset> = {
 		itemsLabel: 'offers',
 		sectionLabel: 'category',
 		presentation: 'catalog',
-		suggestedDefinitionTypes: ['membership', 'pass', 'product'],
+		suggestedDefinitionTypes: ['pass', 'product'],
 		suggestedProductKinds: ['merchandise', 'generic'],
 		suggestedSections: ['Memberships', 'Passes', 'Merchandise']
 	},
@@ -445,7 +445,7 @@ export const STORE_PRESETS: Record<CommunityType, StorePreset> = {
 		itemsLabel: 'menu items',
 		sectionLabel: 'menu section',
 		presentation: 'menu',
-		suggestedDefinitionTypes: ['product', 'membership', 'pass'],
+		suggestedDefinitionTypes: ['product', 'pass'],
 		suggestedProductKinds: ['food', 'drink', 'merchandise', 'generic'],
 		suggestedSections: ['Starters', 'Mains', 'Sides', 'Desserts', 'Drinks']
 	},
@@ -456,7 +456,7 @@ export const STORE_PRESETS: Record<CommunityType, StorePreset> = {
 		itemsLabel: 'offers',
 		sectionLabel: 'category',
 		presentation: 'catalog',
-		suggestedDefinitionTypes: ['membership', 'pass', 'product'],
+		suggestedDefinitionTypes: ['pass', 'product'],
 		suggestedProductKinds: ['merchandise', 'generic'],
 		suggestedSections: ['Memberships', 'Admission', 'Merchandise']
 	},
@@ -467,7 +467,7 @@ export const STORE_PRESETS: Record<CommunityType, StorePreset> = {
 		itemsLabel: 'items',
 		sectionLabel: 'category',
 		presentation: 'catalog',
-		suggestedDefinitionTypes: ['product', 'membership', 'pass'],
+		suggestedDefinitionTypes: ['product', 'pass'],
 		suggestedProductKinds: ['generic', 'food', 'drink', 'merchandise'],
 		suggestedSections: ['Local goods', 'Food & drink', 'Workshops', 'Memberships']
 	},
@@ -478,7 +478,7 @@ export const STORE_PRESETS: Record<CommunityType, StorePreset> = {
 		itemsLabel: 'offers',
 		sectionLabel: 'category',
 		presentation: 'catalog',
-		suggestedDefinitionTypes: ['membership', 'pass', 'product'],
+		suggestedDefinitionTypes: ['pass', 'product'],
 		suggestedProductKinds: ['generic', 'merchandise'],
 		suggestedSections: ['Memberships', 'Workshops', 'Resources', 'Merchandise']
 	},
@@ -489,7 +489,7 @@ export const STORE_PRESETS: Record<CommunityType, StorePreset> = {
 		itemsLabel: 'items',
 		sectionLabel: 'category',
 		presentation: 'catalog',
-		suggestedDefinitionTypes: ['product', 'membership', 'pass'],
+		suggestedDefinitionTypes: ['product', 'pass'],
 		suggestedProductKinds: ['generic', 'merchandise', 'food', 'drink'],
 		suggestedSections: ['Products', 'Memberships', 'Passes']
 	}

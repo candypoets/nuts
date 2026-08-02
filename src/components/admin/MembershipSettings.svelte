@@ -215,42 +215,33 @@
 				tags: { '#t': [BADGE_DEFINITION_TYPE_TOPICS.membership] },
 				limit: 20,
 				relays: [relayUrl],
-				cacheFirst: true
+				// Dashboard-side reads must not resolve from a stale OPFS cache:
+				// a membership created, updated or deleted moments ago has to be
+				// reflected here without a reload.
+				noCache: true
 			},
 			{
 				kinds: [5],
 				limit: 20,
 				relays: [relayUrl],
-				cacheFirst: true
+				noCache: true
 			}
 		];
+		// nipworker sends each filter as its own REQ, so the relay answers with
+		// one EOSE per filter; stop loading once all arrived (timeout = backstop).
+		let eoseCount = 0;
 		unsubscribeDefinitions = useSubscription(
 			'admin_memberships_classified_v1_' + relayUrl,
 			requests,
 			(message: WorkerMessage) => {
 				const event = isParsedEvent(message);
 				if (!event) {
-					const status = isConnectionStatus(message);
-					const eose = isEoce(message);
-					console.info('[membership-subscription:admin] worker message', {
-						relay: status?.relayUrl()?.toString() || message.url()?.toString(),
-						status: status?.status()?.toString(),
-						statusMessage: status?.message()?.toString(),
-						eose: Boolean(eose),
-						subscriptionId: eose?.subscriptionId()?.toString(),
-						messageType: message.type(),
-						contentType: message.contentType()
-					});
+					if (isEoce(message)) {
+						eoseCount += 1;
+						if (eoseCount >= requests.length) loading = false;
+					}
 					return;
 				}
-				console.info('[membership-subscription:admin] parsed event', {
-					relay: message.url()?.toString(),
-					id: event.id()?.toString(),
-					kind: event.kind(),
-					pubkey: event.pubkey()?.toString(),
-					createdAt: Number(event.createdAt()),
-					acceptedAsMembership: Boolean(parseMembershipDefinition(event))
-				});
 				if (event.kind() === 5) {
 					applyMembershipDeletion(event);
 					return;
@@ -259,7 +250,7 @@
 			},
 			{ bytesPerEvent: 10 * 1024 }
 		);
-		window.setTimeout(() => (loading = false), 1600);
+		window.setTimeout(() => (loading = false), 6000);
 	}
 
 	function applyMembershipDeletion(event: ParsedEvent) {
@@ -329,77 +320,7 @@
 		showModal = false;
 	}
 
-	function createMembership() {
-		const pubkey = $key?.pub;
-		const d = membershipDFromName(name);
-		if (!canCreate || !relayUrl || !pubkey || !d) return;
-		const createdAt = now();
-		const cleanName = name.trim();
-		const cleanDescription = description.trim() || `Access included with ${cleanName}.`;
-		const cleanPrice = String(Number(price));
-		const event: EventTemplate = {
-			kind: 30009,
-			content: cleanDescription,
-			created_at: createdAt,
-			tags: [
-				...buildMembershipDefinitionTags({
-					d,
-					name: cleanName,
-					description: cleanDescription,
-					image,
-					price: cleanPrice,
-					currency,
-					billing,
-					stripeAccountId
-				}),
-				['r', relayUrl]
-			]
-		};
-		publishing = true;
-		unsubscribePublish?.();
-		console.info('[membership-publish] publishing membership definition', {
-			kind: event.kind,
-			d,
-			relays: [relayUrl]
-		});
-		unsubscribePublish = usePublish(
-			'admin_membership_' + relayUrl + '_' + d,
-			event,
-			(message: WorkerMessage) => {
-				const status = isConnectionStatus(message);
-				const statusRelay = status?.relayUrl()?.toString() || message.url()?.toString() || '';
-				console.info('[membership-publish] relay status', {
-					d,
-					relay: statusRelay || relayUrl,
-					status: status?.status()?.toString(),
-					message: status?.message()?.toString()
-				});
-				if (statusRelay && normalizeURL(statusRelay) !== relayUrl) {
-					console.error('[membership-publish] unexpected relay destination', {
-						expected: relayUrl,
-						actual: statusRelay
-					});
-				}
-				publishing = false;
-			},
-			{ trackStatus: true, defaultRelays: [relayUrl] }
-		);
-		memberships = [
-			...memberships,
-			{
-				address: `30009:${pubkey}:${d}`,
-				pubkey,
-				d,
-				name: cleanName,
-				description: cleanDescription,
-				image,
-				price: cleanPrice,
-				currency,
-				billing,
-				stripeAccountId,
-				createdAt
-			}
-		].sort((a, b) => a.name.localeCompare(b.name));
+	function resetForm() {
 		name = '';
 		description = '';
 		image = '';
@@ -410,8 +331,65 @@
 		price = '';
 		currency = 'EUR';
 		billing = 'monthly';
-		publishing = false;
-		showModal = false;
+	}
+
+	function createMembership() {
+		const pubkey = $key?.pub;
+		const d = membershipDFromName(name);
+		if (!canCreate || !relayUrl || !pubkey || !d) return;
+		const event: EventTemplate = {
+			kind: 30009,
+			content: description.trim() || `Access included with ${name.trim()}.`,
+			created_at: now(),
+			tags: [
+				...buildMembershipDefinitionTags({
+					d,
+					name: name.trim(),
+					description: description.trim() || `Access included with ${name.trim()}.`,
+					image,
+					price: String(Number(price)),
+					currency,
+					billing,
+					stripeAccountId
+				}),
+				['r', relayUrl]
+			]
+		};
+		publishing = true;
+		errorMessage = '';
+		unsubscribePublish?.();
+		// Settle only on the relay's verdict: the list updates through the open
+		// subscription once the event lands, so there is no optimistic insert.
+		const timeout = window.setTimeout(() => {
+			if (!publishing) return;
+			publishing = false;
+			errorMessage = 'The community relay did not confirm the membership. Please try again.';
+		}, 10000);
+		unsubscribePublish = usePublish(
+			'admin_membership_' + relayUrl + '_' + d,
+			event,
+			(message: WorkerMessage) => {
+				const status = isConnectionStatus(message);
+				const value = status?.status()?.toString();
+				if (value !== 'true' && value !== 'OK' && value !== 'false') return;
+				const statusRelay = status?.relayUrl()?.toString() || '';
+				if (statusRelay && normalizeURL(statusRelay) !== relayUrl) {
+					console.error('[membership-publish] unexpected relay destination', {
+						expected: relayUrl,
+						actual: statusRelay
+					});
+				}
+				window.clearTimeout(timeout);
+				publishing = false;
+				if (value === 'false') {
+					errorMessage = status?.message()?.toString() || 'The relay rejected this membership.';
+					return;
+				}
+				resetForm();
+				showModal = false;
+			},
+			{ trackStatus: true, defaultRelays: [relayUrl] }
+		);
 	}
 
 	onDestroy(() => {
