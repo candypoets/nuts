@@ -35,9 +35,11 @@
 		asKind6,
 		asKind20,
 		asParsedEvent,
+		createTimeWindowPager,
 		fbArray,
 		isConnectionStatus,
-		isKind0
+		isKind0,
+		type TimeWindowPager
 	} from '@candypoets/nipworker/utils';
 
 	import { isEqual } from 'lodash';
@@ -61,6 +63,7 @@
 
 	// Default relays as fallback
 	const DEFAULT_RELAYS = ['wss://relay.damus.io', 'wss://relay.snort.social', 'wss://nos.lol'];
+	const FEED_PAGE_WINDOW_SECONDS = 30 * 24 * 60 * 60;
 
 	// Get pubkey from URL parameter
 	export let pubkey: string;
@@ -95,6 +98,7 @@
 	let sub: (() => void) | undefined;
 	let contactSub: (() => void) | undefined;
 	let feedSub: (() => void) | undefined;
+	let paginationSub: (() => void) | undefined;
 
 	// Relay swapping
 	let relaySubUnsubscribe: (() => void) | undefined;
@@ -122,9 +126,10 @@
 	let followsSeenIds = new Set<string>();
 
 	// Pagination state
-	let until: number | undefined = undefined;
+	let feedPager: TimeWindowPager | undefined;
+	let paginationStarted = false;
 	let hasMore = true;
-	let itemsBeforePagination = 0;
+	let pageItemsAdded = 0;
 	let paginationTimeout: ReturnType<typeof setTimeout> | undefined;
 	let paginationCheckTimeout: ReturnType<typeof setTimeout> | undefined;
 	let feedLoadingTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -274,7 +279,8 @@
 		profileSeenIds.clear();
 		followsSeenIds.clear();
 		hasMore = true;
-		until = undefined;
+		feedPager = undefined;
+		paginationStarted = false;
 		lastSubId = undefined;
 		hadFeedRequest = false;
 	}
@@ -384,7 +390,7 @@
 		}
 	}
 
-	function handleFeedEvents(message: WorkerMessage) {
+	function processFeedMessage(message: WorkerMessage): boolean {
 		// Handle connection status
 		const status = asConnectionStatus(message);
 		if (status) {
@@ -393,25 +399,25 @@
 				const normalizedUrl = normalizeURL(relayUrl);
 				connectionStatus = { ...connectionStatus, [normalizedUrl]: status };
 			}
-			return;
+			return false;
 		}
 
 		const parsedEvent = asParsedEvent(message);
-		if (!parsedEvent) return;
+		if (!parsedEvent) return false;
 
-		if (!shouldIncludeFeedEvent(parsedEvent)) return;
+		if (!shouldIncludeFeedEvent(parsedEvent)) return false;
 
 		const eventId = parsedEvent.id();
-		if (!eventId) return;
+		if (!eventId) return false;
 
 		if (mode === 'profile') {
-			if (profileSeenIds.has(eventId)) return;
+			if (profileSeenIds.has(eventId)) return false;
 			profileSeenIds.add(eventId);
 			profileFeedItems = [...profileFeedItems, parsedEvent].sort(
 				(a, b) => b.createdAt() - a.createdAt()
 			);
 		} else {
-			if (followsSeenIds.has(eventId)) return;
+			if (followsSeenIds.has(eventId)) return false;
 			followsSeenIds.add(eventId);
 			followsFeedItems = [...followsFeedItems, parsedEvent].sort(
 				(a, b) => b.createdAt() - a.createdAt()
@@ -421,7 +427,17 @@
 			clearTimeout(feedLoadingTimeout);
 			feedLoadingTimeout = undefined;
 		}
-		loading = false;
+		return true;
+	}
+
+	function handleFeedEvents(message: WorkerMessage) {
+		if (processFeedMessage(message) && !paginationSub) loading = false;
+	}
+
+	function handlePaginationEvents(message: WorkerMessage) {
+		if (!processFeedMessage(message)) return;
+		pageItemsAdded++;
+		settlePagination();
 	}
 
 	function shouldIncludeFeedEvent(parsedEvent: ParsedEvent): boolean {
@@ -474,6 +490,8 @@
 		contactSub = undefined;
 		feedSub?.();
 		feedSub = undefined;
+		paginationSub?.();
+		paginationSub = undefined;
 		communityDirectorySub?.();
 		communityDirectorySub = undefined;
 		communityRoleSetsSub?.();
@@ -681,87 +699,55 @@
 	}
 
 	// Handle near-bottom pagination
-	function handleNearBottom(event: { distance: number }) {
-		// Only require at least 1 item to use as cursor, not full $limit
-		if (loading || !hasMore || feedItems.length === 0) return;
+	function handleNearBottom(_event: { distance: number }) {
+		const pager = feedPager;
+		if (loading || !hasMore || feedItems.length === 0 || !pager) return;
 
 		loading = true;
-		itemsBeforePagination = feedItems.length;
+		pageItemsAdded = 0;
 
-		// Use the createdAt of the last item as until
-		const lastItem = feedItems[feedItems.length - 1];
-		if (lastItem) {
-			until = lastItem.createdAt() - 1;
+		if (!paginationStarted) {
+			const windowFloor = pager.anchor - pager.windowSeconds;
+			for (let index = feedItems.length - 1; index >= 0; index--) {
+				const createdAt = feedItems[index]?.createdAt();
+				if (createdAt !== undefined && createdAt >= windowFloor && createdAt < pager.anchor) {
+					pager.reset(createdAt);
+					break;
+				}
+			}
+			paginationStarted = true;
 		}
 
-		const requests = buildPaginationRequests();
-		if (requests.length > 0 && feedRequest) {
-			const pageSubId = feedRequest.subId + '_page_' + until;
-			feedSub = useSubscription(pageSubId, requests, handleFeedEvents, {
-				pipeline: $defaultPipeline.for(pageSubId)
-			});
-			// Fallback: clear loading after timeout
-			paginationTimeout = setTimeout(() => {
-				loading = false;
-			}, 10000);
-		} else {
+		const page = pager.next();
+		if (!page) {
 			loading = false;
 			hasMore = false;
+			return;
 		}
+
+		paginationSub?.();
+		paginationSub = useSubscription(page.subId, page.requests, handlePaginationEvents, {
+			pipeline: $defaultPipeline.for(page.subId),
+			...page.options
+		});
+		paginationTimeout = setTimeout(settlePagination, 10000);
 	}
 
-	function buildPaginationRequests() {
-		if (mode === 'profile' && writeRelays.length > 0) {
-			return [
-				{
-					kinds: requestKinds,
-					authors: [pubkey],
-					limit: $limit,
-					until,
-					noContext: true,
-					relays: writeRelays
-				}
-			];
-		}
-
-		if (mode === 'follows' && readRelays.length > 0 && contacts.length > 0) {
-			return [
-				{
-					kinds: requestKinds,
-					authors: contacts.map((c) => c.pubkey()).filter(Boolean) as string[],
-					limit: $limit,
-					until,
-					noContext: true,
-					relays: readRelays
-				}
-			];
-		}
-
-		return [];
-	}
-
-	// Track when pagination completes with delayed check for late events
-	$: if (!loading && itemsBeforePagination > 0) {
-		const itemsAtCheck = itemsBeforePagination;
-
-		// Clear the timeout if it hasn't fired yet
+	function settlePagination() {
+		if (!loading) return;
+		loading = false;
 		if (paginationTimeout) {
 			clearTimeout(paginationTimeout);
 			paginationTimeout = undefined;
 		}
-
-		// Delay the check to allow late events to arrive via subscription
+		if (paginationCheckTimeout) clearTimeout(paginationCheckTimeout);
 		paginationCheckTimeout = setTimeout(() => {
-			const newItemsAdded = feedItems.length - itemsAtCheck;
-			if (newItemsAdded === 0) {
-				hasMore = false;
-			}
-			itemsBeforePagination = 0;
-			// Clean up pagination subscription after a delay
-			setTimeout(() => {
-				feedSub?.();
-			}, 5000);
-		}, 500); // Wait 500ms for late events to arrive
+			if (pageItemsAdded === 0) hasMore = false;
+			pageItemsAdded = 0;
+			paginationSub?.();
+			paginationSub = undefined;
+			paginationCheckTimeout = undefined;
+		}, 500);
 	}
 
 	// Base subId for relay swapping (without relay hash)
@@ -849,6 +835,7 @@
 	// Track when feedRequest becomes null to reset hadFeedRequest flag
 	$: if (!feedRequest) {
 		hadFeedRequest = false;
+		feedPager = undefined;
 	}
 
 	// Track last subscribed subId to avoid unnecessary re-subscriptions
@@ -866,11 +853,29 @@
 		// Cleanup previous subscription
 		feedSub?.();
 		feedSub = undefined;
+		paginationSub?.();
+		paginationSub = undefined;
+		if (paginationTimeout) {
+			clearTimeout(paginationTimeout);
+			paginationTimeout = undefined;
+		}
+		if (paginationCheckTimeout) {
+			clearTimeout(paginationCheckTimeout);
+			paginationCheckTimeout = undefined;
+		}
+		pageItemsAdded = 0;
 		if (feedLoadingTimeout) {
 			clearTimeout(feedLoadingTimeout);
 			feedLoadingTimeout = undefined;
 		}
 		lastSubId = feedRequest.subId;
+		feedPager = createTimeWindowPager({
+			subId: feedRequest.subId,
+			requests: feedRequest.requests,
+			windowSeconds: FEED_PAGE_WINDOW_SECONDS
+		});
+		paginationStarted = false;
+		hasMore = true;
 		// Only clear feed items if we have no items yet (initial load)
 		// Don't clear on every mode switch to avoid flickering
 		if (mode === 'profile') {
