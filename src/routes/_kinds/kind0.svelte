@@ -25,7 +25,12 @@
 	import { proxyAvatarUrl, proxyBannerUrl } from 'src/lib/proxy';
 	import Feed from 'src/routes/explore/feed.svelte';
 
-	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
+	import {
+		createPaginatedSubscription,
+		type PaginatedSubscription,
+		usePublish,
+		useSubscription
+	} from '@candypoets/nipworker/hooks';
 	import {
 		asConnectionStatus,
 		asKind0,
@@ -35,11 +40,9 @@
 		asKind6,
 		asKind20,
 		asParsedEvent,
-		createTimeWindowPager,
 		fbArray,
 		isConnectionStatus,
-		isKind0,
-		type TimeWindowPager
+		isKind0
 	} from '@candypoets/nipworker/utils';
 
 	import { isEqual } from 'lodash';
@@ -97,8 +100,7 @@
 
 	let sub: (() => void) | undefined;
 	let contactSub: (() => void) | undefined;
-	let feedSub: (() => void) | undefined;
-	let paginationSub: (() => void) | undefined;
+	let feedSubscription: PaginatedSubscription | undefined;
 
 	// Relay swapping
 	let relaySubUnsubscribe: (() => void) | undefined;
@@ -124,18 +126,6 @@
 	// Track seen event IDs for O(1) duplicate detection
 	let profileSeenIds = new Set<string>();
 	let followsSeenIds = new Set<string>();
-
-	// Pagination state
-	let feedPager: TimeWindowPager | undefined;
-	let paginationStarted = false;
-	let hasMore = true;
-	let pageInFlight = false;
-	let pageOldestCreatedAt: number | undefined;
-	let pageExpectedRelays = new Set<string>();
-	let pageEoseRelays = new Set<string>();
-	let paginationTimeout: ReturnType<typeof setTimeout> | undefined;
-	let paginationDrainTimeout: ReturnType<typeof setTimeout> | undefined;
-	let feedLoadingTimeout: ReturnType<typeof setTimeout> | undefined;
 
 	$: feedItems = mode === 'profile' ? profileFeedItems : followsFeedItems;
 	$: requestKinds = selectedKinds.length ? selectedKinds : (ALL_FEED_KINDS as FeedKind[]);
@@ -281,9 +271,6 @@
 		followsFeedItems = [];
 		profileSeenIds.clear();
 		followsSeenIds.clear();
-		hasMore = true;
-		feedPager = undefined;
-		paginationStarted = false;
 		lastSubId = undefined;
 		hadFeedRequest = false;
 	}
@@ -426,39 +413,7 @@
 				(a, b) => b.createdAt() - a.createdAt()
 			);
 		}
-		if (feedLoadingTimeout) {
-			clearTimeout(feedLoadingTimeout);
-			feedLoadingTimeout = undefined;
-		}
 		return parsedEvent;
-	}
-
-	function handleFeedEvents(message: WorkerMessage) {
-		if (processFeedMessage(message) && !paginationSub) loading = false;
-	}
-
-	function handlePaginationEvents(message: WorkerMessage) {
-		const status = asConnectionStatus(message);
-		const parsedEvent = processFeedMessage(message);
-		if (parsedEvent) {
-			pageOldestCreatedAt = Math.min(
-				pageOldestCreatedAt ?? parsedEvent.createdAt(),
-				parsedEvent.createdAt()
-			);
-		}
-
-		const relayUrl = status?.relayUrl();
-		if (status?.status() === 'EOSE' && relayUrl) {
-			pageEoseRelays.add(normalizeURL(relayUrl));
-			if (Array.from(pageExpectedRelays).every((relay) => pageEoseRelays.has(relay))) {
-				if (!paginationDrainTimeout) {
-					paginationDrainTimeout = setTimeout(() => {
-						paginationDrainTimeout = undefined;
-						settlePagination();
-					}, 500);
-				}
-			}
-		}
 	}
 
 	function shouldIncludeFeedEvent(parsedEvent: ParsedEvent): boolean {
@@ -509,10 +464,8 @@
 		sub = undefined;
 		contactSub?.();
 		contactSub = undefined;
-		feedSub?.();
-		feedSub = undefined;
-		paginationSub?.();
-		paginationSub = undefined;
+		feedSubscription?.close();
+		feedSubscription = undefined;
 		communityDirectorySub?.();
 		communityDirectorySub = undefined;
 		communityRoleSetsSub?.();
@@ -562,9 +515,6 @@
 
 	onDestroy(() => {
 		unsubscribe();
-		if (paginationTimeout) clearTimeout(paginationTimeout);
-		if (paginationDrainTimeout) clearTimeout(paginationDrainTimeout);
-		if (feedLoadingTimeout) clearTimeout(feedLoadingTimeout);
 		followPublishUnsub?.();
 		relaySubUnsubscribe?.();
 		mutePublishUnsub?.();
@@ -721,78 +671,8 @@
 
 	// Handle near-bottom pagination
 	function handleNearBottom(_event: { distance: number }) {
-		const pager = feedPager;
-		if (loading || !hasMore || feedItems.length === 0 || !pager) return;
-
-		loading = true;
-
-		if (!paginationStarted) {
-			const windowFloor = pager.anchor - pager.windowSeconds;
-			for (let index = feedItems.length - 1; index >= 0; index--) {
-				const createdAt = feedItems[index]?.createdAt();
-				if (createdAt !== undefined && createdAt >= windowFloor && createdAt < pager.anchor) {
-					pager.reset(createdAt);
-					break;
-				}
-			}
-			paginationStarted = true;
-		}
-		startNextPage();
-	}
-
-	function startNextPage() {
-		const pager = feedPager;
-		if (!pager) {
-			loading = false;
-			hasMore = false;
-			return;
-		}
-		const page = pager.next();
-		if (!page) {
-			loading = false;
-			hasMore = false;
-			return;
-		}
-
-		paginationSub?.();
-		paginationSub = undefined;
-		pageInFlight = true;
-		pageOldestCreatedAt = undefined;
-		pageEoseRelays = new Set<string>();
-		pageExpectedRelays = new Set(
-			page.requests.flatMap((request) => request.relays.map(normalizeURL))
-		);
-		paginationSub = useSubscription(page.subId, page.requests, handlePaginationEvents, {
-			pipeline: $defaultPipeline.for(page.subId),
-			...page.options
-		});
-		paginationTimeout = setTimeout(settlePagination, 10000);
-	}
-
-	function settlePagination() {
-		if (!pageInFlight) return;
-		pageInFlight = false;
-		if (paginationTimeout) {
-			clearTimeout(paginationTimeout);
-			paginationTimeout = undefined;
-		}
-		if (paginationDrainTimeout) {
-			clearTimeout(paginationDrainTimeout);
-			paginationDrainTimeout = undefined;
-		}
-		paginationSub?.();
-		paginationSub = undefined;
-
-		const completion = feedPager?.complete(pageOldestCreatedAt);
-		pageOldestCreatedAt = undefined;
-		pageExpectedRelays = new Set<string>();
-		pageEoseRelays = new Set<string>();
-		hasMore = completion?.hasMore ?? false;
-		if (completion?.shouldRetry) {
-			startNextPage();
-			return;
-		}
-		loading = false;
+		if (loading || feedItems.length === 0) return;
+		feedSubscription?.loadMore();
 	}
 
 	// Base subId for relay swapping (without relay hash)
@@ -880,7 +760,8 @@
 	// Track when feedRequest becomes null to reset hadFeedRequest flag
 	$: if (!feedRequest) {
 		hadFeedRequest = false;
-		feedPager = undefined;
+		feedSubscription?.close();
+		feedSubscription = undefined;
 	}
 
 	// Track last subscribed subId to avoid unnecessary re-subscriptions
@@ -896,36 +777,22 @@
 			hadFeedRequest = true;
 		}
 		// Cleanup previous subscription
-		feedSub?.();
-		feedSub = undefined;
-		paginationSub?.();
-		paginationSub = undefined;
-		pageInFlight = false;
-		pageOldestCreatedAt = undefined;
-		pageExpectedRelays = new Set<string>();
-		pageEoseRelays = new Set<string>();
-		if (paginationTimeout) {
-			clearTimeout(paginationTimeout);
-			paginationTimeout = undefined;
-		}
-		if (paginationDrainTimeout) {
-			clearTimeout(paginationDrainTimeout);
-			paginationDrainTimeout = undefined;
-		}
-		if (feedLoadingTimeout) {
-			clearTimeout(feedLoadingTimeout);
-			feedLoadingTimeout = undefined;
-		}
+		feedSubscription?.close();
+		feedSubscription = undefined;
 		lastSubId = feedRequest.subId;
-		feedPager = createTimeWindowPager({
+		feedSubscription = createPaginatedSubscription({
 			subId: feedRequest.subId,
 			requests: feedRequest.requests,
 			windowSeconds: FEED_PAGE_WINDOW_SECONDS,
 			maxEmptyPages: 3,
-			emptyWindowGrowthFactor: 2
+			emptyWindowGrowthFactor: 2,
+			initialLoading: feedItems.length === 0,
+			onMessage: (message) => processFeedMessage(message)?.createdAt(),
+			onStateChange: (state) => {
+				loading = state.loading;
+			},
+			options: (subId) => ({ pipeline: $defaultPipeline.for(subId) })
 		});
-		paginationStarted = false;
-		hasMore = true;
 		// Only clear feed items if we have no items yet (initial load)
 		// Don't clear on every mode switch to avoid flickering
 		if (mode === 'profile') {
@@ -939,15 +806,7 @@
 		}
 		// Start new subscription
 		loading = feedItems.length === 0;
-		feedSub = useSubscription(feedRequest.subId, feedRequest.requests, handleFeedEvents, {
-			pipeline: $defaultPipeline.for(feedRequest.subId)
-		});
-		feedLoadingTimeout = setTimeout(() => {
-			if (loading && feedItems.length === 0) {
-				loading = false;
-			}
-			feedLoadingTimeout = undefined;
-		}, 3000);
+		feedSubscription.start();
 		// Set relays for this subId so relay swapping modal can access them
 		const currentRelays = mode === 'profile' ? writeRelays : readRelays;
 		if (currentRelays.length > 0) {
