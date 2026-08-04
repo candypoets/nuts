@@ -18,7 +18,6 @@
 	} from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import Loader from 'src/components/Loader.svelte';
-	import { nip19 } from 'nostr-tools';
 	import { onDestroy, onMount } from 'svelte';
 	import { normalizeURL } from 'nostr-tools/utils';
 	import { key } from 'src/controller';
@@ -344,9 +343,6 @@
 		const date = new Date(Number(endsAt) * 1000);
 		return date.toLocaleString();
 	})();
-
-	// Get nevent for sharing
-	$: nevent = note?.id() ? nip19.neventEncode({ id: note.id()!, relays: relayUrls }) : '';
 
 	// Reactive: check if user has voted when votes or key changes
 	$: if ($key?.pub && votes.size > 0) checkUserVoted();
