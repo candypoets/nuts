@@ -225,6 +225,22 @@
 
 			// Add poll-specific tags after prepareEvent
 			post.tags = [...post.tags, ...pollTags];
+		} else if (note && repost && !content.trim()) {
+			// Empty quote = plain repost: publish a kind 6 instead.
+			// NIP-18 wants the stringified original event as content, but the
+			// FlatBuffer view doesn't expose the raw JSON, so content stays empty.
+			const repostId = hexId || '';
+			const repostPubkey = note.pubkey() || '';
+			const relayHint = referencedReadRelays[0] || '';
+			post = prepareEvent({
+				kind: 6,
+				created_at: now(),
+				content: '',
+				tags: [
+					['e', repostId, relayHint],
+					['p', repostPubkey]
+				]
+			});
 		} else {
 			// Create kind 1 or kind 20 post
 			post = {
