@@ -40,6 +40,7 @@
 		type StorePresentation
 	} from 'src/lib/communityTypes';
 	import { makeInviteAuthorization } from 'src/lib/invites';
+	import { paymentServiceUrl } from 'src/lib/paymentService';
 	import { go } from 'src/routes/modals/modal';
 	import { onDestroy, onMount } from 'svelte';
 
@@ -344,7 +345,7 @@
 		checkoutAddress = address;
 		checkoutError = '';
 		try {
-			const url = new URL('/api/stripe/checkout', window.location.origin).toString();
+			const url = paymentServiceUrl('/stripe/checkout');
 			const body = JSON.stringify({
 				community: targetRelay,
 				eventAddress: address,

@@ -17,6 +17,7 @@
 	import imageCompression from 'browser-image-compression';
 	import { key, selectedAdminRelayUrl } from 'src/controller';
 	import { makeInviteAuthorization } from 'src/lib/invites';
+	import { paymentServiceUrl } from 'src/lib/paymentService';
 	import { parsedEventTags } from 'src/lib/adminRelays';
 	import {
 		buildMembershipDefinitionTags,
@@ -35,7 +36,6 @@
 	let loadedRelayUrl = '';
 	let loading = true;
 	let paymentConnected = false;
-	let stripeAccountId = '';
 	let paymentChecked = false;
 	let paymentStatusError = '';
 	let showModal = false;
@@ -68,7 +68,7 @@
 		!memberships.some(
 			(membership) => membership.name.toLowerCase() === name.trim().toLowerCase()
 		) &&
-		Boolean(stripeAccountId) &&
+		paymentConnected &&
 		!imageUploading
 	);
 
@@ -173,12 +173,11 @@
 	async function checkPaymentProvider() {
 		paymentChecked = false;
 		paymentConnected = false;
-		stripeAccountId = '';
 		paymentStatusError = '';
 		if (!relayUrl) return;
 		try {
 			const body = JSON.stringify({ action: 'status', community: relayUrl });
-			const url = new URL('/api/stripe/connect', window.location.origin).toString();
+			const url = paymentServiceUrl('/stripe/connect');
 			const authorization = await makeInviteAuthorization(url, body, $key?.pub);
 			const response = await fetch(url, {
 				method: 'POST',
@@ -190,7 +189,6 @@
 				throw new Error(status.message || status.error || 'Could not check payment connection');
 			}
 			paymentConnected = Boolean(response.ok && status.connected);
-			stripeAccountId = paymentConnected ? status.accountId || '' : '';
 		} catch (error) {
 			paymentConnected = false;
 			paymentStatusError =
@@ -348,8 +346,7 @@
 					image,
 					price: String(Number(price)),
 					currency,
-					billing,
-					stripeAccountId
+					billing
 				}),
 				['r', relayUrl]
 			]

@@ -1,10 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import {
-		type ParsedEvent,
-		type RequestObject,
-		type WorkerMessage
-	} from '@candypoets/nipworker';
+	import { type ParsedEvent, type RequestObject, type WorkerMessage } from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import { isConnectionStatus, isEoce, isParsedEvent } from '@candypoets/nipworker/utils';
 	import {
@@ -22,6 +18,7 @@
 	import { key } from 'src/controller';
 	import { makeInviteAuthorization } from 'src/lib/invites';
 	import { parseMembershipDefinition, type MembershipDefinition } from 'src/lib/memberships';
+	import { paymentServiceUrl } from 'src/lib/paymentService';
 	import { onDestroy, onMount } from 'svelte';
 
 	let memberships: MembershipDefinition[] = [];
@@ -96,7 +93,7 @@
 	function upsertMembership(event: ParsedEvent) {
 		const membership = parseMembershipDefinition(event);
 		if (!membership) return;
-		if (!membership.stripeAccountId || Number(membership.price) <= 0) return;
+		if (Number(membership.price) <= 0) return;
 		const index = memberships.findIndex((item) => item.address === membership.address);
 		if (index !== -1) {
 			if (membership.createdAt <= memberships[index].createdAt) return;
@@ -197,7 +194,7 @@
 		const checkoutWindow = embedded ? window.open('', '_blank') : null;
 		try {
 			const body = JSON.stringify({ community: relayUrl, eventAddress: membership.address });
-			const url = new URL('/api/stripe/checkout', window.location.origin).toString();
+			const url = paymentServiceUrl('/stripe/checkout');
 			const authorization = await makeInviteAuthorization(url, body);
 			const response = await fetch(url, {
 				method: 'POST',

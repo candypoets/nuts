@@ -31,6 +31,7 @@
 		isNewerCatalogEvent
 	} from 'src/lib/catalog';
 	import { now } from 'src/lib/period';
+	import { paymentServiceUrl } from 'src/lib/paymentService';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
 	import { key } from 'src/controller';
 	import { adminServiceBaseUrl } from 'src/controller/admin';
@@ -380,7 +381,7 @@
 		checkoutError = '';
 		try {
 			const body = JSON.stringify({ community: selectedRelay, eventAddress: decodedAddress });
-			const url = new URL('/api/stripe/checkout', window.location.origin).toString();
+			const url = paymentServiceUrl('/stripe/checkout');
 			const authorization = await makeInviteAuthorization(url, body);
 			const response = await fetch(url, {
 				method: 'POST',

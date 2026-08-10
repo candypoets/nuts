@@ -31,28 +31,26 @@ describe('membership definition tags', () => {
 			description: 'Supporter membership',
 			price: '60',
 			currency: 'EUR',
-			billing: 'yearly',
-			stripeAccountId: 'acct_123'
+			billing: 'yearly'
 		});
 
 		expect(tags).toContainEqual(['t', 'membership']);
 		expect(tags).toContainEqual(['price', '60', 'EUR', 'year']);
-		expect(tags).toContainEqual(['stripe_account', 'acct_123']);
+		expect(tags.some((tag) => tag[0] === 'stripe_account')).toBe(false);
 		// NIP-97: sellability is the price tag itself - no marker or availability tags.
 		expect(tags).not.toContainEqual(['t', 'sellable']);
 		expect(tags.some((tag) => tag[0] === 'availability')).toBe(false);
 		expect(tags.some((tag) => tag[0] === 'billing')).toBe(false);
 	});
 
-	it('round-trips billing, price and Stripe metadata through the parser', () => {
+	it('round-trips billing and price through the parser', () => {
 		const tags = buildMembershipDefinitionTags({
 			d: 'membership-supporter',
 			name: 'Supporter',
 			description: 'Supporter membership',
 			price: '60',
 			currency: 'eur',
-			billing: 'yearly',
-			stripeAccountId: 'acct_123'
+			billing: 'yearly'
 		});
 
 		expect(parseMembershipDefinition(stubEvent(tags))).toMatchObject({
@@ -61,8 +59,7 @@ describe('membership definition tags', () => {
 			name: 'Supporter',
 			price: '60',
 			currency: 'EUR',
-			billing: 'yearly',
-			stripeAccountId: 'acct_123'
+			billing: 'yearly'
 		});
 	});
 
@@ -76,8 +73,7 @@ describe('membership definition tags', () => {
 			description: '',
 			price: '15',
 			currency: 'USD',
-			billing,
-			stripeAccountId: ''
+			billing
 		});
 
 		expect(tags).toContainEqual(['price', '15', 'USD', recurrence]);
@@ -91,8 +87,7 @@ describe('membership definition tags', () => {
 			description: '',
 			price: '200',
 			currency: 'EUR',
-			billing: 'one_time',
-			stripeAccountId: ''
+			billing: 'one_time'
 		});
 
 		expect(tags).toContainEqual(['price', '200', 'EUR']);

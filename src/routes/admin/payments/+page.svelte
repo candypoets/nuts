@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { key, selectedAdminRelayUrl } from 'src/controller';
 	import { makeInviteAuthorization } from 'src/lib/invites';
+	import { paymentServiceUrl } from 'src/lib/paymentService';
 	import { ArrowUpRight, Check, CircleAlert, CreditCard, Landmark, RefreshCw } from 'lucide-svelte';
 
 	type StripeStatus = {
@@ -78,7 +79,7 @@
 			community,
 			...(requestedAction === 'onboard' ? { country: merchantCountry } : {})
 		});
-		const url = new URL('/api/stripe/connect', window.location.origin).toString();
+		const url = paymentServiceUrl('/stripe/connect');
 		const authorization = await makeInviteAuthorization(url, body, $key?.pub);
 		const response = await fetch(url, {
 			method: 'POST',
@@ -223,9 +224,9 @@
 					<div class="h-5 w-1/2 animate-pulse rounded bg-stone-100"></div>
 				</div>
 			{:else if !status?.configured}
-				<h3 class="text-lg font-black text-stone-950">Stripe is not configured on this instance</h3>
+				<h3 class="text-lg font-black text-stone-950">Stripe payment service is unavailable</h3>
 				<p class="mt-2 text-sm font-semibold leading-6 text-stone-500">
-					Add a platform <code>STRIPE_SECRET_KEY</code> to the community container, then restart it.
+					Configure the central Rust payment service, then retry this page.
 				</p>
 			{:else if !status.connected}
 				<h3 class="text-lg font-black text-stone-950">Start accepting payments</h3>

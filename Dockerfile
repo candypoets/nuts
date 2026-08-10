@@ -1,7 +1,7 @@
 # Multi-stage build for NutsCash SvelteKit application
 FROM node:22-alpine AS builder
 
-# Install build tools required for native modules (better-sqlite3)
+# Install build tools required by native npm dependencies.
 RUN apk add --no-cache python3 make g++
 
 WORKDIR /app
@@ -12,6 +12,7 @@ ARG VITE_DEFAULT_RELAYS="wss://relay.nuts.cash,wss://relay.thibautduchene.fr,wss
 ARG PUBLIC_LNUTS_DOMAIN="nuts.cash"
 ARG VITE_ENABLE_SSL="false"
 ARG VITE_NIPWORKER_PROXY_URL
+ARG VITE_PAYMENT_SERVICE_URL="https://payments.nuts.cash"
 ARG VITE_APP_VERSION
 ARG NODE_OPTIONS
 
@@ -21,6 +22,7 @@ ENV VITE_SEARCH_RELAYS=$VITE_SEARCH_RELAYS
 ENV VITE_DEFAULT_RELAYS=$VITE_DEFAULT_RELAYS
 ENV PUBLIC_LNUTS_DOMAIN=$PUBLIC_LNUTS_DOMAIN
 ENV VITE_NIPWORKER_PROXY_URL=$VITE_NIPWORKER_PROXY_URL
+ENV VITE_PAYMENT_SERVICE_URL=$VITE_PAYMENT_SERVICE_URL
 ENV VITE_APP_VERSION=$VITE_APP_VERSION
 ENV NODE_OPTIONS=$NODE_OPTIONS
 

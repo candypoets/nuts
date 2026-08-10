@@ -11,6 +11,11 @@ dist
 .tmp
 temp/
 
+# Never send local credentials to the Docker build context.
+.env
+.env.*
+!.env.example
+
 # Ignore Git and editor files
 .git
 .gitignore

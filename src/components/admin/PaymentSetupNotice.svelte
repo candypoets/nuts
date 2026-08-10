@@ -2,6 +2,7 @@
 	import { resolve } from 'src/lib/paths';
 	import { key } from 'src/controller';
 	import { makeInviteAuthorization } from 'src/lib/invites';
+	import { paymentServiceUrl } from 'src/lib/paymentService';
 	import { CreditCard, X } from 'lucide-svelte';
 
 	export let community: string;
@@ -28,7 +29,7 @@
 		visible = false;
 		try {
 			const body = JSON.stringify({ action: 'status', community: requestedCommunity });
-			const url = new URL('/api/stripe/connect', window.location.origin).toString();
+			const url = paymentServiceUrl('/stripe/connect');
 			const authorization = await makeInviteAuthorization(url, body, $key?.pub);
 			const response = await fetch(url, {
 				method: 'POST',

@@ -62,9 +62,16 @@ npm run preview
 ## Docker
 
 ```bash
-docker build -t nutscash .
+docker build \
+  --build-arg VITE_PAYMENT_SERVICE_URL=https://payments.nuts.cash \
+  -t nutscash .
 docker run -p 3000:3000 nutscash
 ```
+
+`VITE_PAYMENT_SERVICE_URL` is compiled into the browser bundle. Production
+images built by the repository workflow set it explicitly to
+`https://payments.nuts.cash`; changing it only in a running container does not
+change the client URL.
 
 ## Umbrel App
 

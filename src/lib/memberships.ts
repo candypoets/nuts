@@ -14,7 +14,6 @@ export type MembershipDefinition = {
 	price: string;
 	currency: string;
 	billing: MembershipBilling;
-	stripeAccountId: string;
 	createdAt: number;
 };
 
@@ -53,7 +52,6 @@ export function parseMembershipDefinition(event: ParsedEvent): MembershipDefinit
 		price: priceTag?.[1] || '',
 		currency: (priceTag?.[2] || 'EUR').toUpperCase(),
 		billing: billingFromPriceTag(priceTag),
-		stripeAccountId: tags.find((tag) => tag[0] === 'stripe_account')?.[1] || '',
 		createdAt: Number(event.createdAt())
 	};
 }
@@ -71,7 +69,6 @@ export function buildMembershipDefinitionTags(membership: {
 	price: string;
 	currency: string;
 	billing: MembershipDefinition['billing'];
-	stripeAccountId: string;
 }) {
 	const tags = [
 		['d', membership.d],
@@ -90,8 +87,5 @@ export function buildMembershipDefinitionTags(membership: {
 		);
 	}
 	if (membership.image?.trim()) tags.push(['image', membership.image.trim()]);
-	if (membership.stripeAccountId.trim()) {
-		tags.push(['stripe_account', membership.stripeAccountId.trim()]);
-	}
 	return tags;
 }
