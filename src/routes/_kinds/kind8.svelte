@@ -8,12 +8,12 @@
 	import { normalizeURL } from 'nostr-tools/utils';
 	import { key, relayDirectoryUrls } from 'src/controller';
 	import {
+		canDo,
 		fetchCommunityAccess,
 		fetchCommunityTrust,
 		type CommunityTrust
 	} from 'src/lib/adminAccess';
 	import {
-		badgeDefinitionHasTypeTopic,
 		catalogCurrency,
 		catalogDescription,
 		catalogEventAddress,
@@ -23,9 +23,9 @@
 		catalogPrice,
 		catalogProductKind,
 		catalogUsesQrFulfillment,
-		isBadgeDefinitionType,
-		type BadgeDefinitionType
+		isCatalogDefinition
 	} from 'src/lib/catalog';
+	import { isDefinitionAddress } from 'src/lib/nip97';
 	import { encodePresentation, entitlementPresentationTemplate } from 'src/lib/presentation';
 	import { go } from 'src/routes/modals/modal';
 	import type { BadgeStatus } from 'src/routes/notifications/notifications';
@@ -109,10 +109,12 @@
 
 	function definitionCoordinate(event: ParsedEvent | undefined) {
 		const address = event ? extractTagValue(event, 'a') || '' : '';
-		const [kind, author, ...identifierParts] = address.split(':');
+		if (!isDefinitionAddress(address)) return undefined;
+		const [kindValue, author, ...identifierParts] = address.split(':');
+		const kind = Number(kindValue);
 		const identifier = identifierParts.join(':');
-		if (kind !== '30009' || !author || !identifier) return undefined;
-		return { address, author, identifier };
+		if (!author || !identifier) return undefined;
+		return { address, kind, author, identifier };
 	}
 
 	function addressCoordinate(address: string) {
@@ -132,25 +134,39 @@
 		return trust;
 	}
 
-	function signerAuthorization(relay: string, signer: string, permission: 'store' | 'events') {
-		const cacheKey = `${relay}:${signer}:${permission}`;
+	/** 37237 status signers: anchor admins, the badge issuer, or 37237-write holders. */
+	function signerAuthorization(relay: string, signer: string) {
+		const cacheKey = `${relay}:${signer}`;
 		let authorization = authorizationPromises.get(cacheKey);
 		if (!authorization) {
 			authorization = trustForRelay(relay).then(async (trust) => {
-				if (trust.authorityPubkeys.has(signer)) return true;
+				if (trust.admins.has(signer) || trust.badgeIssuer === signer) return true;
 				const access = await fetchCommunityAccess(relay, signer, false);
-				return access.permissions.has(permission);
+				return canDo(access, '37237', 'write');
 			});
 			authorizationPromises.set(cacheKey, authorization);
 		}
 		return authorization;
 	}
 
-	function definitionAuthorization(relay: string, author: string, type: BadgeDefinitionType) {
-		if (type === 'role') {
-			return trustForRelay(relay).then((trust) => trust.authorityPubkeys.has(author));
+	/**
+	 * Definition authors: anchor admins may author anything; role authoring stays
+	 * admin-only (privilege-escalation boundary); other definitions require the
+	 * matching kind write capability (with the topic filter for 30009).
+	 */
+	function definitionAuthorization(relay: string, author: string, kind: number, topic?: string) {
+		const cacheKey = `${relay}:${author}:${kind}:${topic || ''}`;
+		let authorization = authorizationPromises.get(cacheKey);
+		if (!authorization) {
+			authorization = trustForRelay(relay).then(async (trust) => {
+				if (trust.admins.has(author)) return true;
+				if (kind === 30009 && topic === 'role') return false;
+				const access = await fetchCommunityAccess(relay, author, false);
+				return canDo(access, String(kind), 'write', topic);
+			});
+			authorizationPromises.set(cacheKey, authorization);
 		}
-		return signerAuthorization(relay, author, type === 'event_access' ? 'events' : 'store');
+		return authorization;
 	}
 
 	async function acceptAward(event: ParsedEvent, currentGeneration: number) {
@@ -162,7 +178,7 @@
 			!eventId ||
 			eventId !== pointer.id ||
 			extractTagValue(event, 'p') !== $key?.pub ||
-			!address?.startsWith('30009:') ||
+			!isDefinitionAddress(address || '') ||
 			!issuer ||
 			awardAcceptanceInFlight.has(eventId)
 		) {
@@ -176,7 +192,7 @@
 				await Promise.all(
 					relays.map(async (relay) => {
 						const trust = await trustForRelay(relay);
-						return trust.authorityPubkeys.has(issuer) || trust.badgeIssuer === issuer ? relay : '';
+						return trust.admins.has(issuer) || trust.badgeIssuer === issuer ? relay : '';
 					})
 				)
 			).filter(Boolean);
@@ -200,7 +216,7 @@
 			`badge_detail_definition_${pointer.id}_${currentGeneration}`,
 			[
 				{
-					kinds: [30009],
+					kinds: [coordinate.kind],
 					authors: [coordinate.author],
 					tags: { '#d': [coordinate.identifier] },
 					limit: 20,
@@ -218,19 +234,21 @@
 
 	async function acceptDefinition(event: ParsedEvent, currentGeneration: number) {
 		const coordinate = definitionCoordinate(award);
-		const type = extractTagValue(event, 'type');
 		if (
 			!coordinate ||
-			event.kind() !== 30009 ||
+			event.kind() !== coordinate.kind ||
 			event.pubkey() !== coordinate.author ||
-			extractTagValue(event, 'd') !== coordinate.identifier ||
-			!isBadgeDefinitionType(type) ||
-			!badgeDefinitionHasTypeTopic(event, type)
+			extractTagValue(event, 'd') !== coordinate.identifier
 		) {
 			return;
 		}
+		const topic = event.kind() === 30009 ? extractTagValue(event, 't') : undefined;
+		if (event.kind() === 30009 && topic !== 'role' && topic !== 'membership') return;
+		if (event.kind() === 30402 && !isCatalogDefinition(event)) return;
 		const authorized = await Promise.all(
-			trustedRelays.map((relay) => definitionAuthorization(relay, coordinate.author, type))
+			trustedRelays.map((relay) =>
+				definitionAuthorization(relay, coordinate.author, coordinate.kind, topic)
+			)
 		);
 		if (currentGeneration !== generation || !authorized.some(Boolean)) return;
 		if (
@@ -254,7 +272,12 @@
 		eventUnsubscribe = undefined;
 		referencedEvent = undefined;
 		if (badgeType(definition) !== 'event_access' || !definition) return;
-		const coordinate = addressCoordinate(extractTagValue(definition, 'a') || '');
+		// A free-event award references the calendar event directly as its definition.
+		if (definition.kind() === 31922 || definition.kind() === 31923) {
+			referencedEvent = definition;
+			return;
+		}
+		const coordinate = addressCoordinate(catalogEventAddress(definition));
 		if (!coordinate) return;
 		eventUnsubscribe = useSubscription(
 			`badge_detail_event_${pointer.id}_${currentGeneration}`,
@@ -315,7 +338,6 @@
 		const coordinate = definitionCoordinate(award);
 		const type = badgeType(definition);
 		if (!award || !definition || !coordinate || type === 'membership' || type === 'role') return;
-		const permission = type === 'event_access' ? 'events' : 'store';
 		for (const event of rawStatuses) {
 			const eventId = event.id();
 			const signer = event.pubkey();
@@ -331,7 +353,7 @@
 			if (statusAuthorizationInFlight.has(authorizationKey)) continue;
 			statusAuthorizationInFlight.add(authorizationKey);
 			void Promise.all(
-				trustedRelays.map((relay) => signerAuthorization(relay, signer, permission))
+				trustedRelays.map((relay) => signerAuthorization(relay, signer))
 			).then((authorized) => {
 				statusAuthorizationInFlight.delete(authorizationKey);
 				if (
@@ -420,9 +442,27 @@
 		}, 10000);
 	}
 
-	function badgeType(event: ParsedEvent | undefined): BadgeDefinitionType | undefined {
-		const type = event ? extractTagValue(event, 'type') : undefined;
-		return isBadgeDefinitionType(type) ? type : undefined;
+	type BadgeDefinitionKind = 'product' | 'membership' | 'event_access' | 'pass' | 'role';
+
+	/**
+	 * Display classification from the definition's kind and tags: 30009 topics are
+	 * role/membership, a 30402 with an event link (or a bare calendar event) is a
+	 * ticket, a multi-use 30402 is a pass, anything else sellable is a product.
+	 */
+	function badgeType(event: ParsedEvent | undefined): BadgeDefinitionKind | undefined {
+		if (!event) return undefined;
+		const kind = event.kind();
+		if (kind === 30009) {
+			const topic = extractTagValue(event, 't');
+			return topic === 'role' ? 'role' : topic === 'membership' ? 'membership' : undefined;
+		}
+		if (kind === 31922 || kind === 31923) return 'event_access';
+		if (kind === 30402) {
+			if (catalogEventAddress(event)) return 'event_access';
+			const maxUses = catalogMaxUses(event);
+			return maxUses && maxUses > 1 ? 'pass' : 'product';
+		}
+		return undefined;
 	}
 
 	function pageTitle(event: ParsedEvent | undefined) {

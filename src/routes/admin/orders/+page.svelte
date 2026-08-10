@@ -11,6 +11,7 @@
 	import { normalizeURL } from 'nostr-tools/utils';
 	import { key, selectedAdminRelayUrl } from 'src/controller';
 	import {
+		canDo,
 		fetchCommunityAccess,
 		fetchCommunityTrust,
 		type CommunityAccess,
@@ -19,13 +20,12 @@
 	import { parsedEventTags } from 'src/lib/adminRelays';
 	import {
 		catalogAddress,
+		catalogEventAddress,
+		catalogMaxUses,
 		catalogName,
-		catalogType,
+		isCatalogDefinition,
 		isNewerCatalogEvent,
-		isSellableEventAccessDefinition,
-		isStoreCatalogDefinition,
-		sellableCatalogSubscriptionId,
-		CATALOG_SELLABLE_TAG
+		sellableCatalogSubscriptionId
 	} from 'src/lib/catalog';
 	import { COMMUNITY_PROFILE_D, COMMUNITY_PROFILE_KIND } from 'src/lib/communityProfile';
 	import { isCommunityType, type CommunityType } from 'src/lib/communityTypes';
@@ -60,8 +60,8 @@
 	let statusEvents: ParsedEvent[] = [];
 	let revokedAwardIds = new Set<string>();
 	let authorizedSigners = new Map<string, boolean>();
-	let trust: CommunityTrust = { authorityPubkeys: new Set() };
-	let access: CommunityAccess = { isOwner: false, permissions: new Set(), roles: [] };
+	let trust: CommunityTrust = { rootPubkey: '', admins: new Set() };
+	let access: CommunityAccess = { isOwner: false, roles: [], permissions: [] };
 	let communityType: CommunityType = 'other';
 	let profileCreatedAt = 0;
 	let loading = true;
@@ -99,8 +99,11 @@
 	$: activePasses = visibleAwards.filter((award) => {
 		const definition = definitions.get(extractTagValue(award, 'a') || '');
 		if (!definition) return false;
-		const type = catalogType(definition);
-		if (type !== 'pass' && type !== 'membership') return false;
+		// Passes are multi-use 30402 listings; tickets and single-use products
+		// surface as order records instead.
+		if (catalogEventAddress(definition)) return false;
+		const maxUses = catalogMaxUses(definition);
+		if (!maxUses || maxUses <= 1) return false;
 		if (isAwardExpired(award)) return false;
 		const remaining = remainingAwardUses(award, definition, trustedStatuses);
 		return remaining === undefined || remaining > 0;
@@ -109,7 +112,7 @@
 	function buildDefinitionMap(events: ParsedEvent[]) {
 		const map = new Map<string, ParsedEvent>();
 		for (const event of events) {
-			if (!isStoreCatalogDefinition(event) && !isSellableEventAccessDefinition(event)) continue;
+			if (!isCatalogDefinition(event)) continue;
 			const address = catalogAddress(event);
 			if (!address) continue;
 			const current = map.get(address);
@@ -120,7 +123,7 @@
 
 	function awardIssuerTrusted(award: ParsedEvent) {
 		const issuer = award.pubkey();
-		return Boolean(issuer && (trust.authorityPubkeys.has(issuer) || issuer === trust.badgeIssuer));
+		return Boolean(issuer && (trust.admins.has(issuer) || issuer === trust.badgeIssuer));
 	}
 
 	function statusEventTrusted(event: ParsedEvent, defs: ReadonlyMap<string, ParsedEvent>) {
@@ -136,7 +139,7 @@
 
 	function signerTrusted(signer: string): boolean {
 		if (!signer) return false;
-		if (trust.authorityPubkeys.has(signer) || signer === trust.badgeIssuer) return true;
+		if (trust.admins.has(signer) || signer === trust.badgeIssuer) return true;
 		const cached = authorizedSigners.get(signer);
 		if (cached !== undefined) return cached;
 		void resolveSigner(signer);
@@ -148,7 +151,7 @@
 		signerRequests.add(signer);
 		const target = relayUrl;
 		const allowed = await fetchCommunityAccess(target, signer, false)
-			.then((result) => result.permissions.has('store') || result.permissions.has('events'))
+			.then((result) => canDo(result, '37237', 'write'))
 			.catch(() => false);
 		if (target !== relayUrl || authorizedSigners.get(signer) !== undefined) return;
 		authorizedSigners = new Map(authorizedSigners).set(signer, allowed);
@@ -182,8 +185,8 @@
 		revokedAwardIds = new Set();
 		authorizedSigners = new Map();
 		signerRequests.clear();
-		trust = { authorityPubkeys: new Set() };
-		access = { isOwner: false, permissions: new Set(), roles: [] };
+		trust = { rootPubkey: '', admins: new Set() };
+		access = { isOwner: false, roles: [], permissions: [] };
 		communityType = 'other';
 		profileCreatedAt = 0;
 		publishError = '';
@@ -195,16 +198,18 @@
 		trust = await fetchCommunityTrust(target);
 		if (relayUrl !== target) return;
 		const pubkey = $key?.pub || '';
-		access = await fetchCommunityAccess(target, pubkey, trust.authorityPubkeys.has(pubkey)).catch(
-			() => ({ isOwner: false, permissions: new Set(), roles: [] }) as CommunityAccess
-		);
+		access = await fetchCommunityAccess(
+			target,
+			pubkey,
+			trust.rootPubkey === pubkey || trust.admins.has(pubkey)
+		).catch(() => ({ isOwner: false, roles: [], permissions: [] }) as CommunityAccess);
 		if (relayUrl !== target) return;
 		subscribeOrders(target);
 	}
 
 	function subscribeOrders(target: string) {
 		const authors = Array.from(
-			new Set([...trust.authorityPubkeys, ...(trust.badgeIssuer ? [trust.badgeIssuer] : [])])
+			new Set([...trust.admins, ...(trust.badgeIssuer ? [trust.badgeIssuer] : [])])
 		);
 		// One useSubscription per filter: requests sharing a subId are sent as
 		// separate REQs with the same id, and relays replace them (NIP-01) -
@@ -256,8 +261,7 @@
 			sellableCatalogSubscriptionId(target),
 			[
 				{
-					kinds: [30009],
-					tags: { '#t': [CATALOG_SELLABLE_TAG] },
+					kinds: [30402],
 					limit: 500,
 					relays: [target],
 					cacheFirst: true
@@ -266,7 +270,7 @@
 			(message: WorkerMessage) => {
 				const event = isParsedEvent(message);
 				if (event) {
-					if (isStoreCatalogDefinition(event) || isSellableEventAccessDefinition(event)) {
+					if (isCatalogDefinition(event)) {
 						definitionEvents = upsertDefinition(definitionEvents, event);
 					}
 					loading = false;
@@ -302,13 +306,12 @@
 		window.setTimeout(() => (loading = false), 1800);
 	}
 
-	function canManageRecord(record: OrderRecord) {
-		const permission = catalogType(record.definition) === 'event_access' ? 'events' : 'store';
-		return access.isOwner || access.permissions.has(permission);
+	function canManageRecord(_record: OrderRecord) {
+		return canDo(access, '37237', 'write');
 	}
 
 	function canManagePasses() {
-		return access.isOwner || access.permissions.has('store');
+		return canDo(access, '37237', 'write');
 	}
 
 	function recordsInColumn(records: OrderRecord[], status: BadgeStatus) {
@@ -316,7 +319,7 @@
 	}
 
 	function isEventAccess(record: OrderRecord) {
-		return catalogType(record.definition) === 'event_access';
+		return Boolean(catalogEventAddress(record.definition));
 	}
 
 	function shortRef(ref: string) {

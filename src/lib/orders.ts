@@ -1,6 +1,6 @@
 import { extractTagValue, type ParsedEvent } from '@candypoets/nipworker';
 import type { EventTemplate } from 'nostr-tools';
-import { catalogEventAddress, catalogMaxUses, catalogType } from 'src/lib/catalog';
+import { catalogEventAddress, catalogMaxUses } from 'src/lib/catalog';
 import type { CommunityType } from 'src/lib/communityTypes';
 import {
 	BADGE_STATUS_KIND,
@@ -94,9 +94,10 @@ export function deriveOrderRecords(
 		seenAwardIds.add(awardId);
 
 		const latest = latestStatusEvents(award, statuses);
-		const type = catalogType(definition);
-		const maxUses = catalogMaxUses(definition);
-		const singleUse = type === 'product' || type === 'event_access' || maxUses === 1;
+		// A definition linked to a calendar event is a ticket; tickets and
+		// single-use products yield exactly one order line per award.
+		const eventContext = catalogEventAddress(definition);
+		const singleUse = Boolean(eventContext) || catalogMaxUses(definition) === 1;
 
 		if (!singleUse) {
 			for (const statusEvent of latest) {
@@ -113,7 +114,6 @@ export function deriveOrderRecords(
 			continue;
 		}
 
-		const eventContext = type === 'event_access' ? catalogEventAddress(definition) : '';
 		const orderRef = awardOrderReference(award);
 		records.push({
 			key: `${awardId}:pending`,

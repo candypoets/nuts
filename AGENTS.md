@@ -150,59 +150,102 @@ const nevent = nip19.neventEncode({ id: note.id(), relays });
 go('reply:' + nevent);
 ```
 
-## Badge Products and Fulfillment
+## Entitlements, Roles and Memberships (NIP-97)
 
-Nuts uses the NIP-58 badge model as a generic product and entitlement workflow:
+The governing spec for this system is **NIP-97 (draft)** on this machine at
+`~/nips/97.md` — "Badge-Based Entitlements and Community Access Control". Read
+it before working in this area. This section is the working summary.
 
-- Kind `30009` is the product, pass, membership, role, or other entitlement definition.
-- Kind `8` awards the holder the right to that product or entitlement.
-- Kind `37237` records the status of one use of a kind `8` award.
-- Kind `37237` is addressable: the `d` tag carries the fulfillment context
-  (`order:<order-id>` or `event:<event-coordinate>`), so the latest status per
-  context survives on the relay.
+**Transition note:** parts of the code still implement the pre-NIP model
+(everything on `30009` with `type` topics, text permissions like `store`, trust
+via NIP-11 scraping + `/community/info`). When you touch this area, converge it
+toward NIP-97 and update this section. Do not extend the legacy model.
 
-This same model applies across community types. A limited-entry gym pass, event ticket,
-drink, prepared food item, or merchandise pickup are all badge-backed entitlements.
-Do not introduce a separate product-listing event merely because the entitlement is a
-physical item.
+### Kinds
 
-Classify every definition with both `type` and its matching `t` topic. Buyable
-definitions also carry `t=sellable`. The `store` admin permission authorizes
-publishing products, passes, and paid memberships; paid event tickets use the
-`events` permission because they are created as part of an event.
+| kind            | role                                                             | source |
+| --------------- | ---------------------------------------------------------------- | ------ |
+| `31727`         | community anchor (root-signed: admins, `badge_issuer`, metadata) | NIP-97 |
+| `30009`         | role and membership definitions (+ `permission`, `price` tags)   | NIP-58 |
+| `30402`         | products, passes, tickets (+ `max_uses`)                         | NIP-99 |
+| `31922`/`31923` | calendar events                                                  | NIP-52 |
+| `31925`         | RSVPs                                                            | NIP-52 |
+| `8`             | award — the uniform entitlement token                            | NIP-58 |
+| `37237`         | fulfillment status of one award use                              | NIP-97 |
 
-A buyable definition is valid when its author is either a root community admin from
-the relay's configured admin pubkeys, or currently holds an active role whose
-definition grants the required `store` or `events` permission. Resolve that role
-definition and kind `8` role award from the community relay. Do not add a parallel
-HTTP endpoint or invite format for definition authorization.
+### Trust chain
 
-### Kind 37237 Badge Status
+1. The community relay's NIP-11 `pubkey` is the **root key** — the only
+   out-of-band fact.
+2. The **anchor** (kind `31727`, `d=community`, signed by the root key) lists
+   admin pubkeys as `p` tags and an optional `badge_issuer` delegated key.
+   Rotation = publish a new anchor version.
+3. Awards of definitions **with** a `price` tag may be signed by an anchor
+   admin or the `badge_issuer`; awards of definitions **without** `price` must
+   be signed by an anchor admin.
+4. Revocation is a NIP-09 `kind:5` deletion referencing the award, signed by
+   the issuer or an anchor admin. Banning a member = deleting their membership
+   award.
 
-Supported statuses are:
+All verification is pinned to the community relay: anchor, definitions, awards,
+and status events MUST be resolved from the relay whose NIP-11 identifies the
+community. Copied events on foreign relays carry no authority. Do not add
+parallel HTTP endpoints or invite formats for authorization.
+
+### Roles and memberships (kind `30009`)
+
+One mechanism: a definition carrying `permission` tags, conferring capabilities
+on award holders. `["t", "role"]` = internal capability grant;
+`["t", "membership"]` = standing access. A definition with a `price` tag
+(NIP-99 format: `["price", "15", "EUR", "month"]`) is sellable — that is what
+makes a membership paid.
+
+Capabilities are kind-scoped, following the NIP-65 read/write marker
+convention:
+
+```json
+["permission", "<kind-number>", "<read|write>", "<t-filter>"]
+```
+
+- 3rd element optional; absent = read and write.
+- 4th element optional: required `t` topic on the written event. Only used on
+  `30009`, e.g. `["permission", "30009", "write", "membership"]`.
+- Publishing `30009` with `t=role` is reserved for anchor admins; never grant
+  it via `permission` tags (privilege-escalation boundary).
+
+Conventional assignments: `1` write = posting, `31923` write = events,
+`30402` write = store, `37237` write = fulfillment staff. The 2nd element may
+also be a non-numeric **named capability** for off-relay features (`invites`,
+`moderation`, `settings`) — meaningful only to app software; relays and gates
+ignore permissions they cannot evaluate.
+
+### Products, passes, tickets (kind `30402`)
+
+Purchasable goods are NIP-99 classified listings with the standard tag set
+(`title`, `summary`, `image`, `price`, `status`, `t`). Extension:
+`["max_uses", "<n>"]` — uses per award; absent defaults to one for listings.
+A ticket is a `30402` listing with an `a` tag pointing at its `31923` calendar
+event. Admission to a free event needs no listing: the award references the
+event address directly.
+
+### Fulfillment (kind `37237`)
+
+Addressable status of one use of one award. Statuses:
 
 ```typescript
 type BadgeStatus = 'pending' | 'accepted' | 'processing' | 'ready' | 'fulfilled' | 'cancelled';
 ```
 
-Publish only the states required by the product workflow. A gym or event check-in goes
-directly to `fulfilled`; it does not need to publish the intermediate states. A
-restaurant may use `pending` -> `accepted` -> `processing` -> `ready` -> `fulfilled`,
-or skip states that do not add value. `cancelled` means that fulfillment will not
-complete. Do not add refund, packing, or offline-redemption states.
-
-Each use/order has a stable fulfillment identifier. Every update for that use carries
-the same context tag: use `event` with the event coordinate for admission, or `order`
-with the order ID for a store order. The latest valid event for the same award and
-context is its current status; use `created_at`, then event ID as a deterministic
-tie-breaker.
+Publish only the states the workflow needs: check-in goes directly to
+`fulfilled`; a kitchen may walk the full chain; `cancelled` means fulfillment
+will not complete. Do not add refund, packing, or offline-redemption states.
 
 ```json
 {
 	"kind": 37237,
 	"tags": [
 		["status", "<badge-status>"],
-		["a", "30009:<issuer-pubkey>:<definition-d>"],
+		["a", "<definition-address>"],
 		["e", "<kind-8-award-event-id>"],
 		["p", "<holder-pubkey>"],
 		["event", "<event-coordinate>"],
@@ -211,37 +254,32 @@ tie-breaker.
 }
 ```
 
-Kind `37237` itself identifies a badge status event. It must carry a valid `status`
-tag and a `d` tag matching its context (`order:<order-id>` or
-`event:<event-coordinate>`). Do not add a `type` or `uses` tag.
+The `d` tag is the fulfillment context (`order:<order-id>` or
+`event:<event-coordinate>`), with a matching `order`/`event` tag. Current
+status per (award, context) = latest valid event by `created_at`, then lowest
+event ID as tie-breaker. Signers must be anchor admins, the `badge_issuer`,
+or holders of `["permission", "37237", "write"]`. No `type` or `uses` tags.
 
-### Derived State
+### Derived state
 
-- A kind `8` award with remaining uses is outstanding/available.
 - One fulfillment whose latest status is `fulfilled` equals one use.
-- `remaining uses = max_uses - fulfilled fulfillment count`.
-- A definition without `max_uses` is unlimited, except `type=product`, which defaults
-  to one use. New product definitions publish `max_uses=1` explicitly. A valid
-  `type=event_access` definition must publish `max_uses=1`.
-- The award is exhausted when the fulfilled fulfillment count reaches `max_uses`.
-- Expiration and issuer revocation are derived independently and make an award unusable.
-- Only status events signed by the community authority or an authorized staff signer
-  should be accepted.
+- `remaining uses = max_uses - fulfilled count`.
+- Definitions without `max_uses` are unlimited, except `30402` listings
+  (default one). New consumable definitions publish `max_uses` explicitly.
+- Outstanding = has remaining uses; exhausted = fulfilled count reaches
+  `max_uses`; expiration and revocation make an award unusable independently.
 
-UI language may adapt statuses to the product. For example, `fulfilled` can appear as:
+UI language may adapt statuses to the product: `fulfilled` = "Checked in"
+(gym/event), "Served" (drink/food), "Collected" (merchandise).
 
-- Gym or event: Checked in
-- Drink or food: Served
-- Merchandise: Collected
+### Issuance and enforcement (deployment, not protocol)
 
-The `/redeem` payment/invite workflow issues the kind `8` entitlement. For paid
-entitlements, the award is signed by the community redemption service advertised as
-`badge_issuer` by `/community/info`; its `a` tag still references the authorized
-admin's kind `30009` definition. Consumers and scanners must trust that advertised
-community issuer for the award and must not require the award signer to equal the
-definition author. Kind `37237` fulfills one use of that entitlement. Keep these two
-stages distinct.
-
-Kind `30009` is addressable and may be updated in place for price, image, description,
-availability, or other product metadata. Use a new `d` identifier only when creating a
-meaningfully different product or entitlement.
+- The companion HTTP service (`/invites`, `/redeem`, optional
+  `/community/info` mirror) is issuance logistics only — it holds the
+  `badge_issuer` key and is never a source of truth. Awards carry `i` tags so
+  redemption limits and payment idempotency are rebuilt from relay events
+  after restart.
+- Write gating is optional and belongs in an external write-policy plugin
+  (strfry `writePolicy.plugin`), never in relay code. It derives its award
+  cache from the relay itself, fails closed until EOSE, and honors NIP-09
+  revocations as events.

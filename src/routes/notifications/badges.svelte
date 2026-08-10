@@ -5,18 +5,20 @@
 	import Icon from '@iconify/svelte';
 	import { nip19 } from 'nostr-tools';
 	import {
+		canDo,
 		fetchCommunityAccess,
 		fetchCommunityTrust,
 		type CommunityTrust
 	} from 'src/lib/adminAccess';
 	import {
-		badgeDefinitionHasTypeTopic,
+		catalogEventAddress,
 		catalogImage,
+		catalogMaxUses,
 		catalogName,
 		catalogProductKind,
-		isBadgeDefinitionType,
-		type BadgeDefinitionType
+		isCatalogDefinition
 	} from 'src/lib/catalog';
+	import { isDefinitionAddress } from 'src/lib/nip97';
 	import { onDestroy, onMount } from 'svelte';
 	import { go, usePagerNavigation } from 'src/routes/modals/modal';
 	import { formatTime, type BadgeNotification, type BadgeStatus } from './notifications';
@@ -34,10 +36,12 @@
 
 	function definitionCoordinate() {
 		const address = extractTagValue(post.parsed.award, 'a') || '';
-		const [kind, author, ...identifierParts] = address.split(':');
+		if (!isDefinitionAddress(address)) return undefined;
+		const [kindValue, author, ...identifierParts] = address.split(':');
+		const kind = Number(kindValue);
 		const identifier = identifierParts.join(':');
-		if (kind !== '30009' || !author || !identifier) return undefined;
-		return { address, author, identifier };
+		if (!author || !identifier) return undefined;
+		return { address, kind, author, identifier };
 	}
 
 	function trustForRelay(relay: string) {
@@ -49,15 +53,20 @@
 		return trust;
 	}
 
-	function definitionAuthorization(relay: string, author: string, type: BadgeDefinitionType) {
-		const cacheKey = `${relay}:${author}:${type}`;
+	/**
+	 * Definition authors: anchor admins may author anything; role authoring stays
+	 * admin-only (privilege-escalation boundary); other definitions require the
+	 * matching kind write capability (with the topic filter for 30009).
+	 */
+	function definitionAuthorization(relay: string, author: string, kind: number, topic?: string) {
+		const cacheKey = `${relay}:${author}:${kind}:${topic || ''}`;
 		let authorization = authorizationPromises.get(cacheKey);
 		if (!authorization) {
 			authorization = trustForRelay(relay).then(async (trust) => {
-				if (trust.authorityPubkeys.has(author)) return true;
-				if (type === 'role') return false;
+				if (trust.admins.has(author)) return true;
+				if (kind === 30009 && topic === 'role') return false;
 				const access = await fetchCommunityAccess(relay, author, false);
-				return access.permissions.has(type === 'event_access' ? 'events' : 'store');
+				return canDo(access, String(kind), 'write', topic);
 			});
 			authorizationPromises.set(cacheKey, authorization);
 		}
@@ -66,28 +75,27 @@
 
 	async function acceptDefinition(event: ParsedEvent, generation: number) {
 		const coordinate = definitionCoordinate();
-		const type = extractTagValue(event, 'type');
 		const awardIssuer = post.parsed.award.pubkey();
 		if (
 			!coordinate ||
-			event.kind() !== 30009 ||
+			event.kind() !== coordinate.kind ||
 			event.pubkey() !== coordinate.author ||
 			extractTagValue(event, 'd') !== coordinate.identifier ||
-			!isBadgeDefinitionType(type) ||
-			!badgeDefinitionHasTypeTopic(event, type) ||
 			!awardIssuer
 		) {
 			return;
 		}
+		const topic = event.kind() === 30009 ? extractTagValue(event, 't') : undefined;
+		if (event.kind() === 30009 && topic !== 'role' && topic !== 'membership') return;
+		if (event.kind() === 30402 && !isCatalogDefinition(event)) return;
 
 		const trusted = await Promise.all(
 			post.parsed.relays.map(async (relay) => {
 				const communityTrust = await trustForRelay(relay);
 				const trustedAward =
-					communityTrust.authorityPubkeys.has(awardIssuer) ||
-					communityTrust.badgeIssuer === awardIssuer;
+					communityTrust.admins.has(awardIssuer) || communityTrust.badgeIssuer === awardIssuer;
 				if (!trustedAward) return false;
-				return definitionAuthorization(relay, coordinate.author, type);
+				return definitionAuthorization(relay, coordinate.author, coordinate.kind, topic);
 			})
 		);
 		if (generation !== definitionGeneration || !trusted.some(Boolean)) return;
@@ -115,7 +123,7 @@
 			`notification_badge_definition_${post.parsed.award.id()}_${generation}`,
 			[
 				{
-					kinds: [30009],
+					kinds: [coordinate.kind],
 					authors: [coordinate.author],
 					tags: { '#d': [coordinate.identifier] },
 					limit: 20,
@@ -131,10 +139,25 @@
 		);
 	}
 
+	/**
+	 * Display classification from the definition's kind and tags: 30009 topics are
+	 * role/membership, a 30402 with an event link (or a bare calendar event) is a
+	 * ticket, a multi-use 30402 is a pass, anything else sellable is a product.
+	 */
 	function definitionType(value: ParsedEvent | undefined) {
 		if (!value) return '';
-		const type = extractTagValue(value, 'type');
-		return isBadgeDefinitionType(type) ? type : '';
+		const kind = value.kind();
+		if (kind === 30009) {
+			const topic = extractTagValue(value, 't');
+			return topic === 'role' ? 'role' : topic === 'membership' ? 'membership' : '';
+		}
+		if (kind === 31922 || kind === 31923) return 'event_access';
+		if (kind === 30402) {
+			if (catalogEventAddress(value)) return 'event_access';
+			const maxUses = catalogMaxUses(value);
+			return maxUses && maxUses > 1 ? 'pass' : 'product';
+		}
+		return '';
 	}
 
 	function latestStatus(value: ParsedEvent | undefined) {

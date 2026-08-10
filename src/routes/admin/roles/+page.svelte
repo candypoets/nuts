@@ -22,7 +22,6 @@
 	import type { EventTemplate } from 'nostr-tools';
 	import { key, selectedAdminRelayUrl } from 'src/controller';
 	import { parsedEventTags } from 'src/lib/adminRelays';
-	import { BADGE_DEFINITION_TYPE_TOPICS } from 'src/lib/catalog';
 	import {
 		buildRoleDefinitionTags,
 		parseRoleAward,
@@ -31,6 +30,7 @@
 		type RoleAward,
 		type RoleDefinition
 	} from 'src/lib/nip58Roles';
+	import { permissionGrants, permissionKind, type Permission } from 'src/lib/nip97';
 	import { now } from 'src/lib/period';
 	import { onDestroy } from 'svelte';
 
@@ -261,15 +261,34 @@
 		};
 	}
 
-	function permissionsFromList(permissions: string[]): Record<PermissionKey, boolean> {
-		const allowed = new Set(permissions);
+	function permissionsFromList(permissions: Permission[]): Record<PermissionKey, boolean> {
 		return Object.fromEntries(
-			actions.map((action) => [action.key, allowed.has(action.key)])
+			actions.map((action) => [
+				action.key,
+				permissions.some((grant) => permissionMatchesKey(grant, action.key))
+			])
 		) as Record<PermissionKey, boolean>;
 	}
 
-	function permissionsToList(permissions: Record<PermissionKey, boolean>) {
-		return actions.filter((action) => permissions[action.key]).map((action) => action.key);
+	/** NIP-97 kind-scoped capability stored for each checkbox. */
+	function permissionMatchesKey(grant: Permission, key: PermissionKey) {
+		if (key === 'posts') return permissionGrants(grant, 1, 'write');
+		if (key === 'media') return permissionGrants(grant, 1063, 'write');
+		if (key === 'events') return permissionGrants(grant, 31923, 'write');
+		if (key === 'store') return permissionGrants(grant, 30402, 'write');
+		return permissionKind(grant) === undefined && grant.capability === key;
+	}
+
+	function permissionsToList(permissions: Record<PermissionKey, boolean>): Permission[] {
+		return actions
+			.filter((action) => permissions[action.key])
+			.map((action) => {
+				if (action.key === 'posts') return { capability: '1', access: 'write' } as Permission;
+				if (action.key === 'media') return { capability: '1063', access: 'write' } as Permission;
+				if (action.key === 'events') return { capability: '31923', access: 'write' } as Permission;
+				if (action.key === 'store') return { capability: '30402', access: 'write' } as Permission;
+				return { capability: action.key } as Permission;
+			});
 	}
 
 	function samePermissions(
@@ -368,7 +387,7 @@
 		const roleDefinitionRequests: RequestObject[] = [
 			{
 				kinds: [30009],
-				tags: { '#t': [BADGE_DEFINITION_TYPE_TOPICS.role] },
+				tags: { '#t': ['role'] },
 				limit: 100,
 				relays: [relayUrl],
 				// The dashboard only ever talks to the community relay: a cacheFirst

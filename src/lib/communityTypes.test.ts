@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ADMIN_PERMISSION_KEYS } from './adminAccess';
+import { NAMED_CAPABILITIES, permissionKind } from './nip97';
 import {
 	archetypeFor,
 	COMMUNITY_ARCHETYPES,
@@ -37,11 +37,19 @@ describe('community archetype registry', () => {
 		}
 	});
 
-	it('uses only known admin permissions in suggested roles', () => {
+	it('uses only valid NIP-97 permissions in suggested roles', () => {
 		for (const archetype of COMMUNITY_ARCHETYPES) {
 			for (const role of archetype.suggestedRoles) {
 				for (const permission of role.permissions) {
-					expect(ADMIN_PERMISSION_KEYS).toContain(permission);
+					// Kind-scoped capability or a named off-relay capability.
+					const isKindScoped = permissionKind(permission) !== undefined;
+					const isNamed = (NAMED_CAPABILITIES as readonly string[]).includes(permission.capability);
+					expect(isKindScoped || isNamed).toBe(true);
+					// Never grant the privilege-escalation boundary (NIP-97).
+					expect(permissionKind(permission)).not.toBe(30009);
+					if (permission.access !== undefined) {
+						expect(['read', 'write']).toContain(permission.access);
+					}
 				}
 			}
 		}

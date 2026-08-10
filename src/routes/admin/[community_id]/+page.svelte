@@ -40,13 +40,7 @@
 		type RoleAward,
 		type RoleDefinition
 	} from 'src/lib/nip58Roles';
-	import {
-		BADGE_DEFINITION_TYPE_TOPICS,
-		catalogAddress,
-		catalogType,
-		isNewerCatalogEvent,
-		isSellableCatalogDefinition
-	} from 'src/lib/catalog';
+	import { parseMembershipDefinition, type MembershipDefinition } from 'src/lib/memberships';
 	import { now } from 'src/lib/period';
 	import { go } from 'src/routes/modals/modal';
 	import { onDestroy } from 'svelte';
@@ -99,7 +93,7 @@
 	let error = '';
 	let loadedRelayUrl = '';
 	let roleDefinitions: RoleDefinition[] = [];
-	let membershipDefinitionEvents: ParsedEvent[] = [];
+	let membershipDefinitions: MembershipDefinition[] = [];
 	let roleAwards: RoleAward[] = [];
 	let upcomingEvents: CalendarEventCard[] = [];
 	let eventsLoading = false;
@@ -116,7 +110,7 @@
 	$: memberDefinitionAddresses = new Set(
 		[
 			...roleDefinitions.map((definition) => definition.address),
-			...membershipDefinitionEvents.map(catalogAddress)
+			...membershipDefinitions.map((definition) => definition.address)
 		].filter(Boolean)
 	);
 	$: activeAwards = roleAwards.filter(
@@ -196,26 +190,15 @@
 			roleDefinitions = upsertDefinition(roleDefinitions, definition);
 			return;
 		}
-		if (
-			catalogType(parsedEvent) !== 'membership' ||
-			!isSellableCatalogDefinition(parsedEvent) ||
-			!catalogAddress(parsedEvent)
-		)
-			return;
-		const address = catalogAddress(parsedEvent);
-		const existingIndex = membershipDefinitionEvents.findIndex(
-			(event) => catalogAddress(event) === address
-		);
-		if (existingIndex === -1) {
-			membershipDefinitionEvents = [...membershipDefinitionEvents, parsedEvent];
-		} else if (isNewerCatalogEvent(parsedEvent, membershipDefinitionEvents[existingIndex])) {
-			membershipDefinitionEvents = membershipDefinitionEvents.map((event, index) =>
-				index === existingIndex ? parsedEvent : event
-			);
-		}
+		const membership = parseMembershipDefinition(parsedEvent);
+		if (!membership) return;
+		membershipDefinitions = upsertDefinition(membershipDefinitions, membership);
 	}
 
-	function upsertDefinition(definitions: RoleDefinition[], definition: RoleDefinition) {
+	function upsertDefinition<T extends { address: string; name: string; createdAt: number }>(
+		definitions: T[],
+		definition: T
+	) {
 		const existingIndex = definitions.findIndex((item) => item.address === definition.address);
 		if (existingIndex !== -1) {
 			if (definition.createdAt <= definitions[existingIndex].createdAt) return definitions;
@@ -251,8 +234,8 @@
 		roleDefinitions = roleDefinitions.filter(
 			(role) => role.pubkey !== author || !addresses.includes(role.address)
 		);
-		membershipDefinitionEvents = membershipDefinitionEvents.filter(
-			(event) => event.pubkey() !== author || !addresses.includes(catalogAddress(event))
+		membershipDefinitions = membershipDefinitions.filter(
+			(definition) => definition.pubkey !== author || !addresses.includes(definition.address)
 		);
 		roleAwards = roleAwards.filter((award) => award.pubkey !== author || !ids.includes(award.id));
 	}
@@ -261,7 +244,7 @@
 		unsubscribeRoleDefinitions?.();
 		unsubscribeRoleAwards?.();
 		roleDefinitions = [];
-		membershipDefinitionEvents = [];
+		membershipDefinitions = [];
 		roleAwards = [];
 		checkedOverview = false;
 		error = '';
@@ -275,14 +258,14 @@
 		const roleDefinitionRequests: RequestObject[] = [
 			{
 				kinds: [30009],
-				tags: { '#t': [BADGE_DEFINITION_TYPE_TOPICS.role] },
+				tags: { '#t': ['role'] },
 				limit: 100,
 				relays: [relayUrl],
 				cacheFirst: true
 			},
 			{
 				kinds: [30009],
-				tags: { '#t': [BADGE_DEFINITION_TYPE_TOPICS.membership] },
+				tags: { '#t': ['membership'] },
 				limit: 100,
 				relays: [relayUrl],
 				cacheFirst: true

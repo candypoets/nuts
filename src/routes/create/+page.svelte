@@ -712,17 +712,20 @@
 			badge_d: 'members'
 		});
 
+		// Coordinators require NIP-98 auth — sign the first attempt. Any valid
+		// signer may create; the signer becomes the community owner.
+		const authorization = await makeInviteAuthorization(url, body, adminPubkey);
 		let response = await fetch(url, {
 			method: 'POST',
-			headers: { 'content-type': 'application/json' },
+			headers: { 'content-type': 'application/json', authorization },
 			body
 		});
 		if (response.status === 401) {
-			// Newer coordinators require NIP-98 admin auth — retry signed.
-			const authorization = await makeInviteAuthorization(url, body, adminPubkey);
+			// Older coordinators or a stale signer — retry once with a fresh signature.
+			const retryAuthorization = await makeInviteAuthorization(url, body, adminPubkey);
 			response = await fetch(url, {
 				method: 'POST',
-				headers: { 'content-type': 'application/json', authorization },
+				headers: { 'content-type': 'application/json', authorization: retryAuthorization },
 				body
 			});
 		}

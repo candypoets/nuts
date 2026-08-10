@@ -17,10 +17,8 @@
 	import { normalizeURL } from 'nostr-tools/utils';
 	import { key } from 'src/controller';
 	import {
-		CATALOG_SELLABLE_TAG,
 		catalogAddress,
 		catalogAvailability,
-		catalogBilling,
 		catalogCurrency,
 		catalogDescription,
 		catalogImage,
@@ -31,12 +29,11 @@
 		catalogPriceSats,
 		catalogProductKind,
 		catalogSection,
-		catalogType,
-		isSellableCatalogDefinition,
 		isStoreCatalogDefinition,
 		sellableCatalogSubscriptionId,
 		upsertCatalogEvent
 	} from 'src/lib/catalog';
+	import { parseMembershipDefinition, type MembershipDefinition } from 'src/lib/memberships';
 	import {
 		storePresetFor,
 		type CommunityType,
@@ -52,6 +49,7 @@
 	let mounted = false;
 	let activeRelay = '';
 	let catalogEvents: ParsedEvent[] = [];
+	let memberships: MembershipDefinition[] = [];
 	let loading = true;
 	let loadError = '';
 	let checkoutAddress = '';
@@ -70,13 +68,16 @@
 		.slice()
 		.sort(compareCatalogEvents);
 	$: hospitalityMenuEvents = availableEvents.filter(
-		(event) =>
-			catalogType(event) === 'product' &&
-			(catalogProductKind(event) === 'food' || catalogProductKind(event) === 'drink')
+		(event) => catalogProductKind(event) === 'food' || catalogProductKind(event) === 'drink'
 	);
 	$: hospitalityOtherEvents = availableEvents.filter(
 		(event) => !hospitalityMenuEvents.includes(event)
 	);
+	$: hospitalityOtherItems = [
+		...hospitalityOtherEvents.map(productItem),
+		...memberships.map(membershipItem)
+	];
+	$: gridItems = [...availableEvents.map(productItem), ...memberships.map(membershipItem)];
 	$: hospitalitySections = Array.from(
 		new Set(hospitalityMenuEvents.map((event) => catalogSection(event) || 'Other'))
 	).sort(compareHospitalitySections);
@@ -105,6 +106,7 @@
 		checkoutAbortController?.abort();
 		checkoutAbortController = undefined;
 		catalogEvents = [];
+		memberships = [];
 		loadError = '';
 		checkoutAddress = '';
 		checkoutError = '';
@@ -115,9 +117,15 @@
 		}
 		const requests: RequestObject[] = [
 			{
-				kinds: [30009],
-				tags: { '#t': [CATALOG_SELLABLE_TAG] },
+				kinds: [30402],
 				limit: 500,
+				relays: [targetRelay],
+				noCache: true
+			},
+			{
+				kinds: [30009],
+				tags: { '#t': ['membership'] },
+				limit: 200,
 				relays: [targetRelay],
 				noCache: true
 			}
@@ -131,10 +139,14 @@
 
 				const event = isParsedEvent(message);
 				if (event) {
-					if (isSellableCatalogDefinition(event)) {
-						catalogEvents = upsertCatalogEvent(catalogEvents, event);
+					if (event.kind() === 30009) {
+						upsertMembershipEvent(event);
+						return;
 					}
-					if (isStoreCatalogDefinition(event)) loading = false;
+					if (isStoreCatalogDefinition(event)) {
+						catalogEvents = upsertCatalogEvent(catalogEvents, event);
+						loading = false;
+					}
 					return;
 				}
 
@@ -153,7 +165,7 @@
 					return;
 				}
 				if (
-					!catalogEvents.length &&
+					!gridItems.length &&
 					(statusValue === 'failed' || statusValue === 'closed' || statusValue === 'close')
 				) {
 					loadError = 'The community store could not be loaded right now.';
@@ -196,50 +208,105 @@
 			.sort(compareCatalogEvents);
 	}
 
-	function formatFiatPrice(event: ParsedEvent) {
+	/** Sellable memberships are NIP-97 `30009` definitions with `t=membership` and a valid price tag. */
+	function upsertMembershipEvent(event: ParsedEvent) {
+		const membership = parseMembershipDefinition(event);
+		if (!membership) return;
+		const price = Number(membership.price);
+		if (!membership.price || !Number.isFinite(price) || price <= 0) {
+			memberships = memberships.filter((item) => item.address !== membership.address);
+			return;
+		}
+		const index = memberships.findIndex((item) => item.address === membership.address);
+		if (index !== -1) {
+			if (membership.createdAt <= memberships[index].createdAt) return;
+			memberships = memberships.map((item, itemIndex) => (itemIndex === index ? membership : item));
+		} else {
+			memberships = [...memberships, membership];
+		}
+		loading = false;
+	}
+
+	type StorefrontItem =
+		| { kind: 'product'; event: ParsedEvent }
+		| { kind: 'membership'; membership: MembershipDefinition };
+
+	function productItem(event: ParsedEvent): StorefrontItem {
+		return { kind: 'product', event };
+	}
+
+	function membershipItem(membership: MembershipDefinition): StorefrontItem {
+		return { kind: 'membership', membership };
+	}
+
+	function itemKey(item: StorefrontItem) {
+		return item.kind === 'product' ? catalogAddress(item.event) : item.membership.address;
+	}
+
+	function itemName(item: StorefrontItem) {
+		return item.kind === 'product' ? catalogName(item.event) : item.membership.name;
+	}
+
+	function itemImage(item: StorefrontItem) {
+		return item.kind === 'product' ? catalogImage(item.event) : item.membership.image;
+	}
+
+	function itemDescription(item: StorefrontItem) {
+		return item.kind === 'product' ? catalogDescription(item.event) : item.membership.description;
+	}
+
+	/** A pass is a `30402` listing with more than one use per award. */
+	function isPassProduct(event: ParsedEvent) {
+		const maxUses = catalogMaxUses(event);
+		return Boolean(maxUses && maxUses > 1);
+	}
+
+	function formatFiatPrice(item: StorefrontItem) {
+		const price = item.kind === 'product' ? catalogPrice(item.event) : item.membership.price;
+		const currency =
+			item.kind === 'product' ? catalogCurrency(item.event) : item.membership.currency;
 		try {
 			return new Intl.NumberFormat(undefined, {
 				style: 'currency',
-				currency: catalogCurrency(event)
-			}).format(Number(catalogPrice(event)));
+				currency
+			}).format(Number(price));
 		} catch {
-			return `${catalogPrice(event)} ${catalogCurrency(event)}`;
+			return `${price} ${currency}`;
 		}
 	}
 
-	function formatSatsPrice(event: ParsedEvent) {
-		const sats = catalogPriceSats(event);
+	function formatSatsPrice(item: StorefrontItem) {
+		if (item.kind !== 'product') return '';
+		const sats = catalogPriceSats(item.event);
 		return sats ? `${new Intl.NumberFormat().format(sats)} sats` : '';
 	}
 
-	function typeLabel(event: ParsedEvent) {
-		const type = catalogType(event);
-		if (type === 'membership') return 'Membership';
-		if (type === 'pass') return 'Pass';
-		const productKind = catalogProductKind(event);
+	function typeLabel(item: StorefrontItem) {
+		if (item.kind === 'membership') return 'Membership';
+		if (isPassProduct(item.event)) return 'Pass';
+		const productKind = catalogProductKind(item.event);
 		if (productKind === 'food') return 'Food';
 		if (productKind === 'drink') return 'Drink';
 		if (productKind === 'merchandise') return 'Merchandise';
 		return 'Product';
 	}
 
-	function detailLabel(event: ParsedEvent) {
-		if (catalogType(event) === 'membership') {
-			const billing = catalogBilling(event);
-			if (billing === 'monthly') return 'Billed monthly';
-			if (billing === 'yearly') return 'Billed yearly';
+	function detailLabel(item: StorefrontItem) {
+		if (item.kind === 'membership') {
+			if (item.membership.billing === 'monthly') return 'Billed monthly';
+			if (item.membership.billing === 'yearly') return 'Billed yearly';
 			return 'One-time membership';
 		}
-		const maxUses = catalogMaxUses(event);
+		const maxUses = catalogMaxUses(item.event);
 		if (maxUses) return `${maxUses} ${maxUses === 1 ? 'use' : 'uses'}`;
-		if (catalogType(event) === 'pass') return 'Unlimited uses';
 		return '';
 	}
 
-	function itemIcon(event: ParsedEvent) {
-		if (catalogType(event) === 'membership') return UsersRound;
-		if (catalogType(event) === 'pass') return Ticket;
-		if (catalogProductKind(event) === 'food' || catalogProductKind(event) === 'drink') {
+	function itemIcon(item: StorefrontItem) {
+		if (item.kind === 'membership') return UsersRound;
+		if (isPassProduct(item.event)) return Ticket;
+		const productKind = catalogProductKind(item.event);
+		if (productKind === 'food' || productKind === 'drink') {
 			return Coffee;
 		}
 		return Package;
@@ -249,27 +316,26 @@
 		return presentation === 'menu' ? 'Menu' : preset.title;
 	}
 
-	function purchaseLabel(event: ParsedEvent) {
-		if (catalogType(event) === 'membership') {
-			return catalogBilling(event) === 'one_time' ? 'Join' : 'Subscribe';
+	function purchaseLabel(item: StorefrontItem) {
+		if (item.kind === 'membership') {
+			return item.membership.billing === 'one_time' ? 'Join' : 'Subscribe';
 		}
-		if (catalogType(event) === 'pass') return 'Get pass';
+		if (isPassProduct(item.event)) return 'Get pass';
 		return 'Buy';
 	}
 
-	async function startCheckout(event: ParsedEvent) {
+	async function startCheckout(item: StorefrontItem) {
 		if (!$key?.pub || $key?.hasSigner === false) {
 			go('login');
 			return;
 		}
-		const address = catalogAddress(event);
+		const address = itemKey(item);
 		const targetRelay = normalizedRelay;
-		if (
-			!address ||
-			!targetRelay ||
-			!isStoreCatalogDefinition(event) ||
-			catalogAvailability(event) !== 'available'
-		) {
+		const purchasable =
+			item.kind === 'membership'
+				? Boolean(address)
+				: isStoreCatalogDefinition(item.event) && catalogAvailability(item.event) === 'available';
+		if (!address || !targetRelay || !purchasable) {
 			checkoutError = 'This item is not currently available for checkout.';
 			return;
 		}
@@ -366,17 +432,17 @@
 		</div>
 	{/if}
 
-	{#if loading && !catalogEvents.length}
+	{#if loading && !gridItems.length}
 		<div class="mt-6 space-y-3">
 			{#each [1, 2, 3] as placeholder (placeholder)}
 				<div class="h-24 animate-pulse rounded-xl bg-base-200"></div>
 			{/each}
 		</div>
-	{:else if loadError && !availableEvents.length}
+	{:else if loadError && !gridItems.length}
 		<div class="mt-6 rounded-xl border border-error/25 bg-error/10 p-5 text-center">
 			<p class="text-sm font-bold text-error">{loadError}</p>
 		</div>
-	{:else if !availableEvents.length}
+	{:else if !gridItems.length}
 		<div
 			class="mt-6 rounded-xl border border-dashed border-base-200 bg-base-200/40 p-8 text-center"
 		>
@@ -409,7 +475,7 @@
 											loading="lazy"
 										/>
 									{:else}
-										<svelte:component this={itemIcon(event)} size={25} />
+										<svelte:component this={itemIcon(productItem(event))} size={25} />
 									{/if}
 								</div>
 								<div class="min-w-0 flex-1">
@@ -419,14 +485,14 @@
 											<span
 												class="mt-1 inline-flex rounded-full bg-base-200 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-base-content/65"
 											>
-												{typeLabel(event)}
+												{typeLabel(productItem(event))}
 											</span>
 										</div>
 										<div class="shrink-0 text-right">
-											<p class="font-black text-primary">{formatFiatPrice(event)}</p>
-											{#if catalogPriceSats(event)}
+											<p class="font-black text-primary">{formatFiatPrice(productItem(event))}</p>
+											{#if formatSatsPrice(productItem(event))}
 												<p class="mt-0.5 text-xs font-bold text-base-content/55">
-													{formatSatsPrice(event)}
+													{formatSatsPrice(productItem(event))}
 												</p>
 											{/if}
 										</div>
@@ -441,8 +507,8 @@
 											type="button"
 											class="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-black text-primary-content disabled:cursor-wait disabled:opacity-60"
 											disabled={Boolean(checkoutAddress)}
-											aria-label={`${purchaseLabel(event)} ${catalogName(event)}`}
-											on:click={() => startCheckout(event)}
+											aria-label={`${purchaseLabel(productItem(event))} ${catalogName(event)}`}
+											on:click={() => startCheckout(productItem(event))}
 										>
 											{#if checkoutAddress === catalogAddress(event)}
 												<LoaderCircle size={15} class="animate-spin" />
@@ -452,7 +518,7 @@
 												Sign in to buy
 											{:else}
 												<ShoppingCart size={15} />
-												{purchaseLabel(event)}
+												{purchaseLabel(productItem(event))}
 											{/if}
 										</button>
 									</div>
@@ -463,7 +529,7 @@
 				</section>
 			{/each}
 
-			{#if hospitalityOtherEvents.length}
+			{#if hospitalityOtherItems.length}
 				<section>
 					<div class="mb-3">
 						<h3 class="text-lg font-black">Other offers</h3>
@@ -472,51 +538,51 @@
 						</p>
 					</div>
 					<div class="grid gap-3 sm:grid-cols-2">
-						{#each hospitalityOtherEvents as event (catalogAddress(event))}
+						{#each hospitalityOtherItems as item (itemKey(item))}
 							<article class="overflow-hidden rounded-xl border border-base-200 bg-base-300/70">
 								<div class="flex gap-3 p-4">
 									<div
 										class="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-xl bg-primary/10 text-primary"
 									>
-										{#if catalogImage(event)}
+										{#if itemImage(item)}
 											<img
-												src={catalogImage(event)}
-												alt={catalogName(event)}
+												src={itemImage(item)}
+												alt={itemName(item)}
 												class="h-full w-full object-cover"
 												loading="lazy"
 											/>
 										{:else}
-											<svelte:component this={itemIcon(event)} size={23} />
+											<svelte:component this={itemIcon(item)} size={23} />
 										{/if}
 									</div>
 									<div class="min-w-0 flex-1">
 										<span
 											class="inline-flex rounded-full bg-base-200 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-base-content/65"
 										>
-											{typeLabel(event)}
+											{typeLabel(item)}
 										</span>
-										<h4 class="mt-1 truncate text-base font-black">{catalogName(event)}</h4>
-										<p class="mt-1 font-black text-primary">{formatFiatPrice(event)}</p>
-										{#if catalogPriceSats(event)}
+										<h4 class="mt-1 truncate text-base font-black">{itemName(item)}</h4>
+										<p class="mt-1 font-black text-primary">{formatFiatPrice(item)}</p>
+										{#if formatSatsPrice(item)}
 											<p class="text-xs font-bold text-base-content/55">
-												{formatSatsPrice(event)}
+												{formatSatsPrice(item)}
 											</p>
 										{/if}
 									</div>
 								</div>
 								<div class="border-t border-base-200 px-4 py-3">
-									{#if catalogDescription(event) || detailLabel(event)}
-										{#if catalogDescription(event)}
+									{#if itemDescription(item) || detailLabel(item)}
+										{#if itemDescription(item)}
 											<p class="line-clamp-2 text-sm font-medium leading-5 text-base-content/65">
-												{catalogDescription(event)}
+												{itemDescription(item)}
 											</p>
 										{/if}
-										{#if detailLabel(event)}
+										{#if detailLabel(item)}
 											<p
 												class="mt-2 flex items-center gap-1.5 text-xs font-bold text-base-content/55"
 											>
 												<BadgeCheck size={14} class="text-primary" />
-												{detailLabel(event)}
+												{detailLabel(item)}
 											</p>
 										{/if}
 									{/if}
@@ -524,10 +590,10 @@
 										type="button"
 										class="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-black text-primary-content disabled:cursor-wait disabled:opacity-60"
 										disabled={Boolean(checkoutAddress)}
-										aria-label={`${purchaseLabel(event)} ${catalogName(event)}`}
-										on:click={() => startCheckout(event)}
+										aria-label={`${purchaseLabel(item)} ${itemName(item)}`}
+										on:click={() => startCheckout(item)}
 									>
-										{#if checkoutAddress === catalogAddress(event)}
+										{#if checkoutAddress === itemKey(item)}
 											<LoaderCircle size={16} class="animate-spin" />
 											Opening checkout…
 										{:else if !$key?.pub || $key?.hasSigner === false}
@@ -535,7 +601,7 @@
 											Sign in to buy
 										{:else}
 											<ShoppingCart size={16} />
-											{purchaseLabel(event)}
+											{purchaseLabel(item)}
 										{/if}
 									</button>
 								</div>
@@ -547,56 +613,56 @@
 		</div>
 	{:else}
 		<div class="mt-6 grid gap-3 sm:grid-cols-2">
-			{#each availableEvents as event (catalogAddress(event))}
+			{#each gridItems as item (itemKey(item))}
 				<article
 					class="flex min-h-56 flex-col overflow-hidden rounded-xl border border-base-200 bg-base-300/70"
 				>
 					<div class="relative h-32 bg-base-200">
-						{#if catalogImage(event)}
+						{#if itemImage(item)}
 							<img
-								src={catalogImage(event)}
-								alt={catalogName(event)}
+								src={itemImage(item)}
+								alt={itemName(item)}
 								class="h-full w-full object-cover"
 								loading="lazy"
 							/>
 						{:else}
 							<div class="grid h-full place-items-center text-primary">
-								<svelte:component this={itemIcon(event)} size={32} />
+								<svelte:component this={itemIcon(item)} size={32} />
 							</div>
 						{/if}
 						<span
 							class="absolute left-3 top-3 rounded-full bg-base-100/90 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-base-content shadow-sm backdrop-blur"
 						>
-							{typeLabel(event)}
+							{typeLabel(item)}
 						</span>
 					</div>
 					<div class="flex flex-1 flex-col p-4">
 						<div class="flex items-start justify-between gap-3">
-							<h3 class="min-w-0 text-lg font-black leading-6">{catalogName(event)}</h3>
+							<h3 class="min-w-0 text-lg font-black leading-6">{itemName(item)}</h3>
 							<div class="shrink-0 text-right">
-								<p class="font-black text-primary">{formatFiatPrice(event)}</p>
-								{#if catalogPriceSats(event)}
-									<p class="text-xs font-bold text-base-content/55">{formatSatsPrice(event)}</p>
+								<p class="font-black text-primary">{formatFiatPrice(item)}</p>
+								{#if formatSatsPrice(item)}
+									<p class="text-xs font-bold text-base-content/55">{formatSatsPrice(item)}</p>
 								{/if}
 							</div>
 						</div>
-						{#if catalogDescription(event)}
+						{#if itemDescription(item)}
 							<p class="mt-2 line-clamp-2 text-sm font-medium leading-5 text-base-content/65">
-								{catalogDescription(event)}
+								{itemDescription(item)}
 							</p>
 						{/if}
 						<div class="mt-auto flex flex-wrap items-center gap-2 pt-4">
-							{#if catalogSection(event)}
+							{#if item.kind === 'product' && catalogSection(item.event)}
 								<span class="rounded-full bg-base-200 px-2.5 py-1 text-xs font-bold">
-									{catalogSection(event)}
+									{catalogSection(item.event)}
 								</span>
 							{/if}
-							{#if detailLabel(event)}
+							{#if detailLabel(item)}
 								<span
 									class="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary"
 								>
 									<BadgeCheck size={13} />
-									{detailLabel(event)}
+									{detailLabel(item)}
 								</span>
 							{/if}
 						</div>
@@ -604,10 +670,10 @@
 							type="button"
 							class="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-black text-primary-content disabled:cursor-wait disabled:opacity-60"
 							disabled={Boolean(checkoutAddress)}
-							aria-label={`${purchaseLabel(event)} ${catalogName(event)}`}
-							on:click={() => startCheckout(event)}
+							aria-label={`${purchaseLabel(item)} ${itemName(item)}`}
+							on:click={() => startCheckout(item)}
 						>
-							{#if checkoutAddress === catalogAddress(event)}
+							{#if checkoutAddress === itemKey(item)}
 								<LoaderCircle size={17} class="animate-spin" />
 								Opening checkout…
 							{:else if !$key?.pub || $key?.hasSigner === false}
@@ -615,7 +681,7 @@
 								Sign in to buy
 							{:else}
 								<ShoppingCart size={17} />
-								{purchaseLabel(event)}
+								{purchaseLabel(item)}
 							{/if}
 						</button>
 					</div>

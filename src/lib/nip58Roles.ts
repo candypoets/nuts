@@ -1,9 +1,6 @@
 import type { ParsedEvent } from '@candypoets/nipworker';
 import { parsedEventTags } from 'src/lib/adminRelays';
-import {
-	badgeDefinitionHasTypeTopic,
-	buildBadgeDefinitionClassificationTags
-} from 'src/lib/catalog';
+import { buildPermissionTag, parsePermissionTag, type Permission } from 'src/lib/nip97';
 
 export type RoleDefinition = {
 	address: string;
@@ -12,7 +9,7 @@ export type RoleDefinition = {
 	name: string;
 	description: string;
 	image?: string;
-	permissions?: string[];
+	permissions: Permission[];
 	createdAt: number;
 };
 
@@ -40,8 +37,7 @@ export function roleAddress(pubkey: string, d: string) {
 export function parseRoleDefinition(event: ParsedEvent): RoleDefinition | undefined {
 	if (event.kind() !== 30009) return undefined;
 	const tags = parsedEventTags(event);
-	if (tags.find((tag) => tag[0] === 'type')?.[1] !== 'role') return undefined;
-	if (!badgeDefinitionHasTypeTopic(event, 'role')) return undefined;
+	if (!tags.some((tag) => tag[0] === 't' && tag[1] === 'role')) return undefined;
 	const d = tags.find((tag) => tag[0] === 'd')?.[1];
 	if (!d) return undefined;
 
@@ -49,9 +45,8 @@ export function parseRoleDefinition(event: ParsedEvent): RoleDefinition | undefi
 	const description = tags.find((tag) => tag[0] === 'description')?.[1] || '';
 	const image = tags.find((tag) => tag[0] === 'image')?.[1];
 	const permissions = tags
-		.filter((tag) => tag[0] === 'permission')
-		.map((tag) => tag[1])
-		.filter((permission): permission is string => Boolean(permission));
+		.map((tag) => parsePermissionTag(tag))
+		.filter((permission): permission is Permission => Boolean(permission));
 	const pubkey = event.pubkey();
 	if (!pubkey) return undefined;
 
@@ -62,7 +57,7 @@ export function parseRoleDefinition(event: ParsedEvent): RoleDefinition | undefi
 		name,
 		description,
 		image,
-		permissions: permissions.length ? permissions : undefined,
+		permissions,
 		createdAt: Number(event.createdAt())
 	};
 }
@@ -117,19 +112,17 @@ export function buildRoleDefinitionTags(role: {
 	name: string;
 	description: string;
 	image?: string;
-	permissions?: string[];
+	permissions?: Permission[];
 }) {
 	const tags = [
 		['d', role.d],
-		...buildBadgeDefinitionClassificationTags('role', false),
+		['t', 'role'],
 		['name', role.name],
 		['description', role.description]
 	];
 	if (role.image) tags.push(['image', role.image]);
-	if (role.permissions) {
-		for (const permission of role.permissions.length ? role.permissions : ['none']) {
-			tags.push(['permission', permission]);
-		}
+	for (const permission of role.permissions ?? []) {
+		tags.push(buildPermissionTag(permission));
 	}
 	return tags;
 }

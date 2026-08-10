@@ -15,17 +15,15 @@
 	import { isConnectionStatus, isParsedEvent } from '@candypoets/nipworker/utils';
 	import { key } from 'src/controller';
 	import {
-		badgeDefinitionHasTypeTopic,
 		catalogEventAddress,
 		catalogMaxUses,
 		catalogName,
 		catalogProductKind,
-		catalogType,
 		catalogUsesQrFulfillment,
-		isSellableCatalogDefinition,
-		isSellableEventAccessDefinition
+		isCatalogDefinition
 	} from 'src/lib/catalog';
-	import { fetchCommunityAccess, fetchCommunityTrust } from 'src/lib/adminAccess';
+	import { canDo, fetchCommunityAccess, fetchCommunityTrust } from 'src/lib/adminAccess';
+	import { DEFINITION_KINDS, isDefinitionAddress } from 'src/lib/nip97';
 	import {
 		BADGE_STATUS_KIND,
 		buildBadgeStatusTemplate,
@@ -67,7 +65,7 @@
 	let readerElement: HTMLDivElement;
 	let startTimer: ReturnType<typeof setTimeout> | undefined;
 	let mounted = false;
-	let communityBadgeIssuer = '';
+	let communityIssuers = new Set<string>();
 	let redemptionCandidate:
 		| {
 				community: string;
@@ -140,32 +138,16 @@
 		verificationResultLabel = admitted ? verificationResultLabel || 'Completed' : 'Not accepted';
 	}
 
-	function communityServiceUrl(relay: string) {
-		if (relay.startsWith('wss://')) return `https://${relay.slice(6)}`;
-		if (relay.startsWith('ws://')) return `http://${relay.slice(5)}`;
-		return relay;
-	}
-
-	async function fetchCommunityBadgeIssuer() {
+	async function fetchCommunityIssuers() {
 		if (!checkInContext) return;
 		try {
-			const response = await fetch(
-				new URL('/community/info', communityServiceUrl(checkInContext.community))
-			);
-			if (!response.ok) return;
-			const info = (await response.json()) as {
-				badge_issuer?: unknown;
-				booking_issuer?: unknown;
-			};
-			const issuer =
-				typeof info.badge_issuer === 'string'
-					? info.badge_issuer
-					: typeof info.booking_issuer === 'string'
-						? info.booking_issuer
-						: '';
-			if (/^[0-9a-f]{64}$/i.test(issuer)) communityBadgeIssuer = issuer.toLowerCase();
+			const trust = await fetchCommunityTrust(checkInContext.community);
+			communityIssuers = new Set([
+				...trust.admins,
+				...(trust.badgeIssuer ? [trust.badgeIssuer] : [])
+			]);
 		} catch {
-			communityBadgeIssuer = '';
+			communityIssuers = new Set();
 		}
 	}
 
@@ -193,7 +175,7 @@
 			finishVerification(false, 'The active signer is not the authority for this event.');
 			return true;
 		}
-		if (!communityBadgeIssuer) {
+		if (!communityIssuers.size) {
 			finishVerification(false, 'The community badge issuer could not be resolved.');
 			return true;
 		}
@@ -204,10 +186,11 @@
 		const definitionRequests: RequestObject[] = checkInContext.badgeAddresses.flatMap((address) => {
 			const [kind, author, ...dParts] = address.split(':');
 			const d = dParts.join(':');
-			return kind === '30009' && author && d
+			const kindNumber = Number(kind);
+			return (DEFINITION_KINDS as readonly number[]).includes(kindNumber) && author && d
 				? [
 						{
-							kinds: [30009],
+							kinds: [kindNumber],
 							authors: [author],
 							tags: { '#d': [d] },
 							limit: 1,
@@ -234,30 +217,15 @@
 				(message: WorkerMessage) => {
 					const event = isParsedEvent(message);
 					if (!event) return;
-					if (event.kind() === 30009) {
+					if ((DEFINITION_KINDS as readonly number[]).includes(event.kind())) {
 						const issuer = event.pubkey();
 						const d = extractTagValue(event, 'd');
 						if (!issuer || !d) return;
-						const address = `30009:${issuer}:${d}`;
+						const address = `${event.kind()}:${issuer}:${d}`;
 						if (!checkInContext.badgeAddresses.includes(address)) return;
-						const type = catalogType(event);
-						const maxUsesValue = catalogMaxUses(event);
-						const isRole =
-							extractTagValue(event, 'type') === 'role' &&
-							badgeDefinitionHasTypeTopic(event, 'role');
-						const isEventPass =
-							type === 'event_access' &&
-							isSellableEventAccessDefinition(event) &&
-							catalogEventAddress(event) === checkInContext.eventAddress;
-						if (!isRole && !isEventPass && !isSellableCatalogDefinition(event)) return;
 						definitions.set(address, {
 							address,
-							maxUses:
-								maxUsesValue && Number.isSafeInteger(maxUsesValue)
-									? maxUsesValue
-									: isEventPass
-										? 1
-										: undefined
+							maxUses: catalogMaxUses(event)
 						});
 						return;
 					}
@@ -268,7 +236,7 @@
 					const id = event.id();
 					const expiration = Number(extractTagValue(event, 'expiration') || 0);
 					if (!address || !issuer || !id || recipient !== presentation.pubkey) return;
-					if (!checkInContext.badgeAddresses.includes(address) || issuer !== communityBadgeIssuer)
+					if (!checkInContext.badgeAddresses.includes(address) || !communityIssuers.has(issuer))
 						return;
 					if (expiration && expiration <= Math.floor(Date.now() / 1000)) return;
 					awards.set(id, {
@@ -425,24 +393,44 @@
 		return latest;
 	}
 
-	function redemptionAction(
-		type: ReturnType<typeof catalogType>,
-		productKind: ReturnType<typeof catalogProductKind>
-	) {
-		if (type === 'event_access') {
+	/** Tickets are 30402 listings linked to a calendar event, or the event itself (free admission). */
+	function ticketEventAddress(definition: ParsedEvent) {
+		const kind = definition.kind();
+		if (kind === 31922 || kind === 31923) {
+			const author = definition.pubkey();
+			const d = extractTagValue(definition, 'd');
+			return author && d ? `${kind}:${author}:${d}` : '';
+		}
+		return catalogEventAddress(definition);
+	}
+
+	function isRedeemableDefinition(event: ParsedEvent) {
+		const kind = event.kind();
+		if (kind === 30402) return isCatalogDefinition(event);
+		if (kind === 30009) {
+			const topic = extractTagValue(event, 't');
+			return topic === 'membership' || topic === 'role';
+		}
+		return kind === 31922 || kind === 31923;
+	}
+
+	function redemptionAction(definition: ParsedEvent) {
+		if (ticketEventAddress(definition)) {
 			return {
 				actionLabel: 'Check in',
 				successMessage: 'Ticket checked in.',
 				resultLabel: 'Admitted'
 			};
 		}
-		if (type === 'pass' || type === 'membership') {
+		const maxUses = catalogMaxUses(definition);
+		if (definition.kind() === 30009 || maxUses === undefined || maxUses > 1) {
 			return {
 				actionLabel: 'Record check-in',
 				successMessage: 'Check-in recorded.',
 				resultLabel: 'Checked in'
 			};
 		}
+		const productKind = catalogProductKind(definition);
 		if (productKind === 'food' || productKind === 'drink') {
 			return {
 				actionLabel: 'Mark served',
@@ -479,15 +467,12 @@
 		return true;
 	}
 
-	async function signerCanFulfill(
-		community: string,
-		pubkey: string,
-		permission: 'store' | 'events'
-	) {
+	/** Staff may fulfill when they are an anchor admin, the badge issuer, or hold 37237 write. */
+	async function signerCanFulfill(community: string, pubkey: string) {
 		const trust = await fetchCommunityTrust(community);
-		if (trust.authorityPubkeys.has(pubkey)) return true;
+		if (trust.admins.has(pubkey) || trust.badgeIssuer === pubkey) return true;
 		const access = await fetchCommunityAccess(community, pubkey, false);
-		return access.permissions.has(permission);
+		return canDo(access, '37237', 'write');
 	}
 
 	async function prepareEntitlementRedemption(presentation: EntitlementPresentation) {
@@ -519,6 +504,11 @@
 
 		const [, definitionAuthor, ...definitionDParts] = presentation.badgeAddress.split(':');
 		const definitionD = definitionDParts.join(':');
+		const definitionKind = Number(presentation.badgeAddress.split(':')[0]);
+		if (!isDefinitionAddress(presentation.badgeAddress) || !definitionAuthor || !definitionD) {
+			finishVerification(false, 'The QR does not reference a valid entitlement definition.');
+			return;
+		}
 		let award: ParsedEvent | undefined;
 		let definition: ParsedEvent | undefined;
 		const revocationSigners = new Set<string>();
@@ -537,7 +527,7 @@
 				cacheFirst: true
 			},
 			{
-				kinds: [30009],
+				kinds: [definitionKind],
 				authors: [definitionAuthor],
 				tags: { '#d': [definitionD] },
 				limit: 20,
@@ -589,11 +579,11 @@
 						}
 						return;
 					}
-					if (event.kind() === 30009) {
+					if (event.kind() === definitionKind) {
 						if (
 							event.pubkey() !== definitionAuthor ||
 							extractTagValue(event, 'd') !== definitionD ||
-							!isSellableCatalogDefinition(event)
+							!isRedeemableDefinition(event)
 						) {
 							return;
 						}
@@ -637,14 +627,12 @@
 				return;
 			}
 			const trust = await fetchCommunityTrust(community);
-			if (
-				!award.pubkey() ||
-				(!trust.authorityPubkeys.has(award.pubkey()!) && trust.badgeIssuer !== award.pubkey())
-			) {
+			const awardIssuer = award.pubkey();
+			if (!awardIssuer || (!trust.admins.has(awardIssuer) && trust.badgeIssuer !== awardIssuer)) {
 				finishVerification(false, 'The entitlement was not issued by this community.');
 				return;
 			}
-			if (award.pubkey() && revocationSigners.has(award.pubkey()!)) {
+			if (revocationSigners.has(awardIssuer)) {
 				finishVerification(false, 'This entitlement has been revoked.');
 				return;
 			}
@@ -654,22 +642,19 @@
 				return;
 			}
 
-			const type = catalogType(definition);
-			const permission = type === 'event_access' ? 'events' : 'store';
-			if (!type || !(await signerCanFulfill(community, staffPubkey, permission))) {
-				finishVerification(false, `This account does not have ${permission} permission.`);
+			if (!(await signerCanFulfill(community, staffPubkey))) {
+				finishVerification(false, 'This account is not authorized to fulfill entitlements.');
 				return;
 			}
+			const linkedEventAddress = ticketEventAddress(definition);
+			const isTicket = Boolean(linkedEventAddress);
 			if (
-				(type === 'event_access' &&
-					(!presentation.eventAddress ||
-						catalogEventAddress(definition) !== presentation.eventAddress)) ||
-				(type !== 'event_access' && !presentation.orderId)
+				(isTicket && linkedEventAddress !== presentation.eventAddress) ||
+				(!isTicket && !presentation.orderId)
 			) {
 				finishVerification(false, 'The QR fulfillment context does not match this entitlement.');
 				return;
 			}
-			const productKind = catalogProductKind(definition);
 			if (!catalogUsesQrFulfillment(definition)) {
 				finishVerification(false, 'This product does not use QR fulfillment.');
 				return;
@@ -683,7 +668,7 @@
 
 					let authorization = statusAuthorization.get(signer);
 					if (!authorization) {
-						authorization = signerCanFulfill(community, signer, permission);
+						authorization = signerCanFulfill(community, signer);
 						statusAuthorization.set(signer, authorization);
 					}
 					return authorization;
@@ -700,9 +685,7 @@
 			if (currentValue === 'fulfilled') {
 				finishVerification(
 					false,
-					type === 'event_access'
-						? 'This ticket was already checked in.'
-						: 'This entitlement was already used.'
+					isTicket ? 'This ticket was already checked in.' : 'This entitlement was already used.'
 				);
 				return;
 			}
@@ -719,15 +702,13 @@
 				return;
 			}
 
-			const action = redemptionAction(type, productKind);
+			const action = redemptionAction(definition);
 			verificationState = 'confirming';
 			verificationTitle =
-				type === 'event_access' && checkInContext
-					? checkInContext.eventTitle
-					: catalogName(definition);
+				isTicket && checkInContext ? checkInContext.eventTitle : catalogName(definition);
 			verificationResultLabel = action.resultLabel;
 			verificationMessage =
-				type === 'product' && currentValue
+				!isTicket && currentValue
 					? `Current order status: ${currentValue}. Confirm the handover to fulfill it.`
 					: 'Confirm this entitlement use.';
 			redemptionCandidate = {
@@ -848,7 +829,7 @@
 
 	onMount(() => {
 		mounted = true;
-		void fetchCommunityBadgeIssuer().finally(() => {
+		void fetchCommunityIssuers().finally(() => {
 			startTimer = setTimeout(start, 0);
 		});
 		return () => {

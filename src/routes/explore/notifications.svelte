@@ -23,10 +23,12 @@
 		showNotificationToast
 	} from 'src/controller/notificationToast';
 	import {
+		canDo,
 		fetchCommunityAccess,
 		fetchCommunityTrust,
 		type CommunityTrust
 	} from 'src/lib/adminAccess';
+	import { isDefinitionAddress } from 'src/lib/nip97';
 	import { go, usePagerNavigation } from 'src/routes/modals/modal';
 	import {
 		BADGE_STATUS_KIND,
@@ -126,14 +128,15 @@
 		return trust;
 	}
 
+	/** 37237 status signers: anchor admins, the badge issuer, or 37237-write holders. */
 	function signerAuthorization(relay: string, signer: string) {
 		const cacheKey = `${relay}:${signer}`;
 		let authorization = authorizationPromises.get(cacheKey);
 		if (!authorization) {
 			authorization = trustForRelay(relay).then(async (trust) => {
-				if (trust.authorityPubkeys.has(signer)) return true;
+				if (trust.admins.has(signer) || trust.badgeIssuer === signer) return true;
 				const access = await fetchCommunityAccess(relay, signer, false);
-				return access.permissions.has('store') || access.permissions.has('events');
+				return canDo(access, '37237', 'write');
 			});
 			authorizationPromises.set(cacheKey, authorization);
 		}
@@ -199,13 +202,13 @@
 		const recipient = extractTagValue(event, 'p');
 		const signer = event.pubkey();
 		const address = extractTagValue(event, 'a');
-		if (recipient !== pubkey || !signer || !address?.startsWith('30009:')) return;
+		if (recipient !== pubkey || !signer || !isDefinitionAddress(address || '')) return;
 
 		if (event.kind() === 8) {
 			const trusted = await Promise.all(
 				badgeRelays.map(async (relay) => {
 					const trust = await trustForRelay(relay);
-					return trust.authorityPubkeys.has(signer) || trust.badgeIssuer === signer;
+					return trust.admins.has(signer) || trust.badgeIssuer === signer;
 				})
 			);
 			if (generation === badgeGeneration && trusted.some(Boolean)) {

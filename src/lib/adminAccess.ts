@@ -1,22 +1,20 @@
+import type { ParsedEvent } from '@candypoets/nipworker';
 import { SimplePool } from 'nostr-tools/pool';
-import { BADGE_DEFINITION_TYPE_TOPICS } from 'src/lib/catalog';
-
-export const ADMIN_PERMISSION_KEYS = [
-	'posts',
-	'media',
-	'events',
-	'store',
-	'invites',
-	'moderation',
-	'settings'
-] as const;
-
-export type AdminPermission = (typeof ADMIN_PERMISSION_KEYS)[number];
+import {
+	ANCHOR_D,
+	ANCHOR_KIND,
+	isNewerAnchor,
+	parseCommunityAnchor,
+	parsePermissionTag,
+	permissionGrants,
+	type CommunityAnchor,
+	type Permission
+} from 'src/lib/nip97';
 
 export type CommunityAccess = {
 	isOwner: boolean;
-	permissions: Set<AdminPermission>;
 	roles: string[];
+	permissions: Permission[];
 };
 
 export type CommunityAccessEvent = {
@@ -32,12 +30,6 @@ function tagValue(tags: string[][], name: string) {
 
 function hasTagValue(tags: string[][], name: string, value: string) {
 	return tags.some((tag) => tag[0] === name && tag[1] === value);
-}
-
-function defaultRolePermissions(name: string): AdminPermission[] {
-	const normalized = name.toLowerCase();
-	if (normalized === 'admin') return [...ADMIN_PERMISSION_KEYS];
-	return ['posts', 'media', ...(normalized === 'coach' ? ['events' as const] : [])];
 }
 
 function isNewerDefinition(candidate: CommunityAccessEvent, current: CommunityAccessEvent) {
@@ -77,38 +69,49 @@ export function resolveCommunityAccessFromEvents(
 					.map((tag) => tag[1]);
 				return (
 					recipients.includes(pubkey) &&
-					address.startsWith(`30009:${award.pubkey}:`) &&
+					address.startsWith('30009:') &&
 					(!expiration || expiration > now)
 				);
 			})
 			.map((award) => tagValue(award.tags, 'a'))
 	);
 
-	const permissions = new Set<AdminPermission>();
+	const permissions: Permission[] = [];
 	const roles: string[] = [];
 	for (const [address, definition] of latestDefinitions) {
-		if (
-			tagValue(definition.tags, 'type') !== 'role' ||
-			!hasTagValue(definition.tags, 't', BADGE_DEFINITION_TYPE_TOPICS.role) ||
-			!activeAddresses.has(address)
-		) {
-			continue;
+		if (!activeAddresses.has(address)) continue;
+		if (hasTagValue(definition.tags, 't', 'role')) {
+			roles.push(tagValue(definition.tags, 'name') || tagValue(definition.tags, 'd'));
 		}
-		const d = tagValue(definition.tags, 'd');
-		const name = tagValue(definition.tags, 'name') || d;
-		roles.push(name);
-		const explicit = definition.tags
-			.filter((tag) => tag[0] === 'permission' && tag[1] && tag[1] !== 'none')
-			.map((tag) => tag[1])
-			.filter((permission): permission is AdminPermission =>
-				ADMIN_PERMISSION_KEYS.includes(permission as AdminPermission)
-			);
-		for (const permission of explicit.length ? explicit : defaultRolePermissions(name)) {
-			permissions.add(permission);
+		for (const tag of definition.tags) {
+			const permission = parsePermissionTag(tag);
+			if (permission) permissions.push(permission);
 		}
 	}
 
-	return { isOwner: false, permissions, roles };
+	return { isOwner: false, roles, permissions };
+}
+
+/**
+ * Kind-scoped capability check. `capability` is an event kind number or a named
+ * capability string (invites/moderation/settings); owners can do everything.
+ */
+export function canDo(
+	access: CommunityAccess,
+	capability: string | number,
+	action: 'read' | 'write' = 'write',
+	topic?: string
+): boolean {
+	if (access.isOwner) return true;
+	if (typeof capability === 'number') {
+		return access.permissions.some((permission) =>
+			permissionGrants(permission, capability, action, topic)
+		);
+	}
+	return access.permissions.some(
+		(permission) =>
+			permission.capability === capability && (!permission.access || permission.access === action)
+	);
 }
 
 function relayInfoUrl(community: string) {
@@ -117,58 +120,83 @@ function relayInfoUrl(community: string) {
 	return community;
 }
 
-function pubkeysFrom(value: unknown): string[] {
-	if (typeof value === 'string') return /^[0-9a-f]{64}$/i.test(value) ? [value.toLowerCase()] : [];
-	if (Array.isArray(value)) return value.flatMap(pubkeysFrom);
-	if (!value || typeof value !== 'object') return [];
-	return Object.values(value as Record<string, unknown>).flatMap(pubkeysFrom);
-}
-
-export type CommunityTrust = {
-	authorityPubkeys: Set<string>;
-	badgeIssuer?: string;
-};
-
-export async function fetchTrustedRoleIssuers(community: string) {
+async function fetchRootPubkey(community: string) {
 	try {
 		const response = await fetch(relayInfoUrl(community), {
 			headers: { accept: 'application/nostr+json' }
 		});
-		if (!response.ok) return [];
+		if (!response.ok) return '';
 		const info = await response.json();
-		return Array.from(
-			new Set([
-				...pubkeysFrom(info.pubkey),
-				...pubkeysFrom(info.admin_pubkeys),
-				...pubkeysFrom(info.admins),
-				...pubkeysFrom(info.admin_pubkey)
-			])
-		);
+		const pubkey = info.pubkey;
+		return typeof pubkey === 'string' && /^[0-9a-f]{64}$/i.test(pubkey) ? pubkey.toLowerCase() : '';
 	} catch {
-		return [];
+		return '';
 	}
 }
 
-export async function fetchCommunityTrust(community: string): Promise<CommunityTrust> {
-	const authorityPubkeys = new Set(await fetchTrustedRoleIssuers(community));
-	let badgeIssuer: string | undefined;
+/** Wraps a plain relay event in the ParsedEvent shape the NIP-97 parser expects. */
+function asParsedEvent(event: {
+	kind: number;
+	id: string;
+	pubkey: string;
+	created_at: number;
+	tags: string[][];
+}): ParsedEvent {
+	return {
+		kind: () => event.kind,
+		id: () => event.id,
+		pubkey: () => event.pubkey,
+		createdAt: () => event.created_at,
+		tagsLength: () => event.tags.length,
+		tags: (index: number) => ({
+			itemsLength: () => event.tags[index].length,
+			items: (item: number) => event.tags[index][item]
+		})
+	} as unknown as ParsedEvent;
+}
+
+/**
+ * Resolves the community anchor: NIP-11 `pubkey` is the root key, the anchor is
+ * the root-signed kind 31727 event with `d=community` on the community relay.
+ */
+export async function fetchCommunityAnchor(
+	community: string
+): Promise<CommunityAnchor | undefined> {
+	const root = await fetchRootPubkey(community);
+	if (!root) return undefined;
+
+	const pool = new SimplePool();
 	try {
-		const url = new URL('/community/info', relayInfoUrl(community));
-		const response = await fetch(url);
-		if (response.ok) {
-			const info = await response.json();
-			const issuer =
-				typeof info.badge_issuer === 'string'
-					? info.badge_issuer
-					: typeof info.booking_issuer === 'string'
-						? info.booking_issuer
-						: '';
-			if (/^[0-9a-f]{64}$/i.test(issuer)) badgeIssuer = issuer.toLowerCase();
+		const events = await pool.querySync(
+			[community],
+			{ kinds: [ANCHOR_KIND], authors: [root], '#d': [ANCHOR_D], limit: 10 },
+			{ maxWait: 2500 }
+		);
+		let anchor: CommunityAnchor | undefined;
+		for (const event of events) {
+			const candidate = parseCommunityAnchor(asParsedEvent(event));
+			if (candidate && (!anchor || isNewerAnchor(candidate, anchor))) anchor = candidate;
 		}
-	} catch {
-		// Root community authorities can still issue non-payment awards.
+		return anchor;
+	} finally {
+		pool.destroy();
 	}
-	return { authorityPubkeys, badgeIssuer };
+}
+
+export type CommunityTrust = {
+	rootPubkey: string;
+	admins: Set<string>;
+	badgeIssuer?: string;
+};
+
+export async function fetchCommunityTrust(community: string): Promise<CommunityTrust> {
+	const anchor = await fetchCommunityAnchor(community);
+	if (!anchor) return { rootPubkey: '', admins: new Set() };
+	return {
+		rootPubkey: anchor.pubkey,
+		admins: new Set(anchor.admins),
+		badgeIssuer: anchor.badgeIssuer
+	};
 }
 
 export async function fetchCommunityAccess(
@@ -177,33 +205,35 @@ export async function fetchCommunityAccess(
 	isOwner: boolean
 ): Promise<CommunityAccess> {
 	if (isOwner) {
-		return { isOwner: true, permissions: new Set(ADMIN_PERMISSION_KEYS), roles: ['Admin'] };
+		return { isOwner: true, roles: ['Admin'], permissions: [] };
+	}
+
+	const trust = await fetchCommunityTrust(community);
+	const issuers = [...trust.admins, ...(trust.badgeIssuer ? [trust.badgeIssuer] : [])];
+	if (!issuers.length) {
+		return { isOwner: false, roles: [], permissions: [] };
 	}
 
 	const pool = new SimplePool();
 	try {
-		const trustedIssuers = await fetchTrustedRoleIssuers(community);
-		if (!trustedIssuers.length) {
-			return { isOwner: false, permissions: new Set(), roles: [] };
-		}
 		const [definitions, awards] = await Promise.all([
 			pool.querySync(
 				[community],
 				{
 					kinds: [30009],
-					authors: trustedIssuers,
-					'#t': [BADGE_DEFINITION_TYPE_TOPICS.role],
+					authors: [...trust.admins],
+					'#t': ['role', 'membership'],
 					limit: 200
 				},
 				{ maxWait: 2500 }
 			),
 			pool.querySync(
 				[community],
-				{ kinds: [8], authors: trustedIssuers, '#p': [pubkey], limit: 200 },
+				{ kinds: [8], authors: issuers, '#p': [pubkey], limit: 200 },
 				{ maxWait: 2500 }
 			)
 		]);
-		return resolveCommunityAccessFromEvents(definitions, awards, pubkey, new Set(trustedIssuers));
+		return resolveCommunityAccessFromEvents(definitions, awards, pubkey, new Set(issuers));
 	} finally {
 		pool.destroy();
 	}

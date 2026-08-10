@@ -25,18 +25,22 @@
 		Search,
 		Store,
 		Ticket,
-		UsersRound,
 		X
 	} from 'lucide-svelte';
 	import type { EventTemplate } from 'nostr-tools';
 	import { normalizeURL } from 'nostr-tools/utils';
 	import { key, selectedAdminRelayUrl } from 'src/controller';
 	import {
+		canDo,
+		fetchCommunityAccess,
+		fetchCommunityTrust,
+		type CommunityAccess
+	} from 'src/lib/adminAccess';
+	import {
 		buildCatalogDefinitionTags,
-		CATALOG_SELLABLE_TAG,
+		CATALOG_DEFINITION_KIND,
 		catalogAddress,
 		catalogAvailability,
-		catalogBilling,
 		catalogCurrency,
 		catalogD,
 		catalogDescription,
@@ -49,12 +53,9 @@
 		catalogPriceSats,
 		catalogProductKind,
 		catalogSection,
-		catalogStripeAccountId,
-		catalogType,
 		catalogDFromName,
 		type CatalogAvailability,
 		type CatalogDefinitionInput,
-		type CatalogDefinitionType,
 		type ProductKind,
 		isStoreCatalogDefinition,
 		sellableCatalogSubscriptionId,
@@ -67,7 +68,7 @@
 	import { onDestroy } from 'svelte';
 	import CatalogPublishNotice from './CatalogPublishNotice.svelte';
 
-	type StoreCatalogType = Exclude<CatalogDefinitionType, 'event_access'>;
+	type StoreCatalogType = 'product' | 'pass';
 	type AvailabilityFilter = 'current' | CatalogAvailability;
 	type ItemPublishState = {
 		attempt: number;
@@ -79,6 +80,7 @@
 	let relayUrl = '';
 	let loadedRelayUrl = '';
 	let catalogEvents: ParsedEvent[] = [];
+	let access: CommunityAccess = { isOwner: false, roles: [], permissions: [] };
 	let communityType: CommunityType = 'other';
 	let profileCreatedAt = 0;
 	let loading = true;
@@ -124,10 +126,15 @@
 		subscribeStore();
 	}
 	$: preset = storePresetFor(communityType);
+	// Memberships live in Settings -> Memberships; the store only manages 30402
+	// products and passes.
+	$: suggestedStoreTypes = preset.suggestedDefinitionTypes.filter(
+		(suggested): suggested is StoreCatalogType => suggested !== 'membership'
+	);
 	$: requestedType = $page.url.searchParams.get('type') || '';
 	$: if (requestedType !== appliedTypeQuery) {
 		appliedTypeQuery = requestedType;
-		if (requestedType === 'product' || requestedType === 'membership' || requestedType === 'pass') {
+		if (requestedType === 'product' || requestedType === 'pass') {
 			typeFilter = requestedType;
 		}
 	}
@@ -143,7 +150,7 @@
 	);
 	$: hospitalityMenuEvents = visibleEvents.filter(
 		(event) =>
-			catalogType(event) === 'product' &&
+			catalogItemType(event) === 'product' &&
 			(catalogProductKind(event) === 'food' || catalogProductKind(event) === 'drink')
 	);
 	$: hospitalityOtherEvents = visibleEvents.filter(
@@ -164,8 +171,10 @@
 		);
 		return leftPosition - rightPosition || left.localeCompare(right);
 	});
+	$: canWriteStore = canDo(access, '30402', 'write');
 	$: canSave =
 		Boolean(relayUrl && $key?.pub) &&
+		canWriteStore &&
 		formName.trim().length > 1 &&
 		Number(formPrice) > 0 &&
 		/^[a-zA-Z]{3}$/.test(formCurrency.trim()) &&
@@ -189,6 +198,7 @@
 		lastPublishedAtByD.clear();
 		itemPublishStates = new Map();
 		catalogEvents = [];
+		access = { isOwner: false, roles: [], permissions: [] };
 		communityType = 'other';
 		profileCreatedAt = 0;
 		loading = Boolean(relayUrl);
@@ -198,11 +208,11 @@
 			loading = false;
 			return;
 		}
+		void loadCommunityAccess();
 
 		const catalogRequests: RequestObject[] = [
 			{
-				kinds: [30009],
-				tags: { '#t': [CATALOG_SELLABLE_TAG] },
+				kinds: [CATALOG_DEFINITION_KIND],
 				limit: 500,
 				relays: [relayUrl],
 				cacheFirst: true
@@ -251,6 +261,26 @@
 		publishTimeouts = [...publishTimeouts, timeout];
 	}
 
+	async function loadCommunityAccess() {
+		const target = relayUrl;
+		const pubkey = $key?.pub || '';
+		if (!target || !pubkey) return;
+		const trust = await fetchCommunityTrust(target).catch(() => ({
+			rootPubkey: '',
+			admins: new Set<string>()
+		}));
+		if (target !== relayUrl) return;
+		const isOwner = trust.rootPubkey === pubkey || trust.admins.has(pubkey);
+		access = await fetchCommunityAccess(target, pubkey, isOwner).catch(
+			() => ({ isOwner, roles: [], permissions: [] }) as CommunityAccess
+		);
+	}
+
+	/** NIP-97: a pass is a 30402 product with `max_uses > 1`. */
+	function catalogItemType(event: ParsedEvent): StoreCatalogType {
+		return (catalogMaxUses(event) || 1) > 1 ? 'pass' : 'product';
+	}
+
 	function compareCatalogEvents(left: ParsedEvent, right: ParsedEvent) {
 		return (
 			catalogPosition(left) - catalogPosition(right) ||
@@ -284,7 +314,7 @@
 		const availability = catalogAvailability(event);
 		if (selectedAvailability === 'current' && availability === 'archived') return false;
 		if (selectedAvailability !== 'current' && availability !== selectedAvailability) return false;
-		if (selectedType !== 'all' && catalogType(event) !== selectedType) return false;
+		if (selectedType !== 'all' && catalogItemType(event) !== selectedType) return false;
 		if (selectedSection !== 'all' && catalogSection(event) !== selectedSection) return false;
 		if (
 			normalizedSearch &&
@@ -305,9 +335,7 @@
 	}
 
 	function typeLabel(event: ParsedEvent) {
-		const type = catalogType(event);
-		if (type === 'membership') return 'Membership';
-		if (type === 'pass') return 'Pass';
+		if (catalogItemType(event) === 'pass') return 'Pass';
 		const kind = catalogProductKind(event);
 		if (kind === 'food') return 'Food';
 		if (kind === 'drink') return 'Drink';
@@ -327,7 +355,9 @@
 	}
 
 	function canEditEvent(event: ParsedEvent) {
-		return catalogEditable(event) && Boolean($key?.pub && event.pubkey() === $key.pub);
+		return (
+			canWriteStore && catalogEditable(event) && Boolean($key?.pub && event.pubkey() === $key.pub)
+		);
 	}
 
 	function nextPosition(section: string) {
@@ -343,7 +373,7 @@
 			type ||
 			(typeFilter === 'product' || typeFilter === 'pass'
 				? typeFilter
-				: preset.suggestedDefinitionTypes[0] || 'product');
+				: suggestedStoreTypes[0] || 'product');
 		formD = '';
 		formName = '';
 		formDescription = '';
@@ -367,13 +397,7 @@
 			publishError = 'Only the key that published this item can edit it.';
 			return;
 		}
-		const type = catalogType(event);
-		// Memberships are community items, managed from Settings -> Memberships.
-		if (type === 'membership') {
-			publishError = 'Memberships are managed from Settings, not from the store.';
-			return;
-		}
-		if (type !== 'product' && type !== 'pass') return;
+		const type = catalogItemType(event);
 		editorEvent = event;
 		formType = type;
 		formD = catalogD(event);
@@ -486,11 +510,10 @@
 		if (formType === 'pass') {
 			return {
 				...common,
-				type: 'pass',
 				...(formMaxUses.trim() ? { maxUses: Number(formMaxUses) } : {})
 			};
 		}
-		return { ...common, type: 'product', productKind: formProductKind };
+		return { ...common, productKind: formProductKind };
 	}
 
 	function eventInput(
@@ -500,10 +523,10 @@
 			position: number;
 			availability: CatalogAvailability;
 		}> = {}
-	): CatalogDefinitionInput | undefined {
-		const type = catalogType(event);
+	): CatalogDefinitionInput {
 		const priceSats = catalogPriceSats(event);
-		const common = {
+		const maxUses = catalogMaxUses(event);
+		return {
 			d: catalogD(event),
 			name: catalogName(event),
 			description: catalogDescription(event),
@@ -513,24 +536,10 @@
 			...(priceSats ? { priceSats } : {}),
 			section: overrides.section ?? catalogSection(event),
 			position: overrides.position ?? catalogPosition(event),
-			availability: overrides.availability ?? catalogAvailability(event) ?? 'available'
+			availability: overrides.availability ?? catalogAvailability(event) ?? 'available',
+			productKind: catalogProductKind(event) || 'generic',
+			...(maxUses && maxUses > 1 ? { maxUses } : {})
 		};
-		if (type === 'membership') {
-			return {
-				...common,
-				type,
-				billing: catalogBilling(event) || 'one_time',
-				stripeAccountId: catalogStripeAccountId(event)
-			};
-		}
-		if (type === 'pass') {
-			const maxUses = catalogMaxUses(event);
-			return { ...common, type, ...(maxUses ? { maxUses } : {}) };
-		}
-		if (type === 'product') {
-			return { ...common, type, productKind: catalogProductKind(event) || 'generic' };
-		}
-		return undefined;
 	}
 
 	function publishDefinition(input: CatalogDefinitionInput, label: string) {
@@ -546,7 +555,7 @@
 		}
 
 		const template: EventTemplate = {
-			kind: 30009,
+			kind: CATALOG_DEFINITION_KIND,
 			content: input.description?.trim() || '',
 			created_at: nextCatalogCreatedAt(input.d),
 			tags
@@ -697,7 +706,7 @@
 		const peers = catalogEvents
 			.filter(
 				(candidate) =>
-					catalogType(candidate) === catalogType(event) &&
+					catalogItemType(candidate) === catalogItemType(event) &&
 					catalogSection(candidate) === catalogSection(event) &&
 					catalogAvailability(candidate) !== 'archived'
 			)
@@ -735,9 +744,7 @@
 	}
 
 	function itemIcon(event: ParsedEvent) {
-		const type = catalogType(event);
-		if (type === 'membership') return UsersRound;
-		if (type === 'pass') return Ticket;
+		if (catalogItemType(event) === 'pass') return Ticket;
 		if (catalogProductKind(event) === 'food' || catalogProductKind(event) === 'drink') {
 			return Coffee;
 		}
@@ -769,7 +776,7 @@
 		<button
 			type="button"
 			class="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-[#073c32] px-5 text-sm font-black text-white shadow-sm transition hover:bg-[#0a4b3e] disabled:cursor-not-allowed disabled:bg-stone-300"
-			disabled={!relayUrl || !$key?.pub}
+			disabled={!relayUrl || !$key?.pub || !canWriteStore}
 			on:click={() => openNewEditor()}
 		>
 			<Plus size={19} /> Add {preset.itemLabel}
@@ -810,7 +817,6 @@
 				>
 					<option value="all">All types</option>
 					<option value="product">Products</option>
-					<option value="membership">Memberships</option>
 					<option value="pass">Passes</option>
 				</select>
 			</label>
@@ -1004,9 +1010,7 @@
 			{#if hospitalityOtherEvents.length}
 				<section>
 					<h2 class="text-xl font-black">Other offers</h2>
-					<p class="mt-1 text-sm font-semibold text-stone-500">
-						Memberships, passes and other products.
-					</p>
+					<p class="mt-1 text-sm font-semibold text-stone-500">Passes and other products.</p>
 					<div class="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
 						{#each hospitalityOtherEvents as event (event.id())}
 							{@const priceSats = catalogPriceSats(event)}
@@ -1213,7 +1217,7 @@
 							bind:value={formType}
 							disabled={Boolean(editorEvent)}
 						>
-							{#each preset.suggestedDefinitionTypes as type (type)}
+							{#each suggestedStoreTypes as type (type)}
 								<option value={type}>{type === 'product' ? 'Standard product' : 'Pass'}</option>
 							{/each}
 						</select>

@@ -3,12 +3,7 @@ import { SimplePool, useWebSocketImplementation } from 'nostr-tools/pool';
 import { normalizeURL } from 'nostr-tools/utils';
 import WebSocket from 'ws';
 import type Stripe from 'stripe';
-import {
-	BADGE_DEFINITION_TYPE_TOPICS,
-	CATALOG_SELLABLE_TAG,
-	MEMBERSHIP_BILLING,
-	PRODUCT_KINDS
-} from 'src/lib/catalog';
+import { PRODUCT_KINDS } from 'src/lib/catalog';
 import { requireNostrSigner } from 'src/lib/server/nostrAuth';
 import { getStripeConnection, stripeClient } from 'src/lib/server/stripe';
 
@@ -32,7 +27,6 @@ const ZERO_DECIMAL_CURRENCIES = new Set([
 	'xof',
 	'xpf'
 ]);
-const VALID_MEMBERSHIP_BILLING = new Set<string>(MEMBERSHIP_BILLING);
 const VALID_PRODUCT_KINDS = new Set<string>(PRODUCT_KINDS);
 
 function tagValue(tags: string[][], name: string) {
@@ -68,29 +62,34 @@ export const POST: RequestHandler = async (requestEvent) => {
 	const [kindValue, author, ...identifierParts] = input.eventAddress.split(':');
 	const kind = Number(kindValue);
 	const identifier = identifierParts.join(':');
-	if (![30009, 31922, 31923].includes(kind) || !/^[0-9a-f]{64}$/i.test(author) || !identifier) {
+	if (
+		![30009, 30402, 31922, 31923].includes(kind) ||
+		!/^[0-9a-f]{64}$/i.test(author) ||
+		!identifier
+	) {
 		throw error(400, 'Invalid item address');
 	}
 
 	const pool = new SimplePool();
 	let nostrEvent;
-	let badgeDefinition;
+	let ticketDefinition;
+	const isCalendarEventPurchase = kind === 31922 || kind === 31923;
 	try {
 		nostrEvent = await pool.get(
 			[community],
 			{ kinds: [kind], authors: [author], '#d': [identifier], limit: 1 },
 			{ maxWait: 5000 }
 		);
-		if (nostrEvent && kind !== 30009) {
+		if (nostrEvent && isCalendarEventPurchase) {
 			const badgeAddress = tagValue(nostrEvent.tags, 'entrance_badge');
 			const [badgeKind, badgeAuthor, ...badgeDParts] = badgeAddress.split(':');
 			const badgeD = badgeDParts.join(':');
-			if (badgeKind !== '30009' || !/^[0-9a-f]{64}$/i.test(badgeAuthor) || !badgeD) {
-				throw error(422, 'Paid event is missing its entrance badge definition');
+			if (badgeKind !== '30402' || !/^[0-9a-f]{64}$/i.test(badgeAuthor) || !badgeD) {
+				throw error(422, 'Paid event is missing its entrance ticket listing');
 			}
-			badgeDefinition = await pool.get(
+			ticketDefinition = await pool.get(
 				[community],
-				{ kinds: [30009], authors: [badgeAuthor], '#d': [badgeD], limit: 1 },
+				{ kinds: [30402], authors: [badgeAuthor], '#d': [badgeD], limit: 1 },
 				{ maxWait: 5000 }
 			);
 		}
@@ -98,60 +97,77 @@ export const POST: RequestHandler = async (requestEvent) => {
 		pool.destroy();
 	}
 	if (!nostrEvent) throw error(404, 'Item not found on the community relay');
-	const definitionType = tagValue(nostrEvent.tags, 'type');
-	const directPurchaseType =
-		definitionType === 'membership' || definitionType === 'product' || definitionType === 'pass'
-			? definitionType
-			: undefined;
-	const isDirectCatalogPurchase =
-		kind === 30009 &&
-		directPurchaseType !== undefined &&
-		hasTagValue(nostrEvent.tags, 't', BADGE_DEFINITION_TYPE_TOPICS[directPurchaseType]) &&
-		hasTagValue(nostrEvent.tags, 't', CATALOG_SELLABLE_TAG);
-	if (!isDirectCatalogPurchase && kind === 30009) {
-		throw error(422, 'Badge definition is not a buyable store item');
+	if (isCalendarEventPurchase && !ticketDefinition) {
+		throw error(404, 'Event entrance ticket listing was not found');
 	}
-	const purchaseDefinition = isDirectCatalogPurchase ? nostrEvent : badgeDefinition;
-	if (!purchaseDefinition) throw error(404, 'Event entrance badge definition was not found');
+	if (kind === 30009 && !hasTagValue(nostrEvent.tags, 't', 'membership')) {
+		throw error(422, 'Badge definition is not a buyable membership');
+	}
+	const purchaseDefinition = isCalendarEventPurchase ? ticketDefinition : nostrEvent;
+	if (!purchaseDefinition) throw error(404, 'Event entrance ticket listing was not found');
+	// purchase_type: 30009 -> membership, 30402 with an event link -> event, else product.
+	const purchaseType = isCalendarEventPurchase
+		? 'event'
+		: kind === 30009
+			? 'membership'
+			: tagValue(nostrEvent.tags, 'a')
+				? 'event'
+				: 'product';
+	const definitionTags = purchaseDefinition.tags;
+	const availability = tagValue(definitionTags, 'availability');
+	if (availability && availability !== 'available') {
+		throw error(422, 'This item is not currently available for purchase');
+	}
+	const priceTag = definitionTags.find((tag) => tag[0] === 'price');
+	const currency = (priceTag?.[2] || '').toLowerCase();
 	if (
-		!hasTagValue(purchaseDefinition.tags, 't', CATALOG_SELLABLE_TAG) ||
-		tagValue(purchaseDefinition.tags, 'availability') !== 'available'
+		!priceTag?.[1] ||
+		!/^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(priceTag[1]) ||
+		Number(priceTag[1]) <= 0 ||
+		!/^[a-z]{3}$/.test(currency)
 	) {
-		throw error(422, 'This badge is not currently available for purchase');
+		throw error(422, 'This item has no payable price');
 	}
-	if (isDirectCatalogPurchase && directPurchaseType === 'product') {
-		const productKind = tagValue(purchaseDefinition.tags, 'product_kind') || 'generic';
-		const rawMaxUses = tagValue(purchaseDefinition.tags, 'max_uses');
-		if (!VALID_PRODUCT_KINDS.has(productKind) || (rawMaxUses && rawMaxUses !== '1')) {
-			throw error(422, 'Product definition must represent one redeemable item');
+	// NIP-99 recurrence on the price tag drives membership billing.
+	const recurrence = priceTag[3];
+	if (purchaseType === 'membership') {
+		if (recurrence && recurrence !== 'month' && recurrence !== 'year') {
+			throw error(422, 'Membership definition has an invalid billing recurrence');
+		}
+		if (tagValue(definitionTags, 'max_uses')) {
+			throw error(422, 'Membership definition is invalid');
 		}
 	}
-	if (isDirectCatalogPurchase && directPurchaseType === 'pass') {
-		const rawMaxUses = tagValue(purchaseDefinition.tags, 'max_uses');
+	const billing =
+		purchaseType === 'membership'
+			? recurrence === 'month'
+				? 'monthly'
+				: recurrence === 'year'
+					? 'yearly'
+					: 'one_time'
+			: 'one_time';
+	if (purchaseDefinition.kind === 30402) {
+		const productKind = tagValue(definitionTags, 'product_kind') || 'generic';
+		const rawMaxUses = tagValue(definitionTags, 'max_uses');
+		if (!VALID_PRODUCT_KINDS.has(productKind)) {
+			throw error(422, 'Product definition is invalid');
+		}
 		if (
 			rawMaxUses &&
 			(!/^[1-9]\d*$/.test(rawMaxUses) || !Number.isSafeInteger(Number(rawMaxUses)))
 		) {
-			throw error(422, 'Pass definition has invalid usage limits');
+			throw error(422, 'Usage limit is invalid');
 		}
 	}
-	const expectedEventAddress = input.eventAddress;
-	if (
-		!isDirectCatalogPurchase &&
-		(tagValue(purchaseDefinition.tags, 'type') !== 'event_access' ||
-			!hasTagValue(purchaseDefinition.tags, 't', BADGE_DEFINITION_TYPE_TOPICS.event_access) ||
-			tagValue(purchaseDefinition.tags, 'a') !== expectedEventAddress ||
-			tagValue(purchaseDefinition.tags, 'max_uses') !== '1' ||
-			purchaseDefinition.pubkey !== author)
-	) {
-		throw error(422, 'Event entrance badge definition is invalid');
-	}
-	const priceTag = purchaseDefinition.tags.find((tag) => tag[0] === 'price');
-	const currency = (priceTag?.[2] || '').toLowerCase();
-	if (!priceTag?.[1] || !/^[a-z]{3}$/.test(currency))
-		throw error(422, 'This item has no payable price');
-	if (!isDirectCatalogPurchase) {
-		const expiration = Number(tagValue(purchaseDefinition.tags, 'expiration'));
+	if (isCalendarEventPurchase) {
+		if (
+			tagValue(definitionTags, 'a') !== input.eventAddress ||
+			(tagValue(definitionTags, 'max_uses') || '1') !== '1' ||
+			purchaseDefinition.pubkey !== author
+		) {
+			throw error(422, 'Event entrance ticket definition is invalid');
+		}
+		const expiration = Number(tagValue(definitionTags, 'expiration'));
 		const eventPriceTag = nostrEvent.tags.find((tag) => tag[0] === 'entrance_price');
 		if (!Number.isSafeInteger(expiration) || expiration <= Math.floor(Date.now() / 1000)) {
 			throw error(410, 'Event entrance has expired');
@@ -160,11 +176,11 @@ export const POST: RequestHandler = async (requestEvent) => {
 			eventPriceTag?.[1] !== priceTag[1] ||
 			(eventPriceTag?.[2] || '').toLowerCase() !== currency
 		) {
-			throw error(422, 'Event entrance price does not match its badge definition');
+			throw error(422, 'Event entrance price does not match its ticket listing');
 		}
 	}
 
-	const tags = purchaseDefinition.tags;
+	const tags = definitionTags;
 	const connection = await getStripeConnection(community);
 	if (!connection) throw error(409, 'This community has not connected Stripe');
 	const taggedStripeAccountId = tagValue(tags, 'stripe_account');
@@ -172,26 +188,19 @@ export const POST: RequestHandler = async (requestEvent) => {
 		throw error(422, 'This item references a different community payment account');
 	}
 	const stripeAccountId = connection.accountId;
-	const rawBilling = tagValue(tags, 'billing') || 'one_time';
-	if (
-		isDirectCatalogPurchase &&
-		directPurchaseType === 'membership' &&
-		(!VALID_MEMBERSHIP_BILLING.has(rawBilling) ||
-			Boolean(tagValue(purchaseDefinition.tags, 'max_uses')))
-	) {
-		throw error(422, 'Membership definition is invalid');
-	}
-	const billing =
-		isDirectCatalogPurchase && directPurchaseType === 'membership' ? rawBilling : 'one_time';
 	const title =
+		tagValue(tags, 'title') ||
 		tagValue(tags, 'name') ||
 		tagValue(nostrEvent.tags, 'title') ||
-		(isDirectCatalogPurchase ? 'Store item' : 'Event entrance');
-	const badgeAddress = isDirectCatalogPurchase
-		? input.eventAddress
-		: tagValue(nostrEvent.tags, 'entrance_badge');
-	const badgeExpiresAt = isDirectCatalogPurchase ? '' : tagValue(tags, 'expiration');
-	const purchaseType = isDirectCatalogPurchase ? directPurchaseType : 'event';
+		(purchaseType === 'membership'
+			? 'Community membership'
+			: purchaseType === 'event'
+				? 'Event entrance'
+				: 'Store item');
+	const badgeAddress = isCalendarEventPurchase
+		? tagValue(nostrEvent.tags, 'entrance_badge')
+		: input.eventAddress;
+	const badgeExpiresAt = purchaseType === 'event' ? tagValue(tags, 'expiration') : '';
 	const stripe = stripeClient();
 	const requestedReturnUrl = new URL(input.returnTo || '/explore', requestEvent.url.origin);
 	const returnTo =
@@ -233,10 +242,8 @@ export const POST: RequestHandler = async (requestEvent) => {
 							purchaseType === 'membership'
 								? 'Community membership'
 								: purchaseType === 'event'
-									? 'Event entrance badge'
-									: purchaseType === 'pass'
-										? 'Community pass'
-										: 'Community product'
+									? 'Event entrance ticket'
+									: 'Community product'
 					}
 				}
 			}

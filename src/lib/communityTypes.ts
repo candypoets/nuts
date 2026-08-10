@@ -12,7 +12,7 @@ import {
 	UserPlus,
 	UtensilsCrossed
 } from 'lucide-svelte';
-import type { AdminPermission } from 'src/lib/adminAccess';
+import type { Permission } from 'src/lib/nip97';
 
 export type CommunityType =
 	| 'sports'
@@ -66,7 +66,7 @@ export type StorePreset = {
 export type SuggestedRole = {
 	name: string;
 	description: string;
-	permissions: AdminPermission[];
+	permissions: Permission[];
 };
 
 export type CommunityArchetype = {
@@ -136,12 +136,15 @@ export const COMMUNITY_ARCHETYPES: CommunityArchetype[] = [
 			{
 				name: 'Coach',
 				description: 'Runs trainings and matches. Can manage events and post updates.',
-				permissions: ['events', 'posts', 'media']
+				permissions: [
+					{ capability: '31923', access: 'write' },
+					{ capability: '1', access: 'write' }
+				]
 			},
 			{
 				name: 'Team captain',
 				description: 'Team representative. Can post updates to the community.',
-				permissions: ['posts', 'media']
+				permissions: [{ capability: '1', access: 'write' }]
 			}
 		],
 		membershipHint: 'Sports clubs usually charge monthly or yearly dues.'
@@ -192,12 +195,15 @@ export const COMMUNITY_ARCHETYPES: CommunityArchetype[] = [
 			{
 				name: 'Staff',
 				description: 'Front-of-house team. Can post updates to the community.',
-				permissions: ['posts', 'media']
+				permissions: [{ capability: '1', access: 'write' }]
 			},
 			{
 				name: 'Events host',
 				description: 'Organizes theme nights and tastings. Can manage events.',
-				permissions: ['events', 'posts', 'media']
+				permissions: [
+					{ capability: '31923', access: 'write' },
+					{ capability: '1', access: 'write' }
+				]
 			}
 		],
 		membershipHint: 'Restaurants usually run a yearly VIP or supporter club.'
@@ -247,7 +253,12 @@ export const COMMUNITY_ARCHETYPES: CommunityArchetype[] = [
 			{
 				name: 'Committee',
 				description: 'Runs the club. Can manage events, invites and moderate.',
-				permissions: ['events', 'invites', 'moderation', 'posts', 'media']
+				permissions: [
+					{ capability: '31923', access: 'write' },
+					{ capability: 'invites' },
+					{ capability: 'moderation' },
+					{ capability: '1', access: 'write' }
+				]
 			},
 			{
 				name: 'Door staff',
@@ -257,7 +268,10 @@ export const COMMUNITY_ARCHETYPES: CommunityArchetype[] = [
 			{
 				name: 'Event manager',
 				description: 'Programs member nights. Can manage events and post updates.',
-				permissions: ['events', 'posts', 'media']
+				permissions: [
+					{ capability: '31923', access: 'write' },
+					{ capability: '1', access: 'write' }
+				]
 			}
 		],
 		membershipHint: "Members' clubs usually charge monthly or yearly dues, often tiered."
@@ -307,12 +321,17 @@ export const COMMUNITY_ARCHETYPES: CommunityArchetype[] = [
 			{
 				name: 'Council',
 				description: 'Village council. Can manage events, invites and moderate.',
-				permissions: ['events', 'invites', 'moderation', 'posts', 'media']
+				permissions: [
+					{ capability: '31923', access: 'write' },
+					{ capability: 'invites' },
+					{ capability: 'moderation' },
+					{ capability: '1', access: 'write' }
+				]
 			},
 			{
 				name: 'Moderator',
 				description: 'Keeps conversations civil. Can moderate and post.',
-				permissions: ['moderation', 'posts']
+				permissions: [{ capability: 'moderation' }, { capability: '1', access: 'write' }]
 			}
 		],
 		membershipHint: 'Villages are usually free — invites are all you need.'
@@ -362,7 +381,10 @@ export const COMMUNITY_ARCHETYPES: CommunityArchetype[] = [
 			{
 				name: 'Organizer',
 				description: 'Runs meetups and workshops. Can manage events and post.',
-				permissions: ['events', 'posts', 'media']
+				permissions: [
+					{ capability: '31923', access: 'write' },
+					{ capability: '1', access: 'write' }
+				]
 			},
 			{
 				name: 'Mentor',
@@ -417,7 +439,7 @@ export const COMMUNITY_ARCHETYPES: CommunityArchetype[] = [
 			{
 				name: 'Moderator',
 				description: 'Keeps conversations civil. Can moderate and post.',
-				permissions: ['moderation', 'posts']
+				permissions: [{ capability: 'moderation' }, { capability: '1', access: 'write' }]
 			}
 		],
 		membershipHint: 'Memberships can be one-time, monthly or yearly.'

@@ -24,11 +24,13 @@
 	} from 'src/controller';
 	import { FEED_PAGE_WINDOW_SECONDS } from 'src/controller/pagination';
 	import {
+		canDo,
 		fetchCommunityAccess,
 		fetchCommunityTrust,
 		type CommunityTrust
 	} from 'src/lib/adminAccess';
 	import { DEFAULT_RELAYS } from 'src/lib/env';
+	import { isDefinitionAddress } from 'src/lib/nip97';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import { onMount, onDestroy } from 'svelte';
 	import {
@@ -171,14 +173,15 @@
 		return trust;
 	}
 
-	function signerAuthorization(relay: string, signer: string, permission: 'store' | 'events') {
-		const cacheKey = `${relay}:${signer}:${permission}`;
+	/** 37237 status signers: anchor admins, the badge issuer, or 37237-write holders. */
+	function signerAuthorization(relay: string, signer: string) {
+		const cacheKey = `${relay}:${signer}`;
 		let authorization = authorizationPromises.get(cacheKey);
 		if (!authorization) {
 			authorization = trustForRelay(relay).then(async (trust) => {
-				if (trust.authorityPubkeys.has(signer)) return true;
+				if (trust.admins.has(signer) || trust.badgeIssuer === signer) return true;
 				const access = await fetchCommunityAccess(relay, signer, false);
-				return access.permissions.has(permission);
+				return canDo(access, '37237', 'write');
 			});
 			authorizationPromises.set(cacheKey, authorization);
 		}
@@ -194,7 +197,7 @@
 			event.kind() !== 8 ||
 			!id ||
 			recipient !== $key?.pub ||
-			!address.startsWith('30009:') ||
+			!isDefinitionAddress(address) ||
 			!issuer
 		) {
 			return;
@@ -208,7 +211,7 @@
 				await Promise.all(
 					badgeRelays.map(async (relay) => {
 						const trust = await trustForRelay(relay);
-						return trust.authorityPubkeys.has(issuer) || trust.badgeIssuer === issuer ? relay : '';
+						return trust.admins.has(issuer) || trust.badgeIssuer === issuer ? relay : '';
 					})
 				)
 			).filter(Boolean);
@@ -249,22 +252,19 @@
 			if (statusAuthorizationInFlight.has(authorizationKey)) continue;
 			statusAuthorizationInFlight.add(authorizationKey);
 			const generation = badgeGeneration;
-			void Promise.all(
-				candidateRelays.map(async (relay) => {
-					if (await signerAuthorization(relay, signer, 'store')) return true;
-					return signerAuthorization(relay, signer, 'events');
-				})
-			).then((results) => {
-				statusAuthorizationInFlight.delete(authorizationKey);
-				if (
-					generation !== badgeGeneration ||
-					!results.some(Boolean) ||
-					badgeStatuses.some((status) => status.id() === id)
-				) {
-					return;
+			void Promise.all(candidateRelays.map((relay) => signerAuthorization(relay, signer))).then(
+				(results) => {
+					statusAuthorizationInFlight.delete(authorizationKey);
+					if (
+						generation !== badgeGeneration ||
+						!results.some(Boolean) ||
+						badgeStatuses.some((status) => status.id() === id)
+					) {
+						return;
+					}
+					badgeStatuses = [...badgeStatuses, event];
 				}
-				badgeStatuses = [...badgeStatuses, event];
-			});
+			);
 		}
 	}
 

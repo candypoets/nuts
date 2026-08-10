@@ -30,12 +30,18 @@
 	import type { EventTemplate } from 'nostr-tools';
 	import { key, selectedAdminRelayUrl } from 'src/controller';
 	import { nutsWallet } from 'src/controller/proofs';
+	import {
+		canDo,
+		fetchCommunityAccess,
+		fetchCommunityTrust,
+		type CommunityAccess
+	} from 'src/lib/adminAccess';
 	import { parsedEventTags } from 'src/lib/adminRelays';
 	import { buildCashuProfile, isCashuP2pkPublicKey } from 'src/lib/cashuProfile';
-	import { BADGE_DEFINITION_TYPE_TOPICS } from 'src/lib/catalog';
 	import { buildPaidEventAccess } from 'src/lib/eventAccess';
 	import { parseMembershipDefinition } from 'src/lib/memberships';
 	import { parseRoleDefinition, type RoleDefinition } from 'src/lib/nip58Roles';
+	import { isDefinitionAddress } from 'src/lib/nip97';
 	import { uploadFile } from 'src/lib/upload';
 	import { now } from 'src/lib/period';
 	import { decodePrivKey } from 'src/lib/wallet';
@@ -108,6 +114,7 @@
 	let events: CommunityEvent[] = [];
 	let roleDefinitions: RoleDefinition[] = [];
 	let loadingRoles = false;
+	let access: CommunityAccess = { isOwner: false, roles: [], permissions: [] };
 	let publishUnsubscribe: (() => void) | undefined;
 	let badgePublishUnsubscribe: (() => void) | undefined;
 	let publishTimeouts: number[] = [];
@@ -129,7 +136,9 @@
 		loadCommunityRelay();
 		subscribeEvents();
 		subscribeRoles();
+		void loadCommunityAccess();
 	}
+	$: canManageEvents = canDo(access, '31923', 'write');
 	$: admissionValid =
 		freeEntry === 'everyone' ||
 		selectedBadgeAddresses.length > 0 ||
@@ -161,6 +170,7 @@
 		admissionValid &&
 		paymentValid &&
 		(!paidEntrance || $key?.pub) &&
+		canManageEvents &&
 		!publishingEvent
 	);
 	$: admissionSummary = buildAdmissionSummary(
@@ -199,7 +209,23 @@
 
 	function loadCommunityRelay() {
 		relayUrl = $selectedAdminRelayUrl ? normalizeURL($selectedAdminRelayUrl) : '';
+		access = { isOwner: false, roles: [], permissions: [] };
 		publishStatus = '';
+	}
+
+	async function loadCommunityAccess() {
+		const target = relayUrl;
+		const pubkey = $key?.pub || '';
+		if (!target || !pubkey) return;
+		const trust = await fetchCommunityTrust(target).catch(() => ({
+			rootPubkey: '',
+			admins: new Set<string>()
+		}));
+		if (target !== relayUrl) return;
+		const isOwner = trust.rootPubkey === pubkey || trust.admins.has(pubkey);
+		access = await fetchCommunityAccess(target, pubkey, isOwner).catch(
+			() => ({ isOwner, roles: [], permissions: [] }) as CommunityAccess
+		);
 	}
 
 	function subscribeEvents() {
@@ -255,14 +281,14 @@
 			[
 				{
 					kinds: [30009],
-					tags: { '#t': [BADGE_DEFINITION_TYPE_TOPICS.role] },
+					tags: { '#t': ['role'] },
 					limit: 100,
 					relays: [relayUrl],
 					cacheFirst: true
 				},
 				{
 					kinds: [30009],
-					tags: { '#t': [BADGE_DEFINITION_TYPE_TOPICS.membership] },
+					tags: { '#t': ['membership'] },
 					limit: 100,
 					relays: [relayUrl],
 					cacheFirst: true
@@ -282,6 +308,8 @@
 								d: membershipDefinition.d,
 								name: membershipDefinition.name,
 								description: membershipDefinition.description,
+								image: membershipDefinition.image || undefined,
+								permissions: [],
 								createdAt: membershipDefinition.createdAt
 							}
 						: undefined);
@@ -418,7 +446,7 @@
 			access: tags.find((tag) => tag[0] === 'access')?.[1] === 'restricted' ? 'restricted' : 'open',
 			requiredBadgeCount: tags.filter((tag) => tag[0] === 'required_badge').length,
 			requiredBadgeAddresses: tags
-				.filter((tag) => tag[0] === 'required_badge' && tag[1])
+				.filter((tag) => tag[0] === 'required_badge' && tag[1] && isDefinitionAddress(tag[1]))
 				.map((tag) => tag[1]),
 			entrancePrice: tags.find((tag) => tag[0] === 'entrance_price')?.[1],
 			entranceCurrency: tags.find((tag) => tag[0] === 'entrance_price')?.[2],
@@ -893,7 +921,7 @@
 		publishingEvent = true;
 		if (paidAccess) {
 			const badgeDefinition: EventTemplate = {
-				kind: 30009,
+				kind: 30402,
 				content: paidAccess.description,
 				created_at: now(),
 				tags: paidAccess.definitionTags

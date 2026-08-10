@@ -40,11 +40,7 @@
 		type RelayInfo
 	} from 'src/lib/adminRelays';
 	import { DEFAULT_RELAYS, INDEXER_RELAYS } from 'src/lib/env';
-	import {
-		fetchCommunityAccess,
-		type AdminPermission,
-		type CommunityAccess
-	} from 'src/lib/adminAccess';
+	import { canDo, fetchCommunityAccess, type CommunityAccess } from 'src/lib/adminAccess';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import User from 'src/routes/explore/user.svelte';
 	import PaymentSetupNotice from 'src/components/admin/PaymentSetupNotice.svelte';
@@ -53,17 +49,12 @@
 	import { writable } from 'svelte/store';
 
 	const navItems = [
-		{ label: 'Dashboard', segment: '', icon: LayoutDashboard, permissions: [] },
-		{
-			label: 'People',
-			segment: 'members',
-			icon: UsersRound,
-			permissions: ['moderation', 'settings']
-		},
-		{ label: 'Events', segment: 'events', icon: CalendarDays, permissions: ['events'] },
-		{ label: 'Store', segment: 'store', icon: Store, permissions: ['store'] },
-		{ label: 'Orders', segment: 'orders', icon: ClipboardList, permissions: ['store', 'events'] },
-		{ label: 'Invites', segment: 'invites', icon: Ticket, permissions: ['invites'] }
+		{ label: 'Dashboard', segment: '', icon: LayoutDashboard, capability: '' },
+		{ label: 'People', segment: 'members', icon: UsersRound, capability: '30009' },
+		{ label: 'Events', segment: 'events', icon: CalendarDays, capability: '31923' },
+		{ label: 'Store', segment: 'store', icon: Store, capability: '30402' },
+		{ label: 'Orders', segment: 'orders', icon: ClipboardList, capability: '37237' },
+		{ label: 'Invites', segment: 'invites', icon: Ticket, capability: 'invites' }
 	] as const;
 
 	type AdminNavSegment = (typeof navItems)[number]['segment'] | 'settings';
@@ -97,7 +88,7 @@
 	let communityMenuOpen = false;
 	let communityMenuRoot: HTMLDivElement | undefined;
 	let redirectedCommunityId = '';
-	let communityAccess: CommunityAccess = { isOwner: false, permissions: new Set(), roles: [] };
+	let communityAccess: CommunityAccess = { isOwner: false, roles: [], permissions: [] };
 	let accessLoading = false;
 
 	$: activeAdminSegment = adminSegmentFromPath($page.url.pathname);
@@ -107,18 +98,14 @@
 		selectedRelayUrl = $selectedAdminRelayUrl;
 		selectedRelayName = '';
 		selectedRelayDescription = '';
-		communityAccess = { isOwner: false, permissions: new Set(), roles: [] };
+		communityAccess = { isOwner: false, roles: [], permissions: [] };
 		accessLoading = Boolean(selectedRelayUrl);
 		fetchSelectedRelayInfo();
 	}
 	$: displayName = selectedRelayName || selectedRelayUrl;
 	$: displayDescription = selectedRelayDescription || 'Community admin';
 	$: visibleNavItems = navItems.filter(
-		(item) =>
-			!item.permissions.length ||
-			item.permissions.some((permission) =>
-				communityAccess.permissions.has(permission as AdminPermission)
-			)
+		(item) => !item.capability || canDo(communityAccess, item.capability, 'write')
 	);
 	$: if (selectedRelayUrl && !accessLoading && !canOpenSegment(activeAdminSegment)) {
 		goto(resolve('/admin'));
@@ -141,16 +128,13 @@
 
 	function canOpenSegment(segment: AdminNavSegment) {
 		if (!segment) return true;
-		if (segment === 'events') return communityAccess.permissions.has('events');
-		if (segment === 'invites') return communityAccess.permissions.has('invites');
-		if (segment === 'store') return communityAccess.permissions.has('store');
-		if (segment === 'orders') {
-			return communityAccess.permissions.has('store') || communityAccess.permissions.has('events');
-		}
-		if (segment === 'settings') return communityAccess.permissions.has('settings');
-		return (
-			communityAccess.permissions.has('moderation') || communityAccess.permissions.has('settings')
-		);
+		if (segment === 'events') return canDo(communityAccess, '31923', 'write');
+		if (segment === 'invites') return canDo(communityAccess, 'invites');
+		if (segment === 'store') return canDo(communityAccess, '30402', 'write');
+		if (segment === 'orders') return canDo(communityAccess, '37237', 'write');
+		if (segment === 'settings') return canDo(communityAccess, 'settings');
+		// People (members + roles): 30009 definition management, any topic.
+		return canDo(communityAccess, '30009', 'write');
 	}
 
 	function adminSegmentFromPath(pathname: string): AdminNavSegment {
@@ -214,7 +198,7 @@
 		} catch {
 			// The route still works without community display metadata.
 			communityAccess = await fetchCommunityAccess(selectedRelayUrl, $key?.pub || '', false).catch(
-				() => ({ isOwner: false, permissions: new Set<AdminPermission>(), roles: [] })
+				() => ({ isOwner: false, roles: [], permissions: [] })
 			);
 			accessLoading = false;
 		}
@@ -245,7 +229,7 @@
 				}))
 			);
 			adminRelays = accessible
-				.filter(({ access }) => access.isOwner || access.permissions.size > 0)
+				.filter(({ access }) => access.isOwner || access.permissions.length > 0)
 				.map(({ info }) => info);
 			adminRelaysLoading = false;
 		});
@@ -604,7 +588,7 @@
 								</div>
 							{/if}
 
-							{#if communityAccess.permissions.has('settings')}<button
+							{#if canDo(communityAccess, 'settings')}<button
 									type="button"
 									class="mt-4 flex w-full items-center gap-4 rounded-xl px-3 py-2.5 text-left text-emerald-900 transition hover:bg-stone-50 focus:outline-none focus:ring-2 focus:ring-emerald-800/30 active:scale-[0.99]"
 									on:click={createCommunity}
@@ -642,7 +626,7 @@
 	<Pager rootPath="/admin">
 		<slot />
 	</Pager>
-	{#if selectedRelayUrl && communityAccess.permissions.has('settings')}
+	{#if selectedRelayUrl && canDo(communityAccess, 'settings')}
 		<PaymentSetupNotice community={selectedRelayUrl} />
 	{/if}
 </div>

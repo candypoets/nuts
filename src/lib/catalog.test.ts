@@ -2,12 +2,9 @@ import type { ParsedEvent } from '@candypoets/nipworker';
 import { describe, expect, it } from 'vitest';
 
 import {
-	BADGE_DEFINITION_TYPE_TOPICS,
 	buildCatalogDefinitionTags,
-	CATALOG_SELLABLE_TAG,
 	catalogAddress,
 	catalogAvailability,
-	catalogBilling,
 	catalogCurrency,
 	catalogDefinitionAddress,
 	catalogDescription,
@@ -22,13 +19,8 @@ import {
 	catalogPriceSats,
 	catalogProductKind,
 	catalogSection,
-	catalogSellable,
-	catalogStripeAccountId,
-	catalogType,
 	catalogUsesQrFulfillment,
 	isCatalogDefinition,
-	isSellableEventAccessDefinition,
-	isSellableCatalogDefinition,
 	isStoreCatalogDefinition,
 	sellableCatalogSubscriptionId,
 	upsertCatalogEvent
@@ -41,7 +33,7 @@ function stubEvent(
 	options: { kind?: number; id?: string; pubkey?: string; createdAt?: number } = {}
 ): ParsedEvent {
 	return {
-		kind: () => options.kind ?? 30009,
+		kind: () => options.kind ?? 30402,
 		id: () => options.id ?? 'event-id',
 		pubkey: () => options.pubkey ?? pubkey,
 		createdAt: () => options.createdAt ?? 1778502625,
@@ -65,7 +57,6 @@ describe('catalog FlatBuffer accessors', () => {
 
 	it('reads a product directly from the event view', () => {
 		const tags = buildCatalogDefinitionTags({
-			type: 'product',
 			d: 'flat-white',
 			name: ' Flat white ',
 			description: ' Double shot ',
@@ -82,10 +73,10 @@ describe('catalog FlatBuffer accessors', () => {
 
 		expect(isCatalogDefinition(event)).toBe(true);
 		expect(catalogAddress(event)).toBe(catalogDefinitionAddress(pubkey, 'flat-white'));
-		expect(catalogType(event)).toBe('product');
-		expect(catalogSellable(event)).toBe(true);
-		expect(tags).toContainEqual(['t', BADGE_DEFINITION_TYPE_TOPICS.product]);
-		expect(tags).toContainEqual(['t', CATALOG_SELLABLE_TAG]);
+		expect(catalogAddress(event)).toBe(`30402:${pubkey}:flat-white`);
+		expect(tags).toContainEqual(['title', 'Flat white']);
+		expect(tags).toContainEqual(['price', '4.50', 'EUR']);
+		expect(tags.some((tag) => tag[0] === 't')).toBe(false);
 		expect(catalogName(event)).toBe('Flat white');
 		expect(catalogDescription(event)).toBe('Double shot');
 		expect(catalogImage(event)).toBe('https://cdn.example/coffee.jpg');
@@ -97,18 +88,16 @@ describe('catalog FlatBuffer accessors', () => {
 		expect(catalogPosition(event)).toBe(2);
 		expect(catalogAvailability(event)).toBe('unavailable');
 		expect(catalogProductKind(event)).toBe('drink');
+		// 30402 listings default to a single use; no max_uses tag is emitted.
 		expect(catalogMaxUses(event)).toBe(1);
-		expect(tags).toContainEqual(['max_uses', '1']);
+		expect(tags.some((tag) => tag[0] === 'max_uses')).toBe(false);
 		expect(catalogEditable(event)).toBe(true);
 	});
 
-	it('defaults a product definition to one use when the tag is omitted', () => {
+	it('defaults a 30402 listing to one use when the tag is omitted', () => {
 		const event = stubEvent([
 			['d', 'espresso'],
-			['type', 'product'],
-			['t', BADGE_DEFINITION_TYPE_TOPICS.product],
-			['t', CATALOG_SELLABLE_TAG],
-			['name', 'Espresso'],
+			['title', 'Espresso'],
 			['price', '2.50', 'EUR'],
 			['product_kind', 'drink']
 		]);
@@ -117,60 +106,44 @@ describe('catalog FlatBuffer accessors', () => {
 		expect(catalogMaxUses(event)).toBe(1);
 	});
 
+	it('treats other definition kinds without max_uses as unlimited', () => {
+		const membership = stubEvent(
+			[
+				['d', 'supporter'],
+				['t', 'membership'],
+				['name', 'Supporter'],
+				['price', '60', 'EUR', 'year']
+			],
+			{ kind: 30009 }
+		);
+
+		expect(catalogMaxUses(membership)).toBeUndefined();
+	});
+
 	it.each([
-		['product', 'food', true],
-		['product', 'drink', true],
-		['product', 'merchandise', false],
-		['product', 'generic', false],
-		['event_access', undefined, true],
-		['pass', undefined, true],
-		['membership', undefined, true]
-	] as const)('sets QR fulfillment for %s %s to %s', (type, productKind, expected) => {
-		const event = stubEvent([
-			['type', type],
-			...(productKind ? [['product_kind', productKind]] : [])
-		]);
+		[30402, 'food', undefined, true],
+		[30402, 'drink', undefined, true],
+		[30402, 'merchandise', undefined, false],
+		[30402, 'generic', undefined, false],
+		[30402, undefined, 10, true],
+		[30009, undefined, undefined, true]
+	] as const)(
+		'sets QR fulfillment for kind %s product_kind %s max_uses %s to %s',
+		(kind, productKind, maxUses, expected) => {
+			const event = stubEvent(
+				[
+					...(productKind ? [['product_kind', productKind]] : []),
+					...(maxUses ? [['max_uses', String(maxUses)]] : [])
+				],
+				{ kind }
+			);
 
-		expect(catalogUsesQrFulfillment(event)).toBe(expected);
-	});
-
-	it('reads membership billing and Stripe metadata without projecting a DTO', () => {
-		const tags = buildCatalogDefinitionTags({
-			type: 'membership',
-			d: 'supporter',
-			name: 'Supporter',
-			price: 60,
-			currency: 'usd',
-			billing: 'yearly',
-			stripeAccountId: 'acct_123'
-		});
-		const event = stubEvent(tags);
-
-		expect(isCatalogDefinition(event)).toBe(true);
-		expect(isSellableCatalogDefinition(event)).toBe(true);
-		expect(catalogType(event)).toBe('membership');
-		expect(tags).toContainEqual(['t', BADGE_DEFINITION_TYPE_TOPICS.membership]);
-		expect(tags).toContainEqual(['t', CATALOG_SELLABLE_TAG]);
-		expect(catalogBilling(event)).toBe('yearly');
-		expect(catalogStripeAccountId(event)).toBe('acct_123');
-	});
-
-	it('rejects usage limits on memberships', () => {
-		const tags = buildCatalogDefinitionTags({
-			type: 'membership',
-			d: 'supporter',
-			name: 'Supporter',
-			price: 60,
-			currency: 'EUR',
-			billing: 'yearly'
-		});
-
-		expect(isCatalogDefinition(stubEvent([...tags, ['max_uses', '12']]))).toBe(false);
-	});
+			expect(catalogUsesQrFulfillment(event)).toBe(expected);
+		}
+	);
 
 	it('reads optional positive max uses on passes', () => {
 		const tags = buildCatalogDefinitionTags({
-			type: 'pass',
 			d: 'ten-visits',
 			name: 'Ten visits',
 			price: '90',
@@ -180,20 +153,16 @@ describe('catalog FlatBuffer accessors', () => {
 		const event = stubEvent(tags);
 
 		expect(isCatalogDefinition(event)).toBe(true);
-		expect(isSellableCatalogDefinition(event)).toBe(true);
-		expect(catalogType(event)).toBe('pass');
-		expect(tags).toContainEqual(['t', BADGE_DEFINITION_TYPE_TOPICS.pass]);
-		expect(tags).toContainEqual(['t', CATALOG_SELLABLE_TAG]);
+		expect(isStoreCatalogDefinition(event)).toBe(true);
+		expect(tags).toContainEqual(['max_uses', '10']);
 		expect(catalogMaxUses(event)).toBe(10);
+		expect(catalogUsesQrFulfillment(event)).toBe(true);
 	});
 
 	it('recognizes event admission as read-only and reads its owning event', () => {
 		const event = stubEvent([
 			['d', 'event-summer-entrance'],
-			['type', 'event_access'],
-			['t', BADGE_DEFINITION_TYPE_TOPICS.event_access],
-			['t', CATALOG_SELLABLE_TAG],
-			['name', 'Summer entrance'],
+			['title', 'Summer entrance'],
 			['price', '12', 'EUR'],
 			['price_sats', '25000'],
 			['a', `31923:${pubkey}:summer`],
@@ -203,11 +172,7 @@ describe('catalog FlatBuffer accessors', () => {
 		]);
 
 		expect(isCatalogDefinition(event)).toBe(true);
-		expect(isSellableCatalogDefinition(event)).toBe(true);
-		expect(isSellableEventAccessDefinition(event)).toBe(true);
 		expect(isStoreCatalogDefinition(event)).toBe(false);
-		expect(catalogType(event)).toBe('event_access');
-		expect(catalogSellable(event)).toBe(true);
 		expect(catalogEditable(event)).toBe(false);
 		expect(catalogEventAddress(event)).toBe(`31923:${pubkey}:summer`);
 		expect(catalogMaxUses(event)).toBe(1);
@@ -217,15 +182,17 @@ describe('catalog FlatBuffer accessors', () => {
 		expect(catalogPosition(event)).toBe(0);
 	});
 
-	it.each(['role', '', 'unknown'])('rejects non-catalog type %s', (type) => {
+	it.each([30009, 31922, 31923])('rejects kind %s events as catalog definitions', (kind) => {
 		expect(
 			isCatalogDefinition(
-				stubEvent([
-					['d', 'admin'],
-					...(type ? [['type', type]] : []),
-					['name', 'Admin'],
-					['price', '10', 'EUR']
-				])
+				stubEvent(
+					[
+						['d', 'item'],
+						['title', 'Item'],
+						['price', '10', 'EUR']
+					],
+					{ kind }
+				)
 			)
 		).toBe(false);
 	});
@@ -233,20 +200,18 @@ describe('catalog FlatBuffer accessors', () => {
 	it('rejects invalid catalog fields', () => {
 		const base = [
 			['d', 'item'],
-			['type', 'product'],
-			['t', BADGE_DEFINITION_TYPE_TOPICS.product],
-			['t', CATALOG_SELLABLE_TAG],
-			['name', 'Item'],
-			['price', '10', 'EUR'],
-			['max_uses', '1']
+			['title', 'Item'],
+			['price', '10', 'EUR']
 		];
 		for (const replacement of [
+			['title', '  '],
 			['price', '0', 'EUR'],
 			['price', '10', 'EU'],
 			['availability', 'deleted'],
 			['position', '-1'],
 			['product_kind', 'meal'],
-			['max_uses', '2']
+			['max_uses', '0'],
+			['max_uses', '1.5']
 		]) {
 			expect(
 				isCatalogDefinition(
@@ -259,7 +224,6 @@ describe('catalog FlatBuffer accessors', () => {
 	it('rejects invalid builder inputs', () => {
 		expect(() =>
 			buildCatalogDefinitionTags({
-				type: 'product',
 				d: 'free',
 				name: 'Free',
 				price: 0,
@@ -268,7 +232,6 @@ describe('catalog FlatBuffer accessors', () => {
 		).toThrow(/price/);
 		expect(() =>
 			buildCatalogDefinitionTags({
-				type: 'pass',
 				d: 'bad-pass',
 				name: 'Bad pass',
 				price: 10,
@@ -278,7 +241,6 @@ describe('catalog FlatBuffer accessors', () => {
 		).toThrow(/max uses/);
 		expect(() =>
 			buildCatalogDefinitionTags({
-				type: 'product',
 				d: 'bad-sats',
 				name: 'Bad sats',
 				price: 10,
@@ -288,9 +250,8 @@ describe('catalog FlatBuffer accessors', () => {
 		).toThrow(/sats price/);
 	});
 
-	it('keeps the sellable marker when an item is archived', () => {
+	it('keeps an archived item a valid catalog definition', () => {
 		const tags = buildCatalogDefinitionTags({
-			type: 'product',
 			d: 'archived-coffee',
 			name: 'Archived coffee',
 			price: 3,
@@ -298,41 +259,36 @@ describe('catalog FlatBuffer accessors', () => {
 			availability: 'archived'
 		});
 
-		expect(tags).toContainEqual(['t', CATALOG_SELLABLE_TAG]);
-		expect(tags).toContainEqual(['t', BADGE_DEFINITION_TYPE_TOPICS.product]);
-		expect(catalogSellable(stubEvent(tags))).toBe(true);
+		expect(tags).toContainEqual(['availability', 'archived']);
+		expect(isCatalogDefinition(stubEvent(tags))).toBe(true);
 		expect(catalogAvailability(stubEvent(tags))).toBe('archived');
 	});
 
-	it('finds the sellable marker after another topic tag', () => {
+	it('accepts a catalog definition alongside unrelated topic tags', () => {
 		const event = stubEvent([
 			['d', 'espresso'],
-			['type', 'product'],
 			['t', 'coffee'],
-			['t', BADGE_DEFINITION_TYPE_TOPICS.product],
-			['t', CATALOG_SELLABLE_TAG],
-			['name', 'Espresso'],
-			['price', '2.50', 'EUR'],
-			['max_uses', '1']
-		]);
-
-		expect(catalogSellable(event)).toBe(true);
-		expect(isSellableCatalogDefinition(event)).toBe(true);
-	});
-
-	it('does not accept an unmarked catalog definition as sellable', () => {
-		const event = stubEvent([
-			['d', 'espresso'],
-			['type', 'product'],
-			['t', BADGE_DEFINITION_TYPE_TOPICS.product],
-			['name', 'Espresso'],
-			['price', '2.50', 'EUR'],
-			['max_uses', '1']
+			['title', 'Espresso'],
+			['price', '2.50', 'EUR']
 		]);
 
 		expect(isCatalogDefinition(event)).toBe(true);
-		expect(isSellableCatalogDefinition(event)).toBe(false);
-		expect(isStoreCatalogDefinition(event)).toBe(false);
+		expect(isStoreCatalogDefinition(event)).toBe(true);
+	});
+
+	it('does not accept a listing without a valid price tag', () => {
+		const cases: string[][][] = [
+			[],
+			[['price']],
+			[['price', '0', 'EUR']],
+			[['price', '-5', 'EUR']]
+		];
+		for (const priceTags of cases) {
+			const event = stubEvent([['d', 'espresso'], ['title', 'Espresso'], ...priceTags]);
+
+			expect(isCatalogDefinition(event)).toBe(false);
+			expect(isStoreCatalogDefinition(event)).toBe(false);
+		}
 	});
 });
 
@@ -340,7 +296,6 @@ describe('upsertCatalogEvent', () => {
 	function event(createdAt: number, eventId: string) {
 		return stubEvent(
 			buildCatalogDefinitionTags({
-				type: 'product',
 				d: 'coffee',
 				name: 'Coffee',
 				price: 3,

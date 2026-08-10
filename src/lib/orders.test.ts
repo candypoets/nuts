@@ -37,16 +37,16 @@ function event(input: {
 const issuer = 'a'.repeat(64);
 const holder = 'b'.repeat(64);
 
-function definition(d: string, type: string, extraTags: string[][] = []) {
-	const address = `30009:${issuer}:${d}`;
+function definition(d: string, extraTags: string[][] = [], kind = 30402) {
+	const address = `${kind}:${issuer}:${d}`;
 	return {
 		address,
 		event: event({
 			id: `def-${d}`,
-			kind: 30009,
+			kind,
 			pubkey: issuer,
 			createdAt: 1,
-			tags: [['d', d], ['type', type], ['t', type], ...extraTags]
+			tags: [['d', d], ['title', d], ['price', '5', 'EUR'], ...extraTags]
 		})
 	};
 }
@@ -87,7 +87,7 @@ function status(
 
 describe('deriveOrderRecords', () => {
 	it('creates an implicit pending order for a single-use award without statuses', () => {
-		const def = definition('coffee', 'product');
+		const def = definition('coffee');
 		const definitions = new Map([[def.address, def.event]]);
 		const purchase = award('award-1', def.address, [['i', 'payment-redemption:cs_123']]);
 
@@ -101,7 +101,7 @@ describe('deriveOrderRecords', () => {
 	});
 
 	it('uses the event coordinate as pending context for event tickets', () => {
-		const def = definition('gig-ticket', 'event_access', [
+		const def = definition('gig-ticket', [
 			['a', '31923:' + issuer + ':gig'],
 			['max_uses', '1']
 		]);
@@ -115,7 +115,7 @@ describe('deriveOrderRecords', () => {
 	});
 
 	it('reflects the latest status of the order context', () => {
-		const def = definition('coffee', 'product');
+		const def = definition('coffee');
 		const definitions = new Map([[def.address, def.event]]);
 		const purchase = award('award-1', def.address, [['order', 'order-1']]);
 		const statuses = [
@@ -131,7 +131,7 @@ describe('deriveOrderRecords', () => {
 	});
 
 	it('creates one record per fulfillment context for reusable passes', () => {
-		const def = definition('gym-pass', 'pass', [['max_uses', '5']]);
+		const def = definition('gym-pass', [['max_uses', '5']]);
 		const definitions = new Map([[def.address, def.event]]);
 		const pass = award('award-3', def.address);
 		const statuses = [
@@ -148,7 +148,7 @@ describe('deriveOrderRecords', () => {
 	});
 
 	it('rejects statuses whose d tag does not match the fulfillment context', () => {
-		const def = definition('gym-pass', 'pass', [['max_uses', '5']]);
+		const def = definition('gym-pass', [['max_uses', '5']]);
 		const definitions = new Map([[def.address, def.event]]);
 		const pass = award('award-3', def.address);
 		const s1 = status('s1', 'award-3', def.address, 'fulfilled', ['order', 'checkin-1'], 20);
@@ -180,7 +180,7 @@ describe('deriveOrderRecords', () => {
 
 describe('use accounting', () => {
 	it('counts fulfilled contexts and derives remaining uses', () => {
-		const def = definition('gym-pass', 'pass', [['max_uses', '3']]);
+		const def = definition('gym-pass', [['max_uses', '3']]);
 		const pass = award('award-3', def.address);
 		const statuses = [
 			status('s1', 'award-3', def.address, 'fulfilled', ['order', 'checkin-1'], 20),
@@ -194,7 +194,7 @@ describe('use accounting', () => {
 	});
 
 	it('treats definitions without max_uses as unlimited', () => {
-		const def = definition('membership', 'membership');
+		const def = definition('membership', [], 30009);
 		const member = award('award-4', def.address);
 		expect(remainingAwardUses(member, def.event, [])).toBeUndefined();
 	});
@@ -206,7 +206,7 @@ describe('buildBadgeStatusTemplate', () => {
 			'ready',
 			{
 				awardId: 'award-1',
-				badgeAddress: `30009:${issuer}:coffee`,
+				badgeAddress: `30402:${issuer}:coffee`,
 				holder,
 				contextTag: ['order', 'order-1']
 			},
@@ -217,7 +217,7 @@ describe('buildBadgeStatusTemplate', () => {
 		expect(template.created_at).toBe(42);
 		expect(template.tags).toEqual([
 			['status', 'ready'],
-			['a', `30009:${issuer}:coffee`],
+			['a', `30402:${issuer}:coffee`],
 			['e', 'award-1'],
 			['p', holder],
 			['order', 'order-1'],
@@ -228,7 +228,7 @@ describe('buildBadgeStatusTemplate', () => {
 	it('derives the d value from an event context tag', () => {
 		const template = buildBadgeStatusTemplate('fulfilled', {
 			awardId: 'award-2',
-			badgeAddress: `30009:${issuer}:gig-ticket`,
+			badgeAddress: `30402:${issuer}:gig-ticket`,
 			holder,
 			contextTag: ['event', `31923:${issuer}:gig`]
 		});

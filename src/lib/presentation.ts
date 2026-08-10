@@ -1,4 +1,5 @@
 import { verifyEvent, type EventTemplate, type NostrEvent } from 'nostr-tools';
+import { DEFINITION_KINDS } from 'src/lib/nip97';
 
 export const PRESENTATION_KIND = 27236;
 export const PRESENTATION_PREFIX = 'nuts:present:';
@@ -58,7 +59,11 @@ function isHexEventId(value: string) {
 
 function isBadgeAddress(value: string) {
 	const [kind, author, ...identifierParts] = value.split(':');
-	return kind === '30009' && isHexEventId(author) && Boolean(identifierParts.join(':'));
+	return (
+		(DEFINITION_KINDS as readonly number[]).includes(Number(kind)) &&
+		isHexEventId(author) &&
+		Boolean(identifierParts.join(':'))
+	);
 }
 
 function isEventAddress(value: string) {

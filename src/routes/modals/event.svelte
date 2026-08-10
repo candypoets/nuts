@@ -24,10 +24,11 @@
 		catalogCurrency,
 		catalogEventAddress,
 		catalogExpiration,
+		catalogMaxUses,
 		catalogPrice,
 		catalogPriceSats,
-		isNewerCatalogEvent,
-		isSellableEventAccessDefinition
+		isCatalogDefinition,
+		isNewerCatalogEvent
 	} from 'src/lib/catalog';
 	import { now } from 'src/lib/period';
 	import { proxyAvatarUrl } from 'src/lib/proxy';
@@ -233,7 +234,7 @@
 		const badge = splitAddress(badgeAddress);
 		const calendarAuthor = calendarEvent.pubkey();
 		if (
-			badge.kind !== 30009 ||
+			badge.kind !== 30402 ||
 			!badge.author ||
 			!badge.d ||
 			!calendarAuthor ||
@@ -246,7 +247,7 @@
 			`event_entrance_definition_v1_${badgeAddress}_${selectedRelay}`,
 			[
 				{
-					kinds: [30009],
+					kinds: [30402],
 					authors: [badge.author],
 					tags: { '#d': [badge.d] },
 					limit: 1,
@@ -266,8 +267,9 @@
 				entranceDefinition =
 					catalogAddress(parsed) === badgeAddress &&
 					parsed.pubkey() === calendarAuthor &&
-					isSellableEventAccessDefinition(parsed) &&
+					isCatalogDefinition(parsed) &&
 					catalogEventAddress(parsed) === decodedAddress &&
+					catalogMaxUses(parsed) === 1 &&
 					catalogAvailability(parsed) === 'available' &&
 					Boolean(expiresAt && expiresAt > now())
 						? parsed

@@ -19,6 +19,7 @@
 		type ToolkitAction
 	} from 'src/lib/communityTypes';
 	import { buildRoleDefinitionTags, roleDFromName, type RoleDefinition } from 'src/lib/nip58Roles';
+	import type { Permission } from 'src/lib/nip97';
 	import { resolve } from 'src/lib/paths';
 	import { now } from 'src/lib/period';
 	import { go } from 'src/routes/modals/modal';
@@ -26,6 +27,25 @@
 
 	export let relayUrl: string = '';
 	export let roleDefinitions: RoleDefinition[] = [];
+
+	const PERMISSION_LABELS: Record<string, string> = {
+		'1': 'posting',
+		'1063': 'media',
+		'31923': 'events',
+		'30402': 'store',
+		'37237': 'fulfillment',
+		invites: 'invites',
+		moderation: 'moderation',
+		settings: 'settings'
+	};
+
+	function permissionsSummary(permissions: Permission[]) {
+		return permissions
+			.map(
+				(permission) => PERMISSION_LABELS[permission.capability] || `kind ${permission.capability}`
+			)
+			.join(' · ');
+	}
 
 	let loadedRelayUrl = '';
 	let profile: CommunityProfile | undefined;
@@ -205,7 +225,9 @@
 						<div class="min-w-0">
 							<p class="truncate text-sm font-black text-[#080b12]">{role.name}</p>
 							<p class="truncate text-xs font-semibold text-slate-500">
-								{role.permissions.length ? role.permissions.join(' · ') : 'Recognition badge'}
+								{role.permissions.length
+									? permissionsSummary(role.permissions)
+									: 'Recognition badge'}
 							</p>
 						</div>
 						<button

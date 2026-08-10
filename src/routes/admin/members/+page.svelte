@@ -38,12 +38,9 @@
 		type RoleDefinition
 	} from 'src/lib/nip58Roles';
 	import {
-		BADGE_DEFINITION_TYPE_TOPICS,
-		catalogAddress,
-		catalogName,
-		catalogType,
-		isNewerCatalogEvent
-	} from 'src/lib/catalog';
+		parseMembershipDefinition,
+		type MembershipDefinition
+	} from 'src/lib/memberships';
 	import { now } from 'src/lib/period';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import User from 'src/routes/explore/user.svelte';
@@ -83,7 +80,7 @@
 	let relayAdminPubkeys: string[] = [];
 	let loadedRelayUrl = '';
 	let roleDefinitions: RoleDefinition[] = [];
-	let membershipDefinitionEvents: ParsedEvent[] = [];
+	let membershipDefinitions: MembershipDefinition[] = [];
 	let roleAwards: RoleAward[] = [];
 	let memberProfiles: Kind0Parsed[] = [];
 	let memberProfileKey = '';
@@ -117,7 +114,7 @@
 	$: if (!selectedRoleAddress && roleDefinitions[0]) {
 		selectedRoleAddress = roleDefinitions[0].address;
 	}
-	$: memberRows = buildMemberRows(roleDefinitions, membershipDefinitionEvents, roleAwards);
+	$: memberRows = buildMemberRows(roleDefinitions, membershipDefinitions, roleAwards);
 	$: syncMemberProfiles(memberRows.map((member) => member.pubkey));
 	$: filteredMemberRows = memberRows.filter((member) =>
 		member.pubkey.toLowerCase().includes(search.trim().toLowerCase())
@@ -192,21 +189,15 @@
 		}
 		// Membership definitions gate membership visibility, not purchasability:
 		// invite-redeemed members hold awards for a non-sellable definition.
-		if (catalogType(parsedEvent) !== 'membership' || !catalogAddress(parsedEvent)) return;
-		const address = catalogAddress(parsedEvent);
-		const existingIndex = membershipDefinitionEvents.findIndex(
-			(event) => catalogAddress(event) === address
-		);
-		if (existingIndex === -1) {
-			membershipDefinitionEvents = [...membershipDefinitionEvents, parsedEvent];
-		} else if (isNewerCatalogEvent(parsedEvent, membershipDefinitionEvents[existingIndex])) {
-			membershipDefinitionEvents = membershipDefinitionEvents.map((event, index) =>
-				index === existingIndex ? parsedEvent : event
-			);
-		}
+		const membership = parseMembershipDefinition(parsedEvent);
+		if (!membership) return;
+		membershipDefinitions = upsertDefinition(membershipDefinitions, membership);
 	}
 
-	function upsertDefinition(definitions: RoleDefinition[], definition: RoleDefinition) {
+	function upsertDefinition<T extends { address: string; name: string; createdAt: number }>(
+		definitions: T[],
+		definition: T
+	) {
 		const existingIndex = definitions.findIndex((item) => item.address === definition.address);
 		if (existingIndex !== -1) {
 			if (definition.createdAt <= definitions[existingIndex].createdAt) return definitions;
@@ -258,8 +249,8 @@
 		);
 		if (deletedAddresses.size) {
 			roleDefinitions = roleDefinitions.filter((role) => !deletedAddresses.has(role.address));
-			membershipDefinitionEvents = membershipDefinitionEvents.filter(
-				(event) => !deletedAddresses.has(catalogAddress(event))
+			membershipDefinitions = membershipDefinitions.filter(
+				(definition) => !deletedAddresses.has(definition.address)
 			);
 		}
 		if (deletedAwardIds.size) {
@@ -279,7 +270,7 @@
 		unsubscribeRoleDefinitions?.();
 		unsubscribeRoleAwards?.();
 		roleDefinitions = [];
-		membershipDefinitionEvents = [];
+		membershipDefinitions = [];
 		roleAwards = [];
 		loadingMembers = Boolean(relayUrl);
 		if (!relayUrl) {
@@ -290,7 +281,7 @@
 		const roleDefinitionRequests: RequestObject[] = [
 			{
 				kinds: [30009],
-				tags: { '#t': [BADGE_DEFINITION_TYPE_TOPICS.role] },
+				tags: { '#t': ['role'] },
 				limit: 100,
 				relays: [relayUrl],
 				// The dashboard only ever talks to the community relay: a cacheFirst
@@ -301,7 +292,7 @@
 			},
 			{
 				kinds: [30009],
-				tags: { '#t': [BADGE_DEFINITION_TYPE_TOPICS.membership] },
+				tags: { '#t': ['membership'] },
 				limit: 100,
 				relays: [relayUrl],
 				cacheFirst: false,
@@ -412,7 +403,7 @@
 
 	function buildMemberRows(
 		definitions: RoleDefinition[],
-		membershipEvents: ParsedEvent[],
+		memberships: MembershipDefinition[],
 		awards: RoleAward[]
 	): MemberRow[] {
 		const definitionsByAddress = new Map(
@@ -432,11 +423,11 @@
 
 		for (const award of awards) {
 			const role = definitionsByAddress.get(award.roleAddress);
-			const membershipEvent = role
+			const membership = role
 				? undefined
-				: membershipEvents.find((event) => catalogAddress(event) === award.roleAddress);
-			if (!role && !membershipEvent) continue;
-			const roleName = role?.name || catalogName(membershipEvent!);
+				: memberships.find((definition) => definition.address === award.roleAddress);
+			if (!role && !membership) continue;
+			const roleName = role?.name || membership!.name;
 			const row =
 				rows.get(award.recipient) ||
 				({
@@ -576,9 +567,7 @@
 		// Banning = deleting the member's membership badge: the relay gate only
 		// lets badge holders write, and it honors kind-5 deletions of membership
 		// awards signed by an admin (or the badge issuer).
-		const membershipAddresses = new Set(
-			membershipDefinitionEvents.map((event) => catalogAddress(event))
-		);
+		const membershipAddresses = new Set(membershipDefinitions.map((definition) => definition.address));
 		const membershipAwards = roleAwards.filter(
 			(award) => award.recipient === member.pubkey && membershipAddresses.has(award.roleAddress)
 		);

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import {
+		extractTag,
 		Kind1Parsed,
 		MessageType,
 		type ConnectionStatus,
@@ -19,7 +20,9 @@
 		asKind1111,
 		asParsedEvent,
 		ConnectionTracker,
-		fbArray
+		fbArray,
+		isKind1,
+		isParsedEvent
 	} from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { isEqual, uniqBy } from 'lodash';
@@ -63,6 +66,10 @@
 	// Repost handling variables
 	let kind6: ReturnType<typeof asKind6> | undefined;
 	let isRepost = false;
+	let embeddedRepost: ParsedEvent | undefined;
+	let referencedRepost: ParsedEvent | undefined;
+	let repostEventId = '';
+	let repostRelayHints: string[] = [];
 	let displayNote: ParsedEvent | undefined | null;
 	let reposterPubkey: string | undefined;
 	let effectiveShowRoot = showRoot;
@@ -73,8 +80,14 @@
 	// Grouped in a single reactive statement to avoid false positive cycle detection
 	$: {
 		kind6 = note && asKind6(note as ParsedEvent);
-		isRepost = !!kind6 && typeof kind6?.repostedEvent === 'function';
-		displayNote = isRepost ? kind6?.repostedEvent?.() : note;
+		isRepost = note?.kind() === 6;
+		embeddedRepost = kind6?.repostedEvent?.() || undefined;
+		const repostEventTag = isRepost && note ? extractTag(note, 'e') : undefined;
+		repostEventId = embeddedRepost?.id() || repostEventTag?.[1] || '';
+		repostRelayHints = repostEventTag?.[2] ? [repostEventTag[2]] : [];
+		displayNote = isRepost
+			? embeddedRepost || (referencedRepost?.id() === repostEventId ? referencedRepost : undefined)
+			: note;
 		reposterPubkey = isRepost ? note?.pubkey()! : undefined;
 		effectiveShowRoot = isRepost ? false : showRoot;
 		kind1 = displayNote && asKind1(displayNote as ParsedEvent);
@@ -124,7 +137,7 @@
 		return null;
 	})();
 
-	$: nid = noteId || displayNote?.id()!;
+	$: nid = noteId || (isRepost ? repostEventId : displayNote?.id())!;
 
 	// Effective ID for subscriptions - uses synthetic ID for naddr
 	$: effectiveNid = naddrDecoded
@@ -143,6 +156,8 @@
 	export let tailing: boolean | undefined = undefined;
 
 	let sub: (() => void) | undefined;
+	let repostSub: (() => void) | undefined;
+	let repostSubscriptionKey = '';
 	let relaysub: (() => void) | undefined;
 	let relayStoreUnsubscribe: (() => void) | undefined;
 	let currentRelayStoreId: string | undefined;
@@ -170,6 +185,47 @@
 			...request,
 			relays: mergeRelays(request.relays || [], relays)
 		};
+	}
+
+	function unsubscribeReferencedRepost() {
+		repostSub?.();
+		repostSub = undefined;
+		repostSubscriptionKey = '';
+	}
+
+	function subscribeReferencedRepost(eventId: string, relayHints: string[], knownRelays: string[]) {
+		const requestRelays = mergeRelays(relayHints, knownRelays);
+		const subscriptionKey = [eventId, ...requestRelays].join('\n');
+		if (repostSub && repostSubscriptionKey === subscriptionKey) return;
+
+		unsubscribeReferencedRepost();
+		repostSubscriptionKey = subscriptionKey;
+		repostSub = useSubscription(
+			'r_' + eventId,
+			[
+				{
+					kinds: [1],
+					ids: [eventId],
+					limit: 1,
+					relays: requestRelays,
+					cacheFirst: true
+				}
+			],
+			(message) => {
+				const parsedEvent = isParsedEvent(message);
+				const referencedKind1 = isKind1(message);
+				if (referencedKind1 && parsedEvent?.id() === eventId) {
+					referencedRepost = parsedEvent;
+					context = uniqBy([...context, parsedEvent], (event) => event.id());
+				}
+			}
+		);
+	}
+
+	$: if (visible && isRepost && repostEventId && !embeddedRepost) {
+		subscribeReferencedRepost(repostEventId, repostRelayHints, relays);
+	} else {
+		unsubscribeReferencedRepost();
 	}
 
 	// Find note from context if not provided directly
@@ -365,13 +421,18 @@
 		if (naddr) {
 			pushPath(`naddr:${naddr}`);
 		} else {
-			const nip19Event = nip19.neventEncode({ id: decoded.noteId || nid || '', relays });
+			const eventRelays = isRepost ? mergeRelays(repostRelayHints, relays) : relays;
+			const nip19Event = nip19.neventEncode({
+				id: decoded.noteId || nid || '',
+				relays: eventRelays
+			});
 			pushPath(`nevent:${nip19Event}`);
 		}
 	}
 
 	onDestroy(() => {
 		relayStoreUnsubscribe?.();
+		unsubscribeReferencedRepost();
 		unsubscribe();
 	});
 

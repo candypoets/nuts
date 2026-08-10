@@ -20,7 +20,6 @@
 	} from 'lucide-svelte';
 	import { normalizeURL } from 'nostr-tools/utils';
 	import { key } from 'src/controller';
-	import { BADGE_DEFINITION_TYPE_TOPICS, catalogAvailability } from 'src/lib/catalog';
 	import { makeInviteAuthorization } from 'src/lib/invites';
 	import { parseMembershipDefinition, type MembershipDefinition } from 'src/lib/memberships';
 	import { onDestroy, onMount } from 'svelte';
@@ -97,11 +96,6 @@
 	function upsertMembership(event: ParsedEvent) {
 		const membership = parseMembershipDefinition(event);
 		if (!membership) return;
-		if (catalogAvailability(event) !== 'available') {
-			memberships = memberships.filter((item) => item.address !== membership.address);
-			loading = false;
-			return;
-		}
 		if (!membership.stripeAccountId || Number(membership.price) <= 0) return;
 		const index = memberships.findIndex((item) => item.address === membership.address);
 		if (index !== -1) {
@@ -121,7 +115,7 @@
 		const requests: RequestObject[] = [
 			{
 				kinds: [30009],
-				tags: { '#t': [BADGE_DEFINITION_TYPE_TOPICS.membership] },
+				tags: { '#t': ['membership'] },
 				limit: 20,
 				relays: [relayUrl],
 				cacheFirst: true

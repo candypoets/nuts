@@ -1,4 +1,4 @@
-import { buildBadgeDefinitionClassificationTags } from './catalog';
+import { definitionAddress } from 'src/lib/nip97';
 
 export type PaidEventAccessInput = {
 	eventKind: 31922 | 31923;
@@ -40,7 +40,7 @@ export function buildPaidEventAccess(input: PaidEventAccessInput) {
 
 	const eventAddress = `${input.eventKind}:${eventAuthor}:${eventD}`;
 	const badgeD = `event-${eventD}-entrance`;
-	const badgeAddress = `30009:${eventAuthor}:${badgeD}`;
+	const badgeAddress = definitionAddress(30402, eventAuthor, badgeD);
 	const eventTags: string[][] = [
 		['entrance_badge', badgeAddress],
 		['entrance_price', price, currency]
@@ -52,12 +52,10 @@ export function buildPaidEventAccess(input: PaidEventAccessInput) {
 	const description = `Paid entrance for ${eventTitle}`;
 	const definitionTags: string[][] = [
 		['d', badgeD],
-		...buildBadgeDefinitionClassificationTags('event_access', true),
-		['name', `${eventTitle} entrance`],
+		['title', `${eventTitle} entrance`],
 		['description', description],
 		['a', eventAddress],
 		['price', price, currency],
-		['billing', 'one_time'],
 		['max_uses', '1'],
 		['availability', 'available'],
 		['expiration', String(input.expiresAt)]

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { BadgeCheck, Building2, CreditCard } from 'lucide-svelte';
+	import AnchorSettings from 'src/components/admin/AnchorSettings.svelte';
 	import CommunityProfileSettings from 'src/components/admin/CommunityProfileSettings.svelte';
 	import MembershipSettings from 'src/components/admin/MembershipSettings.svelte';
 	import StripeSettings from '../payments/+page.svelte';
@@ -41,6 +42,7 @@
 
 	{#if activeSection === 'community'}
 		<CommunityProfileSettings />
+		<AnchorSettings />
 	{:else if activeSection === 'memberships'}
 		<MembershipSettings onOpenPayments={() => (activeSection = 'payments')} />
 	{:else}

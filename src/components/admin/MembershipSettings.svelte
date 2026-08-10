@@ -16,7 +16,6 @@
 	import type { EventTemplate } from 'nostr-tools';
 	import imageCompression from 'browser-image-compression';
 	import { key, selectedAdminRelayUrl } from 'src/controller';
-	import { BADGE_DEFINITION_TYPE_TOPICS } from 'src/lib/catalog';
 	import { makeInviteAuthorization } from 'src/lib/invites';
 	import { parsedEventTags } from 'src/lib/adminRelays';
 	import {
@@ -212,7 +211,7 @@
 		const requests: RequestObject[] = [
 			{
 				kinds: [30009],
-				tags: { '#t': [BADGE_DEFINITION_TYPE_TOPICS.membership] },
+				tags: { '#t': ['membership'] },
 				limit: 20,
 				relays: [relayUrl],
 				// Dashboard-side reads must not resolve from a stale OPFS cache:
