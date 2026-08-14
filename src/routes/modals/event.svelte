@@ -165,7 +165,7 @@
 				authors: [parsedAddress.author],
 				tags: { '#d': [parsedAddress.d] },
 				limit: 1,
-				noCache: true,
+				cacheFirst: true,
 				relays
 			}
 		];
@@ -192,7 +192,7 @@
 			[
 				{
 					kinds: [RSVP_KIND],
-					noCache: true,
+					cacheFirst: true,
 					relays,
 					tags: { '#a': [decodedAddress] }
 				}
