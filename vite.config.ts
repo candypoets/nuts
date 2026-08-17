@@ -3,6 +3,7 @@ import { SvelteKitPWA as VitePWA } from '@vite-pwa/sveltekit';
 import basicSsl from '@vitejs/plugin-basic-ssl';
 
 import { defineConfig, loadEnv } from 'vite';
+import { nipworkerWasmPlugin } from '@candypoets/nipworker/vite';
 import { nipworkerRelayProxyPlugin } from '@candypoets/nipworker/proxy/vite';
 
 export default defineConfig(({ mode }) => {
@@ -38,6 +39,7 @@ export default defineConfig(({ mode }) => {
 		},
 		plugins: [
 			...(enableSsl ? [basicSsl()] : []),
+			nipworkerWasmPlugin(),
 			sveltekit(),
 			// Only use nipworker proxy plugin in development (production uses src/server.ts)
 			...(mode === 'development'
