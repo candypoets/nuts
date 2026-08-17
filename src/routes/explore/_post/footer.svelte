@@ -6,8 +6,7 @@
 		PipeT,
 		SaveToDbPipeConfigT,
 		WorkerMessage,
-		type ConnectionStatus,
-		type ParsedEvent
+		type ConnectionStatus
 	} from '@candypoets/nipworker';
 	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
 	import {
@@ -28,7 +27,13 @@
 	import { go, usePagerNavigation } from 'src/routes/modals/modal';
 	import { getUserRelays } from 'src/routes/queries/user';
 
-	export let note: ParsedEvent;
+	type InteractiveEvent = {
+		id(): string | null;
+		pubkey(): string | null;
+		kind(): number;
+	};
+
+	export let note: InteractiveEvent;
 	export let visible: boolean;
 	export let main = false;
 	const nav = usePagerNavigation();
@@ -50,7 +55,6 @@
 	// Check if note supports kind1111 comments (kind20 and other non-kind1 events)
 	$: supportsKind1111 = note?.kind?.() !== 1 && note?.kind?.() !== 6;
 	export let connectionStatus: { [url: string]: ConnectionStatus } = {};
-	let reposts: ParsedEvent[] = [];
 	let liked = '';
 	let replied = false;
 	let reposted = false;
@@ -61,7 +65,7 @@
 	let repostCount = 0;
 	let quoteCount = 0;
 
-	let decoded = {
+	$: decoded = {
 		id: note.id()!,
 		pubkey: note.pubkey()!
 	};
@@ -165,7 +169,7 @@
 					(result) => {
 						relays = result.slice(0, $isMobile ? 3 : 5);
 
-						// Main subscription: replies (kind 1 #e), comments (kind 1111 #E), reposts, reactions
+						// Replies, reposts, and reactions all use an `e` reference.
 						sub = useSubscription(
 							'f_' + decoded.id,
 							[
@@ -174,16 +178,10 @@
 									tags: { '#e': [decoded.id] },
 									noContext: true,
 									relays
-								},
-								{
-									kinds: [1111],
-									tags: { '#E': [decoded.id] },
-									noContext: true,
-									relays
 								}
 							],
 							handleEvents,
-							createSubscriptionOptions([1, 6, 7, 1111], $mutePipeConfig, $key?.pub || '')
+							createSubscriptionOptions([1, 6, 7], $mutePipeConfig, $key?.pub || '')
 						);
 
 						// Separate subscription for kind1111 comments (NIP-22, uses #E tag for root)
@@ -273,6 +271,54 @@
 		);
 	}
 
+	function withEventRelays(action: (eventRelays: string[]) => void) {
+		if (relays.length > 0) {
+			action(relays);
+		} else {
+			getUserRelays(decoded.pubkey, action, 'read');
+		}
+	}
+
+	function openReply(eventRelays: string[]) {
+		const nevent = nip19.neventEncode({ id: decoded.id, relays: eventRelays });
+		pushPath('reply:' + nevent);
+	}
+
+	function openComments(eventRelays: string[]) {
+		const nevent = nip19.neventEncode({
+			id: decoded.id,
+			relays: eventRelays,
+			author: decoded.pubkey,
+			kind: note.kind()
+		});
+		pushPath('kind1111:' + nevent);
+	}
+
+	function openRepost(eventRelays: string[]) {
+		const nevent = nip19.neventEncode({
+			id: decoded.id,
+			relays: eventRelays,
+			author: decoded.pubkey,
+			kind: note.kind()
+		});
+		pushPath('repost:' + nevent);
+	}
+
+	function openShare(eventRelays: string[]) {
+		const nevent = nip19.neventEncode({
+			id: decoded.id,
+			relays: eventRelays,
+			author: decoded.pubkey,
+			kind: note.kind()
+		});
+		pushPath('share:' + nevent);
+	}
+
+	function openZap(eventRelays: string[]) {
+		const nevent = nip19.neventEncode({ id: decoded.id, relays: eventRelays });
+		pushPath('ecash:' + decoded.pubkey + ':' + nevent);
+	}
+
 	onDestroy(unsubscribe);
 
 	$: visible ? subscribe() : unsubscribe();
@@ -286,17 +332,7 @@
 				class="action-btn flex items-center space-x-1 hover:-mt-1 transition-all"
 				class:text-accent={!!replied}
 				class:font-semibold={!!replied}
-				on:click|stopPropagation={() => {
-					const goReply = (/** @type {string[]} */ r) => {
-						const nevent = nip19.neventEncode({ id: note.id(), relays: r });
-						pushPath('reply:' + nevent);
-					};
-					if (relays.length > 0) {
-						goReply(relays);
-					} else {
-						getUserRelays(note.pubkey(), goReply, 'read');
-					}
-				}}
+				on:click|stopPropagation={() => withEventRelays(openReply)}
 				role="button"
 				tabindex="0"
 			>
@@ -311,22 +347,7 @@
 		{#if supportsKind1111}
 			<div
 				class="action-btn flex items-center space-x-1 hover:-mt-1 transition-all"
-				on:click|stopPropagation={() => {
-					const goComments = (/** @type {string[]} */ r) => {
-						const nevent = nip19.neventEncode({
-							id: note.id(),
-							relays: r,
-							author: note.pubkey(),
-							kind: note.kind()
-						});
-						pushPath('kind1111:' + nevent);
-					};
-					if (relays.length > 0) {
-						goComments(relays);
-					} else {
-						getUserRelays(note.pubkey(), goComments, 'read');
-					}
-				}}
+				on:click|stopPropagation={() => withEventRelays(openComments)}
 				role="button"
 				tabindex="0"
 			>
@@ -345,17 +366,7 @@
 			class:cursor-default={!!reposted}
 			role="button"
 			tabindex="0"
-			on:click|stopPropagation={() => {
-				const goRepost = (/** @type {string[]} */ r) => {
-					const nevent = nip19.neventEncode({ id: note.id(), relays: r });
-					pushPath('repost:' + nevent);
-				};
-				if (relays.length > 0) {
-					goRepost(relays);
-				} else {
-					getUserRelays(note.pubkey(), goRepost, 'read');
-				}
-			}}
+			on:click|stopPropagation={() => withEventRelays(openRepost)}
 		>
 			<div class="icon-container" class:is-active={!!reposted}>
 				<IconRepost />
@@ -386,17 +397,7 @@
 			class="action-btn flex items-center space-x-1 hover:-mt-1 transition-all"
 			role="button"
 			tabindex="0"
-			on:click|stopPropagation={() => {
-				const goShare = (/** @type {string[]} */ r) => {
-					const nevent = nip19.neventEncode({ id: note.id(), relays: r });
-					pushPath('share:' + nevent);
-				};
-				if (relays.length > 0) {
-					goShare(relays);
-				} else {
-					getUserRelays(note.pubkey(), goShare, 'read');
-				}
-			}}
+			on:click|stopPropagation={() => withEventRelays(openShare)}
 		>
 			<div class="icon-container">
 				<IconShare />
@@ -411,17 +412,7 @@
 			class="flex items-center space-x-1 hover:font-bold hover:text-accent hover:-mt-1 transition-all"
 			role="button"
 			tabindex="0"
-			on:click|stopPropagation={() => {
-				const goZap = (/** @type {string[]} */ r) => {
-					const nevent = nip19.neventEncode({ id: note.id(), relays: r });
-					pushPath('ecash:' + note.pubkey() + ':' + nevent);
-				};
-				if (relays.length > 0) {
-					goZap(relays);
-				} else {
-					getUserRelays(note.pubkey(), goZap, 'read');
-				}
-			}}
+			on:click|stopPropagation={() => withEventRelays(openZap)}
 		>
 			<Nutscash class="h-6 w-6" />
 			<span></span>

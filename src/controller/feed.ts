@@ -2,16 +2,20 @@ import { ParsedEvent, ParsedEventT } from '@candypoets/nipworker';
 import { Builder, ByteBuffer } from 'flatbuffers';
 import { persistentWritable } from 'src/lib/persistentWritable';
 
-export type FeedKind = 1 | 6 | 20 | 22 | 1068 | 30023 | 30311;
+export type FeedKind = 1 | 6 | 20 | 22 | 1068 | 9802 | 30023 | 30311;
 export type ExploreAudienceMode = 'contacts' | 'all';
 
+// Existing profile/community feeds still use the parsed-event pipeline.
 export const ALL_FEED_KINDS: FeedKind[] = [1, 6, 20, 22, 1068, 30023, 30311];
+// Explore also has a raw-event pipeline for NIP-84 highlights (kind 9802).
+export const ALL_EXPLORE_FEED_KINDS: FeedKind[] = [1, 6, 20, 22, 9802, 1068, 30023, 30311];
 
 export const KIND_ICONS: Record<FeedKind, string> = {
 	1: 'mdi:text-box-outline',
 	6: 'mdi:repeat',
 	20: 'mdi:image-multiple',
 	22: 'mdi:video',
+	9802: 'mdi:format-quote-close',
 	1068: 'mdi:poll',
 	30023: 'mdi:file-document-outline',
 	30311: 'mdi:broadcast'
@@ -22,6 +26,7 @@ export const KIND_LABELS: Record<FeedKind, string> = {
 	6: 'Reposts',
 	20: 'Media',
 	22: 'Videos',
+	9802: 'Highlights',
 	1068: 'Polls',
 	30023: 'Articles',
 	30311: 'Live Streams'
@@ -33,6 +38,7 @@ export const KIND_DESCRIPTIONS: Record<FeedKind, string> = {
 	20: 'Images and media uploads. Photos, memes, artwork',
 	30023: 'Long-form articles and blog posts. In-depth content',
 	22: 'Short-form video posts',
+	9802: 'Passages people found worth saving and sharing',
 	1068: 'Interactive polls and surveys. Vote and see results',
 	30311: 'Live streaming events, broadcasts, and audio spaces'
 };
@@ -45,7 +51,7 @@ export const feedKinds = persistentWritable<FeedKind[]>(
 		// Validate that all items are valid FeedKind values
 		if (Array.isArray(storage)) {
 			const migrated = storage.map((kind) => (kind === 34235 ? 22 : kind));
-			if (migrated.every((k) => ALL_FEED_KINDS.includes(k))) {
+			if (migrated.every((k) => ALL_EXPLORE_FEED_KINDS.includes(k))) {
 				return migrated as FeedKind[];
 			}
 		}

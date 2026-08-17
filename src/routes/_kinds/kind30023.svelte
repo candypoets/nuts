@@ -6,7 +6,7 @@
 		type ParsedEvent,
 		type WorkerMessage
 	} from '@candypoets/nipworker';
-	import { useSubscription } from '@candypoets/nipworker/hooks';
+	import { usePublish, useSubscription } from '@candypoets/nipworker/hooks';
 	import {
 		asConnectionStatus,
 		asParsedEvent,
@@ -16,6 +16,7 @@
 	import Icon from '@iconify/svelte';
 	import { nip19 } from 'nostr-tools';
 	import type { AddressPointer } from 'nostr-tools/nip19';
+	import { get } from 'svelte/store';
 	import { getContext, onDestroy } from 'svelte';
 
 	import RelaysList from 'src/components/RelaysList.svelte';
@@ -29,7 +30,9 @@
 	import { go, usePagerNavigation } from '../modals/modal';
 	import { getUserRelays } from '../queries/user';
 	import { normalizeURL } from 'nostr-tools/utils';
-	import { isMobile } from 'src/controller';
+	import { isMobile, key, writeRelays } from 'src/controller';
+	import { buildHighlightEvent } from 'src/lib/highlights';
+	import { now } from 'src/lib/period';
 
 	export let naddr: string;
 	export let visible: boolean;
@@ -71,6 +74,12 @@
 	let sub: (() => void) | undefined;
 	let relaysSub: (() => void) | undefined;
 	let relays: string[] = [];
+	let articleBody: HTMLDivElement;
+	let selectedHighlight: { text: string; top: number; left: number } | undefined;
+	let highlightStatus: 'idle' | 'publishing' | 'published' | 'error' = 'idle';
+	let highlightError = '';
+	let highlightPublishUnsub: (() => void) | undefined;
+	let highlightStatusTimer: ReturnType<typeof setTimeout> | undefined;
 
 	let connectionStatus: { [url: string]: ConnectionStatus } = {};
 
@@ -212,7 +221,109 @@
 		relaysSub = undefined;
 	}
 
-	onDestroy(unsubscribe);
+	function handleTextSelection() {
+		if (!articleBody || typeof window === 'undefined') return;
+
+		const selection = window.getSelection();
+		const text = selection?.toString().trim() || '';
+		if (
+			!selection ||
+			!text ||
+			!selection.anchorNode ||
+			!selection.focusNode ||
+			!articleBody.contains(selection.anchorNode) ||
+			!articleBody.contains(selection.focusNode)
+		) {
+			selectedHighlight = undefined;
+			return;
+		}
+
+		const range = selection.getRangeAt(0);
+		const selectionRect = range.getBoundingClientRect();
+		const articleRect = articleBody.getBoundingClientRect();
+		if (!selectionRect.width && !selectionRect.height) return;
+
+		selectedHighlight = {
+			text,
+			top: Math.max(8, selectionRect.top - articleRect.top - 48),
+			left: Math.min(
+				Math.max(8, selectionRect.left - articleRect.left),
+				Math.max(8, articleRect.width - 150)
+			)
+		};
+		highlightStatus = 'idle';
+		highlightError = '';
+	}
+
+	function finishHighlightPublish() {
+		highlightPublishUnsub?.();
+		highlightPublishUnsub = undefined;
+	}
+
+	function publishHighlight() {
+		if (!selectedHighlight?.text || !decoded || highlightStatus === 'publishing') return;
+		if (!$key?.pub) {
+			highlightStatus = 'error';
+			highlightError = 'Sign in to save highlights';
+			return;
+		}
+
+		const sourceRelays = (decoded.relays || relays).filter(
+			(relay): relay is string => typeof relay === 'string' && relay.length > 0
+		);
+		const highlight = buildHighlightEvent({
+			content: selectedHighlight.text,
+			createdAt: now(),
+			source: {
+				address: `30023:${decoded.pubkey}:${decoded.identifier}`,
+				relay: sourceRelays[0],
+				author: article?.pubkey() || decoded.pubkey
+			}
+		});
+
+		highlightStatus = 'publishing';
+		highlightError = '';
+		const publishId = `highlight_${decoded.pubkey}_${decoded.identifier}_${now()}`;
+		finishHighlightPublish();
+		highlightPublishUnsub = usePublish(
+			publishId,
+			highlight,
+			(message) => {
+				const status = asConnectionStatus(message);
+				if (!status) return;
+
+				const value = status.status()?.toString();
+				if (value === 'true' || value === 'OK') {
+					highlightStatus = 'published';
+					finishHighlightPublish();
+					if (highlightStatusTimer) clearTimeout(highlightStatusTimer);
+					highlightStatusTimer = setTimeout(() => {
+						selectedHighlight = undefined;
+						highlightStatus = 'idle';
+					}, 1600);
+				} else if (value === 'false' || value === 'ERROR') {
+					highlightStatus = 'error';
+					highlightError = status.message() || 'The highlight was not accepted';
+					finishHighlightPublish();
+				}
+			},
+			{
+				trackStatus: true,
+				defaultRelays: Array.from(
+					new Set([
+						...get(writeRelays).filter((relay): relay is string => typeof relay === 'string'),
+						...relays
+					])
+				)
+			}
+		);
+	}
+
+	onDestroy(() => {
+		unsubscribe();
+		finishHighlightPublish();
+		if (highlightStatusTimer) clearTimeout(highlightStatusTimer);
+	});
 
 	$: visible ? subscribe() : unsubscribe();
 
@@ -295,8 +406,16 @@
 				</div>
 
 				<!-- Article Content -->
-				<div class="bg-base-300 bg-opacity-85 backdrop-blur-gpu rounded-lg p-6">
-					<div class="prose prose-invert max-w-none">
+				<div
+					class="article-body relative overflow-visible rounded-lg bg-base-300 bg-opacity-85 p-6 backdrop-blur-gpu"
+					bind:this={articleBody}
+				>
+					<!-- svelte-ignore a11y-no-static-element-interactions -->
+					<div
+						class="prose prose-invert max-w-none select-text"
+						on:mouseup={handleTextSelection}
+						on:touchend={handleTextSelection}
+					>
 						{#if parsedContent.length > 0}
 							{#each parsedContent as block}
 								{#if block.type === 'text'}
@@ -390,6 +509,43 @@
 							</div>
 						{/if}
 					</div>
+
+					{#if selectedHighlight}
+						<!-- Keep the action attached to the selection without obscuring the article. -->
+						<div
+							class="absolute z-30 flex items-center gap-1 rounded-lg border border-base-content/10 bg-base-100/95 p-1 shadow-lg backdrop-blur"
+							style={`top: ${selectedHighlight.top}px; left: ${selectedHighlight.left}px`}
+							role="toolbar"
+							tabindex="-1"
+							aria-label="Highlight actions"
+							on:mousedown|preventDefault
+							on:keydown|stopPropagation={() => undefined}
+							on:click|stopPropagation
+						>
+							{#if highlightStatus === 'publishing'}
+								<span class="px-2 py-1 text-xs text-base-content/60">Saving…</span>
+							{:else if highlightStatus === 'published'}
+								<span class="flex items-center gap-1 px-2 py-1 text-xs text-success">
+									<Icon icon="mdi:check" class="h-4 w-4" aria-hidden="true" />
+									Saved
+								</span>
+							{:else}
+								<button
+									type="button"
+									class="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-accent hover:bg-base-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+									on:click={publishHighlight}
+								>
+									<Icon icon="mdi:format-quote-close" class="h-4 w-4" aria-hidden="true" />
+									Highlight
+								</button>
+								{#if highlightStatus === 'error'}
+									<span class="max-w-40 truncate text-xs text-error" title={highlightError}
+										>{highlightError}</span
+									>
+								{/if}
+							{/if}
+						</div>
+					{/if}
 				</div>
 
 				<div class="mt-3 flex justify-end text-sm opacity-60 px-2">

@@ -17,7 +17,12 @@
 	} from 'src/routes/modals/modal';
 	import { userQuery } from 'src/routes/queries/user';
 
-	export let note: ParsedEvent;
+	type HeaderEvent = {
+		pubkey(): string | null;
+		createdAt(): number;
+	};
+
+	export let note: HeaderEvent;
 	export let context: ParsedEvent[] = [];
 	export let depth = 0;
 	export let main = false;
@@ -32,9 +37,7 @@
 	$: notePubkey = note.pubkey()!;
 
 	$: decoded = {
-		name:
-			(typeof author?.name === 'function' ? author.name() : author?.name) ||
-			(typeof author?.displayName === 'function' ? author.displayName() : author?.displayName),
+		name: author?.name?.() || author?.displayName?.(),
 		picture: author?.picture?.(),
 		nip05: author?.nip05?.()
 	};
@@ -55,7 +58,7 @@
 							sub?.();
 						}
 					},
-					{}
+					{ closeOnEose: true }
 				);
 			} else {
 				author = asKind0(authorEvent) as Kind0Parsed;

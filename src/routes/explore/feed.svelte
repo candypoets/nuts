@@ -1,9 +1,12 @@
 <script lang="ts">
 	import { getContext, setContext } from 'svelte';
 	import { writable, type Writable } from 'svelte/store';
+	import type { NostrEvent as RawNostrEvent, ParsedEvent } from '@candypoets/nipworker';
 	import VirtualList from 'src/components/VirtualList.svelte';
 	import VirtualListBottom from 'src/components/VirtualListBottom.svelte';
-		import Note from './note.svelte';
+	import { HIGHLIGHT_KIND } from 'src/lib/highlights';
+	import Highlight from './_post/highlight.svelte';
+	import Note from './note.svelte';
 	import Placeholder from 'src/components/Placeholder.svelte';
 
 	// Generic type for feed items
@@ -62,14 +65,14 @@
 	const noteHeightsContext = {
 		// Set height for an item (called by Placeholder via ResizeObserver)
 		setHeight: (id: string | number, height: number) => {
-			heightRegistry.update(m => {
+			heightRegistry.update((m) => {
 				m.set(id, height);
 				return m;
 			});
 		},
 		// Delete height entry when item unmounts
 		deleteHeight: (id: string | number) => {
-			heightRegistry.update(m => {
+			heightRegistry.update((m) => {
 				m.delete(id);
 				return m;
 			});
@@ -85,6 +88,27 @@
 	setContext('noteHeights', noteHeightsContext);
 
 	const imageContext = getContext('imageContext');
+
+	function getHighlightItem(item: T): RawNostrEvent | undefined {
+		const candidate = item as unknown as {
+			kind?: () => number;
+			content?: () => string | null;
+		};
+		if (candidate?.kind?.() !== HIGHLIGHT_KIND || typeof candidate.content !== 'function')
+			return undefined;
+		return candidate as RawNostrEvent;
+	}
+
+	function getParsedItem(item: T): ParsedEvent | undefined {
+		const candidate = item as unknown as {
+			id?: () => string | null;
+			parsed?: (...args: any[]) => unknown;
+		};
+		if (typeof candidate?.id !== 'function' || typeof candidate.parsed !== 'function') {
+			return undefined;
+		}
+		return candidate as ParsedEvent;
+	}
 </script>
 
 <div class={'lg:pt-0 h-full min-h-screen mx-auto !pt-0 ' + $$props.class}>
@@ -140,19 +164,29 @@
 		<svelte:fragment slot="empty-content">
 			<slot name="empty-content" />
 		</svelte:fragment>
-			<div class="block w-feed m-auto px-1 max-w-full">
-				<Placeholder id={getItemId(item)} visible={screenVisible}>
+		<div class="block w-feed m-auto px-1 max-w-full">
+			<Placeholder id={getItemId(item)} visible={screenVisible}>
+				{@const highlightItem = getHighlightItem(item)}
+				{@const parsedItem = highlightItem ? undefined : getParsedItem(item)}
+				{#if highlightItem}
+					<Note customEvent={highlightItem} context={[]} visible={subVisible} zaps>
+						<svelte:fragment slot="body">
+							<Highlight event={highlightItem} />
+						</svelte:fragment>
+					</Note>
+				{:else if parsedItem}
 					<slot
 						name="item-content"
-						post={item}
+						post={parsedItem}
 						posts={itemsPerRow > 1 ? items : undefined}
 						visible={subVisible}
 						index={itemIndex}
 					>
-						<Note note={item} context={[]} visible={subVisible} zaps />
+						<Note note={parsedItem} context={[]} visible={subVisible} zaps />
 					</slot>
-				</Placeholder>
-			</div>
+				{/if}
+			</Placeholder>
+		</div>
 	</svelte:component>
 </div>
 

@@ -1,10 +1,15 @@
 <script lang="ts">
 	import {
 		CounterPipeConfigT,
+		MessageType,
+		MuteFilterPipeConfigT,
 		PipeConfig,
 		PipeT,
+		SaveToDbPipeConfigT,
+		SerializeEventsPipeConfigT,
 		type ConnectionStatus,
 		type Kind3Parsed,
+		type NostrEvent as RawNostrEvent,
 		type ParsedEvent,
 		type RequestObject,
 		type WorkerMessage,
@@ -21,6 +26,7 @@
 		asKind3,
 		asKind6,
 		asKind20,
+		asNostrEvent,
 		asParsedEvent,
 		asCountResponse,
 		fbArray
@@ -38,19 +44,21 @@
 		exploreAudienceMode,
 		exploreRelaySelections,
 		feedKinds,
-		ALL_FEED_KINDS,
+		ALL_EXPLORE_FEED_KINDS,
 		type FeedKind
 	} from 'src/controller/feed';
 	import {
 		defaultPipeline,
 		kind3,
 		kind3Ready,
+		mutePipeConfig,
 		relayDirectoryUrls,
 		readRelays
 	} from 'src/controller/nostr';
 	import { FEED_PAGE_WINDOW_SECONDS, limit } from 'src/controller/pagination';
 	import { relaySub, relaySubs, setSubRelays } from 'src/controller/relay';
 	import { CALENDAR_EVENT_KINDS, RSVP_KIND, parseCalendarEvent } from 'src/lib/calendarEvent';
+	import { HIGHLIGHT_KIND } from 'src/lib/highlights';
 	import { ago } from 'src/lib/period';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import { go, usePagerNavigation } from 'src/routes/modals/modal';
@@ -60,6 +68,7 @@
 
 	export let visible = true;
 	const nav = usePagerNavigation();
+	type ExploreFeedItem = ParsedEvent | RawNostrEvent;
 
 	function openRoot(eventPath: string) {
 		nav ? nav.root(eventPath) : go(eventPath);
@@ -69,8 +78,19 @@
 
 	// Feed items managed by parent
 	let feedItems: ParsedEvent[] = [];
+	let highlightItems: RawNostrEvent[] = [];
+	const highlightEvents = new Map<string, RawNostrEvent>();
 	let loading = false;
 	let refreshing = false;
+	let highlightLoading = false;
+
+	function itemCreatedAt(item: ExploreFeedItem): number {
+		return item.createdAt?.() || 0;
+	}
+
+	$: displayItems = [...feedItems, ...highlightItems].sort(
+		(left, right) => itemCreatedAt(right) - itemCreatedAt(left)
+	);
 
 	// Track seen event IDs to prevent duplicates
 	let seenEventIds = new Set<string>();
@@ -88,7 +108,8 @@
 
 	// Track current feed kinds for subscription
 	$: feedKindsValue = $feedKinds;
-	$: effectiveKinds = feedKindsValue.length > 0 ? feedKindsValue : (ALL_FEED_KINDS as FeedKind[]);
+	$: effectiveKinds =
+		feedKindsValue.length > 0 ? feedKindsValue : (ALL_EXPLORE_FEED_KINDS as FeedKind[]);
 	let tags: string[] = [];
 	let kind3Resolved = false;
 
@@ -189,6 +210,8 @@
 	}
 
 	let eventSub: (() => void) | undefined;
+	let highlightSubscription: (() => void) | undefined;
+	let lastHighlightSubId: string | undefined;
 	let rsvpSubs: (() => void)[] = [];
 	let lastEventRelayKey = '';
 	let lastRsvpKey = '';
@@ -299,7 +322,13 @@
 	function buildRequests(forPagination = false): RequestObject[] {
 		// Determine which kinds to request
 		// If feedKinds is empty, request all supported kinds
-		const kindsToRequest = $feedKinds.length > 0 ? $feedKinds : (ALL_FEED_KINDS as FeedKind[]);
+		const kindsToRequest = (
+			$feedKinds.length > 0 ? $feedKinds : (ALL_EXPLORE_FEED_KINDS as FeedKind[])
+		).filter((kind) => kind !== HIGHLIGHT_KIND);
+
+		// Highlights use a raw-event pipeline below because the current parsed
+		// worker view intentionally does not carry generic event content.
+		if (kindsToRequest.length === 0) return [];
 
 		if (useContactsFeed && (!kind3Resolved || following.length === 0)) {
 			return [];
@@ -318,6 +347,60 @@
 		};
 
 		return [baseRequest];
+	}
+
+	function createHighlightPipeline(subId: string, muteConfig: MuteFilterPipeConfigT): PipeT[] {
+		return [
+			new PipeT(PipeConfig.MuteFilterPipeConfig, muteConfig),
+			new PipeT(PipeConfig.SaveToDbPipeConfig, new SaveToDbPipeConfigT()),
+			new PipeT(
+				PipeConfig.SerializeEventsPipeConfig,
+				new SerializeEventsPipeConfigT(new TextEncoder().encode(subId))
+			)
+		];
+	}
+
+	function buildHighlightRequest(): RequestObject[] {
+		if (useContactsFeed && (!kind3Resolved || following.length === 0)) return [];
+
+		const authors = useContactsFeed ? following : undefined;
+		return [
+			{
+				kinds: [HIGHLIGHT_KIND],
+				...(authors?.length ? { authors } : {}),
+				limit: $limit,
+				since: ago(31 * 24 * 60 * 60),
+				cacheFirst: true,
+				relays: feedRelays
+			}
+		];
+	}
+
+	function handleHighlightEvents(message: WorkerMessage) {
+		const status = asConnectionStatus(message);
+		if (status) {
+			const relayUrl = status.relayUrl();
+			if (relayUrl) {
+				connectionStatus = { ...connectionStatus, [normalizeURL(relayUrl)]: status };
+			}
+			if (status.status() === 'EOSE') highlightLoading = false;
+			return;
+		}
+
+		if (message.type() === MessageType.Eoce) {
+			highlightLoading = false;
+			return;
+		}
+
+		const highlight = asNostrEvent(message);
+		if (!highlight || highlight.kind() !== HIGHLIGHT_KIND) return;
+
+		const eventId = highlight.id();
+		if (!eventId) return;
+		highlightEvents.set(eventId, highlight);
+		highlightItems = Array.from(highlightEvents.values()).sort(
+			(left, right) => right.createdAt() - left.createdAt()
+		);
 	}
 
 	// Check if kind should be included based on feedKinds filter
@@ -346,6 +429,7 @@
 			return undefined;
 		}
 		const kind = parsedEvent.kind();
+		if (kind === HIGHLIGHT_KIND) return undefined;
 
 		// Filter by kind based on feedKinds selection
 		if (!shouldIncludeKind(kind)) {
@@ -439,6 +523,11 @@
 		}
 		feedSubscription?.close();
 		feedSubscription = undefined;
+		highlightSubscription?.();
+		highlightSubscription = undefined;
+		lastHighlightSubId = undefined;
+		highlightEvents.clear();
+		highlightItems = [];
 	}
 
 	// Initialize or update subscription when dependencies change
@@ -516,6 +605,48 @@
 		setSubRelays(relaySelectionSubId, feedRelays);
 	}
 
+	$: highlightRequest = (() => {
+		const selected = $feedKinds.length === 0 || $feedKinds.includes(HIGHLIGHT_KIND);
+		if (!visible || !selected || !feedRelays.length) return null;
+
+		const requests = buildHighlightRequest();
+		if (!requests.length) return null;
+
+		return {
+			subId: `highlights_${subId}_${relayKey}_${refreshCounter}`,
+			requests
+		};
+	})();
+
+	$: if (!highlightRequest) {
+		highlightSubscription?.();
+		highlightSubscription = undefined;
+		lastHighlightSubId = undefined;
+		highlightLoading = false;
+		highlightEvents.clear();
+		highlightItems = [];
+	}
+
+	$: if (highlightRequest && highlightRequest.subId !== lastHighlightSubId) {
+		highlightSubscription?.();
+		highlightSubscription = undefined;
+		lastHighlightSubId = highlightRequest.subId;
+		highlightLoading = true;
+		highlightEvents.clear();
+		highlightItems = [];
+		setSubRelays(highlightRequest.subId, feedRelays);
+		highlightSubscription = useSubscription(
+			highlightRequest.subId,
+			highlightRequest.requests,
+			handleHighlightEvents,
+			{
+				bytesPerEvent: 32 * 1024,
+				closeOnEose: true,
+				pipeline: createHighlightPipeline(highlightRequest.subId, $mutePipeConfig)
+			}
+		);
+	}
+
 	$: if (visible && feedRelays.length && feedRelayKey !== lastEventRelayKey) {
 		subscribeExploreEvents();
 	}
@@ -528,6 +659,8 @@
 	$: if (!visible) {
 		feedSubscription?.close();
 		feedSubscription = undefined;
+		highlightSubscription?.();
+		highlightSubscription = undefined;
 		eventSub?.();
 		eventSub = undefined;
 		rsvpSubs.forEach((unsubscribe) => unsubscribe());
@@ -536,12 +669,15 @@
 		lastEventRelayKey = '';
 		lastRsvpKey = '';
 		hadFeedRequest = false;
+		lastHighlightSubId = undefined;
+		highlightLoading = false;
 	}
 
 	// Cleanup on component destroy
 	onDestroy(() => {
 		relaySubUnsubscribe?.();
 		feedSubscription?.close();
+		highlightSubscription?.();
 		eventSub?.();
 		rsvpSubs.forEach((unsubscribe) => unsubscribe());
 		if (refreshTimeout) clearTimeout(refreshTimeout);
@@ -603,8 +739,8 @@
 
 <Pager rootPath="/explore">
 	<Feed
-		items={feedItems}
-		loading={loading || refreshing}
+		items={displayItems}
+		loading={loading || refreshing || highlightLoading}
 		pullToRefresh
 		onRefresh={handleRefresh}
 		onNearBottom={handleNearBottom}
@@ -726,6 +862,7 @@
 					<KindSwitcher
 						selectedKinds={$feedKinds}
 						ariaLabel="Explore content filters"
+						includeHighlights
 						on:select={selectExploreKindTab}
 					/>
 				</div>

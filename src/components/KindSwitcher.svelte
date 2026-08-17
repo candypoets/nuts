@@ -1,7 +1,14 @@
 <script lang="ts" context="module">
 	import { type FeedKind } from 'src/controller/feed';
 
-	export type KindSwitcherTabId = 'all' | 'notes' | 'articles' | 'polls' | 'media' | 'events';
+	export type KindSwitcherTabId =
+		| 'all'
+		| 'notes'
+		| 'articles'
+		| 'polls'
+		| 'media'
+		| 'events'
+		| 'highlights';
 	export type KindSwitcherTab = {
 		id: KindSwitcherTabId;
 		label: string;
@@ -14,11 +21,13 @@
 
 	export let selectedKinds: FeedKind[] = [];
 	export let ariaLabel = 'Content filters';
+	export let includeHighlights = false;
 	export let tabs: KindSwitcherTab[] = [
 		{ id: 'all', label: 'All' },
 		{ id: 'notes', label: 'Notes', kinds: [1, 6] },
 		{ id: 'media', label: 'Media', kinds: [20, 22] },
 		{ id: 'events', label: 'Events', kinds: [30311] },
+		{ id: 'highlights', label: 'Highlights', kinds: [9802] },
 		{ id: 'polls', label: 'Polls', kinds: [1068] },
 		{ id: 'articles', label: 'Articles', kinds: [30023] }
 	];
@@ -26,6 +35,7 @@
 	const dispatch = createEventDispatcher<{ select: { kinds: FeedKind[]; tab: KindSwitcherTab } }>();
 	let localSelectedKinds: FeedKind[] = [];
 	let lastSelectedKinds: FeedKind[] | undefined;
+	$: visibleTabs = includeHighlights ? tabs : tabs.filter((tab) => tab.id !== 'highlights');
 
 	$: if (selectedKinds !== lastSelectedKinds) {
 		localSelectedKinds = selectedKinds;
@@ -50,7 +60,7 @@
 </script>
 
 <div class="kind-switcher flex w-full overflow-x-auto scrollbar-hide" aria-label={ariaLabel}>
-	{#each tabs as tab (tab.id)}
+	{#each visibleTabs as tab (tab.id)}
 		{@const selected = tab.kinds
 			? sameKinds(localSelectedKinds, tab.kinds)
 			: localSelectedKinds.length === 0}

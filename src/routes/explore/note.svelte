@@ -46,11 +46,19 @@
 	import { get } from 'svelte/store';
 	import { go, usePagerNavigation } from '../modals/modal';
 
+	type InteractiveEvent = {
+		id(): string | null;
+		pubkey(): string | null;
+		kind(): number;
+		createdAt(): number;
+	};
+
 	export let main: boolean = false;
 	export let noteId: string | undefined = undefined;
 	export let naddr: string | undefined = undefined;
 	export let context: ParsedEvent[] = [];
 	export let note: ParsedEvent | undefined = undefined;
+	export let customEvent: InteractiveEvent | undefined = undefined;
 	export let zaps: boolean = false;
 	export let footer: boolean = true;
 	export let visible: boolean = false;
@@ -75,6 +83,7 @@
 	let effectiveShowRoot = showRoot;
 	let kind1: ReturnType<typeof asKind1> | undefined;
 	let isMediaEvent = false;
+	let renderedEvent: ParsedEvent | InteractiveEvent | undefined | null;
 
 	// Check if this is a repost (kind 6) and extract the reposted event
 	// Grouped in a single reactive statement to avoid false positive cycle detection
@@ -92,6 +101,7 @@
 		effectiveShowRoot = isRepost ? false : showRoot;
 		kind1 = displayNote && asKind1(displayNote as ParsedEvent);
 		isMediaEvent = displayNote?.kind?.() === 20 || displayNote?.kind?.() === 22;
+		renderedEvent = customEvent || displayNote;
 	}
 	// Extract content blocks for ContentBlocks component - single reactive statement
 	$: {
@@ -137,7 +147,7 @@
 		return null;
 	})();
 
-	$: nid = noteId || (isRepost ? repostEventId : displayNote?.id())!;
+	$: nid = noteId || (isRepost ? repostEventId : renderedEvent?.id())!;
 
 	// Effective ID for subscriptions - uses synthetic ID for naddr
 	$: effectiveNid = naddrDecoded
@@ -398,7 +408,7 @@
 		relaysub = undefined;
 	}
 
-	$: visible == true && (nid || naddrDecoded) ? subscribe() : unsubscribe();
+	$: visible == true && !customEvent && (nid || naddrDecoded) ? subscribe() : unsubscribe();
 
 	$: hasRoot =
 		decoded.replyID &&
@@ -584,7 +594,7 @@
 		searchState = 'not-found';
 	}
 
-	$: if (effectiveNid && effectiveNid !== currentRelayStoreId) {
+	$: if (!customEvent && effectiveNid && effectiveNid !== currentRelayStoreId) {
 		relayStoreUnsubscribe?.();
 		currentRelayStoreId = effectiveNid;
 		currentRelayKey = relays.join('\n');
@@ -631,11 +641,11 @@
 		requests
 		{fbArray(note, 'requests').map((r) => toRequestObject(r).ids?.[0])}
 	</div> -->
-	{#if displayNote}
+	{#if renderedEvent}
 		<!--
 		{note.id}
 		{JSON.stringify(note.requests)} -->
-		{#if zaps && !depth}
+		{#if displayNote && zaps && !depth}
 			<Zap note={displayNote} {visible} class={isRepost && 'absolute'} />
 		{/if}
 		{#if leading || visibleReplies.length}
@@ -658,7 +668,7 @@
 				<!-- <Icon icon="mdi:repeat" class="text-lg text-white" /> -->
 			</div>
 		{/if}
-		<Header note={displayNote} {context} {depth} {main}>
+		<Header note={renderedEvent} {context} {depth} {main}>
 			{#if !main}
 				<RelaysList subId={nid} {relays} {connectionStatus} mini />
 			{/if}
@@ -674,43 +684,47 @@
 				class:!mt-2={!!main}
 				class:!pr-0={isMediaEvent}
 			>
-				{#if displayNote?.kind?.() === 20 || displayNote?.kind?.() === 22}
-					{#key displayNote.id()}
-						<Kind20Content note={displayNote} {visible} />
-					{/key}
-				{:else if displayNote?.kind?.() === 1068}
-					{#key displayNote.id()}
-						<Kind1068Content note={displayNote} {visible} />
-					{/key}
-				{:else if displayNote?.kind?.() === 30023}
-					<Kind30023Content note={displayNote} />
-				{:else if displayNote?.kind?.() === 30311}
-					<Kind30311Content note={displayNote} />
-				{:else if !!displayNote.parsed}
-					<!-- Debug -->
-					<!-- {console.log('[note] displayNote kind:', displayNote?.kind?.(), 'parsed:', !!displayNote.parsed)} -->
-					<!-- {kind1?.reply()?.id()!} -->
-					<!-- {!!showReplies && note?.id()!} -->
-					<ContentBlocks
-						content={parsedContent}
-						{shortContent}
-						showFull={main}
-						note={displayNote}
-						{context}
-						{visible}
-						{depth}
-						{showQuote}
-					/>
-				{:else}
-					<div class="p-3 rounded-lg bg-info-content text-sm flex items-center gap-2 mt-2">
-						<Icon icon="mdi:information-outline" class="shrink-0 w-6 h-6 text-info" />
-						<span>Oups, we can't show you this kind yet (kind {displayNote.kind()})</span>
-					</div>
+				{#if customEvent}
+					<slot name="body" />
+				{:else if displayNote}
+					{#if displayNote.kind() === 20 || displayNote.kind() === 22}
+						{#key displayNote.id()}
+							<Kind20Content note={displayNote} {visible} />
+						{/key}
+					{:else if displayNote.kind() === 1068}
+						{#key displayNote.id()}
+							<Kind1068Content note={displayNote} {visible} />
+						{/key}
+					{:else if displayNote.kind() === 30023}
+						<Kind30023Content note={displayNote} />
+					{:else if displayNote.kind() === 30311}
+						<Kind30311Content note={displayNote} />
+					{:else if !!displayNote.parsed}
+						<!-- Debug -->
+						<!-- {console.log('[note] displayNote kind:', displayNote?.kind?.(), 'parsed:', !!displayNote.parsed)} -->
+						<!-- {kind1?.reply()?.id()!} -->
+						<!-- {!!showReplies && note?.id()!} -->
+						<ContentBlocks
+							content={parsedContent}
+							{shortContent}
+							showFull={main}
+							note={displayNote}
+							{context}
+							{visible}
+							{depth}
+							{showQuote}
+						/>
+					{:else}
+						<div class="p-3 rounded-lg bg-info-content text-sm flex items-center gap-2 mt-2">
+							<Icon icon="mdi:information-outline" class="shrink-0 w-6 h-6 text-info" />
+							<span>Oups, we can't show you this kind yet (kind {displayNote.kind()})</span>
+						</div>
+					{/if}
 				{/if}
 			</div>
 		</div>
 		{#if footer && !depth}
-			<Footer bind:connectionStatus note={displayNote} {visible} {main} />
+			<Footer bind:connectionStatus note={renderedEvent} {visible} {main} />
 		{/if}
 		<!-- {#if leading}
 			<div
