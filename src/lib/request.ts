@@ -23,7 +23,6 @@ export function toRequestObject(request: Request): RequestObject {
 		since: request.since() || undefined,
 		until: request.until() || undefined,
 		relays: fbArray(request, 'relays').map((relay) => relay as string),
-		cacheFirst: request.cacheFirst(),
-		closeOnEOSE: request.closeOnEose()
+		cacheFirst: request.cacheFirst()
 	};
 }

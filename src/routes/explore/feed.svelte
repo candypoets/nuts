@@ -167,22 +167,24 @@
 		<div class="block w-feed m-auto px-1 max-w-full">
 			<Placeholder id={getItemId(item)} visible={screenVisible}>
 				{@const highlightItem = getHighlightItem(item)}
-				{@const parsedItem = highlightItem ? undefined : getParsedItem(item)}
+				{@const parsedItem = getParsedItem(item)}
 				{#if highlightItem}
 					<Note customEvent={highlightItem} context={[]} visible={subVisible} zaps>
 						<svelte:fragment slot="body">
 							<Highlight event={highlightItem} />
 						</svelte:fragment>
 					</Note>
-				{:else if parsedItem}
+				{:else}
 					<slot
 						name="item-content"
-						post={parsedItem}
+						post={item}
 						posts={itemsPerRow > 1 ? items : undefined}
 						visible={subVisible}
 						index={itemIndex}
 					>
-						<Note note={parsedItem} context={[]} visible={subVisible} zaps />
+						{#if parsedItem}
+							<Note note={parsedItem} context={[]} visible={subVisible} zaps />
+						{/if}
 					</slot>
 				{/if}
 			</Placeholder>
