@@ -179,7 +179,7 @@
 			{@const communityRelay = decodeURIComponent(path.slice(path.indexOf(':') + 1))}
 			<Store relay={communityRelay} {visible} {goBack} />
 		{:else if subKey === 'notifications'}
-			<Notifications {goBack} />
+			<Notifications {visible} {goBack} />
 		{:else if subKey === 'badge'}
 			<Kind8 nevent={path.split(':')?.[1]} {visible} {goBack} />
 		{:else if subKey === 'tags'}

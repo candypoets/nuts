@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { ParsedEvent } from '@candypoets/nipworker';
 
-import { processBadgeNotifications } from './notifications';
+import {
+	notificationRelayHints,
+	notificationTargetId,
+	processBadgeNotifications,
+	type ProcessedNotification
+} from './notifications';
 
 function event(input: {
 	id: string;
@@ -9,12 +14,15 @@ function event(input: {
 	pubkey: string;
 	createdAt: number;
 	tags: string[][];
+	relays?: string[];
 }): ParsedEvent {
 	return {
 		id: () => input.id,
 		kind: () => input.kind,
 		pubkey: () => input.pubkey,
 		createdAt: () => input.createdAt,
+		relaysLength: () => input.relays?.length || 0,
+		relays: (relayIndex: number) => input.relays?.[relayIndex] || '',
 		tagsLength: () => input.tags.length,
 		tags: (tagIndex: number) => {
 			const tag = input.tags[tagIndex];
@@ -28,10 +36,85 @@ function event(input: {
 	} as unknown as ParsedEvent;
 }
 
+function socialNotification(input: {
+	type: ProcessedNotification['type'];
+	referencedPostId: string;
+	events: ParsedEvent[];
+	requestRelays?: string[];
+}): ProcessedNotification {
+	return {
+		id: () => ({ fnv1aHash: () => `${input.type}-${input.referencedPostId}` }),
+		type: input.type,
+		parsedType: () => 100,
+		kind: () => 383838,
+		createdAt: () => 1,
+		tags: [],
+		content: '',
+		timestamp: 1,
+		parsed: {
+			type: input.type,
+			referencedPostId: input.referencedPostId,
+			timestamp: 1,
+			events: input.events,
+			context: [],
+			requests: input.requestRelays ? [{ relays: input.requestRelays }] : []
+		}
+	} as ProcessedNotification;
+}
+
 const relay = 'wss://cafe.example/';
 const issuer = 'a'.repeat(64);
 const holder = 'b'.repeat(64);
 const address = `30009:${issuer}:coffee`;
+
+describe('social notification targets', () => {
+	it('opens a mention or quote at the notification event itself', () => {
+		const mention = event({
+			id: 'mention-event',
+			kind: 1,
+			pubkey: issuer,
+			createdAt: 1,
+			tags: []
+		});
+		const notification = socialNotification({
+			type: 'mention',
+			referencedPostId: 'mention-event',
+			events: [mention]
+		});
+
+		expect(notificationTargetId(notification)).toBe('mention-event');
+	});
+
+	it('combines reference, source, request, and fallback relay hints', () => {
+		const reaction = event({
+			id: 'reaction',
+			kind: 7,
+			pubkey: issuer,
+			createdAt: 1,
+			tags: [['e', 'target', 'wss://hint.example']],
+			relays: ['wss://source.example']
+		});
+		const notification = socialNotification({
+			type: 'reaction',
+			referencedPostId: 'target',
+			events: [reaction],
+			requestRelays: ['wss://request.example']
+		});
+
+		expect(
+			notificationRelayHints(notification, [
+				'wss://source.example',
+				'wss://fallback.example',
+				'https://not-a-relay.example'
+			])
+		).toEqual([
+			'wss://hint.example',
+			'wss://source.example',
+			'wss://request.example',
+			'wss://fallback.example'
+		]);
+	});
+});
 
 describe('badge notifications', () => {
 	it('creates an acquisition notification from an award before its definition is loaded', () => {
@@ -188,5 +271,4 @@ describe('badge notifications', () => {
 		expect(notification.createdAt()).toBe(10);
 		expect(notification.parsed.statuses).toEqual([]);
 	});
-
 });

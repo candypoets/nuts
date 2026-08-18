@@ -1,17 +1,22 @@
 <script lang="ts">
-	import type { Kind1Parsed, ParsedEvent } from '@candypoets/nipworker';
+	import type { ParsedEvent } from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import { asKind1, isKind1, isParsedEvent, fbArray } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { nip19 } from 'nostr-tools';
 	import { onMount } from 'svelte';
 
-	import { key, writeRelays } from 'src/controller';
+	import { key, readRelays, writeRelays } from 'src/controller';
 	import ContentBlocks from 'src/routes/explore/_post/ContentBlocks.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import User from 'src/routes/explore/user.svelte';
 	import { go, usePagerNavigation } from 'src/routes/modals/modal';
-	import { formatTime, type ProcessedNotification } from './notifications';
+	import {
+		formatTime,
+		notificationRelayHints,
+		notificationTargetId,
+		type ProcessedNotification
+	} from './notifications';
 
 	export let post: ProcessedNotification;
 	export let visible: boolean;
@@ -22,17 +27,16 @@
 	let expanded: boolean = false;
 	let timeout: NodeJS.Timeout | undefined;
 	let activePostKey = '';
+	let renderedPostKey = '';
 
-	let sub: () => void;
+	let sub: (() => void) | undefined;
 
 	function openPath(eventPath: string) {
 		nav ? nav.push(eventPath) : go(eventPath);
 	}
 
 	function getNotificationKey() {
-		const idValue = post?.id?.();
-		if (typeof idValue === 'string' && idValue.length > 0) return idValue;
-		const hash = idValue?.fnv1aHash?.();
+		const hash = post?.id?.()?.fnv1aHash?.();
 		if (typeof hash === 'string' && hash.length > 0) return hash;
 		return `${post?.type || 'reply'}-${post?.parsed?.referencedPostId || post?.createdAt?.() || 'unknown'}`;
 	}
@@ -41,33 +45,41 @@
 		expanded = !expanded;
 	}
 
-	function subscribe(postKey: string, referencedPostId: string) {
+	function openReferencedPost() {
+		const referencedPostId = notificationTargetId(post);
+		if (!referencedPostId) return;
+		openPath(
+			`nevent:${nip19.neventEncode({
+				id: referencedPostId,
+				relays: notificationRelayHints(post, [...$writeRelays, ...$readRelays])
+			})}`
+		);
+	}
+
+	function subscribe(postKey: string, referencedPostId: string, relays: string[]) {
 		timeout = setTimeout(async () => {
 			if (visible) {
 				sub = useSubscription(
 					`${postKey}-replies`,
 					[
 						{
-							kinds: [0],
-							authors: post.parsed.events.map((event) => event.pubkey()),
-							cacheFirst: true,
-							relays: []
-						},
-						{
 							kinds: [1],
 							ids: [referencedPostId],
-							relays: [],
+							limit: 1,
+							relays,
 							cacheFirst: true
 						}
 					],
 					(message) => {
 						const parsedEvent = isParsedEvent(message);
-						if (isKind1(message)) {
+						const kind1 = isKind1(message);
+						if (kind1 && parsedEvent?.id() === referencedPostId) {
 							originalPost = parsedEvent;
 						} else if (parsedEvent) {
 							context = [...context, parsedEvent];
 						}
-					}
+					},
+					{ closeOnEose: true }
 				);
 			}
 		}, 200);
@@ -90,15 +102,23 @@
 	$: {
 		const referencedPostId = post?.parsed?.referencedPostId;
 		const postKey = getNotificationKey();
+		const relays = notificationRelayHints(post, [...$writeRelays, ...$readRelays]);
+		const subscriptionKey = `${postKey}:${relays.join('|')}`;
+		const rowKey = `${postKey}:${referencedPostId || ''}`;
 
-		if (!visible || !referencedPostId) {
-			unsubscribe();
-		} else if (postKey !== activePostKey) {
+		if (rowKey !== renderedPostKey) {
 			unsubscribe();
 			context = [];
 			originalPost = null;
-			activePostKey = postKey;
-			subscribe(postKey, referencedPostId);
+			renderedPostKey = rowKey;
+		}
+
+		if (!visible || !referencedPostId) {
+			unsubscribe();
+		} else if (!originalPost && subscriptionKey !== activePostKey) {
+			unsubscribe();
+			activePostKey = subscriptionKey;
+			subscribe(postKey, referencedPostId, relays);
 		}
 	}
 </script>
@@ -129,14 +149,12 @@
 				</div>
 			</div>
 			<!-- Original post summary -->
-			{#if originalPost}
-				<a
-					class="notification-post-preview cursor-pointer p-3 mb-3 text-sm line-clamp-2 w-post-1"
-					on:click={() =>
-						openPath(
-							`nevent:${nip19.neventEncode({ id: originalPost?.id(), relays: $writeRelays })}`
-						)}
-				>
+			<button
+				type="button"
+				class="notification-post-preview mb-3 w-post-1 w-full cursor-pointer p-3 text-left text-sm"
+				on:click={openReferencedPost}
+			>
+				{#if originalPost}
 					<!-- {originalPost.content.slice(0, 100)}... -->
 					<ContentBlocks
 						content={fbArray(asKind1(originalPost), 'parsedContent') || []}
@@ -146,8 +164,13 @@
 						showQuote={false}
 						depth={1}
 					/>
-				</a>
-			{/if}
+				{:else}
+					<span class="flex items-center justify-between gap-3">
+						<span>Referenced post</span>
+						<span class="whitespace-nowrap font-semibold text-primary">Open →</span>
+					</span>
+				{/if}
+			</button>
 
 			<!-- Author avatars -->
 			<div class="flex -space-x-2 mb-3">

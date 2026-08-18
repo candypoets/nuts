@@ -1,95 +1,44 @@
 <script lang="ts">
 	import type { ParsedEvent } from '@candypoets/nipworker/';
-	import { useSubscription } from '@candypoets/nipworker/hooks';
 	import Icon from '@iconify/svelte';
-	import { onMount } from 'svelte';
+	import { nip19 } from 'nostr-tools';
 
-	import { isKind1, isParsedEvent, fbArray, asKind1 } from '@candypoets/nipworker/utils';
+	import { fbArray, asKind1 } from '@candypoets/nipworker/utils';
 	import { readRelays, writeRelays } from 'src/controller';
 	import ContentBlocks from 'src/routes/explore/_post/ContentBlocks.svelte';
-	import type { Kind1Parsed } from '@candypoets/nipworker';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import User from 'src/routes/explore/user.svelte';
-	import { formatTime, type ProcessedNotification } from 'src/routes/notifications/notifications';
+	import { go, usePagerNavigation } from 'src/routes/modals/modal';
+	import {
+		formatTime,
+		notificationRelayHints,
+		notificationTargetId,
+		type ProcessedNotification
+	} from 'src/routes/notifications/notifications';
 
 	export let post: ProcessedNotification;
 	export let visible: boolean;
+	const nav = usePagerNavigation();
 
 	let context: ParsedEvent[] = [];
-	let originalPost: ParsedEvent | null = null;
 	let expanded: boolean = false;
-	let timeout: NodeJS.Timeout | undefined;
-	let activePostKey = '';
-
-	let sub: () => void;
-
-	function getNotificationKey() {
-		const idValue = post?.id?.();
-		if (typeof idValue === 'string' && idValue.length > 0) return idValue;
-		const hash = idValue?.fnv1aHash?.();
-		if (typeof hash === 'string' && hash.length > 0) return hash;
-		return `${post?.type || 'mention'}-${post?.parsed?.referencedPostId || post?.createdAt?.() || 'unknown'}`;
-	}
 
 	function toggleExpanded() {
 		expanded = !expanded;
 	}
 
-	function subscribe(postKey: string, referencedPostId: string) {
-		timeout = setTimeout(async () => {
-			if (visible) {
-				sub = useSubscription(
-					`${postKey}-mentions`,
-					[
-						{
-							kinds: [1],
-							ids: [referencedPostId],
-							limit: 5,
-							relays: [...$writeRelays, ...$readRelays],
-							cacheFirst: true
-						}
-					],
-					(message) => {
-						const parsedEvent = isParsedEvent(message);
-						if (isKind1(message)) {
-							originalPost = parsedEvent;
-						} else if (parsedEvent) {
-							context = [...context, parsedEvent];
-						}
-					}
-				);
-			}
-		}, 200);
+	function openMention() {
+		const eventId = notificationTargetId(post);
+		if (!eventId) return;
+		const eventPath = `nevent:${nip19.neventEncode({
+			id: eventId,
+			relays: notificationRelayHints(post, [...$writeRelays, ...$readRelays])
+		})}`;
+		nav ? nav.push(eventPath) : go(eventPath);
 	}
 
-	function unsubscribe() {
-		if (timeout) clearTimeout(timeout);
-		timeout = undefined;
-		sub?.();
-		sub = undefined;
-		activePostKey = '';
-	}
-
-	onMount(() => {
-		return () => {
-			unsubscribe();
-		};
-	});
-
-	$: {
-		const referencedPostId = post?.parsed?.referencedPostId;
-		const postKey = getNotificationKey();
-
-		if (!visible || !referencedPostId) {
-			unsubscribe();
-		} else if (postKey !== activePostKey) {
-			unsubscribe();
-			context = [];
-			originalPost = null;
-			activePostKey = postKey;
-			subscribe(postKey, referencedPostId);
-		}
-	}
+	$: context = post.parsed.context;
+	$: if (!visible) expanded = false;
 </script>
 
 <div class="notification-row transition-colors">
@@ -114,7 +63,11 @@
 			</div>
 
 			<!-- Latest mention preview -->
-			<div class="notification-post-preview p-3 mb-3">
+			<button
+				type="button"
+				class="notification-post-preview mb-3 w-full p-3 text-left"
+				on:click={openMention}
+			>
 				<div class="flex items-start gap-2 mb-1">
 					<Avatar pubkey={post.parsed.events[0].pubkey()} query={false} {context} />
 					<div>
@@ -137,7 +90,7 @@
 						</p>
 					</div>
 				</div>
-			</div>
+			</button>
 
 			<!-- Author avatars if multiple mentions -->
 			{#if post.parsed.events.length > 1}

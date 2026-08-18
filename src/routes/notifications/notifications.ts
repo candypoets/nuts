@@ -1,4 +1,5 @@
 import {
+	extractTag,
 	extractTagValue,
 	Kind1Parsed,
 	Kind6Parsed,
@@ -68,6 +69,42 @@ export interface BadgeNotification {
 }
 
 export type NotificationItem = ProcessedNotification | BadgeNotification;
+
+export function notificationTargetId(notification: ProcessedNotification): string | undefined {
+	if (notification.type === 'mention') {
+		return notification.parsed.events[0]?.id() || undefined;
+	}
+
+	return notification.parsed.referencedPostId || undefined;
+}
+
+function isRelayUrl(value: string | null | undefined): value is string {
+	return Boolean(value && /^wss?:\/\//i.test(value));
+}
+
+export function notificationRelayHints(
+	notification: ProcessedNotification,
+	fallbackRelays: Array<string | null | undefined> = []
+): string[] {
+	const targetId = notificationTargetId(notification);
+	const hints: Array<string | null | undefined> = [];
+
+	for (const event of notification.parsed.events) {
+		if (targetId) {
+			hints.push(
+				extractTag(event, 'e', { where: (tag) => tag[1] === targetId })?.[2],
+				extractTag(event, 'q', { where: (tag) => tag[1] === targetId })?.[2]
+			);
+		}
+		hints.push(...(fbArray(event, 'relays') as string[]));
+	}
+
+	for (const request of notification.parsed.requests) {
+		hints.push(...(request.relays || []));
+	}
+
+	return Array.from(new Set([...hints, ...fallbackRelays].filter(isRelayUrl)));
+}
 
 export function isBadgeStatus(value: string | undefined): value is BadgeStatus {
 	return BADGE_STATUSES.includes(value as BadgeStatus);
@@ -214,7 +251,7 @@ export function processNotifications(feed: ParsedEvent[]): ProcessedNotification
 					const isMention = profileMentions.some((m) => m.publicKey() == get(key)?.pub);
 					if (isMention) {
 						notificationType = 'mention';
-						referencedPostId = 'mention-' + event.id?.();
+						referencedPostId = event.id() || undefined;
 						break; // Break early - mention is the primary type
 					}
 					// Check for reply (with quote detection)
@@ -222,7 +259,7 @@ export function processNotifications(feed: ParsedEvent[]): ProcessedNotification
 					if (replyId) {
 						if (profileMentions.length > 0) {
 							notificationType = 'mention';
-							referencedPostId = 'mention-' + event.id?.();
+							referencedPostId = event.id() || undefined;
 						} else {
 							// This is a reply - use the replied-to post as reference
 							notificationType = 'reply';

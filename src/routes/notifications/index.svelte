@@ -64,9 +64,11 @@
 
 	// Subscription cleanup function
 	let feedSubscription: PaginatedSubscription | undefined;
-	let badgeUnsubscribe: (() => void) | undefined;
+	let cacheUnsubscribe: (() => void) | undefined;
+	let badgeUnsubscribes: Array<() => void> = [];
 	let badgeInitialized = false;
 	let lastBadgeRelayKey = '';
+	let lastBadgePubkey = '';
 	let badgeGeneration = 0;
 	let trustPromises = new Map<string, Promise<CommunityTrust>>();
 	let authorizationPromises = new Map<string, Promise<boolean>>();
@@ -77,6 +79,10 @@
 	// Pagination state
 	let hasMore = true;
 	let lastRelayKey = '';
+	let lastPubkey = '';
+	let notificationEoseRelays = new Set<string>();
+	let notificationLoadComplete = false;
+	let notificationLoadTimedOut = false;
 	// Auto-backfill state: grouped pages can be too short to scroll, which would
 	// otherwise prevent onNearBottom from ever firing
 	let shortBackfillCount = 0;
@@ -84,7 +90,7 @@
 	const SHORT_PAGE_BACKFILL_ROWS = 25;
 	const MAX_SHORT_PAGE_BACKFILLS = 6;
 	const PAGINATION_TIMEOUT_MS = 10000;
-	const EOSE_FALLBACK_TIMEOUT_MS = 1000;
+	const EOSE_FALLBACK_TIMEOUT_MS = 5000;
 
 	$: notificationRelays = Array.from(
 		new Set(($readRelays || []).length ? $readRelays || [] : DEFAULT_RELAYS)
@@ -96,7 +102,7 @@
 	$: badgeRelayKey = badgeRelays.join('|');
 
 	// Build subscription requests
-	function buildRequests(): RequestObject[] {
+	function buildRequests(networkOnly = false): RequestObject[] {
 		if (!$key?.pub) {
 			return [];
 		}
@@ -107,7 +113,7 @@
 			tags: { '#p': [$key.pub] },
 			limit: 50,
 			relays: notificationRelays,
-			noCache: true
+			...(networkOnly ? { noCache: true } : {})
 		};
 		return [req];
 	}
@@ -128,7 +134,9 @@
 		if (!eventId) return undefined;
 
 		// Check Set first (O(1)) for duplicate detection
-		if (seenEventIds.has(eventId)) return undefined;
+		// Still return the timestamp for cached/relay duplicates so the pager can
+		// anchor subsequent pages without inserting the event twice.
+		if (seenEventIds.has(eventId)) return parsedEvent.createdAt();
 		seenEventIds.add(eventId);
 
 		rawEvents = [...rawEvents, parsedEvent];
@@ -139,11 +147,36 @@
 	function handleEvents(message: WorkerMessage): number | undefined {
 		const status = asConnectionStatus(message);
 		if (status) {
+			const relay = normalizedRelay(status.relayUrl() || '');
+			if (status.status() === 'EOSE' && relay) {
+				notificationEoseRelays = new Set([...notificationEoseRelays, relay]);
+				notificationLoadComplete = notificationRelays.every((candidate) =>
+					notificationEoseRelays.has(normalizedRelay(candidate))
+				);
+			}
 			return undefined;
 		}
 
 		const parsedEvent = asParsedEvent(message);
 		return parsedEvent ? addEvent(parsedEvent) : undefined;
+	}
+
+	function handleCachedEvents(message: WorkerMessage) {
+		const parsedEvent = asParsedEvent(message);
+		if (parsedEvent) addEvent(parsedEvent);
+	}
+
+	function bootstrapCachedNotifications() {
+		if (!$key?.pub || rawEvents.length > 0) return;
+
+		cacheUnsubscribe?.();
+		const subId = `notifications_cache_${$key.pub}_${notificationRelayKey}`;
+		cacheUnsubscribe = useSubscription(subId, buildRequests(), handleCachedEvents, {
+			bytesPerEvent: 10 * 1024,
+			cacheOnly: true,
+			closeOnEose: true,
+			pipeline: $defaultPipeline.for(subId)
+		});
 	}
 
 	// Process raw events into grouped notifications
@@ -291,8 +324,8 @@
 
 	function resetBadgeSubscription() {
 		badgeGeneration += 1;
-		badgeUnsubscribe?.();
-		badgeUnsubscribe = undefined;
+		badgeUnsubscribes.forEach((unsubscribe) => unsubscribe());
+		badgeUnsubscribes = [];
 		badgeInitialized = false;
 		badgeAwards = [];
 		rawBadgeStatuses = [];
@@ -308,28 +341,38 @@
 		if (!visible || badgeInitialized || !$key?.pub || !badgeRelays.length) return;
 		badgeInitialized = true;
 		lastBadgeRelayKey = badgeRelayKey;
+		lastBadgePubkey = $key.pub;
 		const generation = ++badgeGeneration;
-		badgeUnsubscribe = useSubscription(
-			`notifications_badges_${$key.pub}_${badgeRelayKey}`,
-			[
-				{
-					kinds: [8],
-					tags: { '#p': [$key.pub] },
-					limit: 200,
-					relays: badgeRelays,
-					cacheFirst: true
-				},
-				{
-					kinds: [BADGE_STATUS_KIND],
-					tags: { '#p': [$key.pub] },
-					limit: 200,
-					relays: badgeRelays,
-					cacheFirst: true
-				}
-			],
-			(message: WorkerMessage) => handleBadgeEvents(message, generation),
-			{ bytesPerEvent: 10 * 1024 }
-		);
+		badgeUnsubscribes = [
+			useSubscription(
+				`notifications_badge_awards_${$key.pub}_${badgeRelayKey}`,
+				[
+					{
+						kinds: [8],
+						tags: { '#p': [$key.pub] },
+						limit: 200,
+						relays: badgeRelays,
+						cacheFirst: true
+					}
+				],
+				(message: WorkerMessage) => handleBadgeEvents(message, generation),
+				{ bytesPerEvent: 10 * 1024 }
+			),
+			useSubscription(
+				`notifications_badge_statuses_${$key.pub}_${badgeRelayKey}`,
+				[
+					{
+						kinds: [BADGE_STATUS_KIND],
+						tags: { '#p': [$key.pub] },
+						limit: 200,
+						relays: badgeRelays,
+						cacheFirst: true
+					}
+				],
+				(message: WorkerMessage) => handleBadgeEvents(message, generation),
+				{ bytesPerEvent: 10 * 1024 }
+			)
+		];
 	}
 
 	// Initialize subscription
@@ -339,17 +382,26 @@
 		if (!visible || !$key?.pub || !notificationRelays.length) return;
 		if (hasInitialized) return;
 
-		rawEvents = [];
-		seenEventIds.clear();
+		if (lastPubkey && lastPubkey !== $key.pub) {
+			rawEvents = [];
+			seenEventIds.clear();
+		}
 		hasInitialized = true;
+		lastPubkey = $key.pub;
 		lastRelayKey = notificationRelayKey;
 		hasMore = true;
 		shortBackfillCount = 0;
+		notificationEoseRelays = new Set();
+		notificationLoadComplete = false;
+		notificationLoadTimedOut = false;
+		cacheUnsubscribe?.();
+		cacheUnsubscribe = undefined;
 		feedSubscription?.close();
+		bootstrapCachedNotifications();
 		const subId = 'notifications_' + $key.pub + '_' + notificationRelayKey;
 		feedSubscription = createPaginatedSubscription({
 			subId,
-			requests: buildRequests(),
+			requests: buildRequests(true),
 			windowSeconds: FEED_PAGE_WINDOW_SECONDS,
 			maxEmptyPages: 3,
 			rootTimeoutMs: EOSE_FALLBACK_TIMEOUT_MS,
@@ -358,6 +410,9 @@
 			onStateChange: (state) => {
 				loading = state.loading;
 				hasMore = state.hasMore;
+				if (!state.loading && !notificationLoadComplete) {
+					notificationLoadTimedOut = true;
+				}
 			},
 			options: (subscriptionId) => ({
 				bytesPerEvent: 10 * 1024,
@@ -379,18 +434,30 @@
 		feedSubscription?.close();
 		feedSubscription = undefined;
 		hasInitialized = false;
-		rawEvents = [];
-		seenEventIds.clear();
 		initSubscription();
 	}
 
-	$: if (visible && $key?.pub && badgeInitialized && badgeRelayKey !== lastBadgeRelayKey) {
+	$: if (visible && $key?.pub && hasInitialized && $key.pub !== lastPubkey) {
+		feedSubscription?.close();
+		feedSubscription = undefined;
+		hasInitialized = false;
+		initSubscription();
+	}
+
+	$: if (
+		visible &&
+		$key?.pub &&
+		badgeInitialized &&
+		(badgeRelayKey !== lastBadgeRelayKey || $key.pub !== lastBadgePubkey)
+	) {
 		resetBadgeSubscription();
 		initBadgeSubscription();
 	}
 
 	// Cleanup subscription when not visible
 	$: if (!visible) {
+		cacheUnsubscribe?.();
+		cacheUnsubscribe = undefined;
 		feedSubscription?.close();
 		feedSubscription = undefined;
 		hasInitialized = false;
@@ -401,14 +468,16 @@
 		$lastNotificationView = Date.now();
 		window.scrollTo(0, 0);
 		return () => {
+			cacheUnsubscribe?.();
 			feedSubscription?.close();
-			badgeUnsubscribe?.();
+			badgeUnsubscribes.forEach((unsubscribe) => unsubscribe());
 		};
 	});
 
 	onDestroy(() => {
+		cacheUnsubscribe?.();
 		feedSubscription?.close();
-		badgeUnsubscribe?.();
+		badgeUnsubscribes.forEach((unsubscribe) => unsubscribe());
 	});
 
 	// Load the next page of notifications.
@@ -423,6 +492,15 @@
 	// Handle near-bottom pagination
 	function handleNearBottom() {
 		loadNextPage(false);
+	}
+
+	function retryNotifications() {
+		cacheUnsubscribe?.();
+		cacheUnsubscribe = undefined;
+		feedSubscription?.close();
+		feedSubscription = undefined;
+		hasInitialized = false;
+		initSubscription();
 	}
 
 	// Auto-backfill when a page groups down to too few rows to fill the viewport.
@@ -477,10 +555,16 @@
 	</svelte:fragment>
 
 	<svelte:fragment slot="empty-content">
-		{#if !loading && $key}
+		{#if !loading && $key && notificationLoadComplete}
 			<div class="w-feed mx-auto py-16 text-center text-base-content/60">
 				<Icon icon="mdi:bell-outline" class="mx-auto mb-3 text-4xl" />
 				<p>No notifications yet.</p>
+			</div>
+		{:else if !loading && $key && notificationLoadTimedOut}
+			<div class="w-feed mx-auto py-16 text-center text-base-content/60">
+				<Icon icon="mdi:cloud-alert-outline" class="mx-auto mb-3 text-4xl" />
+				<p>Couldn't refresh notifications.</p>
+				<button class="btn btn-sm btn-ghost mt-3" on:click={retryNotifications}>Try again</button>
 			</div>
 		{/if}
 	</svelte:fragment>
