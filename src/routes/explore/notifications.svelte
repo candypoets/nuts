@@ -33,6 +33,7 @@
 	import {
 		BADGE_STATUS_KIND,
 		isBadgeStatus,
+		notificationRelayHints,
 		processNotifications,
 		type ProcessedNotification
 	} from 'src/routes/notifications/notifications';
@@ -184,7 +185,7 @@
 			id,
 			...toastContent(notification),
 			targetEventId,
-			relays: [...relays]
+			relays: notificationRelayHints(notification, relays)
 		});
 	}
 

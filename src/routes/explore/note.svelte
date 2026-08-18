@@ -1,6 +1,5 @@
 <script lang="ts">
 	import {
-		extractTag,
 		Kind1Parsed,
 		MessageType,
 		type ConnectionStatus,
@@ -32,6 +31,7 @@
 	import { readRelays } from 'src/controller/nostr';
 	import { relayStatusMap, relaySub, setSubRelays } from 'src/controller/relay';
 	import { DEFAULT_RELAYS } from 'src/lib/env';
+	import { kind6RepostReference } from 'src/lib/repost';
 	import { toRequestObject } from 'src/lib/request';
 	import ContentBlocks from 'src/routes/explore/_post/ContentBlocks.svelte';
 	import Footer from 'src/routes/explore/_post/footer.svelte';
@@ -90,10 +90,10 @@
 	$: {
 		kind6 = note && asKind6(note as ParsedEvent);
 		isRepost = note?.kind() === 6;
-		embeddedRepost = kind6?.repostedEvent?.() || undefined;
-		const repostEventTag = isRepost && note ? extractTag(note, 'e') : undefined;
-		repostEventId = embeddedRepost?.id() || repostEventTag?.[1] || '';
-		repostRelayHints = repostEventTag?.[2] ? [repostEventTag[2]] : [];
+		const repostReference = isRepost && note ? kind6RepostReference(note) : undefined;
+		embeddedRepost = repostReference?.embeddedEvent;
+		repostEventId = repostReference?.id || '';
+		repostRelayHints = repostReference?.relayHints || [];
 		displayNote = isRepost
 			? embeddedRepost || (referencedRepost?.id() === repostEventId ? referencedRepost : undefined)
 			: note;
@@ -232,7 +232,13 @@
 		);
 	}
 
-	$: if (visible && isRepost && repostEventId && !embeddedRepost) {
+	$: if (
+		visible &&
+		isRepost &&
+		repostEventId &&
+		!embeddedRepost &&
+		referencedRepost?.id() !== repostEventId
+	) {
 		subscribeReferencedRepost(repostEventId, repostRelayHints, relays);
 	} else {
 		unsubscribeReferencedRepost();
@@ -485,11 +491,9 @@
 		// Kind 30023, 30311, and 1068 have dedicated components
 		if (kind === 30023 || kind === 30311 || kind === 1068) return 'found';
 
-		// Kind 6 needs a valid reposted event
+		// Kind 6 may embed its target or provide the required NIP-18 event reference.
 		if (kind === 6) {
-			const k6 = asKind6(note);
-			if (k6?.repostedEvent?.()) return 'found';
-			return 'unrenderable';
+			return kind6RepostReference(note) ? 'found' : 'unrenderable';
 		}
 
 		// Kind 20 (image posts) is renderable

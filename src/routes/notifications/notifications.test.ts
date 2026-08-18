@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { ParsedEvent } from '@candypoets/nipworker';
+import { ParsedData, type ParsedEvent } from '@candypoets/nipworker';
 
 import {
 	notificationRelayHints,
 	notificationTargetId,
 	processBadgeNotifications,
+	processNotifications,
 	type ProcessedNotification
 } from './notifications';
 
@@ -68,6 +69,26 @@ const holder = 'b'.repeat(64);
 const address = `30009:${issuer}:coffee`;
 
 describe('social notification targets', () => {
+	it('groups an ID-only kind-6 repost by its e-tag target', () => {
+		const repost = event({
+			id: 'repost-event',
+			kind: 6,
+			pubkey: issuer,
+			createdAt: 2,
+			tags: [['e', 'target-id', 'wss://origin.example']]
+		});
+		Object.assign(repost, {
+			parsedType: () => ParsedData.Kind6Parsed,
+			parsed: () => ({ repostedEvent: () => null })
+		});
+
+		const [notification] = processNotifications([repost]);
+
+		expect(notification.type).toBe('repost');
+		expect(notification.parsed.referencedPostId).toBe('target-id');
+		expect(notificationRelayHints(notification)).toEqual(['wss://origin.example']);
+	});
+
 	it('opens a mention or quote at the notification event itself', () => {
 		const mention = event({
 			id: 'mention-event',

@@ -23,6 +23,7 @@
 	import { FEED_PAGE_WINDOW_SECONDS, limit } from 'src/controller/pagination';
 	import { now } from 'src/lib/period';
 	import { proxyAvatarUrl, proxyBannerUrl } from 'src/lib/proxy';
+	import { kind6RepostReference } from 'src/lib/repost';
 	import Feed from 'src/routes/explore/feed.svelte';
 
 	import {
@@ -37,7 +38,6 @@
 		asKind1,
 		asKind10002,
 		asKind3,
-		asKind6,
 		asKind20,
 		asParsedEvent,
 		fbArray,
@@ -430,8 +430,7 @@
 			}
 
 			if (kind === 6) {
-				const kind6 = asKind6(parsedEvent);
-				if (!kind6?.repostedEvent()) return false;
+				if (!kind6RepostReference(parsedEvent)) return false;
 			}
 		} else if (kind === 20) {
 			const kind20 = asKind20(parsedEvent);

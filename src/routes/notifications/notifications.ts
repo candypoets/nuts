@@ -2,14 +2,14 @@ import {
 	extractTag,
 	extractTagValue,
 	Kind1Parsed,
-	Kind6Parsed,
 	ParsedData,
 	type ParsedEvent,
 	type RequestObject
 } from '@candypoets/nipworker';
-import { asKind1, asKind6, asKind7, fbArray } from '@candypoets/nipworker/utils';
+import { asKind1, asKind7, fbArray } from '@candypoets/nipworker/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { key } from 'src/controller';
+import { kind6RepostReference } from 'src/lib/repost';
 import { toRequestObject } from 'src/lib/request';
 import { get } from 'svelte/store';
 
@@ -273,9 +273,8 @@ export function processNotifications(feed: ParsedEvent[]): ProcessedNotification
 					referencedPostId = kind7?.eventId() || undefined;
 					break;
 				case ParsedData.Kind6Parsed:
-					const kind6 = asKind6(event) as Kind6Parsed;
 					notificationType = 'repost';
-					referencedPostId = kind6.repostedEvent()?.id() || undefined;
+					referencedPostId = kind6RepostReference(event)?.id;
 					break;
 			}
 		}

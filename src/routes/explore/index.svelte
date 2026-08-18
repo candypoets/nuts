@@ -24,7 +24,6 @@
 		asConnectionStatus,
 		asKind1,
 		asKind3,
-		asKind6,
 		asKind20,
 		asNostrEvent,
 		asParsedEvent,
@@ -60,6 +59,7 @@
 	import { CALENDAR_EVENT_KINDS, RSVP_KIND, parseCalendarEvent } from 'src/lib/calendarEvent';
 	import { HIGHLIGHT_KIND } from 'src/lib/highlights';
 	import { ago } from 'src/lib/period';
+	import { kind6RepostReference } from 'src/lib/repost';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import { go, usePagerNavigation } from 'src/routes/modals/modal';
 	import { onDestroy } from 'svelte';
@@ -461,8 +461,7 @@
 			}
 
 			if (kind == 6) {
-				const kind6 = asKind6(parsedEvent);
-				if (!kind6?.repostedEvent()) {
+				if (!kind6RepostReference(parsedEvent)) {
 					return undefined;
 				}
 			}

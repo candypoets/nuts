@@ -227,8 +227,8 @@
 			post.tags = [...post.tags, ...pollTags];
 		} else if (note && repost && !content.trim()) {
 			// Empty quote = plain repost: publish a kind 6 instead.
-			// NIP-18 wants the stringified original event as content, but the
-			// FlatBuffer view doesn't expose the raw JSON, so content stays empty.
+			// NIP-18 permits empty content when the required e tag identifies where
+			// the original kind-1 event can be fetched.
 			const repostId = hexId || '';
 			const repostPubkey = note.pubkey() || '';
 			const relayHint = referencedReadRelays[0] || '';
@@ -368,7 +368,16 @@
 			getUserRelays(referencedPubkey, resolve, 'read');
 		});
 
-		return [...new Set([...referencedRelayHints, ...discoveredRelays])].filter(Boolean);
+		const observedRelays = note ? (fbArray(note, 'relays') as string[]) : [];
+		return [
+			...new Set([
+				...referencedRelayHints,
+				...observedRelays,
+				...discoveredRelays,
+				...get(readRelays),
+				...get(writeRelays)
+			])
+		].filter((relay): relay is string => Boolean(relay && /^wss?:\/\//i.test(relay)));
 	}
 
 	function publishTargets(referencedReadRelays: string[] = []) {

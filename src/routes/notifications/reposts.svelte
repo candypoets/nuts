@@ -1,12 +1,13 @@
 <script lang="ts">
 	import type { ParsedEvent } from '@candypoets/nipworker';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
-	import { asKind1, asKind6, fbArray, isKind1, isParsedEvent } from '@candypoets/nipworker/utils';
+	import { asKind1, fbArray, isKind1, isParsedEvent } from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
 	import { nip19 } from 'nostr-tools';
 	import { onMount } from 'svelte';
 
 	import { key, writeRelays, readRelays } from 'src/controller';
+	import { kind6RepostReference } from 'src/lib/repost';
 	import ContentBlocks from 'src/routes/explore/_post/ContentBlocks.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import User from 'src/routes/explore/user.svelte';
@@ -47,7 +48,7 @@
 
 	function embeddedRepost(referencedPostId: string): ParsedEvent | null {
 		for (const event of post.parsed.events) {
-			const embedded = asKind6(event)?.repostedEvent();
+			const embedded = kind6RepostReference(event)?.embeddedEvent;
 			if (embedded?.id() === referencedPostId) return embedded;
 		}
 		return null;
