@@ -2,7 +2,6 @@
 	import { type FeedKind } from 'src/controller/feed';
 
 	export type KindSwitcherTabId =
-		| 'all'
 		| 'notes'
 		| 'articles'
 		| 'polls'
@@ -23,8 +22,7 @@
 	export let ariaLabel = 'Content filters';
 	export let includeHighlights = false;
 	export let tabs: KindSwitcherTab[] = [
-		{ id: 'all', label: 'All' },
-		{ id: 'notes', label: 'Notes', kinds: [1, 6] },
+		{ id: 'notes', label: 'Notes' },
 		{ id: 'media', label: 'Media', kinds: [20, 22] },
 		{ id: 'events', label: 'Live', kinds: [30311] },
 		{ id: 'highlights', label: 'Highlights', kinds: [9802] },

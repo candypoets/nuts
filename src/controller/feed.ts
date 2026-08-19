@@ -5,11 +5,11 @@ import { persistentWritable } from 'src/lib/persistentWritable';
 export type FeedKind = 1 | 6 | 20 | 22 | 1068 | 9802 | 30023 | 30311;
 export type ExploreAudienceMode = 'contacts' | 'all';
 
-// Existing profile/community feeds still use the parsed-event pipeline.
-// Live events stay in their dedicated Live tab instead of the aggregate feed.
-export const ALL_FEED_KINDS: FeedKind[] = [1, 6, 20, 22, 1068, 30023];
-// Explore also has a raw-event pipeline for NIP-84 highlights (kind 9802).
-export const ALL_EXPLORE_FEED_KINDS: FeedKind[] = [1, 6, 20, 22, 9802, 1068, 30023];
+// The default Notes feed contains regular notes and polls. Existing
+// profile/community feeds still use the parsed-event pipeline.
+export const ALL_FEED_KINDS: FeedKind[] = [1, 1068];
+// Explore also includes NIP-84 highlights through its raw-event pipeline.
+export const ALL_EXPLORE_FEED_KINDS: FeedKind[] = [1, 9802, 1068];
 
 export const KIND_ICONS: Record<FeedKind, string> = {
 	1: 'mdi:text-box-outline',
