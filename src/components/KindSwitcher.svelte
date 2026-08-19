@@ -26,7 +26,7 @@
 		{ id: 'all', label: 'All' },
 		{ id: 'notes', label: 'Notes', kinds: [1, 6] },
 		{ id: 'media', label: 'Media', kinds: [20, 22] },
-		{ id: 'events', label: 'Events', kinds: [30311] },
+		{ id: 'events', label: 'Live', kinds: [30311] },
 		{ id: 'highlights', label: 'Highlights', kinds: [9802] },
 		{ id: 'polls', label: 'Polls', kinds: [1068] },
 		{ id: 'articles', label: 'Articles', kinds: [30023] }
