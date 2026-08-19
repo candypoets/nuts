@@ -1,6 +1,7 @@
 <script lang="ts">
 	import {
 		Kind1Parsed,
+		Kind1068Parsed,
 		MessageType,
 		type ConnectionStatus,
 		type ParsedEvent,
@@ -36,29 +37,31 @@
 	import ContentBlocks from 'src/routes/explore/_post/ContentBlocks.svelte';
 	import Footer from 'src/routes/explore/_post/footer.svelte';
 	import Header from 'src/routes/explore/_post/header.svelte';
+	import Highlight from 'src/routes/explore/_post/highlight.svelte';
 	import Kind1068Content from 'src/routes/explore/_post/kind1068Content.svelte';
 	import Kind20Content from 'src/routes/explore/_post/kind20Content.svelte';
 	import Kind30023Content from 'src/routes/explore/_post/kind30023Content.svelte';
 	import Kind30311Content from 'src/routes/explore/_post/kind30311Content.svelte';
+	import ReferencedEvent from 'src/routes/explore/_post/ReferencedEvent.svelte';
 	import Zap from 'src/routes/explore/_post/zap.svelte';
 	import Avatar from 'src/routes/explore/avatar.svelte';
 	import { getUserRelays } from 'src/routes/queries/user';
 	import { get } from 'svelte/store';
 	import { go, usePagerNavigation } from '../modals/modal';
 
-	type InteractiveEvent = {
-		id(): string | null;
-		pubkey(): string | null;
-		kind(): number;
-		createdAt(): number;
-	};
-
 	export let main: boolean = false;
 	export let noteId: string | undefined = undefined;
 	export let naddr: string | undefined = undefined;
 	export let context: ParsedEvent[] = [];
 	export let note: ParsedEvent | undefined = undefined;
-	export let customEvent: InteractiveEvent | undefined = undefined;
+	export let customEvent:
+		| {
+				id(): string | null;
+				pubkey(): string | null;
+				kind(): number;
+				createdAt(): number;
+		  }
+		| undefined = undefined;
 	export let zaps: boolean = false;
 	export let footer: boolean = true;
 	export let visible: boolean = false;
@@ -82,8 +85,18 @@
 	let reposterPubkey: string | undefined;
 	let effectiveShowRoot = showRoot;
 	let kind1: ReturnType<typeof asKind1> | undefined;
+	let kind1068: Kind1068Parsed | null = null;
 	let isMediaEvent = false;
-	let renderedEvent: ParsedEvent | InteractiveEvent | undefined | null;
+	let renderedEvent:
+		| ParsedEvent
+		| {
+				id(): string | null;
+				pubkey(): string | null;
+				kind(): number;
+				createdAt(): number;
+		  }
+		| undefined
+		| null;
 
 	// Check if this is a repost (kind 6) and extract the reposted event
 	// Grouped in a single reactive statement to avoid false positive cycle detection
@@ -100,6 +113,14 @@
 		reposterPubkey = isRepost ? note?.pubkey()! : undefined;
 		effectiveShowRoot = isRepost ? false : showRoot;
 		kind1 = displayNote && asKind1(displayNote as ParsedEvent);
+		kind1068 = null;
+		if (displayNote?.kind?.() === 1068) {
+			try {
+				kind1068 = displayNote.parsed(new Kind1068Parsed()) as Kind1068Parsed | null;
+			} catch {
+				kind1068 = null;
+			}
+		}
 		isMediaEvent = displayNote?.kind?.() === 20 || displayNote?.kind?.() === 22;
 		renderedEvent = customEvent || displayNote;
 	}
@@ -121,13 +142,21 @@
 			contentSource = asKind4(displayNote) || asKind1111(displayNote);
 		}
 
-		parsedContent = fbArray(contentSource, 'parsedContent') || [];
-		shortContent = fbArray(contentSource, 'shortenedContent') || [];
+		if (kind1068) {
+			parsedContent = fbArray(kind1068, 'contentBlocks');
+			shortContent = [];
+			hasParsedContent = true;
+		} else {
+			parsedContent = fbArray(contentSource, 'parsedContent') || [];
+			shortContent = fbArray(contentSource, 'shortenedContent') || [];
+			hasParsedContent = Boolean(contentSource);
+		}
 	}
 
 	// Reactive declarations for parsedContent and shortContent
 	let parsedContent: any[] = [];
 	let shortContent: any[] = [];
+	let hasParsedContent = false;
 	// Decode naddr when provided
 	$: naddrDecoded = (() => {
 		if (!naddr) return null;
@@ -157,7 +186,7 @@
 	$: decoded = {
 		noteId: nid,
 		replyID: kind1?.reply()?.id()!,
-		eventRefs: fbArray(kind1 as Kind1Parsed, 'mentions')
+		eventRefs: fbArray(kind1 as Kind1Parsed, 'eventRefs')
 	};
 
 	// is the note leading in a thread
@@ -440,7 +469,9 @@
 			const eventRelays = isRepost ? mergeRelays(repostRelayHints, relays) : relays;
 			const nip19Event = nip19.neventEncode({
 				id: decoded.noteId || nid || '',
-				relays: eventRelays
+				relays: eventRelays,
+				author: renderedEvent?.pubkey() || undefined,
+				kind: renderedEvent?.kind()
 			});
 			pushPath(`nevent:${nip19Event}`);
 		}
@@ -568,7 +599,9 @@
 
 		// Filter out already-used relays, shuffle for better distribution, take up to 15
 		const unusedRelays = allRelaySources
-			.filter((url) => !relays.includes(url))
+			.filter(
+				(url): url is string => typeof url === 'string' && url.length > 0 && !relays.includes(url)
+			)
 			.sort(() => Math.random() - 0.5) // Shuffle
 			.slice(0, 15);
 
@@ -618,7 +651,14 @@
 </script>
 
 {#if hasRoot}
-	<svelte:self noteId={decoded.replyID} {context} {visible} zaps leading />
+	<ReferencedEvent noteId={decoded.replyID} {relays} {visible} let:event>
+		<svelte:self customEvent={event} {context} {visible} zaps leading>
+			<Highlight slot="body" {event} />
+		</svelte:self>
+		<svelte:fragment slot="fallback">
+			<svelte:self noteId={decoded.replyID} {context} {visible} zaps leading />
+		</svelte:fragment>
+	</ReferencedEvent>
 {/if}
 
 <!-- {JSON.stringify(fbArray(displayNote, 'requests').map((r) => toRequestObject(r)))}
@@ -697,15 +737,29 @@
 						{/key}
 					{:else if displayNote.kind() === 1068}
 						{#key displayNote.id()}
-							<Kind1068Content note={displayNote} {visible} />
+							{#if kind1068}
+								<ContentBlocks
+									content={parsedContent}
+									showFull={main}
+									note={displayNote}
+									{context}
+									{visible}
+									{depth}
+									{showQuote}
+								/>
+								<Kind1068Content note={displayNote} pollData={kind1068} {visible} />
+							{:else}
+								<div class="p-3 rounded-lg bg-info-content text-sm flex items-center gap-2 mt-2">
+									<Icon icon="mdi:information-outline" class="shrink-0 w-6 h-6 text-info" />
+									<span>Poll data is not available yet.</span>
+								</div>
+							{/if}
 						{/key}
 					{:else if displayNote.kind() === 30023}
 						<Kind30023Content note={displayNote} />
 					{:else if displayNote.kind() === 30311}
 						<Kind30311Content note={displayNote} />
-					{:else if !!displayNote.parsed}
-						<!-- Debug -->
-						<!-- {console.log('[note] displayNote kind:', displayNote?.kind?.(), 'parsed:', !!displayNote.parsed)} -->
+					{:else if hasParsedContent}
 						<!-- {kind1?.reply()?.id()!} -->
 						<!-- {!!showReplies && note?.id()!} -->
 						<ContentBlocks

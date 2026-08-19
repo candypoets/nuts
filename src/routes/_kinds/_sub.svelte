@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Kind0 from 'src/routes/_kinds/kind0.svelte';
-	import Kind1 from 'src/routes/_kinds/kind1.svelte';
+	import EventThread from 'src/routes/_kinds/kind1.svelte';
 	import Kind30023 from 'src/routes/_kinds/kind30023.svelte';
 	import Kind4 from 'src/routes/_kinds/kind4.svelte';
 	import Community from 'src/routes/_kinds/community.svelte';
@@ -166,7 +166,7 @@
 		{#if subKey === 'nprofile'}
 			<Kind0 pubkey={path.split(':')?.[1]} {visible} {goBack} />
 		{:else if subKey === 'nevent'}
-			<Kind1 nevent={path.split(':')?.[1]} {visible} {goBack} />
+			<EventThread nevent={path.split(':')?.[1]} {visible} {goBack} />
 		{:else if subKey === 'naddr'}
 			{@const naddrValue = path.slice(path.indexOf(':') + 1)}
 			<Kind30023 naddr={naddrValue} {visible} {goBack} />

@@ -1,5 +1,4 @@
 <script lang="ts">
-	import ContentBlocks from './ContentBlocks.svelte';
 	import {
 		Kind1018Parsed,
 		Kind1068Parsed,
@@ -22,12 +21,13 @@
 	import { normalizeURL } from 'nostr-tools/utils';
 	import { key } from 'src/controller';
 	import { updateSendStatus } from 'src/controller/sendStatus';
+	import { go } from 'src/routes/modals/modal';
 
 	export let note: ParsedEvent;
+	export let pollData: Kind1068Parsed;
 	export let visible: boolean = false;
 
 	// Poll state
-	let pollData: Kind1068Parsed | null = null;
 	let votes: Map<string, Set<string>> = new Map(); // optionId -> Set of voter pubkeys
 	let totalVotes = 0;
 	let hasVoted = false;
@@ -52,17 +52,6 @@
 			}
 		])
 	);
-
-	// Extract poll data from Kind1068Parsed
-	function extractPollData(note: ParsedEvent): Kind1068Parsed | null {
-		if (!note) return null;
-		try {
-			const parsed = note.parsed(new Kind1068Parsed());
-			return parsed as Kind1068Parsed | null;
-		} catch {
-			return null;
-		}
-	}
 
 	// Check if poll has ended
 	function checkPollEnd(endsAt: bigint): boolean {
@@ -122,7 +111,7 @@
 				// NIP-1068 LAST-WRITE-WINS: Check timestamp against existing vote from this voter
 				const voteTimestamp = Number(parsedEvent.createdAt() || 0);
 				const existingTimestamp = voterTimestamps.get(voterPubkey) || 0;
-				
+
 				// Only process if this is the first vote OR newer than existing vote
 				if (existingTimestamp > 0 && voteTimestamp <= existingTimestamp) {
 					// This is an older vote, skip it (we already have a newer one)
@@ -181,18 +170,6 @@
 		totalVotes = uniqueVoters.size;
 	}
 
-	// Get vote count for an option
-	function getVoteCount(optionId: string): number {
-		return votes.get(optionId)?.size || 0;
-	}
-
-	// Get vote percentage for an option
-	function getVotePercentage(optionId: string): number {
-		if (totalVotes === 0) return 0;
-		const count = getVoteCount(optionId);
-		return Math.round((count / totalVotes) * 100);
-	}
-
 	// Toggle option selection (for voting)
 	function toggleOption(optionId: string) {
 		if (pollEnded || hasVoted) return;
@@ -213,8 +190,12 @@
 	}
 
 	// Cast vote (publish kind 1018 event) - optimistic UI
-	async function castVote() {
-		if (!$key?.pub || selectedOptions.size === 0 || isVoting) return;
+	function castVote() {
+		if (!$key?.pub || $key.hasSigner === false) {
+			go('login');
+			return;
+		}
+		if (selectedOptions.size === 0 || isVoting) return;
 
 		const noteId = note?.id();
 		if (!noteId) return;
@@ -328,17 +309,13 @@
 	}
 
 	// Reactive updates
-	$: pollData = extractPollData(note);
-	$: pollEnded = pollData ? checkPollEnd(pollData.endsAt()) : false;
+	$: pollEnded = checkPollEnd(pollData.endsAt());
 	// $: visible ? subscribe() : unsubscribe();
 
 	// Get options array from poll data
-	$: options = pollData ? fbArray(pollData, 'options') : [];
-
-	// Get content blocks for additional poll context
-	$: contentBlocks = pollData ? fbArray(pollData, 'contentBlocks') : [];
+	$: options = fbArray(pollData, 'options');
 	$: endsAtFormatted = (() => {
-		const endsAt = pollData?.endsAt();
+		const endsAt = pollData.endsAt();
 		if (!endsAt || endsAt === BigInt(0)) return null;
 		const date = new Date(Number(endsAt) * 1000);
 		return date.toLocaleString();
@@ -352,130 +329,93 @@
 	onDestroy(unsubscribe);
 </script>
 
-{#if pollData}
-	<div
-		class="mt-2 rounded-lg overflow-hidden border border-primary-content/20 bg-base-200/50"
-		on:click|stopPropagation
-	>
-		<!-- Poll Header -->
-		<div class="p-4">
-			<div class="flex items-center gap-2 mb-3">
-				<Icon icon="mdi:poll" class="text-xl text-primary" />
-				<span class="text-sm font-medium text-base-content/70">Poll</span>
-				{#if pollData.pollType() === PollType.SingleChoice}
-					<span class="text-xs bg-base-300 px-2 py-0.5 rounded-full">Single choice</span>
-				{:else}
-					<span class="text-xs bg-base-300 px-2 py-0.5 rounded-full">Multiple choice</span>
+<div class="mt-3 space-y-2">
+	<div class="space-y-2">
+		{#each options as option (toString(option.id()))}
+			{@const optionId = toString(option.id())}
+			{@const label = toString(option.label())}
+			{@const stats = voteStatsMap.get(optionId) || { count: 0, percentage: 0 }}
+			{@const isSelected = selectedOptions.has(optionId)}
+			<button
+				type="button"
+				class="relative min-h-11 w-full overflow-hidden rounded-lg border border-base-content/20 text-left transition-colors hover:border-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-default disabled:hover:border-base-content/20"
+				class:border-primary={isSelected}
+				class:ring-1={isSelected}
+				class:ring-primary={isSelected}
+				on:click|stopPropagation={() => toggleOption(optionId)}
+				disabled={pollEnded || hasVoted || isVoting}
+				aria-pressed={isSelected}
+			>
+				{#if totalVotes > 0}
+					<span
+						class="absolute inset-y-0 left-0 bg-primary/10 transition-[width] duration-300"
+						style:width={`${stats.percentage}%`}
+					></span>
 				{/if}
-				{#if pollEnded}
-					<span class="text-xs bg-error/20 text-error px-2 py-0.5 rounded-full">Ended</span>
-				{:else if endsAtFormatted}
-					<span class="text-xs bg-warning/20 text-warning px-2 py-0.5 rounded-full"
-						>Ends {endsAtFormatted}</span
-					>
-				{/if}
-			</div>
+				<span class="relative z-[1] flex items-center justify-between gap-3 px-3 py-2.5">
+					<span class="flex min-w-0 items-center gap-2.5">
+						<span
+							class="flex h-5 w-5 shrink-0 items-center justify-center border-2 border-base-content/30"
+							class:rounded-full={pollData.pollType() === PollType.SingleChoice}
+							class:rounded={pollData.pollType() !== PollType.SingleChoice}
+							class:border-primary={isSelected}
+							class:bg-primary={isSelected}
+						>
+							{#if isSelected}
+								<Icon icon="mdi:check" class="text-xs text-primary-content" />
+							{/if}
+						</span>
+						<span class="break-words font-medium">{label || optionId}</span>
+					</span>
+					{#if totalVotes > 0}
+						<span class="shrink-0 text-sm tabular-nums text-base-content/70"
+							>{stats.percentage}%</span
+						>
+					{/if}
+				</span>
+			</button>
+		{/each}
+	</div>
 
-			<!-- Question (rendered from contentBlocks for rich text support) -->
-			{#if contentBlocks.length > 0}
-				<div class="text-lg font-semibold mb-2">
-					<ContentBlocks
-						content={contentBlocks}
-						context={[]}
-						{visible}
-						showMedia={false}
-						showQuote={false}
-					/>
-				</div>
+	<div class="flex min-h-9 flex-wrap items-center justify-between gap-x-3 gap-y-2 pt-1">
+		<div class="flex flex-wrap items-center gap-x-1 text-sm text-base-content/60">
+			<span>{totalVotes} vote{totalVotes === 1 ? '' : 's'}</span>
+			<span aria-hidden="true">·</span>
+			<span>{pollData.pollType() === PollType.SingleChoice ? 'Choose one' : 'Choose multiple'}</span
+			>
+			{#if pollEnded}
+				<span aria-hidden="true">·</span>
+				<span>Final results</span>
+			{:else if endsAtFormatted}
+				<span aria-hidden="true">·</span>
+				<span>Ends {endsAtFormatted}</span>
 			{/if}
 		</div>
 
-		<!-- Options -->
-		<div class="px-4 pb-4 space-y-2">
-			{#each options as option}
-				{@const optionId = toString(option.id())}
-				{@const label = toString(option.label())}
-				{@const stats = voteStatsMap.get(optionId) || { count: 0, percentage: 0 }}
-				{@const isSelected = selectedOptions.has(optionId)}
-				<div
-					class="relative cursor-pointer transition-all"
-					class:opacity-50={pollEnded}
-					on:click|stopPropagation={() => toggleOption(optionId)}
-					on:keydown={(e) => e.key === 'Enter' && toggleOption(optionId)}
-					role="button"
-					tabindex="0"
+		<div class="flex min-h-8 items-center">
+			{#if !pollEnded && !hasVoted}
+				<button
+					type="button"
+					class="btn btn-primary btn-sm min-h-8 h-8"
+					on:click|stopPropagation={castVote}
+					disabled={Boolean($key?.pub && $key.hasSigner !== false) &&
+						(selectedOptions.size === 0 || isVoting)}
 				>
-					<div
-						class="flex items-center justify-between p-3 rounded-lg border-2 transition-all {isSelected
-							? 'border-primary bg-primary/10'
-							: 'border-base-300 hover:border-primary/50'}"
-					>
-						<div class="flex items-center gap-3 flex-1">
-							<!-- Selection indicator -->
-							<div
-								class="w-5 h-5 rounded-full border-2 flex items-center justify-center {isSelected
-									? 'border-primary bg-primary'
-									: 'border-base-content/30'}"
-							>
-								{#if isSelected}
-									<Icon icon="mdi:check" class="text-white text-xs" />
-								{/if}
-							</div>
-
-							<!-- Label -->
-							<span class="font-medium">{label || optionId}</span>
-						</div>
-
-							<!-- Vote stats -->
-							<div class="flex items-center gap-2 text-sm text-base-content/60">
-								<span>{stats.count} votes</span>
-								<span>({stats.percentage}%)</span>
-							</div>
-					</div>
-
-					<!-- Progress bar -->
-					{#if totalVotes > 0}
-						<div class="mt-1 h-1.5 bg-base-300 rounded-full overflow-hidden">
-							<div
-								class="h-full bg-primary rounded-full transition-all duration-300"
-								style="width: {stats.percentage}%"
-							/>
-						</div>
+					{#if isVoting}
+						<Loader size="sm" className="mr-1" />
 					{/if}
-				</div>
-			{/each}
-		</div>
-
-		<!-- Footer -->
-		<div class="px-4 py-3 border-t border-base-300 flex items-center justify-between">
-			<div class="text-sm text-base-content/60">
-				{totalVotes} total vote{totalVotes === 1 ? '' : 's'}
-			</div>
-
-			<div class="flex items-center gap-2">
-				{#if !pollEnded && !hasVoted && selectedOptions.size > 0}
-					<button
-						class="btn btn-primary btn-sm"
-						on:click|stopPropagation={castVote}
-						disabled={isVoting}
-					>
-						{#if isVoting}
-							<Loader size="sm" className="mr-1" />
-						{/if}
-						{isVoting ? 'Voting...' : 'Vote'}
-					</button>
-				{:else if hasVoted}
-					<span class="text-sm text-success flex items-center gap-1">
-						<Icon icon="mdi:check-circle" />
-						Voted
-					</span>
-				{/if}
-			</div>
+					{!$key?.pub || $key.hasSigner === false
+						? 'Sign in to vote'
+						: isVoting
+							? 'Voting...'
+							: 'Vote'}
+				</button>
+			{:else if hasVoted}
+				<span class="flex items-center gap-1 text-sm text-success">
+					<Icon icon="mdi:check-circle" />
+					Voted
+				</span>
+			{/if}
 		</div>
 	</div>
-{:else}
-	<div class="p-3 rounded-lg bg-info-content/30 text-sm flex items-center gap-2 mt-2">
-		<Icon icon="mdi:poll" />
-		<span>Poll (kind 1068) - parsed data not available</span>
-	</div>
-{/if}
+</div>

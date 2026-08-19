@@ -2,7 +2,9 @@
 	import {
 		MessageType,
 		type ConnectionStatus,
+		type NostrEvent as RawNostrEvent,
 		type ParsedEvent,
+		type RequestObject,
 		type WorkerMessage
 	} from '@candypoets/nipworker';
 	import {
@@ -13,9 +15,9 @@
 	import {
 		asConnectionStatus,
 		asKind1,
+		asKind1111,
 		asParsedEvent,
 		fbArray,
-		isKind1,
 		isParsedEvent
 	} from '@candypoets/nipworker/utils';
 	import Icon from '@iconify/svelte';
@@ -29,8 +31,9 @@
 	import { FEED_PAGE_WINDOW_SECONDS, limit } from 'src/controller/pagination';
 	import Feed from 'src/routes/explore/feed.svelte';
 	import Note from 'src/routes/explore/note.svelte';
+	import Highlight from 'src/routes/explore/_post/highlight.svelte';
+	import ReferencedEvent from 'src/routes/explore/_post/ReferencedEvent.svelte';
 	import { getUserRelays } from 'src/routes/queries/user';
-	import { ALL_FEED_KINDS, type FeedKind } from 'src/controller/feed';
 
 	export let nevent: string;
 	export let visible: boolean;
@@ -49,6 +52,7 @@
 	let relaysub: (() => void) | undefined;
 	let repliesSubscription: PaginatedSubscription | undefined;
 	let currentEventId: string | undefined = undefined;
+	let rootKind: number | undefined;
 
 	let connectionStatus: { [url: string]: ConnectionStatus } = {};
 
@@ -70,12 +74,13 @@
 	let feedItems: ParsedEvent[] = [];
 
 	// Base subId for relay swapping
-	$: baseSubId = 'kind1_' + data?.id;
+	$: baseSubId = 'event_' + data?.id;
 
 	function resetStateForEvent() {
 		eoce = false;
 		eose = false;
 		headerItem = undefined;
+		rootKind = data.kind;
 		context = [];
 		feedItems = [];
 		loading = true;
@@ -105,6 +110,7 @@
 				if (!parsedEvent) return undefined;
 
 				const kind1 = asKind1(parsedEvent);
+				const kind1111 = asKind1111(parsedEvent);
 				if (kind1) {
 					// only show replies to root posts
 					if (kind1.reply()?.id() && kind1.reply()?.id() != data?.id) return undefined;
@@ -114,29 +120,95 @@
 					)
 						return undefined;
 					// if replies are quote return the feed
-					if (fbArray(kind1, 'mentions').some((q) => q.id() == data.id)) return undefined;
+					if (fbArray(kind1, 'eventRefs').some((q) => q.id() == data.id)) return undefined;
+				} else if (kind1111) {
+					if (rootKind === 1111) {
+						if (kind1111.parentId() !== data.id) return undefined;
+					} else if (
+						kind1111.rootId() !== data.id ||
+						(kind1111.parentId() && kind1111.parentId() !== data.id)
+					) {
+						return undefined;
+					}
+				} else {
+					return undefined;
+				}
 
-					const eventId = parsedEvent.id();
-					const existingIndex = feedItems.findIndex((item) => item.id() === eventId);
-					if (existingIndex === -1) {
-						if (!eoce) {
-							feedItems = [...feedItems, parsedEvent];
-						} else {
-							if (parsedEvent.createdAt() >= feedItems?.[0]?.createdAt()) {
-								feedItems = [parsedEvent, ...feedItems];
-							} else {
-								// Add the event to the feed and sort by created_at (most recent first)
-								feedItems = [...feedItems, parsedEvent].sort(
-									(a, b) => b.createdAt() - a.createdAt()
-								);
-							}
-						}
-						return parsedEvent.createdAt();
+				const eventId = parsedEvent.id();
+				const existingIndex = feedItems.findIndex((item) => item.id() === eventId);
+				if (existingIndex === -1) {
+					if (!eoce) {
+						feedItems = [...feedItems, parsedEvent];
+					} else if (parsedEvent.createdAt() >= feedItems?.[0]?.createdAt()) {
+						feedItems = [parsedEvent, ...feedItems];
+					} else {
+						feedItems = [...feedItems, parsedEvent].sort((a, b) => b.createdAt() - a.createdAt());
 					}
 				}
-				return undefined;
+				return parsedEvent.createdAt();
 		}
 		return undefined;
+	}
+
+	function replyRequest(kind: number, relays: string[]): RequestObject {
+		if (kind === 1) {
+			return { kinds: [1], tags: { '#e': [data.id] }, limit: $limit, noContext: true, relays };
+		}
+		if (kind === 1111) {
+			return { kinds: [1111], tags: { '#e': [data.id] }, limit: $limit, noContext: true, relays };
+		}
+		return { kinds: [1111], tags: { '#E': [data.id] }, limit: $limit, noContext: true, relays };
+	}
+
+	function subscribeToReplies(kind: number, relays: string[]) {
+		cachesub?.();
+		repliesSubscription?.close();
+		feedItems = [];
+
+		const request = replyRequest(kind, relays);
+		const replyKind = kind === 1 ? 1 : 1111;
+		const cacheSubId = `thread_replies_cache_${data.id}_${replyKind}`;
+		cachesub = useSubscription(cacheSubId, [{ ...request, cacheFirst: true }], handleEvents, {
+			pipeline: $defaultPipeline.for(cacheSubId)
+		});
+
+		const repliesSubId = `thread_replies_${data.id}_${replyKind}`;
+		repliesSubscription = createPaginatedSubscription({
+			subId: repliesSubId,
+			requests: [request],
+			pageRequests: [request],
+			windowSeconds: FEED_PAGE_WINDOW_SECONDS,
+			maxEmptyPages: 3,
+			initialLoading: false,
+			onMessage: handleEvents,
+			onStateChange: (state) => (loading = state.loading),
+			options: (subscriptionId) => ({ pipeline: $defaultPipeline.for(subscriptionId) })
+		});
+		repliesSubscription.start();
+	}
+
+	function resolveRoot(kind: number, author: string | null) {
+		loading = false;
+		rootKind = kind;
+		if (repliesSubscription || relaysub) return;
+
+		if (author) {
+			relaysub = getUserRelays(
+				author,
+				(relays) => {
+					const effectiveRelays = relays.length > 0 ? relays : data.relays || [];
+					if (relays.length > 0) currentRelays = relays;
+					subscribeToReplies(kind, effectiveRelays);
+				},
+				'read'
+			);
+		} else {
+			subscribeToReplies(kind, data.relays || []);
+		}
+	}
+
+	function handleRawRoot(event: RawNostrEvent) {
+		resolveRoot(event.kind(), event.pubkey());
 	}
 
 	function subscribe() {
@@ -149,29 +221,10 @@
 				}
 			}, 1000);
 
-			// eagerly fetch from the cache before 10002 resolve
-			cachesub = useSubscription(
-				'replies_cache' + data?.id,
-				[
-					{
-						kinds: ALL_FEED_KINDS,
-						tags: { '#e': [data?.id] },
-						limit: $limit,
-						cacheFirst: true,
-						relays: data.relays || []
-					}
-				],
-				handleEvents,
-				{
-					pipeline: $defaultPipeline.for('replies_cache' + data?.id)
-				}
-			);
-
 			sub = useSubscription(
-				'kind1_' + data?.id,
+				'event_' + data?.id,
 				[
 					{
-						kinds: [1],
 						ids: [data?.id],
 						limit: 1,
 						relays: data.relays || [],
@@ -180,54 +233,14 @@
 				],
 				(message: WorkerMessage) => {
 					const parsedEvent = isParsedEvent(message);
-					const kind1 = isKind1(message);
-					if (kind1 && parsedEvent && parsedEvent.id() == data.id) {
-						loading = false;
-						// profile = event;
+					if (parsedEvent?.id() == data.id) {
 						headerItem = parsedEvent;
-						relaysub = getUserRelays(
-							parsedEvent?.pubkey(),
-							(relays) => {
-								// Use fetched relays or fall back to nevent relays
-								const effectiveRelays = relays.length > 0 ? relays : data.relays || [];
-								// Update current relays for UI (only if we got valid relays)
-								if (relays.length > 0) {
-									currentRelays = relays;
-								}
-								// Subscribe to replies for this post
-								if (!repliesSubscription) {
-									const repliesSubId = 'replies_' + data?.id;
-									const requests = [
-										{
-											tags: { '#e': [data?.id] },
-											limit: $limit,
-											noContext: true,
-											relays: effectiveRelays
-										}
-									];
-									repliesSubscription = createPaginatedSubscription({
-										subId: repliesSubId,
-										requests,
-										pageRequests: requests.map((request) => ({ ...request, kinds: [1] })),
-										windowSeconds: FEED_PAGE_WINDOW_SECONDS,
-										maxEmptyPages: 3,
-										initialLoading: false,
-										onMessage: handleEvents,
-										onStateChange: (state) => (loading = state.loading),
-										options: (subscriptionId) => ({
-											pipeline: $defaultPipeline.for(subscriptionId)
-										})
-									});
-									repliesSubscription.start();
-								}
-							},
-							'read'
-						);
+						resolveRoot(parsedEvent.kind(), parsedEvent.pubkey());
 					}
 				},
 				{
 					bytesPerEvent: 50 * 1024,
-					pipeline: $defaultPipeline.for('kind1_' + data?.id)
+					pipeline: $defaultPipeline.for('event_' + data?.id)
 				}
 			);
 		}
@@ -286,8 +299,8 @@
 			<button on:click={goBack} class="p-1 rounded-full hover:bg-base-200 mr-4">
 				<Icon icon="mdi:arrow-left" class="text-xl" />
 			</button>
-			<h1 class="text-lg font-semibold">Post</h1>
-			<span />
+			<h1 class="text-lg font-semibold">Thread</h1>
+			<span></span>
 		</div>
 	</svelte:fragment>
 	<svelte:fragment slot="header">
@@ -309,8 +322,26 @@
 			</div>
 		{/if}
 
-		{#if headerItem}
-			<Note note={headerItem} {context} {visible} zaps main />
+		{#if data.id}
+			<ReferencedEvent
+				noteId={data.id}
+				kind={rootKind}
+				relays={currentRelays}
+				{visible}
+				onEvent={handleRawRoot}
+				let:event
+			>
+				<Note customEvent={event} {context} {visible} zaps main>
+					<svelte:fragment slot="body">
+						<Highlight {event} />
+					</svelte:fragment>
+				</Note>
+				<svelte:fragment slot="fallback">
+					{#if headerItem}
+						<Note note={headerItem} {context} {visible} zaps main />
+					{/if}
+				</svelte:fragment>
+			</ReferencedEvent>
 		{/if}
 	</svelte:fragment>
 	<svelte:fragment slot="item-content" let:post let:visible>
@@ -320,12 +351,12 @@
 			{visible}
 			showRoot={false}
 			showReplies={(newPost) => (replies) => {
-				// const postKind1 = asKind1(newPost);
 				const rep = replies.filter((r) => {
 					const kind1 = asKind1(r);
+					const kind1111 = asKind1111(r);
 					return (
 						(r.pubkey() == post?.pubkey() || r.pubkey() == headerItem?.pubkey()) &&
-						kind1?.reply()?.id() == newPost?.id()
+						(kind1?.reply()?.id() == newPost?.id() || kind1111?.parentId() == newPost?.id())
 					);
 				});
 				if (!rep.length) {

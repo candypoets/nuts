@@ -2,7 +2,9 @@
 	import Note from '../note.svelte';
 	import User from '../user.svelte';
 	import Cashu from './cashu.svelte';
+	import Highlight from './highlight.svelte';
 	import LinkPreviewCard from './LinkPreviewCard.svelte';
+	import ReferencedEvent from './ReferencedEvent.svelte';
 	import YouTube from './YouTube.svelte';
 
 	import { ContentBlock, ContentData, type ParsedEvent } from '@candypoets/nipworker';
@@ -98,6 +100,10 @@
 					};
 		});
 	}
+
+	function nostrRelays(nostr: ReturnType<typeof asNostrData>): string[] {
+		return nostr ? (fbArray(nostr, 'relays') as string[]) : [];
+	}
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
@@ -177,16 +183,16 @@
 			{@const nostr = asNostrData(parsed)}
 			{@const author = nostr?.author()}
 			{#if author && nostr?.entity()?.match(/n(profile|pub)/)}
-				<User pubkey={nostr?.author()} {context} />
+				<User pubkey={author} {context} />
 			{:else if nostr?.id()}
 				{#if showQuote}
 					{@const entity = nostr?.entity()}
-					{@const id = nostr?.id()}
-					{@const entityRelays = fbArray(nostr, 'relays')}
+					{@const id = nostr?.id() || ''}
+					{@const entityRelays = nostrRelays(nostr)}
 					{#if entity?.startsWith('naddr')}
 						<!-- Use the naddr bech32 string directly -->
 						<Note
-							naddr={entity}
+							naddr={entity || ''}
 							{context}
 							{visible}
 							depth={depth + 1}
@@ -194,22 +200,37 @@
 							footer={false}
 						/>
 					{:else}
-						<!-- Regular nevent/note -->
-						<Note
+						<!-- Event IDs may resolve to parsed notes or raw-only events such as kind 9802. -->
+						<ReferencedEvent
 							noteId={id}
-							{context}
 							{visible}
-							depth={depth + 1}
 							relays={entityRelays}
-							footer={false}
-						/>
+							kind={Number(nostr?.kind()) || undefined}
+							let:event
+						>
+							<Note customEvent={event} {context} {visible} depth={depth + 1} footer={false}>
+								<svelte:fragment slot="body">
+									<Highlight {event} />
+								</svelte:fragment>
+							</Note>
+							<svelte:fragment slot="fallback">
+								<Note
+									noteId={id}
+									{context}
+									{visible}
+									depth={depth + 1}
+									relays={entityRelays}
+									footer={false}
+								/>
+							</svelte:fragment>
+						</ReferencedEvent>
 					{/if}
 				{:else}
 					{nostr?.id()}
 				{/if}
 			{/if}
 		{:else if parsed.dataType() == ContentData.CashuData}
-			<Cashu cashu={parsed.text()} />
+			<Cashu cashu={parsed.text() || ''} />
 		{:else if parsed.dataType() == ContentData.ImageData || parsed.dataType() == ContentData.VideoData || parsed.dataType() == ContentData.MediaGroupData}
 			{#if showMedia}
 				{#if parsed.dataType() == ContentData.ImageData}
