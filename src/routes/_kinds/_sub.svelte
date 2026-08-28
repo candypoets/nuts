@@ -150,8 +150,9 @@
 </script>
 
 <div
-	class="absolute right-0 top-0 h-screen lg:p-2 z-20 bg-base-300 bg-opacity-90 lg:bg-transparent"
+	class="absolute left-1/2 top-0 h-screen w-feed lg:w-[52rem] lg:p-2 z-20 bg-base-300 bg-opacity-90 lg:bg-transparent"
 	class:lg:backdrop-blur-md={visible}
+	style:translate="-50% 0"
 	bind:this={element}
 	data-kind="sub"
 >

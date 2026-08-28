@@ -664,7 +664,7 @@
 <!-- {JSON.stringify(fbArray(displayNote, 'requests').map((r) => toRequestObject(r)))}
 {subed} -->
 <div
-	class="feed-post py-2 rounded-tl-md backdrop-saturate-150 border-primary-content relative cursor-pointer bg-base-300 bg-opacity-85 mt-1 rounded-lg w-full shadow-widget"
+	class="feed-post py-2 rounded-tl-md backdrop-saturate-150 border-base-content/30 relative cursor-pointer bg-base-300 bg-opacity-85 mt-1 rounded-lg w-full shadow-widget"
 	class:!mt-0={hasRoot || tailing}
 	class:px-2={!!depth}
 	on:click|stopPropagation={goto}
@@ -694,13 +694,13 @@
 		{/if}
 		{#if leading || visibleReplies.length}
 			<div
-				class="absolute border-primary-content left-4 h-full border-r-2"
+				class="absolute border-base-content/30 left-4 h-full border-r-2"
 				class:hidden={isMediaEvent}
 			/>
 		{/if}
 		{#if hasRoot || tailing}
 			<div
-				class="absolute border-primary-content left-4 h-8 border-r-2 -mt-8"
+				class="absolute border-base-content/30 left-4 h-8 border-r-2 -mt-8"
 				class:hidden={isMediaEvent}
 			/>
 		{/if}
@@ -793,10 +793,10 @@
 	{:else if searchState === 'not-found'}
 		<!-- Not found state - compact -->
 		{#if leading || visibleReplies.length}
-			<div class="absolute border-primary-content left-4 h-full border-r-2" />
+			<div class="absolute border-base-content/30 left-4 h-full border-r-2" />
 		{/if}
 		{#if hasRoot || tailing}
-			<div class="absolute border-primary-content left-4 h-8 border-r-2 -mt-8" />
+			<div class="absolute border-base-content/30 left-4 h-8 border-r-2 -mt-8" />
 		{/if}
 
 		<div class="flex items-center gap-2 px-2 py-2" class:ml-10={!depth}>
@@ -823,10 +823,10 @@
 	{:else if searchState === 'unrenderable'}
 		<!-- Unrenderable state - compact -->
 		{#if leading || visibleReplies.length}
-			<div class="absolute border-primary-content left-4 h-full border-r-2" />
+			<div class="absolute border-base-content/30 left-4 h-full border-r-2" />
 		{/if}
 		{#if hasRoot || tailing}
-			<div class="absolute border-primary-content left-4 h-8 border-r-2 -mt-8" />
+			<div class="absolute border-base-content/30 left-4 h-8 border-r-2 -mt-8" />
 		{/if}
 		<div class="flex items-center gap-2 px-2 py-2" class:ml-10={!depth}>
 			<Icon icon="mdi:alert-circle-outline" class="w-4 h-4 text-warning shrink-0" />
@@ -844,10 +844,10 @@
 	{:else}
 		<!-- Loading state - compact to match not-found -->
 		{#if leading || visibleReplies.length}
-			<div class="absolute border-primary-content left-4 h-full border-r-2" />
+			<div class="absolute border-base-content/30 left-4 h-full border-r-2" />
 		{/if}
 		{#if hasRoot || tailing}
-			<div class="absolute border-primary-content left-4 h-8 border-r-2 -mt-8" />
+			<div class="absolute border-base-content/30 left-4 h-8 border-r-2 -mt-8" />
 		{/if}
 		<div class="flex gap-2 px-2 py-2">
 			<div class="w-8 min-w-8">

@@ -1,6 +1,8 @@
 import { animate } from 'motion';
 
 const STACK_Z_INDEX_BASE = 60;
+const STACK_DEPTH_STEP_PX = 30;
+const VIEWPORT_GUTTER_PX = 16;
 
 interface AnimationOptions {
 	duration: number;
@@ -217,7 +219,7 @@ export class PagerAnimator {
 		return kind;
 	}
 
-	animateIn(element: HTMLElement): Promise<void> {
+	animateIn(element: HTMLElement, targetX?: number): Promise<void> {
 		// Make sure it's visible when animating in
 		element.style.display = '';
 
@@ -225,7 +227,26 @@ export class PagerAnimator {
 		const kind = this.getElementKind(element);
 
 		// Check if we have custom animations defined for this kind
-		const inAnimations = this.options.in?.[kind];
+		const configuredAnimations = this.options.in?.[kind];
+		const startX = kind === 'sub' ? this.getOffscreenRightPosition(element) : undefined;
+		const inAnimations =
+			targetX === undefined || !configuredAnimations
+				? configuredAnimations
+				: {
+						...configuredAnimations,
+						x: startX === undefined ? targetX : [startX, targetX]
+					};
+		if (targetX !== undefined) {
+			const current = this.getElementState(element);
+			this.setElementState(
+				element,
+				targetX,
+				current.y,
+				current.scale,
+				current.opacity,
+				current.rotateY
+			);
+		}
 
 		if (inAnimations) {
 			// Apply custom animation from options
@@ -237,9 +258,12 @@ export class PagerAnimator {
 			// Default animation - fade in
 			return animate(
 				element,
-				{
-					opacity: [0, 1]
-				},
+				targetX === undefined
+					? { opacity: [0, 1] }
+					: {
+							x: [startX ?? this.getElementSize(element).width, targetX],
+							opacity: [0, 1]
+						},
 				{
 					duration: this.options.duration,
 					easing: 'ease-out'
@@ -284,6 +308,21 @@ export class PagerAnimator {
 				height: this.viewport.vh * 100
 			}
 		);
+	}
+
+	private getOffscreenRightPosition(element: HTMLElement): number {
+		return this.viewport.vw * 50 + this.getElementSize(element).width / 2;
+	}
+
+	private getOutAnimations(element: HTMLElement): Record<string, unknown> | undefined {
+		const kind = this.getElementKind(element);
+		const configured = this.options.out?.[kind] as Record<string, unknown> | undefined;
+		if (kind !== 'sub') return configured;
+
+		return {
+			...(configured ?? { opacity: 0.3 }),
+			x: this.getOffscreenRightPosition(element)
+		};
 	}
 
 	private resolveAxisEndValue(value: unknown, axis: 'x' | 'y', element: HTMLElement): unknown {
@@ -342,11 +381,7 @@ export class PagerAnimator {
 	}
 
 	animateOut(element: HTMLElement, fromCurrentPosition: boolean = false): Promise<void> {
-		// Get the element's data-kind attribute to determine animation type
-		const kind = this.getElementKind(element);
-
-		// Check if we have custom animations defined for this kind
-		const outAnimations = this.options.out?.[kind] as Record<string, unknown> | undefined;
+		const outAnimations = this.getOutAnimations(element);
 
 		if (outAnimations) {
 			const animationValues = fromCurrentPosition
@@ -449,8 +484,7 @@ export class PagerAnimator {
 		// Animate all elements out simultaneously (without calling goBackRouter for each)
 		// Get the element's data-kind attribute to determine animation type
 		for (const element of elementsToRemove) {
-			const kind = this.getElementKind(element);
-			const outAnimations = this.options.out?.[kind];
+			const outAnimations = this.getOutAnimations(element);
 
 			if (outAnimations) {
 				animate(element, outAnimations, {
@@ -517,6 +551,42 @@ export class PagerAnimator {
 	}
 
 	/**
+	 * Half the distance between the two active panel centers.
+	 *
+	 * When two panels fit, their edges meet at the viewport center. On narrower
+	 * viewports, the distance contracts just enough to keep both outer edges on
+	 * screen, which makes overlap a consequence of limited space only.
+	 */
+	private getPairOffset(): number {
+		let subElement: HTMLElement | undefined;
+		for (let i = this.stack.length - 1; i >= 0; i--) {
+			if (this.isMobileMode && !this.visibleStackIndices.has(i)) continue;
+			const element = this.stack[i];
+			if (element && this.getElementKind(element) === 'sub') {
+				subElement = element;
+				break;
+			}
+		}
+		if (!subElement) return 0;
+
+		const viewportWidth = this.viewport.vw * 100;
+		const panelWidth = this.getElementSize(subElement).width;
+		const availableCenterDistance = viewportWidth - panelWidth - VIEWPORT_GUTTER_PX * 2;
+		const centerDistance = Math.max(0, Math.min(panelWidth, availableCenterDistance));
+		return centerDistance / 2;
+	}
+
+	private getMainHorizontalPosition(depth: number, pairOffset: number): number {
+		if (depth <= 0) return 0;
+		if (depth <= 1) return -depth * pairOffset;
+		return -pairOffset;
+	}
+
+	private getSubHorizontalPosition(depth: number, pairOffset: number): number {
+		return pairOffset - Math.max(0, depth) * STACK_DEPTH_STEP_PX;
+	}
+
+	/**
 	 * Update main content based on registered modal elements
 	 */
 	private updateMainContent(
@@ -532,13 +602,11 @@ export class PagerAnimator {
 
 		const { subDepth, modalDepth } = depths ?? this.countVisibleDepths();
 
-		// Calculate transforms similar to current reactive statements
-		const subTweened = subDepth > 0 ? 1 : 0;
-
 		const swipeProgressX = deltaX > 0 ? this.getSwipeProgress(deltaX, 0) : 0;
 		const swipeProgressY = deltaY > 0 ? this.getSwipeProgress(0, deltaY) : 0;
 
-		const translateX = -(subTweened - swipeProgressX) * (this.viewport.vw * 20 + subDepth * 30);
+		const pairOffset = this.getPairOffset();
+		const translateX = this.getMainHorizontalPosition(subDepth - swipeProgressX, pairOffset);
 		const translateY = (modalDepth - swipeProgressY) * 30;
 		const scale = 1;
 		const rotateY = 0;
@@ -601,7 +669,15 @@ export class PagerAnimator {
 			const effectiveModalDepth = this.depthBuffer.modalDepth - swipeProgress;
 
 			if (animateKind && this.depthBuffer.subDepth === 0 && this.depthBuffer.modalDepth === 0) {
-				animateKind == 'in' ? this.animateIn(element) : this.animateOut(element);
+				if (animateKind === 'in') {
+					const targetX =
+						this.getElementKind(element) === 'sub'
+							? this.getSubHorizontalPosition(0, this.getPairOffset())
+							: undefined;
+					this.animateIn(element, targetX);
+				} else {
+					this.animateOut(element);
+				}
 			} else {
 				this.updateSubElement(
 					element,
@@ -630,10 +706,15 @@ export class PagerAnimator {
 		deltaY: number = 0,
 		immediate: boolean = false
 	) {
-		const isModal = this.getElementKind(element) === 'modal';
+		const elementKind = this.getElementKind(element);
+		const isModal = elementKind === 'modal';
+		const isSub = elementKind === 'sub';
 
 		// Calculate transforms for stacked effect using effective depth
-		const translateX = -effectiveSubDepth * 30 + (effectiveSubDepth == 0 ? deltaX : 0);
+		const translateX = isSub
+			? this.getSubHorizontalPosition(effectiveSubDepth, this.getPairOffset()) +
+				(effectiveSubDepth === 0 ? deltaX : 0)
+			: -effectiveSubDepth * STACK_DEPTH_STEP_PX + (effectiveSubDepth === 0 ? deltaX : 0);
 		const translateY =
 			-effectiveModalDepth * 30 + (effectiveModalDepth == 0 && isModal ? deltaY : 0);
 		// Disable scaling on mobile - keep full size for better readability

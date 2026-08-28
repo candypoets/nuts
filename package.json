@@ -69,7 +69,7 @@
 	"type": "module",
 	"dependencies": {
 		"@candypoets/lnuts": "^0.3.1",
-		"@candypoets/nipworker": "^0.99.7",
+		"@candypoets/nipworker": "0.99.15",
 		"@cashu/cashu-ts": "3.1.1",
 		"@gandlaf21/bc-ur": "^1.1.12",
 		"@gandlaf21/bolt11-decode": "^3.1.1",
@@ -88,7 +88,7 @@
 		"date-fns": "^4.1.0",
 		"emoji-picker-element": "^1.26.1",
 		"express": "^5.1.0",
-		"flatbuffers": "^25.9.23",
+		"flatbuffers": "25.2.10",
 		"fuse.js": "^7.1.0",
 		"hls.js": "^1.6.15",
 		"light-bolt11-decoder": "^3.2.0",

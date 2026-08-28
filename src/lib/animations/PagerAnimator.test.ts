@@ -9,16 +9,37 @@ vi.mock('motion', () => ({
 import { animate } from 'motion';
 import { PagerAnimator } from './PagerAnimator';
 
-function createSurface(kind: 'modal' | 'sub'): HTMLElement {
+function createSurface(kind: 'modal' | 'sub', width?: number): HTMLElement {
 	const element = document.createElement('div');
 	element.dataset.kind = kind;
 	element.className = kind === 'modal' ? 'z-[60]' : 'z-20';
+	if (width !== undefined) {
+		vi.spyOn(element, 'getBoundingClientRect').mockReturnValue({
+			width,
+			height: 1000,
+			top: 0,
+			right: width,
+			bottom: 1000,
+			left: 0,
+			x: 0,
+			y: 0,
+			toJSON: () => ({})
+		});
+	}
 	document.body.appendChild(element);
 	return element;
 }
 
-function createAnimator(): PagerAnimator {
-	const animator = new PagerAnimator({ vw: 10, vh: 10 }, vi.fn());
+function createAnimator(vw = 10): PagerAnimator {
+	const animator = new PagerAnimator({ vw, vh: 10 }, vi.fn(), undefined, {
+		duration: 0.2,
+		in: {
+			sub: { x: [800, 0], opacity: [0.5, 1] }
+		},
+		out: {
+			sub: { x: 800, opacity: 0.3 }
+		}
+	});
 	animator.setMobileMode(false);
 	return animator;
 }
@@ -74,8 +95,8 @@ describe('PagerAnimator initial deep-link state', () => {
 	});
 
 	it('applies an existing sub depth immediately when main content mounts', () => {
-		const animator = createAnimator();
-		const sub = createSurface('sub');
+		const animator = createAnimator(20);
+		const sub = createSurface('sub', 800);
 		const main = document.createElement('main');
 		document.body.appendChild(main);
 
@@ -83,37 +104,104 @@ describe('PagerAnimator initial deep-link state', () => {
 		animator.setMainContent(main);
 
 		expect(animate).not.toHaveBeenCalled();
-		expect(main.style.transform).toBe('translate3d(-230px, 0px, 0) scale(1) rotateY(0deg)');
-		expect(sub.style.transform).toBe('translate3d(0px, 0px, 0) scale(1)');
+		expect(main.style.transform).toBe('translate3d(-400px, 0px, 0) scale(1) rotateY(0deg)');
+		expect(sub.style.transform).toBe('translate3d(400px, 0px, 0) scale(1)');
+	});
+
+	it('stacks earlier pushed screens on the right without moving them onto the main feed', () => {
+		const animator = createAnimator(20);
+		const firstSub = createSurface('sub', 800);
+		const activeSub = createSurface('sub', 800);
+		const main = document.createElement('main');
+		document.body.appendChild(main);
+
+		animator.registerElement(firstSub);
+		animator.registerElement(activeSub);
+		animator.setMainContent(main);
+
+		expect(main.style.transform).toBe('translate3d(-400px, 0px, 0) scale(1) rotateY(0deg)');
+		expect(firstSub.style.transform).toBe('translate3d(370px, 0px, 0) scale(0.95)');
+		expect(activeSub.style.transform).toBe('translate3d(400px, 0px, 0) scale(1)');
 	});
 
 	it('still animates a sub registered after main content', () => {
-		const animator = createAnimator();
+		const animator = createAnimator(20);
 		const main = document.createElement('main');
-		const sub = createSurface('sub');
+		const sub = createSurface('sub', 800);
 		document.body.appendChild(main);
 		animator.setMainContent(main);
 		vi.clearAllMocks();
 
 		animator.registerElement(sub);
 
-		expect(animate).toHaveBeenCalled();
+		expect(animate).toHaveBeenCalledWith(
+			sub,
+			{ x: [1400, 400], opacity: [0.5, 1] },
+			expect.objectContaining({ easing: 'ease-out' })
+		);
 	});
 
-	it('reapplies the initial depth when viewport dimensions become available', () => {
+	it('animates a pushed sub back beyond the right edge', () => {
+		const animator = createAnimator(20);
+		const main = document.createElement('main');
+		const sub = createSurface('sub', 800);
+		document.body.appendChild(main);
+		animator.setMainContent(main);
+		animator.registerElement(sub);
+		vi.clearAllMocks();
+
+		animator.unregisterElement(sub, true);
+
+		expect(animate).toHaveBeenCalledWith(
+			sub,
+			{ x: [400, 1400], opacity: [1, 0.3] },
+			expect.objectContaining({ easing: 'ease-in' })
+		);
+	});
+
+	it('reapplies the pair layout when viewport dimensions become available', () => {
 		const animator = new PagerAnimator({ vw: 0, vh: 0 }, vi.fn());
 		animator.setMobileMode(false);
-		const sub = createSurface('sub');
+		const sub = createSurface('sub', 800);
 		const main = document.createElement('main');
 		document.body.appendChild(main);
 
 		animator.registerElement(sub);
 		animator.setMainContent(main);
-		expect(main.style.transform).toContain('translate3d(-30px, 0px, 0)');
+		expect(main.style.transform).toBe('translate3d(0px, 0px, 0) scale(1) rotateY(0deg)');
 
-		animator.updateViewport({ vw: 10, vh: 10 });
+		animator.updateViewport({ vw: 20, vh: 10 });
 
 		expect(animate).not.toHaveBeenCalled();
-		expect(main.style.transform).toBe('translate3d(-230px, 0px, 0) scale(1) rotateY(0deg)');
+		expect(main.style.transform).toBe('translate3d(-400px, 0px, 0) scale(1) rotateY(0deg)');
+		expect(sub.style.transform).toBe('translate3d(400px, 0px, 0) scale(1)');
+	});
+
+	it('does not increase the pair width on an ultrawide viewport', () => {
+		const animator = createAnimator(20);
+		const sub = createSurface('sub', 800);
+		const main = document.createElement('main');
+		document.body.appendChild(main);
+
+		animator.registerElement(sub);
+		animator.setMainContent(main);
+		animator.updateViewport({ vw: 40, vh: 22 });
+
+		expect(main.style.transform).toBe('translate3d(-400px, 0px, 0) scale(1) rotateY(0deg)');
+		expect(sub.style.transform).toBe('translate3d(400px, 0px, 0) scale(1)');
+	});
+
+	it('overlaps the panels only by the width missing from a smaller viewport', () => {
+		const animator = createAnimator(12);
+		const sub = createSurface('sub', 800);
+		const main = document.createElement('main');
+		document.body.appendChild(main);
+
+		animator.registerElement(sub);
+		animator.setMainContent(main);
+
+		// The panels overlap by the missing width plus two 16px viewport gutters.
+		expect(main.style.transform).toBe('translate3d(-184px, 0px, 0) scale(1) rotateY(0deg)');
+		expect(sub.style.transform).toBe('translate3d(184px, 0px, 0) scale(1)');
 	});
 });
