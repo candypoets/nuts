@@ -83,7 +83,7 @@ export function watchDisplayMode(callback: (mode: string) => void): () => void {
 	}
 
 	const modes = ['fullscreen', 'standalone', 'minimal-ui', 'browser'];
-	const mediaQueries = modes.map(mode => ({
+	const mediaQueries = modes.map((mode) => ({
 		mode,
 		query: window.matchMedia(`(display-mode: ${mode})`)
 	}));
@@ -171,39 +171,60 @@ export function setupPWAViewport(): void {
 	});
 }
 
-/**
- * Checks if the current context supports PWA installation
- * @returns true if PWA can be installed, false otherwise
- */
-export function canInstallPWA(): boolean {
-	if (typeof window === 'undefined') return false;
+type BeforeInstallPromptEvent = Event & {
+	prompt: () => Promise<void>;
+	userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+};
 
-	// Check for beforeinstallprompt event support
-	return 'onbeforeinstallprompt' in window;
+let deferredInstallPrompt: BeforeInstallPromptEvent | undefined;
+let installListenerInitialized = false;
+const installAvailabilityListeners = new Set<(available: boolean) => void>();
+
+function notifyInstallAvailability() {
+	for (const listener of installAvailabilityListeners) {
+		listener(Boolean(deferredInstallPrompt));
+	}
 }
 
-/**
- * PWA installation prompt handler
- * @returns Promise that resolves with installation result
- */
-export function promptPWAInstall(): Promise<{ outcome: 'accepted' | 'dismissed' }> {
-	return new Promise((resolve) => {
-		if (typeof window === 'undefined') {
-			resolve({ outcome: 'dismissed' });
-			return;
-		}
-
-		// Listen for the beforeinstallprompt event
-		window.addEventListener('beforeinstallprompt', (e) => {
-			e.preventDefault();
-
-			// Show the install prompt
-			(e as any).prompt();
-
-			// Wait for the user to respond
-			(e as any).userChoice.then((choiceResult: any) => {
-				resolve({ outcome: choiceResult.outcome });
-			});
-		});
+function ensurePWAInstallListener() {
+	if (typeof window === 'undefined' || installListenerInitialized) return;
+	installListenerInitialized = true;
+	window.addEventListener('beforeinstallprompt', (event) => {
+		event.preventDefault();
+		deferredInstallPrompt = event as BeforeInstallPromptEvent;
+		notifyInstallAvailability();
 	});
+	window.addEventListener('appinstalled', () => {
+		deferredInstallPrompt = undefined;
+		notifyInstallAvailability();
+	});
+}
+
+ensurePWAInstallListener();
+
+/** Returns true after the browser has offered an install prompt for this app. */
+export function canInstallPWA(): boolean {
+	ensurePWAInstallListener();
+	return Boolean(deferredInstallPrompt);
+}
+
+/** Subscribes to changes in browser install-prompt availability. */
+export function onPWAInstallAvailabilityChange(listener: (available: boolean) => void) {
+	ensurePWAInstallListener();
+	installAvailabilityListeners.add(listener);
+	listener(Boolean(deferredInstallPrompt));
+	return () => installAvailabilityListeners.delete(listener);
+}
+
+/** Shows the install prompt previously supplied by the browser. */
+export async function promptPWAInstall(): Promise<{ outcome: 'accepted' | 'dismissed' }> {
+	ensurePWAInstallListener();
+	const prompt = deferredInstallPrompt;
+	if (!prompt) return { outcome: 'dismissed' };
+
+	await prompt.prompt();
+	const choice = await prompt.userChoice;
+	deferredInstallPrompt = undefined;
+	notifyInstallAvailability();
+	return choice;
 }

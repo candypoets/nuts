@@ -51,6 +51,7 @@
 	type CopyTarget = 'nevent' | 'web';
 	let copyFeedback: { target: CopyTarget; message: string } | undefined;
 	let copyFeedbackTimer: ReturnType<typeof setTimeout> | undefined;
+	let supportsNativeShare = false;
 
 	$: {
 		feedRequests =
@@ -165,10 +166,31 @@
 		return copyValue('nevent', () => 'nostr:' + encodedNevent());
 	}
 
+	function webLink() {
+		return new URL(`/explore/nevent:${encodedNevent()}`, window.location.origin).toString();
+	}
+
 	function copyWebLink() {
-		return copyValue('web', () =>
-			new URL(`/explore/nevent:${encodedNevent()}`, window.location.origin).toString()
-		);
+		return copyValue('web', webLink);
+	}
+
+	async function shareWebLink() {
+		const shareData = {
+			title: 'Nuts',
+			text: 'See this post on Nuts',
+			url: webLink()
+		};
+		if (!navigator.share || (navigator.canShare && !navigator.canShare(shareData))) {
+			await copyWebLink();
+			return;
+		}
+
+		try {
+			await navigator.share(shareData);
+		} catch (error) {
+			if (error instanceof DOMException && error.name === 'AbortError') return;
+			await copyWebLink();
+		}
 	}
 
 	function handleSendMessage() {
@@ -196,6 +218,7 @@
 	let replySub: (() => void) | undefined;
 
 	onMount(() => {
+		supportsNativeShare = typeof navigator.share === 'function';
 		if (noteId) {
 			// Try to decode as nevent to get hex id and relay hints
 			let hexId = noteId;
@@ -344,6 +367,19 @@
 				</div>
 			{:else}
 				<div class="flex justify-around">
+					{#if supportsNativeShare}
+						<div class="flex flex-col items-center">
+							<button
+								type="button"
+								class="btn btn-circle btn-accent"
+								aria-label="Share post"
+								on:click={shareWebLink}
+							>
+								<Icon icon="carbon:share" />
+							</button>
+							<p class="text-xs mt-1">Share</p>
+						</div>
+					{/if}
 					<div class="flex flex-col items-center">
 						<button
 							type="button"

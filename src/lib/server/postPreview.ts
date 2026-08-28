@@ -12,12 +12,24 @@ const PROFILE_WAIT_MS = 1000;
 const SUCCESS_CACHE_MS = 10 * 60 * 1000;
 const MISS_CACHE_MS = 30 * 1000;
 const MAX_CACHE_ENTRIES = 500;
+const DEFAULT_PREVIEW_IMAGE_PATH =
+	'/community_feed_static_assets/layouts/community-feed-hero-composition.png';
 
 export type PostPreview = {
 	title: string;
 	description?: string;
 	image?: string;
+	imageType?: string;
+	imageWidth?: number;
+	imageHeight?: number;
 	publishedTime: string;
+};
+
+type PostImage = {
+	url: string;
+	type?: string;
+	width?: number;
+	height?: number;
 };
 
 type CacheEntry = {
@@ -162,28 +174,70 @@ function imetaValue(tag: string[], key: string) {
 		.trim();
 }
 
-export function extractPostImage(event: Pick<NostrEvent, 'content' | 'tags'>) {
+function imageTypeFromUrl(value: string) {
+	try {
+		const extension = new URL(value).pathname.split('.').pop()?.toLowerCase();
+		switch (extension) {
+			case 'avif':
+				return 'image/avif';
+			case 'gif':
+				return 'image/gif';
+			case 'jpeg':
+			case 'jpg':
+				return 'image/jpeg';
+			case 'png':
+				return 'image/png';
+			case 'webp':
+				return 'image/webp';
+		}
+	} catch {
+		// The URL was already validated by publicHttpUrl; omit an unknown type.
+	}
+	return undefined;
+}
+
+function imageDimensions(value: string | undefined) {
+	const match = value?.match(/^(\d{1,5})x(\d{1,5})$/i);
+	if (!match) return {};
+	const width = Number(match[1]);
+	const height = Number(match[2]);
+	return width > 0 && height > 0 ? { width, height } : {};
+}
+
+export function extractPostImageMetadata(
+	event: Pick<NostrEvent, 'content' | 'tags'>
+): PostImage | undefined {
 	for (const tag of event.tags) {
 		if (tag[0] !== 'imeta') continue;
 		const mimeType = imetaValue(tag, 'm');
 		if (mimeType && !mimeType.toLowerCase().startsWith('image/')) continue;
 		const image = publicHttpUrl(imetaValue(tag, 'url'));
-		if (image) return image;
+		if (image) {
+			return {
+				url: image,
+				type: mimeType || imageTypeFromUrl(image),
+				...imageDimensions(imetaValue(tag, 'dim'))
+			};
+		}
 	}
 
 	for (const tag of event.tags) {
 		if (tag[0] !== 'image') continue;
 		const image = publicHttpUrl(tag[1]);
-		if (image) return image;
+		if (image) return { url: image, type: imageTypeFromUrl(image) };
 	}
 
 	const imageUrlPattern =
 		/https?:\/\/[^\s<>"')\]]+\.(?:avif|gif|jpe?g|png|webp)(?:\?[^\s<>"')\]]*)?/giu;
 	for (const match of event.content.matchAll(imageUrlPattern)) {
 		const image = publicHttpUrl(match[0]);
-		if (image) return image;
+		if (image) return { url: image, type: imageTypeFromUrl(image) };
 	}
 	return undefined;
+}
+
+export function extractPostImage(event: Pick<NostrEvent, 'content' | 'tags'>) {
+	return extractPostImageMetadata(event)?.url;
 }
 
 function truncate(value: string, maxLength: number) {
@@ -234,6 +288,23 @@ function profileName(profile: ProfileMetadata | null) {
 	return name ? truncate(name, 80) : undefined;
 }
 
+function eventTag(event: Pick<NostrEvent, 'tags'>, key: string) {
+	return event.tags.find((tag) => tag[0] === key && tag[1]?.trim())?.[1]?.trim();
+}
+
+function previewTitle(event: NostrEvent, author?: string) {
+	const eventTitle = eventTag(event, 'title') || eventTag(event, 'subject');
+	if (eventTitle) return truncate(eventTitle, 100);
+	return author ? `${author} on Nuts` : 'A post on Nuts';
+}
+
+function previewDescription(event: NostrEvent, image?: string) {
+	const summary = eventTag(event, 'summary');
+	return summary
+		? truncate(summary.replace(/\s+/g, ' ').trim(), 220)
+		: postDescription(event.content, image);
+}
+
 function parseNevent(nevent: string) {
 	try {
 		const decoded = decode(nevent);
@@ -276,10 +347,14 @@ async function fetchPostPreview(pointer: EventPointer): Promise<PostPreview | nu
 			: Promise.resolve(null);
 		const event = await pool.get(
 			relays,
-			{ kinds: [1], ids: [pointer.id], limit: 1 },
+			{
+				ids: [pointer.id],
+				...(pointer.kind === undefined ? {} : { kinds: [pointer.kind] }),
+				limit: 1
+			},
 			{ maxWait: POST_WAIT_MS }
 		);
-		if (!event || event.kind !== 1 || event.id !== pointer.id || !verifyEvent(event)) return null;
+		if (!event || event.id !== pointer.id || !verifyEvent(event)) return null;
 
 		let profileEvent = await profilePromise;
 		if (!profileEvent || profileEvent.pubkey !== event.pubkey) {
@@ -291,12 +366,15 @@ async function fetchPostPreview(pointer: EventPointer): Promise<PostPreview | nu
 		}
 		const profile = profileMetadata(profileEvent?.pubkey === event.pubkey ? profileEvent : null);
 		const author = profileName(profile);
-		const image = extractPostImage(event);
+		const image = extractPostImageMetadata(event);
 
 		return {
-			title: author ? `Note from ${author}` : 'Note',
-			description: postDescription(event.content, image),
-			image,
+			title: previewTitle(event, author),
+			description: previewDescription(event, image?.url),
+			image: image?.url,
+			imageType: image?.type,
+			imageWidth: image?.width,
+			imageHeight: image?.height,
 			publishedTime: new Date(event.created_at * 1000).toISOString()
 		};
 	} catch {
@@ -358,34 +436,64 @@ function escapeAttribute(value: string) {
 }
 
 export function renderPostPreviewHead(preview: PostPreview | null, pageUrl: URL) {
-	const title = preview?.title || 'Note';
-	const image = preview?.image || new URL('/app-icon-512.png', pageUrl).toString();
-	const card = preview?.image ? 'summary_large_image' : 'summary';
+	const canonicalUrl = new URL(pageUrl);
+	canonicalUrl.search = '';
+	canonicalUrl.hash = '';
+	const title = preview?.title || 'A post on Nuts';
+	const description = preview?.description || 'See the post and join the conversation on Nuts.';
+	const fallbackImage: PostImage = {
+		url: new URL(DEFAULT_PREVIEW_IMAGE_PATH, canonicalUrl).toString(),
+		type: 'image/png',
+		width: 1642,
+		height: 958
+	};
+	const image: PostImage = preview?.image
+		? {
+				url: preview.image,
+				type: preview.imageType || imageTypeFromUrl(preview.image),
+				width: preview.imageWidth,
+				height: preview.imageHeight
+			}
+		: fallbackImage;
 	const tags = [
 		['property', 'og:type', 'article'],
 		['property', 'og:site_name', 'Nuts'],
+		['property', 'og:locale', 'en_US'],
 		['property', 'og:title', title],
-		['property', 'og:url', pageUrl.toString()],
-		['property', 'og:image', image],
+		['property', 'og:description', description],
+		['property', 'og:url', canonicalUrl.toString()],
+		['property', 'og:image', image.url],
+		...(image.url.startsWith('https:') ? [['property', 'og:image:secure_url', image.url]] : []),
+		...(image.type ? [['property', 'og:image:type', image.type]] : []),
+		...(image.width ? [['property', 'og:image:width', String(image.width)]] : []),
+		...(image.height ? [['property', 'og:image:height', String(image.height)]] : []),
 		['property', 'og:image:alt', `Preview of ${title}`],
-		['name', 'twitter:card', card],
+		['name', 'twitter:card', 'summary_large_image'],
 		['name', 'twitter:title', title],
-		['name', 'twitter:image', image]
+		['name', 'twitter:description', description],
+		['name', 'twitter:image', image.url],
+		['name', 'twitter:image:alt', `Preview of ${title}`]
 	];
-	if (preview?.description) {
+	if (preview?.image && preview.image !== fallbackImage.url) {
 		tags.push(
-			['property', 'og:description', preview.description],
-			['name', 'twitter:description', preview.description]
+			['property', 'og:image', fallbackImage.url],
+			['property', 'og:image:secure_url', fallbackImage.url],
+			['property', 'og:image:type', fallbackImage.type!],
+			['property', 'og:image:width', String(fallbackImage.width)],
+			['property', 'og:image:height', String(fallbackImage.height)],
+			['property', 'og:image:alt', 'Nuts, the social network for real communities']
 		);
 	}
 	if (preview?.publishedTime) {
 		tags.push(['property', 'article:published_time', preview.publishedTime]);
 	}
 
-	return tags
+	const metadata = tags
 		.map(
 			([attribute, name, content]) =>
 				`<meta ${attribute}="${escapeAttribute(name)}" content="${escapeAttribute(content)}">`
 		)
 		.join('\n');
+
+	return `<title>${escapeAttribute(title)} | Nuts</title>\n<link rel="canonical" href="${escapeAttribute(canonicalUrl.toString())}">\n<meta name="description" content="${escapeAttribute(description)}">\n${metadata}`;
 }

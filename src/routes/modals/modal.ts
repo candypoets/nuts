@@ -67,7 +67,6 @@ export const pathNeedsLogin = [
 	'repost',
 	'relays',
 	// 'relayinfos',
-	'share',
 	'logout'
 	// 'zoom'
 ];

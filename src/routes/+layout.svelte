@@ -4,6 +4,7 @@
 	import App from 'src/routes/index.svelte';
 	import ImageZoom from 'src/components/ImageZoom.svelte';
 	import LiveStream from 'src/components/LiveStream.svelte';
+	import SharedLinkOnboarding from 'src/components/SharedLinkOnboarding.svelte';
 	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
 	import { dimensions, key, loadStoredTheme } from 'src/controller';
@@ -17,6 +18,7 @@
 		$page.route.id?.startsWith('/home') ||
 		$page.route.id?.startsWith('/explore') ||
 		$page.route.id?.startsWith('/chat');
+	$: inboundSharedPost = $page.url.pathname.startsWith('/explore/nevent:');
 
 	function setViewport() {
 		document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
@@ -76,6 +78,10 @@
 	{/key}
 {:else}
 	<slot />
+{/if}
+
+{#if inboundSharedPost && !$key?.pub}
+	<SharedLinkOnboarding />
 {/if}
 
 {#if $zoomed !== undefined}

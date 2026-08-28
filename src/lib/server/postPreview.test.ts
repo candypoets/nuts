@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	extractPostImage,
+	extractPostImageMetadata,
 	isPublicIpAddress,
 	neventFromPath,
 	postDescription,
@@ -34,6 +35,20 @@ describe('post preview', () => {
 		).toBe('https://example.com/photo.png?size=large');
 	});
 
+	it('carries NIP-92 image type and dimensions into preview metadata', () => {
+		expect(
+			extractPostImageMetadata({
+				content: '',
+				tags: [['imeta', 'url https://cdn.example.com/post.webp', 'm image/webp', 'dim 1200x630']]
+			})
+		).toEqual({
+			url: 'https://cdn.example.com/post.webp',
+			type: 'image/webp',
+			width: 1200,
+			height: 630
+		});
+	});
+
 	it('only extracts nevents from post detail paths', () => {
 		expect(neventFromPath('/explore/nevent:nevent1abc')).toBe('nevent1abc');
 		expect(neventFromPath('/explore/reply:nevent1abc')).toBeNull();
@@ -50,15 +65,39 @@ describe('post preview', () => {
 				title: 'Alice & "Bob"',
 				description: '<hello> and more',
 				image: 'https://cdn.example.com/post.jpg?a=1&b=2',
+				imageType: 'image/jpeg',
+				imageWidth: 1200,
+				imageHeight: 630,
 				publishedTime: '2026-07-27T12:00:00.000Z'
 			},
-			new URL('https://nuts.example/explore/nevent:nevent1abc')
+			new URL('https://nuts.example/explore/nevent:nevent1abc?utm_source=chat')
 		);
 
 		expect(head).toContain('content="Alice &amp; &quot;Bob&quot;"');
 		expect(head).toContain('content="&lt;hello&gt; and more"');
 		expect(head).toContain('name="twitter:card" content="summary_large_image"');
+		expect(head).toContain('property="og:image:type" content="image/jpeg"');
+		expect(head).toContain('property="og:image:width" content="1200"');
+		expect(head).toContain('property="og:image:height" content="630"');
+		expect(head).toContain(
+			'link rel="canonical" href="https://nuts.example/explore/nevent:nevent1abc"'
+		);
+		expect(head).not.toContain('utm_source');
 		expect(head).not.toContain('<hello>');
+	});
+
+	it('uses a stable landscape fallback when relay metadata is unavailable', () => {
+		const head = renderPostPreviewHead(
+			null,
+			new URL('https://nuts.example/explore/nevent:nevent1missing')
+		);
+
+		expect(head).toContain('property="og:title" content="A post on Nuts"');
+		expect(head).toContain('property="og:description"');
+		expect(head).toContain('community-feed-hero-composition.png');
+		expect(head).toContain('property="og:image:width" content="1642"');
+		expect(head).toContain('property="og:image:height" content="958"');
+		expect(head).toContain('name="twitter:card" content="summary_large_image"');
 	});
 
 	it('renders a social note title and its short content', () => {
