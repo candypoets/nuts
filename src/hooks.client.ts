@@ -12,6 +12,7 @@ const proxyUrl = import.meta.env.VITE_NIPWORKER_PROXY_URL;
 // Configure and set the global Nostr manager singleton
 // This MUST run before any nipworker hooks are used
 const manager = createNostrManager({
+	requestBatching: true,
 	...(proxyUrl ? { proxy: { url: proxyUrl } } : {}),
 	...(import.meta.env.VITE_NIPWORKER_LOG_LEVEL
 		? { logLevel: import.meta.env.VITE_NIPWORKER_LOG_LEVEL as 'debug' }
