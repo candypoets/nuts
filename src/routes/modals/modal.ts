@@ -171,12 +171,31 @@ function scheduleCleanup(delay = 1000) {
 }
 
 export function navigateStackPath(path: string) {
-	rememberRootPath(path);
-	stackPath.set(path);
+	let target = path;
+	let pathname = path.split(/[?#]/)[0];
+
+	if (typeof window !== 'undefined') {
+		const targetUrl = new URL(path, window.location.href);
+		const currentUrl = new URL(window.location.href);
+		const targetRoot = targetUrl.pathname.split('/').filter(Boolean)[0];
+		const currentRoot = currentUrl.pathname.split('/').filter(Boolean)[0];
+
+		// Stacked screens are encoded in the pathname. Preserve feed-defining
+		// query parameters while navigating within the same root section.
+		if (!targetUrl.search && targetRoot === currentRoot) {
+			targetUrl.search = currentUrl.search;
+		}
+
+		target = `${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`;
+		pathname = targetUrl.pathname;
+	}
+
+	rememberRootPath(pathname);
+	stackPath.set(pathname);
 	try {
-		pushState(path, {});
+		pushState(target, {});
 	} catch {
-		void goto(path);
+		void goto(target);
 	}
 }
 

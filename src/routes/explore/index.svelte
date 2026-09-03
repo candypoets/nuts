@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { browser } from '$app/environment';
+	import { page } from '$app/stores';
 	import {
 		CounterPipeConfigT,
 		MessageType,
@@ -34,7 +36,7 @@
 	import { isEqual, uniq } from 'lodash';
 
 	import { normalizeURL } from 'nostr-tools/utils';
-	import KindSwitcher from 'src/components/KindSwitcher.svelte';
+	import KindSwitcher, { type KindSwitcherTab } from 'src/components/KindSwitcher.svelte';
 	import EventCard, { type CalendarEventCard } from 'src/components/EventCard.svelte';
 	import Pager from 'src/components/Pager.svelte';
 	import RelaysList from 'src/components/RelaysList.svelte';
@@ -58,21 +60,82 @@
 	import { relaySub, relaySubs, setSubRelays } from 'src/controller/relay';
 	import { CALENDAR_EVENT_KINDS, RSVP_KIND, parseCalendarEvent } from 'src/lib/calendarEvent';
 	import { HIGHLIGHT_KIND } from 'src/lib/highlights';
+	import {
+		exploreFeedHref,
+		exploreFeedKinds,
+		exploreFeedPath,
+		exploreFeedTabFromPath,
+		withExploreRelayParams
+	} from 'src/lib/exploreFeedRoute';
 	import { ago } from 'src/lib/period';
+	import { resolve } from 'src/lib/paths';
 	import { kind6RepostReference } from 'src/lib/repost';
 	import Feed from 'src/routes/explore/feed.svelte';
-	import { go, usePagerNavigation } from 'src/routes/modals/modal';
-	import { onDestroy } from 'svelte';
+	import { navigateStackPath, stackPath } from 'src/routes/modals/modal';
+	import { onDestroy, onMount } from 'svelte';
 	import Notifications from './notifications.svelte';
 	import Avatar from './avatar.svelte';
 
 	export let visible = true;
-	const nav = usePagerNavigation();
 	type ExploreFeedItem = ParsedEvent | RawNostrEvent;
 
 	function openRoot(eventPath: string) {
-		nav ? nav.root(eventPath) : go(eventPath);
+		const feedPath = exploreFeedPath(exploreFeedTabFromPath($stackPath));
+		navigateStackPath(resolve(`${feedPath}/${eventPath}`));
 	}
+
+	function sameFeedKinds(left: FeedKind[], right: FeedKind[]) {
+		return left.length === right.length && left.every((kind, index) => kind === right[index]);
+	}
+
+	function applyExploreFeedKinds(kinds: FeedKind[]) {
+		if (sameFeedKinds($feedKinds, kinds)) return;
+		$feedKinds = kinds;
+		resetFeed();
+		connectionStatus = {};
+		hadFeedRequest = false;
+	}
+
+	function normalizeRelayParams(values: Array<string | null | undefined>): string[] {
+		const normalized: string[] = [];
+		for (const value of values) {
+			if (!value) continue;
+			try {
+				const url = new URL(value);
+				if (url.protocol !== 'wss:' && url.protocol !== 'ws:') continue;
+				const relay = normalizeURL(value);
+				if (typeof relay === 'string' && !normalized.includes(relay)) normalized.push(relay);
+			} catch {
+				// Ignore malformed relay parameters and fall back to the configured feed relays.
+			}
+		}
+		return normalized;
+	}
+
+	function replaceExploreRelays(nextRelays: string[]) {
+		if (!browser || !onExploreRoute) return;
+		const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+		const next = withExploreRelayParams(current, nextRelays);
+		if (next !== current) window.history.replaceState(window.history.state, '', next);
+	}
+
+	function syncExploreRelayUrl(
+		pageHref: string,
+		nextRelays: string[],
+		isMounted: boolean,
+		isExploreRoute: boolean
+	) {
+		// pageHref makes this rerun after SvelteKit navigation. The visible URL is
+		// read from window because relay-selector updates intentionally avoid a
+		// second navigation while the current feed stays mounted.
+		if (!pageHref || !isMounted || !browser || !isExploreRoute || !nextRelays.length) return;
+		replaceExploreRelays(nextRelays);
+	}
+
+	let mounted = false;
+	onMount(() => {
+		mounted = true;
+	});
 
 	let connectionStatus: { [url: string]: ConnectionStatus } = {};
 
@@ -124,6 +187,10 @@
 		: [];
 
 	$: following = uniq(follows);
+	$: contactListResolved = kind3Resolved || Boolean($kind3);
+	$: contactCountLabel = contactListResolved
+		? `${following.length} ${following.length === 1 ? 'contact' : 'contacts'}`
+		: 'Loading contacts';
 	$: if (!$key?.pub && $exploreAudienceMode !== 'all') {
 		$exploreAudienceMode = 'all';
 	}
@@ -132,7 +199,7 @@
 	$: relaySelectionSubId = 'feed' + $exploreAudienceMode;
 	$: followingKey = hashString(following.join(','));
 	$: contactFeedKey = useContactsFeed
-		? (kind3Resolved ? 'kind3-ready' : 'kind3-pending') + followingKey
+		? (contactListResolved ? 'kind3-ready' : 'kind3-pending') + followingKey
 		: '';
 
 	$: subId = 'feed' + $exploreAudienceMode + contactFeedKey + tags.join(',') + $feedKinds.join(',');
@@ -148,27 +215,31 @@
 	let lastSubId: string | undefined;
 	let hadFeedRequest = false;
 
+	const exploreRootPath = resolve('/explore');
 	let relayOverride: string[] | undefined = undefined;
 	let relays: string[] = [];
-	$: accountRelays = $relayDirectoryUrls.length ? $relayDirectoryUrls : $readRelays;
+	$: onExploreRoute =
+		$stackPath === exploreRootPath || $stackPath.startsWith(`${exploreRootPath}/`);
+	$: relayQueryValues = onExploreRoute ? $page.url.searchParams.getAll('relay') : [];
+	$: urlRelays = normalizeRelayParams(relayQueryValues);
+	$: accountRelays = normalizeRelayParams(
+		$relayDirectoryUrls.length ? $relayDirectoryUrls : $readRelays
+	);
 	$: selectedSubRelays = $relaySubs.get(relaySelectionSubId);
 	$: persistedRelays = $exploreRelaySelections[$exploreAudienceMode];
 	$: relays =
 		relayOverride ??
+		(urlRelays.length ? urlRelays : undefined) ??
 		selectedSubRelays ??
 		(persistedRelays.length ? persistedRelays : accountRelays) ??
 		[];
 
 	// Filter out undefined values from relays
-	$: normalizedRelays = relays.filter((r): r is string => typeof r === 'string').map(normalizeURL);
+	$: normalizedRelays = normalizeRelayParams(relays);
 
 	function handleSubRelays(subRelays: string[] | undefined) {
-		const nextRelays = subRelays
-			?.filter((r): r is string => typeof r === 'string')
-			.map(normalizeURL);
-		const currentRelays = (relays ?? [])
-			.filter((r): r is string => typeof r === 'string')
-			.map(normalizeURL);
+		const nextRelays = subRelays ? normalizeRelayParams(subRelays) : undefined;
+		const currentRelays = normalizeRelayParams(relays ?? []);
 
 		if (nextRelays && !isEqual(currentRelays, nextRelays)) {
 			relayOverride = nextRelays;
@@ -176,6 +247,7 @@
 				...$exploreRelaySelections,
 				[$exploreAudienceMode]: nextRelays
 			};
+			replaceExploreRelays(nextRelays);
 			resetFeed();
 			hadFeedRequest = false;
 			connectionStatus = {};
@@ -183,14 +255,16 @@
 	}
 
 	// Track current subId for cleanup
-	let currentRelaySubId: string | undefined = undefined;
+	let currentRelaySourceKey: string | undefined = undefined;
 	let relaySubUnsubscribe: (() => void) | undefined;
 
-	$: if (relaySelectionSubId && relaySelectionSubId !== currentRelaySubId) {
+	$: relaySourceKey = `${relaySelectionSubId}:${urlRelays.join('|')}`;
+	$: if (relaySelectionSubId && relaySourceKey !== currentRelaySourceKey) {
 		// Clean up previous subscription before creating new one
 		relaySubUnsubscribe?.();
-		relayOverride = undefined;
-		currentRelaySubId = relaySelectionSubId;
+		relayOverride = urlRelays.length ? urlRelays : undefined;
+		if (urlRelays.length) setSubRelays(relaySelectionSubId, urlRelays);
+		currentRelaySourceKey = relaySourceKey;
 		relaySubUnsubscribe = relaySub(relaySelectionSubId).subscribe((subRelays) => {
 			handleSubRelays(subRelays);
 		});
@@ -199,10 +273,20 @@
 	// Default relay for anonymous users
 	const DEFAULT_FEED_RELAYS = ['wss://nostr.wine'];
 	$: hasSelectedRelays = Boolean(
-		relayOverride?.length || selectedSubRelays?.length || persistedRelays.length
+		urlRelays.length || relayOverride?.length || selectedSubRelays?.length || persistedRelays.length
 	);
 	$: feedRelays = $key?.pub || hasSelectedRelays ? normalizedRelays : DEFAULT_FEED_RELAYS;
 	$: feedRelayKey = feedRelays.join('|');
+	$: exploreKindHrefs = {
+		notes: exploreFeedHref('notes', feedRelays),
+		media: exploreFeedHref('media', feedRelays),
+		events: exploreFeedHref('events', feedRelays),
+		highlights: exploreFeedHref('highlights', feedRelays),
+		polls: exploreFeedHref('polls', feedRelays),
+		articles: exploreFeedHref('articles', feedRelays)
+	};
+	$: currentExploreHref = `${$stackPath}${$page.url.search}${$page.url.hash}`;
+	$: syncExploreRelayUrl(currentExploreHref, feedRelays, mounted, onExploreRoute);
 	let lastConnectionRelayKey = '';
 	$: if (feedRelayKey !== lastConnectionRelayKey) {
 		lastConnectionRelayKey = feedRelayKey;
@@ -330,7 +414,7 @@
 		// worker view intentionally does not carry generic event content.
 		if (kindsToRequest.length === 0) return [];
 
-		if (useContactsFeed && (!kind3Resolved || following.length === 0)) {
+		if (useContactsFeed && (!contactListResolved || following.length === 0)) {
 			return [];
 		}
 
@@ -361,7 +445,7 @@
 	}
 
 	function buildHighlightRequest(): RequestObject[] {
-		if (useContactsFeed && (!kind3Resolved || following.length === 0)) return [];
+		if (useContactsFeed && (!contactListResolved || following.length === 0)) return [];
 
 		const authors = useContactsFeed ? following : undefined;
 		return [
@@ -724,8 +808,14 @@
 		connectionStatus = {};
 	}
 
-	function selectExploreKindTab(event: CustomEvent<{ kinds: FeedKind[] }>) {
-		$feedKinds = event.detail.kinds;
+	function selectExploreKindTab(event: CustomEvent<{ kinds: FeedKind[]; tab: KindSwitcherTab }>) {
+		navigateStackPath(resolve(exploreFeedHref(event.detail.tab.id, feedRelays)));
+		applyExploreFeedKinds(event.detail.kinds);
+	}
+
+	$: routeFeedKinds = exploreFeedKinds(exploreFeedTabFromPath($stackPath));
+	$: if (!sameFeedKinds($feedKinds, routeFeedKinds)) {
+		$feedKinds = routeFeedKinds;
 		resetFeed();
 		connectionStatus = {};
 		hadFeedRequest = false;
@@ -746,6 +836,34 @@
 		bind:start
 		bind:end
 	>
+		<svelte:fragment slot="empty-content">
+			{#if useContactsFeed && contactListResolved && following.length === 0}
+				<div
+					class="mx-auto mt-6 w-[calc(100%_-_1rem)] max-w-lg rounded-2xl border border-warning/35 bg-warning/10 px-5 py-6 text-center shadow-widget"
+					role="status"
+					aria-live="polite"
+				>
+					<Icon icon="mdi:account-group-outline" class="mx-auto h-9 w-9 text-warning" />
+					<h2 class="mt-2 text-lg font-bold">No contacts yet</h2>
+					<p class="mt-1 text-sm text-base-content/70">
+						Follow people from the All feed and their posts will appear here.
+					</p>
+					<button type="button" class="btn btn-sm btn-outline mt-4" on:click={toggleAudienceMode}>
+						Browse all posts
+					</button>
+				</div>
+			{:else if useContactsFeed && contactListResolved && following.length > 0 && !loading && !refreshing && !highlightLoading}
+				<div
+					class="mx-auto mt-6 w-[calc(100%_-_1rem)] max-w-lg rounded-2xl border border-base-content/15 bg-base-300/85 px-5 py-6 text-center"
+				>
+					<Icon icon="mdi:account-clock-outline" class="mx-auto h-8 w-8 text-base-content/60" />
+					<h2 class="mt-2 font-bold">No recent contact posts</h2>
+					<p class="mt-1 text-sm text-base-content/65">
+						Your list has {contactCountLabel}, but none have posted in this feed yet.
+					</p>
+				</div>
+			{/if}
+		</svelte:fragment>
 		<svelte:fragment slot="sticky-header">
 			<div
 				class="explore-sticky-header relative bg-base-300 bg-opacity-80 md:border-b border-base-200 pt-safe"
@@ -759,6 +877,14 @@
 							title="Toggle Explore feed audience"
 						>
 							{activeAudienceLabel}
+							{#if useContactsFeed}
+								<span
+									class="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-base-200 px-1.5 text-xs font-bold text-base-content/75"
+									aria-label={contactCountLabel}
+								>
+									{contactListResolved ? following.length : '…'}
+								</span>
+							{/if}
 							<Icon icon="mdi:chevron-down" class="text-2xl" />
 						</button>
 					</div>
@@ -809,6 +935,14 @@
 							title="Toggle Explore feed audience"
 						>
 							{activeAudienceLabel}
+							{#if useContactsFeed}
+								<span
+									class="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-base-200 px-1.5 text-xs font-bold text-base-content/75"
+									aria-label={contactCountLabel}
+								>
+									{contactListResolved ? following.length : '…'}
+								</span>
+							{/if}
 							<Icon icon="mdi:chevron-down" class="text-2xl" />
 						</button>
 					</div>
@@ -838,7 +972,6 @@
 						subId={relaySelectionSubId}
 						relays={feedRelays}
 						{connectionStatus}
-						rootNavigation
 					/>
 				</div>
 				{#if upcomingEvents.length}
@@ -862,6 +995,7 @@
 						selectedKinds={$feedKinds}
 						ariaLabel="Explore content filters"
 						includeHighlights
+						hrefByTab={exploreKindHrefs}
 						on:select={selectExploreKindTab}
 					/>
 				</div>

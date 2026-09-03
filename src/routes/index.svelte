@@ -7,8 +7,7 @@
 		getManager,
 		type ParsedEvent,
 		ParsedData,
-		WorkerMessage,
-		type RequestObject
+		WorkerMessage
 	} from '@candypoets/nipworker';
 	import { go } from 'src/routes/modals/modal';
 	import { useSubscription } from '@candypoets/nipworker/hooks';
@@ -63,6 +62,7 @@
 		relayUrlsFromRelaySet
 	} from 'src/lib/adminRelays';
 	import { DEFAULT_RELAYS, INDEXER_RELAYS } from 'src/lib/env';
+	import { isExploreFeedPath } from 'src/lib/exploreFeedRoute';
 	import Landing from 'src/routes/+page.svelte';
 	import Chat from 'src/routes/chat/index.svelte';
 	import Explore from 'src/routes/explore/index.svelte';
@@ -116,15 +116,15 @@
 				{
 					kinds: [10019, 10002],
 					authors: [$key.pub],
-					relays: ['wss://relay.damus.io', 'wss://relay.nostr.band', 'wss://purplepag.es']
+					relays: relayDirectoryRelays
 					// noOptimize: true
 				},
 				{
-					kinds: [3, 0], // 0 and 3 are here if found immdiately, but refetched after
+					kinds: [0],
 					authors: [$key.pub],
-					relays: ['wss://relay.damus.io', 'wss://relay.nostr.band', 'wss://purplepag.es']
+					relays: ['wss://relay.damus.io', 'wss://relay.nostr.band', 'wss://purplepag.es'],
+					cacheFirst: true
 					// noOptimize: true,
-					// cacheFirst: true
 				},
 				{
 					kinds: [10000], // mute list
@@ -297,37 +297,142 @@
 		}
 	}
 
-	$: profileSub =
-		$kind10002 &&
-		$kind3 &&
-		useSubscription(
-			'profile',
+	let profileSub: (() => void) | undefined;
+	let profileSubKey = '';
+	let currentKind3BootstrapSub: (() => void) | undefined;
+	let currentKind3BootstrapPubkey = '';
+	let currentKind3WriteSub: (() => void) | undefined;
+	let currentKind3WriteSubKey = '';
+	let contactProfilesSub: (() => void) | undefined;
+	let contactProfilesSubKey = '';
+
+	$: profileWriteRelays = $kind10002
+		? fbArray(asKind10002($kind10002) as Kind10002Parsed, 'relays')
+				.filter((relay) => relay.write() && typeof relay.url() === 'string')
+				.map((relay) => relay.url() as string)
+		: [];
+
+	$: if (($key?.pub || '') !== currentKind3BootstrapPubkey) {
+		currentKind3BootstrapSub?.();
+		currentKind3WriteSub?.();
+		currentKind3BootstrapSub = undefined;
+		currentKind3WriteSub = undefined;
+		currentKind3WriteSubKey = '';
+		currentKind3BootstrapPubkey = $key?.pub || '';
+
+		if (currentKind3BootstrapPubkey) {
+			currentKind3BootstrapSub = useSubscription(
+				`current_kind3_bootstrap_${currentKind3BootstrapPubkey}`,
+				[
+					{
+						kinds: [3],
+						authors: [currentKind3BootstrapPubkey],
+						limit: 1,
+						relays: relayDirectoryRelays,
+						noOptimize: true
+					}
+				],
+				handleProfileEvents,
+				{ bytesPerEvent: 128 * 1024, closeOnEose: false }
+			);
+		}
+	}
+
+	$: nextCurrentKind3WriteSubKey =
+		$key?.pub && $kind10002?.pubkey() === $key.pub && profileWriteRelays.length
+			? `current_kind3_write_${$key.pub}_${$kind10002.id()}`
+			: '';
+
+	$: if (
+		nextCurrentKind3WriteSubKey &&
+		nextCurrentKind3WriteSubKey !== currentKind3WriteSubKey &&
+		$key?.pub
+	) {
+		currentKind3BootstrapSub?.();
+		currentKind3BootstrapSub = undefined;
+		currentKind3WriteSub?.();
+		currentKind3WriteSubKey = nextCurrentKind3WriteSubKey;
+		currentKind3WriteSub = useSubscription(
+			nextCurrentKind3WriteSubKey,
 			[
-				$kind10002 && {
-					kinds: [0, 3],
-					authors: [$key?.pub],
-					relays: fbArray(asKind10002($kind10002) as Kind10002Parsed, 'relays')
-						?.filter((r) => r.write())
-						.map((r) => r.url()),
-					noOptimize: true
-				},
-				$kind10002 && {
-					kinds: [10000], // mute list from user's write relays
-					authors: [$key?.pub],
-					relays: fbArray(asKind10002($kind10002) as Kind10002Parsed, 'relays')
-						?.filter((r) => r.write())
-						.map((r) => r.url()),
-					noOptimize: true
-				},
-				$kind3 && {
-					kinds: [10002],
-					authors: fbArray(asKind3($kind3) as Kind3Parsed, 'contacts')?.map((p) => p.pubkey()),
-					relays: ['wss://relay.nostr.band', 'wss://purplepag.es'],
+				{
+					kinds: [3],
+					authors: [$key.pub],
+					limit: 1,
+					relays: profileWriteRelays,
 					noOptimize: true
 				}
-			].filter((r) => !!r) as RequestObject[],
-			handleProfileEvents
+			],
+			handleProfileEvents,
+			{ bytesPerEvent: 128 * 1024, closeOnEose: false }
 		);
+	}
+
+	$: nextProfileSubKey =
+		$key?.pub && $kind10002 && profileWriteRelays.length
+			? `profile_${$key.pub}_${$kind10002.id()}`
+			: '';
+
+	$: if (nextProfileSubKey !== profileSubKey) {
+		profileSub?.();
+		profileSub = undefined;
+		profileSubKey = nextProfileSubKey;
+
+		if (nextProfileSubKey && $key?.pub) {
+			profileSub = useSubscription(
+				nextProfileSubKey,
+				[
+					{
+						kinds: [0],
+						authors: [$key.pub],
+						relays: profileWriteRelays,
+						cacheFirst: true,
+						noOptimize: true
+					},
+					{
+						kinds: [10000],
+						authors: [$key.pub],
+						relays: profileWriteRelays,
+						cacheFirst: true,
+						noOptimize: true
+					}
+				],
+				handleProfileEvents
+			);
+		}
+	}
+
+	$: contactProfileAuthors = $kind3
+		? fbArray(asKind3($kind3) as Kind3Parsed, 'contacts')
+				.map((contact) => contact.pubkey())
+				.filter((pubkey): pubkey is string => typeof pubkey === 'string')
+		: [];
+	$: nextContactProfilesSubKey =
+		$key?.pub && $kind3 && contactProfileAuthors.length
+			? `contact_profiles_${$key.pub}_${$kind3.id()}`
+			: '';
+
+	$: if (nextContactProfilesSubKey !== contactProfilesSubKey) {
+		contactProfilesSub?.();
+		contactProfilesSub = undefined;
+		contactProfilesSubKey = nextContactProfilesSubKey;
+
+		if (nextContactProfilesSubKey) {
+			contactProfilesSub = useSubscription(
+				nextContactProfilesSubKey,
+				[
+					{
+						kinds: [10002],
+						authors: contactProfileAuthors,
+						relays: ['wss://relay.nostr.band', 'wss://purplepag.es'],
+						cacheFirst: true,
+						noOptimize: true
+					}
+				],
+				handleProfileEvents
+			);
+		}
+	}
 
 	function handleProfileEvents(message: WorkerMessage) {
 		const parsedEvent = isParsedEvent(message);
@@ -338,7 +443,9 @@
 					break;
 
 				case ParsedData.Kind3Parsed:
+					if (parsedEvent.pubkey() !== $key?.pub) break;
 					if (parsedEvent.createdAt() > ($kind3?.createdAt() || 0)) $kind3 = parsedEvent;
+					kind3Ready.resolve(parsedEvent);
 					break;
 
 				case ParsedData.ListParsed:
@@ -422,7 +529,10 @@
 		return () => {
 			window.removeEventListener('keydown', handleKeydown, escapeKeyListenerOptions);
 			// relaySub && relaySub();
-			profileSub && profileSub();
+			profileSub?.();
+			currentKind3BootstrapSub?.();
+			currentKind3WriteSub?.();
+			contactProfilesSub?.();
 			relayDirectoryFeedSub?.();
 			relayDirectorySetsSub?.();
 
@@ -437,7 +547,8 @@
 	$: pathnameWithoutBase =
 		base && $stackPath.startsWith(base) ? $stackPath.slice(base.length) || '/' : $stackPath;
 	$: normalizedPathname = pathnameWithoutBase.replace(/\/+$/, '') || '/';
-	$: isRootFeedPath = ['/home', '/explore', '/chat'].includes(normalizedPathname);
+	$: isRootFeedPath =
+		['/home', '/chat'].includes(normalizedPathname) || isExploreFeedPath(normalizedPathname);
 
 	// Re-initialize carousel when it becomes visible (navigating from homepage)
 	$: if (!homepage && scroller && !carouselInitialized) {
@@ -513,11 +624,13 @@
 				return;
 			}
 
-			const pathname = $stackPath;
-			// Split path and filter out empty strings (leading/trailing slashes)
-			const pathParts = pathname.split('/').filter(Boolean);
+			const pathname =
+				base && $stackPath.startsWith(base) ? $stackPath.slice(base.length) || '/' : $stackPath;
+			const normalizedPath = pathname.replace(/\/+$/, '') || '/';
+			const isRootPath =
+				['/home', '/chat'].includes(normalizedPath) || isExploreFeedPath(normalizedPath);
 
-			if (pathParts.length >= 2) {
+			if (!isRootPath) {
 				// On a modal/sub path, capture Escape before Safari treats it as a fullscreen exit.
 				e.preventDefault();
 				e.stopPropagation();
@@ -623,7 +736,7 @@
 
 <div
 	class="absolute w-full z-10 unsafe-padding-top margin-auto"
-	class:opacity-0={!($isMobile && $page.url.pathname.split('/').length < 3)}
+	class:opacity-0={!($isMobile && isRootFeedPath)}
 >
 	<!-- Empty container; CarouselAnimator will populate bars -->
 	<div class="flex space-x-2 w-1/2 m-auto" bind:this={progressContainer}></div>

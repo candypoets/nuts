@@ -17,10 +17,12 @@
 
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
+	import { resolve } from 'src/lib/paths';
 
 	export let selectedKinds: FeedKind[] = [];
 	export let ariaLabel = 'Content filters';
 	export let includeHighlights = false;
+	export let hrefByTab: Partial<Record<KindSwitcherTabId, string>> | undefined = undefined;
 	export let tabs: KindSwitcherTab[] = [
 		{ id: 'notes', label: 'Notes' },
 		{ id: 'media', label: 'Media', kinds: [20, 22] },
@@ -50,8 +52,16 @@
 		dispatch('select', { kinds: localSelectedKinds, tab });
 	}
 
+	function selectLink(event: MouseEvent, tab: KindSwitcherTab) {
+		event.stopPropagation();
+		if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
+			return;
+		event.preventDefault();
+		selectTab(tab);
+	}
+
 	function kindTabClass(selected: boolean) {
-		return `relative h-10 min-w-20 flex-1 whitespace-nowrap px-3 pb-2 pt-1 text-base font-semibold border-b-2 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 hover:text-base-content active:translate-y-px ${
+		return `relative h-10 min-w-20 flex-1 whitespace-nowrap px-3 pb-2 pt-1 text-center text-base font-semibold border-b-2 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 hover:text-base-content active:translate-y-px ${
 			selected ? 'border-primary text-base-content' : 'border-transparent text-base-content/60'
 		}`;
 	}
@@ -62,14 +72,26 @@
 		{@const selected = tab.kinds
 			? sameKinds(localSelectedKinds, tab.kinds)
 			: localSelectedKinds.length === 0}
-		<button
-			type="button"
-			class={kindTabClass(selected)}
-			on:click|stopPropagation={() => selectTab(tab)}
-			aria-pressed={selected}
-		>
-			{tab.label}
-		</button>
+		{@const href = hrefByTab?.[tab.id]}
+		{#if href}
+			<a
+				href={resolve(href)}
+				class={kindTabClass(selected)}
+				on:click={(event) => selectLink(event, tab)}
+				aria-current={selected ? 'page' : undefined}
+			>
+				{tab.label}
+			</a>
+		{:else}
+			<button
+				type="button"
+				class={kindTabClass(selected)}
+				on:click|stopPropagation={() => selectTab(tab)}
+				aria-pressed={selected}
+			>
+				{tab.label}
+			</button>
+		{/if}
 	{/each}
 </div>
 
@@ -78,15 +100,18 @@
 		gap: 0.25rem;
 	}
 
-	:global(html[data-theme='nuts']) .kind-switcher button {
+	:global(html[data-theme='nuts']) .kind-switcher button,
+	:global(html[data-theme='nuts']) .kind-switcher a {
 		border-radius: 0.5rem 0.5rem 0 0;
 	}
 
-	:global(html[data-theme='nuts']) .kind-switcher button:hover {
+	:global(html[data-theme='nuts']) .kind-switcher button:hover,
+	:global(html[data-theme='nuts']) .kind-switcher a:hover {
 		background: rgba(242, 235, 221, 0.045);
 	}
 
-	:global(html[data-theme='nuts']) .kind-switcher button[aria-pressed='true'] {
+	:global(html[data-theme='nuts']) .kind-switcher button[aria-pressed='true'],
+	:global(html[data-theme='nuts']) .kind-switcher a[aria-current='page'] {
 		background: linear-gradient(to top, rgba(223, 114, 92, 0.12), transparent 80%);
 		color: #f2ebdd;
 	}
