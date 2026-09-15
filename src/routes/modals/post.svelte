@@ -615,6 +615,44 @@
 						{/if}
 					</div>
 				{:else}
+					{#if !reply && !repost}
+						<div class="mb-4">
+							<div
+								class="grid gap-3 rounded-lg border border-primary-content/20 bg-base-200/80 px-4 py-3 text-sm backdrop-blur-sm"
+							>
+								<div class="flex items-center justify-between gap-3">
+									<div class="min-w-0">
+										<p class="text-xs font-semibold text-base-content/50">Publishing to</p>
+										<p class="truncate font-bold text-base-content">{destinationLabel}</p>
+									</div>
+									<button
+										type="button"
+										class="rounded-md px-2 py-1 text-xs font-semibold text-blue-500 transition hover:bg-blue-500/10"
+										on:click={() => (step = 'setup')}
+									>
+										Change
+									</button>
+								</div>
+								<div class="grid grid-cols-4 gap-1">
+									{#each [{ id: 'note', label: 'Note', icon: 'mdi:text-box-outline' }, { id: 'media', label: 'Media', icon: 'mdi:image-multiple' }, { id: 'event', label: 'Event', icon: 'mdi:calendar-outline' }, { id: 'poll', label: 'Poll', icon: 'mdi:poll' }] as mode (mode.id)}
+										<button
+											type="button"
+											class="flex min-w-0 items-center justify-center gap-1 rounded-md px-2 py-2 text-xs font-bold transition {composeMode ===
+											mode.id
+												? 'bg-blue-500 text-highlight shadow-sm'
+												: 'bg-base-300 text-base-content/65 hover:bg-base-100'}"
+											aria-pressed={composeMode === mode.id}
+											on:click={() => selectComposeMode(mode.id)}
+										>
+											<Icon icon={mode.icon} class="h-4 w-4 shrink-0" />
+											<span class="truncate">{mode.label}</span>
+										</button>
+									{/each}
+								</div>
+							</div>
+						</div>
+					{/if}
+
 					{#if noteId && note}
 						<Note
 							noteId={hexId}
@@ -874,41 +912,6 @@
 					</div>
 
 					{#if !reply && !repost}
-						<div class="compose-kind-switcher-wrap">
-							<div
-								class="grid gap-3 border-t border-primary-content/20 bg-base-200/80 px-4 py-3 text-sm backdrop-blur-sm"
-							>
-								<div class="flex items-center justify-between gap-3">
-									<div class="min-w-0">
-										<p class="text-xs font-semibold text-base-content/50">Publishing to</p>
-										<p class="truncate font-bold text-base-content">{destinationLabel}</p>
-									</div>
-									<button
-										type="button"
-										class="rounded-md px-2 py-1 text-xs font-semibold text-blue-500 transition hover:bg-blue-500/10"
-										on:click={() => (step = 'setup')}
-									>
-										Change
-									</button>
-								</div>
-								<div class="grid grid-cols-4 gap-1">
-									{#each [{ id: 'note', label: 'Note', icon: 'mdi:text-box-outline' }, { id: 'media', label: 'Media', icon: 'mdi:image-multiple' }, { id: 'event', label: 'Event', icon: 'mdi:calendar-outline' }, { id: 'poll', label: 'Poll', icon: 'mdi:poll' }] as mode (mode.id)}
-										<button
-											type="button"
-											class="flex min-w-0 items-center justify-center gap-1 rounded-md px-2 py-2 text-xs font-bold transition {composeMode ===
-											mode.id
-												? 'bg-blue-500 text-highlight shadow-sm'
-												: 'bg-base-300 text-base-content/65 hover:bg-base-100'}"
-											on:click={() => selectComposeMode(mode.id)}
-										>
-											<Icon icon={mode.icon} class="h-4 w-4 shrink-0" />
-											<span class="truncate">{mode.label}</span>
-										</button>
-									{/each}
-								</div>
-							</div>
-						</div>
-
 						{#if selectedKind === 'event' && !selectedRelay}
 							<div
 								class="mt-3 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-base-content"
@@ -943,14 +946,6 @@
 		width: 100%;
 		min-height: 120px;
 		justify-content: stretch;
-	}
-
-	.compose-kind-switcher-wrap {
-		position: relative;
-		left: 50%;
-		width: 100vw;
-		margin-left: -50vw;
-		margin-top: 0.75rem;
 	}
 
 	:global(.media-post-editor img) {
