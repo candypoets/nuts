@@ -193,6 +193,23 @@
 	</section>
 
 	<NeighborhoodStory onCreate={openApp} />
+
+	<footer
+		class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-5 border-t border-[#15372c]/20 px-6 py-10 text-sm text-[#15372c]"
+	>
+		<p>Made for belonging. Operated by DUCHENE SARL.</p>
+		<nav aria-label="Legal and support" class="flex flex-wrap gap-x-6 gap-y-3">
+			<a href={resolve('/legal/privacy')} data-sveltekit-reload class="underline underline-offset-4"
+				>Privacy</a
+			>
+			<a href={resolve('/legal/terms')} data-sveltekit-reload class="underline underline-offset-4"
+				>Terms &amp; community rules</a
+			>
+			<a href={resolve('/legal/support')} data-sveltekit-reload class="underline underline-offset-4"
+				>Support</a
+			>
+		</nav>
+	</footer>
 </main>
 
 <style>

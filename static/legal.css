@@ -1,0 +1,276 @@
+@font-face {
+	font-family: 'Suisse';
+	src: url('/suisse/13ab13418f633c1b0516fed6e30bedbc.woff2') format('woff2');
+	font-display: swap;
+}
+
+:root {
+	color-scheme: light;
+	font-family: 'Suisse', system-ui, sans-serif;
+	color: #15372c;
+	background: #f2ebdd;
+	font-synthesis: none;
+}
+
+* {
+	box-sizing: border-box;
+}
+body {
+	margin: 0;
+	font-size: 17px;
+	line-height: 1.7;
+}
+a {
+	color: inherit;
+	text-underline-offset: 0.2em;
+	overflow-wrap: anywhere;
+}
+a:hover {
+	text-decoration-thickness: 2px;
+}
+a:focus-visible {
+	outline: 3px solid #15372c;
+	outline-offset: 5px;
+	border-radius: 2px;
+}
+p {
+	margin: 0 0 1.2rem;
+}
+h1,
+h2 {
+	line-height: 1.12;
+	letter-spacing: -0.035em;
+	text-wrap: balance;
+}
+h1 {
+	font-size: clamp(2.7rem, 7vw, 5.8rem);
+	max-width: 960px;
+	margin: 1rem 0 1.5rem;
+}
+h2 {
+	font-size: clamp(1.5rem, 3vw, 2rem);
+	margin: 0 0 1.25rem;
+	scroll-margin-top: 2rem;
+}
+.site-header,
+main,
+footer {
+	width: min(1120px, calc(100% - 48px));
+	margin-inline: auto;
+}
+.site-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 24px;
+	padding-block: 28px;
+	border-bottom: 1px solid #15372c33;
+}
+.brand {
+	display: inline-flex;
+	gap: 8px;
+	align-items: center;
+	font-size: 1.5rem;
+	font-weight: 800;
+	text-decoration: none;
+}
+nav {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px 24px;
+}
+nav a {
+	padding-block: 8px;
+}
+nav a[aria-current='page'] {
+	font-weight: 800;
+	text-decoration-thickness: 3px;
+}
+.open-app {
+	border: 2px solid #15372c;
+	border-radius: 999px;
+	padding: 9px 18px;
+	text-decoration: none;
+	font-weight: 700;
+	white-space: nowrap;
+}
+.open-app:hover {
+	background: #e7b638;
+}
+.hero {
+	padding: 64px 0 28px;
+}
+.eyebrow {
+	text-transform: uppercase;
+	letter-spacing: 0.14em;
+	font-size: 0.75rem;
+	font-weight: 800;
+}
+.intro {
+	max-width: 650px;
+	font-size: 1.25rem;
+}
+.meta {
+	color: #486052;
+	font-size: 0.88rem;
+}
+.draft {
+	background: #f9e7b3;
+	border-left: 5px solid #8c6310;
+	padding: 20px 24px;
+	margin-bottom: 56px;
+}
+.draft p {
+	margin: 8px 0 0;
+}
+.document-layout {
+	display: grid;
+	grid-template-columns: 240px minmax(0, 1fr);
+	gap: 64px;
+}
+.contents {
+	display: flex;
+	flex-direction: column;
+	align-self: start;
+	gap: 4px;
+	font-size: 0.9rem;
+}
+.contents p {
+	font-weight: 800;
+	margin: 0 0 12px;
+}
+.contents a {
+	line-height: 1.45;
+	padding-block: 6px;
+}
+article {
+	min-width: 0;
+}
+article section {
+	margin-bottom: 44px;
+}
+article p {
+	overflow-wrap: anywhere;
+}
+.contact {
+	background: #e7b638;
+	border: 2px solid #15372c;
+	box-shadow: 7px 7px 0 #15372c;
+	padding: 36px;
+	margin: 32px 8px 72px 0;
+}
+.contact h2 {
+	font-size: 2.75rem;
+}
+.contact-grid {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 16px;
+	margin-top: 24px;
+}
+.contact-card {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 18px;
+	border: 1px solid #15372c;
+	border-radius: 8px;
+	text-decoration: none;
+}
+.contact-card:hover {
+	background: #f2ebdd;
+}
+.contact-card span {
+	font-size: 0.9rem;
+}
+footer {
+	border-top: 1px solid #15372c33;
+	padding: 28px 0 max(40px, env(safe-area-inset-bottom));
+}
+footer p {
+	margin: 12px 0;
+	font-size: 0.9rem;
+}
+.skip-link {
+	position: absolute;
+	left: 24px;
+	top: -100px;
+	z-index: 2;
+	background: #f2ebdd;
+	padding: 12px;
+}
+.skip-link:focus {
+	top: 12px;
+}
+
+@media (max-width: 760px) {
+	.site-header {
+		flex-wrap: wrap;
+		gap: 16px;
+	}
+	.site-header nav {
+		order: 3;
+		width: 100%;
+		gap: 8px 20px;
+	}
+	.hero {
+		padding-top: 40px;
+	}
+	.document-layout {
+		grid-template-columns: minmax(0, 1fr);
+		gap: 36px;
+	}
+	.contents {
+		padding-bottom: 24px;
+		border-bottom: 1px solid #15372c33;
+	}
+	.draft {
+		margin-bottom: 32px;
+	}
+	.contact {
+		padding: 24px;
+	}
+	.contact-grid {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
+
+@media (max-width: 380px) {
+	.site-header,
+	main,
+	footer {
+		width: calc(100% - 32px);
+	}
+	.open-app {
+		padding-inline: 12px;
+		font-size: 0.9rem;
+	}
+}
+
+@media print {
+	.site-header,
+	.contents,
+	.contact,
+	footer,
+	.skip-link {
+		display: none;
+	}
+	main {
+		width: 100%;
+	}
+	.document-layout {
+		display: block;
+	}
+	.hero {
+		padding-top: 0;
+	}
+	.draft {
+		break-inside: avoid;
+	}
+}
+
+footer address {
+	font-style: normal;
+	margin-bottom: 16px;
+	font-size: 0.9rem;
+}
