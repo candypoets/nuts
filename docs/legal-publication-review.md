@@ -83,12 +83,12 @@ Live checks during this task returned **404 for all three URLs**. The routes are
 - `src/routes/legal/[document]/+server.ts`: unauthenticated complete HTML endpoints, unknown-page 404 and legacy `.html` redirects.
 - `src/lib/server/legalContent.ts`: adapted document content and explicit pending-review state.
 - `src/lib/server/legalPage.ts` and `static/legal.css`: shared accessible layout, local assets, canonical URLs, email subjects and restrictive response headers.
-- Landing footer and both desktop/mobile app navigation link to the legal/support pages with full-document navigation.
+- Landing footer and the active profile menu link to the legal/support pages with full-document navigation.
 - `src/lib/server/legalPage.test.ts`: 13 passing tests for complete HTML, contact subjects, navigation, draft markers, route handling and redirects.
 - Production build: **passed** in an isolated checkout of `300388e` plus only this task’s changes, using the installed dependency tree. Existing unrelated compiler warnings remain. No unrelated workspace changes were included in that build.
-- Browser checks: **passed** against the production Node build at 320px, 390px and 1440px. All three pages returned complete HTML, refreshed with JavaScript disabled, made no external requests and had no horizontal overflow. Cross-page navigation, `.html` redirects, unknown-route 404, skip link and landing-footer navigation passed. Desktop and mobile screenshots were inspected.
+- Browser checks: **passed** against the production Node build at 320px, 390px and 1440px. All three pages returned complete HTML, refreshed with JavaScript disabled, made no external requests and had no horizontal overflow. Cross-page navigation, `.html` redirects, unknown-route 404, skip link and landing-footer navigation passed. Active profile-menu navigation also passed at 390px and 1440px with a generated local test identity and external traffic blocked. Desktop and mobile screenshots were inspected. Legacy DesktopNav/MobileNav components are unused, so no changes to those components are included; the active profile menu carries the in-app links.
 - Reproducible browser check: start the production build on port 5297 and run `node .qa/qa-legal-pages.mjs`; use `QA_BASE_URL` for another local server and `QA_SCREENSHOTS` for the output directory. Playwright uses the existing QA helper’s package discovery.
-- Full-repository `svelte-check`: **not clean** (366 errors and 260 warnings in 93 unrelated files); no diagnostics in the files changed for this task. These existing project diagnostics were not expanded into this work.
+- Full-repository `svelte-check`: **not clean** (366 errors and 260 warnings in 93 unrelated files); no diagnostics in the new legal modules; the existing profile component also retains its pre-existing accessibility warnings. These existing project diagnostics were not expanded into this work.
 - Svelte autofixer reports the repository’s custom `resolve()` wrapper as an unrecognized route resolver; links do use `src/lib/paths.ts` and browser navigation passed.
 
 ## Subsequent owner replies and comparison research

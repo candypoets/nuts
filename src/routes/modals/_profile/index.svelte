@@ -297,5 +297,20 @@
 				<div class="p-4 text-sm opacity-70">No communities found.</div>
 			{/if}
 		</div>
+
+		<nav
+			aria-label="Legal and support"
+			class="flex flex-wrap gap-x-5 gap-y-3 border-t pt-5 pb-8 text-sm"
+		>
+			<a href={resolve('/legal/privacy')} data-sveltekit-reload class="underline underline-offset-4"
+				>Privacy</a
+			>
+			<a href={resolve('/legal/terms')} data-sveltekit-reload class="underline underline-offset-4"
+				>Terms &amp; community rules</a
+			>
+			<a href={resolve('/legal/support')} data-sveltekit-reload class="underline underline-offset-4"
+				>Support</a
+			>
+		</nav>
 	</div>
 </div>

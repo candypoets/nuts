@@ -44,13 +44,4 @@
 		<Icon icon="material-symbols:chat-outline" class="text-3xl" />
 		<span class="btm-nav-label text-xs">Chat</span>
 	</a>
-	<a
-		href={resolve('/legal/support')}
-		data-sveltekit-reload
-		class=""
-		aria-label="Support, privacy and community rules"
-	>
-		<Icon icon="mdi:help-circle-outline" class="text-3xl" />
-		<span class="btm-nav-label text-xs">Support</span>
-	</a>
 </div>

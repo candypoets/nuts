@@ -1,5 +1,5 @@
 // Run against a locally built production server; see docs/legal-publication-review.md.
-import { launchBrowser } from './qa-lib.mjs';
+import { launchBrowser, randomKey, browserAccount, seedSession } from './qa-lib.mjs';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import assert from 'node:assert/strict';
@@ -82,6 +82,26 @@ import assert from 'node:assert/strict';
 			'PASS: aliases, unknown route, keyboard skip link, landing footer -> standalone privacy page'
 		);
 		await context.close();
+		for (const width of [390, 1440]) {
+			const profileContext = await browser.newContext({ viewport: { width, height: 900 } });
+			await profileContext.addInitScript(seedSession, browserAccount(randomKey()));
+			const profilePage = await profileContext.newPage();
+			await profilePage.route('**/*', (route) =>
+				route.request().url().startsWith(origin) ? route.continue() : route.abort()
+			);
+			await profilePage.routeWebSocket('**/*', (socket) => socket.close());
+			await profilePage.goto(origin + '/home/profile');
+			const supportLink = profilePage
+				.getByRole('navigation', { name: 'Legal and support' })
+				.getByRole('link', { name: 'Support', exact: true });
+			await supportLink.waitFor({ timeout: 20000 });
+			await supportLink.click();
+			await profilePage.waitForURL('**/legal/support');
+			assert.equal(await profilePage.locator('h1').textContent(), 'Support');
+			assert.equal(await profilePage.locator('script').count(), 0);
+			console.log(`PASS: active profile-menu navigation at ${width}px`);
+			await profileContext.close();
+		}
 	} finally {
 		await browser.close();
 	}
