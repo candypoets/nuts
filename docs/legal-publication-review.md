@@ -36,14 +36,24 @@ Protocol cross-checks:
 - [NIP-09 deletion requests](https://github.com/nostr-protocol/nips/blob/master/09.md): requests cannot guarantee deletion from all relays and clients.
 - [NIP-04 encrypted messages](https://github.com/nostr-protocol/nips/blob/master/04.md): encrypted content is accompanied by public event metadata.
 
-## Facts still needed
+## Current confirmations and remaining facts
 
-1. Source drafts and REVIEW.md: **received and reviewed**. Mailbox monitoring: **confirmed**. Remaining issues below are not resolved by the owner’s “yes” reply; no retention/provider/company facts accompanied that reply.
-2. The iOS implementation and deployed push backend: collected fields, token-to-account associations, payload contents, service providers, retention/removal rules, user controls, and account-deletion behavior. Do not import native claims into the web description.
-3. Production hosting, relay, media, payment, email, and any analytics/crash-reporting arrangements: responsible providers, applicable locations/transfers, and what each receives. Code defaults do not prove deployed settings.
-4. Retention periods **or actual retention criteria** for operator-controlled access/security logs, support/abuse email, uploaded media, payment records, claims/tombstones, and backups. No periods or deletion guarantees should be invented.
-5. The actual operator process for privacy requests, identity verification, deletion, abuse reports, moderation, and appeals. Confirm any stated response commitments and the service scope the operator can enforce.
-6. Any additional legal identity details, applicable privacy-rights information, processing purposes/bases, eligibility rules, contractual provisions, or child-safety provisions required by the original drafts. Have the operator resolve them; do not infer a jurisdiction or promise an unsupported process.
+Confirmed directly by the owner:
+
+- DUCHENE SARL operates `blossom.nuts.cash` and can remove hosted files on request.
+- No service logs are retained and no operator server backups are maintained. This does not describe device-local wallet recovery state or encrypted wallet backups on independent Nostr relays.
+- All support/privacy/abuse emails are kept, including resolved requests.
+- Nuts is a crypto wallet; the owner says they do not operate the payment service. The public wording now distinguishes the wallet from selected mints, Lightning-address services and checkout providers rather than attributing their records to DUCHENE SARL.
+- The contact is monitored; operator name and postal address were supplied.
+
+Remaining factual checks:
+
+1. **Embedded Lightning-address service deployment.** `src/hooks.server.ts` unconditionally constructs `LnutsHandler` and routes requests through it. That dependency initializes a database and exposes claim/payment endpoints. Separately, `src/lib/paymentService.ts` points community checkout to `payments.nuts.cash`. These are distinct code paths. Confirm whether the deployed website differs from this checkout or whether its embedded Lightning-address endpoints are unused/disabled. The owner’s statement resolves intended responsibility but does not establish which backend code actually runs. Do not state that DUCHENE SARL operates all payment providers or that the deployed application cannot store any payment-related records.
+2. **Media expiry.** Request-based removal is confirmed; whether files also expire automatically has not been supplied. Do not invent an expiry period.
+3. **Native push and deletion.** iOS-specific descriptions are supplied by the iOS agent, but actual push-service storage/cleanup and the released Delete account procedure have not been independently verified here. Keep native behavior separate from web behavior.
+4. **Operator infrastructure.** Media-host operator identity is now known. Infrastructure provider/processing location and native push arrangements are not established by comparing policies of other clients. Do not name unverified vendors or transfer mechanisms.
+
+Original source drafts and REVIEW.md remain preserved. The entries below describe earlier findings and confirmations chronologically; the current status above supersedes earlier unanswered retention questions.
 
 ## Implementation
 
@@ -97,3 +107,7 @@ Live checks during this task returned **404 for all three URLs**. The routes are
 - Owner supplied **DUCHENE SARL, 7 route de Mamer, Holzem**; added as supplied, without inventing a postcode or other legal details.
 - Owner asked to look at other Nostr clients. [Amethyst](https://github.com/vitorpamplona/amethyst/blob/main/PRIVACY.md) separates local client data from data sent to independently operated relays/media servers and notes public-network persistence. [Damus](https://github.com/damus-io/damus#privacy) discloses IP and public-key exposure to connected services. Those are useful presentation examples, not evidence of Nuts’ vendors, storage locations or backend deletion behavior. No competing client’s no-server/no-storage claim was copied.
 - The earlier iOS question concerned the native draft’s push registration and Delete account cleanup. It was clarified for the owner; the source material remains attributed rather than represented as observed released behavior.
+
+## Latest owner clarification
+
+The owner explicitly confirmed operation and request-based removal at blossom.nuts.cash, no retained logs, no server backups, and retention of all support emails. These facts have been incorporated into privacy and support. Wallet/network backups are distinguished from operator backups. Payment wording now describes independent providers as requested, while the embedded lnuts deployment discrepancy remains an internal factual check rather than an unsupported claim that the owner processes payments. No liability conclusion was inferred from the description “crypto wallet.”

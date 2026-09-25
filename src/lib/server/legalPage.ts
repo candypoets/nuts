@@ -67,7 +67,7 @@ ${legalReviewPending ? '<meta name="robots" content="noindex, nofollow">' : ''}
 <h1>${escapeHtml(document.title)}</h1>
 <p class="intro">${escapeHtml(document.intro)}</p>
 <p class="meta">DUCHENE SARL${legalReviewPending ? ' · Draft for review · No effective date' : ''}</p></div>
-${legalReviewPending ? '<aside class="draft" aria-label="Draft status"><strong>Draft — operator review required</strong><p>This is not a finalized policy or terms of service. Retention, provider arrangements and native iOS practices still need confirmation. Do not use this draft for App Store submission.</p></aside>' : ''}
+${legalReviewPending ? '<aside class="draft" aria-label="Draft status"><strong>Draft — operator review required</strong><p>This is not a finalized policy or terms of service. Some deployment details, media expiry and native iOS practices still need confirmation. Do not use this draft for App Store submission.</p></aside>' : ''}
 <div class="document-layout">
 <nav class="contents" aria-label="On this page"><p>On this page</p>${document.sections.map((section) => `<a href="#${section.id}">${escapeHtml(section.title)}</a>`).join('')}</nav>
 <article>${sections}</article>

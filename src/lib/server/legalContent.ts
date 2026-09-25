@@ -37,7 +37,7 @@ export const legalDocuments: Record<'privacy' | 'terms' | 'support', LegalDocume
 				title: 'Encrypted messages and uploaded media',
 				paragraphs: [
 					'The website encrypts direct-message content before publishing it to relays. Its NIP-04 message format leaves sender and recipient public keys, timestamps and other event metadata visible. Encryption of content does not make the communication anonymous. Recipients can retain or share messages.',
-					'Photos and videos are uploaded to your configured media host. The website supports Blossom and NIP-96 hosts and uses blossom.nuts.cash as its default upload endpoint. Uploading can begin when you add a file to the editor, before you publish the post. Removing it from the editor does not itself remove the uploaded file from the host.',
+					'Photos and videos are uploaded to your configured media host. The website supports Blossom and NIP-96 hosts. Its default upload endpoint, blossom.nuts.cash, is operated by DUCHENE SARL. You can request removal of a file hosted there by emailing thib.duchene@gmail.com with the file URL. Removal from this host cannot remove copies held elsewhere. Uploading can begin when you add a file to the editor, before you publish the post. Removing it from the editor does not itself remove the uploaded file from the host.',
 					'Media links may be public. Do not assume a file is private or encrypted because its link appears in an encrypted message. Media hosts receive uploaded files and associated request information; their storage and deletion practices also apply.'
 				]
 			},
@@ -54,7 +54,7 @@ export const legalDocuments: Record<'privacy' | 'terms' | 'support', LegalDocume
 				title: 'Wallet and community purchases',
 				paragraphs: [
 					'Wallet operations send the information needed for a payment to the selected Cashu mint, Lightning service or community checkout provider. The website stores ecash proofs and recovery state in browser storage and supports encrypted wallet backups on Nostr relays. Wallet information is therefore not exclusively device-local.',
-					'The Nuts Lightning-address service stores address claims and payment records. These can include your alias and public key, mint and relay details, invoice, amount, payment status, recipient identifiers, payment and quote references, timestamps, zap information and token-delivery data. Removing an address claim does not establish that its payment records are erased.',
+					'Nuts is a crypto wallet, not the operator of your chosen mint or payment service. When you use a Lightning-address or checkout service, that service can process address claims, invoices, amounts, recipient identifiers, payment references, statuses and token-delivery information. Its own privacy and retention practices apply. Clearing data in the wallet does not delete records held by that service.',
 					'Merchants and payment services also process purchase information under their own terms and policies. Do not put spendable tokens, private keys or recovery phrases into support requests.'
 				]
 			},
@@ -62,8 +62,8 @@ export const legalDocuments: Record<'privacy' | 'terms' | 'support', LegalDocume
 				id: 'purposes',
 				title: 'Why information is processed',
 				paragraphs: [
-					'Information is used to provide the features you request: publishing and retrieving content, delivering messages, hosting uploads, processing payments and maintaining wallet recovery state. Information you choose to send by email is needed to understand your support, privacy or abuse request.',
-					'The operator’s processing grounds, contact-handling practices and any processing required for security or legal obligations remain part of the outstanding review. This draft does not set a response-time or retention promise.'
+					'Information is used to provide the features you request: publishing and retrieving content, delivering messages, hosting uploads, sending payment requests to the services you choose and maintaining wallet recovery state. Information you choose to send by email is needed to understand your support, privacy or abuse request.',
+					'Support, privacy and abuse emails are retained in the monitored contact mailbox, including after a request is resolved. No automatic email-deletion schedule is applied. Contact us with a request concerning correspondence you have sent; no response-time or automatic-erasure promise is made here.'
 				]
 			},
 			{
@@ -72,7 +72,7 @@ export const legalDocuments: Record<'privacy' | 'terms' | 'support', LegalDocume
 				paragraphs: [
 					'Browser storage and caches support operation and recovery. Clearing website data can remove locally held identity and wallet information; move balances and preserve recovery information first. Clearing local data or signing out does not delete events from relays, media from hosts, or backend payment records.',
 					'Nostr deletion requests cannot guarantee removal from independent relays, other clients, archives or recipients. Uploaded media requires separate handling by its host. Contact thib.duchene@gmail.com to request help with information controlled by DUCHENE SARL. Do not rely on an iOS Delete account instruction as a web feature.',
-					'Retention criteria and deletion procedures for operator-controlled logs, media, payment records, support correspondence and backups have not yet been confirmed. No retention period or complete-erasure guarantee is made in this draft.'
+					'DUCHENE SARL does not retain service logs or maintain server backups. This is separate from data stored on your device and encrypted wallet backups published to Nostr relays. Support correspondence is retained. Files hosted at blossom.nuts.cash can be removed on request; an automatic file-expiry period has not been confirmed. Independent relay, mint, payment and media services apply their own practices.'
 				]
 			},
 			{
@@ -179,7 +179,7 @@ export const legalDocuments: Record<'privacy' | 'terms' | 'support', LegalDocume
 				paragraphs: [
 					'For support, abuse reports and privacy requests, email thib.duchene@gmail.com using the links below. If no email application opens, copy the address into your email service.',
 					'For website issues, include the page URL, browser and device version, and steps to reproduce the problem. For iOS issues, include the Nuts app version and iOS version. Redact private information from screenshots. Never include private keys, wallet recovery phrases or spendable ecash tokens.',
-					'This mailbox is monitored for support, privacy and abuse requests. No response time is promised in this draft.'
+					'This mailbox is monitored for support, privacy and abuse requests. Correspondence is retained, including resolved requests. No response time is promised in this draft.'
 				]
 			},
 			{
@@ -201,7 +201,7 @@ export const legalDocuments: Record<'privacy' | 'terms' | 'support', LegalDocume
 				id: 'privacy',
 				title: 'Privacy and deletion requests',
 				paragraphs: [
-					'For information held by DUCHENE SARL, use the privacy email link below. Describe the information and the action you are requesting without sending account secrets.',
+					'For information held by DUCHENE SARL, use the privacy email link below. For removal of a file hosted at blossom.nuts.cash, include its URL. Describe the information and the action you are requesting without sending account secrets. Support correspondence is retained; email us to request deletion of your correspondence.',
 					'Before clearing browser data, transfer your wallet balance and preserve recovery information. Clearing your browser is not an account-deletion request and does not delete backend records, relay events or hosted media. Public content may remain on independent services.',
 					'The iOS draft describes Profile → Delete account. That native procedure and its push-service cleanup are awaiting verification; it is not a confirmed web feature. The privacy page explains the current review status and deletion limitations.'
 				]
