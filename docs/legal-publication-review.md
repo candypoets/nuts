@@ -36,7 +36,7 @@ Protocol cross-checks:
 - [NIP-09 deletion requests](https://github.com/nostr-protocol/nips/blob/master/09.md): requests cannot guarantee deletion from all relays and clients.
 - [NIP-04 encrypted messages](https://github.com/nostr-protocol/nips/blob/master/04.md): encrypted content is accompanied by public event metadata.
 
-## Current confirmations and remaining facts
+## Earlier confirmations and remaining facts (superseded by live audit below)
 
 Confirmed directly by the owner:
 
@@ -111,3 +111,17 @@ Live checks during this task returned **404 for all three URLs**. The routes are
 ## Latest owner clarification
 
 The owner explicitly confirmed operation and request-based removal at blossom.nuts.cash, no retained logs, no server backups, and retention of all support emails. These facts have been incorporated into privacy and support. Wallet/network backups are distinguished from operator backups. Payment wording now describes independent providers as requested, while the embedded lnuts deployment discrepancy remains an internal factual check rather than an unsupported claim that the owner processes payments. No liability conclusion was inferred from the description “crypto wallet.”
+
+## Live deployment audit — 30 September 2026 (current status)
+
+The owner confirmed Servers.guru hosting, intended one-year media expiry, operation of the Lightning-address proxy (not the underlying Lightning service), and forwarding notifications from user-selected relays. Read-only inspection of the actual running services now establishes:
+
+- **Website deployment is accessible on this machine.** Container `nutscash` runs the main image under `/root/deployment/docker-compose.yml`. Its Watchtower label is enabled; Watchtower polls the registry every 60 seconds. The established release path is main-branch GitHub Docker publication followed by Watchtower recreation.
+- **Media expiry conflicts with the stated year.** The active Blossom configuration mounted from `/root/deployment/config/blossom-config.yml` specifies text/images one month, videos two weeks, and model/other files one week. The file predates the container start. No production retention setting was changed for this documentation task. The public page names the discrepancy, rather than making a false year-long retention promise.
+- **Runtime logs exist.** The website, Blossom and push containers use Docker json-file logging, with max-size 1g / max-file 1. Their actual log files are present and nonempty. This audit checked file metadata, not user log contents. The earlier owner statement of no logs cannot be used as a blanket factual claim.
+- **Proxy data persists.** `/root/deployment/data/lnuts/lnuts.db` contains claims, claim_tombstones and payments tables. Only schema names were inspected, not user records. Providing a proxy rather than the underlying payment service does not remove its operational storage.
+- **Push routing metadata persists.** The running push database contains devices, device_relays and deliveries tables. Source defines public key, platform, token, APNs topic and registration times; relay choices; and event IDs / delivery times. Unregistration removes device, relay and delivery rows. Deduplication entries older than seven days are pruned when a new delivery is reserved, not on a guaranteed seven-day timer. No full notification-message table is defined.
+- **Native preview behavior is documented for the running image.** `NATIVE_NOTIFICATION_PREVIEWS.md` names the same image SHA as the live container. It describes a bounded in-memory preview/profile cache, not a persistent full-content archive. Native push integration and authenticated unregistration are documented in `NATIVE_IOS_PUSH.md`. Native controls in the supplied iOS-agent draft remain explicitly scoped to iOS.
+- **Deployment backups exist.** `/root/backups/nuts-native-push-20260916T144344Z` and `/root/backups/nuts-push-previews-20260929T133904Z` are present and contain files. The native-push handoff documents database/source/config backup use. No backup contents were read, restored or removed.
+
+Resolved: provider name, native notification mechanism and the distinction between the wallet/proxy and external payment services. Remaining content questions are narrowly operational: reconcile intended media expiry with the deployed settings; establish retention/removal of proxy operational records and deployment backups. A particular hosting country is not inferred from the provider name. These remaining questions keep the draft notice, but do not prevent publishing clearly labeled draft pages.

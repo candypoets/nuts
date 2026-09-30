@@ -46,7 +46,7 @@ export const legalDocuments: Record<'privacy' | 'terms' | 'support', LegalDocume
 				title: 'Network requests and notifications',
 				paragraphs: [
 					'Using Nuts connects your browser to services needed for the features you select, including relays, media hosts, mints, signers and payment services. Requests can disclose your IP address and requested resources to the receiving service. Displaying remote images, embedded media or fonts can also contact their hosts. Link previews may be fetched through the Nuts backend; a relay proxy may relay connections when configured.',
-					'The website displays in-app notifications. Background push-token registration was not found in the reviewed web implementation. The iOS notification service described in the native-app draft is a separate system, not a description of browser notifications.'
+					'The website displays in-app notifications. Native iOS push notifications use a separate notification service, described below; this is not a description of browser notifications.'
 				]
 			},
 			{
@@ -54,7 +54,7 @@ export const legalDocuments: Record<'privacy' | 'terms' | 'support', LegalDocume
 				title: 'Wallet and community purchases',
 				paragraphs: [
 					'Wallet operations send the information needed for a payment to the selected Cashu mint, Lightning service or community checkout provider. The website stores ecash proofs and recovery state in browser storage and supports encrypted wallet backups on Nostr relays. Wallet information is therefore not exclusively device-local.',
-					'Nuts is a crypto wallet, not the operator of your chosen mint or payment service. When you use a Lightning-address or checkout service, that service can process address claims, invoices, amounts, recipient identifiers, payment references, statuses and token-delivery information. Its own privacy and retention practices apply. Clearing data in the wallet does not delete records held by that service.',
+					'Nuts is a crypto wallet. Its Lightning-address service acts as a proxy to external mint and Lightning services; the underlying Lightning payment service is not provided by the Nuts server. To provide an address and track delivery, the proxy stores address claims and operational records that can include invoices, amounts, recipient identifiers, payment references, statuses and token-delivery information. External payment and checkout providers have their own practices. Clearing data in the wallet does not delete the proxy’s records or records held by those providers.',
 					'Merchants and payment services also process purchase information under their own terms and policies. Do not put spendable tokens, private keys or recovery phrases into support requests.'
 				]
 			},
@@ -72,15 +72,15 @@ export const legalDocuments: Record<'privacy' | 'terms' | 'support', LegalDocume
 				paragraphs: [
 					'Browser storage and caches support operation and recovery. Clearing website data can remove locally held identity and wallet information; move balances and preserve recovery information first. Clearing local data or signing out does not delete events from relays, media from hosts, or backend payment records.',
 					'Nostr deletion requests cannot guarantee removal from independent relays, other clients, archives or recipients. Uploaded media requires separate handling by its host. Contact thib.duchene@gmail.com to request help with information controlled by DUCHENE SARL. Do not rely on an iOS Delete account instruction as a web feature.',
-					'DUCHENE SARL does not retain service logs or maintain server backups. This is separate from data stored on your device and encrypted wallet backups published to Nostr relays. Support correspondence is retained. Files hosted at blossom.nuts.cash can be removed on request; an automatic file-expiry period has not been confirmed. Independent relay, mint, payment and media services apply their own practices.'
+					'The hosting environment retains runtime diagnostic logs, and server-local deployment backups exist. These are separate from device-local wallet recovery data and encrypted wallet backups on Nostr relays. Runtime logs rotate by size rather than by a guaranteed time limit. Support correspondence is retained. Files hosted at blossom.nuts.cash can be removed on request and are subject to automatic expiry: the current configuration specifies one month for text and images, two weeks for video, and one week for other file types. The operator has stated an intended one-year expiry; that differs from the running configuration and remains under review. Retention and removal of proxy records and deployment backups also remain under review. Independent relay, mint, payment and media services apply their own practices.'
 				]
 			},
 			{
 				id: 'ios',
-				title: 'iOS-specific practices awaiting verification',
+				title: 'iOS notifications and account controls',
 				paragraphs: [
-					'The native-app draft describes local Keychain storage of imported signing keys, encrypted messages and wallet backups, and optional notifications delivered by Apple. It describes authenticated push registration with a device token, app/platform information and relay selection. These are iOS-specific descriptions, not verified statements about the website.',
-					'The draft also describes Profile → Delete account, including a push-service acknowledgment before local deletion when a token exists. The released iOS app and deployed push service must be checked before this behavior can be treated as a confirmed deletion procedure. Native permissions, push data retention and provider arrangements remain under review.'
+					'In the iOS app, imported signing keys are stored locally in Keychain. Optional push notifications are delivered through Apple. The Nuts notification service subscribes to the relays selected by the user and forwards matching notifications. It stores the public key, device token, platform/app routing information and relay selections needed for delivery. It also stores event identifiers and delivery timestamps to prevent duplicate notifications. It is a forwarding service, not a persistent archive of full notification content; previews and profile information can be cached temporarily in memory.',
+					'Device unregistration removes its registration, relay selections and delivery-deduplication records from the active notification database. Delivery identifiers older than seven days are cleaned up when new delivery records are processed, so this is not a guarantee of erasure at an exact deadline or from backups. The iOS app’s Profile → Delete account workflow requests a deleted Nostr profile and clears local identity and wallet data; when a push token exists, it requires push-service acknowledgment first. Move balances and preserve recovery information before deletion. This native workflow is not a web feature and cannot erase independently held public events or media.'
 				]
 			},
 			{
@@ -88,14 +88,14 @@ export const legalDocuments: Record<'privacy' | 'terms' | 'support', LegalDocume
 				title: 'Your choices and privacy requests',
 				paragraphs: [
 					'You can choose connected services such as relays, mints and a signer. Review what you publish and the policies of those services. Depending on applicable law, you may have rights to access, correct, erase, restrict or object to processing, receive portable data, withdraw consent, and complain to a supervisory authority.',
-					'Contact thib.duchene@gmail.com for privacy requests. Include enough non-secret information to identify your request. Do not email your private key, recovery phrase or spendable tokens. The operator’s verification and request-handling process still needs confirmation.'
+					'Contact thib.duchene@gmail.com for privacy requests. Include enough non-secret information to identify your request. Do not email your private key, recovery phrase or spendable tokens. We may ask for non-secret information needed to identify the account or content concerned.'
 				]
 			},
 			{
 				id: 'international',
 				title: 'International services and changes',
 				paragraphs: [
-					'Nostr is a global network. Independent services you choose may process information in other countries. The operator’s own service-provider identities, processing locations and applicable transfer arrangements must be confirmed before this policy is finalized.',
+					'The website and media service are hosted using Servers.guru. The contact mailbox uses Gmail, and native iOS push delivery uses Apple. Nostr is a global network; independent relays, mints and other services you choose may process information in other countries. Naming the hosting provider does not establish a particular country for this deployment; no specific server location or transfer safeguard is asserted here.',
 					'Once finalized, updates will be published at this address with an updated date and notice where required. This draft has no effective date.'
 				]
 			}
@@ -132,7 +132,7 @@ export const legalDocuments: Record<'privacy' | 'terms' | 'support', LegalDocume
 				title: 'Reports and blocking',
 				paragraphs: [
 					'To report abuse to the Nuts operator, email thib.duchene@gmail.com. Include the public event or profile identifier and a description. Do not send illegal media as an attachment. If someone is in immediate danger, contact emergency services directly.',
-					'The iOS draft describes post/profile reporting and blocking controls; availability in the released app remains to be verified. These instructions do not establish an equivalent web control. Nostr reports, when published as signed public events, are public. Hiding or blocking a profile in a client cannot stop independent clients from accessing public content.',
+					'The iOS app provides post/profile reporting and blocking controls. These native instructions do not establish an equivalent web control. Nostr reports, when published as signed public events, are public. Hiding or blocking a profile in a client cannot stop independent clients from accessing public content.',
 					'The proposed rules allow DUCHENE SARL to restrict content or access to services under its control to address abuse or legal obligations. The moderation, escalation and appeal process must be confirmed before these terms are finalized.'
 				]
 			},
@@ -156,7 +156,7 @@ export const legalDocuments: Record<'privacy' | 'terms' | 'support', LegalDocume
 				title: 'Public-network limits and deletion',
 				paragraphs: [
 					'Public Nostr content can be copied by others. Clearing local identity or wallet data does not guarantee removal from independent relays, clients or media hosts. Nostr deletion requests cannot ensure that every copy disappears. Transfer balances and preserve recovery information before clearing local data.',
-					'The native-app draft’s account-deletion procedure is iOS-specific and awaits verification. For information controlled by DUCHENE SARL, use the privacy contact on the support page.'
+					'The native app’s Profile → Delete account procedure is iOS-specific; it requests a deleted profile and removes local identity and wallet data. For information controlled by DUCHENE SARL, use the privacy contact on the support page.'
 				]
 			},
 			{
@@ -187,7 +187,7 @@ export const legalDocuments: Record<'privacy' | 'terms' | 'support', LegalDocume
 				title: 'Report abuse',
 				paragraphs: [
 					'Email the public event or profile identifier, relevant link and a description of the problem. Do not attach illegal content or expose someone else’s private information unnecessarily. Contact emergency services directly if someone is in immediate danger.',
-					'The iOS draft describes Report in a post menu or profile and blocking controls. These native controls still need release verification; the same controls have not been established for the website. Nostr reports published as public events can be read by others. Email is the contact route provided here.'
+					'On iOS, use Report in a post menu or profile, or the blocking controls. For the website, use the email contact below. Nostr reports published as public events can be read by others. Email is the contact route provided here.'
 				]
 			},
 			{
@@ -203,7 +203,7 @@ export const legalDocuments: Record<'privacy' | 'terms' | 'support', LegalDocume
 				paragraphs: [
 					'For information held by DUCHENE SARL, use the privacy email link below. For removal of a file hosted at blossom.nuts.cash, include its URL. Describe the information and the action you are requesting without sending account secrets. Support correspondence is retained; email us to request deletion of your correspondence.',
 					'Before clearing browser data, transfer your wallet balance and preserve recovery information. Clearing your browser is not an account-deletion request and does not delete backend records, relay events or hosted media. Public content may remain on independent services.',
-					'The iOS draft describes Profile → Delete account. That native procedure and its push-service cleanup are awaiting verification; it is not a confirmed web feature. The privacy page explains the current review status and deletion limitations.'
+					'On iOS, open Profile → Delete account. Move your balance and preserve recovery information first. If a push token exists, the app requires acknowledgment of unregistration before deleting local account data. This is an iOS-only workflow; web users can contact us using the privacy email link. Public content, independently hosted media and other backend records are not automatically erased by local account deletion.'
 				]
 			}
 		]
