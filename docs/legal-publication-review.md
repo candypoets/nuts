@@ -125,3 +125,7 @@ The owner confirmed Servers.guru hosting, intended one-year media expiry, operat
 - **Deployment backups exist.** `/root/backups/nuts-native-push-20260916T144344Z` and `/root/backups/nuts-push-previews-20260929T133904Z` are present and contain files. The native-push handoff documents database/source/config backup use. No backup contents were read, restored or removed.
 
 Resolved: provider name, native notification mechanism and the distinction between the wallet/proxy and external payment services. Remaining content questions are narrowly operational: reconcile intended media expiry with the deployed settings; establish retention/removal of proxy operational records and deployment backups. A particular hosting country is not inferred from the provider name. These remaining questions keep the draft notice, but do not prevent publishing clearly labeled draft pages.
+
+## Video retention change — 30 September 2026
+
+At the operator’s request, changed the production Blossom video rule from `2 weeks` to `1 month` in `/root/deployment/config/blossom-config.yml`. Validated with the deployed configuration loader and restarted only Blossom. Its duration parser resolves one month to 2,592,000 seconds (30 days). The deployed pruning code measures expiry from last access, falling back to upload time for never-accessed files. Text/images remain one month; model/other files remain one week. The earlier audit above records the previous configuration. Updated the privacy draft to reflect this change; unrelated retention questions remain open.
